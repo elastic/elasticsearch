@@ -66,13 +66,6 @@ public class Netty4HttpHeaderValidator extends ChannelDuplexHandler {
         }
     }
 
-    @Override
-    public void channelReadComplete(ChannelHandlerContext ctx) throws Exception {
-        if (validatingRequest == false) {
-            ctx.fireChannelReadComplete();
-        }
-    }
-
     void validate(ChannelHandlerContext ctx, HttpRequest request) {
         assert Transports.assertDefaultThreadContext(threadContext);
         droppingContent = false;
@@ -116,7 +109,6 @@ public class Netty4HttpHeaderValidator extends ChannelDuplexHandler {
             }
             validatingRequest = false;
             ctx.fireChannelRead(request);
-            ctx.fireChannelReadComplete();
         });
     }
 

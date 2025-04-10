@@ -51,9 +51,14 @@ public class Netty4HttpRequestBodyStreamTests extends ESTestCase {
         channel = new EmbeddedChannel();
         channel.pipeline().addLast("flow", new FlowControlHandler());
         channel.config().setAutoRead(false);
-        stream = new Netty4HttpRequestBodyStream(channel, threadContext);
-        stream.setHandler(discardHandler); // set default handler, each test might override one
         channel.pipeline().addLast(new SimpleChannelInboundHandler<HttpContent>(false) {
+            @Override
+            public void handlerAdded(ChannelHandlerContext ctx) throws Exception {
+                stream = new Netty4HttpRequestBodyStream(ctx, threadContext);
+                stream.setHandler(discardHandler); // set default handler, each test might override one
+                super.handlerAdded(ctx);
+            }
+
             @Override
             protected void channelRead0(ChannelHandlerContext ctx, HttpContent msg) {
                 stream.handleNettyContent(msg);
@@ -115,8 +120,13 @@ public class Netty4HttpRequestBodyStreamTests extends ESTestCase {
             eventLoop.submit(() -> {
                 channel = new EmbeddedChannel(new FlowControlHandler());
                 channel.config().setAutoRead(false);
-                stream = new Netty4HttpRequestBodyStream(channel, threadContext);
                 channel.pipeline().addLast(new SimpleChannelInboundHandler<HttpContent>(false) {
+                    @Override
+                    public void handlerAdded(ChannelHandlerContext ctx) throws Exception {
+                        stream = new Netty4HttpRequestBodyStream(ctx, threadContext);
+                        super.handlerAdded(ctx);
+                    }
+
                     @Override
                     protected void channelRead0(ChannelHandlerContext ctx, HttpContent msg) {
                         stream.handleNettyContent(msg);

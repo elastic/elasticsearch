@@ -152,6 +152,7 @@ public class Netty4HttpContentSizeHandler extends ChannelInboundHandlerAdapter {
     private void handleContent(ChannelHandlerContext ctx, HttpContent msg) {
         if (ignoreContent) {
             msg.release();
+            ctx.read();
         } else {
             currentContentLength += msg.content().readableBytes();
             if (currentContentLength > maxContentLength) {

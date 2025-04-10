@@ -9,8 +9,8 @@
 
 package org.elasticsearch.http.netty4;
 
-import io.netty.channel.Channel;
 import io.netty.channel.ChannelFutureListener;
+import io.netty.channel.ChannelHandlerContext;
 import io.netty.handler.codec.http.HttpContent;
 import io.netty.handler.codec.http.LastHttpContent;
 
@@ -27,19 +27,19 @@ import java.util.List;
  */
 public class Netty4HttpRequestBodyStream implements HttpBody.Stream {
 
-    private final Channel channel;
     private final List<ChunkHandler> tracingHandlers = new ArrayList<>(4);
     private final ThreadContext threadContext;
+    private final ChannelHandlerContext ctx;
     private boolean closing = false;
     private HttpBody.ChunkHandler handler;
     private ThreadContext.StoredContext requestContext;
     private final ChannelFutureListener closeListener = future -> doClose();
 
-    public Netty4HttpRequestBodyStream(Channel channel, ThreadContext threadContext) {
-        this.channel = channel;
+    public Netty4HttpRequestBodyStream(ChannelHandlerContext ctx, ThreadContext threadContext) {
+        this.ctx = ctx;
         this.threadContext = threadContext;
         this.requestContext = threadContext.newStoredContext();
-        Netty4Utils.addListener(channel.closeFuture(), closeListener);
+        Netty4Utils.addListener(ctx.channel().closeFuture(), closeListener);
     }
 
     @Override
@@ -58,21 +58,21 @@ public class Netty4HttpRequestBodyStream implements HttpBody.Stream {
         tracingHandlers.add(chunkHandler);
     }
 
-    private void scheduleRead() {
-        channel.eventLoop().execute(channel::read);
+    private void read() {
+        ctx.channel().eventLoop().execute(ctx::read);
     }
 
     @Override
     public void next() {
         assert handler != null : "handler must be set before requesting next chunk";
         requestContext = threadContext.newStoredContext();
-        scheduleRead();
+        read();
     }
 
     public void handleNettyContent(HttpContent httpContent) {
         if (closing) {
             httpContent.release();
-            scheduleRead();
+            read();
         } else {
             try (var ignored = threadContext.restoreExistingContext(requestContext)) {
                 var isLast = httpContent instanceof LastHttpContent;
@@ -82,8 +82,8 @@ public class Netty4HttpRequestBodyStream implements HttpBody.Stream {
                 }
                 handler.onNext(buf, isLast);
                 if (isLast) {
-                    scheduleRead();
-                    channel.closeFuture().removeListener(closeListener);
+                    read();
+                    ctx.channel().closeFuture().removeListener(closeListener);
                 }
             }
         }
@@ -91,10 +91,10 @@ public class Netty4HttpRequestBodyStream implements HttpBody.Stream {
 
     @Override
     public void close() {
-        if (channel.eventLoop().inEventLoop()) {
+        if (ctx.channel().eventLoop().inEventLoop()) {
             doClose();
         } else {
-            channel.eventLoop().submit(this::doClose);
+            ctx.channel().eventLoop().submit(this::doClose);
         }
     }
 
@@ -108,6 +108,6 @@ public class Netty4HttpRequestBodyStream implements HttpBody.Stream {
                 handler.close();
             }
         }
-        scheduleRead();
+        read();
     }
 }

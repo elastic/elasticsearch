@@ -23,7 +23,7 @@ import java.util.concurrent.TimeUnit;
 /**
  * When channel auto-read is disabled handlers are responsible to read from channel.
  * But it's hard to detect when read is missing. This helper class print warnings
- * when no reads where detected in given time interval. Normally, in tests, 30 seconds is enough
+ * when no reads where detected in given time interval. Normally, in tests, 10 seconds is enough
  * to avoid test hang for too long, but can be increased if needed.
  */
 class MissingReadDetector extends ChannelDuplexHandler {
@@ -32,8 +32,8 @@ class MissingReadDetector extends ChannelDuplexHandler {
 
     private final long interval;
     private final TimeProvider timer;
-    private long reqTimeMs;
-    private long respTimeMs;
+    private boolean pendingRead;
+    private long lastRead;
     private ScheduledFuture<?> checker;
 
     MissingReadDetector(TimeProvider timer, long missingReadInterval) {
@@ -44,14 +44,14 @@ class MissingReadDetector extends ChannelDuplexHandler {
     @Override
     public void handlerAdded(ChannelHandlerContext ctx) throws Exception {
         checker = ctx.channel().eventLoop().scheduleAtFixedRate(() -> {
-            if (respTimeMs >= reqTimeMs) { // stale read
+            if (pendingRead == false) {
                 long now = timer.absoluteTimeInMillis();
-                if (now >= respTimeMs + interval) {
-                    logger.warn("haven't read from channel for {}", (now - respTimeMs));
+                if (now >= lastRead + interval) {
+                    logger.warn("chan-id={} haven't read from channel for [{}ms]", ctx.channel().id(), (now - lastRead));
                 }
             }
         }, interval, interval, TimeUnit.MILLISECONDS);
-        super.channelRegistered(ctx);
+        super.handlerAdded(ctx);
     }
 
     @Override
@@ -59,18 +59,19 @@ class MissingReadDetector extends ChannelDuplexHandler {
         if (checker != null) {
             FutureUtils.cancel(checker);
         }
-        super.channelUnregistered(ctx);
+        super.handlerRemoved(ctx);
     }
 
     @Override
     public void read(ChannelHandlerContext ctx) throws Exception {
-        reqTimeMs = timer.absoluteTimeInMillis();
-        super.read(ctx);
+        pendingRead = true;
+        ctx.read();
     }
 
     @Override
     public void channelRead(ChannelHandlerContext ctx, Object msg) throws Exception {
-        respTimeMs = timer.absoluteTimeInMillis();
-        super.channelRead(ctx, msg);
+        pendingRead = false;
+        lastRead = timer.absoluteTimeInMillis();
+        ctx.fireChannelRead(msg);
     }
 }

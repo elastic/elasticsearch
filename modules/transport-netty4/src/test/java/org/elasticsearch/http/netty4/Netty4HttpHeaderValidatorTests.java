@@ -15,9 +15,11 @@ import io.netty.channel.embedded.EmbeddedChannel;
 import io.netty.handler.codec.http.DefaultHttpContent;
 import io.netty.handler.codec.http.DefaultHttpRequest;
 import io.netty.handler.codec.http.DefaultLastHttpContent;
+import io.netty.handler.codec.http.FullHttpRequest;
 import io.netty.handler.codec.http.HttpContent;
 import io.netty.handler.codec.http.HttpMethod;
 import io.netty.handler.codec.http.HttpRequest;
+import io.netty.handler.codec.http.HttpRequestDecoder;
 import io.netty.handler.codec.http.HttpVersion;
 import io.netty.handler.codec.http.LastHttpContent;
 import io.netty.handler.flow.FlowControlHandler;
@@ -124,6 +126,25 @@ public class Netty4HttpHeaderValidatorTests extends ESTestCase {
 
         channel.read();
         assertTrue(channel.readInbound() instanceof LastHttpContent);
+    }
+
+    public void testWithFlowControlAndAggregator() {
+        channel.pipeline().addFirst(new FlowControlHandler());
+        channel.pipeline().addLast(new Netty4HttpAggregator(8192, (req) -> true, new HttpRequestDecoder()));
+
+        channel.writeInbound(newHttpRequest());
+        channel.writeInbound(newHttpContent());
+        channel.writeInbound(newLastHttpContent());
+
+        channel.read();
+        assertNull("should ignore read while validating", channel.readInbound());
+
+        var validationRequest = validatorRequestQueue.poll();
+        assertNotNull(validationRequest);
+        validationRequest.listener.onResponse(null);
+        channel.runPendingTasks();
+
+        assertTrue(channel.readInbound() instanceof FullHttpRequest);
     }
 
     record ValidationRequest(HttpRequest request, Channel channel, ActionListener<Void> listener) {}

@@ -137,10 +137,7 @@ public class Netty4HttpPipeliningHandler extends ChannelDuplexHandler {
                         netty4HttpRequest = new Netty4HttpRequest(readSequence++, fullHttpRequest);
                         currentRequestStream = null;
                     } else {
-                        var contentStream = new Netty4HttpRequestBodyStream(
-                            ctx.channel(),
-                            serverTransport.getThreadPool().getThreadContext()
-                        );
+                        var contentStream = new Netty4HttpRequestBodyStream(ctx, serverTransport.getThreadPool().getThreadContext());
                         currentRequestStream = contentStream;
                         netty4HttpRequest = new Netty4HttpRequest(readSequence++, request, contentStream);
                     }
@@ -155,10 +152,8 @@ public class Netty4HttpPipeliningHandler extends ChannelDuplexHandler {
                 }
             }
         } finally {
-            if (msg instanceof HttpRequest httpRequest) {
-                if (httpRequest instanceof FullHttpRequest || httpRequest.decoderResult().isFailure()) {
-                    ctx.channel().eventLoop().execute(ctx::read);
-                }
+            if (currentRequestStream == null) {
+                ctx.channel().eventLoop().execute(ctx::read);
             }
             activityTracker.stopActivity();
         }
@@ -509,7 +504,6 @@ public class Netty4HttpPipeliningHandler extends ChannelDuplexHandler {
         } else {
             serverTransport.onException(channel, (Exception) cause);
         }
-        ctx.read();
     }
 
     @Override

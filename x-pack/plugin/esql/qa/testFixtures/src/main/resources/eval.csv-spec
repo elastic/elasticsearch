@@ -636,4 +636,52 @@ row foo = "Bar" | where foo rlike "(?i)Ba.*"
 foo:keyword
 ;
 
+evalAfterAvgGroupingUsingSameName
+from employees
+| stats avg = avg(salary) by gender 
+| keep avg 
+| eval avg = 12
+;
+
+avg:integer
+12
+12
+12
+;
+
+evalAfterGroupingUsingSameName
+row foo = [10,11,9], bar = [1,2,3]
+| mv_expand foo
+| mv_expand bar 
+| stats this = max(foo) by bar 
+| keep this 
+| eval this = 12
+;
+
+this:integer
+12
+12
+12
+;
+
+evalAfterGroupingUsingSameName2
+from employees 
+| stats count = count(emp_no) by gender, is_rehired 
+| keep count 
+| rename count as x 
+| keep x 
+| eval x = 12
+;
+
+x:integer
+12
+12
+12
+12
+12
+12
+12
+12
+12
+;
 

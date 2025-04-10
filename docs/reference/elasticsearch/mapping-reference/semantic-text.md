@@ -109,10 +109,30 @@ to create the endpoint. If not specified, the {{infer}} endpoint defined by
 `inference_id` will be used at both index and query time.
 
 `chunking_settings`
-:   (Optional, object) Sets chunking settings that will override the settings
-configured by the `inference_id` endpoint.
-See [chunking settings attributes](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-inference-put)
-in the {{infer}} API documentation for a complete list of available options.
+:   (Optional, object) Settings for chunking text into smaller passages.
+If specified, these will override the chunking settings set in the {infer-cap}
+endpoint associated with `inference_id` will be used.
+If chunking settings are updated, they will not be applied to existing documents
+until they are reindexed.
+
+::::{dropdown} Valid values for `chunking_settings`
+`type`
+:   Indicates the type of chunking strategy to use. Valid values are `word` or
+`sentence`. Required.
+
+`max_chunk_size`
+:   The maximum number of works in a chunk. Required.
+
+`overlap`
+:   The number of overlapping words allowed in chunks. This cannot be defined as
+more than half of the `max_chunk_size`. Required for `word` type chunking
+settings.
+
+`sentence_overlap`
+:   The number of overlapping sentences allowed in chunks. Valid values are `0`
+or `1`. Required for `sentence` type chunking settings
+
+::::
 
 ## {{infer-cap}} endpoint validation [infer-endpoint-validation]
 

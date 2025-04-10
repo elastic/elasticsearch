@@ -163,7 +163,7 @@ public class EsqlExecutionInfo implements ChunkedToXContentObject, Writeable {
     }
 
     public TimeValue planningTookTime() {
-        return planningTimeSpan.toTimeValue();
+        return planningTimeSpan != null ? planningTimeSpan.toTimeValue() : null;
     }
 
     /**

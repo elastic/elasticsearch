@@ -116,6 +116,7 @@ class S3BlobStore implements BlobStore {
         S3RepositoriesMetrics s3RepositoriesMetrics,
         BackoffPolicy retryThrottledDeleteBackoffPolicy
     ) {
+        // TODO: add a projectId field, maybe null for cluster level blobstore
         this.service = service;
         this.bigArrays = bigArrays;
         this.bucket = bucket;
@@ -311,6 +312,7 @@ class S3BlobStore implements BlobStore {
     }
 
     public AmazonS3Reference clientReference() {
+        // TODO: change to service.client(projectId, repositoryMetadata)
         return service.client(repositoryMetadata);
     }
 

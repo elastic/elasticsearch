@@ -168,14 +168,19 @@ class S3Service implements Closeable {
     }
 
     /**
-     * Delegates to {@link #client(RepositoryMetadata)} if per-project client is disabled.
+     * Delegates to {@link #client(RepositoryMetadata)} when
+     * 1. per-project client is disabled
+     * 2. or when the blobstore is cluster level (projectId = null)
      * Otherwise, attempts to retrieve a per-project client by the project-id and repository metadata from the
-     * per-project client manager.
-     * Throws if project-id or the client does not exist. The client maybe initialized lazily.
+     * per-project client manager. Throws if project-id or the client does not exist. The client maybe initialized lazily.
      */
     public AmazonS3Reference client(ProjectId projectId, RepositoryMetadata repositoryMetadata) {
         if (perProjectClientManager == null) {
+            // Multi-Project is disabled and we have a single default project
             assert ProjectId.DEFAULT.equals(projectId) : projectId;
+            return client(repositoryMetadata);
+        } else if (projectId == null) {
+            // Multi-Project is enabled and we are retrieving a client for the cluster level blobstore
             return client(repositoryMetadata);
         } else {
             return perProjectClientManager.client(projectId, repositoryMetadata);

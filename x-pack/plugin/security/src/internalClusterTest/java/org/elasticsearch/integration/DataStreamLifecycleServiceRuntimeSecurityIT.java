@@ -159,6 +159,9 @@ public class DataStreamLifecycleServiceRuntimeSecurityIT extends SecurityIntegTe
             Map<String, String> indicesAndErrors = collectErrorsFromStoreAsMap();
             // Both the backing and failures indices should have errors
             assertThat(indicesAndErrors.size(), is(2));
+            for (String index : indicesAndErrors.keySet()) {
+                assertThat(index, anyOf(containsString(DataStream.BACKING_INDEX_PREFIX), containsString(DataStream.FAILURE_STORE_PREFIX)));
+            }
             assertThat(
                 indicesAndErrors.values(),
                 hasItem(allOf(containsString("security_exception"), containsString("unauthorized for user [_data_stream_lifecycle]")))

@@ -155,10 +155,7 @@ public class CustomServiceSettingsTests extends AbstractWireSerializingTestCase<
                         Map.of(
                             CustomServiceSettings.JSON_PARSER,
                             new HashMap<>(
-                                Map.of(
-                                    CustomServiceSettings.TEXT_EMBEDDING_PARSER_EMBEDDINGS,
-                                    "$.result.embeddings[*].embedding"
-                                )
+                                Map.of(CustomServiceSettings.TEXT_EMBEDDING_PARSER_EMBEDDINGS, "$.result.embeddings[*].embedding")
                             )
                         )
                     )

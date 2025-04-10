@@ -33,9 +33,7 @@ public record NoopResponseParser() implements ResponseParser {
         this();
     }
 
-    public void writeTo(StreamOutput out) throws IOException {
-    }
-
+    public void writeTo(StreamOutput out) throws IOException {}
 
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         return builder;

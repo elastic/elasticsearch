@@ -35,19 +35,9 @@ public class SparseEmbeddingResponseParser implements ResponseParser {
     public static SparseEmbeddingResponseParser fromMap(Map<String, Object> responseParserMap, ValidationException validationException) {
         var path = extractRequiredString(responseParserMap, SPARSE_RESULT_PATH, JSON_PARSER, validationException);
 
-        var tokenPath = extractRequiredString(
-            responseParserMap,
-            SPARSE_EMBEDDING_PARSER_TOKEN,
-            JSON_PARSER,
-            validationException
-        );
+        var tokenPath = extractRequiredString(responseParserMap, SPARSE_EMBEDDING_PARSER_TOKEN, JSON_PARSER, validationException);
 
-        var weightPath = extractRequiredString(
-            responseParserMap,
-            SPARSE_EMBEDDING_PARSER_WEIGHT,
-            JSON_PARSER,
-            validationException
-        );
+        var weightPath = extractRequiredString(responseParserMap, SPARSE_EMBEDDING_PARSER_WEIGHT, JSON_PARSER, validationException);
 
         if (path == null || tokenPath == null || weightPath == null) {
             throw validationException;

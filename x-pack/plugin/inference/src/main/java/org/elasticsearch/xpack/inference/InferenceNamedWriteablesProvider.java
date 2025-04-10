@@ -166,28 +166,12 @@ public class InferenceNamedWriteablesProvider {
 
     private static void addCustomNamedWriteables(List<NamedWriteableRegistry.Entry> namedWriteables) {
         namedWriteables.add(
-            new NamedWriteableRegistry.Entry(
-                ServiceSettings.class,
-                CustomServiceSettings.NAME,
-                CustomServiceSettings::new
-            )
+            new NamedWriteableRegistry.Entry(ServiceSettings.class, CustomServiceSettings.NAME, CustomServiceSettings::new)
         );
 
-        namedWriteables.add(
-            new NamedWriteableRegistry.Entry(
-                TaskSettings.class,
-                CustomTaskSettings.NAME,
-                CustomTaskSettings::new
-            )
-        );
+        namedWriteables.add(new NamedWriteableRegistry.Entry(TaskSettings.class, CustomTaskSettings.NAME, CustomTaskSettings::new));
 
-        namedWriteables.add(
-            new NamedWriteableRegistry.Entry(
-                SecretSettings.class,
-                CustomSecretSettings.NAME,
-                CustomSecretSettings::new
-            )
-        );
+        namedWriteables.add(new NamedWriteableRegistry.Entry(SecretSettings.class, CustomSecretSettings.NAME, CustomSecretSettings::new));
     }
 
     private static void addUnifiedNamedWriteables(List<NamedWriteableRegistry.Entry> namedWriteables) {

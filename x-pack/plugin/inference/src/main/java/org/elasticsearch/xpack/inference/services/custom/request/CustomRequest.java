@@ -117,25 +117,25 @@ public class CustomRequest implements Request {
 
         jsonParams.put(QUERY, toJson(query));
 
-//        Map<String, Object> customParamsObjectMap = new HashMap<>();
-//        if (secretParameters != null) {
-//            for (String key : secretParameters.keySet()) {
-//                Object paramValue = secretParameters.get(key);
-//                if (paramValue instanceof SecureString) {
-//                    customParamsObjectMap.put(key, ((SecureString) paramValue).toString());
-//                } else {
-//                    customParamsObjectMap.put(key, paramValue);
-//                }
-//            }
-//        }
-//
-//        Map<String, String> customParams = new HashMap<String, String>();
-//        if (taskSettings.getParameters() != null && taskSettings.getParameters().isEmpty() == false) {
-//            Map<String, String> taskParams = getParameterMap(taskSettings.getParameters());
-//            for (String key : taskParams.keySet()) {
-//                customParams.put(key, taskParams.get(key));
-//            }
-//        }
+        // Map<String, Object> customParamsObjectMap = new HashMap<>();
+        // if (secretParameters != null) {
+        // for (String key : secretParameters.keySet()) {
+        // Object paramValue = secretParameters.get(key);
+        // if (paramValue instanceof SecureString) {
+        // customParamsObjectMap.put(key, ((SecureString) paramValue).toString());
+        // } else {
+        // customParamsObjectMap.put(key, paramValue);
+        // }
+        // }
+        // }
+        //
+        // Map<String, String> customParams = new HashMap<String, String>();
+        // if (taskSettings.getParameters() != null && taskSettings.getParameters().isEmpty() == false) {
+        // Map<String, String> taskParams = getParameterMap(taskSettings.getParameters());
+        // for (String key : taskParams.keySet()) {
+        // customParams.put(key, taskParams.get(key));
+        // }
+        // }
 
         // if user's custom parameters contain input and query, it will be replaced by inference's input and query
         if (query != null) {

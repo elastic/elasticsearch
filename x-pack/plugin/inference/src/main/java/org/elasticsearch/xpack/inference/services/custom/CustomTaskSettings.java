@@ -41,7 +41,13 @@ public class CustomTaskSettings implements TaskSettings {
 
         Map<String, Object> parameters = extractOptionalMap(map, PARAMETERS, ModelConfigurations.TASK_SETTINGS, validationException);
         removeNullValues(parameters);
-        validateMapValues(parameters, List.of(String.class, Integer.class, Double.class, Float.class, Boolean.class), PARAMETERS, validationException, false);
+        validateMapValues(
+            parameters,
+            List.of(String.class, Integer.class, Double.class, Float.class, Boolean.class),
+            PARAMETERS,
+            validationException,
+            false
+        );
 
         if (validationException.validationErrors().isEmpty() == false) {
             throw validationException;

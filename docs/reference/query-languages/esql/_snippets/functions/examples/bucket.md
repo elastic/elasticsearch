@@ -14,7 +14,6 @@ For example, asking for at most 20 buckets over a year results in monthly bucket
 FROM employees
 | WHERE hire_date >= "1985-01-01T00:00:00Z" AND hire_date < "1986-01-01T00:00:00Z"
 | STATS hire_date = MV_SORT(VALUES(hire_date)) BY month = BUCKET(hire_date, 20, "1985-01-01T00:00:00Z", "1986-01-01T00:00:00Z")
-| SORT hire_date
 ```
 
 | hire_date:date | month:date |
@@ -61,7 +60,6 @@ For example, asking for at most 100 buckets in a year results in weekly buckets:
 FROM employees
 | WHERE hire_date >= "1985-01-01T00:00:00Z" AND hire_date < "1986-01-01T00:00:00Z"
 | STATS hires_per_week = COUNT(*) BY week = BUCKET(hire_date, 100, "1985-01-01T00:00:00Z", "1986-01-01T00:00:00Z")
-| SORT week
 ```
 
 | hires_per_week:long | week:date |
@@ -102,7 +100,8 @@ FROM employees
 
 ::::{note}
 When providing the bucket size as the second parameter, it must be a time
-duration or date period.
+duration or date period. Also the reference is epoch, which starts
+at `0001-01-01T00:00:00Z`.
 ::::
 
 `BUCKET` can also operate on numeric fields. For example, to create a salary histogram:
@@ -169,7 +168,6 @@ Create monthly buckets for the year 1985, and calculate the average salary by hi
 FROM employees
 | WHERE hire_date >= "1985-01-01T00:00:00Z" AND hire_date < "1986-01-01T00:00:00Z"
 | STATS AVG(salary) BY bucket = BUCKET(hire_date, 20, "1985-01-01T00:00:00Z", "1986-01-01T00:00:00Z")
-| SORT bucket
 ```
 
 | AVG(salary):double | bucket:date |
@@ -218,8 +216,6 @@ inserting a negative offset of `1 hour` to buckets of `1 year` looks like this:
 FROM employees
 | STATS dates = MV_SORT(VALUES(birth_date)) BY b = BUCKET(birth_date + 1 HOUR, 1 YEAR) - 1 HOUR
 | EVAL d_count = MV_COUNT(dates)
-| SORT d_count, b
-| LIMIT 3
 ```
 
 | dates:date | b:date | d_count:integer |

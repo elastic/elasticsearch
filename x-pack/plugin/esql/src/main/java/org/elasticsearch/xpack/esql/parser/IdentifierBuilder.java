@@ -15,7 +15,6 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.indices.InvalidIndexNameException;
 import org.elasticsearch.transport.RemoteClusterService;
-import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.parser.EsqlBaseParser.IdentifierContext;
 import org.elasticsearch.xpack.esql.parser.EsqlBaseParser.IndexStringContext;
 
@@ -89,18 +88,17 @@ abstract class IdentifierBuilder extends AbstractBuilder {
 
     public String visitIndexPattern(List<EsqlBaseParser.IndexPatternContext> ctx) {
         List<String> patterns = new ArrayList<>(ctx.size());
-        Holder<Boolean> hasSeenStar = new Holder<>(false);
         ctx.forEach(c -> {
             String indexPattern = visitIndexString(c.indexString());
             String clusterString = visitClusterString(c.clusterString());
             String selectorString = visitSelectorString(c.selectorString());
 
-            hasSeenStar.set(indexPattern.contains(WILDCARD) || hasSeenStar.get());
-            validateClusterAndIndexPatterns(indexPattern, c, hasSeenStar.get(), clusterString, selectorString);
+            validateClusterAndIndexPatterns(indexPattern, c, clusterString, selectorString);
             patterns.add(reassembleIndexName(clusterString, indexPattern, selectorString));
         });
         return Strings.collectionToDelimitedString(patterns, ",");
     }
+
 
     private static void throwOnMixingSelectorWithCluster(String indexPattern, EsqlBaseParser.IndexPatternContext c) {
         InvalidIndexNameException ie = new InvalidIndexNameException(
@@ -134,7 +132,6 @@ abstract class IdentifierBuilder extends AbstractBuilder {
     private static void validateClusterAndIndexPatterns(
         String indexPattern,
         EsqlBaseParser.IndexPatternContext ctx,
-        boolean hasSeenStar,
         String clusterString,
         String selectorString
     ) {
@@ -193,7 +190,7 @@ abstract class IdentifierBuilder extends AbstractBuilder {
                 validateClusterString(clusterString, ctx);
             }
 
-            validateIndicesForCluster(clusterString, indices, ctx, hasSeenStar);
+            validateIndicesForCluster(clusterString, indices, ctx);
             if (selectorString != null) {
                 try {
                     // Ensures that the selector provided is one of the valid kinds
@@ -207,13 +204,7 @@ abstract class IdentifierBuilder extends AbstractBuilder {
         }
     }
 
-    private static void validateIndicesForCluster(
-        String clusterString,
-        String[] indices,
-        EsqlBaseParser.IndexPatternContext ctx,
-        boolean hasSeenStar
-    ) {
-        boolean hasExclusion = false;
+    private static void validateIndicesForCluster(String clusterString, String[] indices, EsqlBaseParser.IndexPatternContext ctx) {
         for (String index : indices) {
             // Strip spaces off first because validation checks are not written to handle them
             index = index.strip();
@@ -229,12 +220,12 @@ abstract class IdentifierBuilder extends AbstractBuilder {
                 // throws exception if the selector expression is invalid. Selector resolution does not complain about exclusions
                 throw new ParsingException(e, source(ctx), e.getMessage());
             }
-            hasSeenStar = index.contains(WILDCARD) || hasSeenStar;
+            var hasSeenStar = index.contains(WILDCARD);
             index = index.replace(WILDCARD, "").strip();
             if (index.isBlank()) {
                 continue;
             }
-            hasExclusion = index.startsWith(EXCLUSION);
+            var hasExclusion = index.startsWith(EXCLUSION);
             index = removeExclusion(index);
             String tempName;
             try {

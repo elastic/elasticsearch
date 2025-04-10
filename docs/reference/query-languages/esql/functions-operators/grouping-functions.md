@@ -1,7 +1,7 @@
 ---
-navigation_title: "grouping functions"
+navigation_title: "Grouping functions"
 mapped_pages:
-  - https://www.elastic.co/guide/en/elasticsearch/reference/current/functions-operators/grouping-functions.md
+  - https://www.elastic.co/guide/en/elasticsearch/reference/current/esql-functions-operators.html#esql-group-functions
 ---
 
 # {{esql}} grouping functions [esql-group-functions]

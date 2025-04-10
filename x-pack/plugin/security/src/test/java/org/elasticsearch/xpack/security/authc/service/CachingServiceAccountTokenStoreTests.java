@@ -17,9 +17,10 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.security.action.service.TokenInfo.TokenSource;
+import org.elasticsearch.xpack.core.security.authc.service.ServiceAccountToken;
 import org.elasticsearch.xpack.core.security.support.ValidationTests;
-import org.elasticsearch.xpack.security.authc.service.ServiceAccount.ServiceAccountId;
-import org.elasticsearch.xpack.security.authc.service.ServiceAccountTokenStore.StoreAuthenticationResult;
+import org.elasticsearch.xpack.core.security.authc.service.ServiceAccount.ServiceAccountId;
+import org.elasticsearch.xpack.core.security.authc.service.ServiceAccountTokenStore.StoreAuthenticationResult;
 import org.junit.After;
 import org.junit.Before;
 
@@ -68,7 +69,7 @@ public class CachingServiceAccountTokenStoreTests extends ESTestCase {
             @Override
             void doAuthenticate(ServiceAccountToken token, ActionListener<StoreAuthenticationResult> listener) {
                 doAuthenticateInvoked.set(true);
-                listener.onResponse(new StoreAuthenticationResult(validSecret.equals(token.getSecret()), getTokenSource()));
+                listener.onResponse(StoreAuthenticationResult.fromBooleanResult(getTokenSource(), validSecret.equals(token.getSecret())));
             }
 
             @Override
@@ -160,7 +161,7 @@ public class CachingServiceAccountTokenStoreTests extends ESTestCase {
         final CachingServiceAccountTokenStore store = new CachingServiceAccountTokenStore(settings, threadPool) {
             @Override
             void doAuthenticate(ServiceAccountToken token, ActionListener<StoreAuthenticationResult> listener) {
-                listener.onResponse(new StoreAuthenticationResult(success, getTokenSource()));
+                listener.onResponse(StoreAuthenticationResult.fromBooleanResult(getTokenSource(), success));
             }
 
             @Override
@@ -181,7 +182,7 @@ public class CachingServiceAccountTokenStoreTests extends ESTestCase {
         final CachingServiceAccountTokenStore store = new CachingServiceAccountTokenStore(globalSettings, threadPool) {
             @Override
             void doAuthenticate(ServiceAccountToken token, ActionListener<StoreAuthenticationResult> listener) {
-                listener.onResponse(new StoreAuthenticationResult(true, getTokenSource()));
+                listener.onResponse(StoreAuthenticationResult.successful(getTokenSource()));
             }
 
             @Override

@@ -25,7 +25,7 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.xpack.core.security.authc.support.Hasher;
 import org.elasticsearch.xpack.core.security.support.Validation;
 import org.elasticsearch.xpack.core.security.support.ValidationTests;
-import org.elasticsearch.xpack.security.authc.service.ServiceAccountToken.ServiceAccountTokenId;
+import org.elasticsearch.xpack.core.security.authc.service.ServiceAccountToken.ServiceAccountTokenId;
 import org.junit.AfterClass;
 import org.junit.Before;
 import org.junit.BeforeClass;

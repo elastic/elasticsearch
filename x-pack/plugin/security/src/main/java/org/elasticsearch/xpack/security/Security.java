@@ -209,6 +209,7 @@ import org.elasticsearch.xpack.core.security.authc.Realm;
 import org.elasticsearch.xpack.core.security.authc.RealmConfig;
 import org.elasticsearch.xpack.core.security.authc.RealmSettings;
 import org.elasticsearch.xpack.core.security.authc.Subject;
+import org.elasticsearch.xpack.core.security.authc.service.ServiceAccountTokenStore;
 import org.elasticsearch.xpack.core.security.authc.support.UserRoleMapper;
 import org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine;
@@ -311,6 +312,7 @@ import org.elasticsearch.xpack.security.authc.esnative.NativeUsersStore;
 import org.elasticsearch.xpack.security.authc.esnative.ReservedRealm;
 import org.elasticsearch.xpack.security.authc.jwt.JwtRealm;
 import org.elasticsearch.xpack.security.authc.service.CachingServiceAccountTokenStore;
+import org.elasticsearch.xpack.security.authc.service.CompositeServiceAccountTokenStore;
 import org.elasticsearch.xpack.security.authc.service.FileServiceAccountTokenStore;
 import org.elasticsearch.xpack.security.authc.service.IndexServiceAccountTokenStore;
 import org.elasticsearch.xpack.security.authc.service.ServiceAccountService;
@@ -1024,12 +1026,12 @@ public class Security extends Plugin
             cacheInvalidatorRegistry
         );
         components.add(fileServiceAccountTokenStore);
-
-        final ServiceAccountService serviceAccountService = new ServiceAccountService(
-            client,
+        ServiceAccountService serviceAccountService = createServiceAccountService(
+            extensionComponents,
             fileServiceAccountTokenStore,
             indexServiceAccountTokenStore
         );
+
         components.add(serviceAccountService);
 
         final RoleProviders roleProviders = new RoleProviders(
@@ -1249,6 +1251,31 @@ public class Security extends Plugin
         this.reloadableComponents.set(List.copyOf(reloadableComponents));
         this.closableComponents.set(List.copyOf(closableComponents));
         return components;
+    }
+
+    private ServiceAccountService createServiceAccountService(
+        SecurityExtension.SecurityComponents extensionComponents,
+        ServiceAccountTokenStore fileServiceAccountTokenStore,
+        IndexServiceAccountTokenStore indexServiceAccountTokenStore
+    ) {
+        List<ServiceAccountTokenStore> extensionTokenStores = securityExtensions.stream()
+            .map(extension -> extension.getServiceAccountTokenStore(extensionComponents))
+            .toList();
+
+        ServiceAccountTokenStore readOnlyServiceAccountTokenStore = fileServiceAccountTokenStore;
+        IndexServiceAccountTokenStore mutableServiceAccountTokenStore = indexServiceAccountTokenStore;
+
+        // Completely handover service account token management to the extension if provided, this will disable the index managed
+        // service account tokens managed through the service account token API
+        if (extensionTokenStores.isEmpty() == false) {
+            mutableServiceAccountTokenStore = null;
+            readOnlyServiceAccountTokenStore = new CompositeServiceAccountTokenStore(
+                extensionTokenStores,
+                client.get().threadPool().getThreadContext()
+            );
+        }
+
+        return new ServiceAccountService(client.get(), readOnlyServiceAccountTokenStore, mutableServiceAccountTokenStore);
     }
 
     @FixForMultiProject

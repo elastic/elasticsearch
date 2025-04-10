@@ -33,10 +33,12 @@ import org.elasticsearch.xpack.core.security.action.service.GetServiceAccountNod
 import org.elasticsearch.xpack.core.security.action.service.TokenInfo;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationTestHelper;
+import org.elasticsearch.xpack.core.security.authc.service.ServiceAccountToken;
+import org.elasticsearch.xpack.core.security.authc.service.ServiceAccountTokenStore;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.support.ValidationTests;
 import org.elasticsearch.xpack.core.security.user.User;
-import org.elasticsearch.xpack.security.authc.service.ServiceAccount.ServiceAccountId;
+import org.elasticsearch.xpack.core.security.authc.service.ServiceAccount.ServiceAccountId;
 import org.junit.After;
 import org.junit.Before;
 
@@ -325,7 +327,10 @@ public class ServiceAccountServiceTests extends ESTestCase {
                 final ActionListener<ServiceAccountTokenStore.StoreAuthenticationResult> listener = (ActionListener<
                     ServiceAccountTokenStore.StoreAuthenticationResult>) invocationOnMock.getArguments()[1];
                 listener.onResponse(
-                    new ServiceAccountTokenStore.StoreAuthenticationResult(store == authenticatingStore, store.getTokenSource())
+                    ServiceAccountTokenStore.StoreAuthenticationResult.fromBooleanResult(
+                        store.getTokenSource(),
+                        store == authenticatingStore
+                    )
                 );
                 return null;
             }).when(store).authenticate(any(), any());
@@ -456,7 +461,7 @@ public class ServiceAccountServiceTests extends ESTestCase {
             );
             mockLog.assertAllExpectationsMatched();
 
-            final TokenInfo.TokenSource tokenSource = randomFrom(TokenInfo.TokenSource.values());
+            final TokenInfo.TokenSource tokenSource = randomFrom(TokenInfo.TokenSource.FILE, TokenInfo.TokenSource.INDEX);
             final CachingServiceAccountTokenStore store;
             final CachingServiceAccountTokenStore otherStore;
             if (tokenSource == TokenInfo.TokenSource.FILE) {
@@ -480,7 +485,7 @@ public class ServiceAccountServiceTests extends ESTestCase {
                 @SuppressWarnings("unchecked")
                 final ActionListener<ServiceAccountTokenStore.StoreAuthenticationResult> listener = (ActionListener<
                     ServiceAccountTokenStore.StoreAuthenticationResult>) invocationOnMock.getArguments()[1];
-                listener.onResponse(new ServiceAccountTokenStore.StoreAuthenticationResult(true, store.getTokenSource()));
+                listener.onResponse(ServiceAccountTokenStore.StoreAuthenticationResult.successful(store.getTokenSource()));
                 return null;
             }).when(store).authenticate(eq(token4), any());
 
@@ -488,7 +493,7 @@ public class ServiceAccountServiceTests extends ESTestCase {
                 @SuppressWarnings("unchecked")
                 final ActionListener<ServiceAccountTokenStore.StoreAuthenticationResult> listener = (ActionListener<
                     ServiceAccountTokenStore.StoreAuthenticationResult>) invocationOnMock.getArguments()[1];
-                listener.onResponse(new ServiceAccountTokenStore.StoreAuthenticationResult(false, store.getTokenSource()));
+                listener.onResponse(ServiceAccountTokenStore.StoreAuthenticationResult.failed(store.getTokenSource()));
                 return null;
             }).when(store).authenticate(eq(token5), any());
 
@@ -496,7 +501,7 @@ public class ServiceAccountServiceTests extends ESTestCase {
                 @SuppressWarnings("unchecked")
                 final ActionListener<ServiceAccountTokenStore.StoreAuthenticationResult> listener = (ActionListener<
                     ServiceAccountTokenStore.StoreAuthenticationResult>) invocationOnMock.getArguments()[1];
-                listener.onResponse(new ServiceAccountTokenStore.StoreAuthenticationResult(false, otherStore.getTokenSource()));
+                listener.onResponse(ServiceAccountTokenStore.StoreAuthenticationResult.failed(otherStore.getTokenSource()));
                 return null;
             }).when(otherStore).authenticate(any(), any());
 

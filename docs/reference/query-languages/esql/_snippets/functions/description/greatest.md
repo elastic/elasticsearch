@@ -2,7 +2,7 @@
 
 **Description**
 
-Returns the maximum value from multiple columns. This is similar to [`MV_MAX`](/reference/query-languages/esql/esql-functions-operators.md#esql-mv_max) except it is intended to run on multiple columns at once.
+Returns the maximum value from multiple columns. This is similar to [`MV_MAX`](/reference/query-languages/esql/functions-operators/mv-functions.md#esql-mv_max) except it is intended to run on multiple columns at once.
 
 ::::{note}
 When run on `keyword` or `text` fields, this returns the last string in alphabetical order. When run on `boolean` columns this will return `true` if any values are `true`.

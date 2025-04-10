@@ -65,12 +65,14 @@ import org.elasticsearch.core.Tuple;
 import org.elasticsearch.repositories.RepositoryException;
 import org.elasticsearch.repositories.blobstore.ChunkedBlobOutputStream;
 import org.elasticsearch.repositories.s3.S3BlobStore.Operation;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.nio.file.NoSuchFileException;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -316,6 +318,11 @@ class S3BlobContainer extends AbstractBlobContainer {
         return blobStore.bufferSizeInBytes();
     }
 
+    // package private for testing
+    long getMaxCopySizeBeforeMultipart() {
+        return blobStore.maxCopySizeBeforeMultipart();
+    }
+
     @Override
     public void writeBlobAtomic(
         OperationPurpose purpose,
@@ -331,6 +338,67 @@ class S3BlobContainer extends AbstractBlobContainer {
     public void writeBlobAtomic(OperationPurpose purpose, String blobName, BytesReference bytes, boolean failIfAlreadyExists)
         throws IOException {
         writeBlob(purpose, blobName, bytes, failIfAlreadyExists);
+    }
+
+    /**
+     * Perform server-side copy of a blob from a source container
+     * <p>
+     * Server-side copy can be done for any size object, but if the object is larger than 5 GB then
+     * it must be done through a series of part copy operations rather than a single blob copy.
+     * See <a href="https://docs.aws.amazon.com/AmazonS3/latest/API/API_CopyObject.html">CopyObject</a>.
+     * Note that this operation will overwrite the destination if it already exists.
+     * @param purpose             The purpose of the operation
+     * @param sourceBlobContainer The blob container to copy the blob into
+     * @param sourceBlobName      The name of the blob to copy from
+     * @param blobName            The name of the blob to copy to
+     * @param blobSize            The size of the source blob in bytes (needed because some object stores use different implementations
+     *                            for very large blobs)
+     * @throws IOException        If the operation fails on the server side
+     */
+    @Override
+    public void copyBlob(
+        final OperationPurpose purpose,
+        final BlobContainer sourceBlobContainer,
+        final String sourceBlobName,
+        final String blobName,
+        final long blobSize
+    ) throws IOException {
+        assert BlobContainer.assertPurposeConsistency(purpose, sourceBlobName);
+        assert BlobContainer.assertPurposeConsistency(purpose, blobName);
+        if (sourceBlobContainer instanceof S3BlobContainer == false) {
+            throw new IllegalArgumentException("source blob container must be a S3BlobContainer");
+        }
+
+        final var s3SourceBlobContainer = (S3BlobContainer) sourceBlobContainer;
+
+        try {
+            if (blobSize > getMaxCopySizeBeforeMultipart()) {
+                executeMultipartCopy(purpose, s3SourceBlobContainer, sourceBlobName, blobName, blobSize);
+            } else {
+                // metadata is inherited from source, but not canned ACL or storage class
+                final var blobKey = buildKey(blobName);
+                final CopyObjectRequest copyRequest = new CopyObjectRequest(
+                    s3SourceBlobContainer.blobStore.bucket(),
+                    s3SourceBlobContainer.buildKey(sourceBlobName),
+                    blobStore.bucket(),
+                    blobKey
+                ).withCannedAccessControlList(blobStore.getCannedACL()).withStorageClass(blobStore.getStorageClass());
+
+                S3BlobStore.configureRequestForMetrics(copyRequest, blobStore, Operation.COPY_OBJECT, purpose);
+
+                try (AmazonS3Reference clientReference = blobStore.clientReference()) {
+                    SocketAccess.doPrivilegedVoid(() -> { clientReference.client().copyObject(copyRequest); });
+                }
+            }
+        } catch (final AmazonClientException e) {
+            if (e instanceof AmazonS3Exception amazonS3Exception) {
+                if (amazonS3Exception.getStatusCode() == RestStatus.NOT_FOUND.getStatus()) {
+                    final var sourceKey = s3SourceBlobContainer.buildKey(sourceBlobName);
+                    throw new NoSuchFileException("Copy source [" + sourceKey + "] not found: " + amazonS3Exception.getMessage());
+                }
+            }
+            throw new IOException("Unable to copy object [" + blobName + "] from [" + sourceBlobContainer + "][" + sourceBlobName + "]", e);
+        }
     }
 
     @Override
@@ -516,23 +584,25 @@ class S3BlobContainer extends AbstractBlobContainer {
         }
     }
 
-    /**
-     * Uploads a blob using multipart upload requests.
-     */
-    void executeMultipartUpload(
-        OperationPurpose purpose,
+    private interface PartOperation {
+        PartETag doPart(String uploadId, int partNum, long partSize, boolean lastPart);
+    }
+
+    // for copy, blobName and s3BlobStore are the destination
+    private void executeMultipart(
+        final OperationPurpose purpose,
         final S3BlobStore s3BlobStore,
         final String blobName,
-        final InputStream input,
-        final long blobSize
+        final long partSize,
+        final long blobSize,
+        final PartOperation partOperation
     ) throws IOException {
 
         ensureMultiPartUploadSize(blobSize);
-        final long partSize = s3BlobStore.bufferSizeInBytes();
         final Tuple<Long, Long> multiparts = numberOfMultiparts(blobSize, partSize);
 
         if (multiparts.v1() > Integer.MAX_VALUE) {
-            throw new IllegalArgumentException("Too many multipart upload requests, maybe try a larger buffer size?");
+            throw new IllegalArgumentException("Too many multipart upload requests, maybe try a larger part size?");
         }
 
         final int nbParts = multiparts.v1().intValue();
@@ -551,7 +621,7 @@ class S3BlobContainer extends AbstractBlobContainer {
                 cleanupOnFailureActions.add(() -> abortMultiPartUpload(purpose, uploadId, blobName));
             }
             if (Strings.isEmpty(uploadId)) {
-                throw new IOException("Failed to initialize multipart upload " + blobName);
+                throw new IOException("Failed to initialize multipart operation for " + blobName);
             }
 
             final List<CompletedPart> parts = new ArrayList<>();
@@ -559,22 +629,20 @@ class S3BlobContainer extends AbstractBlobContainer {
             long bytesCount = 0;
             for (int i = 1; i <= nbParts; i++) {
                 final boolean lastPart = i == nbParts;
-                final var thisPartSize = lastPart ? lastPartSize : partSize;
-                final var uploadRequest = createPartUploadRequest(purpose, uploadId, i, blobName, thisPartSize, lastPart);
-                bytesCount += thisPartSize;
-
-                try (var clientReference = s3BlobStore.clientReference()) {
-                    final UploadPartResponse uploadResponse = SocketAccess.doPrivileged(
-                        () -> clientReference.client().uploadPart(uploadRequest, RequestBody.fromInputStream(input, thisPartSize))
-                    );
-
-                    parts.add(CompletedPart.builder().partNumber(i).eTag(uploadResponse.eTag()).build());
-                }
+                final var curPartSize = lastPart ? lastPartSize : partSize;
+                final var partEtag = partOperation.doPart(uploadId.get(), i, curPartSize, lastPart);
+                bytesCount += curPartSize;
+                parts.add(partEtag);
             }
 
             if (bytesCount != blobSize) {
                 throw new IOException(
-                    "Failed to execute multipart upload for [" + blobName + "], expected " + blobSize + "bytes sent but got " + bytesCount
+                    "Failed to execute multipart operation for ["
+                        + blobName
+                        + "], expected "
+                        + blobSize
+                        + "bytes sent but got "
+                        + bytesCount
                 );
             }
 
@@ -594,11 +662,89 @@ class S3BlobContainer extends AbstractBlobContainer {
                 SocketAccess.doPrivilegedVoid(() -> clientReference.client().completeMultipartUpload(completeMultipartUploadRequest));
             }
             cleanupOnFailureActions.clear();
-        } catch (final SdkException e) {
+        } catch (final AmazonClientException e) {
+            if (e instanceof AmazonServiceException ase && ase.getStatusCode() == RestStatus.NOT_FOUND.getStatus()) {
+                throw new NoSuchFileException(blobName, null, e.getMessage());
+            }
             throw new IOException("Unable to upload object [" + blobName + "] using multipart upload", e);
         } finally {
             cleanupOnFailureActions.forEach(Runnable::run);
         }
+    }
+
+    /**
+     * Uploads a blob using multipart upload requests.
+     */
+    void executeMultipartUpload(
+        OperationPurpose purpose,
+        final S3BlobStore s3BlobStore,
+        final String blobName,
+        final InputStream input,
+        final long blobSize
+    ) throws IOException {
+        executeMultipart(
+            purpose,
+            s3BlobStore,
+            blobName,
+            s3BlobStore.bufferSizeInBytes(),
+            blobSize,
+            (uploadId, partNum, partSize, lastPart) -> {
+                final UploadPartRequest uploadRequest = createPartUploadRequest(
+                    purpose,
+                    input,
+                    uploadId,
+                    partNum,
+                    blobName,
+                    partSize,
+                    lastPart
+                );
+
+                try (AmazonS3Reference clientReference = s3BlobStore.clientReference()) {
+                    final UploadPartResult uploadResponse = SocketAccess.doPrivileged(
+                        () -> clientReference.client().uploadPart(uploadRequest)
+                    );
+                    return uploadResponse.getPartETag();
+                }
+            }
+        );
+    }
+
+    /**
+     * Copies a blob using multipart
+     * <p>
+     * This is required when the blob size is larger than MAX_FILE_SIZE.
+     * It must be called on the destination blob container.
+     * <p>
+     * It uses MAX_FILE_SIZE as the copy part size, because that minimizes the number of requests needed.
+     * Smaller part sizes might improve throughput when downloading from multiple parts at once, but we have no measurements
+     * indicating this would be helpful so we optimize for request count.
+     */
+    void executeMultipartCopy(
+        OperationPurpose purpose,
+        final S3BlobContainer sourceContainer,
+        final String sourceBlobName,
+        final String destinationBlobName,
+        final long blobSize
+    ) throws IOException {
+        final long copyPartSize = MAX_FILE_SIZE.getBytes();
+        final var destinationKey = buildKey(destinationBlobName);
+        executeMultipart(purpose, blobStore, destinationKey, copyPartSize, blobSize, ((uploadId, partNum, partSize, lastPart) -> {
+            final long startOffset = (partNum - 1) * copyPartSize;
+            final var request = new CopyPartRequest().withSourceBucketName(sourceContainer.blobStore.bucket())
+                .withSourceKey(sourceContainer.buildKey(sourceBlobName))
+                .withDestinationBucketName(blobStore.bucket())
+                .withDestinationKey(destinationKey)
+                .withUploadId(uploadId)
+                .withPartNumber(partNum)
+                .withFirstByte(startOffset)
+                .withLastByte(startOffset + partSize - 1);
+            S3BlobStore.configureRequestForMetrics(request, blobStore, Operation.COPY_MULTIPART_OBJECT, purpose);
+
+            try (AmazonS3Reference clientReference = blobStore.clientReference()) {
+                final var result = SocketAccess.doPrivileged(() -> clientReference.client().copyPart(request));
+                return result.getPartETag();
+            }
+        }));
     }
 
     // non-static, package private for testing

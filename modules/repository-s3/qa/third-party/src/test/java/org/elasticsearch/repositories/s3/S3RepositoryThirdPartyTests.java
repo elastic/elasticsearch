@@ -229,4 +229,56 @@ public class S3RepositoryThirdPartyTests extends AbstractThirdPartyRepositoryTes
                 && "InvalidRange".equals(s3Exception.awsErrorDetails().errorCode());
         });
     }
+
+    public void testCopy() {
+        final var sourceBlobName = randomIdentifier();
+        final var blobBytes = randomBytesReference(randomIntBetween(100, 2_000));
+        final var destinationBlobName = randomIdentifier();
+
+        final var repository = getRepository();
+
+        final var targetBytes = executeOnBlobStore(repository, sourceBlobContainer -> {
+            sourceBlobContainer.writeBlob(randomPurpose(), sourceBlobName, blobBytes, true);
+
+            final var destinationBlobContainer = repository.blobStore().blobContainer(repository.basePath().add("target"));
+            destinationBlobContainer.copyBlob(
+                randomPurpose(),
+                sourceBlobContainer,
+                sourceBlobName,
+                destinationBlobName,
+                blobBytes.length()
+            );
+
+            return destinationBlobContainer.readBlob(randomPurpose(), destinationBlobName).readAllBytes();
+        });
+
+        assertArrayEquals(BytesReference.toBytes(blobBytes), targetBytes);
+    }
+
+    public void testMultipartCopy() {
+        final var sourceBlobName = randomIdentifier();
+        // executeMultipart requires a minimum part size of 5 MiB
+        final var blobBytes = randomBytesReference(randomIntBetween(5 * 1024 * 1024, 10 * 1024 * 1024));
+        final var destinationBlobName = randomIdentifier();
+
+        final var repository = getRepository();
+
+        final var targetBytes = executeOnBlobStore(repository, sourceBlobContainer -> {
+            sourceBlobContainer.writeBlob(randomPurpose(), sourceBlobName, blobBytes, true);
+
+            final S3BlobContainer destinationBlobContainer = (S3BlobContainer) repository.blobStore()
+                .blobContainer(repository.basePath().add("target"));
+            destinationBlobContainer.executeMultipartCopy(
+                randomPurpose(),
+                (S3BlobContainer) sourceBlobContainer,
+                sourceBlobName,
+                destinationBlobName,
+                blobBytes.length()
+            );
+
+            return destinationBlobContainer.readBlob(randomPurpose(), destinationBlobName).readAllBytes();
+        });
+
+        assertArrayEquals(BytesReference.toBytes(blobBytes), targetBytes);
+    }
 }

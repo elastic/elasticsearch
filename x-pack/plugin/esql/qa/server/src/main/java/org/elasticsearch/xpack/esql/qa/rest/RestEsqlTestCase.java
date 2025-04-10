@@ -20,7 +20,6 @@ import org.elasticsearch.client.WarningsHandler;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
@@ -40,7 +39,6 @@ import org.junit.Before;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
-import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.OutputStream;
 import java.nio.charset.StandardCharsets;
@@ -808,10 +806,7 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
     }
 
     public void testDoubleParamsForIdentifiers() throws IOException {
-        assumeTrue(
-            "double parameters markers for identifiers requires snapshot build",
-            EsqlCapabilities.Cap.DOUBLE_PARAMETER_MARKERS_FOR_IDENTIFIERS.isEnabled()
-        );
+        assumeTrue("double parameters markers for identifiers", EsqlCapabilities.Cap.DOUBLE_PARAMETER_MARKERS_FOR_IDENTIFIERS.isEnabled());
         bulkLoadTestData(10);
         // positive
         // named double parameters
@@ -953,10 +948,7 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
     }
 
     public void testDoubleParamsWithLookupJoin() throws IOException {
-        assumeTrue(
-            "double parameters markers for identifiers requires snapshot build",
-            EsqlCapabilities.Cap.DOUBLE_PARAMETER_MARKERS_FOR_IDENTIFIERS.isEnabled()
-        );
+        assumeTrue("double parameters markers for identifiers", EsqlCapabilities.Cap.DOUBLE_PARAMETER_MARKERS_FOR_IDENTIFIERS.isEnabled());
         bulkLoadTestDataLookupMode(10);
         var query = requestObjectBuilder().query(
             format(
@@ -992,6 +984,32 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
         Map<String, String> colB = Map.of("name", "xx2", "type", "double");
         assertEquals(List.of(colA, colB), result.get("columns"));
         assertEquals(List.of(List.of(false, 9.1), List.of(true, 8.1)), result.get("values"));
+    }
+
+    public void testMultipleBatchesWithLookupJoin() throws IOException {
+        assumeTrue(
+            "Makes numberOfChannels consistent with layout map for join with multiple batches",
+            EsqlCapabilities.Cap.MAKE_NUMBER_OF_CHANNELS_CONSISTENT_WITH_LAYOUT.isEnabled()
+        );
+        // Create more than 10 indices to trigger multiple batches of data node execution.
+        // The sort field should be missing on some indices to reproduce NullPointerException caused by duplicated items in layout
+        for (int i = 1; i <= 20; i++) {
+            createIndex("idx" + i, randomBoolean(), "\"mappings\": {\"properties\" : {\"a\" : {\"type\" : \"keyword\"}}}");
+        }
+        bulkLoadTestDataLookupMode(10);
+        // lookup join with and without sort
+        for (String sort : List.of("", "| sort integer")) {
+            var query = requestObjectBuilder().query(format(null, "from * | lookup join {} on integer {}", testIndexName(), sort));
+            Map<String, Object> result = runEsql(query);
+            var columns = as(result.get("columns"), List.class);
+            assertEquals(21, columns.size());
+            var values = as(result.get("values"), List.class);
+            assertEquals(10, values.size());
+        }
+        // clean up
+        for (int i = 1; i <= 20; i++) {
+            assertThat(deleteIndex("idx" + i).isAcknowledged(), is(true));
+        }
     }
 
     public void testErrorMessageForLiteralDateMathOverflow() throws IOException {
@@ -1375,15 +1393,11 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
     }
 
     protected static Map<String, Object> entityToMap(HttpEntity entity, XContentType expectedContentType) throws IOException {
-        try (InputStream content = entity.getContent()) {
-            XContentType xContentType = XContentType.fromMediaType(entity.getContentType().getValue());
-            assertEquals(expectedContentType, xContentType);
-            var map = XContentHelper.convertToMap(xContentType.xContent(), content, false);
-            if (shouldLog()) {
-                LOGGER.info("entity={}", map);
-            }
-            return map;
+        var result = EsqlTestUtils.entityToMap(entity, expectedContentType);
+        if (shouldLog()) {
+            LOGGER.info("entity={}", result);
         }
+        return result;
     }
 
     static void addAsyncParameters(RequestObjectBuilder requestObject, boolean keepOnCompletion) throws IOException {
@@ -1515,21 +1529,18 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
     }
 
     private static Request prepareRequest(Mode mode) {
-        Request request = new Request("POST", "/_query" + (mode == ASYNC ? "/async" : ""));
-        request.addParameter("error_trace", "true");   // Helps with debugging in case something crazy happens on the server.
-        request.addParameter("pretty", "true");        // Improves error reporting readability
-        return request;
+        return finishRequest(new Request("POST", "/_query" + (mode == ASYNC ? "/async" : "")));
     }
 
     private static Request prepareAsyncGetRequest(String id) {
-        Request request = new Request("GET", "/_query/async/" + id + "?wait_for_completion_timeout=60s");
-        request.addParameter("error_trace", "true");   // Helps with debugging in case something crazy happens on the server.
-        request.addParameter("pretty", "true");        // Improves error reporting readability
-        return request;
+        return finishRequest(new Request("GET", "/_query/async/" + id + "?wait_for_completion_timeout=60s"));
     }
 
     private static Request prepareAsyncDeleteRequest(String id) {
-        Request request = new Request("DELETE", "/_query/async/" + id);
+        return finishRequest(new Request("DELETE", "/_query/async/" + id));
+    }
+
+    private static Request finishRequest(Request request) {
         request.addParameter("error_trace", "true");   // Helps with debugging in case something crazy happens on the server.
         request.addParameter("pretty", "true");        // Improves error reporting readability
         return request;
@@ -1666,6 +1677,13 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
 
     private static String repeatValueAsMV(Object value) {
         return "[" + value + ", " + value + "]";
+    }
+
+    private static void createIndex(String indexName, boolean lookupMode, String mapping) throws IOException {
+        Request request = new Request("PUT", "/" + indexName);
+        String settings = "\"settings\" : {\"mode\" : \"lookup\"}, ";
+        request.setJsonEntity("{" + (lookupMode ? settings : "") + mapping + "}");
+        assertEquals(200, client().performRequest(request).getStatusLine().getStatusCode());
     }
 
     public static RequestObjectBuilder requestObjectBuilder() throws IOException {

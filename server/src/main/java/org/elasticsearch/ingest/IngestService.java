@@ -67,7 +67,6 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.core.UpdateForV10;
 import org.elasticsearch.env.Environment;
-import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.grok.MatcherWatchdog;
 import org.elasticsearch.index.IndexSettings;
@@ -117,8 +116,6 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
     public static final String NOOP_PIPELINE_NAME = "_none";
 
     public static final String INGEST_ORIGIN = "ingest";
-
-    public static final NodeFeature PIPELINE_NAME_VALIDATION_WARNINGS = new NodeFeature("ingest.pipeline_name_special_chars_warning");
 
     private static final Logger logger = LogManager.getLogger(IngestService.class);
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(IngestService.class);

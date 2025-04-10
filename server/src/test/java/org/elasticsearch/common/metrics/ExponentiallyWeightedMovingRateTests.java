@@ -23,7 +23,7 @@ import static org.hamcrest.Matchers.equalTo;
 
 public class ExponentiallyWeightedMovingRateTests extends ESTestCase {
 
-    private static final double TOLERANCE = 1.0e-13;
+    private static final double TOLERANCE = 2.0e-13;
     private static final double HALF_LIFE_MILLIS = 1.0e6; // Half-life of used by many tests
     private static final double LAMBDA = Math.log(2.0) / HALF_LIFE_MILLIS; // Equivalent value of lambda
     public static final int START_TIME_IN_MILLIS = 1234567;

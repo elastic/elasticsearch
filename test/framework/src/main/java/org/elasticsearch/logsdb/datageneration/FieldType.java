@@ -16,12 +16,14 @@ import org.elasticsearch.logsdb.datageneration.fields.leaf.CountedKeywordFieldDa
 import org.elasticsearch.logsdb.datageneration.fields.leaf.DateFieldDataGenerator;
 import org.elasticsearch.logsdb.datageneration.fields.leaf.DoubleFieldDataGenerator;
 import org.elasticsearch.logsdb.datageneration.fields.leaf.FloatFieldDataGenerator;
+import org.elasticsearch.logsdb.datageneration.fields.leaf.GeoPointFieldDataGenerator;
 import org.elasticsearch.logsdb.datageneration.fields.leaf.HalfFloatFieldDataGenerator;
 import org.elasticsearch.logsdb.datageneration.fields.leaf.IntegerFieldDataGenerator;
 import org.elasticsearch.logsdb.datageneration.fields.leaf.KeywordFieldDataGenerator;
 import org.elasticsearch.logsdb.datageneration.fields.leaf.LongFieldDataGenerator;
 import org.elasticsearch.logsdb.datageneration.fields.leaf.ScaledFloatFieldDataGenerator;
 import org.elasticsearch.logsdb.datageneration.fields.leaf.ShortFieldDataGenerator;
+import org.elasticsearch.logsdb.datageneration.fields.leaf.TextFieldDataGenerator;
 import org.elasticsearch.logsdb.datageneration.fields.leaf.UnsignedLongFieldDataGenerator;
 
 /**
@@ -40,7 +42,9 @@ public enum FieldType {
     SCALED_FLOAT("scaled_float"),
     COUNTED_KEYWORD("counted_keyword"),
     BOOLEAN("boolean"),
-    DATE("date");
+    DATE("date"),
+    GEO_POINT("geo_point"),
+    TEXT("text");
 
     private final String name;
 
@@ -63,6 +67,8 @@ public enum FieldType {
             case COUNTED_KEYWORD -> new CountedKeywordFieldDataGenerator(fieldName, dataSource);
             case BOOLEAN -> new BooleanFieldDataGenerator(dataSource);
             case DATE -> new DateFieldDataGenerator(dataSource);
+            case GEO_POINT -> new GeoPointFieldDataGenerator(dataSource);
+            case TEXT -> new TextFieldDataGenerator(dataSource);
         };
     }
 
@@ -81,6 +87,8 @@ public enum FieldType {
             case "counted_keyword" -> FieldType.COUNTED_KEYWORD;
             case "boolean" -> FieldType.BOOLEAN;
             case "date" -> FieldType.DATE;
+            case "geo_point" -> FieldType.GEO_POINT;
+            case "text" -> FieldType.TEXT;
             default -> null;
         };
     }

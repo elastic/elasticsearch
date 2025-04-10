@@ -1,7 +1,7 @@
 ---
-navigation_title: "operators"
+navigation_title: "Operators"
 mapped_pages:
-  - https://www.elastic.co/guide/en/elasticsearch/reference/current/functions-operators/operators.md
+  - https://www.elastic.co/guide/en/elasticsearch/reference/current/esql-functions-operators.html#esql-operators
 ---
 
 # {{esql}} operators [esql-operators]

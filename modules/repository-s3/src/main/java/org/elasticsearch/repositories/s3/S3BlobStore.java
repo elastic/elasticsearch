@@ -536,6 +536,12 @@ class S3BlobStore implements BlobStore {
             "CompleteMultipartUpload"
         )::contains;
 
+        private static final Predicate<String> IS_COPY_MULTIPART_OPERATION = Set.of(
+            "CreateMultipartUpload",
+            "UploadPartCopy",
+            "CompleteMultipartUpload"
+        )::contains;
+
         private static final Predicate<String> IS_LIST_OPERATION = Set.of("ListObjects", "ListObjectsV2", "ListMultipartUploads")::contains;
 
         boolean assertConsistentOperationName(MetricCollection metricCollection) {
@@ -545,6 +551,7 @@ class S3BlobStore implements BlobStore {
                 case LIST_OBJECTS -> IS_LIST_OPERATION;
                 case PUT_MULTIPART_OBJECT -> IS_PUT_MULTIPART_OPERATION;
                 case ABORT_MULTIPART_OBJECT -> "AbortMultipartUpload"::equals;
+                case COPY_MULTIPART_OBJECT -> IS_COPY_MULTIPART_OPERATION;
                 default -> key::equals;
             };
             assert expectedOperationPredicate.test(operationNameMetrics.get(0)) : this + " vs " + operationNameMetrics;

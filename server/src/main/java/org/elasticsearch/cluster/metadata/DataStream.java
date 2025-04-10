@@ -610,6 +610,10 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
         } else if (dsIndexMode == IndexMode.LOGSDB && (indexModeFromTemplate == null || indexModeFromTemplate == IndexMode.STANDARD)) {
             // Allow downgrading a time series data stream to a regular data stream
             dsIndexMode = null;
+        } else if (dsIndexMode == IndexMode.TIME_SERIES && indexModeFromTemplate == IndexMode.LOGSDB) {
+            dsIndexMode = IndexMode.LOGSDB;
+        } else if (dsIndexMode == IndexMode.LOGSDB && indexModeFromTemplate == IndexMode.TIME_SERIES) {
+            dsIndexMode = IndexMode.TIME_SERIES;
         }
 
         List<Index> backingIndices = new ArrayList<>(this.backingIndices.indices);

@@ -380,7 +380,7 @@ GET _cluster/state/metadata?filter_path=metadata.indices.*.system
 When overwriting current cluster state, system indices should be restored as part of their [feature state](docs-content://deploy-manage/tools/snapshot-and-restore.md#feature-state).
 ::::
 
-### Node specifications [cluster-nodes]
+### Node specification [cluster-nodes]
 
 Some cluster-level APIs may operate on a subset of the nodes which can be specified with node filters.
 For example, task management, node stats, and node info APIs can all report results from a filtered set of nodes rather than from all nodes.

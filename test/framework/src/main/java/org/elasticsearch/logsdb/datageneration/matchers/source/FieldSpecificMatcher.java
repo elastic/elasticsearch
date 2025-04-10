@@ -327,6 +327,8 @@ interface FieldSpecificMatcher {
     }
 
     class KeywordMatcher extends GenericMappingAwareMatcher {
+        String normalizer;
+
         KeywordMatcher(
             XContentBuilder actualMappings,
             Settings.Builder actualSettings,
@@ -337,12 +339,17 @@ interface FieldSpecificMatcher {
         }
 
         @Override
+        public MatchResult match(List<Object> actual, List<Object> expected, Map<String, Object> actualMapping, Map<String, Object> expectedMapping) {
+            this.normalizer = (String) FieldSpecificMatcher.getMappingParameter("normalizer", actualMapping, expectedMapping);
+            return super.match(actual, expected, actualMapping, expectedMapping);
+        }
+
+        @Override
         Object convert(Object value, Object nullValue) {
             if (value == null) {
                 return nullValue;
             }
-            // NOCOMMIT - this is excessively crude
-            if (value instanceof String s) {
+            if (value instanceof String s && this.normalizer != null && this.normalizer.equals("lowercase")) {
                 value = s.toLowerCase(Locale.ROOT);
             }
 

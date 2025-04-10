@@ -76,10 +76,10 @@ public class SourceMatcher extends GenericEqualsMatcher<List<Map<String, Object>
         var sortedAndFlattenedExpected = expected.stream().map(s -> SourceTransforms.normalize(s, mappingLookup)).toList();
 
         for (int i = 0; i < sortedAndFlattenedActual.size(); i++) {
-            var actual = sortedAndFlattenedActual.get(i);
-            var expected = sortedAndFlattenedExpected.get(i);
+            Map<String, List<Object>> actual = sortedAndFlattenedActual.get(i);
+            Map<String, List<Object>> expected = sortedAndFlattenedExpected.get(i);
 
-            var result = compareSource(actual, expected);
+            MatchResult result = compareSource(actual, expected);
             if (result.isMatch() == false) {
                 var message = "Source matching failed at document id [" + i + "]. " + result.getMessage();
                 return MatchResult.noMatch(message);
@@ -90,15 +90,15 @@ public class SourceMatcher extends GenericEqualsMatcher<List<Map<String, Object>
     }
 
     private MatchResult compareSource(Map<String, List<Object>> actual, Map<String, List<Object>> expected) {
-        for (var expectedFieldEntry : expected.entrySet()) {
-            var name = expectedFieldEntry.getKey();
+        for (Map.Entry<String, List<Object>> expectedFieldEntry : expected.entrySet()) {
+            String name = expectedFieldEntry.getKey();
 
-            var actualValues = actual.get(name);
-            var expectedValues = expectedFieldEntry.getValue();
+            List<Object> actualValues = actual.get(name);
+            List<Object> expectedValues = expectedFieldEntry.getValue();
 
-            var matchIncludingFieldSpecificMatchers = matchWithFieldSpecificMatcher(name, actualValues, expectedValues);
+            MatchResult matchIncludingFieldSpecificMatchers = matchWithFieldSpecificMatcher(name, actualValues, expectedValues);
             if (matchIncludingFieldSpecificMatchers.isMatch() == false) {
-                var message = "Source documents don't match for field [" + name + "]: " + matchIncludingFieldSpecificMatchers.getMessage();
+                String message = "Source documents don't match for field [" + name + "]: " + matchIncludingFieldSpecificMatchers.getMessage();
                 return MatchResult.noMatch(message);
             }
         }
@@ -106,7 +106,7 @@ public class SourceMatcher extends GenericEqualsMatcher<List<Map<String, Object>
     }
 
     private MatchResult matchWithFieldSpecificMatcher(String fieldName, List<Object> actualValues, List<Object> expectedValues) {
-        var actualFieldMapping = actualNormalizedMapping.get(fieldName);
+        MappingTransforms.FieldMapping actualFieldMapping = actualNormalizedMapping.get(fieldName);
         if (actualFieldMapping == null) {
             if (expectedNormalizedMapping.get(fieldName) != null
                 // Special cases due to fields being defined in default mapping for logsdb index mode
@@ -126,7 +126,7 @@ public class SourceMatcher extends GenericEqualsMatcher<List<Map<String, Object>
             throw new IllegalStateException("Field type is missing from leaf field Leaf field [" + fieldName + "] mapping parameters");
         }
 
-        var expectedFieldMapping = expectedNormalizedMapping.get(fieldName);
+        MappingTransforms.FieldMapping expectedFieldMapping = expectedNormalizedMapping.get(fieldName);
         if (expectedFieldMapping == null) {
             throw new IllegalStateException("Leaf field [" + fieldName + "] is present in actual mapping but absent in expected mapping");
         } else {
@@ -144,7 +144,7 @@ public class SourceMatcher extends GenericEqualsMatcher<List<Map<String, Object>
             }
         }
 
-        var fieldSpecificMatcher = fieldSpecificMatchers.get(actualFieldType);
+        FieldSpecificMatcher fieldSpecificMatcher = fieldSpecificMatchers.get(actualFieldType);
         assert fieldSpecificMatcher != null : "Missing matcher for field type [" + actualFieldType + "]";
 
         return fieldSpecificMatcher.match(

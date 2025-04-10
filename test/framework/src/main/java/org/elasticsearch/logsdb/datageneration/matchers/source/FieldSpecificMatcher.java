@@ -341,6 +341,10 @@ interface FieldSpecificMatcher {
             if (value == null) {
                 return nullValue;
             }
+            // NOCOMMIT - this is excessively crude
+            if (value instanceof String s) {
+                value = s.toLowerCase(Locale.ROOT);
+            }
 
             return value;
         }
@@ -631,10 +635,10 @@ interface FieldSpecificMatcher {
             Map<String, Object> actualMapping,
             Map<String, Object> expectedMapping
         ) {
-            var nullValue = getNullValue(actualMapping, expectedMapping);
+            Object nullValue = getNullValue(actualMapping, expectedMapping);
 
-            var expectedNormalized = normalize(expected, nullValue);
-            var actualNormalized = normalize(actual, nullValue);
+            Set<Object> expectedNormalized = normalize(expected, nullValue);
+            Set<Object> actualNormalized = normalize(actual, nullValue);
 
             return actualNormalized.equals(expectedNormalized)
                 ? MatchResult.match()

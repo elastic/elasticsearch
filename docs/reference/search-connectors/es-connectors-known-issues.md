@@ -118,14 +118,6 @@ The connector service has the following known issues:
 
     As a result, true document volume will be under-reported by a factor of 1024.
 
-* **The following Elastic managed connectors will not run correctly on Elastic Cloud in 8.9.0.** They are still available as self-managed connectors.
-
-    * Azure Blob Storage
-    * Confluence Cloud & Server
-    * Jira Cloud & Server
-    * Network drives
-
-
 
 ## Individual connector known issues [es-connectors-known-issues-specific]
 

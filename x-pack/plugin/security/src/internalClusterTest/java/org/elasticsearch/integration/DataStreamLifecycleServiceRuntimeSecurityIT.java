@@ -59,9 +59,12 @@ import static org.elasticsearch.cluster.metadata.DataStreamTestHelper.backingInd
 import static org.elasticsearch.cluster.metadata.DataStreamTestHelper.dataStreamIndexEqualTo;
 import static org.elasticsearch.cluster.metadata.MetadataIndexTemplateService.DEFAULT_TIMESTAMP_FIELD;
 import static org.elasticsearch.xpack.security.support.SecuritySystemIndices.SECURITY_MAIN_ALIAS;
+import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasItem;
+import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.startsWith;
@@ -151,6 +154,16 @@ public class DataStreamLifecycleServiceRuntimeSecurityIT extends SecurityIntegTe
         // lifecycle will therefore fail at runtime with an authz exception
         prepareDataStreamAndIndex(SECURITY_MAIN_ALIAS, null);
         indexFailedDoc(SECURITY_MAIN_ALIAS);
+
+        assertBusy(() -> {
+            Map<String, String> indicesAndErrors = collectErrorsFromStoreAsMap();
+            // Both the backing and failures indices should have errors
+            assertThat(indicesAndErrors.size(), is(2));
+            assertThat(
+                indicesAndErrors.values(),
+                hasItem(allOf(containsString("security_exception"), containsString("unauthorized for user [_data_stream_lifecycle]")))
+            );
+        });
     }
 
     public void testRolloverAndRetentionWithSystemDataStreamAuthorized() throws Exception {
@@ -165,6 +178,18 @@ public class DataStreamLifecycleServiceRuntimeSecurityIT extends SecurityIntegTe
             // as generation 1 would've been deleted by the data stream lifecycle given the lifecycle configuration
             String writeIndex = backingIndices.get(0).getName();
             assertThat(writeIndex, backingIndexEqualTo(dataStreamName, 2));
+        });
+
+        // test failure store too, we index the failure later to have predictable generation suffixes
+        indexFailedDoc(dataStreamName);
+        assertBusy(() -> {
+            assertNoAuthzErrors();
+            List<String> failureIndices = getDataStreamBackingIndexNames(dataStreamName, true);
+            assertThat(failureIndices.size(), equalTo(1));
+            // we expect the data stream to have only one backing index, the write one, with generation 2
+            // as generation 1 would've been deleted by the data stream lifecycle given the lifecycle configuration
+            String writeIndex = failureIndices.get(0);
+            assertThat(writeIndex, dataStreamIndexEqualTo(dataStreamName, 4, true));
         });
     }
 

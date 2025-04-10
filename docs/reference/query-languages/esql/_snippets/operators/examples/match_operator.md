@@ -4,10 +4,7 @@
 
 ```esql
 FROM books
-| WHERE MATCH(author, "Faulkner")
-| KEEP book_no, author
-| SORT book_no
-| LIMIT 5
+| WHERE author:"Faulkner"
 ```
 
 | book_no:keyword | author:text |

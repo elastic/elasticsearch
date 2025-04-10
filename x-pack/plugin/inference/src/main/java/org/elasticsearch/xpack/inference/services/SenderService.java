@@ -14,6 +14,7 @@ import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.inference.ChunkInferenceInput;
 import org.elasticsearch.inference.ChunkedInference;
 import org.elasticsearch.inference.InferenceService;
 import org.elasticsearch.inference.InferenceServiceResults;
@@ -60,6 +61,8 @@ public abstract class SenderService implements InferenceService {
     public void infer(
         Model model,
         @Nullable String query,
+        @Nullable Boolean returnDocuments,
+        @Nullable Integer topN,
         List<String> input,
         boolean stream,
         Map<String, Object> taskSettings,
@@ -68,21 +71,32 @@ public abstract class SenderService implements InferenceService {
         ActionListener<InferenceServiceResults> listener
     ) {
         init();
-        var inferenceInput = createInput(this, model, input, inputType, query, stream);
+        var chunkInferenceInput = input.stream().map(i -> new ChunkInferenceInput(i, null)).toList();
+        var inferenceInput = createInput(this, model, chunkInferenceInput, inputType, query, returnDocuments, topN, stream);
         doInfer(model, inferenceInput, taskSettings, timeout, listener);
     }
 
     private static InferenceInputs createInput(
         SenderService service,
         Model model,
-        List<String> input,
+        List<ChunkInferenceInput> input,
         InputType inputType,
         @Nullable String query,
+        @Nullable Boolean returnDocuments,
+        @Nullable Integer topN,
         boolean stream
     ) {
+        List<String> textInput = ChunkInferenceInput.inputs(input);
         return switch (model.getTaskType()) {
-            case COMPLETION, CHAT_COMPLETION -> new ChatCompletionInput(input, stream);
-            case RERANK -> new QueryAndDocsInputs(query, input, stream);
+            case COMPLETION, CHAT_COMPLETION -> new ChatCompletionInput(textInput, stream);
+            case RERANK -> {
+                ValidationException validationException = new ValidationException();
+                service.validateRerankParameters(returnDocuments, topN, validationException);
+                if (validationException.validationErrors().isEmpty() == false) {
+                    throw validationException;
+                }
+                yield new QueryAndDocsInputs(query, textInput, returnDocuments, topN, stream);
+            }
             case TEXT_EMBEDDING, SPARSE_EMBEDDING -> {
                 ValidationException validationException = new ValidationException();
                 service.validateInputType(inputType, model, validationException);
@@ -113,7 +127,7 @@ public abstract class SenderService implements InferenceService {
     public void chunkedInfer(
         Model model,
         @Nullable String query,
-        List<String> input,
+        List<ChunkInferenceInput> input,
         Map<String, Object> taskSettings,
         InputType inputType,
         TimeValue timeout,
@@ -140,6 +154,8 @@ public abstract class SenderService implements InferenceService {
     );
 
     protected abstract void validateInputType(InputType inputType, Model model, ValidationException validationException);
+
+    protected void validateRerankParameters(Boolean returnDocuments, Integer topN, ValidationException validationException) {}
 
     protected abstract void doUnifiedCompletionInfer(
         Model model,

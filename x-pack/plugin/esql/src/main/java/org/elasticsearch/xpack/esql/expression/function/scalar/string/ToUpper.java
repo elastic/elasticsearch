@@ -15,6 +15,8 @@ import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.expression.function.Example;
+import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesTo;
+import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecycle;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
@@ -28,7 +30,13 @@ public class ToUpper extends ChangeCase {
     @FunctionInfo(
         returnType = { "keyword" },
         description = "Returns a new string representing the input string converted to upper case.",
-        examples = @Example(file = "string", tag = "to_upper")
+        examples = @Example(file = "string", tag = "to_upper"),
+        appliesTo = {
+            @FunctionAppliesTo(
+                lifeCycle = FunctionAppliesToLifecycle.COMING,
+                version = "9.1.0",
+                description = "Support for multivalued parameters is only available from 9.1.0"
+            ) }
     )
     public ToUpper(Source source, @Param(name = "str", type = { "keyword", "text" }, description = """
         String expression. If `null`, the function returns `null`.

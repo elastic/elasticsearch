@@ -19,7 +19,9 @@ import org.elasticsearch.action.datastreams.lifecycle.ErrorEntry;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.DataStream;
+import org.elasticsearch.cluster.metadata.DataStreamFailureStore;
 import org.elasticsearch.cluster.metadata.DataStreamLifecycle;
+import org.elasticsearch.cluster.metadata.DataStreamOptions;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.Template;
 import org.elasticsearch.common.compress.CompressedXContent;
@@ -95,25 +97,21 @@ public class DataStreamLifecycleServiceRuntimeSecurityIT extends SecurityIntegTe
     public void testRolloverLifecycleAndForceMergeAuthorized() throws Exception {
         String dataStreamName = randomDataStreamName();
         // empty lifecycle contains the default rollover
-        prepareDataStreamAndIndex(dataStreamName, DataStreamLifecycle.Template.DEFAULT);
+        prepareDataStreamAndIndex(dataStreamName, DataStreamLifecycle.Template.DATA_DEFAULT);
 
-        assertBusy(() -> {
-            assertNoAuthzErrors();
-            List<Index> backingIndices = getDataStreamBackingIndices(dataStreamName);
-            assertThat(backingIndices.size(), equalTo(2));
-            String backingIndex = backingIndices.get(0).getName();
-            assertThat(backingIndex, backingIndexEqualTo(dataStreamName, 1));
-            String writeIndex = backingIndices.get(1).getName();
-            assertThat(writeIndex, backingIndexEqualTo(dataStreamName, 2));
-        });
+        List<String> backingIndices = waitForDataStreamBackingIndices(dataStreamName, 2);
+        String backingIndex = backingIndices.get(0);
+        assertThat(backingIndex, backingIndexEqualTo(dataStreamName, 1));
+        String writeIndex = backingIndices.get(1);
+        assertThat(writeIndex, backingIndexEqualTo(dataStreamName, 2));
+
+        assertNoAuthzErrors();
         // Index another doc to force another rollover and trigger an attempted force-merge. The force-merge may be a noop under
         // the hood but for authz purposes this doesn't matter, it only matters that the force-merge API was called
         indexDoc(dataStreamName);
-        assertBusy(() -> {
-            assertNoAuthzErrors();
-            List<Index> backingIndices = getDataStreamBackingIndices(dataStreamName);
-            assertThat(backingIndices.size(), equalTo(3));
-        });
+
+        waitForDataStreamBackingIndices(dataStreamName, 3);
+        assertNoAuthzErrors();
     }
 
     public void testRolloverAndRetentionAuthorized() throws Exception {
@@ -134,7 +132,7 @@ public class DataStreamLifecycleServiceRuntimeSecurityIT extends SecurityIntegTe
     public void testUnauthorized() throws Exception {
         // this is an example index pattern for a system index that the data stream lifecycle does not have access for. Data stream
         // lifecycle will therefore fail at runtime with an authz exception
-        prepareDataStreamAndIndex(SECURITY_MAIN_ALIAS, DataStreamLifecycle.Template.DEFAULT);
+        prepareDataStreamAndIndex(SECURITY_MAIN_ALIAS, DataStreamLifecycle.Template.DATA_DEFAULT);
 
         assertBusy(() -> {
             Map<String, String> indicesAndErrors = collectErrorsFromStoreAsMap();
@@ -266,20 +264,47 @@ public class DataStreamLifecycleServiceRuntimeSecurityIT extends SecurityIntegTe
 
         @Override
         public Collection<SystemDataStreamDescriptor> getSystemDataStreamDescriptors() {
-            return List.of(
-                new SystemDataStreamDescriptor(
-                    SYSTEM_DATA_STREAM_NAME,
-                    "a system data stream for testing",
-                    SystemDataStreamDescriptor.Type.EXTERNAL,
-                    ComposableIndexTemplate.builder()
-                        .indexPatterns(List.of(SYSTEM_DATA_STREAM_NAME))
-                        .template(Template.builder().lifecycle(DataStreamLifecycle.builder().dataRetention(TimeValue.ZERO)))
-                        .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate())
-                        .build(),
-                    Map.of(),
-                    Collections.singletonList("test"),
-                    new ExecutorNames(ThreadPool.Names.SYSTEM_CRITICAL_READ, ThreadPool.Names.SYSTEM_READ, ThreadPool.Names.SYSTEM_WRITE)
-                )
+            try {
+                return List.of(
+                    new SystemDataStreamDescriptor(
+                        SYSTEM_DATA_STREAM_NAME,
+                        "a system data stream for testing",
+                        SystemDataStreamDescriptor.Type.EXTERNAL,
+                        ComposableIndexTemplate.builder()
+                            .indexPatterns(List.of(SYSTEM_DATA_STREAM_NAME))
+                            .template(
+                                Template.builder()
+                                    .mappings(new CompressedXContent("""
+                                        {
+                                            "properties": {
+                                              "@timestamp" : {
+                                                "type": "date"
+                                              },
+                                              "count": {
+                                                "type": "long"
+                                              }
+                                            }
+                                        }"""))
+                                    .lifecycle(DataStreamLifecycle.builder().dataRetention(TimeValue.ZERO))
+                                    .dataStreamOptions(new DataStreamOptions.Template(new DataStreamFailureStore.Template(true)))
+                            )
+                            .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate())
+                            .build(),
+                        Map.of(),
+                        Collections.singletonList("test"),
+                        "test",
+                        new ExecutorNames(
+                            ThreadPool.Names.SYSTEM_CRITICAL_READ,
+                            ThreadPool.Names.SYSTEM_READ,
+                            ThreadPool.Names.SYSTEM_WRITE
+                        )
+                    )
+                );
+            } catch (IOException e) {
+                fail(e.getMessage());
+            }
+            throw new IllegalStateException(
+                "Something went wrong, it should have either returned the descriptor or it should have thrown an assertion error"
             );
         }
 

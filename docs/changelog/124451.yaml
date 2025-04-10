@@ -1,5 +1,0 @@
-pr: 124451
-summary: Improve downsample performance by avoiding to read unnecessary dimension values when downsampling.
-area: Downsampling
-type: bug
-issues: []

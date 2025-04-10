@@ -57,7 +57,7 @@ public final class QueryPragmas implements Writeable {
     public static final Setting<TimeValue> STATUS_INTERVAL = Setting.timeSetting("status_interval", Driver.DEFAULT_STATUS_INTERVAL);
 
     public static final Setting<Integer> MAX_CONCURRENT_NODES_PER_CLUSTER = //
-        Setting.intSetting("max_concurrent_nodes_per_cluster", -1, -1, 100);
+        Setting.intSetting("max_concurrent_nodes_per_cluster", -1, -1);
     public static final Setting<Integer> MAX_CONCURRENT_SHARDS_PER_NODE = //
         Setting.intSetting("max_concurrent_shards_per_node", 10, 1, 100);
 

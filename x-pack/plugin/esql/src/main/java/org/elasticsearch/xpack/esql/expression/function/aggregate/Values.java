@@ -47,7 +47,6 @@ public class Values extends AggregateFunction implements ToAggregator {
         Map.entry(DataType.DOUBLE, ValuesDoubleAggregatorFunctionSupplier::new),
         Map.entry(DataType.KEYWORD, ValuesBytesRefAggregatorFunctionSupplier::new),
         Map.entry(DataType.TEXT, ValuesBytesRefAggregatorFunctionSupplier::new),
-        Map.entry(DataType.SEMANTIC_TEXT, ValuesBytesRefAggregatorFunctionSupplier::new),
         Map.entry(DataType.IP, ValuesBytesRefAggregatorFunctionSupplier::new),
         Map.entry(DataType.VERSION, ValuesBytesRefAggregatorFunctionSupplier::new),
         Map.entry(DataType.GEO_POINT, ValuesBytesRefAggregatorFunctionSupplier::new),

@@ -111,7 +111,7 @@ to create the endpoint. If not specified, the {{infer}} endpoint defined by
 `chunking_settings`
 :   (Optional, object) Settings for chunking text into smaller passages.
 If specified, these will override the chunking settings set in the {infer-cap}
-endpoint associated with `inference_id` will be used.
+endpoint associated with `inference_id`.
 If chunking settings are updated, they will not be applied to existing documents
 until they are reindexed.
 

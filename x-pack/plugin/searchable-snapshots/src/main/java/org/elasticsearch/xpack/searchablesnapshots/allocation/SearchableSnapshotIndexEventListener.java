@@ -114,7 +114,9 @@ public class SearchableSnapshotIndexEventListener implements IndexEventListener 
                         );
                     }
                     if (sharedBlobCacheService != null) {
-                        sharedBlobCacheService.forceEvict(SearchableSnapshots.forceEvictPredicate(shardId, indexSettings.getSettings()));
+                        sharedBlobCacheService.forceEvictAsync(
+                            SearchableSnapshots.forceEvictPredicate(shardId, indexSettings.getSettings())
+                        );
                     }
                 }
             }

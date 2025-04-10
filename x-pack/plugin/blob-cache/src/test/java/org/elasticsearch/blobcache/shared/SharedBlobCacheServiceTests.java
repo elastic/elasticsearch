@@ -272,6 +272,44 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
         }
     }
 
+    public void testAsynchronousEviction() throws Exception {
+        Settings settings = Settings.builder()
+            .put(NODE_NAME_SETTING.getKey(), "node")
+            .put(SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING.getKey(), ByteSizeValue.ofBytes(size(500)).getStringRep())
+            .put(SharedBlobCacheService.SHARED_CACHE_REGION_SIZE_SETTING.getKey(), ByteSizeValue.ofBytes(size(100)).getStringRep())
+            .put("path.home", createTempDir())
+            .build();
+        final DeterministicTaskQueue taskQueue = new DeterministicTaskQueue();
+        try (
+            NodeEnvironment environment = new NodeEnvironment(settings, TestEnvironment.newEnvironment(settings));
+            var cacheService = new SharedBlobCacheService<>(
+                environment,
+                settings,
+                taskQueue.getThreadPool(),
+                taskQueue.getThreadPool().executor(ThreadPool.Names.GENERIC),
+                BlobCacheMetrics.NOOP
+            )
+        ) {
+            final var cacheKey1 = generateCacheKey();
+            final var cacheKey2 = generateCacheKey();
+            assertEquals(5, cacheService.freeRegionCount());
+            final var region0 = cacheService.get(cacheKey1, size(250), 0);
+            assertEquals(4, cacheService.freeRegionCount());
+            final var region1 = cacheService.get(cacheKey2, size(250), 1);
+            assertEquals(3, cacheService.freeRegionCount());
+            assertFalse(region0.isEvicted());
+            assertFalse(region1.isEvicted());
+            cacheService.forceEvictAsync(ck -> ck == cacheKey1);
+            assertFalse(region0.isEvicted());
+            assertFalse(region1.isEvicted());
+            // run the async task
+            taskQueue.runAllRunnableTasks();
+            assertTrue(region0.isEvicted());
+            assertFalse(region1.isEvicted());
+            assertEquals(4, cacheService.freeRegionCount());
+        }
+    }
+
     public void testDecay() throws IOException {
         // we have 8 regions
         Settings settings = Settings.builder()

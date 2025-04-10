@@ -72,8 +72,12 @@ public class SearchableSnapshotIndexFoldersDeletionListener implements IndexStor
             shardId
         );
 
-        final SharedBlobCacheService<CacheKey> sharedBlobCacheService = this.frozenCacheServiceSupplier.get();
-        assert sharedBlobCacheService != null : "frozen cache service not initialized";
-        sharedBlobCacheService.forceEvict(SearchableSnapshots.forceEvictPredicate(shardId, indexSettings.getSettings()));
+        // Only partial searchable snapshots use the SharedBlobCacheService
+        if (indexSettings.getIndexMetadata().isPartialSearchableSnapshot()) {
+            final SharedBlobCacheService<CacheKey> sharedBlobCacheService =
+                SearchableSnapshotIndexFoldersDeletionListener.this.frozenCacheServiceSupplier.get();
+            assert sharedBlobCacheService != null : "frozen cache service not initialized";
+            sharedBlobCacheService.forceEvictAsync(SearchableSnapshots.forceEvictPredicate(shardId, indexSettings.getSettings()));
+        }
     }
 }

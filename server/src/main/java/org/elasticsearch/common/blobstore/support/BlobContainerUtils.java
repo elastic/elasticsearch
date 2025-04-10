@@ -9,16 +9,10 @@
 
 package org.elasticsearch.common.blobstore.support;
 
-import org.apache.logging.log4j.Level;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-import org.elasticsearch.common.ReferenceDocs;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.logging.ChunkedLoggingStream;
-import org.elasticsearch.common.unit.ByteSizeUnit;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -37,8 +31,6 @@ public class BlobContainerUtils {
             throw new IllegalStateException(message);
         }
     }
-
-    private static final Logger logger = LogManager.getLogger(BlobContainerUtils.class);
 
     /**
      * Many blob stores have consistent (linearizable/atomic) read semantics and in these casees it is safe to implement {@link
@@ -59,28 +51,7 @@ public class BlobContainerUtils {
             len -= read;
             pos += read;
         }
-        final int nextByte = inputStream.read();
-        if (nextByte != -1) {
-            try (
-                var cls = ChunkedLoggingStream.create(
-                    logger,
-                    Level.ERROR,
-                    "getRegisterUsingConsistentRead including trailing data",
-                    ReferenceDocs.LOGGING
-                )
-            ) {
-                cls.write(bytes);
-                cls.write(nextByte);
-                final var buffer = new byte[ByteSizeUnit.KB.toIntBytes(1)];
-                while (true) {
-                    final var readSize = inputStream.read(buffer);
-                    if (readSize == -1) {
-                        break;
-                    }
-                    cls.write(buffer, 0, readSize);
-                }
-            }
-
+        if (inputStream.read() != -1) {
             throw new IllegalStateException(
                 Strings.format("[%s] failed reading register [%s] due to unexpected trailing data", container, key)
             );

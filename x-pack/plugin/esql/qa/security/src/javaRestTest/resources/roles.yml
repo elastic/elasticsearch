@@ -193,3 +193,10 @@ logs_foo_after_2021_alias:
             "@timestamp": {"gte": "2021-01-01T00:00:00"}
           }
         }
+
+user_without_monitor_privileges:
+  cluster: []
+
+user_with_monitor_privileges:
+  cluster:
+    - monitor_esql

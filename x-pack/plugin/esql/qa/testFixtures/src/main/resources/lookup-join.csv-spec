@@ -1576,7 +1576,7 @@ from languag*
 ;
 
 ignoreOrder:true
-language.name:keyword
+language.name:text
 null
 null
 null
@@ -1599,7 +1599,7 @@ null
 null
 null
 English
-Franch
+French
 Spanish
 German
 ;

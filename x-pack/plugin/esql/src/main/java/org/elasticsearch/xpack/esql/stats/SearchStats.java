@@ -37,6 +37,8 @@ public interface SearchStats {
 
     boolean isSingleValue(String field);
 
+    boolean canUseEqualityOnSyntheticSourceDelegate(String name, String value);
+
     /**
      * When there are no search stats available, for example when there are no search contexts, we have static results.
      */
@@ -92,5 +94,9 @@ public interface SearchStats {
             return true;
         }
 
+        @Override
+        public boolean canUseEqualityOnSyntheticSourceDelegate(String name, String value) {
+            return false;
+        }
     }
 }

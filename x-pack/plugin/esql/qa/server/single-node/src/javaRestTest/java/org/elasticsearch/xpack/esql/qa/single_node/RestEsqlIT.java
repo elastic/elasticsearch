@@ -313,7 +313,7 @@ public class RestEsqlIT extends RestEsqlTestCase {
             @SuppressWarnings("unchecked")
             List<Map<String, Object>> operators = (List<Map<String, Object>>) p.get("operators");
             for (Map<String, Object> o : operators) {
-                sig.add(checkOperatorProfile(o));
+                sig.add(checkOperatorProfile(o, "*:*"));
             }
             String description = p.get("description").toString();
             switch (description) {
@@ -407,6 +407,55 @@ public class RestEsqlIT extends RestEsqlTestCase {
                 assertProcessMetadataForNextNode(metadataEventForNode, expectedProcessNames, seenNodes);
                 i++;
                 seenNodes++;
+            }
+        }
+    }
+
+    public void testPushEqualityOnDefaults() throws IOException {
+        indexTimestampData(1);
+
+        RequestObjectBuilder builder = requestObjectBuilder().query(fromIndex() + " | WHERE test == \"value1\"");
+        builder.profile(true);
+        Map<String, Object> result = runEsql(builder);
+        assertResultMap(
+            result,
+            getResultMatcher(result).entry("profile", matchesMap().entry("drivers", instanceOf(List.class))),
+            matchesList().item(matchesMap().entry("name", "@timestamp").entry("type", "date"))
+                .item(matchesMap().entry("name", "test").entry("type", "text"))
+                .item(matchesMap().entry("name", "test.keyword").entry("type", "keyword"))
+                .item(matchesMap().entry("name", "value").entry("type", "long")),
+            equalTo(List.of(List.of("2020-12-12T00:00:00.000Z", "value1", "value1", 1)))
+        );
+
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> profiles = (List<Map<String, Object>>) ((Map<String, Object>) result.get("profile")).get("drivers");
+        for (Map<String, Object> p : profiles) {
+            fixTypesOnProfile(p);
+            assertThat(p, commonProfile());
+            List<String> sig = new ArrayList<>();
+            @SuppressWarnings("unchecked")
+            List<Map<String, Object>> operators = (List<Map<String, Object>>) p.get("operators");
+            for (Map<String, Object> o : operators) {
+                // The query here is the most important bit - we *do* push to lucene.
+                sig.add(checkOperatorProfile(o, "test.keyword:value1"));
+            }
+            String description = p.get("description").toString();
+            switch (description) {
+                case "data" -> assertMap(
+                    sig,
+                    matchesList().item("LuceneSourceOperator")
+                        .item("ValuesSourceReaderOperator")
+                        .item("ProjectOperator")
+                        .item("ExchangeSinkOperator")
+                );
+                case "node_reduce" -> assertThat(
+                    sig,
+                    either(matchesList().item("ExchangeSourceOperator").item("ExchangeSinkOperator")).or(
+                        matchesList().item("ExchangeSourceOperator").item("AggregationOperator").item("ExchangeSinkOperator")
+                    )
+                );
+                case "final" -> assertMap(sig, matchesList().item("ExchangeSourceOperator").item("LimitOperator").item("OutputOperator"));
+                default -> throw new IllegalArgumentException("can't match " + description);
             }
         }
     }
@@ -521,7 +570,7 @@ public class RestEsqlIT extends RestEsqlTestCase {
             @SuppressWarnings("unchecked")
             List<Map<String, Object>> operators = (List<Map<String, Object>>) p.get("operators");
             for (Map<String, Object> o : operators) {
-                sig.add(checkOperatorProfile(o));
+                sig.add(checkOperatorProfile(o, "*:*"));
             }
             signatures.add(sig);
         }
@@ -673,7 +722,7 @@ public class RestEsqlIT extends RestEsqlTestCase {
         profile.put("took_nanos", ((Number) profile.get("took_nanos")).longValue());
     }
 
-    private String checkOperatorProfile(Map<String, Object> o) {
+    private String checkOperatorProfile(Map<String, Object> o, String query) {
         String name = (String) o.get("operator");
         name = name.replaceAll("\\[.+", "");
         MapMatcher status = switch (name) {
@@ -687,7 +736,7 @@ public class RestEsqlIT extends RestEsqlTestCase {
                 .entry("pages_emitted", greaterThan(0))
                 .entry("rows_emitted", greaterThan(0))
                 .entry("process_nanos", greaterThan(0))
-                .entry("processed_queries", List.of("*:*"));
+                .entry("processed_queries", List.of(query));
             case "ValuesSourceReaderOperator" -> basicProfile().entry("readers_built", matchesMap().extraOk());
             case "AggregationOperator" -> matchesMap().entry("pages_processed", greaterThan(0))
                 .entry("rows_received", greaterThan(0))

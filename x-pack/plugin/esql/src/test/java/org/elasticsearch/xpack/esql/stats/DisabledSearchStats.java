@@ -61,4 +61,9 @@ public class DisabledSearchStats implements SearchStats {
     public boolean isSingleValue(String field) {
         return false;
     }
+
+    @Override
+    public boolean canUseEqualityOnSyntheticSourceDelegate(String name, String value) {
+        return false;
+    }
 }

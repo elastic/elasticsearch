@@ -102,7 +102,7 @@ public class InsensitiveEquals extends InsensitiveBinaryComparison {
     }
 
     @Override
-    public Query asQuery(TranslatorHandler handler) {
+    public Query asQuery(LucenePushdownPredicates pushdownPredicates, TranslatorHandler handler) {
         checkInsensitiveComparison();
         return translate();
     }

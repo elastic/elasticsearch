@@ -100,7 +100,7 @@ public class MultiMatchQueryPredicate extends FullTextPredicate implements Trans
     }
 
     @Override
-    public Query asQuery(TranslatorHandler handler) {
+    public Query asQuery(LucenePushdownPredicates pushdownPredicates, TranslatorHandler handler) {
         return new MultiMatchQuery(source(), query(), fields(), this);
     }
 }

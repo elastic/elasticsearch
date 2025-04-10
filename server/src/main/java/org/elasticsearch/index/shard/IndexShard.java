@@ -2640,15 +2640,12 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     }
 
     public void onSettingsChanged() {
-        engineResetLock.readLock().lock();
-        try {
-            var engine = getCurrentEngine(true);
-            if (engine != null) {
-                engine.onSettingsChanged();
+        withEngineOrNull(engineOrNull -> {
+            if (engineOrNull != null) {
+                engineOrNull.onSettingsChanged();
             }
-        } finally {
-            engineResetLock.readLock().unlock();
-        }
+            return null;
+        });
     }
 
     /**

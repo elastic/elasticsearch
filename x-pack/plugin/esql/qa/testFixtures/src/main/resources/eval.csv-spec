@@ -637,6 +637,7 @@ foo:keyword
 ;
 
 evalAfterAvgGroupingUsingSameName
+required_capability: retain_aggregate_when_grouping
 from employees
 | stats avg = avg(salary) by gender 
 | keep avg 
@@ -650,6 +651,7 @@ avg:integer
 ;
 
 evalAfterGroupingUsingSameName
+required_capability: retain_aggregate_when_grouping
 row foo = [10,11,9], bar = [1,2,3]
 | mv_expand foo
 | mv_expand bar 
@@ -665,6 +667,7 @@ this:integer
 ;
 
 evalAfterGroupingUsingSameName2
+required_capability: retain_aggregate_when_grouping
 from employees 
 | stats count = count(emp_no) by gender, is_rehired 
 | keep count 

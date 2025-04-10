@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.esql.session;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.OriginalIndices;
-import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.common.Strings;
@@ -19,9 +18,11 @@ import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverProfile;
 import org.elasticsearch.core.Releasables;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexMode;
+import org.elasticsearch.index.mapper.IndexModeFieldMapper;
+import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.indices.IndicesExpressionGrouper;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
@@ -83,7 +84,6 @@ import org.elasticsearch.xpack.esql.plugin.TransportActionServices;
 import org.elasticsearch.xpack.esql.telemetry.PlanTelemetry;
 
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
@@ -363,16 +363,10 @@ public class EsqlSession {
         final List<IndexPattern> indices = preAnalysis.indices;
 
         EsqlCCSUtils.checkForCcsLicense(executionInfo, indices, indicesExpressionGrouper, configuredClusters, verifier.licenseState());
-
-        final Set<String> targetClusters = enrichPolicyResolver.groupIndicesPerCluster(
-            configuredClusters,
-            indices.stream()
-                .flatMap(index -> Arrays.stream(Strings.commaDelimitedListToStringArray(index.indexPattern())))
-                .toArray(String[]::new)
-        ).keySet();
+        initializeClusterData(indices, executionInfo);
 
         var listener = SubscribableListener.<EnrichResolution>newForked(
-            l -> enrichPolicyResolver.resolvePolicies(targetClusters, unresolvedPolicies, l)
+            l -> enrichPolicyResolver.resolvePolicies(unresolvedPolicies, executionInfo, l)
         )
             .<PreAnalysisResult>andThen((l, enrichResolution) -> resolveFieldNames(parsed, enrichResolution, l))
             .<PreAnalysisResult>andThen((l, preAnalysisResult) -> resolveInferences(preAnalysis.inferencePlans, preAnalysisResult, l));
@@ -382,7 +376,7 @@ public class EsqlSession {
         }
         listener.<PreAnalysisResult>andThen((l, result) -> {
             // resolve the main indices
-            preAnalyzeIndices(preAnalysis.indices, executionInfo, result, requestFilter, l);
+            preAnalyzeMainIndices(preAnalysis, executionInfo, result, requestFilter, l);
         }).<PreAnalysisResult>andThen((l, result) -> {
             // TODO in follow-PR (for skip_unavailable handling of missing concrete indexes) add some tests for
             // invalid index resolution to updateExecutionInfo
@@ -398,14 +392,8 @@ public class EsqlSession {
         }).<PreAnalysisResult>andThen((l, result) -> {
             assert requestFilter != null : "The second pre-analysis shouldn't take place when there is no index filter in the request";
 
-            // "reset" execution information for all ccs or non-ccs (local) clusters, since we are performing the indices
-            // resolving one more time (the first attempt failed and the query had a filter)
-            for (String clusterAlias : executionInfo.clusterAliases()) {
-                executionInfo.swapCluster(clusterAlias, (k, v) -> null);
-            }
-
             // here the requestFilter is set to null, performing the pre-analysis after the first step failed
-            preAnalyzeIndices(preAnalysis.indices, executionInfo, result, null, l);
+            preAnalyzeMainIndices(preAnalysis, executionInfo, result, null, l);
         }).<LogicalPlan>andThen((l, result) -> {
             assert requestFilter != null : "The second analysis shouldn't take place when there is no index filter in the request";
             LOGGER.debug("Analyzing the plan (second attempt, without filter)");
@@ -433,50 +421,41 @@ public class EsqlSession {
         // TODO: Verify that the resolved index actually has indexMode: "lookup"
     }
 
-    private void preAnalyzeIndices(
-        List<IndexPattern> indices,
+    private void initializeClusterData(List<IndexPattern> indices, EsqlExecutionInfo executionInfo) {
+        if (indices.isEmpty()) {
+            return;
+        }
+        assert indices.size() == 1 : "Only single index pattern is supported";
+        Map<String, OriginalIndices> clusterIndices = indicesExpressionGrouper.groupIndices(
+            configuredClusters,
+            IndicesOptions.DEFAULT,
+            indices.getFirst().indexPattern()
+        );
+        for (Map.Entry<String, OriginalIndices> entry : clusterIndices.entrySet()) {
+            final String clusterAlias = entry.getKey();
+            String indexExpr = Strings.arrayToCommaDelimitedString(entry.getValue().indices());
+            executionInfo.swapCluster(clusterAlias, (k, v) -> {
+                assert v == null : "No cluster for " + clusterAlias + " should have been added to ExecutionInfo yet";
+                return new EsqlExecutionInfo.Cluster(clusterAlias, indexExpr, executionInfo.isSkipUnavailable(clusterAlias));
+            });
+        }
+    }
+
+    private void preAnalyzeMainIndices(
+        PreAnalyzer.PreAnalysis preAnalysis,
         EsqlExecutionInfo executionInfo,
         PreAnalysisResult result,
         QueryBuilder requestFilter,
         ActionListener<PreAnalysisResult> listener
     ) {
         // TODO we plan to support joins in the future when possible, but for now we'll just fail early if we see one
+        List<IndexPattern> indices = preAnalysis.indices;
         if (indices.size() > 1) {
             // Note: JOINs are not supported but we detect them when
             listener.onFailure(new MappingException("Queries with multiple indices are not supported"));
         } else if (indices.size() == 1) {
-            // known to be unavailable from the enrich policy API call
-            Map<String, Exception> unavailableClusters = result.enrichResolution.getUnavailableClusters();
             IndexPattern table = indices.getFirst();
 
-            Map<String, OriginalIndices> clusterIndices = indicesExpressionGrouper.groupIndices(
-                configuredClusters,
-                IndicesOptions.DEFAULT,
-                table.indexPattern()
-            );
-            for (Map.Entry<String, OriginalIndices> entry : clusterIndices.entrySet()) {
-                final String clusterAlias = entry.getKey();
-                String indexExpr = Strings.arrayToCommaDelimitedString(entry.getValue().indices());
-                executionInfo.swapCluster(clusterAlias, (k, v) -> {
-                    assert v == null : "No cluster for " + clusterAlias + " should have been added to ExecutionInfo yet";
-                    if (unavailableClusters.containsKey(k)) {
-                        return new EsqlExecutionInfo.Cluster(
-                            clusterAlias,
-                            indexExpr,
-                            executionInfo.isSkipUnavailable(clusterAlias),
-                            EsqlExecutionInfo.Cluster.Status.SKIPPED,
-                            0,
-                            0,
-                            0,
-                            0,
-                            List.of(new ShardSearchFailure(unavailableClusters.get(k))),
-                            new TimeValue(0)
-                        );
-                    } else {
-                        return new EsqlExecutionInfo.Cluster(clusterAlias, indexExpr, executionInfo.isSkipUnavailable(clusterAlias));
-                    }
-                });
-            }
             // if the preceding call to the enrich policy API found unavailable clusters, recreate the index expression to search
             // based only on available clusters (which could now be an empty list)
             String indexExpressionToResolve = EsqlCCSUtils.createIndexExpressionFromAvailableClusters(executionInfo);
@@ -487,6 +466,15 @@ public class EsqlSession {
                 );
             } else {
                 // call the EsqlResolveFieldsAction (field-caps) to resolve indices and get field types
+                if (preAnalysis.indexMode == IndexMode.TIME_SERIES) {
+                    // TODO: Maybe if no indices are returned, retry without index mode and provide a clearer error message.
+                    var indexModeFilter = new TermQueryBuilder(IndexModeFieldMapper.NAME, IndexMode.TIME_SERIES.getName());
+                    if (requestFilter != null) {
+                        requestFilter = new BoolQueryBuilder().filter(requestFilter).filter(indexModeFilter);
+                    } else {
+                        requestFilter = indexModeFilter;
+                    }
+                }
                 indexResolver.resolveAsMergedMapping(
                     indexExpressionToResolve,
                     result.fieldNames,

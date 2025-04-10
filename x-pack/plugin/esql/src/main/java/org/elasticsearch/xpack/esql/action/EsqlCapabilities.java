@@ -959,7 +959,12 @@ public class EsqlCapabilities {
         /**
          * Listing queries and getting information on a specific query.
          */
-        QUERY_MONITORING;
+        QUERY_MONITORING,
+
+        /**
+         * Support max_over_time aggregation
+         */
+        MAX_OVER_TIME(Build.current().isSnapshot());
 
         private final boolean enabled;
 

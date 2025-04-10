@@ -13,7 +13,6 @@ import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.Nullability;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunction;
-import org.elasticsearch.xpack.esql.expression.function.grouping.Categorize;
 import org.elasticsearch.xpack.esql.expression.function.grouping.GroupingFunction;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.In;
 import org.elasticsearch.xpack.esql.optimizer.LogicalOptimizerContext;

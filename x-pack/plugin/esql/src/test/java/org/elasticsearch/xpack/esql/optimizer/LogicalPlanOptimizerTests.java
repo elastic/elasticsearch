@@ -4413,11 +4413,11 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
 
     /**
      * Expects
-     * Limit[1000[INTEGER]]
-     * \_Aggregate[STANDARD,[CATEGORIZE(CATEGORIZE(CONCAT(first_name, "abc")){r$}#18) AS CATEGORIZE(CONCAT(first_name, "abc"))],[CO
-     * UNT(salary{f}#13,true[BOOLEAN]) AS c, CATEGORIZE(CONCAT(first_name, "abc")){r}#3]]
-     *   \_Eval[[CONCAT(first_name{f}#9,[61 62 63][KEYWORD]) AS CATEGORIZE(CONCAT(first_name, "abc"))]]
-     *     \_EsRelation[test][_meta_field{f}#14, emp_no{f}#8, first_name{f}#9, ge..]
+     * Limit[1000[INTEGER],false]
+     * \_Aggregate[[CATEGORIZE($$CONCAT(first_na>$CATEGORIZE(CONC>$0{r$}#1590) AS CATEGORIZE(CONCAT(first_name, "abc"))],[COUNT(sa
+     * lary{f}#1584,true[BOOLEAN]) AS c, CATEGORIZE(CONCAT(first_name, "abc")){r}#1574]]
+     *   \_Eval[[CONCAT(first_name{f}#1580,[61 62 63][KEYWORD]) AS $$CONCAT(first_na>$CATEGORIZE(CONC>$0]]
+     *     \_EsRelation[test][_meta_field{f}#1585, emp_no{f}#1579, first_name{f}#..]
      */
     public void testNestedExpressionsInGroupsWithCategorize() {
         var plan = optimizedPlan("""
@@ -4438,10 +4438,10 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         var evalFieldAlias = as(eval.fields().get(0), Alias.class);
         var evalField = as(evalFieldAlias.child(), Concat.class);
 
-        assertThat(evalFieldAlias.name(), is("CATEGORIZE(CONCAT(first_name, \"abc\"))"));
+        assertThat(evalFieldAlias.name(), is("$$CONCAT(first_na>$CATEGORIZE(CONC>$0"));
         assertThat(categorize.field(), is(evalFieldAlias.toAttribute()));
         assertThat(evalField.source().text(), is("CONCAT(first_name, \"abc\")"));
-        assertThat(categorizeAlias.source(), is(evalFieldAlias.source()));
+        assertThat(categorizeAlias.source(), is(categorize.source()));
     }
 
     /**

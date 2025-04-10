@@ -22,15 +22,11 @@ import java.util.function.BiConsumer;
 
 import static org.elasticsearch.xpack.esql.common.Failure.fail;
 
-public abstract class GroupingFunction extends Function implements EvaluatorMapper, PostAnalysisPlanVerificationAware {
+public abstract sealed class GroupingFunction extends Function implements PostAnalysisPlanVerificationAware permits
+    GroupingFunction.NonEvaluatableGroupingFunction, GroupingFunction.EvaluatableGroupingFunction {
 
     protected GroupingFunction(Source source, List<Expression> fields) {
         super(source, fields);
-    }
-
-    @Override
-    public Object fold(FoldContext ctx) {
-        return EvaluatorMapper.super.fold(source(), ctx);
     }
 
     @Override
@@ -45,4 +41,20 @@ public abstract class GroupingFunction extends Function implements EvaluatorMapp
         };
     }
 
+    public abstract static non-sealed class NonEvaluatableGroupingFunction extends GroupingFunction {
+        protected NonEvaluatableGroupingFunction(Source source, List<Expression> fields) {
+            super(source, fields);
+        }
+    }
+
+    public abstract static non-sealed class EvaluatableGroupingFunction extends GroupingFunction implements EvaluatorMapper {
+        protected EvaluatableGroupingFunction(Source source, List<Expression> fields) {
+            super(source, fields);
+        }
+
+        @Override
+        public Object fold(FoldContext ctx) {
+            return EvaluatorMapper.super.fold(source(), ctx);
+        }
+    }
 }

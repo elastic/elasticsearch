@@ -159,10 +159,10 @@ public final class CombineProjections extends OptimizerRules.OptimizerRule<Unary
         // Propagate any renames from the lower projection into the upper groupings.
         // This can lead to duplicates: e.g.
         // | EVAL x = y | STATS ... BY x, y
-        // All substitutions happen before; groupings must be attributes at this point except for CATEGORIZE which will be an alias like
-        // `c = CATEGORIZE(attribute)`.
+        // All substitutions happen before; groupings must be attributes at this point except for non-evaluatable groupings which will be
+        // an alias like `c = CATEGORIZE(attribute)`.
         // Therefore, it is correct to deduplicate based on simple equality (based on names) instead of name ids (Set vs. AttributeSet).
-        // TODO: The deduplication based on simple equality will be insufficient in case of multiple CATEGORIZEs, e.g. for
+        // TODO: The deduplication based on simple equality will be insufficient in case of multiple non-evaluatable groupings, e.g. for
         // `| EVAL x = y | STATS ... BY CATEGORIZE(x), CATEGORIZE(y)`. That will require semantic equality instead.
         LinkedHashSet<NamedExpression> resolvedGroupings = new LinkedHashSet<>();
         for (NamedExpression ne : upperGroupings) {

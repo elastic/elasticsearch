@@ -18,19 +18,20 @@ import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
-import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalBoolean;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalMap;
+import static org.elasticsearch.xpack.inference.services.ServiceUtils.removeNullValues;
+import static org.elasticsearch.xpack.inference.services.ServiceUtils.validateMapValues;
 
 public class CustomTaskSettings implements TaskSettings {
     public static final String NAME = "custom_task_settings";
 
     public static final String PARAMETERS = "parameters";
-    public static final String IGNORE_PLACEHOLDER_CHECK = "ignore_placeholder_check";
 
-    static final CustomTaskSettings EMPTY_SETTINGS = new CustomTaskSettings(null, null);
+    static final CustomTaskSettings EMPTY_SETTINGS = new CustomTaskSettings(new HashMap<>());
 
     public static CustomTaskSettings fromMap(Map<String, Object> map) {
         ValidationException validationException = new ValidationException();
@@ -39,13 +40,14 @@ public class CustomTaskSettings implements TaskSettings {
         }
 
         Map<String, Object> parameters = extractOptionalMap(map, PARAMETERS, ModelConfigurations.TASK_SETTINGS, validationException);
-        Boolean ignorePlaceholderCheck = extractOptionalBoolean(map, IGNORE_PLACEHOLDER_CHECK, validationException);
+        removeNullValues(parameters);
+        validateMapValues(parameters, List.of(String.class, Integer.class, Double.class, Float.class, Boolean.class), PARAMETERS, validationException, false);
 
         if (validationException.validationErrors().isEmpty() == false) {
             throw validationException;
         }
 
-        return new CustomTaskSettings(parameters, ignorePlaceholderCheck);
+        return new CustomTaskSettings(Objects.requireNonNullElse(parameters, new HashMap<>()));
     }
 
     /**
@@ -55,66 +57,34 @@ public class CustomTaskSettings implements TaskSettings {
      * @param requestTaskSettings the settings passed in within the task_settings field of the request
      * @return a constructed {@link CustomTaskSettings}
      */
-
     public static CustomTaskSettings of(CustomTaskSettings originalSettings, CustomTaskSettings requestTaskSettings) {
-        // If both requestTaskSettings.getParameters() and originalSettings.getParameters() are defined
-        // the maps should be merged.
-        if (originalSettings != null
-            && originalSettings.parameters != null
-            && requestTaskSettings != null
-            && requestTaskSettings.parameters != null) {
-            var copy = new HashMap<>(originalSettings.parameters);
-            requestTaskSettings.parameters.forEach((key, value) -> copy.merge(key, value, (originalValue, requestValue) -> requestValue));
-            Boolean ignorePlaceholderCheck = requestTaskSettings.getIgnorePlaceholderCheck() != null
-                ? requestTaskSettings.getIgnorePlaceholderCheck()
-                : originalSettings.getIgnorePlaceholderCheck();
-            return new CustomTaskSettings(copy, ignorePlaceholderCheck);
-        } else {
-            return new CustomTaskSettings(
-                requestTaskSettings.getParameters() != null ? requestTaskSettings.getParameters() : originalSettings.getParameters(),
-                requestTaskSettings.getIgnorePlaceholderCheck() != null
-                    ? requestTaskSettings.getIgnorePlaceholderCheck()
-                    : originalSettings.getIgnorePlaceholderCheck()
-            );
-        }
+        var copy = new HashMap<>(originalSettings.parameters);
+        requestTaskSettings.parameters.forEach((key, value) -> copy.merge(key, value, (originalValue, requestValue) -> requestValue));
+        return new CustomTaskSettings(copy);
     }
 
     private final Map<String, Object> parameters;
-    private Boolean ignorePlaceholderCheck;
 
     public CustomTaskSettings(StreamInput in) throws IOException {
         parameters = in.readBoolean() ? in.readGenericMap() : null;
-        ignorePlaceholderCheck = in.readOptionalBoolean();
     }
 
-    public CustomTaskSettings(Map<String, Object> parameters, Boolean ignorePlaceholderCheck) {
-        this.parameters = parameters;
-        this.ignorePlaceholderCheck = ignorePlaceholderCheck;
+    public CustomTaskSettings(Map<String, Object> parameters) {
+        this.parameters = Objects.requireNonNull(parameters);
     }
 
     public Map<String, Object> getParameters() {
         return parameters;
     }
 
-    public Boolean getIgnorePlaceholderCheck() {
-        return ignorePlaceholderCheck;
-    }
-
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
-        if (parameters != null) {
+        if (parameters.isEmpty() == false) {
             builder.field(PARAMETERS, parameters);
-        }
-        if (ignorePlaceholderCheck != null) {
-            builder.field(IGNORE_PLACEHOLDER_CHECK, ignorePlaceholderCheck);
         }
         builder.endObject();
         return builder;
-    }
-
-    public Map<String, Object> getParametersOrDefault() {
-        return parameters;
     }
 
     @Override
@@ -129,13 +99,7 @@ public class CustomTaskSettings implements TaskSettings {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        if (parameters == null) {
-            out.writeBoolean(false);
-        } else {
-            out.writeBoolean(true);
-            out.writeGenericMap(parameters);
-        }
-        out.writeOptionalBoolean(ignorePlaceholderCheck);
+        out.writeGenericMap(parameters);
     }
 
     @Override
@@ -143,17 +107,17 @@ public class CustomTaskSettings implements TaskSettings {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         CustomTaskSettings that = (CustomTaskSettings) o;
-        return Objects.equals(parameters, that.parameters) && Objects.equals(ignorePlaceholderCheck, that.ignorePlaceholderCheck);
+        return Objects.equals(parameters, that.parameters);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(parameters, ignorePlaceholderCheck);
+        return Objects.hash(parameters);
     }
 
     @Override
     public boolean isEmpty() {
-        return (parameters == null || parameters.isEmpty()) && ignorePlaceholderCheck == null;
+        return parameters.isEmpty();
     }
 
     @Override

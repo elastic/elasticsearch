@@ -16,16 +16,20 @@ import org.apache.http.client.methods.HttpPut;
 import org.apache.http.client.methods.HttpRequestBase;
 import org.apache.http.entity.StringEntity;
 import org.elasticsearch.ElasticsearchStatusException;
-import org.elasticsearch.common.settings.SecureString;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.xcontent.ToXContentFragment;
+import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.inference.external.request.HttpRequest;
 import org.elasticsearch.xpack.inference.external.request.Request;
 import org.elasticsearch.xpack.inference.services.custom.CustomModel;
 import org.elasticsearch.xpack.inference.services.custom.CustomServiceSettings;
 import org.elasticsearch.xpack.inference.services.custom.CustomTaskSettings;
 
+import java.io.IOException;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.nio.charset.StandardCharsets;
@@ -41,8 +45,6 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 public class CustomRequest implements Request {
-    private final long startTime;
-
     public static final Gson gson;
     static {
         gson = new Gson();
@@ -50,6 +52,45 @@ public class CustomRequest implements Request {
 
     private static final String QUERY = "query";
     private static final String INPUT = "input";
+
+    private record Input(List<String> inputs) implements ToXContentFragment {
+
+        @Override
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            builder.startArray();
+            for (String input : inputs) {
+                builder.value(input);
+            }
+            builder.endArray();
+
+            return builder;
+        }
+    }
+
+    private record Value<T>(T value) implements ToXContentFragment {
+
+        public String toJson() {
+            return Strings.toString(this);
+        }
+
+        @Override
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            builder.value(value);
+
+            return builder;
+        }
+    }
+
+    private static <T> String toJson(T value) {
+        try {
+            XContentBuilder builder = JsonXContent.contentBuilder();
+            // TODO test this, I think it'll write the quotes for us so we don't need to include them in the content string
+            builder.value(value);
+            return Strings.toString(builder);
+        } catch (IOException e) {
+            throw new ElasticsearchStatusException("failed to serialize custom request", RestStatus.BAD_REQUEST, e);
+        }
+    }
 
     private final CustomServiceSettings serviceSettings;
     private final CustomTaskSettings taskSettings;
@@ -61,7 +102,6 @@ public class CustomRequest implements Request {
     private final String inferenceEntityId;
 
     public CustomRequest(String query, List<String> input, CustomModel model) {
-        this.startTime = System.currentTimeMillis();
         Objects.requireNonNull(model);
 
         serviceSettings = model.getServiceSettings();
@@ -71,25 +111,31 @@ public class CustomRequest implements Request {
         requestContentString = serviceSettings.getRequestContentString();
         url = model.getServiceSettings().getUrl();
 
-        Map<String, Object> customParamsObjectMap = new HashMap<>();
-        if (secretParameters != null) {
-            for (String key : secretParameters.keySet()) {
-                Object paramValue = secretParameters.get(key);
-                if (paramValue instanceof SecureString) {
-                    customParamsObjectMap.put(key, ((SecureString) paramValue).toString());
-                } else {
-                    customParamsObjectMap.put(key, paramValue);
-                }
-            }
-        }
+        var jsonParams = new HashMap<String, String>();
+        addJsonStringParams(jsonParams, model.getSecretSettings().getSecretParameters());
+        addJsonStringParams(jsonParams, model.getTaskSettings().getParameters());
 
-        Map<String, String> customParams = new HashMap<String, String>();
-        if (taskSettings.getParameters() != null && taskSettings.getParameters().isEmpty() == false) {
-            Map<String, String> taskParams = getParameterMap(taskSettings.getParameters());
-            for (String key : taskParams.keySet()) {
-                customParams.put(key, taskParams.get(key));
-            }
-        }
+        jsonParams.put(QUERY, toJson(query));
+
+//        Map<String, Object> customParamsObjectMap = new HashMap<>();
+//        if (secretParameters != null) {
+//            for (String key : secretParameters.keySet()) {
+//                Object paramValue = secretParameters.get(key);
+//                if (paramValue instanceof SecureString) {
+//                    customParamsObjectMap.put(key, ((SecureString) paramValue).toString());
+//                } else {
+//                    customParamsObjectMap.put(key, paramValue);
+//                }
+//            }
+//        }
+//
+//        Map<String, String> customParams = new HashMap<String, String>();
+//        if (taskSettings.getParameters() != null && taskSettings.getParameters().isEmpty() == false) {
+//            Map<String, String> taskParams = getParameterMap(taskSettings.getParameters());
+//            for (String key : taskParams.keySet()) {
+//                customParams.put(key, taskParams.get(key));
+//            }
+//        }
 
         // if user's custom parameters contain input and query, it will be replaced by inference's input and query
         if (query != null) {
@@ -112,6 +158,12 @@ public class CustomRequest implements Request {
 
         uri = buildUri();
         inferenceEntityId = model.getInferenceEntityId();
+    }
+
+    private static void addJsonStringParams(Map<String, String> jsonStringParams, Map<String, Object> params) {
+        for (var entry : params.entrySet()) {
+            jsonStringParams.put(entry.getKey(), toJson(entry.getValue()));
+        }
     }
 
     @Override
@@ -180,11 +232,7 @@ public class CustomRequest implements Request {
             return new URI(replacedUrl);
         } catch (URISyntaxException e) {
             // using bad request here so that potentially sensitive URL information does not get logged
-            throw new ElasticsearchStatusException(
-                "Failed to construct custom service URL [" + url + "]",
-                RestStatus.BAD_REQUEST,
-                e
-            );
+            throw new ElasticsearchStatusException("Failed to construct custom service URL [" + url + "]", RestStatus.BAD_REQUEST, e);
         }
     }
 
@@ -213,7 +261,8 @@ public class CustomRequest implements Request {
         if (Boolean.TRUE.equals(ignorePlaceHolderCheck)) {
             return;
         }
-        String pattern = "\\$\\{.*?\\}";
+        // String pattern = "\\$\\{.*?\\}";
+        var pattern = "\\$\\{[a-zA-Z0-9_\\-.]*\\}";
         Pattern compiledPattern = Pattern.compile(pattern);
         Matcher matcher = compiledPattern.matcher(substitutedString);
         if (matcher.find()) {
@@ -221,9 +270,5 @@ public class CustomRequest implements Request {
                 String.format(Locale.ROOT, "variable is not replaced, found placeholder in [%s]", substitutedString)
             );
         }
-    }
-
-    public long getStartTime() {
-        return startTime;
     }
 }

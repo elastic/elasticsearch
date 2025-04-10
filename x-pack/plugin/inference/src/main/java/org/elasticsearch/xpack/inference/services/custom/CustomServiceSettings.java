@@ -32,6 +32,7 @@ import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 
 import java.io.IOException;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
@@ -43,8 +44,9 @@ import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractReq
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractRequiredString;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractSimilarity;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.removeAsType;
+import static org.elasticsearch.xpack.inference.services.ServiceUtils.removeNullValues;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.throwIfNotEmptyMap;
-import static org.elasticsearch.xpack.inference.services.ServiceUtils.validateMapValueStrings;
+import static org.elasticsearch.xpack.inference.services.ServiceUtils.validateMapValues;
 
 public class CustomServiceSettings extends FilteredXContentObject implements ServiceSettings, CustomRateLimitServiceSettings {
     public static final String NAME = "custom_service_settings";
@@ -84,7 +86,7 @@ public class CustomServiceSettings extends FilteredXContentObject implements Ser
         RateLimitSettings rateLimitSettings
     ) {
         public void validate(ValidationException validationException) {
-            validateMapValueStrings(headers, HEADERS, validationException);
+            validateMapValues(headers, List.of(String.class), HEADERS, validationException, false);
 
             if (requestBodyMap == null || responseParserMap == null || jsonParserMap == null) {
                 throw validationException;
@@ -113,6 +115,7 @@ public class CustomServiceSettings extends FilteredXContentObject implements Ser
         String url = extractRequiredString(map, URL, ModelConfigurations.SERVICE_SETTINGS, validationException);
 
         Map<String, Object> headers = extractOptionalMap(map, HEADERS, ModelConfigurations.SERVICE_SETTINGS, validationException);
+        removeNullValues(headers);
 
         Map<String, Object> requestBodyMap = extractRequiredMap(map, REQUEST, ModelConfigurations.SERVICE_SETTINGS, validationException);
 
@@ -165,10 +168,10 @@ public class CustomServiceSettings extends FilteredXContentObject implements Ser
     private static CustomServiceSettings fromRequestMap(Map<String, Object> map, TaskType taskType) {
         ValidationException validationException = new ValidationException();
 
-        var serviceSettings = from(map, ConfigurationParseContext.REQUEST, taskType, validationException);
+        var serviceSettingsFields = from(map, ConfigurationParseContext.REQUEST, taskType, validationException);
 
-        serviceSettings.validate(validationException);
-        return CustomServiceSettings.of(serviceSettings);
+        serviceSettingsFields.validate(validationException);
+        return CustomServiceSettings.of(serviceSettingsFields);
     }
 
     private static CustomServiceSettings of(Fields fields) {

@@ -18,10 +18,14 @@ import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
+import static org.elasticsearch.xpack.inference.services.ServiceUtils.convertMapStringsToSecureString;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalMap;
+import static org.elasticsearch.xpack.inference.services.ServiceUtils.removeNullValues;
+import static org.elasticsearch.xpack.inference.services.ServiceUtils.validateMapValues;
 
 public class CustomSecretSettings implements SecretSettings {
     public static final String NAME = "custom_secret_settings";
@@ -36,20 +40,15 @@ public class CustomSecretSettings implements SecretSettings {
         ValidationException validationException = new ValidationException();
 
         Map<String, Object> requestSecretParamsMap = extractOptionalMap(map, SECRET_PARAMETERS, NAME, validationException);
+        removeNullValues(requestSecretParamsMap);
+        validateMapValues(requestSecretParamsMap, List.of(String.class), SECRET_PARAMETERS, validationException, true);
+        convertMapStringsToSecureString(requestSecretParamsMap);
+
         if (validationException.validationErrors().isEmpty() == false) {
             throw validationException;
         }
 
-        if (requestSecretParamsMap == null) {
-            return null;
-        } else {
-            Map<String, Object> secureSecretParameters = new HashMap<>();
-            for (String paramKey : requestSecretParamsMap.keySet()) {
-                Object paramValue = requestSecretParamsMap.get(paramKey);
-                secureSecretParameters.put(paramKey, paramValue);
-            }
-            return new CustomSecretSettings(secureSecretParameters);
-        }
+        return new CustomSecretSettings(Objects.requireNonNullElse(requestSecretParamsMap, new HashMap<>()));
     }
 
     @Override
@@ -58,15 +57,11 @@ public class CustomSecretSettings implements SecretSettings {
     }
 
     public CustomSecretSettings(@Nullable Map<String, Object> secretParameters) {
-        this.secretParameters = secretParameters;
+        this.secretParameters = Objects.requireNonNullElse(secretParameters, new HashMap<>());
     }
 
     public CustomSecretSettings(StreamInput in) throws IOException {
-        if (in.readBoolean()) {
-            secretParameters = in.readGenericMap();
-        } else {
-            secretParameters = null;
-        }
+        secretParameters = in.readGenericMap();
     }
 
     public Map<String, Object> getSecretParameters() {
@@ -76,7 +71,7 @@ public class CustomSecretSettings implements SecretSettings {
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
-        if (secretParameters != null) {
+        if (secretParameters.isEmpty() == false) {
             builder.field(SECRET_PARAMETERS, secretParameters);
         }
         builder.endObject();
@@ -95,12 +90,7 @@ public class CustomSecretSettings implements SecretSettings {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        if (secretParameters != null) {
-            out.writeBoolean(true);
-            out.writeGenericMap(secretParameters);
-        } else {
-            out.writeBoolean(false);
-        }
+        out.writeGenericMap(secretParameters);
     }
 
     @Override

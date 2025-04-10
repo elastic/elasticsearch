@@ -58,6 +58,7 @@ import org.elasticsearch.xpack.inference.services.cohere.embeddings.CohereEmbedd
 import org.elasticsearch.xpack.inference.services.cohere.embeddings.CohereEmbeddingsTaskSettings;
 import org.elasticsearch.xpack.inference.services.cohere.rerank.CohereRerankServiceSettings;
 import org.elasticsearch.xpack.inference.services.cohere.rerank.CohereRerankTaskSettings;
+import org.elasticsearch.xpack.inference.services.custom.CustomSecretSettings;
 import org.elasticsearch.xpack.inference.services.custom.CustomServiceSettings;
 import org.elasticsearch.xpack.inference.services.custom.CustomTaskSettings;
 import org.elasticsearch.xpack.inference.services.deepseek.DeepSeekChatCompletionModel;
@@ -153,7 +154,7 @@ public class InferenceNamedWriteablesProvider {
         addAlibabaCloudSearchNamedWriteables(namedWriteables);
         addJinaAINamedWriteables(namedWriteables);
         addVoyageAINamedWriteables(namedWriteables);
-        addCustomWriteables(namedWriteables);
+        addCustomNamedWriteables(namedWriteables);
 
         addUnifiedNamedWriteables(namedWriteables);
 
@@ -161,6 +162,32 @@ public class InferenceNamedWriteablesProvider {
         namedWriteables.addAll(DeepSeekChatCompletionModel.namedWriteables());
 
         return namedWriteables;
+    }
+
+    private static void addCustomNamedWriteables(List<NamedWriteableRegistry.Entry> namedWriteables) {
+        namedWriteables.add(
+            new NamedWriteableRegistry.Entry(
+                ServiceSettings.class,
+                CustomServiceSettings.NAME,
+                CustomServiceSettings::new
+            )
+        );
+
+        namedWriteables.add(
+            new NamedWriteableRegistry.Entry(
+                TaskSettings.class,
+                CustomTaskSettings.NAME,
+                CustomTaskSettings::new
+            )
+        );
+
+        namedWriteables.add(
+            new NamedWriteableRegistry.Entry(
+                SecretSettings.class,
+                CustomSecretSettings.NAME,
+                CustomSecretSettings::new
+            )
+        );
     }
 
     private static void addUnifiedNamedWriteables(List<NamedWriteableRegistry.Entry> namedWriteables) {
@@ -664,12 +691,5 @@ public class InferenceNamedWriteablesProvider {
                 ElasticInferenceServiceCompletionServiceSettings::new
             )
         );
-    }
-
-    private static void addCustomWriteables(List<NamedWriteableRegistry.Entry> namedWriteables) {
-        namedWriteables.add(
-            new NamedWriteableRegistry.Entry(ServiceSettings.class, CustomServiceSettings.NAME, CustomServiceSettings::new)
-        );
-        namedWriteables.add(new NamedWriteableRegistry.Entry(TaskSettings.class, CustomTaskSettings.NAME, CustomTaskSettings::new));
     }
 }

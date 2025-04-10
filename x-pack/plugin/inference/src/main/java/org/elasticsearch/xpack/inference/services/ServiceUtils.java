@@ -31,6 +31,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.core.Strings.format;
@@ -479,27 +480,84 @@ public final class ServiceUtils {
     }
 
     /**
-     * Ensures that each value in the map is a {@link String}.
-     * @param map a Map to iterate over
-     * @param settingName the setting name that his map corresponds to
-     * @param validationException aggregated validation exceptions
+     * Ensures the values of the map match one of the supplied types.
+     * @param map Map to validate
+     * @param allowedTypes List of {@link Class} to accept
+     * @param settingName the setting name for the field
+     * @param validationException exception to return if one of the values is invalid
+     * @param censorValue if true the key and value will be included in the exception message
      */
-    public static void validateMapValueStrings(
+    public static void validateMapValues(
         Map<String, Object> map,
+        List<Class<?>> allowedTypes,
         String settingName,
-        ValidationException validationException
+        ValidationException validationException,
+        boolean censorValue
     ) {
         if (map == null) {
             return;
         }
 
         for (var entry : map.entrySet()) {
-            var value = entry.getValue();
-            if (value instanceof String == false) {
-                validationException.addValidationError(ServiceUtils.invalidTypeErrorMsg(settingName, value, String.class.getSimpleName()));
+            boolean isAllowed = false;
+
+            for (Class<?> allowedType : allowedTypes) {
+                if (allowedType.isInstance(entry.getValue())) {
+                    isAllowed = true;
+                    break;
+                }
+            }
+
+            Function<String[], String> errorMessage = (String[] validTypesAsStrings) -> {
+                if (censorValue) {
+                    return Strings.format(
+                        "Map field [%s] has an entry that is not valid. Value type is not one of [%s].",
+                        settingName,
+                        String.join(", ", validTypesAsStrings)
+                    );
+                } else {
+                    return Strings.format(
+                        "Map field [%s] has an entry that is not valid, [%s => %s]. Value type is not one of [%s].",
+                        settingName,
+                        entry.getKey(),
+                        entry.getValue(),
+                        String.join(", ", validTypesAsStrings)
+                    );
+                }
+            };
+
+            if (isAllowed == false) {
+                var validTypesAsStrings = allowedTypes.stream().map(Class::toString).toArray(String[]::new);
+                Arrays.sort(validTypesAsStrings);
+
+                validationException.addValidationError(errorMessage.apply(validTypesAsStrings));
                 throw validationException;
             }
         }
+    }
+
+    public static void convertMapStringsToSecureString(Map<String, Object> map) {
+        if (map == null) {
+            return;
+        }
+
+        for (var entry : map.entrySet()) {
+            var value = entry.getValue();
+            if (value instanceof String) {
+                map.put(entry.getKey(), new SecureString(((String) value).toCharArray()));
+            }
+        }
+    }
+
+    /**
+     * Removes null values.
+     */
+    public static void removeNullValues(Map<String, Object> map) {
+        if (map == null) {
+            return;
+        }
+
+        map.values().removeIf(Objects::isNull);
     }
 
     public static Integer extractRequiredPositiveIntegerLessThanOrEqualToMax(

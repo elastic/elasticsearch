@@ -301,7 +301,7 @@ public class TransportStatelessPrimaryRelocationAction extends TransportAction<
                         logger.debug(() -> "hollowing index engine for shard " + shardId);
                         long startTime = threadPool.relativeTimeInMillisSupplier().getAsLong();
                         try {
-                            indexShard.resetEngine();
+                            indexShard.resetEngine(newEngine -> {});
                         } catch (Exception e) {
                             indexShard.failShard("failed to reset index engine for shard " + shardId, e);
                             throw e;

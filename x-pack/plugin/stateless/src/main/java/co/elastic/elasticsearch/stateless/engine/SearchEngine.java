@@ -189,7 +189,7 @@ public class SearchEngine extends Engine {
                 segmentInfosAndCommit.segmentInfos().getGeneration()
             );
             this.setSequenceNumbers(segmentInfosAndCommit.segmentInfos());
-            this.readerManager = readerManager;
+            this.readerManager = wrapForAssertions(readerManager, config);
             this.completionStatsCache = new CompletionStatsCache(() -> acquireSearcher("completion_stats"));
             this.readerManager.addListener(completionStatsCache);
             for (ReferenceManager.RefreshListener refreshListener : config.getExternalRefreshListener()) {
@@ -406,7 +406,17 @@ public class SearchEngine extends Engine {
                 assert next.getGeneration() == latestCommit.generation();
                 segmentInfosAndCommit = new SegmentInfosAndCommit(next, latestCommit);
 
-                readerManager.maybeRefreshBlocking();
+                // The shard uses a reentrant read/write lock to guard again engine changes, a type of lock that prioritizes the threads
+                // waiting for the write lock over the threads trying to acquire a (non-reentrant) read lock. Because refresh listeners
+                // sometimes access the engine read lock, we need to ensure that they won't block if another thread is waiting for the
+                // engine write lock. To ensure that, we acquire the read lock before the refresh lock.
+                final var engineReadLock = engineConfig.getEngineResetLock().readLock();
+                engineReadLock.lock();
+                try {
+                    readerManager.maybeRefreshBlocking();
+                } finally {
+                    engineReadLock.unlock();
+                }
 
                 // must be after refresh for `addOrExecuteSegmentGenerationListener to work.
                 currentPrimaryTermGeneration = new PrimaryTermAndGeneration(
@@ -863,7 +873,13 @@ public class SearchEngine extends Engine {
         // Wait-for-checkpoint search requests rely on adding a refresh listener. RefreshListeners.addOrNotify() depends on
         // checking the lastRefreshedCheckpoint, which unfortunately is not set on a new search shard. For this reason, we
         // refresh the reader manager for a new search shard to ensure the lastRefreshedCheckpoint is updated.
-        readerManager.maybeRefreshBlocking();
+        final var engineReadLock = engineConfig.getEngineResetLock().readLock();
+        engineReadLock.lock();
+        try {
+            readerManager.maybeRefreshBlocking();
+        } finally {
+            engineReadLock.unlock();
+        }
     }
 
     /**

@@ -64,6 +64,7 @@ import java.util.concurrent.atomic.LongAdder;
 import java.util.function.IntConsumer;
 import java.util.function.LongSupplier;
 import java.util.function.Predicate;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 /**
@@ -553,21 +554,21 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
      * If an exception is thrown from the writer then the cache entry being downloaded is freed
      * and unlinked
      *
-     * @param cacheKey      the key to fetch data for
-     * @param region        the region of the blob to fetch
-     * @param blobLength    the length of the blob from which the region is fetched (used to compute the size of the ending region)
-     * @param writer        a writer that handles writing of newly downloaded data to the shared cache
-     * @param fetchExecutor an executor to use for reading from the blob store
-     * @param listener      a listener that is completed with {@code true} if the current thread triggered the fetching of the region, in
-     *                      which case the data is available in cache. The listener is completed with {@code false} in every other cases: if
-     *                      the region to write is already available in cache, if the region is pending fetching via another thread or if
-     *                      there is not enough free pages to fetch the region.
+     * @param cacheKey       the key to fetch data for
+     * @param region         the region of the blob to fetch
+     * @param blobLength     the length of the blob from which the region is fetched (used to compute the size of the ending region)
+     * @param writerSupplier a supplier for the writer that handles writing of newly downloaded data to the shared cache
+     * @param fetchExecutor  an executor to use for reading from the blob store
+     * @param listener       a listener that is completed with {@code true} if the current thread triggered the fetching of the region, in
+     *                       which case the data is available in cache. The listener is completed with {@code false} in every other cases:
+     *                       if the region to write is already available in cache, if the region is pending fetching via another thread or
+     *                       if there is not enough free pages to fetch the region.
      */
     public void maybeFetchRegion(
         final KeyType cacheKey,
         final int region,
         final long blobLength,
-        final RangeMissingHandler writer,
+        final Supplier<RangeMissingHandler> writerSupplier,
         final Executor fetchExecutor,
         final ActionListener<Boolean> listener
     ) {
@@ -584,7 +585,7 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
                 return;
             }
             final CacheFileRegion<KeyType> entry = get(cacheKey, blobLength, region);
-            entry.populate(regionRange, writer, fetchExecutor, listener);
+            entry.populate(regionRange, writerSupplier, fetchExecutor, listener);
         } catch (Exception e) {
             listener.onFailure(e);
         }
@@ -599,23 +600,23 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
      * If an exception is thrown from the writer then the cache entry being downloaded is freed
      * and unlinked
      *
-     * @param cacheKey      the key to fetch data for
-     * @param region        the region of the blob
-     * @param range         the range of the blob to fetch
-     * @param blobLength    the length of the blob from which the region is fetched (used to compute the size of the ending region)
-     * @param writer        a writer that handles writing of newly downloaded data to the shared cache
-     * @param fetchExecutor an executor to use for reading from the blob store
-     * @param listener      a listener that is completed with {@code true} if the current thread triggered the fetching of the range, in
-     *                      which case the data is available in cache. The listener is completed with {@code false} in every other cases: if
-     *                      the range to write is already available in cache, if the range is pending fetching via another thread or if
-     *                      there is not enough free pages to fetch the range.
+     * @param cacheKey       the key to fetch data for
+     * @param region         the region of the blob
+     * @param range          the range of the blob to fetch
+     * @param blobLength     the length of the blob from which the region is fetched (used to compute the size of the ending region)
+     * @param writerSupplier a supplier for the writer that handles writing of newly downloaded data to the shared cache
+     * @param fetchExecutor  an executor to use for reading from the blob store
+     * @param listener       a listener that is completed with {@code true} if the current thread triggered the fetching of the range, in
+     *                       which case the data is available in cache. The listener is completed with {@code false} in every other cases:
+     *                       if the range to write is already available in cache, if the range is pending fetching via another thread or if
+     *                       there is not enough free pages to fetch the range.
      */
     public void maybeFetchRange(
         final KeyType cacheKey,
         final int region,
         final ByteRange range,
         final long blobLength,
-        final RangeMissingHandler writer,
+        final Supplier<RangeMissingHandler> writerSupplier,
         final Executor fetchExecutor,
         final ActionListener<Boolean> listener
     ) {
@@ -634,7 +635,7 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
             final CacheFileRegion<KeyType> entry = get(cacheKey, blobLength, region);
             entry.populate(
                 regionRange,
-                writerWithOffset(writer, Math.toIntExact(range.start() - getRegionStart(region))),
+                writerWithOffset(writerSupplier, Math.toIntExact(range.start() - getRegionStart(region))),
                 fetchExecutor,
                 listener
             );
@@ -643,20 +644,13 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
         }
     }
 
-    private RangeMissingHandler writerWithOffset(RangeMissingHandler writer, int writeOffset) {
+    private Supplier<RangeMissingHandler> writerWithOffset(Supplier<RangeMissingHandler> writerSupplier, int writeOffset) {
         if (writeOffset == 0) {
             // no need to allocate a new capturing lambda if the offset isn't adjusted
-            return writer;
+            return writerSupplier;
         }
-        return (channel, channelPos, streamFactory, relativePos, len, progressUpdater, completionListener) -> writer.fillCacheRange(
-            channel,
-            channelPos,
-            streamFactory,
-            relativePos - writeOffset,
-            len,
-            progressUpdater,
-            completionListener
-        );
+        return () -> (channel, channelPos, streamFactory, relativePos, len, progressUpdater, completionListener) -> writerSupplier.get()
+            .fillCacheRange(channel, channelPos, streamFactory, relativePos - writeOffset, len, progressUpdater, completionListener);
     }
 
     // used by tests
@@ -940,7 +934,7 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
          * Populates a range in cache if the range is not available nor pending to be available in cache.
          *
          * @param rangeToWrite the range of bytes to populate
-         * @param writer a writer that handles writing of newly downloaded data to the shared cache
+         * @param writerSupplier a supplier for the writer that handles writing of newly downloaded data to the shared cache
          * @param executor the executor used to download and to write new dat
          * @param listener a listener that is completed with {@code true} if the current thread triggered the download and write of the
          *                 range, in which case the listener is completed once writing is done. The listener is completed with {@code false}
@@ -949,7 +943,7 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
          */
         void populate(
             final ByteRange rangeToWrite,
-            final RangeMissingHandler writer,
+            final Supplier<RangeMissingHandler> writerSupplier,
             final Executor executor,
             final ActionListener<Boolean> listener
         ) {
@@ -967,6 +961,7 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
                         listener.onResponse(false);
                         return;
                     }
+                    RangeMissingHandler writer = writerSupplier.get();
                     final SourceInputStreamFactory streamFactory = writer.sharedInputStreamFactory(gaps);
                     logger.trace(
                         () -> Strings.format(

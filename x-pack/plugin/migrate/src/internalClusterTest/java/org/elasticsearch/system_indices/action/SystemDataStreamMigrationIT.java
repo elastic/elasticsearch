@@ -171,8 +171,10 @@ public class SystemDataStreamMigrationIT extends AbstractFeatureMigrationIntegTe
             assertThat(indexMetadata.getCreationVersion(), is(IndexVersion.current()));
         }
 
+        // Migrate action does not migrate the failure store indices
+        // here we check that they are preserved.
         List<Index> failureIndices = dataStream.getFailureIndices();
-        assertThat(failureIndices, hasSize(failureIndices.size()));
+        assertThat(failureIndices, hasSize(1));
         for (Index failureIndex : failureIndices) {
             IndexMetadata indexMetadata = finalMetadata.index(failureIndex);
             assertThat(indexMetadata.isSystem(), is(true));

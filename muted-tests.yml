@@ -420,12 +420,18 @@ tests:
 - class: org.elasticsearch.repositories.blobstore.testkit.rest.SnapshotRepoTestKitClientYamlTestSuiteIT
   method: test {p0=/10_analyze/Analysis without details}
   issue: https://github.com/elastic/elasticsearch/issues/126569
-- class: org.elasticsearch.repositories.blobstore.testkit.analyze.S3RepositoryAnalysisRestIT
-  method: testRepositoryAnalysis
-  issue: https://github.com/elastic/elasticsearch/issues/126576
 - class: org.elasticsearch.xpack.esql.action.ForkIT
   method: testWithStatsSimple
   issue: https://github.com/elastic/elasticsearch/issues/126607
+- class: org.elasticsearch.index.shard.IndexShardTests
+  method: testReentrantEngineReadLockAcquisitionInRefreshListener
+  issue: https://github.com/elastic/elasticsearch/issues/126628
+- class: org.elasticsearch.upgrades.SearchStatesIT
+  method: testBWCSearchStates
+  issue: https://github.com/elastic/elasticsearch/issues/126632
+- class: org.elasticsearch.upgrades.SearchStatesIT
+  method: testCanMatch
+  issue: https://github.com/elastic/elasticsearch/issues/126633
 
 # Examples:
 #

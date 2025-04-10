@@ -302,4 +302,10 @@ public class MultiClusterSpecIT extends EsqlSpecTestCase {
     protected boolean supportsSourceFieldMapping() {
         return false;
     }
+
+    @Override
+    protected boolean supportsTook() throws IOException {
+        // We don't read took properly in multi-cluster tests.
+        return false;
+    }
 }

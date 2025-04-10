@@ -65,6 +65,7 @@ public class ThreadPoolMergeScheduler extends MergeScheduler implements Elastics
     private final AtomicLong doneMergeTaskCount = new AtomicLong();
     private final CountDownLatch closedWithNoRunningMerges = new CountDownLatch(1);
     private volatile boolean closed = false;
+    private final MergeMemoryEstimator mergeMemoryEstimator;
 
     public ThreadPoolMergeScheduler(
         ShardId shardId,
@@ -447,6 +448,14 @@ public class ThreadPoolMergeScheduler extends MergeScheduler implements Elastics
             // TODO is it possible that `estimatedMergeBytes` be `0` for correctly initialize merges,
             // or is it always the case that if `estimatedMergeBytes` is `0` that means that the merge has not yet been initialized?
             return onGoingMerge.getMerge().getStoreMergeInfo().estimatedMergeBytes();
+        }
+
+        public long getEstimateMergeMemoryBytes() {
+            return mergeMemoryEstimator.estimateMergeMemoryBytes(onGoingMerge.getMerge());
+        }
+
+        public OnGoingMerge getOnGoingMerge() {
+            return onGoingMerge;
         }
 
         @Override

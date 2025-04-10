@@ -14,6 +14,7 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.engine.ThreadPoolMergeScheduler.MergeTask;
+import org.elasticsearch.index.merge.OnGoingMerge;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.Comparator;
@@ -72,6 +73,8 @@ public class ThreadPoolMergeExecutorService {
     private final int maxConcurrentMerges;
     private final int concurrentMergesFloorLimitForThrottling;
     private final int concurrentMergesCeilLimitForThrottling;
+
+    private volatile MergeEventConsumer mergeEventConsumer;
 
     public static @Nullable ThreadPoolMergeExecutorService maybeCreateThreadPoolMergeExecutorService(
         ThreadPool threadPool,
@@ -276,6 +279,17 @@ public class ThreadPoolMergeExecutorService {
 
     public boolean usingMaxTargetIORateBytesPerSec() {
         return MAX_IO_RATE.getBytes() == targetIORateBytesPerSec.get();
+    }
+
+    public void registerMergeEventConsumer(MergeEventConsumer consumer) {
+        assert this.mergeEventConsumer == null;
+        this.mergeEventConsumer = consumer;
+    }
+
+    public interface MergeEventConsumer {
+        void onMergeQueued(OnGoingMerge merge, long estimateMergeMemoryBytes);
+
+        void onMergeCompleted(OnGoingMerge merge);
     }
 
     // exposed for tests

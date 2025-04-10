@@ -43,16 +43,13 @@ public class DataNodeRequestSenderIT extends AbstractEsqlIntegTestCase {
                 .indices()
                 .prepareCreate(index)
                 .setSettings(
-                    Settings.builder()
-                        .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-                        .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+                    Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1).put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
                 )
         );
         client().prepareBulk(index)
             .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
             .add(new IndexRequest().source("key", "value"))
             .get();
-
 
         for (TransportService transportService : internalCluster().getInstances(TransportService.class)) {
             as(transportService, MockTransportService.class).addRequestHandlingBehavior(

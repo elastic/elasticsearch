@@ -250,7 +250,7 @@ public class S3BlobStoreContainerTests extends ESTestCase {
         if (doCopy) {
             when(client.uploadPartCopy(uploadPartCopyRequestCaptor.capture())).thenAnswer(invocationOnMock -> {
                 final UploadPartCopyRequest request = invocationOnMock.getArgument(0);
-                return UploadPartCopyResponse.builder().copyPartResult(b -> b.eTag(expectedEtags.get(request.partNumber()))).build();
+                return UploadPartCopyResponse.builder().copyPartResult(b -> b.eTag(expectedEtags.get(request.partNumber() - 1))).build();
             });
         } else {
             when(client.uploadPart(uploadPartRequestCaptor.capture(), uploadPartBodyCaptor.capture())).thenAnswer(invocationOnMock -> {
@@ -353,7 +353,6 @@ public class S3BlobStoreContainerTests extends ESTestCase {
     public void testExecuteMultipartUploadAborted() {
         final String bucketName = randomAlphaOfLengthBetween(1, 10);
         final String blobName = randomAlphaOfLengthBetween(1, 10);
-        final BlobPath blobPath = BlobPath.EMPTY;
 
         final long blobSize = ByteSizeUnit.MB.toBytes(765);
         final long bufferSize = ByteSizeUnit.MB.toBytes(150);
@@ -423,7 +422,7 @@ public class S3BlobStoreContainerTests extends ESTestCase {
             blobContainer.executeMultipartUpload(randomPurpose(), blobStore, blobName, new ByteArrayInputStream(new byte[0]), blobSize);
         });
 
-        assertEquals("Unable to upload or copy object [" + blobName + "] using multipart upload", e.getMessage());
+        assertEquals("Unable to upload object [" + blobName + "] using multipart upload", e.getMessage());
         assertThat(e.getCause(), instanceOf(S3Exception.class));
         assertEquals(exceptions.get(stage).getMessage(), e.getCause().getMessage());
 

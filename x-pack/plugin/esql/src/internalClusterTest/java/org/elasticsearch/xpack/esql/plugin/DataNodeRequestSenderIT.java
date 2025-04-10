@@ -20,6 +20,7 @@ import org.elasticsearch.xpack.esql.action.AbstractEsqlIntegTestCase;
 import org.elasticsearch.xpack.esql.action.EsqlQueryResponse;
 
 import java.util.Collection;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
@@ -51,19 +52,23 @@ public class DataNodeRequestSenderIT extends AbstractEsqlIntegTestCase {
             .add(new IndexRequest().source("key", "value"))
             .get();
 
+        var shouldMove = new AtomicBoolean(true);
+
         for (TransportService transportService : internalCluster().getInstances(TransportService.class)) {
             as(transportService, MockTransportService.class).addRequestHandlingBehavior(
                 ExchangeService.OPEN_EXCHANGE_ACTION_NAME,
                 (handler, request, channel, task) -> {
                     // move index shard
-                    var currentShardNodeId = clusterService().state().routingTable().index(index).shard(0).primaryShard().currentNodeId();
-                    assertAcked(
-                        client().admin()
-                            .indices()
-                            .prepareUpdateSettings(index)
-                            .setSettings(Settings.builder().put("index.routing.allocation.exclude._id", currentShardNodeId))
-                    );
-                    ensureGreen(index);
+                    if (shouldMove.compareAndSet(true, false)) {
+                        var currentShardNodeId = clusterService().state().routingTable().index(index).shard(0).primaryShard().currentNodeId();
+                        assertAcked(
+                            client().admin()
+                                .indices()
+                                .prepareUpdateSettings(index)
+                                .setSettings(Settings.builder().put("index.routing.allocation.exclude._id", currentShardNodeId))
+                        );
+                        ensureGreen(index);
+                    }
                     // execute data node request
                     handler.messageReceived(request, channel, task);
                 }

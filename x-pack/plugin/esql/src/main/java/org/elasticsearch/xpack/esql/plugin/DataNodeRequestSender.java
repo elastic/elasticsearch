@@ -23,7 +23,6 @@ import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.compute.operator.DriverProfile;
 import org.elasticsearch.compute.operator.FailureCollector;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.shard.ShardId;
@@ -40,6 +39,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.IdentityHashMap;
 import java.util.Iterator;
 import java.util.LinkedHashMap;
@@ -53,6 +53,8 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.function.Predicate;
+
+import static org.elasticsearch.core.TimeValue.timeValueNanos;
 
 /**
  * Handles computes within a single cluster by dispatching {@link DataNodeRequest} to data nodes
@@ -86,6 +88,7 @@ abstract class DataNodeRequestSender {
     private final Map<ShardId, ShardFailure> shardFailures = ConcurrentCollections.newConcurrentMap();
     private final AtomicInteger skippedShards = new AtomicInteger();
     private final AtomicBoolean changed = new AtomicBoolean();
+    private final AtomicBoolean reResolvingUnavailableShards = new AtomicBoolean(false);
     private boolean reportedFailure = false; // guarded by sendingLock
 
     DataNodeRequestSender(
@@ -121,7 +124,7 @@ abstract class DataNodeRequestSender {
             try (var computeListener = new ComputeListener(transportService.getThreadPool(), runOnTaskFailure, listener.map(profiles -> {
                 return new ComputeResponse(
                     profiles,
-                    TimeValue.timeValueNanos(System.nanoTime() - startTimeInNanos),
+                    timeValueNanos(System.nanoTime() - startTimeInNanos),
                     targetShards.totalShards(),
                     targetShards.totalShards() - shardFailures.size() - skippedShards.get(),
                     targetShards.skippedShards() + skippedShards.get(),
@@ -171,15 +174,17 @@ abstract class DataNodeRequestSender {
                     if (changed.compareAndSet(true, false) == false) {
                         break;
                     }
-                    for (ShardId shardId : pendingShardIds) {
-                        if (targetShards.getShard(shardId).remainingNodes.isEmpty()) {
-                            shardFailures.compute(
-                                shardId,
-                                (k, v) -> new ShardFailure(
-                                    true,
-                                    v == null ? new NoShardAvailableActionException(shardId, "no shard copies found") : v.failure
-                                )
-                            );
+                    if (reResolvingUnavailableShards.get() == false) {
+                        for (ShardId shardId : pendingShardIds) {
+                            if (targetShards.getShard(shardId).remainingNodes.isEmpty()) {
+                                shardFailures.compute(
+                                    shardId,
+                                    (k, v) -> new ShardFailure(
+                                        true,
+                                        v == null ? new NoShardAvailableActionException(shardId, "no shard copies found") : v.failure
+                                    )
+                                );
+                            }
                         }
                     }
                     if (reportedFailure
@@ -237,12 +242,30 @@ abstract class DataNodeRequestSender {
 
     private void sendOneNodeRequest(TargetShards targetShards, ComputeListener computeListener, NodeRequest request) {
         final ActionListener<List<DriverProfile>> listener = computeListener.acquireCompute();
+
+        var pendingRetries = new HashSet<ShardId>();
+
         sendRequest(request.node, request.shardIds, request.aliasFilters, new NodeListener() {
             void onAfter(List<DriverProfile> profiles) {
                 nodePermits.get(request.node).release();
                 if (concurrentRequests != null) {
                     concurrentRequests.release();
                 }
+
+                if (pendingRetries.isEmpty() == false) {
+                    var ll = computeListener.acquireAvoid();
+                    reResolvingUnavailableShards.set(true);
+                    // TODO narrow down search resolution to pending shards only
+                    searchShards(pendingRetries::contains, ll.delegateFailure((l, newSearchShards) -> {
+                        for (var entry : newSearchShards.shards.entrySet()) {
+                            targetShards.shards.get(entry.getKey()).remainingNodes.addAll(entry.getValue().remainingNodes);
+                        }
+                        reResolvingUnavailableShards.set(false);
+                        trySendingRequestsForPendingShards(targetShards, computeListener);
+                        l.onResponse(null);
+                    }));
+                }
+
                 trySendingRequestsForPendingShards(targetShards, computeListener);
                 listener.onResponse(profiles);
             }
@@ -259,6 +282,9 @@ abstract class DataNodeRequestSender {
                     final ShardId shardId = e.getKey();
                     trackShardLevelFailure(shardId, false, e.getValue());
                     pendingShardIds.add(shardId);
+                    if (targetShards.getShard(shardId).remainingNodes.isEmpty() && unwrapFailure(e.getValue()) instanceof NoShardAvailableActionException) {
+                        pendingRetries.add(shardId);
+                    }
                 }
                 onAfter(response.profiles());
             }
@@ -267,7 +293,10 @@ abstract class DataNodeRequestSender {
             public void onFailure(Exception e, boolean receivedData) {
                 for (ShardId shardId : request.shardIds) {
                     trackShardLevelFailure(shardId, receivedData, e);
-                    pendingShardIds.add(shardId);
+                    pendingShardIds.add(shardId);// TODO should this shard be added only in case of non-fatal failure?
+                    if (targetShards.getShard(shardId).remainingNodes.isEmpty() && unwrapFailure(e) instanceof NoShardAvailableActionException) {
+                        pendingRetries.add(shardId);
+                    }
                 }
                 onAfter(List.of());
             }
@@ -430,7 +459,7 @@ abstract class DataNodeRequestSender {
                     skippedShards++;
                     continue;
                 }
-                List<DiscoveryNode> allocatedNodes = new ArrayList<>(group.allocatedNodes().size());
+                List<DiscoveryNode> allocatedNodes = Collections.synchronizedList(new ArrayList<>(group.allocatedNodes().size()));
                 for (String n : group.allocatedNodes()) {
                     allocatedNodes.add(nodes.get(n));
                 }

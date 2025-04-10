@@ -1,5 +1,5 @@
 ---
-navigation_title: "mathematical functions"
+navigation_title: "Math functions"
 mapped_pages:
   - https://www.elastic.co/guide/en/elasticsearch/reference/current/functions-operators/math-functions.md
 ---

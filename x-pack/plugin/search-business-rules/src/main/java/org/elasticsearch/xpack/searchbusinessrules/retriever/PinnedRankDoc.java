@@ -24,4 +24,4 @@ public class PinnedRankDoc extends RankDoc {
     public String toString() {
         return super.toString() + ", isPinned=" + isPinned + ", pinnedBy=" + pinnedBy;
     }
-} 
+}

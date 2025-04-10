@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.searchbusinessrules.retriever;
 
 import org.apache.lucene.search.ScoreDoc;
 import org.elasticsearch.common.ParsingException;
+import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.rank.RankDoc;
@@ -16,6 +17,8 @@ import org.elasticsearch.search.retriever.CompoundRetrieverBuilder;
 import org.elasticsearch.search.retriever.RetrieverBuilder;
 import org.elasticsearch.search.retriever.RetrieverBuilderWrapper;
 import org.elasticsearch.search.retriever.RetrieverParserContext;
+import org.elasticsearch.search.sort.ScoreSortBuilder;
+import org.elasticsearch.search.sort.SortBuilder;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -80,13 +83,14 @@ public final class PinnedRetrieverBuilder extends CompoundRetrieverBuilder<Pinne
     private final List<SpecifiedDocument> docs;
 
     private void validateIdsAndDocs(List<String> ids, List<SpecifiedDocument> docs) {
-        if (ids != null && docs != null && ids.isEmpty() == false && docs.isEmpty() == false) {
+        if ((ids != null && ids.isEmpty() == false) && (docs != null && docs.isEmpty() == false)) {
             throw new IllegalArgumentException("Both 'ids' and 'docs' cannot be specified at the same time");
         }
     }
 
     private void validateSort(SearchSourceBuilder source) {
-        if (source.sorts() != null && source.sorts().isEmpty() == false) {
+        List<SortBuilder<?>> sorts = source.sorts();
+        if (sorts != null && sorts.stream().anyMatch(sort -> sort instanceof ScoreSortBuilder == false)) {
             throw new IllegalArgumentException("Pinned retriever only supports sorting by score. Custom sorting is not allowed.");
         }
     }
@@ -132,6 +136,9 @@ public final class PinnedRetrieverBuilder extends CompoundRetrieverBuilder<Pinne
      * @return a PinnedQueryBuilder or the original query if no pinned documents
      */
     private QueryBuilder createPinnedQuery(QueryBuilder baseQuery) {
+        if (baseQuery == null) {
+            baseQuery = new MatchAllQueryBuilder();
+        }
         if (docs.isEmpty() == false) {
             return new PinnedQueryBuilder(baseQuery, docs.toArray(new SpecifiedDocument[0]));
         } else if (ids.isEmpty() == false) {
@@ -176,8 +183,8 @@ public final class PinnedRetrieverBuilder extends CompoundRetrieverBuilder<Pinne
         RankDoc[] rankDocs = new RankDoc[scoreDocs.length];
         for (int i = 0; i < scoreDocs.length; i++) {
             ScoreDoc scoreDoc = scoreDocs[i];
-            boolean isPinned = docs.stream().anyMatch(doc -> doc.id().equals(String.valueOf(scoreDoc.doc))) || 
-                             ids.contains(String.valueOf(scoreDoc.doc));
+            boolean isPinned = docs.stream().anyMatch(doc -> doc.id().equals(String.valueOf(scoreDoc.doc)))
+                || ids.contains(String.valueOf(scoreDoc.doc));
             String pinnedBy = docs.stream().anyMatch(doc -> doc.id().equals(String.valueOf(scoreDoc.doc))) ? "docs" : "ids";
             rankDocs[i] = new PinnedRankDoc(scoreDoc.doc, scoreDoc.score, scoreDoc.shardIndex, isPinned, pinnedBy);
             rankDocs[i].rank = i + 1;

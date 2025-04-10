@@ -28,6 +28,7 @@ public final class RateDoubleGroupingAggregatorFunction implements GroupingAggre
   private static final List<IntermediateStateDesc> INTERMEDIATE_STATE_DESC = List.of(
       new IntermediateStateDesc("timestamps", ElementType.LONG),
       new IntermediateStateDesc("values", ElementType.DOUBLE),
+      new IntermediateStateDesc("sampleCounts", ElementType.INT),
       new IntermediateStateDesc("resets", ElementType.DOUBLE)  );
 
   private final RateDoubleAggregator.DoubleRateGroupingState state;
@@ -36,20 +37,16 @@ public final class RateDoubleGroupingAggregatorFunction implements GroupingAggre
 
   private final DriverContext driverContext;
 
-  private final long unitInMillis;
-
   public RateDoubleGroupingAggregatorFunction(List<Integer> channels,
-      RateDoubleAggregator.DoubleRateGroupingState state, DriverContext driverContext,
-      long unitInMillis) {
+      RateDoubleAggregator.DoubleRateGroupingState state, DriverContext driverContext) {
     this.channels = channels;
     this.state = state;
     this.driverContext = driverContext;
-    this.unitInMillis = unitInMillis;
   }
 
   public static RateDoubleGroupingAggregatorFunction create(List<Integer> channels,
-      DriverContext driverContext, long unitInMillis) {
-    return new RateDoubleGroupingAggregatorFunction(channels, RateDoubleAggregator.initGrouping(driverContext, unitInMillis), driverContext, unitInMillis);
+      DriverContext driverContext) {
+    return new RateDoubleGroupingAggregatorFunction(channels, RateDoubleAggregator.initGrouping(driverContext), driverContext);
   }
 
   public static List<IntermediateStateDesc> intermediateStateDesc() {
@@ -189,15 +186,20 @@ public final class RateDoubleGroupingAggregatorFunction implements GroupingAggre
       return;
     }
     DoubleBlock values = (DoubleBlock) valuesUncast;
-    Block resetsUncast = page.getBlock(channels.get(2));
+    Block sampleCountsUncast = page.getBlock(channels.get(2));
+    if (sampleCountsUncast.areAllValuesNull()) {
+      return;
+    }
+    IntVector sampleCounts = ((IntBlock) sampleCountsUncast).asVector();
+    Block resetsUncast = page.getBlock(channels.get(3));
     if (resetsUncast.areAllValuesNull()) {
       return;
     }
     DoubleVector resets = ((DoubleBlock) resetsUncast).asVector();
-    assert timestamps.getPositionCount() == values.getPositionCount() && timestamps.getPositionCount() == resets.getPositionCount();
+    assert timestamps.getPositionCount() == values.getPositionCount() && timestamps.getPositionCount() == sampleCounts.getPositionCount() && timestamps.getPositionCount() == resets.getPositionCount();
     for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
       int groupId = groups.getInt(groupPosition);
-      RateDoubleAggregator.combineIntermediate(state, groupId, timestamps, values, resets.getDouble(groupPosition + positionOffset), groupPosition + positionOffset);
+      RateDoubleAggregator.combineIntermediate(state, groupId, timestamps, values, sampleCounts.getInt(groupPosition + positionOffset), resets.getDouble(groupPosition + positionOffset), groupPosition + positionOffset);
     }
   }
 

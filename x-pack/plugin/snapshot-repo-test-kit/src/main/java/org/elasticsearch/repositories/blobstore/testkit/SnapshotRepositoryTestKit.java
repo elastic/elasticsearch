@@ -7,8 +7,6 @@
 
 package org.elasticsearch.repositories.blobstore.testkit;
 
-import org.elasticsearch.action.ActionRequest;
-import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
@@ -38,10 +36,10 @@ import java.util.function.Supplier;
 public class SnapshotRepositoryTestKit extends Plugin implements ActionPlugin {
 
     @Override
-    public List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {
+    public List<ActionHandler> getActions() {
         return List.of(
-            new ActionHandler<>(RepositoryAnalyzeAction.INSTANCE, RepositoryAnalyzeAction.class),
-            new ActionHandler<>(
+            new ActionHandler(RepositoryAnalyzeAction.INSTANCE, RepositoryAnalyzeAction.class),
+            new ActionHandler(
                 TransportRepositoryVerifyIntegrityCoordinationAction.INSTANCE,
                 TransportRepositoryVerifyIntegrityCoordinationAction.class
             )

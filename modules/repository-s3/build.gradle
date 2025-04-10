@@ -140,8 +140,6 @@ tasks.named("thirdPartyAudit").configure {
     'javax.jms.Message',
 
     // crt??
-    'software.amazon.awssdk.arns.Arn',
-    'software.amazon.awssdk.arns.ArnResource',
     'software.amazon.awssdk.crt.CRT',
     'software.amazon.awssdk.crt.auth.credentials.Credentials',
     'software.amazon.awssdk.crt.auth.credentials.CredentialsProvider',

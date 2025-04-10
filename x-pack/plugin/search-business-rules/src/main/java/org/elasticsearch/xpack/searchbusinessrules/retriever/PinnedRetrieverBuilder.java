@@ -85,6 +85,12 @@ public final class PinnedRetrieverBuilder extends CompoundRetrieverBuilder<Pinne
         }
     }
 
+    private void validateSort(SearchSourceBuilder source) {
+        if (source.sorts() != null && source.sorts().isEmpty() == false) {
+            throw new IllegalArgumentException("Pinned retriever only supports sorting by score. Custom sorting is not allowed.");
+        }
+    }
+
     public PinnedRetrieverBuilder(List<String> ids, List<SpecifiedDocument> docs, RetrieverBuilder retrieverBuilder, int rankWindowSize) {
         super(new ArrayList<>(), rankWindowSize);
         validateIdsAndDocs(ids, docs);
@@ -137,6 +143,7 @@ public final class PinnedRetrieverBuilder extends CompoundRetrieverBuilder<Pinne
 
     @Override
     protected SearchSourceBuilder finalizeSourceBuilder(SearchSourceBuilder source) {
+        validateSort(source);
         source.query(createPinnedQuery(source.query()));
         return source;
     }
@@ -169,7 +176,10 @@ public final class PinnedRetrieverBuilder extends CompoundRetrieverBuilder<Pinne
         RankDoc[] rankDocs = new RankDoc[scoreDocs.length];
         for (int i = 0; i < scoreDocs.length; i++) {
             ScoreDoc scoreDoc = scoreDocs[i];
-            rankDocs[i] = new RankDoc(scoreDoc.doc, scoreDoc.score, scoreDoc.shardIndex);
+            boolean isPinned = docs.stream().anyMatch(doc -> doc.id().equals(String.valueOf(scoreDoc.doc))) || 
+                             ids.contains(String.valueOf(scoreDoc.doc));
+            String pinnedBy = docs.stream().anyMatch(doc -> doc.id().equals(String.valueOf(scoreDoc.doc))) ? "docs" : "ids";
+            rankDocs[i] = new PinnedRankDoc(scoreDoc.doc, scoreDoc.score, scoreDoc.shardIndex, isPinned, pinnedBy);
             rankDocs[i].rank = i + 1;
         }
         return rankDocs;
@@ -207,7 +217,8 @@ public final class PinnedRetrieverBuilder extends CompoundRetrieverBuilder<Pinne
 
         @Override
         public QueryBuilder explainQuery() {
-            return createPinnedQuery(in.explainQuery());
+            QueryBuilder baseQuery = in.explainQuery();
+            return createPinnedQuery(baseQuery);
         }
     }
 }

@@ -27,27 +27,15 @@ import org.elasticsearch.xpack.searchbusinessrules.SpecifiedDocument;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.stream.IntStream;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.search.rank.RankBuilder.DEFAULT_RANK_WINDOW_SIZE;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.containsString;
 
 public class PinnedRetrieverBuilderTests extends AbstractXContentTestCase<PinnedRetrieverBuilder> {
-
-    public static PinnedRetrieverBuilder createRandomPinnedRetrieverBuilder() {
-        boolean useIds = randomBoolean();
-        boolean useDocs = useIds == false || randomBoolean();
-
-        List<String> ids = useIds ? List.of(randomAlphaOfLengthBetween(5, 10), randomAlphaOfLengthBetween(5, 10)) : new ArrayList<>();
-        List<SpecifiedDocument> docs = useDocs
-            ? List.of(
-                new SpecifiedDocument(randomAlphaOfLengthBetween(5, 10), randomAlphaOfLengthBetween(5, 10)),
-                new SpecifiedDocument(randomAlphaOfLengthBetween(5, 10), randomAlphaOfLengthBetween(5, 10))
-            )
-            : new ArrayList<>();
-
-        return new PinnedRetrieverBuilder(ids, docs, TestRetrieverBuilder.createRandomTestRetrieverBuilder(), randomIntBetween(1, 100));
-    }
 
     @Override
     protected PinnedRetrieverBuilder createTestInstance() {
@@ -60,6 +48,26 @@ public class PinnedRetrieverBuilderTests extends AbstractXContentTestCase<Pinned
             parser,
             new RetrieverParserContext(new SearchUsage(), nf -> true)
         );
+    }
+
+    public static PinnedRetrieverBuilder createRandomPinnedRetrieverBuilder() {
+        boolean useIds = randomBoolean();
+        int numItems = randomIntBetween(1, 5);
+
+        List<String> ids = useIds ? 
+                    IntStream.range(0, numItems)
+                        .mapToObj(i -> randomAlphaOfLengthBetween(5, 10))
+                        .collect(Collectors.toList()) : 
+                    new ArrayList<>();
+        List<SpecifiedDocument> docs = useIds ? 
+            new ArrayList<>() : 
+            IntStream.range(0, numItems)
+                .mapToObj(i -> new SpecifiedDocument(
+                    randomAlphaOfLengthBetween(5, 10),
+                    randomAlphaOfLengthBetween(5, 10)
+                ))
+                .collect(Collectors.toList());
+        return new PinnedRetrieverBuilder(ids, docs, TestRetrieverBuilder.createRandomTestRetrieverBuilder(), randomIntBetween(1, 100));
     }
 
     @Override
@@ -91,6 +99,61 @@ public class PinnedRetrieverBuilderTests extends AbstractXContentTestCase<Pinned
             )
         );
         return new NamedXContentRegistry(entries);
+    }
+
+    public void testValidation() {
+        List<String> ids = List.of("id1", "id2");
+        List<SpecifiedDocument> docs = List.of(
+            new SpecifiedDocument("id3", "index3"),
+            new SpecifiedDocument("id4", "index4")
+        );
+        
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> new PinnedRetrieverBuilder(ids, docs, TestRetrieverBuilder.createRandomTestRetrieverBuilder(), 10)
+        );
+        assertThat(e.getMessage(), equalTo("Both 'ids' and 'docs' cannot be specified at the same time"));
+
+        e = expectThrows(
+            IllegalArgumentException.class,
+            () -> new PinnedRetrieverBuilder(new ArrayList<>(), new ArrayList<>(), TestRetrieverBuilder.createRandomTestRetrieverBuilder(), 10)
+        );
+        assertThat(e.getMessage(), equalTo("Either 'ids' or 'docs' must be specified"));
+
+        assertNotNull(new PinnedRetrieverBuilder(ids, new ArrayList<>(), TestRetrieverBuilder.createRandomTestRetrieverBuilder(), 10));
+        assertNotNull(new PinnedRetrieverBuilder(new ArrayList<>(), docs, TestRetrieverBuilder.createRandomTestRetrieverBuilder(), 10));
+    }
+
+    public void testValidateSort() {
+        PinnedRetrieverBuilder builder = createRandomPinnedRetrieverBuilder();
+
+        // Test empty sort is allowed
+        final SearchSourceBuilder emptySource = new SearchSourceBuilder();
+        builder.finalizeSourceBuilder(emptySource);
+
+        // Test score sort is allowed
+        final SearchSourceBuilder scoreSource = new SearchSourceBuilder();
+        scoreSource.sort("_score");
+        builder.finalizeSourceBuilder(scoreSource);
+
+        // Test custom sort is not allowed
+        final SearchSourceBuilder customSortSource = new SearchSourceBuilder();
+        customSortSource.sort("field");
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> builder.finalizeSourceBuilder(customSortSource)
+        );
+        assertThat(e.getMessage(), equalTo("Pinned retriever only supports sorting by score. Custom sorting is not allowed."));
+
+        // Test multiple sorts including custom sort is not allowed
+        final SearchSourceBuilder multipleSortsSource = new SearchSourceBuilder();
+        multipleSortsSource.sort("_score");
+        multipleSortsSource.sort("field");
+        e = expectThrows(
+            IllegalArgumentException.class,
+            () -> builder.finalizeSourceBuilder(multipleSortsSource)
+        );
+        assertThat(e.getMessage(), equalTo("Pinned retriever only supports sorting by score. Custom sorting is not allowed."));
     }
 
     public void testParserDefaults() throws IOException {

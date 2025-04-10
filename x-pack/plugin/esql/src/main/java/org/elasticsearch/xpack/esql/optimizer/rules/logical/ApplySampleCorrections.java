@@ -12,10 +12,9 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.HasSampleCorrection;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Mul;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
-import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
-import org.elasticsearch.xpack.esql.plan.logical.MvExpand;
 import org.elasticsearch.xpack.esql.plan.logical.Sample;
+import org.elasticsearch.xpack.esql.plan.logical.SampleBreaking;
 import org.elasticsearch.xpack.esql.rule.Rule;
 
 import java.util.ArrayList;
@@ -30,15 +29,14 @@ public class ApplySampleCorrections extends Rule<LogicalPlan, LogicalPlan> {
             if (plan instanceof Sample sample) {
                 sampleProbabilities.add(sample.probability());
             }
-            if (plan instanceof Limit || plan instanceof MvExpand) {
-                sampleProbabilities.clear();
-            }
             if (plan instanceof Aggregate && sampleProbabilities.isEmpty() == false) {
                 plan = plan.transformExpressionsOnly(
                     e -> e instanceof HasSampleCorrection hsc && hsc.isSampleCorrected() == false
                         ? hsc.sampleCorrection(getSampleProbability(sampleProbabilities, e.source()))
                         : e
                 );
+            }
+            if (plan instanceof SampleBreaking) {
                 sampleProbabilities.clear();
             }
             return plan;

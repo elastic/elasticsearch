@@ -340,22 +340,22 @@ public class HollowShardsService extends AbstractLifecycleComponent {
                     // TODO: warming disabled until the deadlock issue with the warming threads is fully investigated (ES-11293 / ES-11323).
                     // Pre-warm the cache for the new index engine
                     // indexShardCacheWarmer.preWarmIndexShardCache(indexShard, false);
-                    indexShard.resetEngine();
-
-                    final var engine = Objects.requireNonNull(indexShard.getEngineOrNull());
-                    assert engine instanceof IndexEngine : "After unhollowing we should switch to IndexEngine";
-                    final var newEngine = (IndexEngine) engine;
-                    assert newEngine.isLastCommitHollow() : "After unhollowing the last commit should be hollow";
-                    newEngine.skipTranslogRecovery(); // allows new flushes
+                    indexShard.resetEngine(engine -> {
+                        assert assertIndexEngineLastCommitHollow(shardId, engine, true);
+                        engine.skipTranslogRecovery(); // allows new flushes
+                    });
 
                     logger.debug("Flushing shard [{}] to produce a blob with a local translog node id", shardId);
-                    newEngine.flush(true, true, ActionListener.wrap(flushResult -> {
-                        assert flushResult.flushPerformed() : "Flush wasn't performed";
-                        removeHollowShard(indexShard, "unhollowing gen " + flushResult.generation());
-                        metrics.unhollowSuccessCounter().increment();
-                        metrics.unhollowTimeMs().record(relativeTimeSupplierInMillis.getAsLong() - startTime);
-                        assert newEngine.isLastCommitHollow() == false : "After a flush the last commit should not be hollow";
-                    }, e -> failedUnhollowing(shardId, e)));
+                    indexShard.withEngine(engine -> {
+                        engine.flush(true, true, ActionListener.wrap(flushResult -> {
+                            assert flushResult.flushPerformed() : "Flush wasn't performed";
+                            removeHollowShard(indexShard, "unhollowing gen " + flushResult.generation());
+                            metrics.unhollowSuccessCounter().increment();
+                            metrics.unhollowTimeMs().record(relativeTimeSupplierInMillis.getAsLong() - startTime);
+                            assert assertIndexEngineLastCommitHollow(shardId, engine, false);
+                        }, e -> failedUnhollowing(shardId, e)));
+                        return null;
+                    });
                 }
 
                 @Override
@@ -382,4 +382,11 @@ public class HollowShardsService extends AbstractLifecycleComponent {
         }
     }
 
+    private static boolean assertIndexEngineLastCommitHollow(ShardId shardId, Engine engine, boolean expectLastCommitHollow) {
+        assert engine instanceof IndexEngine : shardId + ": expect IndexEngine but got " + engine.getClass();
+        final var isLastCommitHollow = ((IndexEngine) engine).isLastCommitHollow();
+        assert isLastCommitHollow == expectLastCommitHollow
+            : shardId + ": expect last commit hollow to be [" + expectLastCommitHollow + "] but got [" + isLastCommitHollow + ']';
+        return true;
+    }
 }

@@ -1269,7 +1269,8 @@ public class Stateless extends Plugin
                     config.getRelativeTimeInNanosSupplier(),
                     config.getIndexCommitListener(),
                     config.isPromotableToPrimary(),
-                    config.getMapperService()
+                    config.getMapperService(),
+                    config.getEngineResetLock()
                 );
                 SegmentInfos segmentCommitInfos;
                 try {

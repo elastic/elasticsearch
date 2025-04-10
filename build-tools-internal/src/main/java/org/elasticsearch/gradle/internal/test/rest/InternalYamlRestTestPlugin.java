@@ -31,7 +31,6 @@ public class InternalYamlRestTestPlugin implements Plugin<Project> {
         TestingExtension testing = project.getExtensions().getByType(TestingExtension.class);
         testing.getSuites().registerBinding(YamlRestTestSuite.class, DefaultYamlRestTestSuite.class);
         testing.getSuites().register(SOURCE_SET_NAME, YamlRestTestSuite.class, suite -> {
-            suite.useJUnit();
             configureYamlSourceSet(project, suite.getSources());
         });
     }

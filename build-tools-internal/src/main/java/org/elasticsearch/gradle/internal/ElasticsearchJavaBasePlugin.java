@@ -65,7 +65,6 @@ public class ElasticsearchJavaBasePlugin implements Plugin<Project> {
         buildParams = project.getRootProject().getExtensions().getByType(BuildParameterExtension.class);
         project.getPluginManager().apply(JvmTestSuitePlugin.class);
         TestingExtension testing = project.getExtensions().getByType(TestingExtension.class);
-        testing.getSuites().withType(JvmTestSuite.class).configureEach(suite -> { suite.useJUnit(); });
         // common repositories setup
         project.getPluginManager().apply(RepositoriesSetupPlugin.class);
         project.getPluginManager().apply(ElasticsearchTestBasePlugin.class);

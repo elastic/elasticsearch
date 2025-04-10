@@ -30,7 +30,6 @@ public class InternalJavaRestTestPlugin implements Plugin<Project> {
         TestingExtension testing = project.getExtensions().getByType(TestingExtension.class);
         testing.getSuites().registerBinding(JavaRestTestSuite.class, DefaultJavaRestTestSuite.class);
         testing.getSuites().register(SOURCE_SET_NAME, JavaRestTestSuite.class, suite -> {
-            suite.useJUnit();
             configureJavaRestSources(project, suite.getSources());
             if (project.findProject(":test:test-clusters") != null) {
                 suite.getDependencies().getImplementation().add(suite.getDependencies().project(":test:test-clusters"));

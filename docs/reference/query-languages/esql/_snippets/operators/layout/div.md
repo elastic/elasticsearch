@@ -1,4 +1,4 @@
-## Divide `/` [esql-div]
+### Divide `/` [esql-div]
 
 :::{image} ../../../images/operators/div.svg
 :alt: Embedded

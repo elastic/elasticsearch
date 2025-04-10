@@ -544,7 +544,7 @@ public class ForkIT extends AbstractEsqlIntegTestCase {
     public void testWithStatsSimple() {
         var query = """
                 FROM test
-                | FORK (STATS x=COUNT(*), y=VALUES(id))
+                | FORK (STATS x=COUNT(*), y=MV_SORT(VALUES(id)))
                        (WHERE id == 2)
                 | KEEP _fork, x, y, id
                 | SORT _fork, id

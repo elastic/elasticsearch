@@ -2480,6 +2480,15 @@ public class VerifierTests extends ESTestCase {
         );
     }
 
+    public void testMultiMatchInsideEval() throws Exception {
+        assumeTrue("MultiMatch operator is available just for snapshots", Build.current().isSnapshot());
+        assertEquals(
+            "1:36: [MultiMatch] function is only supported in WHERE commands\n"
+                + "line 1:55: [MultiMatch] function cannot operate on [title], which is not a field from an index mapping",
+            error("row title = \"brown fox\" | eval x = multi_match(\"fox\", title)")
+        );
+    }
+
     public void testInsistNotOnTopOfFrom() {
         assumeTrue("requires snapshot builds", Build.current().isSnapshot());
 

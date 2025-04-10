@@ -124,10 +124,6 @@ public abstract class MonitoringIntegTestCase extends ESIntegTestCase {
         assertAcked(client().admin().indices().prepareDelete(ALL_MONITORING_INDICES));
     }
 
-    protected void ensureMonitoringIndicesYellow() {
-        ensureYellowAndNoInitializingShards(".monitoring-es-*");
-    }
-
     protected List<Tuple<String, String>> monitoringWatches() {
         final ClusterService clusterService = clusterService();
 
@@ -148,11 +144,6 @@ public abstract class MonitoringIntegTestCase extends ESIntegTestCase {
             }
         }
         assertTrue("failed to find a template matching [" + name + "]", found);
-    }
-
-    protected void waitForMonitoringIndices() throws Exception {
-        awaitIndexExists(ALL_MONITORING_INDICES);
-        assertBusy(this::ensureMonitoringIndicesYellow);
     }
 
     protected void enableMonitoringCollection() {

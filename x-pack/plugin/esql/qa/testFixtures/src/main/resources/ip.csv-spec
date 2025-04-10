@@ -297,6 +297,25 @@ s:keyword | ip:ip
 // end::to_ip_leading_zeros_octal-result[]
 ;
 
+convertFromStringFancy
+FROM logs
+| KEEP @timestamp, system, message
+| EVAL client = CASE(
+    system == "ping",
+        TO_IP(REPLACE(message, "Pinging ", ""), {"leading_zeros": "octal"}),
+    system == "java" AND STARTS_WITH(message, "Doing java stuff for "),
+        TO_IP(REPLACE(message, "Doing java stuff for ", ""), {"leading_zeros": "decimal"}))
+| SORT @timestamp
+| LIMIT 4
+;
+
+@timestamp:date         |system:keyword|message:keyword                    |client:ip
+2023-10-23T13:55:01.543Z|          ping|Pinging 192.168.86.046             |192.168.86.38
+2023-10-23T13:55:01.544Z|          cron|Running cats                       |null
+2023-10-23T13:55:01.545Z|          java|Doing java stuff for 192.168.86.038|192.168.86.38
+2023-10-23T13:55:01.546Z|          java|More java stuff                    |null
+;
+
 toIpInAgg
 ROW s = "1.1.1.1" | STATS COUNT(*) BY ip = TO_IP(s)
 ;

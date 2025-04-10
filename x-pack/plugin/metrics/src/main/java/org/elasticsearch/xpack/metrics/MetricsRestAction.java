@@ -48,6 +48,7 @@ public class MetricsRestAction extends BaseRestHandler {
         if (request.hasContent()) {
             var transportRequest = new MetricsTransportAction.MetricsRequest(
                 Boolean.parseBoolean(request.header("X-MetricsDB-Normalized")),
+                Boolean.parseBoolean(request.header("X-MetricsDB-Noop")),
                 request.content().retain()
             );
             return channel -> client.execute(

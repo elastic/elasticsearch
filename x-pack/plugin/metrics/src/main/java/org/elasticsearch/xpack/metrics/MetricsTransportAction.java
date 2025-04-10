@@ -124,7 +124,12 @@ public class MetricsTransportAction extends HandledTransportAction<
             Map<String, TimeSeries> timeSeries = new HashMap<>();
 
             // We receive a batch so there will be multiple documents as a result of processing it.
-            var dataPointDocuments = createDataPointDocuments(metricsServiceRequest, request.normalized, timeSeries);
+            List<LuceneDocument> dataPointDocuments;
+            if (request.noop) {
+                dataPointDocuments = List.of();
+            } else {
+                dataPointDocuments = createDataPointDocuments(metricsServiceRequest, request.normalized, timeSeries);
+            }
             logger.info("Indexing {} data point documents", dataPointDocuments.size());
 
             // This loop is similar to TransportShardBulkAction, we fork the processing of the entire request
@@ -414,16 +419,19 @@ public class MetricsTransportAction extends HandledTransportAction<
 
     public static class MetricsRequest extends ActionRequest {
         private final boolean normalized;
+        private final boolean noop;
         private final BytesReference exportMetricsServiceRequest;
 
         public MetricsRequest(StreamInput in) throws IOException {
             super(in);
             normalized = in.readBoolean();
+            noop = in.readBoolean();
             exportMetricsServiceRequest = in.readBytesReference();
         }
 
-        public MetricsRequest(boolean normalized, BytesReference exportMetricsServiceRequest) {
+        public MetricsRequest(boolean normalized, boolean noop, BytesReference exportMetricsServiceRequest) {
             this.normalized = normalized;
+            this.noop = noop;
             this.exportMetricsServiceRequest = exportMetricsServiceRequest;
         }
 

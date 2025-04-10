@@ -843,7 +843,7 @@ public abstract class BlockDocValuesReader implements BlockLoader.AllReader {
 
         @Override
         public Builder builder(BlockFactory factory, int expectedCount) {
-            return factory.bytesRefs(expectedCount);
+            return factory.doubles(expectedCount);
         }
 
         @Override

@@ -390,6 +390,7 @@ public class MetadataDataStreamsService {
                 mapperSupplier,
                 false,
                 failureStore,
+                dataStream.isSystem(),
                 nodeSettings
             );
         } catch (IOException e) {

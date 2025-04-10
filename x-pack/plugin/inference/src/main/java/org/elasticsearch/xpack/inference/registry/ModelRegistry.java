@@ -148,6 +148,8 @@ public class ModelRegistry implements ClusterStateListener {
     private final AtomicBoolean upgradeMetadataInProgress = new AtomicBoolean(false);
     private final Set<String> preventDeletionLock = Collections.newSetFromMap(new ConcurrentHashMap<>());
 
+    private volatile ClusterState lastClusterState;
+
     public ModelRegistry(ClusterService clusterService, Client client) {
         this.client = new OriginSettingClient(client, ClientHelper.INFERENCE_ORIGIN);
         this.defaultConfigIds = new ConcurrentHashMap<>();
@@ -224,11 +226,17 @@ public class ModelRegistry implements ClusterStateListener {
      * @throws ResourceNotFoundException if the specified id is guaranteed to not exist in the cluster.
      */
     public MinimalServiceSettings getMinimalServiceSettings(String inferenceEntityId) throws ResourceNotFoundException {
+        synchronized (this) {
+            assert lastClusterState != null : "initial cluster state not set yet";
+            if (lastClusterState == null) {
+                throw new IllegalStateException("initial cluster state not set yet");
+            }
+        }
         var config = defaultConfigIds.get(inferenceEntityId);
         if (config != null) {
             return config.settings();
         }
-        var state = ModelRegistryMetadata.fromState(clusterService.state().projectState().metadata());
+        var state = ModelRegistryMetadata.fromState(lastClusterState.projectState().metadata());
         var existing = state.getMinimalServiceSettings(inferenceEntityId);
         if (state.isUpgraded() && existing == null) {
             throw new ResourceNotFoundException(inferenceEntityId + " does not exist in this cluster.");
@@ -935,6 +943,11 @@ public class ModelRegistry implements ClusterStateListener {
 
     @Override
     public void clusterChanged(ClusterChangedEvent event) {
+        // keep track of the last applied cluster state
+        synchronized (this) {
+            lastClusterState = event.state();
+        }
+
         if (event.localNodeMaster() == false) {
             return;
         }

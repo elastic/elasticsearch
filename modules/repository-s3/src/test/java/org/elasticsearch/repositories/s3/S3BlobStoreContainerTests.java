@@ -20,6 +20,8 @@ import software.amazon.awssdk.services.s3.model.AbortMultipartUploadResponse;
 import software.amazon.awssdk.services.s3.model.CompleteMultipartUploadRequest;
 import software.amazon.awssdk.services.s3.model.CompleteMultipartUploadResponse;
 import software.amazon.awssdk.services.s3.model.CompletedPart;
+import software.amazon.awssdk.services.s3.model.CopyObjectRequest;
+import software.amazon.awssdk.services.s3.model.CopyObjectResponse;
 import software.amazon.awssdk.services.s3.model.CreateMultipartUploadRequest;
 import software.amazon.awssdk.services.s3.model.CreateMultipartUploadResponse;
 import software.amazon.awssdk.services.s3.model.ObjectCannedACL;
@@ -459,7 +461,7 @@ public class S3BlobStoreContainerTests extends ESTestCase {
         final var blobName = randomAlphaOfLengthBetween(1, 10);
 
         final StorageClass storageClass = randomFrom(StorageClass.values());
-        final CannedAccessControlList cannedAccessControlList = randomBoolean() ? randomFrom(CannedAccessControlList.values()) : null;
+        final ObjectCannedACL cannedAccessControlList = randomBoolean() ? randomFrom(ObjectCannedACL.values()) : null;
 
         final var blobStore = mock(S3BlobStore.class);
         when(blobStore.bucket()).thenReturn(sourceBucketName);
@@ -478,17 +480,17 @@ public class S3BlobStoreContainerTests extends ESTestCase {
         final var client = configureMockClient(blobStore);
 
         final ArgumentCaptor<CopyObjectRequest> captor = ArgumentCaptor.forClass(CopyObjectRequest.class);
-        when(client.copyObject(captor.capture())).thenReturn(new CopyObjectResult());
+        when(client.copyObject(captor.capture())).thenReturn(CopyObjectResponse.builder().build());
 
         destinationBlobContainer.copyBlob(randomPurpose(), sourceBlobContainer, sourceBlobName, blobName, randomLongBetween(1, 10_000));
 
         final CopyObjectRequest request = captor.getValue();
-        assertEquals(sourceBucketName, request.getSourceBucketName());
-        assertEquals(sourceBlobPath.buildAsString() + sourceBlobName, request.getSourceKey());
-        assertEquals(sourceBucketName, request.getDestinationBucketName());
-        assertEquals(destinationBlobPath.buildAsString() + blobName, request.getDestinationKey());
-        assertEquals(storageClass.toString(), request.getStorageClass());
-        assertEquals(cannedAccessControlList, request.getCannedAccessControlList());
+        assertEquals(sourceBucketName, request.sourceBucket());
+        assertEquals(sourceBlobPath.buildAsString() + sourceBlobName, request.sourceKey());
+        assertEquals(sourceBucketName, request.destinationBucket());
+        assertEquals(destinationBlobPath.buildAsString() + blobName, request.destinationKey());
+        assertEquals(storageClass, request.storageClass());
+        assertEquals(cannedAccessControlList, request.acl());
 
         closeMockClient(blobStore);
     }

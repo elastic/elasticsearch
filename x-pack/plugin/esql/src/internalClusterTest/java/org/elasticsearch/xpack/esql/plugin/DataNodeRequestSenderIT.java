@@ -36,10 +36,6 @@ public class DataNodeRequestSenderIT extends AbstractEsqlIntegTestCase {
     public void testRetryOnShardMovement() {
         internalCluster().ensureAtLeastNumDataNodes(2);
 
-        var nodes = internalCluster().size();
-        var node1 = internalCluster().getNodeNames()[nodes - 1];
-        var node2 = internalCluster().getNodeNames()[nodes - 2];
-
         var index = randomIdentifier();
 
         assertAcked(
@@ -50,7 +46,6 @@ public class DataNodeRequestSenderIT extends AbstractEsqlIntegTestCase {
                     Settings.builder()
                         .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
                         .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-                        .put("index.routing.allocation.include._name", node1)
                 )
         );
         client().prepareBulk(index)
@@ -58,26 +53,27 @@ public class DataNodeRequestSenderIT extends AbstractEsqlIntegTestCase {
             .add(new IndexRequest().source("key", "value"))
             .get();
 
+
         for (TransportService transportService : internalCluster().getInstances(TransportService.class)) {
             as(transportService, MockTransportService.class).addRequestHandlingBehavior(
                 ExchangeService.OPEN_EXCHANGE_ACTION_NAME,
                 (handler, request, channel, task) -> {
-
-                    // move index
+                    // move index shard
+                    var currentShardNodeId = clusterService().state().routingTable().index(index).shard(0).primaryShard().currentNodeId();
                     assertAcked(
                         client().admin()
                             .indices()
                             .prepareUpdateSettings(index)
-                            .setSettings(Settings.builder().put("index.routing.allocation.include._name", node2))
+                            .setSettings(Settings.builder().put("index.routing.allocation.exclude._id", currentShardNodeId))
                     );
                     ensureGreen(index);
-
+                    // execute data node request
                     handler.messageReceived(request, channel, task);
                 }
             );
         }
 
-        try (EsqlQueryResponse resp = run("FROM " + index)) {
+        try (EsqlQueryResponse resp = run("FROM " + index + "*")) {
             assertThat(getValuesList(resp), hasSize(1));
         }
     }

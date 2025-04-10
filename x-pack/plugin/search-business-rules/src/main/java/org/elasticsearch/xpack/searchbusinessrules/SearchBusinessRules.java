@@ -9,8 +9,6 @@ package org.elasticsearch.xpack.searchbusinessrules;
 
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.SearchPlugin;
-import org.elasticsearch.xcontent.ParseField;
-import org.elasticsearch.xpack.searchbusinessrules.retriever.PinnedRetrieverBuilder;
 
 import java.util.List;
 

@@ -9,13 +9,17 @@
 
 package org.elasticsearch.inference;
 
-import org.elasticsearch.common.io.stream.VersionedNamedWriteable;
-import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.core.Nullable;
 
-import java.util.Map;
+import java.util.List;
 
-public interface ChunkingSettings extends ToXContentObject, VersionedNamedWriteable {
-    ChunkingStrategy getChunkingStrategy();
+public record ChunkInferenceInput(String input, @Nullable ChunkingSettings chunkingSettings) {
 
-    Map<String, Object> asMap();
+    public ChunkInferenceInput(String input) {
+        this(input, null);
+    }
+
+    public static List<String> inputs(List<ChunkInferenceInput> chunkInferenceInputs) {
+        return chunkInferenceInputs.stream().map(ChunkInferenceInput::input).toList();
+    }
 }

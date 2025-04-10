@@ -192,7 +192,7 @@ public class MetricsTransportAction extends HandledTransportAction<
             SeqNoFieldMapper.SequenceIDFields.emptySeqID(),
             id,
             null,
-            List.of(luceneDocument),
+            Collections.singletonList(luceneDocument),
             null,
             XContentType.JSON,
             null,

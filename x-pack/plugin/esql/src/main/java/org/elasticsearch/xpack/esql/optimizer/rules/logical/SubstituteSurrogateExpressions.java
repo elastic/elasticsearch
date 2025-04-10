@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.optimizer.rules.logical;
 
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.expression.SurrogateExpression;
+import org.elasticsearch.xpack.esql.expression.function.scalar.math.Exp;
 import org.elasticsearch.xpack.esql.optimizer.LogicalOptimizerContext;
 
 /**
@@ -22,6 +23,13 @@ public final class SubstituteSurrogateExpressions extends OptimizerRules.Optimiz
 
     @Override
     protected Expression rule(Expression e, LogicalOptimizerContext ctx) {
+        return rule(e);
+    }
+
+    /**
+     * Perform the actual substitution.
+     */
+    public static Expression rule(Expression e) {
         if (e instanceof SurrogateExpression s) {
             Expression surrogate = s.surrogate();
             if (surrogate != null) {

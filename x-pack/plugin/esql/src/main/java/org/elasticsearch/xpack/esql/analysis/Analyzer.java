@@ -72,6 +72,7 @@ import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.In;
 import org.elasticsearch.xpack.esql.index.EsIndex;
 import org.elasticsearch.xpack.esql.index.IndexResolution;
 import org.elasticsearch.xpack.esql.inference.ResolvedInference;
+import org.elasticsearch.xpack.esql.optimizer.rules.logical.SubstituteSurrogateExpressions;
 import org.elasticsearch.xpack.esql.parser.ParsingException;
 import org.elasticsearch.xpack.esql.plan.IndexPattern;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
@@ -1617,6 +1618,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         }
 
         private Expression resolveConvertFunction(ConvertFunction convert, List<FieldAttribute> unionFieldAttributes) {
+            Expression convertExpression = (Expression) convert;
             if (convert.field() instanceof FieldAttribute fa && fa.field() instanceof InvalidMappedField imf) {
                 HashMap<TypeResolutionKey, Expression> typeResolutions = new HashMap<>();
                 Set<DataType> supportedTypes = convert.supportedTypes();
@@ -1643,9 +1645,11 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                     return createIfDoesNotAlreadyExist(fa, resolvedField, unionFieldAttributes);
                 }
             } else if (convert.field() instanceof AbstractConvertFunction subConvert) {
-                return convert.replaceChildren(Collections.singletonList(resolveConvertFunction(subConvert, unionFieldAttributes)));
+                return convertExpression.replaceChildren(
+                    Collections.singletonList(resolveConvertFunction(subConvert, unionFieldAttributes))
+                );
             }
-            return (Expression) convert;
+            return convertExpression;
         }
 
         private Expression createIfDoesNotAlreadyExist(
@@ -1693,19 +1697,13 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 originalFieldAttr.id(),
                 true
             );
-            Expression e = convert.replaceChildren(Collections.singletonList(resolvedAttr));
+            Expression e = ((Expression) convert).replaceChildren(Collections.singletonList(resolvedAttr));
             /*
              * Resolve surrogates immediately because these type specific conversions are serialized
              * and SurrogateExpressions are expected to be resolved on the coordinating node. At least,
              * TO_IP is expected to be resolved there.
              */
-            if (e instanceof SurrogateExpression s) {
-                Expression surrogate = s.surrogate();
-                if (surrogate != null) {
-                    return surrogate;
-                }
-            }
-            return e;
+            return SubstituteSurrogateExpressions.rule(e);
         }
     }
 

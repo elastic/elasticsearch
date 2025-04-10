@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.convert;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 
-import java.util.List;
 import java.util.Set;
 
 /**
@@ -26,6 +25,4 @@ public interface ConvertFunction {
      * The types that {@link #field()} can have.
      */
     Set<DataType> supportedTypes();
-
-    Expression replaceChildren(List<Expression> newChildren);
 }

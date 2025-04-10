@@ -41,6 +41,7 @@ import org.apache.lucene.util.compress.LZ4;
 import org.apache.lucene.util.packed.DirectMonotonicWriter;
 import org.apache.lucene.util.packed.PackedInts;
 import org.elasticsearch.core.IOUtils;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.index.codec.tsdb.TSDBDocValuesEncoder;
 
 import java.io.IOException;
@@ -247,13 +248,18 @@ final class ES819TSDBDocValuesConsumer extends XDocValuesConsumer {
                 meta.writeByte(IndexedDISI.DEFAULT_DENSE_RANK_POWER);
             }
         } finally {
-            org.apache.lucene.util.IOUtils.close(disiTempOutput);
+            IOUtils.close(disiTempOutput);
             if (skipListTempFileName != null) {
-                org.apache.lucene.util.IOUtils.deleteFilesIgnoringExceptions(dir, skipListTempFileName);
+                deleteFilesIgnoringExceptions(skipListTempFileName);
             }
         }
 
         return new long[] { numDocsWithValue, numValues };
+    }
+
+    @SuppressForbidden(reason = "require usage of Lucene's IOUtils#deleteFilesIgnoringExceptions(...)")
+    private void deleteFilesIgnoringExceptions(String skipListTempFileName) {
+        org.apache.lucene.util.IOUtils.deleteFilesIgnoringExceptions(dir, skipListTempFileName);
     }
 
     @Override

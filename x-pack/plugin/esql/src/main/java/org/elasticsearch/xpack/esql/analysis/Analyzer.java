@@ -89,6 +89,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.Rename;
 import org.elasticsearch.xpack.esql.plan.logical.RrfScoreEval;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
+import org.elasticsearch.xpack.esql.plan.logical.inference.Completion;
 import org.elasticsearch.xpack.esql.plan.logical.inference.InferencePlan;
 import org.elasticsearch.xpack.esql.plan.logical.inference.Rerank;
 import org.elasticsearch.xpack.esql.plan.logical.join.Join;
@@ -488,6 +489,10 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 return resolveAggregate(aggregate, childrenOutput);
             }
 
+            if (plan instanceof Completion c) {
+                return resolveCompletion(c, childrenOutput);
+            }
+
             if (plan instanceof Drop d) {
                 return resolveDrop(d, childrenOutput);
             }
@@ -596,6 +601,34 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             }
 
             return aggregate;
+        }
+
+        private LogicalPlan resolveCompletion(Completion p, List<Attribute> childrenOutput) {
+            Attribute targetField = p.targetField();
+            Expression prompt = p.prompt();
+
+            if (targetField instanceof UnresolvedAttribute ua) {
+                targetField = new ReferenceAttribute(ua.source(), ua.name(), TEXT);
+            }
+
+            if (prompt.resolved() == false) {
+                prompt = prompt.transformUp(UnresolvedAttribute.class, ua -> maybeResolveAttribute(ua, childrenOutput));
+            }
+
+            if (prompt.resolved() && DataType.isString(prompt.dataType()) == false) {
+                prompt = new UnresolvedAttribute(
+                    prompt.source(),
+                    "unsupported",
+                    LoggerMessageFormat.format(
+                        null,
+                        "prompt must be of type [{}] but is [{}]",
+                        TEXT.typeName(),
+                        prompt.dataType().typeName()
+                    )
+                );
+            }
+
+            return new Completion(p.source(), p.child(), p.inferenceId(), prompt, targetField);
         }
 
         private LogicalPlan resolveMvExpand(MvExpand p, List<Attribute> childrenOutput) {

@@ -4,6 +4,10 @@ navigation_title: "Known issues"
 
 # Connector known issues [es-connectors-known-issues]
 
+:::{important}
+Enterprise Search is not available in {{stack}} 9.0+.
+:::
+
 ## Connector service [es-connectors-known-issues-connector-service]
 
 The connector service has the following known issues:
@@ -16,7 +20,6 @@ The connector service has the following known issues:
 
     * **Increase RAM allocation**:
 
-        * **Elastic Cloud**: Upgrade the Enterprise Search instance to a larger size. Note that for Elastic managed connectors running on Elastic Cloud, the connector service runs on the Enterprise Search node. It only has access to up to 40% of the node’s RAM allocation.
         * **Self-managed**: Increase RAM allocation for the machine/container running the connector service.
 
             ::::{dropdown} RAM sizing guidelines

@@ -1,5 +1,9 @@
 ## `CHANGE_POINT` [esql-change_point]
 
+:::{note}
+The `CHANGE_POINT` function requires a [platinum license](https://www.elastic.co/subscriptions).
+:::
+
 ::::{warning}
 This functionality is in technical preview and may be
 changed or removed in a future release. Elastic will work to fix any

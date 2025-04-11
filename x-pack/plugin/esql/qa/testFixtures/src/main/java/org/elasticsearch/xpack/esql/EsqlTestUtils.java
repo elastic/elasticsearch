@@ -109,6 +109,7 @@ import java.time.Duration;
 import java.time.Period;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -126,6 +127,7 @@ import static java.util.Collections.emptyList;
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.unmodifiableMap;
 import static org.elasticsearch.test.ESTestCase.assertEquals;
+import static org.elasticsearch.test.ESTestCase.assertThat;
 import static org.elasticsearch.test.ESTestCase.between;
 import static org.elasticsearch.test.ESTestCase.randomAlphaOfLength;
 import static org.elasticsearch.test.ESTestCase.randomArray;
@@ -151,6 +153,7 @@ import static org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes.GEO;
 import static org.elasticsearch.xpack.esql.parser.ParserUtils.ParamClassification.IDENTIFIER;
 import static org.elasticsearch.xpack.esql.parser.ParserUtils.ParamClassification.PATTERN;
 import static org.elasticsearch.xpack.esql.parser.ParserUtils.ParamClassification.VALUE;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
@@ -882,6 +885,19 @@ public final class EsqlTestUtils {
         assertNull("cancellation exceptions must be ignored", cancellationFailure);
         ExceptionsHelper.unwrapCausesAndSuppressed(e, t -> t instanceof RemoteTransportException)
             .ifPresent(transportFailure -> assertNull("remote transport exception must be unwrapped", transportFailure.getCause()));
+    }
+
+    public static <T> T singleValue(Collection<T> collection) {
+        assertThat(collection, hasSize(1));
+        return collection.iterator().next();
+    }
+
+    public static Attribute getAttributeByName(Collection<Attribute> attributes, String name) {
+        return attributes.stream().filter(attr -> attr.name().equals(name)).findAny().orElse(null);
+    }
+
+    public static Map<String, Object> jsonEntityToMap(HttpEntity entity) throws IOException {
+        return entityToMap(entity, XContentType.JSON);
     }
 
     public static Map<String, Object> entityToMap(HttpEntity entity, XContentType expectedContentType) throws IOException {

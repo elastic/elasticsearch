@@ -92,6 +92,7 @@ import java.util.Set;
 import java.util.function.BiConsumer;
 import java.util.function.Function;
 
+import static org.elasticsearch.index.IndexVersions.SEMANTIC_TEXT_DEFAULTS_TO_BBQ;
 import static org.elasticsearch.inference.TaskType.SPARSE_EMBEDDING;
 import static org.elasticsearch.inference.TaskType.TEXT_EMBEDDING;
 import static org.elasticsearch.search.SearchService.DEFAULT_SIZE;
@@ -1010,8 +1011,12 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
                 denseVectorMapperBuilder.dimensions(modelSettings.dimensions());
                 denseVectorMapperBuilder.elementType(modelSettings.elementType());
 
-                DenseVectorFieldMapper.IndexOptions defaultIndexOptions = defaultSemanticDenseIndexOptions();
-                if (defaultIndexOptions.validate(modelSettings.elementType(), modelSettings.dimensions(), false)) {
+                DenseVectorFieldMapper.IndexOptions defaultIndexOptions = null;
+                if (indexVersionCreated.onOrAfter(SEMANTIC_TEXT_DEFAULTS_TO_BBQ)) {
+                    defaultIndexOptions = defaultSemanticDenseIndexOptions();
+                }
+                if (defaultIndexOptions != null
+                    && defaultIndexOptions.validate(modelSettings.elementType(), modelSettings.dimensions(), false)) {
                     denseVectorMapperBuilder.indexOptions(defaultIndexOptions);
                 }
 

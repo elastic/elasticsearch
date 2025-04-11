@@ -577,7 +577,7 @@ public class EsqlSession {
     }
 
     private void resolveInferences(
-        List<InferencePlan> inferencePlans,
+        List<InferencePlan<?>> inferencePlans,
         PreAnalysisResult preAnalysisResult,
         ActionListener<PreAnalysisResult> l
     ) {

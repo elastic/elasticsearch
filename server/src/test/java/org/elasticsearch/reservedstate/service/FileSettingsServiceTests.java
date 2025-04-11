@@ -328,10 +328,8 @@ public class FileSettingsServiceTests extends ESTestCase {
         // Don't really care about the initial state
         Files.createDirectories(fileSettingsService.watchedFileDir());
         doNothing().when(fileSettingsService).processInitialFilesMissing();
-        fileSettingsService.start();
-        fileSettingsService.clusterChanged(new ClusterChangedEvent("test", clusterService.state(), ClusterState.EMPTY_STATE));
 
-        // Now break the JSON and wait
+        // Prepare to await on a barrier when the file changes so we can sync up
         CyclicBarrier fileChangeBarrier = new CyclicBarrier(2);
         doAnswer((Answer<?>) invocation -> {
             try {
@@ -340,6 +338,12 @@ public class FileSettingsServiceTests extends ESTestCase {
                 awaitOrBust(fileChangeBarrier);
             }
         }).when(fileSettingsService).onProcessFileChangesException(eq(watchedFile), any());
+
+        // Kick off the service
+        fileSettingsService.start();
+        fileSettingsService.clusterChanged(new ClusterChangedEvent("test", clusterService.state(), ClusterState.EMPTY_STATE));
+
+        // Now break the JSON and wait
         writeTestFile(watchedFile, "test_invalid_JSON");
         awaitOrBust(fileChangeBarrier);
 

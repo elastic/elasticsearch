@@ -62,6 +62,8 @@ final class SystemJvmOptions {
                 "-Dio.netty.noUnsafe=true",
                 "-Dio.netty.noKeySetOptimization=true",
                 "-Dio.netty.recycler.maxCapacityPerThread=0",
+                // temporary until we get offheap vector stats in Lucene 10.3
+                "--add-opens=org.apache.lucene.core/org.apache.lucene.codecs.lucene99=org.elasticsearch.server",
                 // log4j 2
                 "-Dlog4j.shutdownHookEnabled=false",
                 "-Dlog4j2.disable.jmx=true",

@@ -508,7 +508,7 @@ Return all statistics.
 <<completion-suggester,Completion suggester>> statistics.
 
 `dense_vector`::
-Total number of dense vectors indexed.
+Statistics about dense vectors. Includes the total number of dense vectors indexed, and the desired size of off-heap memory.
 <<indices-refresh,Index refreshes>> can affect this statistic.
 
 `docs`::

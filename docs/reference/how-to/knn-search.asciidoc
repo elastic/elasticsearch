@@ -98,6 +98,7 @@ of datasets and configurations that we use for our nightly benchmarks.
 [[dense-vector-preloading]]
 include::search-speed.asciidoc[tag=warm-fs-cache]
 
+[[dense-vector-file-extensions]]
 The following file extensions are used for the approximate kNN search:
 Each extension is broken down by the quantization types.
 

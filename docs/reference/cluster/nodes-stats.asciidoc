@@ -834,6 +834,27 @@ This is not shown for the `shards` level, since mappings may be shared across th
 `value_count`::
 (integer) Total number of dense vector indexed across all shards assigned to the node.
 
+`off_heap`::
+(object) Statistics about the desired size of off-heap memory for all vectors indexed across all shards assigned to the node.
++
+.Properties of `off_heap`
+[%collapsible%open]
+========
+`total_size_in_bytes`::
+(long) The total desired size in bytes of off-heap memory.
+
+`total_veb_size_in_bytes`::
+(long) The total desired size in bytes of off-heap memory for `bbq` quantized vectors` (<<dense-vector-file-extensions,veb>>).
+
+`total_vec_size_in_bytes`::
+(long) The total desired size in bytes of off-heap memory for all non-quantized vectors (<<dense-vector-file-extensions,vec>>).
+
+`total_veq_size_in_bytes`::
+(long) The total desired size in bytes of off-heap memory for vectors indexed with quantization: int4 or int8 (<<dense-vector-file-extensions,veq>>).
+
+`total_vex_size_in_bytes`::
+(long) The total desired size in bytes of off-heap memory for the HNSW graph (<<dense-vector-file-extensions,vex>>).
+
 =======
 
 `sparse_vector`::

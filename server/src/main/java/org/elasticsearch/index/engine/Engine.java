@@ -60,6 +60,7 @@ import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.VersionType;
+import org.elasticsearch.index.codec.vectors.reflect.OffHeapByteSizeUtils;
 import org.elasticsearch.index.mapper.DocumentParser;
 import org.elasticsearch.index.mapper.FieldNamesFieldMapper;
 import org.elasticsearch.index.mapper.LuceneDocument;
@@ -248,13 +249,13 @@ public abstract class Engine implements Closeable {
      */
     public DenseVectorStats denseVectorStats(MappingLookup mappingLookup) {
         if (mappingLookup == null) {
-            return new DenseVectorStats(0);
+            return new DenseVectorStats();
         }
 
-        List<String> fields = new ArrayList<>();
+        List<DenseVectorFieldMapper> fields = new ArrayList<>();
         for (Mapper mapper : mappingLookup.fieldMappers()) {
-            if (mapper instanceof DenseVectorFieldMapper) {
-                fields.add(mapper.fullPath());
+            if (mapper instanceof DenseVectorFieldMapper denseVectorFieldMapper) {
+                fields.add(denseVectorFieldMapper);
             }
         }
         if (fields.isEmpty()) {
@@ -265,24 +266,25 @@ public abstract class Engine implements Closeable {
         }
     }
 
-    protected final DenseVectorStats denseVectorStats(IndexReader indexReader, List<String> fields) {
-        long valueCount = 0;
+    protected final DenseVectorStats denseVectorStats(IndexReader indexReader, List<DenseVectorFieldMapper> fields) {
         // we don't wait for a pending refreshes here since it's a stats call instead we mark it as accessed only which will cause
         // the next scheduled refresh to go through and refresh the stats as well
         for (LeafReaderContext readerContext : indexReader.leaves()) {
             try {
-                valueCount += getDenseVectorValueCount(readerContext.reader(), fields);
+                return getDenseVectorStats(readerContext.reader(), fields);
             } catch (IOException e) {
                 logger.trace(() -> "failed to get dense vector stats for [" + readerContext + "]", e);
             }
         }
-        return new DenseVectorStats(valueCount);
+        return new DenseVectorStats();
     }
 
-    private long getDenseVectorValueCount(final LeafReader atomicReader, List<String> fields) throws IOException {
+    private DenseVectorStats getDenseVectorStats(final LeafReader atomicReader, List<DenseVectorFieldMapper> fieldMappers)
+        throws IOException {
         long count = 0;
-        for (var field : fields) {
-            var info = atomicReader.getFieldInfos().fieldInfo(field);
+        Map<String, Map<String, Long>> offHeapStats = new HashMap<>();
+        for (var fieldMapper : fieldMappers) {
+            FieldInfo info = atomicReader.getFieldInfos().fieldInfo(fieldMapper.fullPath());
             if (info != null && info.getVectorDimension() > 0) {
                 switch (info.getVectorEncoding()) {
                     case FLOAT32 -> {
@@ -294,9 +296,16 @@ public abstract class Engine implements Closeable {
                         count += values != null ? values.size() : 0;
                     }
                 }
+                SegmentReader reader = Lucene.segmentReader(atomicReader);
+                var vectorsReader = reader.getVectorReader();
+                if (vectorsReader instanceof PerFieldKnnVectorsFormat.FieldsReader fieldsReader) {
+                    vectorsReader = fieldsReader.getFieldReader(info.name);
+                }
+                Map<String, Long> offHeap = OffHeapByteSizeUtils.getOffHeapByteSize(vectorsReader, info);
+                offHeapStats.put(info.name, offHeap);
             }
         }
-        return count;
+        return new DenseVectorStats(count, Collections.unmodifiableMap(offHeapStats));
     }
 
     /**

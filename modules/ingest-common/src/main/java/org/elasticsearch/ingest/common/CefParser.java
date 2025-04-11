@@ -26,12 +26,10 @@ import java.time.temporal.TemporalAccessor;
 import java.time.temporal.WeekFields;
 import java.util.ArrayList;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -278,6 +276,10 @@ final class CefParser {
     private static final String INCOMPLETE_CEF_HEADER = "Incomplete CEF header";
     private static final String INVALID_CEF_FORMAT = "Invalid CEF format";
 
+    /**
+     * List of allowed timestamp formats for CEF spec v27, see:
+     * <a href="https://www.microfocus.com/documentation/arcsight/arcsight-smartconnectors-24.2/pdfdoc/cef-implementation-standard/cef-implementation-standard.pdf">documentation</a>
+     */
     private static final List<String> TIME_LAYOUTS = List.of(
         // MMM dd HH:mm:ss.SSS zzz
         "MMM dd HH:mm:ss.SSS z",

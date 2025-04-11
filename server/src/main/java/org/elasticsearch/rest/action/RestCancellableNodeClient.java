@@ -113,6 +113,7 @@ public class RestCancellableNodeClient extends FilterClient {
     private class CloseListener implements ActionListener<Void> {
         private final AtomicReference<HttpChannel> channel = new AtomicReference<>();
         private final Set<TaskId> tasks = new HashSet<>();
+        private boolean tasksDrained = false;
 
         CloseListener() {}
 
@@ -130,11 +131,17 @@ public class RestCancellableNodeClient extends FilterClient {
             }
         }
 
-        synchronized void registerTask(TaskHolder taskHolder, TaskId taskId) {
-            taskHolder.taskId = taskId;
-            if (taskHolder.completed == false) {
-                this.tasks.add(taskId);
+        void registerTask(TaskHolder taskHolder, TaskId taskId) {
+            synchronized (this) {
+                taskHolder.taskId = taskId;
+                if (tasksDrained == false) {
+                    if (taskHolder.completed == false) {
+                        this.tasks.add(taskId);
+                    }
+                    return;
+                }
             }
+            cancelTask(taskId);
         }
 
         synchronized void unregisterTask(TaskHolder taskHolder) {
@@ -155,6 +162,7 @@ public class RestCancellableNodeClient extends FilterClient {
             synchronized (this) {
                 toCancel = new ArrayList<>(tasks);
                 tasks.clear();
+                tasksDrained = true;
             }
             for (TaskId taskId : toCancel) {
                 cancelTask(taskId);

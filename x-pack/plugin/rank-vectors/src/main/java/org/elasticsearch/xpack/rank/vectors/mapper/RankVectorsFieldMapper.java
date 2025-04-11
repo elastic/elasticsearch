@@ -180,7 +180,17 @@ public class RankVectorsFieldMapper extends FieldMapper {
             return new ArraySourceValueFetcher(name(), context) {
                 @Override
                 protected Object parseSourceValue(Object value) {
-                    return value;
+                    List<?> outerList = (List<?>) value;
+                    List<float[]> vectors = new ArrayList<>(outerList.size());
+                    for (Object o : outerList) {
+                        List<?> innerList = (List<?>) o;
+                        float[] vector = new float[innerList.size()];
+                        for (int i = 0; i < vector.length; i++) {
+                            vector[i] = ((Number) innerList.get(i)).floatValue();
+                        }
+                        vectors.add(vector);
+                    }
+                    return vectors;
                 }
             };
         }

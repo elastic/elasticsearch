@@ -253,7 +253,7 @@ public class UpdateTimeSeriesRangeServiceTests extends ESTestCase {
                 ds2.isSystem(),
                 ds2.isAllowCustomRouting(),
                 ds2.getIndexMode(),
-                ds2.getLifecycle(),
+                ds2.getDataLifecycle(),
                 ds2.getDataStreamOptions(),
                 ds2.getFailureIndices(),
                 ds2.rolloverOnWrite(),

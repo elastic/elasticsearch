@@ -175,6 +175,12 @@ abstract class IdentifierBuilder extends AbstractBuilder {
                     .flatMap(Arrays::stream)
                     .toArray(String[]::new);
             } else if (clusterString != null) {
+                // This is not a remote index pattern and the cluster string preceding this quoted pattern
+                // cannot be associated with it.
+                if (isFirstPattern == false) {
+                    clusterString = null;
+                }
+
                 // Cluster alias was prefixed to the pattern and did not occur within the pattern.
                 indices = Arrays.stream(indices)
                     .map(IdentifierBuilder::breakPatternIntoIndices)

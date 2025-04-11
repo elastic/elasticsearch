@@ -25,6 +25,7 @@ import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
+import org.elasticsearch.transport.AbstractTransportRequest;
 import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
@@ -43,7 +44,7 @@ import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.xpack.core.security.authz.IndicesAndAliasesResolverField.NO_INDEX_PLACEHOLDER;
 import static org.elasticsearch.xpack.core.security.authz.IndicesAndAliasesResolverField.NO_INDICES_OR_ALIASES_ARRAY;
 
-final class DataNodeRequest extends TransportRequest implements IndicesRequest.Replaceable {
+final class DataNodeRequest extends AbstractTransportRequest implements IndicesRequest.Replaceable {
     private static final Logger logger = LogManager.getLogger(DataNodeRequest.class);
 
     private final String sessionId;
@@ -57,15 +58,15 @@ final class DataNodeRequest extends TransportRequest implements IndicesRequest.R
     private final boolean runNodeLevelReduction;
 
     DataNodeRequest(
-        String sessionId,
-        Configuration configuration,
-        String clusterAlias,
-        List<ShardId> shardIds,
-        Map<Index, AliasFilter> aliasFilters,
-        PhysicalPlan plan,
-        String[] indices,
-        IndicesOptions indicesOptions,
-        boolean runNodeLevelReduction
+            String sessionId,
+            Configuration configuration,
+            String clusterAlias,
+            List<ShardId> shardIds,
+            Map<Index, AliasFilter> aliasFilters,
+            PhysicalPlan plan,
+            String[] indices,
+            IndicesOptions indicesOptions,
+            boolean runNodeLevelReduction
     ) {
         this.sessionId = sessionId;
         this.configuration = configuration;
@@ -82,8 +83,8 @@ final class DataNodeRequest extends TransportRequest implements IndicesRequest.R
         super(in);
         this.sessionId = in.readString();
         this.configuration = new Configuration(
-            // TODO make EsqlConfiguration Releasable
-            new BlockStreamInput(in, new BlockFactory(new NoopCircuitBreaker(CircuitBreaker.REQUEST), BigArrays.NON_RECYCLING_INSTANCE))
+                // TODO make EsqlConfiguration Releasable
+                new BlockStreamInput(in, new BlockFactory(new NoopCircuitBreaker(CircuitBreaker.REQUEST), BigArrays.NON_RECYCLING_INSTANCE))
         );
         if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_13_0)) {
             this.clusterAlias = in.readString();
@@ -217,29 +218,29 @@ final class DataNodeRequest extends TransportRequest implements IndicesRequest.R
         if (o == null || getClass() != o.getClass()) return false;
         DataNodeRequest request = (DataNodeRequest) o;
         return sessionId.equals(request.sessionId)
-            && configuration.equals(request.configuration)
-            && clusterAlias.equals(request.clusterAlias)
-            && shardIds.equals(request.shardIds)
-            && aliasFilters.equals(request.aliasFilters)
-            && plan.equals(request.plan)
-            && getParentTask().equals(request.getParentTask())
-            && Arrays.equals(indices, request.indices)
-            && indicesOptions.equals(request.indicesOptions)
-            && runNodeLevelReduction == request.runNodeLevelReduction;
+                && configuration.equals(request.configuration)
+                && clusterAlias.equals(request.clusterAlias)
+                && shardIds.equals(request.shardIds)
+                && aliasFilters.equals(request.aliasFilters)
+                && plan.equals(request.plan)
+                && getParentTask().equals(request.getParentTask())
+                && Arrays.equals(indices, request.indices)
+                && indicesOptions.equals(request.indicesOptions)
+                && runNodeLevelReduction == request.runNodeLevelReduction;
     }
 
     @Override
     public int hashCode() {
         return Objects.hash(
-            sessionId,
-            configuration,
-            clusterAlias,
-            shardIds,
-            aliasFilters,
-            plan,
-            Arrays.hashCode(indices),
-            indicesOptions,
-            runNodeLevelReduction
+                sessionId,
+                configuration,
+                clusterAlias,
+                shardIds,
+                aliasFilters,
+                plan,
+                Arrays.hashCode(indices),
+                indicesOptions,
+                runNodeLevelReduction
         );
     }
 }

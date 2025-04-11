@@ -29,6 +29,7 @@ import org.elasticsearch.snapshots.Snapshot;
 import org.elasticsearch.snapshots.SnapshotShardsService;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.AbstractTransportRequest;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportService;
 
@@ -44,11 +45,11 @@ import static java.util.Collections.unmodifiableMap;
  * Transport action that collects snapshot shard statuses from data nodes
  */
 public class TransportNodesSnapshotsStatus extends TransportNodesAction<
-    TransportNodesSnapshotsStatus.Request,
-    TransportNodesSnapshotsStatus.NodesSnapshotStatus,
-    TransportNodesSnapshotsStatus.NodeRequest,
-    TransportNodesSnapshotsStatus.NodeSnapshotStatus,
-    Void> {
+        TransportNodesSnapshotsStatus.Request,
+        TransportNodesSnapshotsStatus.NodesSnapshotStatus,
+        TransportNodesSnapshotsStatus.NodeRequest,
+        TransportNodesSnapshotsStatus.NodeSnapshotStatus,
+        Void> {
 
     public static final String ACTION_NAME = TransportSnapshotsStatusAction.TYPE.name() + "[nodes]";
     public static final ActionType<NodesSnapshotStatus> TYPE = new ActionType<>(ACTION_NAME);
@@ -57,19 +58,19 @@ public class TransportNodesSnapshotsStatus extends TransportNodesAction<
 
     @Inject
     public TransportNodesSnapshotsStatus(
-        ThreadPool threadPool,
-        ClusterService clusterService,
-        TransportService transportService,
-        SnapshotShardsService snapshotShardsService,
-        ActionFilters actionFilters
+            ThreadPool threadPool,
+            ClusterService clusterService,
+            TransportService transportService,
+            SnapshotShardsService snapshotShardsService,
+            ActionFilters actionFilters
     ) {
         super(
-            ACTION_NAME,
-            clusterService,
-            transportService,
-            actionFilters,
-            NodeRequest::new,
-            threadPool.executor(ThreadPool.Names.GENERIC)
+                ACTION_NAME,
+                clusterService,
+                transportService,
+                actionFilters,
+                NodeRequest::new,
+                threadPool.executor(ThreadPool.Names.GENERIC)
         );
         this.snapshotShardsService = snapshotShardsService;
     }
@@ -148,7 +149,7 @@ public class TransportNodesSnapshotsStatus extends TransportNodesAction<
         }
     }
 
-    public static class NodeRequest extends TransportRequest {
+    public static class NodeRequest extends AbstractTransportRequest {
 
         private final List<Snapshot> snapshots;
 
@@ -157,7 +158,7 @@ public class TransportNodesSnapshotsStatus extends TransportNodesAction<
             snapshots = in.readCollectionAsList(Snapshot::new);
         }
 
-        NodeRequest(TransportNodesSnapshotsStatus.Request request) {
+        NodeRequest(Request request) {
             snapshots = Arrays.asList(request.snapshots);
         }
 

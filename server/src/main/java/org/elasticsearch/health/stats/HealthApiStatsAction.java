@@ -21,6 +21,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.metrics.Counters;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.transport.AbstractTransportRequest;
 import org.elasticsearch.transport.TransportRequest;
 
 import java.io.IOException;
@@ -50,13 +51,14 @@ public class HealthApiStatsAction extends ActionType<HealthApiStatsAction.Respon
             return "health_api_stats";
         }
 
-        public static class Node extends TransportRequest {
+        public static class Node extends AbstractTransportRequest {
 
             public Node(StreamInput in) throws IOException {
                 super(in);
             }
 
-            public Node(Request ignored) {}
+            public Node(Request ignored) {
+            }
 
             @Override
             public void writeTo(StreamOutput out) throws IOException {

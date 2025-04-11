@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.core.security.action;
 import org.elasticsearch.action.support.nodes.BaseNodesRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.transport.AbstractTransportRequest;
 import org.elasticsearch.transport.TransportRequest;
 
 import java.io.IOException;
@@ -41,7 +42,7 @@ public class ClearSecurityCacheRequest extends BaseNodesRequest {
         return keys;
     }
 
-    public static class Node extends TransportRequest {
+    public static class Node extends AbstractTransportRequest {
         private String cacheName;
         private String[] keys;
 

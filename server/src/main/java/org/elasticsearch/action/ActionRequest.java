@@ -11,11 +11,12 @@ package org.elasticsearch.action;
 
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.transport.AbstractTransportRequest;
 import org.elasticsearch.transport.TransportRequest;
 
 import java.io.IOException;
 
-public abstract class ActionRequest extends TransportRequest {
+public abstract class ActionRequest extends AbstractTransportRequest {
 
     public ActionRequest() {
         super();

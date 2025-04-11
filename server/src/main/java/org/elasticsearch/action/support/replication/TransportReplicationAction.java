@@ -63,6 +63,7 @@ import org.elasticsearch.node.NodeClosedException;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.AbstractTransportRequest;
 import org.elasticsearch.transport.ConnectTransportException;
 import org.elasticsearch.transport.RawIndexingDataTransportRequest;
 import org.elasticsearch.transport.TransportChannel;
@@ -84,7 +85,7 @@ import static org.elasticsearch.core.Strings.format;
 /**
  * Base class for requests that should be executed on a primary copy followed by replica copies.
  * Subclasses can resolve the target shard and provide implementation for primary and replica operations.
- *
+ * <p>
  * The action samples cluster state on the receiving node to reroute to node with primary copy and on the
  * primary node to validate request before primary operation followed by sampling state again for resolving
  * nodes with replica copies to perform replication.
@@ -373,7 +374,8 @@ public abstract class TransportReplicationAction<
     }
 
     protected Releasable checkOperationLimits(final Request request) {
-        return () -> {};
+        return () -> {
+        };
     }
 
     protected void handlePrimaryRequest(final ConcreteShardRequest<Request> request, final TransportChannel channel, final Task task) {
@@ -392,7 +394,8 @@ public abstract class TransportReplicationAction<
     }
 
     protected Releasable checkPrimaryLimits(final Request request, boolean rerouteWasLocal, boolean localRerouteInitiatedByNodeClient) {
-        return () -> {};
+        return () -> {
+        };
     }
 
     class AsyncPrimaryAction extends AbstractRunnable {
@@ -567,7 +570,7 @@ public abstract class TransportReplicationAction<
 
     public static class PrimaryResult<ReplicaRequest extends ReplicationRequest<ReplicaRequest>, Response extends ReplicationResponse>
         implements
-            ReplicationOperation.PrimaryResult<ReplicaRequest> {
+        ReplicationOperation.PrimaryResult<ReplicaRequest> {
         private final ReplicaRequest replicaRequest;
         public final Response replicationResponse;
 
@@ -634,7 +637,8 @@ public abstract class TransportReplicationAction<
     }
 
     protected Releasable checkReplicaLimits(final ReplicaRequest request) {
-        return () -> {};
+        return () -> {
+        };
     }
 
     public static final class RetryOnReplicaException extends ElasticsearchException {
@@ -793,7 +797,7 @@ public abstract class TransportReplicationAction<
      * Responsible for routing and retrying failed operations on the primary.
      * The actual primary operation is done in {@link ReplicationOperation} on the
      * node with primary copy.
-     *
+     * <p>
      * Resolves index and shard id for the request before routing it to target node
      */
     final class ReroutePhase extends AbstractRunnable {
@@ -1131,8 +1135,8 @@ public abstract class TransportReplicationAction<
 
     class PrimaryShardReference
         implements
-            Releasable,
-            ReplicationOperation.Primary<Request, ReplicaRequest, PrimaryResult<ReplicaRequest, Response>> {
+        Releasable,
+        ReplicationOperation.Primary<Request, ReplicaRequest, PrimaryResult<ReplicaRequest, Response>> {
 
         protected final IndexShard indexShard;
         private final Releasable operationLock;
@@ -1331,12 +1335,15 @@ public abstract class TransportReplicationAction<
         }
     }
 
-    /** a wrapper class to encapsulate a request when being sent to a specific allocation id **/
-    public static class ConcreteShardRequest<R extends TransportRequest> extends TransportRequest
-        implements
-            RawIndexingDataTransportRequest {
+    /**
+     * a wrapper class to encapsulate a request when being sent to a specific allocation id
+     **/
+    public static class ConcreteShardRequest<R extends TransportRequest> extends AbstractTransportRequest implements
+        RawIndexingDataTransportRequest {
 
-        /** {@link AllocationId#getId()} of the shard this request is sent to **/
+        /**
+         * {@link AllocationId#getId()} of the shard this request is sent to
+         **/
         private final String targetAllocationID;
         private final long primaryTerm;
         private final R request;
@@ -1346,7 +1353,7 @@ public abstract class TransportReplicationAction<
         // is only true if sentFromLocalReroute is true.
         private final boolean localRerouteInitiatedByNodeClient;
 
-        public ConcreteShardRequest(Writeable.Reader<R> requestReader, StreamInput in) throws IOException {
+        public ConcreteShardRequest(Reader<R> requestReader, StreamInput in) throws IOException {
             targetAllocationID = in.readString();
             primaryTerm = in.readVLong();
             sentFromLocalReroute = false;
@@ -1460,7 +1467,7 @@ public abstract class TransportReplicationAction<
         private final long globalCheckpoint;
         private final long maxSeqNoOfUpdatesOrDeletes;
 
-        public ConcreteReplicaRequest(Writeable.Reader<R> requestReader, StreamInput in) throws IOException {
+        public ConcreteReplicaRequest(Reader<R> requestReader, StreamInput in) throws IOException {
             super(requestReader, in);
             globalCheckpoint = in.readZLong();
             maxSeqNoOfUpdatesOrDeletes = in.readZLong();

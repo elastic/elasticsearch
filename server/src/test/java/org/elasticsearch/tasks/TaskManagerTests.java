@@ -31,6 +31,7 @@ import org.elasticsearch.telemetry.tracing.Tracer;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.AbstractTransportRequest;
 import org.elasticsearch.transport.FakeTcpChannel;
 import org.elasticsearch.transport.TcpChannel;
 import org.elasticsearch.transport.TcpTransportChannel;
@@ -181,12 +182,12 @@ public class TaskManagerTests extends ESTestCase {
                     } else {
                         final TaskId taskId = new TaskId("node", between(1, 100));
                         final TcpTransportChannel tcpTransportChannel = TestTransportChannels.newFakeTcpTransportChannel(
-                            "node-" + i,
-                            channel,
-                            threadPool,
-                            "action-" + i,
-                            randomIntBetween(0, 1000),
-                            TransportVersion.current()
+                                "node-" + i,
+                                channel,
+                                threadPool,
+                                "action-" + i,
+                                randomIntBetween(0, 1000),
+                                TransportVersion.current()
                         );
                         taskManager.setBan(taskId, "test", tcpTransportChannel);
                     }
@@ -211,7 +212,8 @@ public class TaskManagerTests extends ESTestCase {
         when(transportServiceMock.getThreadPool()).thenReturn(threadPool);
         taskManager.setTaskCancellationService(new TaskCancellationService(transportServiceMock) {
             @Override
-            void cancelTaskAndDescendants(CancellableTask task, String reason, boolean waitForCompletion, ActionListener<Void> listener) {}
+            void cancelTaskAndDescendants(CancellableTask task, String reason, boolean waitForCompletion, ActionListener<Void> listener) {
+            }
         });
         Map<TaskId, Set<TcpChannel>> installedBans = new HashMap<>();
         FakeTcpChannel[] channels = new FakeTcpChannel[randomIntBetween(1, 10)];
@@ -227,23 +229,23 @@ public class TaskManagerTests extends ESTestCase {
             TaskId taskId = new TaskId("node-" + randomIntBetween(1, 3), randomIntBetween(1, 100));
             installedBans.computeIfAbsent(taskId, t -> new HashSet<>()).add(channel);
             taskManager.setBan(
-                taskId,
-                "test",
-                TestTransportChannels.newFakeTcpTransportChannel(
-                    "node",
-                    channel,
-                    threadPool,
-                    "action",
-                    randomIntBetween(1, 10000),
-                    TransportVersion.current()
-                )
+                    taskId,
+                    "test",
+                    TestTransportChannels.newFakeTcpTransportChannel(
+                            "node",
+                            channel,
+                            threadPool,
+                            "action",
+                            randomIntBetween(1, 10000),
+                            TransportVersion.current()
+                    )
             );
         }
         final Set<TaskId> expectedBannedTasks = installedBans.entrySet()
-            .stream()
-            .filter(e -> e.getValue().stream().anyMatch(CloseableChannel::isOpen))
-            .map(Map.Entry::getKey)
-            .collect(Collectors.toSet());
+                .stream()
+                .filter(e -> e.getValue().stream().anyMatch(CloseableChannel::isOpen))
+                .map(Map.Entry::getKey)
+                .collect(Collectors.toSet());
         assertBusy(() -> assertThat(taskManager.getBannedTaskIds(), equalTo(expectedBannedTasks)), 30, TimeUnit.SECONDS);
         for (FakeTcpChannel channel : channels) {
             channel.close();
@@ -282,16 +284,18 @@ public class TaskManagerTests extends ESTestCase {
      * Check that registering a task also causes tracing to be started on that task.
      */
     public void testRegisterTaskStartsTracing() {
-        final Tracer mockTracer = Mockito.mock(Tracer.class);
+        final Tracer mockTracer = mock(Tracer.class);
         final TaskManager taskManager = new TaskManager(Settings.EMPTY, threadPool, Set.of(), mockTracer);
 
         final Task task = taskManager.register("testType", "testAction", new TaskAwareRequest() {
 
             @Override
-            public void setParentTask(TaskId taskId) {}
+            public void setParentTask(TaskId taskId) {
+            }
 
             @Override
-            public void setRequestId(long requestId) {}
+            public void setRequestId(long requestId) {
+            }
 
             @Override
             public TaskId getParentTask() {
@@ -306,16 +310,18 @@ public class TaskManagerTests extends ESTestCase {
      * Check that unregistering a task also causes tracing to be stopped on that task.
      */
     public void testUnregisterTaskStopsTracing() {
-        final Tracer mockTracer = Mockito.mock(Tracer.class);
+        final Tracer mockTracer = mock(Tracer.class);
         final TaskManager taskManager = new TaskManager(Settings.EMPTY, threadPool, Set.of(), mockTracer);
 
         final Task task = taskManager.register("testType", "testAction", new TaskAwareRequest() {
 
             @Override
-            public void setParentTask(TaskId taskId) {}
+            public void setParentTask(TaskId taskId) {
+            }
 
             @Override
-            public void setRequestId(long requestId) {}
+            public void setRequestId(long requestId) {
+            }
 
             @Override
             public TaskId getParentTask() {
@@ -332,45 +338,47 @@ public class TaskManagerTests extends ESTestCase {
      * Check that registering and executing a task also causes tracing to be started and stopped on that task.
      */
     public void testRegisterAndExecuteStartsAndStopsTracing() {
-        final Tracer mockTracer = Mockito.mock(Tracer.class);
+        final Tracer mockTracer = mock(Tracer.class);
         final TaskManager taskManager = new TaskManager(Settings.EMPTY, threadPool, Set.of(), mockTracer);
 
         final Task task = taskManager.registerAndExecute(
-            "testType",
-            new TransportAction<ActionRequest, ActionResponse>(
-                "actionName",
-                new ActionFilters(Set.of()),
-                taskManager,
-                EsExecutors.DIRECT_EXECUTOR_SERVICE
-            ) {
-                @Override
-                protected void doExecute(Task task, ActionRequest request, ActionListener<ActionResponse> listener) {
-                    listener.onResponse(new ActionResponse() {
-                        @Override
-                        public void writeTo(StreamOutput out) {}
-                    });
-                }
-            },
-            new ActionRequest() {
-                @Override
-                public ActionRequestValidationException validate() {
-                    return null;
-                }
+                "testType",
+                new TransportAction<ActionRequest, ActionResponse>(
+                        "actionName",
+                        new ActionFilters(Set.of()),
+                        taskManager,
+                        EsExecutors.DIRECT_EXECUTOR_SERVICE
+                ) {
+                    @Override
+                    protected void doExecute(Task task, ActionRequest request, ActionListener<ActionResponse> listener) {
+                        listener.onResponse(new ActionResponse() {
+                            @Override
+                            public void writeTo(StreamOutput out) {
+                            }
+                        });
+                    }
+                },
+                new ActionRequest() {
+                    @Override
+                    public ActionRequestValidationException validate() {
+                        return null;
+                    }
 
-                @Override
-                public TaskId getParentTask() {
-                    return TaskId.EMPTY_TASK_ID;
-                }
-            },
-            null,
-            ActionTestUtils.assertNoFailureListener(r -> {})
+                    @Override
+                    public TaskId getParentTask() {
+                        return TaskId.EMPTY_TASK_ID;
+                    }
+                },
+                null,
+                ActionTestUtils.assertNoFailureListener(r -> {
+                })
         );
 
         verify(mockTracer).startTrace(any(), eq(task), eq("actionName"), anyMap());
     }
 
     public void testRegisterWithEnabledDisabledTracing() {
-        final Tracer mockTracer = Mockito.mock(Tracer.class);
+        final Tracer mockTracer = mock(Tracer.class);
         final TaskManager taskManager = spy(new TaskManager(Settings.EMPTY, threadPool, Set.of(), mockTracer));
 
         taskManager.register("type", "action", makeTaskRequest(true, 123), false);
@@ -390,7 +398,7 @@ public class TaskManagerTests extends ESTestCase {
         verify(taskManager, times(1)).startTrace(any(), any());
     }
 
-    static class CancellableRequest extends TransportRequest {
+    static class CancellableRequest extends AbstractTransportRequest {
         private final String requestId;
 
         CancellableRequest(String requestId) {
@@ -439,15 +447,17 @@ public class TaskManagerTests extends ESTestCase {
 
         @Override
         public void sendRequest(long requestId, String action, TransportRequest request, TransportRequestOptions options)
-            throws TransportException {
+                throws TransportException {
             throw new UnsupportedOperationException();
         }
 
         @Override
-        public void addCloseListener(ActionListener<Void> listener) {}
+        public void addCloseListener(ActionListener<Void> listener) {
+        }
 
         @Override
-        public void addRemovedListener(ActionListener<Void> listener) {}
+        public void addRemovedListener(ActionListener<Void> listener) {
+        }
 
         @Override
         public boolean isClosed() {
@@ -465,7 +475,8 @@ public class TaskManagerTests extends ESTestCase {
         }
 
         @Override
-        public void incRef() {}
+        public void incRef() {
+        }
 
         @Override
         public boolean tryIncRef() {
@@ -487,10 +498,12 @@ public class TaskManagerTests extends ESTestCase {
     private TaskAwareRequest makeTaskRequest(boolean cancellable, final int parentTaskNum) {
         return new TaskAwareRequest() {
             @Override
-            public void setParentTask(TaskId taskId) {}
+            public void setParentTask(TaskId taskId) {
+            }
 
             @Override
-            public void setRequestId(long requestId) {}
+            public void setRequestId(long requestId) {
+            }
 
             @Override
             public TaskId getParentTask() {

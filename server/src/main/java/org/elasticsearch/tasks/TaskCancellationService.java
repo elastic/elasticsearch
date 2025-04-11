@@ -27,6 +27,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.ListenableFuture;
+import org.elasticsearch.transport.AbstractTransportRequest;
 import org.elasticsearch.transport.NodeDisconnectedException;
 import org.elasticsearch.transport.NodeNotConnectedException;
 import org.elasticsearch.transport.Transport;
@@ -62,28 +63,28 @@ public class TaskCancellationService {
         this.taskManager = transportService.getTaskManager();
         this.deduplicator = new ResultDeduplicator<>(transportService.getThreadPool().getThreadContext());
         transportService.registerRequestHandler(
-            BAN_PARENT_ACTION_NAME,
-            EsExecutors.DIRECT_EXECUTOR_SERVICE,
-            BanParentTaskRequest::new,
-            new BanParentRequestHandler()
+                BAN_PARENT_ACTION_NAME,
+                EsExecutors.DIRECT_EXECUTOR_SERVICE,
+                BanParentTaskRequest::new,
+                new BanParentRequestHandler()
         );
         transportService.registerRequestHandler(
-            REMOTE_CLUSTER_BAN_PARENT_ACTION_NAME,
-            EsExecutors.DIRECT_EXECUTOR_SERVICE,
-            BanParentTaskRequest::new,
-            new BanParentRequestHandler()
+                REMOTE_CLUSTER_BAN_PARENT_ACTION_NAME,
+                EsExecutors.DIRECT_EXECUTOR_SERVICE,
+                BanParentTaskRequest::new,
+                new BanParentRequestHandler()
         );
         transportService.registerRequestHandler(
-            CANCEL_CHILD_ACTION_NAME,
-            EsExecutors.DIRECT_EXECUTOR_SERVICE,
-            CancelChildRequest::new,
-            new CancelChildRequestHandler()
+                CANCEL_CHILD_ACTION_NAME,
+                EsExecutors.DIRECT_EXECUTOR_SERVICE,
+                CancelChildRequest::new,
+                new CancelChildRequestHandler()
         );
         transportService.registerRequestHandler(
-            REMOTE_CLUSTER_CANCEL_CHILD_ACTION_NAME,
-            EsExecutors.DIRECT_EXECUTOR_SERVICE,
-            CancelChildRequest::new,
-            new CancelChildRequestHandler()
+                REMOTE_CLUSTER_CANCEL_CHILD_ACTION_NAME,
+                EsExecutors.DIRECT_EXECUTOR_SERVICE,
+                CancelChildRequest::new,
+                new CancelChildRequestHandler()
         );
     }
 
@@ -116,9 +117,9 @@ public class TaskCancellationService {
 
     void cancelTaskAndDescendants(CancellableTask task, String reason, boolean waitForCompletion, ActionListener<Void> finalListener) {
         deduplicator.executeOnce(
-            new CancelRequest(task, waitForCompletion),
-            finalListener,
-            (r, listener) -> doCancelTaskAndDescendants(task, reason, waitForCompletion, listener)
+                new CancelRequest(task, waitForCompletion),
+                finalListener,
+                (r, listener) -> doCancelTaskAndDescendants(task, reason, waitForCompletion, listener)
         );
     }
 
@@ -148,14 +149,14 @@ public class TaskCancellationService {
 
             // We remove bans after all child tasks are completed although in theory we can do it on a per-connection basis.
             completedListener.addListener(
-                ActionListener.running(
-                    transportService.getThreadPool()
-                        .getThreadContext()
-                        // If we start unbanning when the last child task completed and that child task executed with a specific user, then
-                        // unban requests are denied because internal requests can't run with a user. We need to remove bans with the
-                        // current thread context.
-                        .preserveContext(() -> removeBanOnChildConnections(task, childConnections))
-                )
+                    ActionListener.running(
+                            transportService.getThreadPool()
+                                    .getThreadContext()
+                                    // If we start unbanning when the last child task completed and that child task executed with a specific user, then
+                                    // unban requests are denied because internal requests can't run with a user. We need to remove bans with the
+                                    // current thread context.
+                                    .preserveContext(() -> removeBanOnChildConnections(task, childConnections))
+                    )
             );
 
             if (waitForCompletion) {
@@ -170,18 +171,19 @@ public class TaskCancellationService {
             if (waitForCompletion) {
                 taskManager.cancel(task, reason, () -> listener.onResponse(null));
             } else {
-                taskManager.cancel(task, reason, () -> {});
+                taskManager.cancel(task, reason, () -> {
+                });
                 listener.onResponse(null);
             }
         }
     }
 
     private void setBanOnChildConnections(
-        String reason,
-        boolean waitForCompletion,
-        CancellableTask task,
-        Collection<Transport.Connection> childConnections,
-        ActionListener<Void> listener
+            String reason,
+            boolean waitForCompletion,
+            CancellableTask task,
+            Collection<Transport.Connection> childConnections,
+            ActionListener<Void> listener
     ) {
         if (childConnections.isEmpty()) {
             listener.onResponse(null);
@@ -194,48 +196,48 @@ public class TaskCancellationService {
         for (Transport.Connection connection : childConnections) {
             assert TransportService.unwrapConnection(connection) == connection : "Child connection must be unwrapped";
             transportService.sendRequest(
-                connection,
-                BAN_PARENT_ACTION_NAME,
-                banRequest,
-                TransportRequestOptions.EMPTY,
-                new TransportResponseHandler.Empty() {
-                    @Override
-                    public Executor executor() {
-                        return TransportResponseHandler.TRANSPORT_WORKER;
-                    }
-
-                    @Override
-                    public void handleResponse() {
-                        logger.trace("sent ban for tasks with the parent [{}] for connection [{}]", taskId, connection);
-                        countDownListener.onResponse(null);
-                    }
-
-                    @Override
-                    public void handleException(TransportException exp) {
-                        final Throwable cause = ExceptionsHelper.unwrapCause(exp);
-                        assert cause instanceof ElasticsearchSecurityException == false : new AssertionError(exp);
-                        if (isUnimportantBanFailure(cause)) {
-                            logger.debug(
-                                () -> format("cannot send ban for tasks with the parent [%s] on connection [%s]", taskId, connection),
-                                exp
-                            );
-                        } else if (logger.isDebugEnabled()) {
-                            logger.warn(
-                                () -> format("cannot send ban for tasks with the parent [%s] on connection [%s]", taskId, connection),
-                                exp
-                            );
-                        } else {
-                            logger.warn(
-                                "cannot send ban for tasks with the parent [{}] on connection [{}]: {}",
-                                taskId,
-                                connection,
-                                exp.getMessage()
-                            );
+                    connection,
+                    BAN_PARENT_ACTION_NAME,
+                    banRequest,
+                    TransportRequestOptions.EMPTY,
+                    new TransportResponseHandler.Empty() {
+                        @Override
+                        public Executor executor() {
+                            return TransportResponseHandler.TRANSPORT_WORKER;
                         }
 
-                        countDownListener.onFailure(exp);
+                        @Override
+                        public void handleResponse() {
+                            logger.trace("sent ban for tasks with the parent [{}] for connection [{}]", taskId, connection);
+                            countDownListener.onResponse(null);
+                        }
+
+                        @Override
+                        public void handleException(TransportException exp) {
+                            final Throwable cause = ExceptionsHelper.unwrapCause(exp);
+                            assert cause instanceof ElasticsearchSecurityException == false : new AssertionError(exp);
+                            if (isUnimportantBanFailure(cause)) {
+                                logger.debug(
+                                        () -> format("cannot send ban for tasks with the parent [%s] on connection [%s]", taskId, connection),
+                                        exp
+                                );
+                            } else if (logger.isDebugEnabled()) {
+                                logger.warn(
+                                        () -> format("cannot send ban for tasks with the parent [%s] on connection [%s]", taskId, connection),
+                                        exp
+                                );
+                            } else {
+                                logger.warn(
+                                        "cannot send ban for tasks with the parent [{}] on connection [{}]: {}",
+                                        taskId,
+                                        connection,
+                                        exp.getMessage()
+                                );
+                            }
+
+                            countDownListener.onFailure(exp);
+                        }
                     }
-                }
             );
         }
     }
@@ -246,51 +248,52 @@ public class TaskCancellationService {
             assert TransportService.unwrapConnection(connection) == connection : "Child connection must be unwrapped";
             logger.trace("Sending remove ban for tasks with the parent [{}] for connection [{}]", request.parentTaskId, connection);
             transportService.sendRequest(
-                connection,
-                BAN_PARENT_ACTION_NAME,
-                request,
-                TransportRequestOptions.EMPTY,
-                new TransportResponseHandler.Empty() {
-                    @Override
-                    public Executor executor() {
-                        return TransportResponseHandler.TRANSPORT_WORKER;
-                    }
+                    connection,
+                    BAN_PARENT_ACTION_NAME,
+                    request,
+                    TransportRequestOptions.EMPTY,
+                    new TransportResponseHandler.Empty() {
+                        @Override
+                        public Executor executor() {
+                            return TransportResponseHandler.TRANSPORT_WORKER;
+                        }
 
-                    @Override
-                    public void handleResponse() {}
+                        @Override
+                        public void handleResponse() {
+                        }
 
-                    @Override
-                    public void handleException(TransportException exp) {
-                        final Throwable cause = ExceptionsHelper.unwrapCause(exp);
-                        assert cause instanceof ElasticsearchSecurityException == false : new AssertionError(exp);
-                        if (isUnimportantBanFailure(cause)) {
-                            logger.debug(
-                                () -> format(
-                                    "failed to remove ban for tasks with the parent [%s] on connection [%s]",
-                                    request.parentTaskId,
-                                    connection
-                                ),
-                                exp
-                            );
-                        } else if (logger.isDebugEnabled()) {
-                            logger.warn(
-                                () -> format(
-                                    "failed to remove ban for tasks with the parent [%s] on connection [%s]",
-                                    request.parentTaskId,
-                                    connection
-                                ),
-                                exp
-                            );
-                        } else {
-                            logger.warn(
-                                "failed to remove ban for tasks with the parent [{}] on connection [{}]: {}",
-                                request.parentTaskId,
-                                connection,
-                                exp.getMessage()
-                            );
+                        @Override
+                        public void handleException(TransportException exp) {
+                            final Throwable cause = ExceptionsHelper.unwrapCause(exp);
+                            assert cause instanceof ElasticsearchSecurityException == false : new AssertionError(exp);
+                            if (isUnimportantBanFailure(cause)) {
+                                logger.debug(
+                                        () -> format(
+                                                "failed to remove ban for tasks with the parent [%s] on connection [%s]",
+                                                request.parentTaskId,
+                                                connection
+                                        ),
+                                        exp
+                                );
+                            } else if (logger.isDebugEnabled()) {
+                                logger.warn(
+                                        () -> format(
+                                                "failed to remove ban for tasks with the parent [%s] on connection [%s]",
+                                                request.parentTaskId,
+                                                connection
+                                        ),
+                                        exp
+                                );
+                            } else {
+                                logger.warn(
+                                        "failed to remove ban for tasks with the parent [{}] on connection [{}]: {}",
+                                        request.parentTaskId,
+                                        connection,
+                                        exp.getMessage()
+                                );
+                            }
                         }
                     }
-                }
             );
         }
     }
@@ -299,7 +302,7 @@ public class TaskCancellationService {
         return cause instanceof NodeDisconnectedException || cause instanceof NodeNotConnectedException;
     }
 
-    private static class BanParentTaskRequest extends TransportRequest {
+    private static class BanParentTaskRequest extends AbstractTransportRequest {
 
         private final TaskId parentTaskId;
         private final boolean ban;
@@ -353,15 +356,15 @@ public class TaskCancellationService {
         public void messageReceived(final BanParentTaskRequest request, final TransportChannel channel, Task task) throws Exception {
             if (request.ban) {
                 logger.debug(
-                    "Received ban for the parent [{}] on the node [{}], reason: [{}]",
-                    request.parentTaskId,
-                    localNodeId(),
-                    request.reason
+                        "Received ban for the parent [{}] on the node [{}], reason: [{}]",
+                        request.parentTaskId,
+                        localNodeId(),
+                        request.reason
                 );
                 final List<CancellableTask> childTasks = taskManager.setBan(request.parentTaskId, request.reason, channel);
                 final GroupedActionListener<Void> listener = new GroupedActionListener<>(
-                    childTasks.size() + 1,
-                    new ChannelActionListener<>(channel).map(r -> ActionResponse.Empty.INSTANCE)
+                        childTasks.size() + 1,
+                        new ChannelActionListener<>(channel).map(r -> ActionResponse.Empty.INSTANCE)
                 );
                 for (CancellableTask childTask : childTasks) {
                     cancelTaskAndDescendants(childTask, request.reason, request.waitForCompletion, listener);
@@ -375,7 +378,7 @@ public class TaskCancellationService {
         }
     }
 
-    private static class CancelChildRequest extends TransportRequest {
+    private static class CancelChildRequest extends AbstractTransportRequest {
 
         private final TaskId parentTaskId;
         private final long childRequestId;
@@ -416,8 +419,8 @@ public class TaskCancellationService {
     }
 
     private static final TransportResponseHandler.Empty NOOP_HANDLER = TransportResponseHandler.empty(
-        TransportResponseHandler.TRANSPORT_WORKER,
-        ActionListener.noop()
+            TransportResponseHandler.TRANSPORT_WORKER,
+            ActionListener.noop()
     );
 
     /**
@@ -427,11 +430,11 @@ public class TaskCancellationService {
         if (childConnection.getTransportVersion().onOrAfter(VERSION_SUPPORTING_CANCEL_CHILD_ACTION)) {
             DiscoveryNode childNode = childConnection.getNode();
             logger.debug(
-                "sending cancellation of child of parent task [{}] with request ID [{}] to node [{}] because of [{}]",
-                parentTask,
-                childRequestId,
-                childNode,
-                reason
+                    "sending cancellation of child of parent task [{}] with request ID [{}] to node [{}] because of [{}]",
+                    parentTask,
+                    childRequestId,
+                    childNode,
+                    reason
             );
             final CancelChildRequest request = CancelChildRequest.createCancelChildRequest(parentTask, childRequestId, reason);
             transportService.sendRequest(childConnection, CANCEL_CHILD_ACTION_NAME, request, TransportRequestOptions.EMPTY, NOOP_HANDLER);

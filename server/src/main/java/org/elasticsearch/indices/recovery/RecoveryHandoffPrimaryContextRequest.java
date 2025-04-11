@@ -13,6 +13,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.index.seqno.ReplicationTracker;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.transport.AbstractTransportRequest;
 import org.elasticsearch.transport.TransportRequest;
 
 import java.io.IOException;
@@ -20,7 +21,7 @@ import java.io.IOException;
 /**
  * The request object to handoff the primary context to the relocation target.
  */
-class RecoveryHandoffPrimaryContextRequest extends TransportRequest {
+class RecoveryHandoffPrimaryContextRequest extends AbstractTransportRequest {
 
     private final long recoveryId;
     private final ShardId shardId;
@@ -44,9 +45,9 @@ class RecoveryHandoffPrimaryContextRequest extends TransportRequest {
      * @param primaryContext the primary context
      */
     RecoveryHandoffPrimaryContextRequest(
-        final long recoveryId,
-        final ShardId shardId,
-        final ReplicationTracker.PrimaryContext primaryContext
+            final long recoveryId,
+            final ShardId shardId,
+            final ReplicationTracker.PrimaryContext primaryContext
     ) {
         this.recoveryId = recoveryId;
         this.shardId = shardId;
@@ -76,12 +77,12 @@ class RecoveryHandoffPrimaryContextRequest extends TransportRequest {
     @Override
     public String toString() {
         return "RecoveryHandoffPrimaryContextRequest{"
-            + "recoveryId="
-            + recoveryId
-            + ", shardId="
-            + shardId
-            + ", primaryContext="
-            + primaryContext
-            + '}';
+                + "recoveryId="
+                + recoveryId
+                + ", shardId="
+                + shardId
+                + ", primaryContext="
+                + primaryContext
+                + '}';
     }
 }

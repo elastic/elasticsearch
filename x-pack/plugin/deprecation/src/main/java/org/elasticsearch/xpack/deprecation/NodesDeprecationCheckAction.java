@@ -12,6 +12,7 @@ import org.elasticsearch.action.support.nodes.BaseNodeResponse;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.transport.AbstractTransportRequest;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.xpack.core.deprecation.DeprecationIssue;
 
@@ -31,9 +32,10 @@ public class NodesDeprecationCheckAction extends ActionType<NodesDeprecationChec
         super(NAME);
     }
 
-    public static class NodeRequest extends TransportRequest {
+    public static class NodeRequest extends AbstractTransportRequest {
 
-        public NodeRequest() {}
+        public NodeRequest() {
+        }
 
         public NodeRequest(StreamInput in) throws IOException {
             super(in);

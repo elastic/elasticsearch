@@ -35,6 +35,7 @@ import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.AbstractTransportRequest;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportService;
 
@@ -50,35 +51,35 @@ import java.util.stream.StreamSupport;
  * Sources locally data tier usage stats mainly indices and shard sizes grouped by preferred data tier.
  */
 public class NodesDataTiersUsageTransportAction extends TransportNodesAction<
-    NodesDataTiersUsageTransportAction.NodesRequest,
-    NodesDataTiersUsageTransportAction.NodesResponse,
-    NodesDataTiersUsageTransportAction.NodeRequest,
-    NodeDataTiersUsage,
-    Void> {
+        NodesDataTiersUsageTransportAction.NodesRequest,
+        NodesDataTiersUsageTransportAction.NodesResponse,
+        NodesDataTiersUsageTransportAction.NodeRequest,
+        NodeDataTiersUsage,
+        Void> {
 
     public static final ActionType<NodesResponse> TYPE = new ActionType<>("cluster:monitor/nodes/data_tier_usage");
 
     private static final CommonStatsFlags STATS_FLAGS = new CommonStatsFlags().clear()
-        .set(CommonStatsFlags.Flag.Docs, true)
-        .set(CommonStatsFlags.Flag.Store, true);
+            .set(CommonStatsFlags.Flag.Docs, true)
+            .set(CommonStatsFlags.Flag.Store, true);
 
     private final IndicesService indicesService;
 
     @Inject
     public NodesDataTiersUsageTransportAction(
-        ThreadPool threadPool,
-        ClusterService clusterService,
-        TransportService transportService,
-        IndicesService indicesService,
-        ActionFilters actionFilters
+            ThreadPool threadPool,
+            ClusterService clusterService,
+            TransportService transportService,
+            IndicesService indicesService,
+            ActionFilters actionFilters
     ) {
         super(
-            TYPE.name(),
-            clusterService,
-            transportService,
-            actionFilters,
-            NodeRequest::new,
-            threadPool.executor(ThreadPool.Names.MANAGEMENT)
+                TYPE.name(),
+                clusterService,
+                transportService,
+                actionFilters,
+                NodeRequest::new,
+                threadPool.executor(ThreadPool.Names.MANAGEMENT)
         );
         this.indicesService = indicesService;
     }
@@ -112,17 +113,17 @@ public class NodesDataTiersUsageTransportAction extends TransportNodesAction<
 
     // For bwc & testing purposes
     static Map<String, NodeDataTiersUsage.UsageStats> aggregateStats(
-        RoutingNode routingNode,
-        Metadata metadata,
-        NodeIndicesStats nodeIndicesStats
+            RoutingNode routingNode,
+            Metadata metadata,
+            NodeIndicesStats nodeIndicesStats
     ) {
         if (routingNode == null) {
             return Map.of();
         }
         Map<String, NodeDataTiersUsage.UsageStats> usageStatsByTier = new HashMap<>();
         Set<String> localIndices = StreamSupport.stream(routingNode.spliterator(), false)
-            .map(routing -> routing.index().getName())
-            .collect(Collectors.toSet());
+                .map(routing -> routing.index().getName())
+                .collect(Collectors.toSet());
         for (String indexName : localIndices) {
             IndexMetadata indexMetadata = metadata.getProject().index(indexName);
             if (indexMetadata == null) {
@@ -131,8 +132,8 @@ public class NodesDataTiersUsageTransportAction extends TransportNodesAction<
             String tier = indexMetadata.getTierPreference().isEmpty() ? null : indexMetadata.getTierPreference().get(0);
             if (tier != null) {
                 NodeDataTiersUsage.UsageStats usageStats = usageStatsByTier.computeIfAbsent(
-                    tier,
-                    ignored -> new NodeDataTiersUsage.UsageStats()
+                        tier,
+                        ignored -> new NodeDataTiersUsage.UsageStats()
                 );
                 List<IndexShardStats> allShardStats = nodeIndicesStats.getShardStats(indexMetadata.getIndex());
                 if (allShardStats != null) {
@@ -171,7 +172,7 @@ public class NodesDataTiersUsageTransportAction extends TransportNodesAction<
         }
     }
 
-    public static class NodeRequest extends TransportRequest {
+    public static class NodeRequest extends AbstractTransportRequest {
 
         public NodeRequest(StreamInput in) throws IOException {
             super(in);

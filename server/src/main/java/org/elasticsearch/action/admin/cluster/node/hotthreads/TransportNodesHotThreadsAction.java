@@ -25,6 +25,7 @@ import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.monitor.jvm.HotThreads;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.AbstractTransportRequest;
 import org.elasticsearch.transport.LeakTracker;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportService;
@@ -35,36 +36,36 @@ import java.nio.charset.StandardCharsets;
 import java.util.List;
 
 public class TransportNodesHotThreadsAction extends TransportNodesAction<
-    NodesHotThreadsRequest,
-    NodesHotThreadsResponse,
-    TransportNodesHotThreadsAction.NodeRequest,
-    NodeHotThreads,
-    Void> {
+        NodesHotThreadsRequest,
+        NodesHotThreadsResponse,
+        TransportNodesHotThreadsAction.NodeRequest,
+        NodeHotThreads,
+        Void> {
 
     public static final ActionType<NodesHotThreadsResponse> TYPE = new ActionType<>("cluster:monitor/nodes/hot_threads");
 
     @Inject
     public TransportNodesHotThreadsAction(
-        ThreadPool threadPool,
-        ClusterService clusterService,
-        TransportService transportService,
-        ActionFilters actionFilters
+            ThreadPool threadPool,
+            ClusterService clusterService,
+            TransportService transportService,
+            ActionFilters actionFilters
     ) {
         super(
-            TYPE.name(),
-            clusterService,
-            transportService,
-            actionFilters,
-            NodeRequest::new,
-            threadPool.executor(ThreadPool.Names.GENERIC)
+                TYPE.name(),
+                clusterService,
+                transportService,
+                actionFilters,
+                NodeRequest::new,
+                threadPool.executor(ThreadPool.Names.GENERIC)
         );
     }
 
     @Override
     protected NodesHotThreadsResponse newResponse(
-        NodesHotThreadsRequest request,
-        List<NodeHotThreads> responses,
-        List<FailedNodeException> failures
+            NodesHotThreadsRequest request,
+            List<NodeHotThreads> responses,
+            List<FailedNodeException> failures
     ) {
         return new NodesHotThreadsResponse(clusterService.getClusterName(), responses, failures);
     }
@@ -82,11 +83,11 @@ public class TransportNodesHotThreadsAction extends TransportNodesAction<
     @Override
     protected NodeHotThreads nodeOperation(NodeRequest request, Task task) {
         final var hotThreads = new HotThreads().busiestThreads(request.requestOptions.threads())
-            .type(request.requestOptions.reportType())
-            .sortOrder(request.requestOptions.sortOrder())
-            .interval(request.requestOptions.interval())
-            .threadElementsSnapshotCount(request.requestOptions.snapshots())
-            .ignoreIdleThreads(request.requestOptions.ignoreIdleThreads());
+                .type(request.requestOptions.reportType())
+                .sortOrder(request.requestOptions.sortOrder())
+                .interval(request.requestOptions.interval())
+                .threadElementsSnapshotCount(request.requestOptions.snapshots())
+                .ignoreIdleThreads(request.requestOptions.ignoreIdleThreads());
         final var out = transportService.newNetworkBytesStream();
         final var trackedResource = LeakTracker.wrap(out);
         var success = false;
@@ -106,7 +107,7 @@ public class TransportNodesHotThreadsAction extends TransportNodesAction<
         }
     }
 
-    public static class NodeRequest extends TransportRequest {
+    public static class NodeRequest extends AbstractTransportRequest {
 
         final HotThreads.RequestOptions requestOptions;
 

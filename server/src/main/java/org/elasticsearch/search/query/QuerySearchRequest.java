@@ -22,12 +22,13 @@ import org.elasticsearch.search.internal.ShardSearchContextId;
 import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
+import org.elasticsearch.transport.AbstractTransportRequest;
 import org.elasticsearch.transport.TransportRequest;
 
 import java.io.IOException;
 import java.util.Map;
 
-public class QuerySearchRequest extends TransportRequest implements IndicesRequest {
+public class QuerySearchRequest extends AbstractTransportRequest implements IndicesRequest {
 
     private final ShardSearchContextId contextId;
     private final AggregatedDfs dfs;
@@ -35,10 +36,10 @@ public class QuerySearchRequest extends TransportRequest implements IndicesReque
     private final ShardSearchRequest shardSearchRequest;
 
     public QuerySearchRequest(
-        OriginalIndices originalIndices,
-        ShardSearchContextId contextId,
-        ShardSearchRequest shardSearchRequest,
-        AggregatedDfs dfs
+            OriginalIndices originalIndices,
+            ShardSearchContextId contextId,
+            ShardSearchRequest shardSearchRequest,
+            AggregatedDfs dfs
     ) {
         this.contextId = contextId;
         this.dfs = dfs;

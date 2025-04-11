@@ -18,6 +18,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.search.internal.ShardSearchContextId;
 import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.tasks.TaskId;
+import org.elasticsearch.transport.AbstractTransportRequest;
 import org.elasticsearch.transport.TransportRequest;
 
 import java.io.IOException;
@@ -29,7 +30,7 @@ import java.util.stream.IntStream;
  * Shard level request for extracting all needed feature for a global reranker
  */
 
-public class RankFeatureShardRequest extends TransportRequest implements IndicesRequest {
+public class RankFeatureShardRequest extends AbstractTransportRequest implements IndicesRequest {
 
     private final OriginalIndices originalIndices;
     private final ShardSearchRequest shardSearchRequest;
@@ -39,10 +40,10 @@ public class RankFeatureShardRequest extends TransportRequest implements Indices
     private final int[] docIds;
 
     public RankFeatureShardRequest(
-        OriginalIndices originalIndices,
-        ShardSearchContextId contextId,
-        ShardSearchRequest shardSearchRequest,
-        List<Integer> docIds
+            OriginalIndices originalIndices,
+            ShardSearchContextId contextId,
+            ShardSearchRequest shardSearchRequest,
+            List<Integer> docIds
     ) {
         this.originalIndices = originalIndices;
         this.shardSearchRequest = shardSearchRequest;

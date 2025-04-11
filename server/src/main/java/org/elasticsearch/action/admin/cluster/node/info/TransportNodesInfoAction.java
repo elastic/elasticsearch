@@ -21,6 +21,7 @@ import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.node.NodeService;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.AbstractTransportRequest;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportService;
 
@@ -29,39 +30,39 @@ import java.util.List;
 import java.util.Set;
 
 public class TransportNodesInfoAction extends TransportNodesAction<
-    NodesInfoRequest,
-    NodesInfoResponse,
-    TransportNodesInfoAction.NodeInfoRequest,
-    NodeInfo,
-    Void> {
+        NodesInfoRequest,
+        NodesInfoResponse,
+        TransportNodesInfoAction.NodeInfoRequest,
+        NodeInfo,
+        Void> {
 
     public static final ActionType<NodesInfoResponse> TYPE = new ActionType<>("cluster:monitor/nodes/info");
     private final NodeService nodeService;
 
     @Inject
     public TransportNodesInfoAction(
-        ThreadPool threadPool,
-        ClusterService clusterService,
-        TransportService transportService,
-        NodeService nodeService,
-        ActionFilters actionFilters
+            ThreadPool threadPool,
+            ClusterService clusterService,
+            TransportService transportService,
+            NodeService nodeService,
+            ActionFilters actionFilters
     ) {
         super(
-            TYPE.name(),
-            clusterService,
-            transportService,
-            actionFilters,
-            NodeInfoRequest::new,
-            threadPool.executor(ThreadPool.Names.MANAGEMENT)
+                TYPE.name(),
+                clusterService,
+                transportService,
+                actionFilters,
+                NodeInfoRequest::new,
+                threadPool.executor(ThreadPool.Names.MANAGEMENT)
         );
         this.nodeService = nodeService;
     }
 
     @Override
     protected NodesInfoResponse newResponse(
-        NodesInfoRequest nodesInfoRequest,
-        List<NodeInfo> responses,
-        List<FailedNodeException> failures
+            NodesInfoRequest nodesInfoRequest,
+            List<NodeInfo> responses,
+            List<FailedNodeException> failures
     ) {
         return new NodesInfoResponse(clusterService.getClusterName(), responses, failures);
     }
@@ -80,22 +81,22 @@ public class TransportNodesInfoAction extends TransportNodesAction<
     protected NodeInfo nodeOperation(NodeInfoRequest nodeRequest, Task task) {
         Set<String> metrics = nodeRequest.requestedMetrics();
         return nodeService.info(
-            metrics.contains(NodesInfoMetrics.Metric.SETTINGS.metricName()),
-            metrics.contains(NodesInfoMetrics.Metric.OS.metricName()),
-            metrics.contains(NodesInfoMetrics.Metric.PROCESS.metricName()),
-            metrics.contains(NodesInfoMetrics.Metric.JVM.metricName()),
-            metrics.contains(NodesInfoMetrics.Metric.THREAD_POOL.metricName()),
-            metrics.contains(NodesInfoMetrics.Metric.TRANSPORT.metricName()),
-            metrics.contains(NodesInfoMetrics.Metric.HTTP.metricName()),
-            metrics.contains(NodesInfoMetrics.Metric.REMOTE_CLUSTER_SERVER.metricName()),
-            metrics.contains(NodesInfoMetrics.Metric.PLUGINS.metricName()),
-            metrics.contains(NodesInfoMetrics.Metric.INGEST.metricName()),
-            metrics.contains(NodesInfoMetrics.Metric.AGGREGATIONS.metricName()),
-            metrics.contains(NodesInfoMetrics.Metric.INDICES.metricName())
+                metrics.contains(NodesInfoMetrics.Metric.SETTINGS.metricName()),
+                metrics.contains(NodesInfoMetrics.Metric.OS.metricName()),
+                metrics.contains(NodesInfoMetrics.Metric.PROCESS.metricName()),
+                metrics.contains(NodesInfoMetrics.Metric.JVM.metricName()),
+                metrics.contains(NodesInfoMetrics.Metric.THREAD_POOL.metricName()),
+                metrics.contains(NodesInfoMetrics.Metric.TRANSPORT.metricName()),
+                metrics.contains(NodesInfoMetrics.Metric.HTTP.metricName()),
+                metrics.contains(NodesInfoMetrics.Metric.REMOTE_CLUSTER_SERVER.metricName()),
+                metrics.contains(NodesInfoMetrics.Metric.PLUGINS.metricName()),
+                metrics.contains(NodesInfoMetrics.Metric.INGEST.metricName()),
+                metrics.contains(NodesInfoMetrics.Metric.AGGREGATIONS.metricName()),
+                metrics.contains(NodesInfoMetrics.Metric.INDICES.metricName())
         );
     }
 
-    public static class NodeInfoRequest extends TransportRequest {
+    public static class NodeInfoRequest extends AbstractTransportRequest {
 
         private final NodesInfoMetrics nodesInfoMetrics;
 

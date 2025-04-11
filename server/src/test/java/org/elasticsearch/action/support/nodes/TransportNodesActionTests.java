@@ -38,6 +38,7 @@ import org.elasticsearch.test.ReachabilityChecker;
 import org.elasticsearch.test.transport.CapturingTransport;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.AbstractTransportRequest;
 import org.elasticsearch.transport.LeakTracker;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportService;
@@ -79,7 +80,7 @@ public class TransportNodesActionTests extends ESTestCase {
 
     public void testRequestIsSentToEachNode() {
         TransportNodesAction<TestNodesRequest, TestNodesResponse, TestNodeRequest, TestNodeResponse, Void> action =
-            getTestTransportNodesAction();
+                getTestTransportNodesAction();
         TestNodesRequest request = new TestNodesRequest();
         action.execute(null, request, new PlainActionFuture<>());
         Map<String, List<CapturingTransport.CapturedRequest>> capturedRequests = transport.getCapturedRequestsByTargetNodeAndClear();
@@ -91,7 +92,7 @@ public class TransportNodesActionTests extends ESTestCase {
 
     public void testNodesSelectors() {
         TransportNodesAction<TestNodesRequest, TestNodesResponse, TestNodeRequest, TestNodeResponse, Void> action =
-            getTestTransportNodesAction();
+                getTestTransportNodesAction();
         int numSelectors = randomIntBetween(1, 5);
         Set<String> nodeSelectors = new HashSet<>();
         for (int i = 0; i < numSelectors; i++) {
@@ -112,7 +113,7 @@ public class TransportNodesActionTests extends ESTestCase {
 
     public void testCustomResolving() {
         TransportNodesAction<TestNodesRequest, TestNodesResponse, TestNodeRequest, TestNodeResponse, Void> action =
-            getDataNodesOnlyTransportNodesAction(transportService);
+                getDataNodesOnlyTransportNodesAction(transportService);
         TestNodesRequest request = new TestNodesRequest(randomBoolean() ? null : generateRandomStringArray(10, 5, false, true));
         action.execute(null, request, new PlainActionFuture<>());
         Map<String, List<CapturingTransport.CapturedRequest>> capturedRequests = transport.getCapturedRequestsByTargetNodeAndClear();
@@ -196,7 +197,7 @@ public class TransportNodesActionTests extends ESTestCase {
         }));
 
         final List<CapturingTransport.CapturedRequest> capturedRequests = new ArrayList<>(
-            Arrays.asList(transport.getCapturedRequestsAndClear())
+                Arrays.asList(transport.getCapturedRequestsAndClear())
         );
         Randomness.shuffle(capturedRequests);
 
@@ -222,14 +223,14 @@ public class TransportNodesActionTests extends ESTestCase {
             var capturedRequest = capturedRequests.remove(0);
             if (randomBoolean()) {
                 responseSender.accept(
-                    reachabilityChecker.register(responseCreator.apply(capturedRequest.node())),
-                    capturedRequest.requestId()
+                        reachabilityChecker.register(responseCreator.apply(capturedRequest.node())),
+                        capturedRequest.requestId()
                 );
             } else {
                 // handleRemoteError may de/serialize the exception, releasing it early, so just use handleLocalError
                 transport.handleLocalError(
-                    capturedRequest.requestId(),
-                    reachabilityChecker.register(new ElasticsearchException("simulated"))
+                        capturedRequest.requestId(),
+                        reachabilityChecker.register(new ElasticsearchException("simulated"))
                 );
             }
         };
@@ -262,43 +263,43 @@ public class TransportNodesActionTests extends ESTestCase {
     public void testActionContextReleasedOnCancellation() {
         final var reachabilityChecker = new ReachabilityChecker();
         final TransportNodesAction<TestNodesRequest, TestNodesResponse, TestNodeRequest, TestNodeResponse, Object> action =
-            new TransportNodesAction<>(
-                "indices:admin/test",
-                clusterService,
-                transportService,
-                new ActionFilters(Collections.emptySet()),
-                TestNodeRequest::new,
-                THREAD_POOL.executor(ThreadPool.Names.GENERIC)
-            ) {
-                @Override
-                protected TestNodesResponse newResponse(
-                    TestNodesRequest request,
-                    List<TestNodeResponse> testNodeResponses,
-                    List<FailedNodeException> failures
+                new TransportNodesAction<>(
+                        "indices:admin/test",
+                        clusterService,
+                        transportService,
+                        new ActionFilters(Collections.emptySet()),
+                        TestNodeRequest::new,
+                        THREAD_POOL.executor(ThreadPool.Names.GENERIC)
                 ) {
-                    return fail(null, "should not be called");
-                }
+                    @Override
+                    protected TestNodesResponse newResponse(
+                            TestNodesRequest request,
+                            List<TestNodeResponse> testNodeResponses,
+                            List<FailedNodeException> failures
+                    ) {
+                        return fail(null, "should not be called");
+                    }
 
-                @Override
-                protected TestNodeRequest newNodeRequest(TestNodesRequest request) {
-                    return new TestNodeRequest();
-                }
+                    @Override
+                    protected TestNodeRequest newNodeRequest(TestNodesRequest request) {
+                        return new TestNodeRequest();
+                    }
 
-                @Override
-                protected TestNodeResponse newNodeResponse(StreamInput in, DiscoveryNode node) throws IOException {
-                    return new TestNodeResponse(in);
-                }
+                    @Override
+                    protected TestNodeResponse newNodeResponse(StreamInput in, DiscoveryNode node) throws IOException {
+                        return new TestNodeResponse(in);
+                    }
 
-                @Override
-                protected TestNodeResponse nodeOperation(TestNodeRequest request, Task task) {
-                    return new TestNodeResponse();
-                }
+                    @Override
+                    protected TestNodeResponse nodeOperation(TestNodeRequest request, Task task) {
+                        return new TestNodeResponse();
+                    }
 
-                @Override
-                protected Object createActionContext(Task task, TestNodesRequest request) {
-                    return reachabilityChecker.register(new Object());
-                }
-            };
+                    @Override
+                    protected Object createActionContext(Task task, TestNodesRequest request) {
+                        return reachabilityChecker.register(new Object());
+                    }
+                };
 
         final CancellableTask cancellableTask = new CancellableTask(randomLong(), "transport", "action", "", null, emptyMap());
         final PlainActionFuture<TestNodesResponse> listener = new PlainActionFuture<>();
@@ -334,12 +335,12 @@ public class TransportNodesActionTests extends ESTestCase {
         transport = new CapturingTransport();
         clusterService = createClusterService(THREAD_POOL);
         transportService = transport.createTransportService(
-            clusterService.getSettings(),
-            THREAD_POOL,
-            TransportService.NOOP_TRANSPORT_INTERCEPTOR,
-            x -> clusterService.localNode(),
-            null,
-            Collections.emptySet()
+                clusterService.getSettings(),
+                THREAD_POOL,
+                TransportService.NOOP_TRANSPORT_INTERCEPTOR,
+                x -> clusterService.localNode(),
+                null,
+                Collections.emptySet()
         );
         transportService.start();
         transportService.acceptIncomingRequests();
@@ -373,21 +374,21 @@ public class TransportNodesActionTests extends ESTestCase {
 
     public TestTransportNodesAction getTestTransportNodesAction() {
         return new TestTransportNodesAction(
-            clusterService,
-            transportService,
-            new ActionFilters(Collections.emptySet()),
-            TestNodeRequest::new,
-            THREAD_POOL.executor(ThreadPool.Names.GENERIC)
+                clusterService,
+                transportService,
+                new ActionFilters(Collections.emptySet()),
+                TestNodeRequest::new,
+                THREAD_POOL.executor(ThreadPool.Names.GENERIC)
         );
     }
 
     public DataNodesOnlyTransportNodesAction getDataNodesOnlyTransportNodesAction(TransportService transportService) {
         return new DataNodesOnlyTransportNodesAction(
-            clusterService,
-            transportService,
-            new ActionFilters(Collections.emptySet()),
-            TestNodeRequest::new,
-            THREAD_POOL.executor(ThreadPool.Names.GENERIC)
+                clusterService,
+                transportService,
+                new ActionFilters(Collections.emptySet()),
+                TestNodeRequest::new,
+                THREAD_POOL.executor(ThreadPool.Names.GENERIC)
         );
     }
 
@@ -397,27 +398,27 @@ public class TransportNodesActionTests extends ESTestCase {
     }
 
     private static class TestTransportNodesAction extends TransportNodesAction<
-        TestNodesRequest,
-        TestNodesResponse,
-        TestNodeRequest,
-        TestNodeResponse,
-        Void> {
+            TestNodesRequest,
+            TestNodesResponse,
+            TestNodeRequest,
+            TestNodeResponse,
+            Void> {
 
         TestTransportNodesAction(
-            ClusterService clusterService,
-            TransportService transportService,
-            ActionFilters actionFilters,
-            Writeable.Reader<TestNodeRequest> nodeRequest,
-            Executor nodeExecutor
+                ClusterService clusterService,
+                TransportService transportService,
+                ActionFilters actionFilters,
+                Writeable.Reader<TestNodeRequest> nodeRequest,
+                Executor nodeExecutor
         ) {
             super("indices:admin/test", clusterService, transportService, actionFilters, nodeRequest, nodeExecutor);
         }
 
         @Override
         protected TestNodesResponse newResponse(
-            TestNodesRequest request,
-            List<TestNodeResponse> responses,
-            List<FailedNodeException> failures
+                TestNodesRequest request,
+                List<TestNodeResponse> responses,
+                List<FailedNodeException> failures
         ) {
             return new TestNodesResponse(clusterService.getClusterName(), responses, failures);
         }
@@ -442,11 +443,11 @@ public class TransportNodesActionTests extends ESTestCase {
     private static class DataNodesOnlyTransportNodesAction extends TestTransportNodesAction {
 
         DataNodesOnlyTransportNodesAction(
-            ClusterService clusterService,
-            TransportService transportService,
-            ActionFilters actionFilters,
-            Writeable.Reader<TestNodeRequest> nodeRequest,
-            Executor nodeExecutor
+                ClusterService clusterService,
+                TransportService transportService,
+                ActionFilters actionFilters,
+                Writeable.Reader<TestNodeRequest> nodeRequest,
+                Executor nodeExecutor
         ) {
             super(clusterService, transportService, actionFilters, nodeRequest, nodeExecutor);
         }
@@ -507,10 +508,12 @@ public class TransportNodesActionTests extends ESTestCase {
         }
     }
 
-    private static class TestNodeRequest extends TransportRequest {
-        private final RefCounted refCounted = AbstractRefCounted.of(() -> {});
+    private static class TestNodeRequest extends AbstractTransportRequest {
+        private final RefCounted refCounted = AbstractRefCounted.of(() -> {
+        });
 
-        TestNodeRequest() {}
+        TestNodeRequest() {
+        }
 
         TestNodeRequest(StreamInput in) throws IOException {
             super(in);

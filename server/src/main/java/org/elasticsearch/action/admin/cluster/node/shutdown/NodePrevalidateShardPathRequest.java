@@ -12,6 +12,7 @@ package org.elasticsearch.action.admin.cluster.node.shutdown;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.transport.AbstractTransportRequest;
 import org.elasticsearch.transport.TransportRequest;
 
 import java.io.IOException;
@@ -21,8 +22,8 @@ import java.util.Set;
 
 /**
  * A node-specific request derived from the corresponding {@link PrevalidateShardPathRequest}.
-*/
-public class NodePrevalidateShardPathRequest extends TransportRequest {
+ */
+public class NodePrevalidateShardPathRequest extends AbstractTransportRequest {
 
     private final Set<ShardId> shardIds;
 

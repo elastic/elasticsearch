@@ -46,6 +46,7 @@ import org.elasticsearch.tasks.TaskInfo;
 import org.elasticsearch.test.ReachabilityChecker;
 import org.elasticsearch.test.tasks.MockTaskManager;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.AbstractTransportRequest;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xcontent.ToXContent;
@@ -78,7 +79,7 @@ import static org.hamcrest.Matchers.nullValue;
 
 public class TransportTasksActionTests extends TaskManagerTestCase {
 
-    public static class NodeRequest extends TransportRequest {
+    public static class NodeRequest extends AbstractTransportRequest {
         protected String requestName;
 
         public NodeRequest(StreamInput in) throws IOException {
@@ -169,11 +170,13 @@ public class TransportTasksActionTests extends TaskManagerTestCase {
 
         TestTasksRequest(StreamInput in) throws IOException {
             super(in);
-            refCounted = AbstractRefCounted.of(() -> {});
+            refCounted = AbstractRefCounted.of(() -> {
+            });
         }
 
         TestTasksRequest() {
-            this(() -> {});
+            this(() -> {
+            });
         }
 
         TestTasksRequest(Runnable onClose) {
@@ -211,9 +214,9 @@ public class TransportTasksActionTests extends TaskManagerTestCase {
         private final List<TestTaskResponse> tasks;
 
         TestTasksResponse(
-            List<TestTaskResponse> tasks,
-            List<TaskOperationFailure> taskFailures,
-            List<? extends FailedNodeException> nodeFailures
+                List<TestTaskResponse> tasks,
+                List<TaskOperationFailure> taskFailures,
+                List<? extends FailedNodeException> nodeFailures
         ) {
             super(taskFailures, nodeFailures);
             this.tasks = tasks == null ? Collections.emptyList() : List.copyOf(tasks);
@@ -246,22 +249,22 @@ public class TransportTasksActionTests extends TaskManagerTestCase {
 
         protected TestTasksAction(String actionName, ClusterService clusterService, TransportService transportService) {
             super(
-                actionName,
-                clusterService,
-                transportService,
-                new ActionFilters(new HashSet<>()),
-                TestTasksRequest::new,
-                TestTaskResponse::new,
-                transportService.getThreadPool().executor(ThreadPool.Names.MANAGEMENT)
+                    actionName,
+                    clusterService,
+                    transportService,
+                    new ActionFilters(new HashSet<>()),
+                    TestTasksRequest::new,
+                    TestTaskResponse::new,
+                    transportService.getThreadPool().executor(ThreadPool.Names.MANAGEMENT)
             );
         }
 
         @Override
         protected TestTasksResponse newResponse(
-            TestTasksRequest request,
-            List<TestTaskResponse> tasks,
-            List<TaskOperationFailure> taskOperationFailures,
-            List<FailedNodeException> failedNodeExceptions
+                TestTasksRequest request,
+                List<TestTaskResponse> tasks,
+                List<TaskOperationFailure> taskOperationFailures,
+                List<FailedNodeException> failedNodeExceptions
         ) {
             return new TestTasksResponse(tasks, taskOperationFailures, failedNodeExceptions);
         }
@@ -283,16 +286,16 @@ public class TransportTasksActionTests extends TaskManagerTestCase {
     }
 
     private Task startBlockingTestNodesAction(CountDownLatch checkLatch, NodesRequest request, ActionListener<NodesResponse> listener)
-        throws Exception {
+            throws Exception {
         CountDownLatch actionLatch = new CountDownLatch(nodesCount);
         TestNodesAction[] actions = new TestNodesAction[nodesCount];
         for (int i = 0; i < testNodes.length; i++) {
             final int node = i;
             actions[i] = new TestNodesAction(
-                "internal:testAction",
-                threadPool,
-                testNodes[i].clusterService,
-                testNodes[i].transportService
+                    "internal:testAction",
+                    threadPool,
+                    testNodes[i].clusterService,
+                    testNodes[i].transportService
             ) {
                 @Override
                 protected NodeResponse nodeOperation(NodeRequest request, Task task) {
@@ -313,7 +316,7 @@ public class TransportTasksActionTests extends TaskManagerTestCase {
             assertBusy(() -> assertEquals(0, node.transportService.getTaskManager().getTasks().size()));
         }
         Task task = testNodes[0].transportService.getTaskManager()
-            .registerAndExecute("transport", actions[0], request, testNodes[0].transportService.getLocalNodeConnection(), listener);
+                .registerAndExecute("transport", actions[0], request, testNodes[0].transportService.getLocalNodeConnection(), listener);
         logger.info("Awaiting for all actions to start");
         assertTrue(actionLatch.await(10, TimeUnit.SECONDS));
         logger.info("Done waiting for all actions to start");
@@ -343,11 +346,11 @@ public class TransportTasksActionTests extends TaskManagerTestCase {
         // Check task counts using taskManager
         Map<Long, Task> localTasks = testNodes[0].transportService.getTaskManager().getTasks();
         logger.info(
-            "local tasks [{}]",
-            localTasks.values()
-                .stream()
-                .map(t -> Strings.toString(t.taskInfo(testNodes[0].getNodeId(), true)))
-                .collect(Collectors.joining(","))
+                "local tasks [{}]",
+                localTasks.values()
+                        .stream()
+                        .map(t -> Strings.toString(t.taskInfo(testNodes[0].getNodeId(), true)))
+                        .collect(Collectors.joining(","))
         );
         assertEquals(2, localTasks.size()); // all node tasks + 1 coordinating task
         Task coordinatingTask = localTasks.get(Collections.min(localTasks.keySet()));
@@ -510,8 +513,8 @@ public class TransportTasksActionTests extends TaskManagerTestCase {
         request.setReason("Testing Cancellation");
         request.setActions(actionName);
         ListTasksResponse response = ActionTestUtils.executeBlocking(
-            testNodes[randomIntBetween(0, testNodes.length - 1)].transportCancelTasksAction,
-            request
+                testNodes[randomIntBetween(0, testNodes.length - 1)].transportCancelTasksAction,
+                request
         );
 
         // Shouldn't match any tasks since testAction doesn't support cancellation
@@ -524,8 +527,8 @@ public class TransportTasksActionTests extends TaskManagerTestCase {
         request.setReason("Testing Cancellation");
         request.setTargetTaskId(new TaskId(testNodes[0].getNodeId(), task.getId()));
         response = ActionTestUtils.executeBlocking(
-            testNodes[randomIntBetween(0, testNodes.length - 1)].transportCancelTasksAction,
-            request
+                testNodes[randomIntBetween(0, testNodes.length - 1)].transportCancelTasksAction,
+                request
         );
 
         // Shouldn't match any tasks since testAction doesn't support cancellation
@@ -538,8 +541,8 @@ public class TransportTasksActionTests extends TaskManagerTestCase {
         ListTasksRequest listTasksRequest = new ListTasksRequest();
         listTasksRequest.setActions(actionName);
         ListTasksResponse listResponse = ActionTestUtils.executeBlocking(
-            testNodes[randomIntBetween(0, testNodes.length - 1)].transportListTasksAction,
-            listTasksRequest
+                testNodes[randomIntBetween(0, testNodes.length - 1)].transportListTasksAction,
+                listTasksRequest
         );
         assertEquals(1, listResponse.getPerNodeTasks().size());
         // Verify that tasks are marked as non-cancellable
@@ -561,10 +564,10 @@ public class TransportTasksActionTests extends TaskManagerTestCase {
         for (int i = 0; i < testNodes.length; i++) {
             final int node = i;
             actions[i] = new TestNodesAction(
-                "internal:testAction",
-                threadPool,
-                testNodes[i].clusterService,
-                testNodes[i].transportService
+                    "internal:testAction",
+                    threadPool,
+                    testNodes[i].clusterService,
+                    testNodes[i].transportService
             ) {
                 @Override
                 protected NodeResponse nodeOperation(NodeRequest request, Task task) {
@@ -584,10 +587,10 @@ public class TransportTasksActionTests extends TaskManagerTestCase {
 
         NodesRequest request = new NodesRequest("Test Request");
         NodesResponse responses = ActionTestUtils.executeBlockingWithTask(
-            testNodes[0].transportService.getTaskManager(),
-            testNodes[0].transportService.getLocalNodeConnection(),
-            actions[0],
-            request
+                testNodes[0].transportService.getTaskManager(),
+                testNodes[0].transportService.getLocalNodeConnection(),
+                actions[0],
+                request
         );
         assertEquals(nodesCount, responses.failureCount());
 
@@ -608,13 +611,13 @@ public class TransportTasksActionTests extends TaskManagerTestCase {
         for (TestNode testNode : testNodes) {
             for (Task task : testNode.transportService.getTaskManager().getTasks().values()) {
                 taskDescriptions.add(
-                    Strings.format(
-                        "node [%s]: task [id:%d][%s] started at %d",
-                        testNode.getNodeId(),
-                        task.getId(),
-                        task.getAction(),
-                        task.getStartTime()
-                    )
+                        Strings.format(
+                                "node [%s]: task [id:%d][%s] started at %d",
+                                testNode.getNodeId(),
+                                task.getId(),
+                                task.getAction(),
+                                task.getStartTime()
+                        )
                 );
             }
         }
@@ -634,16 +637,16 @@ public class TransportTasksActionTests extends TaskManagerTestCase {
         for (int j = 0; j < numNodes; j++) {
             final int nodeId = j;
             tasksActions[j] = new TestTasksAction(
-                "internal:testTasksAction",
-                testNodes[nodeId].clusterService,
-                testNodes[nodeId].transportService
+                    "internal:testTasksAction",
+                    testNodes[nodeId].clusterService,
+                    testNodes[nodeId].transportService
             ) {
                 @Override
                 protected void taskOperation(
-                    CancellableTask actionTask,
-                    TestTasksRequest request,
-                    Task task,
-                    ActionListener<TestTaskResponse> listener
+                        CancellableTask actionTask,
+                        TestTasksRequest request,
+                        Task task,
+                        ActionListener<TestTaskResponse> listener
                 ) {
                     try {
                         taskExecutesLatch.countDown();
@@ -666,13 +669,13 @@ public class TransportTasksActionTests extends TaskManagerTestCase {
         testTasksRequest.setNodes(testNodes[0].getNodeId(), testNodes[1].getNodeId()); // only first two nodes
         PlainActionFuture<TestTasksResponse> taskFuture = new PlainActionFuture<>();
         CancellableTask task = (CancellableTask) testNodes[0].transportService.getTaskManager()
-            .registerAndExecute(
-                "direct",
-                tasksActions[0],
-                testTasksRequest,
-                testNodes[0].transportService.getLocalNodeConnection(),
-                taskFuture
-            );
+                .registerAndExecute(
+                        "direct",
+                        tasksActions[0],
+                        testTasksRequest,
+                        testNodes[0].transportService.getLocalNodeConnection(),
+                        taskFuture
+                );
         logger.info("Executing test task request and awaiting their execution");
         taskExecutesLatch.await();
         logger.info("All test tasks are now executing");
@@ -703,16 +706,16 @@ public class TransportTasksActionTests extends TaskManagerTestCase {
         final var taskResponseListenersCountDown = new CountDownLatch(2); // test action plus the list[n] action
 
         final TestTasksAction tasksAction = new TestTasksAction(
-            "internal:testTasksAction",
-            testNodes[0].clusterService,
-            testNodes[0].transportService
+                "internal:testTasksAction",
+                testNodes[0].clusterService,
+                testNodes[0].transportService
         ) {
             @Override
             protected void taskOperation(
-                CancellableTask actionTask,
-                TestTasksRequest request,
-                Task task,
-                ActionListener<TestTaskResponse> listener
+                    CancellableTask actionTask,
+                    TestTasksRequest request,
+                    Task task,
+                    ActionListener<TestTaskResponse> listener
             ) {
                 taskResponseListeners.add(listener);
                 taskResponseListenersCountDown.countDown();
@@ -723,13 +726,13 @@ public class TransportTasksActionTests extends TaskManagerTestCase {
         testTasksRequest.setNodes(testNodes[0].getNodeId()); // only local node
         PlainActionFuture<TestTasksResponse> taskFuture = new PlainActionFuture<>();
         CancellableTask task = (CancellableTask) testNodes[0].transportService.getTaskManager()
-            .registerAndExecute(
-                "direct",
-                tasksAction,
-                testTasksRequest,
-                testNodes[0].transportService.getLocalNodeConnection(),
-                taskFuture
-            );
+                .registerAndExecute(
+                        "direct",
+                        tasksAction,
+                        testTasksRequest,
+                        testNodes[0].transportService.getLocalNodeConnection(),
+                        taskFuture
+                );
         safeAwait(taskResponseListenersCountDown);
 
         final var reachabilityChecker = new ReachabilityChecker();
@@ -743,7 +746,7 @@ public class TransportTasksActionTests extends TaskManagerTestCase {
         reachabilityChecker.checkReachable();
 
         safeAwait(
-            (ActionListener<Void> l) -> testNodes[0].transportService.getTaskManager().cancelTaskAndDescendants(task, "test", false, l)
+                (ActionListener<Void> l) -> testNodes[0].transportService.getTaskManager().cancelTaskAndDescendants(task, "test", false, l)
         );
 
         reachabilityChecker.ensureUnreachable();
@@ -780,10 +783,10 @@ public class TransportTasksActionTests extends TaskManagerTestCase {
             tasksActions[i] = new TestTasksAction("internal:testTasksAction", testNodes[i].clusterService, testNodes[i].transportService) {
                 @Override
                 protected void taskOperation(
-                    CancellableTask actionTask,
-                    TestTasksRequest request,
-                    Task task,
-                    ActionListener<TestTaskResponse> listener
+                        CancellableTask actionTask,
+                        TestTasksRequest request,
+                        Task task,
+                        ActionListener<TestTaskResponse> listener
                 ) {
                     assertThat(taskResponseListeners.getAndSet(nodeIndex, ActionListener.notifyOnce(listener)), nullValue());
                     taskResponseListenersCountDown.countDown();
@@ -795,13 +798,13 @@ public class TransportTasksActionTests extends TaskManagerTestCase {
         testTasksRequest.setActions("internal:testTasksAction[n]");
         PlainActionFuture<TestTasksResponse> taskFuture = new PlainActionFuture<>();
         CancellableTask task = (CancellableTask) testNodes[0].transportService.getTaskManager()
-            .registerAndExecute(
-                "direct",
-                tasksActions[0],
-                testTasksRequest,
-                testNodes[0].transportService.getLocalNodeConnection(),
-                taskFuture
-            );
+                .registerAndExecute(
+                        "direct",
+                        tasksActions[0],
+                        testTasksRequest,
+                        testNodes[0].transportService.getLocalNodeConnection(),
+                        taskFuture
+                );
         safeAwait(taskResponseListenersCountDown);
 
         final var reachabilityChecker = new ReachabilityChecker();
@@ -817,7 +820,7 @@ public class TransportTasksActionTests extends TaskManagerTestCase {
         }
 
         safeAwait(
-            (ActionListener<Void> l) -> testNodes[0].transportService.getTaskManager().cancelTaskAndDescendants(task, "test", false, l)
+                (ActionListener<Void> l) -> testNodes[0].transportService.getTaskManager().cancelTaskAndDescendants(task, "test", false, l)
         );
 
         reachabilityChecker.ensureUnreachable();
@@ -849,10 +852,10 @@ public class TransportTasksActionTests extends TaskManagerTestCase {
             tasksActions[i] = new TestTasksAction("internal:testTasksAction", testNodes[i].clusterService, testNodes[i].transportService) {
                 @Override
                 protected void taskOperation(
-                    CancellableTask actionTask,
-                    TestTasksRequest request,
-                    Task task,
-                    ActionListener<TestTaskResponse> listener
+                        CancellableTask actionTask,
+                        TestTasksRequest request,
+                        Task task,
+                        ActionListener<TestTaskResponse> listener
                 ) {
                     logger.info("Task action on node {}", node);
                     if (failTaskOnNode == node && task.getParentTaskId().isSet()) {
@@ -867,7 +870,7 @@ public class TransportTasksActionTests extends TaskManagerTestCase {
                         }, () -> {
                             logger.info("Calling listener asynchronously with exception from taskOperation");
                             threadPool.generic()
-                                .execute(() -> listener.onFailure(new RuntimeException("Task level failure (async listener)")));
+                                    .execute(() -> listener.onFailure(new RuntimeException("Task level failure (async listener)")));
                         });
                         failureMode.run();
                     } else {
@@ -907,10 +910,10 @@ public class TransportTasksActionTests extends TaskManagerTestCase {
         ListTasksRequest listTasksRequest = new ListTasksRequest();
         listTasksRequest.setActions(TransportListTasksAction.TYPE.name() + "*");
         ListTasksResponse response = ActionTestUtils.executeBlockingWithTask(
-            testNodes[0].transportService.getTaskManager(),
-            testNodes[0].transportService.getLocalNodeConnection(),
-            testNodes[0].transportListTasksAction,
-            listTasksRequest
+                testNodes[0].transportService.getTaskManager(),
+                testNodes[0].transportService.getLocalNodeConnection(),
+                testNodes[0].transportListTasksAction,
+                listTasksRequest
         );
         assertEquals(testNodes.length + 1, response.getTasks().size());
 
@@ -967,16 +970,16 @@ public class TransportTasksActionTests extends TaskManagerTestCase {
         for (int nodeId = 0; nodeId < nodesCount; nodeId++) {
             final var listeners = nodeId == 0 ? firstNodeListeners : otherNodeListeners;
             tasksActions[nodeId] = new TestTasksAction(
-                "internal:testTasksAction",
-                testNodes[nodeId].clusterService,
-                testNodes[nodeId].transportService
+                    "internal:testTasksAction",
+                    testNodes[nodeId].clusterService,
+                    testNodes[nodeId].transportService
             ) {
                 @Override
                 protected void taskOperation(
-                    CancellableTask actionTask,
-                    TestTasksRequest request,
-                    Task task,
-                    ActionListener<TestTaskResponse> listener
+                        CancellableTask actionTask,
+                        TestTasksRequest request,
+                        Task task,
+                        ActionListener<TestTaskResponse> listener
                 ) {
                     request.incRef();
                     listeners.addListener(ActionListener.runBefore(listener, request::decRef));
@@ -990,13 +993,13 @@ public class TransportTasksActionTests extends TaskManagerTestCase {
         testTasksRequest.setNodes(testNodes[0].getNodeId(), testNodes[1].getNodeId()); // only first two nodes
         final var taskFuture = new PlainActionFuture<TestTasksResponse>();
         testNodes[0].transportService.getTaskManager()
-            .registerAndExecute(
-                "direct",
-                tasksActions[0],
-                testTasksRequest,
-                testNodes[0].transportService.getLocalNodeConnection(),
-                taskFuture
-            );
+                .registerAndExecute(
+                        "direct",
+                        tasksActions[0],
+                        testTasksRequest,
+                        testNodes[0].transportService.getLocalNodeConnection(),
+                        taskFuture
+                );
         testTasksRequest.decRef();
 
         assertTrue(testTasksRequest.hasReferences());

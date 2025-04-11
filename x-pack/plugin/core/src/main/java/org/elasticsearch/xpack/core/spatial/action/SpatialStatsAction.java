@@ -16,6 +16,7 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.transport.AbstractTransportRequest;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -76,12 +77,13 @@ public class SpatialStatsAction extends ActionType<SpatialStatsAction.Response> 
         }
     }
 
-    public static class NodeRequest extends TransportRequest {
+    public static class NodeRequest extends AbstractTransportRequest {
         public NodeRequest(StreamInput in) throws IOException {
             super(in);
         }
 
-        public NodeRequest() {}
+        public NodeRequest() {
+        }
     }
 
     public static class Response extends BaseNodesResponse<NodeResponse> implements Writeable, ToXContentObject {
@@ -105,8 +107,8 @@ public class SpatialStatsAction extends ActionType<SpatialStatsAction.Response> 
 
         public EnumCounters<Item> getStats() {
             List<EnumCounters<Item>> countersPerNode = getNodes().stream()
-                .map(SpatialStatsAction.NodeResponse::getStats)
-                .collect(Collectors.toList());
+                    .map(NodeResponse::getStats)
+                    .collect(Collectors.toList());
             return EnumCounters.merge(Item.class, countersPerNode);
         }
 

@@ -51,6 +51,7 @@ import org.elasticsearch.search.query.QuerySearchResult;
 import org.elasticsearch.search.sort.FieldSortBuilder;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
+import org.elasticsearch.transport.AbstractTransportRequest;
 import org.elasticsearch.transport.TransportRequest;
 
 import java.io.IOException;
@@ -68,7 +69,7 @@ import static org.elasticsearch.search.internal.SearchContext.TRACK_TOTAL_HITS_D
  * It provides all the methods that the {@link SearchContext} needs.
  * Provides a cache key based on its content that can be used to cache shard level response.
  */
-public class ShardSearchRequest extends TransportRequest implements IndicesRequest {
+public class ShardSearchRequest extends AbstractTransportRequest implements IndicesRequest {
     private final String clusterAlias;
     private final ShardId shardId;
     private final int shardRequestIndex;
@@ -103,63 +104,63 @@ public class ShardSearchRequest extends TransportRequest implements IndicesReque
     private final boolean forceSyntheticSource;
 
     public ShardSearchRequest(
-        OriginalIndices originalIndices,
-        SearchRequest searchRequest,
-        ShardId shardId,
-        int shardRequestIndex,
-        int numberOfShards,
-        AliasFilter aliasFilter,
-        float indexBoost,
-        long nowInMillis,
-        @Nullable String clusterAlias
+            OriginalIndices originalIndices,
+            SearchRequest searchRequest,
+            ShardId shardId,
+            int shardRequestIndex,
+            int numberOfShards,
+            AliasFilter aliasFilter,
+            float indexBoost,
+            long nowInMillis,
+            @Nullable String clusterAlias
     ) {
         this(
-            originalIndices,
-            searchRequest,
-            shardId,
-            shardRequestIndex,
-            numberOfShards,
-            aliasFilter,
-            indexBoost,
-            nowInMillis,
-            clusterAlias,
-            null,
-            null
+                originalIndices,
+                searchRequest,
+                shardId,
+                shardRequestIndex,
+                numberOfShards,
+                aliasFilter,
+                indexBoost,
+                nowInMillis,
+                clusterAlias,
+                null,
+                null
         );
     }
 
     public ShardSearchRequest(
-        OriginalIndices originalIndices,
-        SearchRequest searchRequest,
-        ShardId shardId,
-        int shardRequestIndex,
-        int numberOfShards,
-        AliasFilter aliasFilter,
-        float indexBoost,
-        long nowInMillis,
-        @Nullable String clusterAlias,
-        ShardSearchContextId readerId,
-        TimeValue keepAlive
+            OriginalIndices originalIndices,
+            SearchRequest searchRequest,
+            ShardId shardId,
+            int shardRequestIndex,
+            int numberOfShards,
+            AliasFilter aliasFilter,
+            float indexBoost,
+            long nowInMillis,
+            @Nullable String clusterAlias,
+            ShardSearchContextId readerId,
+            TimeValue keepAlive
     ) {
         this(
-            originalIndices,
-            shardId,
-            shardRequestIndex,
-            numberOfShards,
-            searchRequest.searchType(),
-            searchRequest.source(),
-            searchRequest.requestCache(),
-            aliasFilter,
-            indexBoost,
-            searchRequest.allowPartialSearchResults(),
-            searchRequest.scroll(),
-            nowInMillis,
-            clusterAlias,
-            readerId,
-            keepAlive,
-            computeWaitForCheckpoint(searchRequest.getWaitForCheckpoints(), shardId, shardRequestIndex),
-            searchRequest.getWaitForCheckpointsTimeout(),
-            searchRequest.isForceSyntheticSource()
+                originalIndices,
+                shardId,
+                shardRequestIndex,
+                numberOfShards,
+                searchRequest.searchType(),
+                searchRequest.source(),
+                searchRequest.requestCache(),
+                aliasFilter,
+                indexBoost,
+                searchRequest.allowPartialSearchResults(),
+                searchRequest.scroll(),
+                nowInMillis,
+                clusterAlias,
+                readerId,
+                keepAlive,
+                computeWaitForCheckpoint(searchRequest.getWaitForCheckpoints(), shardId, shardRequestIndex),
+                searchRequest.getWaitForCheckpointsTimeout(),
+                searchRequest.isForceSyntheticSource()
         );
         // If allowPartialSearchResults is unset (ie null), the cluster-level default should have been substituted
         // at this stage. Any NPEs in the above are therefore an error in request preparation logic.
@@ -187,47 +188,47 @@ public class ShardSearchRequest extends TransportRequest implements IndicesReque
 
     public ShardSearchRequest(ShardId shardId, long nowInMillis, AliasFilter aliasFilter, String clusterAlias) {
         this(
-            OriginalIndices.NONE,
-            shardId,
-            -1,
-            -1,
-            SearchType.QUERY_THEN_FETCH,
-            null,
-            null,
-            aliasFilter,
-            1.0f,
-            true,
-            null,
-            nowInMillis,
-            clusterAlias,
-            null,
-            null,
-            SequenceNumbers.UNASSIGNED_SEQ_NO,
-            SearchService.NO_TIMEOUT,
-            false
+                OriginalIndices.NONE,
+                shardId,
+                -1,
+                -1,
+                SearchType.QUERY_THEN_FETCH,
+                null,
+                null,
+                aliasFilter,
+                1.0f,
+                true,
+                null,
+                nowInMillis,
+                clusterAlias,
+                null,
+                null,
+                SequenceNumbers.UNASSIGNED_SEQ_NO,
+                SearchService.NO_TIMEOUT,
+                false
         );
     }
 
     @SuppressWarnings("this-escape")
     public ShardSearchRequest(
-        OriginalIndices originalIndices,
-        ShardId shardId,
-        int shardRequestIndex,
-        int numberOfShards,
-        SearchType searchType,
-        SearchSourceBuilder source,
-        Boolean requestCache,
-        AliasFilter aliasFilter,
-        float indexBoost,
-        boolean allowPartialSearchResults,
-        TimeValue scroll,
-        long nowInMillis,
-        @Nullable String clusterAlias,
-        ShardSearchContextId readerId,
-        TimeValue keepAlive,
-        long waitForCheckpoint,
-        TimeValue waitForCheckpointsTimeout,
-        boolean forceSyntheticSource
+            OriginalIndices originalIndices,
+            ShardId shardId,
+            int shardRequestIndex,
+            int numberOfShards,
+            SearchType searchType,
+            SearchSourceBuilder source,
+            Boolean requestCache,
+            AliasFilter aliasFilter,
+            float indexBoost,
+            boolean allowPartialSearchResults,
+            TimeValue scroll,
+            long nowInMillis,
+            @Nullable String clusterAlias,
+            ShardSearchContextId readerId,
+            TimeValue keepAlive,
+            long waitForCheckpoint,
+            TimeValue waitForCheckpointsTimeout,
+            boolean forceSyntheticSource
     ) {
         this.shardId = shardId;
         this.shardRequestIndex = shardRequestIndex;
@@ -312,7 +313,7 @@ public class ShardSearchRequest extends TransportRequest implements IndicesReque
             String[] types = in.readStringArray();
             if (types.length > 0) {
                 throw new IllegalStateException(
-                    "types are no longer supported in search requests but found [" + Arrays.toString(types) + "]"
+                        "types are no longer supported in search requests but found [" + Arrays.toString(types) + "]"
                 );
             }
         }
@@ -594,8 +595,8 @@ public class ShardSearchRequest extends TransportRequest implements IndicesReque
                     newSource = newSource.shallowCopy();
                     int trackTotalHitsUpTo = SearchRequest.resolveTrackTotalHitsUpTo(request.scroll, request.source);
                     if (trackTotalHitsUpTo == TRACK_TOTAL_HITS_DISABLED
-                        && newSource.suggest() == null
-                        && newSource.aggregations() == null) {
+                            && newSource.suggest() == null
+                            && newSource.aggregations() == null) {
                         newSource.query(new MatchNoneQueryBuilder());
                     } else {
                         newSource.size(0);
@@ -621,9 +622,9 @@ public class ShardSearchRequest extends TransportRequest implements IndicesReque
      * Returns {@code null} if no filtering is required.</p>
      */
     public static QueryBuilder parseAliasFilter(
-        CheckedFunction<BytesReference, QueryBuilder, IOException> filterParser,
-        IndexMetadata metadata,
-        String... aliasNames
+            CheckedFunction<BytesReference, QueryBuilder, IOException> filterParser,
+            IndexMetadata metadata,
+            String... aliasNames
     ) {
         if (aliasNames == null || aliasNames.length == 0) {
             return null;

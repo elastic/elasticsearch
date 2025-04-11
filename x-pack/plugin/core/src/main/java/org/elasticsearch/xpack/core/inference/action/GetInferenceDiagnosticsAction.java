@@ -18,6 +18,7 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.transport.AbstractTransportRequest;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.xcontent.ToXContentFragment;
 import org.elasticsearch.xcontent.ToXContentObject;
@@ -56,12 +57,13 @@ public class GetInferenceDiagnosticsAction extends ActionType<GetInferenceDiagno
         }
     }
 
-    public static class NodeRequest extends TransportRequest {
+    public static class NodeRequest extends AbstractTransportRequest {
         public NodeRequest(StreamInput in) throws IOException {
             super(in);
         }
 
-        public NodeRequest() {}
+        public NodeRequest() {
+        }
     }
 
     public static class Response extends BaseNodesResponse<NodeResponse> implements Writeable, ToXContentObject {
@@ -214,9 +216,9 @@ public class GetInferenceDiagnosticsAction extends ActionType<GetInferenceDiagno
                 if (o == null || getClass() != o.getClass()) return false;
                 ConnectionPoolStats that = (ConnectionPoolStats) o;
                 return leasedConnections == that.leasedConnections
-                    && pendingConnections == that.pendingConnections
-                    && availableConnections == that.availableConnections
-                    && maxConnections == that.maxConnections;
+                        && pendingConnections == that.pendingConnections
+                        && availableConnections == that.availableConnections
+                        && maxConnections == that.maxConnections;
             }
 
             @Override

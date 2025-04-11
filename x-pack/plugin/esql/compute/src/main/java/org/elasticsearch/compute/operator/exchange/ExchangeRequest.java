@@ -12,13 +12,14 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
+import org.elasticsearch.transport.AbstractTransportRequest;
 import org.elasticsearch.transport.TransportRequest;
 
 import java.io.IOException;
 import java.util.Map;
 import java.util.Objects;
 
-public final class ExchangeRequest extends TransportRequest {
+public final class ExchangeRequest extends AbstractTransportRequest {
     private final String exchangeId;
     private final boolean sourcesFinished;
 

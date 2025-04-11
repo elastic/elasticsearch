@@ -40,6 +40,7 @@ import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.AbstractTransportRequest;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportException;
 import org.elasticsearch.transport.TransportInterceptor;
@@ -77,8 +78,8 @@ public class TestTaskPlugin extends Plugin implements ActionPlugin, NetworkPlugi
     @Override
     public List<ActionHandler> getActions() {
         return Arrays.asList(
-            new ActionHandler(TEST_TASK_ACTION, TransportTestTaskAction.class),
-            new ActionHandler(UNBLOCK_TASK_ACTION, TransportUnblockTestTasksAction.class)
+                new ActionHandler(TEST_TASK_ACTION, TransportTestTaskAction.class),
+                new ActionHandler(UNBLOCK_TASK_ACTION, TransportUnblockTestTasksAction.class)
         );
     }
 
@@ -161,7 +162,7 @@ public class TestTaskPlugin extends Plugin implements ActionPlugin, NetworkPlugi
         }
     }
 
-    public static class NodeRequest extends TransportRequest {
+    public static class NodeRequest extends AbstractTransportRequest {
         protected final String requestName;
         protected final boolean shouldBlock;
 
@@ -246,12 +247,12 @@ public class TestTaskPlugin extends Plugin implements ActionPlugin, NetworkPlugi
         @Inject
         public TransportTestTaskAction(ThreadPool threadPool, ClusterService clusterService, TransportService transportService) {
             super(
-                TEST_TASK_ACTION.name(),
-                clusterService,
-                transportService,
-                new ActionFilters(new HashSet<>()),
-                NodeRequest::new,
-                threadPool.executor(ThreadPool.Names.GENERIC)
+                    TEST_TASK_ACTION.name(),
+                    clusterService,
+                    transportService,
+                    new ActionFilters(new HashSet<>()),
+                    NodeRequest::new,
+                    threadPool.executor(ThreadPool.Names.GENERIC)
             );
         }
 
@@ -296,17 +297,21 @@ public class TestTaskPlugin extends Plugin implements ActionPlugin, NetworkPlugi
 
     public static class UnblockTestTaskResponse implements Writeable {
 
-        UnblockTestTaskResponse() {}
+        UnblockTestTaskResponse() {
+        }
 
-        UnblockTestTaskResponse(StreamInput in) {}
+        UnblockTestTaskResponse(StreamInput in) {
+        }
 
         @Override
-        public void writeTo(StreamOutput out) throws IOException {}
+        public void writeTo(StreamOutput out) throws IOException {
+        }
     }
 
     public static class UnblockTestTasksRequest extends BaseTasksRequest<UnblockTestTasksRequest> {
 
-        UnblockTestTasksRequest() {}
+        UnblockTestTasksRequest() {
+        }
 
         UnblockTestTasksRequest(StreamInput in) throws IOException {
             super(in);
@@ -323,9 +328,9 @@ public class TestTaskPlugin extends Plugin implements ActionPlugin, NetworkPlugi
         private List<UnblockTestTaskResponse> tasks;
 
         UnblockTestTasksResponse(
-            List<UnblockTestTaskResponse> tasks,
-            List<TaskOperationFailure> taskFailures,
-            List<? extends FailedNodeException> nodeFailures
+                List<UnblockTestTaskResponse> tasks,
+                List<TaskOperationFailure> taskFailures,
+                List<? extends FailedNodeException> nodeFailures
         ) {
             super(taskFailures, nodeFailures);
             this.tasks = tasks == null ? Collections.emptyList() : List.copyOf(tasks);
@@ -355,40 +360,40 @@ public class TestTaskPlugin extends Plugin implements ActionPlugin, NetworkPlugi
      * Test class for testing task operations
      */
     public static class TransportUnblockTestTasksAction extends TransportTasksAction<
-        Task,
-        UnblockTestTasksRequest,
-        UnblockTestTasksResponse,
-        UnblockTestTaskResponse> {
+            Task,
+            UnblockTestTasksRequest,
+            UnblockTestTasksResponse,
+            UnblockTestTaskResponse> {
 
         @Inject
         public TransportUnblockTestTasksAction(ClusterService clusterService, TransportService transportService) {
             super(
-                UNBLOCK_TASK_ACTION.name(),
-                clusterService,
-                transportService,
-                new ActionFilters(new HashSet<>()),
-                UnblockTestTasksRequest::new,
-                UnblockTestTaskResponse::new,
-                transportService.getThreadPool().executor(ThreadPool.Names.MANAGEMENT)
+                    UNBLOCK_TASK_ACTION.name(),
+                    clusterService,
+                    transportService,
+                    new ActionFilters(new HashSet<>()),
+                    UnblockTestTasksRequest::new,
+                    UnblockTestTaskResponse::new,
+                    transportService.getThreadPool().executor(ThreadPool.Names.MANAGEMENT)
             );
         }
 
         @Override
         protected UnblockTestTasksResponse newResponse(
-            UnblockTestTasksRequest request,
-            List<UnblockTestTaskResponse> tasks,
-            List<TaskOperationFailure> taskOperationFailures,
-            List<FailedNodeException> failedNodeExceptions
+                UnblockTestTasksRequest request,
+                List<UnblockTestTaskResponse> tasks,
+                List<TaskOperationFailure> taskOperationFailures,
+                List<FailedNodeException> failedNodeExceptions
         ) {
             return new UnblockTestTasksResponse(tasks, taskOperationFailures, failedNodeExceptions);
         }
 
         @Override
         protected void taskOperation(
-            CancellableTask actionTask,
-            UnblockTestTasksRequest request,
-            Task task,
-            ActionListener<UnblockTestTaskResponse> listener
+                CancellableTask actionTask,
+                UnblockTestTasksRequest request,
+                Task task,
+                ActionListener<UnblockTestTaskResponse> listener
         ) {
             ((TestTask) task).unblock();
             listener.onResponse(new UnblockTestTaskResponse());
@@ -408,11 +413,11 @@ public class TestTaskPlugin extends Plugin implements ActionPlugin, NetworkPlugi
             return new AsyncSender() {
                 @Override
                 public <T extends TransportResponse> void sendRequest(
-                    Transport.Connection connection,
-                    String action,
-                    TransportRequest request,
-                    TransportRequestOptions options,
-                    TransportResponseHandler<T> handler
+                        Transport.Connection connection,
+                        String action,
+                        TransportRequest request,
+                        TransportRequestOptions options,
+                        TransportResponseHandler<T> handler
                 ) {
                     if (action.startsWith("indices:data/write/bulk[s]")) {
                         /*
@@ -434,17 +439,17 @@ public class TestTaskPlugin extends Plugin implements ActionPlugin, NetworkPlugi
                         return;
                     }
                     handler.handleException(
-                        new TransportException(
-                            "should have origin of ["
-                                + expectedOrigin
-                                + "] but was ["
-                                + actualOrigin
-                                + "] action was ["
-                                + action
-                                + "]["
-                                + request
-                                + "]"
-                        )
+                            new TransportException(
+                                    "should have origin of ["
+                                            + expectedOrigin
+                                            + "] but was ["
+                                            + actualOrigin
+                                            + "] action was ["
+                                            + action
+                                            + "]["
+                                            + request
+                                            + "]"
+                            )
                     );
                 }
             };
@@ -470,7 +475,7 @@ public class TestTaskPlugin extends Plugin implements ActionPlugin, NetworkPlugi
                  * When the API Tasks API makes an indices request it only every
                  * targets the .tasks index. Other requests come from the tests.
                  */
-                return Arrays.equals(new String[] { ".tasks" }, indicesRequest.indices());
+                return Arrays.equals(new String[]{".tasks"}, indicesRequest.indices());
             } else {
                 return false;
             }

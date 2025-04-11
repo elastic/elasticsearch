@@ -26,6 +26,7 @@ import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.AbstractTransportRequest;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xcontent.ToXContentFragment;
@@ -44,11 +45,11 @@ import java.util.function.Supplier;
  * Node level stats about searchable snapshots caches.
  */
 public class TransportSearchableSnapshotsNodeCachesStatsAction extends TransportNodesAction<
-    TransportSearchableSnapshotsNodeCachesStatsAction.NodesRequest,
-    TransportSearchableSnapshotsNodeCachesStatsAction.NodesCachesStatsResponse,
-    TransportSearchableSnapshotsNodeCachesStatsAction.NodeRequest,
-    TransportSearchableSnapshotsNodeCachesStatsAction.NodeCachesStatsResponse,
-    Void> {
+        TransportSearchableSnapshotsNodeCachesStatsAction.NodesRequest,
+        TransportSearchableSnapshotsNodeCachesStatsAction.NodesCachesStatsResponse,
+        TransportSearchableSnapshotsNodeCachesStatsAction.NodeRequest,
+        TransportSearchableSnapshotsNodeCachesStatsAction.NodeCachesStatsResponse,
+        Void> {
 
     public static final String ACTION_NAME = "cluster:admin/xpack/searchable_snapshots/cache/stats";
 
@@ -59,20 +60,20 @@ public class TransportSearchableSnapshotsNodeCachesStatsAction extends Transport
 
     @Inject
     public TransportSearchableSnapshotsNodeCachesStatsAction(
-        ThreadPool threadPool,
-        ClusterService clusterService,
-        TransportService transportService,
-        ActionFilters actionFilters,
-        SearchableSnapshots.FrozenCacheServiceSupplier frozenCacheService,
-        XPackLicenseState licenseState
+            ThreadPool threadPool,
+            ClusterService clusterService,
+            TransportService transportService,
+            ActionFilters actionFilters,
+            SearchableSnapshots.FrozenCacheServiceSupplier frozenCacheService,
+            XPackLicenseState licenseState
     ) {
         super(
-            ACTION_NAME,
-            clusterService,
-            transportService,
-            actionFilters,
-            NodeRequest::new,
-            threadPool.executor(ThreadPool.Names.MANAGEMENT)
+                ACTION_NAME,
+                clusterService,
+                transportService,
+                actionFilters,
+                NodeRequest::new,
+                threadPool.executor(ThreadPool.Names.MANAGEMENT)
         );
         this.frozenCacheService = frozenCacheService;
         this.licenseState = licenseState;
@@ -80,9 +81,9 @@ public class TransportSearchableSnapshotsNodeCachesStatsAction extends Transport
 
     @Override
     protected NodesCachesStatsResponse newResponse(
-        NodesRequest request,
-        List<NodeCachesStatsResponse> responses,
-        List<FailedNodeException> failures
+            NodesRequest request,
+            List<NodeCachesStatsResponse> responses,
+            List<FailedNodeException> failures
     ) {
         return new NodesCachesStatsResponse(clusterService.getClusterName(), responses, failures);
     }
@@ -106,9 +107,9 @@ public class TransportSearchableSnapshotsNodeCachesStatsAction extends Transport
             resolvedNodes = dataNodes.values().toArray(DiscoveryNode[]::new);
         } else {
             resolvedNodes = Arrays.stream(request.nodesIds())
-                .filter(dataNodes::containsKey)
-                .map(dataNodes::get)
-                .toArray(DiscoveryNode[]::new);
+                    .filter(dataNodes::containsKey)
+                    .map(dataNodes::get)
+                    .toArray(DiscoveryNode[]::new);
         }
         return resolvedNodes;
     }
@@ -123,21 +124,22 @@ public class TransportSearchableSnapshotsNodeCachesStatsAction extends Transport
             frozenCacheStats = SharedBlobCacheService.Stats.EMPTY;
         }
         return new NodeCachesStatsResponse(
-            clusterService.localNode(),
-            frozenCacheStats.numberOfRegions(),
-            frozenCacheStats.size(),
-            frozenCacheStats.regionSize(),
-            frozenCacheStats.writeCount(),
-            frozenCacheStats.writeBytes(),
-            frozenCacheStats.readCount(),
-            frozenCacheStats.readBytes(),
-            frozenCacheStats.evictCount()
+                clusterService.localNode(),
+                frozenCacheStats.numberOfRegions(),
+                frozenCacheStats.size(),
+                frozenCacheStats.regionSize(),
+                frozenCacheStats.writeCount(),
+                frozenCacheStats.writeBytes(),
+                frozenCacheStats.readCount(),
+                frozenCacheStats.readBytes(),
+                frozenCacheStats.evictCount()
         );
     }
 
-    public static final class NodeRequest extends TransportRequest {
+    public static final class NodeRequest extends AbstractTransportRequest {
 
-        public NodeRequest() {}
+        public NodeRequest() {
+        }
 
         public NodeRequest(StreamInput in) throws IOException {
             super(in);
@@ -167,15 +169,15 @@ public class TransportSearchableSnapshotsNodeCachesStatsAction extends Transport
         private final long evictions;
 
         public NodeCachesStatsResponse(
-            DiscoveryNode node,
-            int numRegions,
-            long size,
-            long regionSize,
-            long writes,
-            long bytesWritten,
-            long reads,
-            long bytesRead,
-            long evictions
+                DiscoveryNode node,
+                int numRegions,
+                long size,
+                long regionSize,
+                long writes,
+                long bytesWritten,
+                long reads,
+                long bytesRead,
+                long evictions
         ) {
             super(node);
             this.numRegions = numRegions;

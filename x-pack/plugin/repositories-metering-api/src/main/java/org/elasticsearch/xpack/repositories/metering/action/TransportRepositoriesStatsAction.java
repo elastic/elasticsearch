@@ -17,6 +17,7 @@ import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.AbstractTransportRequest;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportService;
 
@@ -24,38 +25,38 @@ import java.io.IOException;
 import java.util.List;
 
 public final class TransportRepositoriesStatsAction extends TransportNodesAction<
-    RepositoriesMeteringRequest,
-    RepositoriesMeteringResponse,
-    TransportRepositoriesStatsAction.RepositoriesNodeStatsRequest,
-    RepositoriesNodeMeteringResponse,
-    Void> {
+        RepositoriesMeteringRequest,
+        RepositoriesMeteringResponse,
+        TransportRepositoriesStatsAction.RepositoriesNodeStatsRequest,
+        RepositoriesNodeMeteringResponse,
+        Void> {
 
     private final RepositoriesService repositoriesService;
 
     @Inject
     public TransportRepositoriesStatsAction(
-        ThreadPool threadPool,
-        ClusterService clusterService,
-        TransportService transportService,
-        ActionFilters actionFilters,
-        RepositoriesService repositoriesService
+            ThreadPool threadPool,
+            ClusterService clusterService,
+            TransportService transportService,
+            ActionFilters actionFilters,
+            RepositoriesService repositoriesService
     ) {
         super(
-            RepositoriesMeteringAction.NAME,
-            clusterService,
-            transportService,
-            actionFilters,
-            RepositoriesNodeStatsRequest::new,
-            threadPool.executor(ThreadPool.Names.GENERIC)
+                RepositoriesMeteringAction.NAME,
+                clusterService,
+                transportService,
+                actionFilters,
+                RepositoriesNodeStatsRequest::new,
+                threadPool.executor(ThreadPool.Names.GENERIC)
         );
         this.repositoriesService = repositoriesService;
     }
 
     @Override
     protected RepositoriesMeteringResponse newResponse(
-        RepositoriesMeteringRequest request,
-        List<RepositoriesNodeMeteringResponse> repositoriesNodeStatsResponses,
-        List<FailedNodeException> failures
+            RepositoriesMeteringRequest request,
+            List<RepositoriesNodeMeteringResponse> repositoriesNodeStatsResponses,
+            List<FailedNodeException> failures
     ) {
         return new RepositoriesMeteringResponse(clusterService.getClusterName(), repositoriesNodeStatsResponses, failures);
     }
@@ -75,8 +76,9 @@ public final class TransportRepositoriesStatsAction extends TransportNodesAction
         return new RepositoriesNodeMeteringResponse(clusterService.localNode(), repositoriesService.repositoriesStats());
     }
 
-    static final class RepositoriesNodeStatsRequest extends TransportRequest {
-        RepositoriesNodeStatsRequest() {}
+    static final class RepositoriesNodeStatsRequest extends AbstractTransportRequest {
+        RepositoriesNodeStatsRequest() {
+        }
 
         RepositoriesNodeStatsRequest(StreamInput in) throws IOException {
             super(in);

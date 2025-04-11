@@ -72,9 +72,6 @@ tests:
 - class: org.elasticsearch.xpack.shutdown.NodeShutdownIT
   method: testAllocationPreventedForRemoval
   issue: https://github.com/elastic/elasticsearch/issues/116363
-- class: org.elasticsearch.reservedstate.service.RepositoriesFileSettingsIT
-  method: testSettingsApplied
-  issue: https://github.com/elastic/elasticsearch/issues/116694
 - class: org.elasticsearch.xpack.security.authc.ldap.ActiveDirectoryGroupsResolverTests
   issue: https://github.com/elastic/elasticsearch/issues/116182
 - class: org.elasticsearch.xpack.test.rest.XPackRestIT
@@ -237,9 +234,6 @@ tests:
 - class: org.elasticsearch.indices.recovery.IndexRecoveryIT
   method: testSourceThrottling
   issue: https://github.com/elastic/elasticsearch/issues/123680
-- class: org.elasticsearch.entitlement.runtime.policy.FileAccessTreeTests
-  method: testDuplicatePrunedPaths
-  issue: https://github.com/elastic/elasticsearch/issues/124006
 - class: org.elasticsearch.smoketest.MlWithSecurityIT
   method: test {yaml=ml/3rd_party_deployment/Test start deployment fails while model download in progress}
   issue: https://github.com/elastic/elasticsearch/issues/120814

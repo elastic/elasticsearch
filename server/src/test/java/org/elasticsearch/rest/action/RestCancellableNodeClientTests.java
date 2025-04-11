@@ -33,6 +33,7 @@ import org.junit.Before;
 import java.net.InetSocketAddress;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.CopyOnWriteArraySet;
@@ -43,6 +44,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.LongSupplier;
 
 public class RestCancellableNodeClientTests extends ESTestCase {
 
@@ -150,8 +152,42 @@ public class RestCancellableNodeClientTests extends ESTestCase {
         }
     }
 
+    public void testConcurrentExecuteAndClose() {
+        final TestClient testClient = new TestClient(Settings.EMPTY, threadPool, true);
+        int initialHttpChannels = RestCancellableNodeClient.getNumChannels();
+        int numTasks = randomIntBetween(1, 30);
+        TestHttpChannel channel = new TestHttpChannel();
+        final CountDownLatch startLatch = new CountDownLatch(1);
+        final CountDownLatch doneLatch = new CountDownLatch(numTasks + 1);
+        final Set<TaskId> expectedTasks = new HashSet<>(numTasks);
+        for (int j = 0; j < numTasks; j++) {
+            RestCancellableNodeClient client = new RestCancellableNodeClient(testClient, channel);
+            threadPool.generic().execute(() -> {
+                client.execute(SearchAction.INSTANCE, new SearchRequest(), ActionListener.wrap(ESTestCase::fail));
+                startLatch.countDown();
+                doneLatch.countDown();
+            });
+            expectedTasks.add(new TaskId(testClient.getLocalNodeId(), j));
+        }
+        threadPool.generic().execute(() -> {
+            try {
+                safeAwait(startLatch);
+                channel.awaitClose();
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                throw new AssertionError(e);
+            } finally {
+                doneLatch.countDown();
+            }
+        });
+        safeAwait(doneLatch);
+        assertEquals(initialHttpChannels, RestCancellableNodeClient.getNumChannels());
+        assertEquals(expectedTasks, testClient.cancelledTasks);
+    }
+
     private static class TestClient extends NodeClient {
-        private final AtomicLong counter = new AtomicLong(0);
+        private final LongSupplier searchTaskIdGenerator = new AtomicLong(0)::getAndIncrement;
+        private final LongSupplier cancelTaskIdGenerator = new AtomicLong(1000)::getAndIncrement;
         private final Set<TaskId> cancelledTasks = new CopyOnWriteArraySet<>();
         private final AtomicInteger searchRequests = new AtomicInteger(0);
         private final boolean timeout;
@@ -171,7 +207,13 @@ public class RestCancellableNodeClientTests extends ESTestCase {
                 case CancelTasksAction.NAME:
                     CancelTasksRequest cancelTasksRequest = (CancelTasksRequest) request;
                     assertTrue("tried to cancel the same task more than once", cancelledTasks.add(cancelTasksRequest.getTaskId()));
-                    Task task = request.createTask(counter.getAndIncrement(), "cancel_task", action.name(), null, Collections.emptyMap());
+                    Task task = request.createTask(
+                        cancelTaskIdGenerator.getAsLong(),
+                        "cancel_task",
+                        action.name(),
+                        null,
+                        Collections.emptyMap()
+                    );
                     if (randomBoolean()) {
                         listener.onResponse(null);
                     } else {
@@ -182,7 +224,13 @@ public class RestCancellableNodeClientTests extends ESTestCase {
                     return task;
                 case SearchAction.NAME:
                     searchRequests.incrementAndGet();
-                    Task searchTask = request.createTask(counter.getAndIncrement(), "search", action.name(), null, Collections.emptyMap());
+                    Task searchTask = request.createTask(
+                        searchTaskIdGenerator.getAsLong(),
+                        "search",
+                        action.name(),
+                        null,
+                        Collections.emptyMap()
+                    );
                     if (timeout == false) {
                         if (rarely()) {
                             // make sure that search is sometimes also called from the same thread before the task is returned
@@ -193,7 +241,7 @@ public class RestCancellableNodeClientTests extends ESTestCase {
                     }
                     return searchTask;
                 default:
-                    throw new UnsupportedOperationException();
+                    throw new AssertionError("unexpected action " + action.name());
             }
 
         }
@@ -224,9 +272,7 @@ public class RestCancellableNodeClientTests extends ESTestCase {
 
         @Override
         public void close() {
-            if (open.compareAndSet(true, false) == false) {
-                throw new IllegalStateException("channel already closed!");
-            }
+            assertTrue("HttpChannel is already closed", open.compareAndSet(true, false));
             ActionListener<Void> listener = closeListener.get();
             if (listener != null) {
                 boolean failure = randomBoolean();
@@ -242,6 +288,7 @@ public class RestCancellableNodeClientTests extends ESTestCase {
         }
 
         private void awaitClose() throws InterruptedException {
+            assertNotNull("must set closeListener before calling awaitClose", closeListener.get());
             close();
             closeLatch.await();
         }
@@ -258,7 +305,7 @@ public class RestCancellableNodeClientTests extends ESTestCase {
                 listener.onResponse(null);
             } else {
                 if (closeListener.compareAndSet(null, listener) == false) {
-                    throw new IllegalStateException("close listener already set, only one is allowed!");
+                    throw new AssertionError("close listener already set, only one is allowed!");
                 }
             }
         }

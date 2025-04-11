@@ -8,6 +8,8 @@
  */
 package org.elasticsearch.cluster.metadata;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.index.DocValuesSkipIndexType;
 import org.apache.lucene.index.DocValuesSkipper;
@@ -70,6 +72,8 @@ import static org.elasticsearch.index.IndexSettings.LIFECYCLE_ORIGINATION_DATE;
 import static org.elasticsearch.index.IndexSettings.PREFER_ILM_SETTING;
 
 public final class DataStream implements SimpleDiffable<DataStream>, ToXContentObject, IndexAbstraction {
+
+    private static final Logger LOGGER = LogManager.getLogger(DataStream.class);
 
     public static final boolean FAILURE_STORE_FEATURE_FLAG = new FeatureFlag("failure_store").isEnabled();
     public static final TransportVersion ADDED_FAILURE_STORE_TRANSPORT_VERSION = TransportVersions.V_8_12_0;
@@ -612,8 +616,10 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
             dsIndexMode = null;
         } else if (dsIndexMode == IndexMode.TIME_SERIES && indexModeFromTemplate == IndexMode.LOGSDB) {
             dsIndexMode = IndexMode.LOGSDB;
+            LOGGER.warn("Changing [{}] index mode from [{}] to [{}]", name, indexModeFromTemplate, dsIndexMode);
         } else if (dsIndexMode == IndexMode.LOGSDB && indexModeFromTemplate == IndexMode.TIME_SERIES) {
             dsIndexMode = IndexMode.TIME_SERIES;
+            LOGGER.warn("Changing [{}] index mode from [{}] to [{}]", name, indexModeFromTemplate, dsIndexMode);
         }
 
         List<Index> backingIndices = new ArrayList<>(this.backingIndices.indices);

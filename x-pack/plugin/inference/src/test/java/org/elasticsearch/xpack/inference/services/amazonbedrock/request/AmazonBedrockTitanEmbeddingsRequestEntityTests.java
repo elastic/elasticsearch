@@ -8,8 +8,8 @@
 package org.elasticsearch.xpack.inference.services.amazonbedrock.request;
 
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.inference.services.amazonbedrock.request.embeddings.AmazonBedrockTitanEmbeddingsRequestEntity;
 import org.elasticsearch.xpack.inference.services.amazonbedrock.AmazonBedrockServiceSettings.AmazonBedrockEmbeddingType;
+import org.elasticsearch.xpack.inference.services.amazonbedrock.request.embeddings.AmazonBedrockTitanEmbeddingsRequestEntity;
 
 import java.io.IOException;
 

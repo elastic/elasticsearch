@@ -9,14 +9,16 @@ package org.elasticsearch.xpack.inference.services.amazonbedrock.request.embeddi
 
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xpack.inference.services.amazonbedrock.AmazonBedrockServiceSettings.AmazonBedrockEmbeddingType;
 
 import java.io.IOException;
 import java.util.Objects;
-import org.elasticsearch.xpack.inference.services.amazonbedrock.AmazonBedrockServiceSettings.AmazonBedrockEmbeddingType;
+
 import static org.elasticsearch.xpack.inference.services.amazonbedrock.AmazonBedrockConstants.EMBEDDING_TYPE_FIELD;
 
 public record AmazonBedrockTitanEmbeddingsRequestEntity(String inputText, AmazonBedrockEmbeddingType embeddingType)
-    implements ToXContentObject {
+    implements
+        ToXContentObject {
 
     private static final String INPUT_TEXT_FIELD = "inputText";
 

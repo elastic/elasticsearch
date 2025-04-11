@@ -38,9 +38,8 @@ import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
 import org.elasticsearch.xpack.core.inference.results.ChatCompletionResults;
 import org.elasticsearch.xpack.core.inference.results.ChunkedInferenceEmbedding;
-import org.elasticsearch.xpack.core.inference.results.TextEmbeddingFloatResults;
 import org.elasticsearch.xpack.core.inference.results.TextEmbeddingBytesResults;
-import org.elasticsearch.xpack.core.inference.results.TextEmbeddingResults;
+import org.elasticsearch.xpack.core.inference.results.TextEmbeddingFloatResults;
 import org.elasticsearch.xpack.inference.Utils;
 import org.elasticsearch.xpack.inference.common.amazon.AwsSecretSettings;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSender;
@@ -1053,9 +1052,7 @@ public class AmazonBedrockServiceTests extends ESTestCase {
             );
             List<Float> titanFloatEmbeddings = List.of(1.0f, 2.0f, 3.0f);
             String titanFloatResponseBody = createTitanResponseBody(titanFloatEmbeddings, null);
-            when(mockSender.sendEmbeddingsRequest(modelTitanFloat, List.of("input1"))).thenReturn(
-                new BytesArray(titanFloatResponseBody)
-            );
+            when(mockSender.sendEmbeddingsRequest(modelTitanFloat, List.of("input1"))).thenReturn(new BytesArray(titanFloatResponseBody));
 
             var futureTitanFloat = new PlainActionFuture<InferenceServiceResults>();
             service.infer(
@@ -1074,30 +1071,20 @@ public class AmazonBedrockServiceTests extends ESTestCase {
             assertThat(resultTitanFloat, instanceOf(TextEmbeddingFloatResults.class));
             assertThat(
                 ((TextEmbeddingFloatResults) resultTitanFloat).getResults(),
-                Matchers.contains(
-                    buildExpectationFloat(titanFloatEmbeddings)
-                )
+                Matchers.contains(buildExpectationFloat(titanFloatEmbeddings))
             );
 
             // Test Titan Binary
             var modelTitanBinary = AmazonBedrockEmbeddingsModelTests.createRandomTitanModelWithEmbeddingType(
                 AmazonBedrockEmbeddingType.BINARY
             );
-            byte[] binaryEmbeddingBytes = new byte[]{1, 2, 3, 4};
+            byte[] binaryEmbeddingBytes = new byte[] { 1, 2, 3, 4 };
             String binaryEmbeddingBase64 = Base64.getEncoder().encodeToString(binaryEmbeddingBytes);
             String titanBinaryResponseBody = createTitanResponseBody(null, binaryEmbeddingBase64);
-            when(mockSender.sendEmbeddingsRequest(modelTitanBinary, List.of("input1"))).thenReturn(
-                new BytesArray(titanBinaryResponseBody)
-            );
+            when(mockSender.sendEmbeddingsRequest(modelTitanBinary, List.of("input1"))).thenReturn(new BytesArray(titanBinaryResponseBody));
 
             var futureTitanBinary = new PlainActionFuture<InferenceServiceResults>();
-            service.infer(
-                modelTitanBinary,
-                new InferenceAction.Request(null, List.of("input1")),
-                Map.of(),
-                TIMEOUT,
-                futureTitanBinary
-            );
+            service.infer(modelTitanBinary, new InferenceAction.Request(null, List.of("input1")), Map.of(), TIMEOUT, futureTitanBinary);
             var resultTitanBinary = futureTitanBinary.actionGet(TIMEOUT);
             assertThat(resultTitanBinary, instanceOf(TextEmbeddingBytesResults.class));
             var byteResults = ((TextEmbeddingBytesResults) resultTitanBinary).getResults();
@@ -1108,9 +1095,7 @@ public class AmazonBedrockServiceTests extends ESTestCase {
             var modelCohere = AmazonBedrockEmbeddingsModelTests.createRandomCohereModel();
             List<Float> cohereEmbeddings1 = List.of(4.0f, 5.0f);
             String cohereResponseBody = createCohereResponseBody(List.of(cohereEmbeddings1));
-            when(mockSender.sendEmbeddingsRequest(modelCohere, List.of("input1"))).thenReturn(
-                new BytesArray(cohereResponseBody)
-            );
+            when(mockSender.sendEmbeddingsRequest(modelCohere, List.of("input1"))).thenReturn(new BytesArray(cohereResponseBody));
             var futureCohere = new PlainActionFuture<InferenceServiceResults>();
             service.infer(
                 modelCohere,

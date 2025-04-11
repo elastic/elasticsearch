@@ -964,7 +964,17 @@ public class EsqlCapabilities {
         /**
          * Support max_over_time aggregation
          */
-        MAX_OVER_TIME(Build.current().isSnapshot());
+        MAX_OVER_TIME(Build.current().isSnapshot()),
+
+        /**
+         * Support STATS/EVAL/DISSECT in Fork branches
+         */
+        FORK_V2(Build.current().isSnapshot()),
+
+        /**
+         * Does the usage information for ESQL contain a histogram of {@code took} values?
+         */
+        USAGE_CONTAINS_TOOK;
 
         private final boolean enabled;
 

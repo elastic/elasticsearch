@@ -226,13 +226,14 @@ import static org.elasticsearch.test.XContentTestUtils.differenceBetweenMapsIgno
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoTimeout;
-import static org.hamcrest.CoreMatchers.not;
-import static org.hamcrest.Matchers.anEmptyMap;
+import static org.hamcrest.Matchers.allOf;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
+import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.startsWith;
 
 /**
@@ -1733,23 +1734,13 @@ public abstract class ESIntegTestCase extends ESTestCase {
         return getIndexResponse.getIndices().length > 0;
     }
 
-    public static void awaitIndexExists(String index) throws Exception {
+    public static void awaitIndexExists(String index) {
         awaitIndexExists(index, client());
     }
 
-    public static void awaitIndexExists(String index, Client client) throws Exception {
-        if (Regex.isSimpleMatchPattern(index) || Metadata.ALL.equals(index)) {
-            assertBusy(() -> {
-                final var response = clusterHealthWithIndex(index, client);
-                assertThat(response.getIndices(), not(anEmptyMap()));
-            });
-        } else {
-            clusterHealthWithIndex(index, client);
-        }
-    }
-
-    private static ClusterHealthResponse clusterHealthWithIndex(String index, Client client) {
-        return safeGet(
+    public static void awaitIndexExists(String index, Client client) {
+        assertThat("wildcards not supported", index, allOf(not(Metadata.ALL), not(containsString("*"))));
+        safeGet(
             client.admin()
                 .cluster()
                 .prepareHealth(SAFE_AWAIT_TIMEOUT, index)

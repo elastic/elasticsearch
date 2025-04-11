@@ -161,8 +161,8 @@ public class RolloverConditionsTests extends AbstractXContentSerializingTestCase
         rolloverConditions = RolloverConditions.newBuilder()
             .addOptimalShardCountCondition(
                 randomBoolean()
-                    ? new AutoShardingResult(AutoShardingType.INCREASE_SHARDS, 1, 3, TimeValue.ZERO, 3.0)
-                    : new AutoShardingResult(AutoShardingType.DECREASE_SHARDS, 7, 3, TimeValue.ZERO, 0.8)
+                    ? new AutoShardingResult(AutoShardingType.INCREASE_SHARDS, 1, 3, TimeValue.ZERO)
+                    : new AutoShardingResult(AutoShardingType.DECREASE_SHARDS, 7, 3, TimeValue.ZERO)
             )
             .build();
         assertThat(rolloverConditions.areConditionsMet(Map.of(optimalShardCountCondition.toString(), true)), is(true));
@@ -180,8 +180,7 @@ public class RolloverConditionsTests extends AbstractXContentSerializingTestCase
                     ),
                     1,
                     3,
-                    TimeValue.ZERO,
-                    3.0
+                    TimeValue.ZERO
                 )
             )
             .build();

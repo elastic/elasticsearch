@@ -275,8 +275,7 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
 
     public void testRolloverFromTSdbToLogsdb() {
         DataStream ds = DataStreamTestHelper.randomInstance().copy().setReplicated(false).setIndexMode(IndexMode.TIME_SERIES).build();
-        final var project = ProjectMetadata.builder(randomProjectIdOrDefault()).build();
-        var newCoordinates = ds.nextWriteIndexAndGeneration(project, ds.getDataComponent());
+        var newCoordinates = ds.nextWriteIndexAndGeneration(Metadata.EMPTY_METADATA, ds.getDataComponent());
 
         var rolledDs = ds.rollover(new Index(newCoordinates.v1(), UUIDs.randomBase64UUID()), newCoordinates.v2(), IndexMode.LOGSDB, null);
         assertThat(rolledDs.getName(), equalTo(ds.getName()));
@@ -289,8 +288,7 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
 
     public void testRolloverFromLogsdbToTsdb() {
         DataStream ds = DataStreamTestHelper.randomInstance().copy().setReplicated(false).setIndexMode(IndexMode.LOGSDB).build();
-        final var project = ProjectMetadata.builder(randomProjectIdOrDefault()).build();
-        var newCoordinates = ds.nextWriteIndexAndGeneration(project, ds.getDataComponent());
+        var newCoordinates = ds.nextWriteIndexAndGeneration(Metadata.EMPTY_METADATA, ds.getDataComponent());
 
         var rolledDs = ds.rollover(
             new Index(newCoordinates.v1(), UUIDs.randomBase64UUID()),

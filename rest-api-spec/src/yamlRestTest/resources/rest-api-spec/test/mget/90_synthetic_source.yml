@@ -118,7 +118,7 @@ keyword with normalizer:
   - match: { docs.0._id: "1" }
   - match:
       docs.0._source:
-        keyword: "the Quick Brown Fox jumps over the lazy Dog"
+        keyword: "the quick brown fox jumps over the lazy dog"
         keyword_with_ignore_above: "the Quick Brown Fox jumps over the lazy Dog"
         keyword_without_doc_values: "the Quick Brown Fox jumps over the lazy Dog"
 
@@ -126,7 +126,7 @@ keyword with normalizer:
   - match: { docs.1._id: "2" }
   - match:
       docs.1._source:
-        keyword: "The five BOXING wizards jump Quickly"
+        keyword: "the five boxing wizards jump quickly"
         keyword_with_ignore_above: "The five BOXING wizards jump Quickly"
         keyword_without_doc_values: "The five BOXING wizards jump Quickly"
 
@@ -134,7 +134,7 @@ keyword with normalizer:
   - match: { docs.2._id: "3" }
   - match:
       docs.2._source:
-        keyword: [ "May the FORCE be with You!", "Do or Do Not, There is no Try" ]
+        keyword: [ "do or do not, there is no try", "may the force be with you!" ]
         keyword_with_ignore_above: [ "May the FORCE be with You!", "Do or Do Not, There is no Try" ]
         keyword_without_doc_values: [ "May the FORCE be with You!", "Do or Do Not, There is no Try" ]
 

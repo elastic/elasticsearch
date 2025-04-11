@@ -38,8 +38,8 @@ public class ToGeoShape extends AbstractConvertFunction {
     );
 
     private static final Map<DataType, BuildFactory> EVALUATORS = Map.ofEntries(
-        Map.entry(GEO_POINT, (fieldEval, source) -> fieldEval),
-        Map.entry(GEO_SHAPE, (fieldEval, source) -> fieldEval),
+        Map.entry(GEO_POINT, (source, fieldEval) -> fieldEval),
+        Map.entry(GEO_SHAPE, (source, fieldEval) -> fieldEval),
         Map.entry(KEYWORD, ToGeoShapeFromStringEvaluator.Factory::new),
         Map.entry(TEXT, ToGeoShapeFromStringEvaluator.Factory::new),
         Map.entry(SEMANTIC_TEXT, ToGeoShapeFromStringEvaluator.Factory::new)

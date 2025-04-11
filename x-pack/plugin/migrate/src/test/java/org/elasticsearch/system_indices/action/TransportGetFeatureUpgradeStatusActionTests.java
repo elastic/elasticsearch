@@ -13,7 +13,6 @@ import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.core.UpdateForV9;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.indices.ExecutorNames;
 import org.elasticsearch.indices.SystemDataStreamDescriptor;
@@ -168,7 +167,6 @@ public class TransportGetFeatureUpgradeStatusActionTests extends ESTestCase {
             .system(true)
             .build();
 
-        @UpdateForV9 // Once we start testing 9.x, we should update this test to use a 7.x "version created"
         IndexMetadata indexMetadata2 = IndexMetadata.builder(".test-index-2")
             .settings(Settings.builder().put("index.version.created", TEST_OLD_VERSION).build())
             .numberOfShards(1)

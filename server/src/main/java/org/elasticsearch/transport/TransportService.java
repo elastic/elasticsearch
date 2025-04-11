@@ -43,7 +43,6 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Predicates;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.core.UpdateForV9;
 import org.elasticsearch.node.NodeClosedException;
 import org.elasticsearch.node.ReportingService;
 import org.elasticsearch.tasks.Task;
@@ -1303,11 +1302,11 @@ public class TransportService extends AbstractLifecycleComponent
 
     /** called by the {@link Transport} implementation once a response was sent to calling node */
     @Override
-    public void onResponseSent(long requestId, String action, TransportResponse response) {
+    public void onResponseSent(long requestId, String action) {
         if (tracerLog.isTraceEnabled() && shouldTraceAction(action)) {
             tracerLog.trace("[{}][{}] sent response", requestId, action);
         }
-        messageListener.onResponseSent(requestId, action, response);
+        messageListener.onResponseSent(requestId, action);
     }
 
     /** called by the {@link Transport} implementation after an exception was sent as a response to an incoming request */
@@ -1555,7 +1554,7 @@ public class TransportService extends AbstractLifecycleComponent
 
         @Override
         public void sendResponse(TransportResponse response) {
-            service.onResponseSent(requestId, action, response);
+            service.onResponseSent(requestId, action);
             try (var shutdownBlock = service.pendingDirectHandlers.withRef()) {
                 if (shutdownBlock == null) {
                     // already shutting down, the handler will be completed by sendRequestInternal or doStop
@@ -1679,9 +1678,9 @@ public class TransportService extends AbstractLifecycleComponent
         }
 
         @Override
-        public void onResponseSent(long requestId, String action, TransportResponse response) {
+        public void onResponseSent(long requestId, String action) {
             for (TransportMessageListener listener : listeners) {
-                listener.onResponseSent(requestId, action, response);
+                listener.onResponseSent(requestId, action);
             }
         }
 
@@ -1755,7 +1754,6 @@ public class TransportService extends AbstractLifecycleComponent
 
     static {
         // Ensure that this property, introduced and immediately deprecated in 7.11, is not used in 8.x
-        @UpdateForV9 // we can remove this whole block in v9
         final String PERMIT_HANDSHAKES_FROM_INCOMPATIBLE_BUILDS_KEY = "es.unsafely_permit_handshake_from_incompatible_builds";
         if (System.getProperty(PERMIT_HANDSHAKES_FROM_INCOMPATIBLE_BUILDS_KEY) != null) {
             throw new IllegalArgumentException("system property [" + PERMIT_HANDSHAKES_FROM_INCOMPATIBLE_BUILDS_KEY + "] must not be set");

@@ -574,11 +574,8 @@ public class IndicesRequestIT extends ESIntegTestCase {
         );
 
         clearInterceptedActions();
-        assertIndicesSubset(
-            Arrays.asList(searchRequest.indices()),
-            SearchTransportService.QUERY_ACTION_NAME,
-            SearchTransportService.FETCH_ID_ACTION_NAME
-        );
+        assertIndicesSubset(Arrays.asList(searchRequest.indices()), true, SearchTransportService.QUERY_ACTION_NAME);
+        assertIndicesSubset(Arrays.asList(searchRequest.indices()), SearchTransportService.FETCH_ID_ACTION_NAME);
     }
 
     public void testSearchDfsQueryThenFetch() throws Exception {
@@ -629,10 +626,6 @@ public class IndicesRequestIT extends ESIntegTestCase {
 
     private static void assertIndicesSubset(List<String> indices, String... actions) {
         assertIndicesSubset(indices, false, actions);
-    }
-
-    private static void assertIndicesSubsetOptionalRequests(List<String> indices, String... actions) {
-        assertIndicesSubset(indices, true, actions);
     }
 
     private static void assertIndicesSubset(List<String> indices, boolean optional, String... actions) {

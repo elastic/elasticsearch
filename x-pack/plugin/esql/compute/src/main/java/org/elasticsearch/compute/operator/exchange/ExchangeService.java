@@ -13,6 +13,7 @@ import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
+import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.support.ChannelActionListener;
 import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
@@ -37,7 +38,6 @@ import org.elasticsearch.transport.TransportChannel;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportRequestHandler;
 import org.elasticsearch.transport.TransportRequestOptions;
-import org.elasticsearch.transport.TransportResponse;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.transport.Transports;
 
@@ -171,7 +171,7 @@ public final class ExchangeService extends AbstractLifecycleComponent {
             OPEN_EXCHANGE_ACTION_NAME,
             new OpenExchangeRequest(sessionId, exchangeBuffer),
             TransportRequestOptions.EMPTY,
-            new ActionListenerResponseHandler<>(listener.map(unused -> null), in -> TransportResponse.Empty.INSTANCE, responseExecutor)
+            new ActionListenerResponseHandler<>(listener.map(unused -> null), in -> ActionResponse.Empty.INSTANCE, responseExecutor)
         );
     }
 
@@ -228,7 +228,7 @@ public final class ExchangeService extends AbstractLifecycleComponent {
         @Override
         public void messageReceived(OpenExchangeRequest request, TransportChannel channel, Task task) throws Exception {
             createSinkHandler(request.sessionId, request.exchangeBuffer);
-            channel.sendResponse(TransportResponse.Empty.INSTANCE);
+            channel.sendResponse(ActionResponse.Empty.INSTANCE);
         }
     }
 
@@ -357,7 +357,7 @@ public final class ExchangeService extends AbstractLifecycleComponent {
             }
             doFetchPageAsync(false, ActionListener.wrap(r -> {
                 if (r.finished()) {
-                    completionListenerRef.compareAndSet(null, SubscribableListener.newSucceeded(null));
+                    completionListenerRef.compareAndSet(null, SubscribableListener.nullSuccess());
                 }
                 listener.onResponse(r);
             }, e -> close(ActionListener.running(() -> listener.onFailure(e)))));

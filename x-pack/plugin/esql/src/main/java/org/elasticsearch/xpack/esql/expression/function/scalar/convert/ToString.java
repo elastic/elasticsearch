@@ -53,7 +53,7 @@ public class ToString extends AbstractConvertFunction implements EvaluatorMapper
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "ToString", ToString::new);
 
     private static final Map<DataType, BuildFactory> EVALUATORS = Map.ofEntries(
-        Map.entry(KEYWORD, (fieldEval, source) -> fieldEval),
+        Map.entry(KEYWORD, (source, fieldEval) -> fieldEval),
         Map.entry(BOOLEAN, ToStringFromBooleanEvaluator.Factory::new),
         Map.entry(DATETIME, ToStringFromDatetimeEvaluator.Factory::new),
         Map.entry(DATE_NANOS, ToStringFromDateNanosEvaluator.Factory::new),
@@ -61,8 +61,8 @@ public class ToString extends AbstractConvertFunction implements EvaluatorMapper
         Map.entry(DOUBLE, ToStringFromDoubleEvaluator.Factory::new),
         Map.entry(LONG, ToStringFromLongEvaluator.Factory::new),
         Map.entry(INTEGER, ToStringFromIntEvaluator.Factory::new),
-        Map.entry(TEXT, (fieldEval, source) -> fieldEval),
-        Map.entry(SEMANTIC_TEXT, (fieldEval, source) -> fieldEval),
+        Map.entry(TEXT, (source, fieldEval) -> fieldEval),
+        Map.entry(SEMANTIC_TEXT, (source, fieldEval) -> fieldEval),
         Map.entry(VERSION, ToStringFromVersionEvaluator.Factory::new),
         Map.entry(UNSIGNED_LONG, ToStringFromUnsignedLongEvaluator.Factory::new),
         Map.entry(GEO_POINT, ToStringFromGeoPointEvaluator.Factory::new),

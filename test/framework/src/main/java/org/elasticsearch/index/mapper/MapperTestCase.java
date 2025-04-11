@@ -1689,12 +1689,14 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
         }), equalTo("{}"));
     }
 
-    protected SyntheticSourceSupport syntheticSourceSupportForKeepTests(boolean ignoreMalformed) {
+    protected SyntheticSourceSupport syntheticSourceSupportForKeepTests(boolean ignoreMalformed, Mapper.SourceKeepMode keepMode) {
         return syntheticSourceSupport(ignoreMalformed);
     }
 
     public void testSyntheticSourceKeepNone() throws IOException {
-        SyntheticSourceExample example = syntheticSourceSupportForKeepTests(shouldUseIgnoreMalformed()).example(1);
+        SyntheticSourceExample example = syntheticSourceSupportForKeepTests(shouldUseIgnoreMalformed(), Mapper.SourceKeepMode.NONE).example(
+            1
+        );
         DocumentMapper mapper = createSytheticSourceMapperService(mapping(b -> {
             b.startObject("field");
             b.field("synthetic_source_keep", "none");
@@ -1705,7 +1707,9 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
     }
 
     public void testSyntheticSourceKeepAll() throws IOException {
-        SyntheticSourceExample example = syntheticSourceSupportForKeepTests(shouldUseIgnoreMalformed()).example(1);
+        SyntheticSourceExample example = syntheticSourceSupportForKeepTests(shouldUseIgnoreMalformed(), Mapper.SourceKeepMode.ALL).example(
+            1
+        );
         DocumentMapper mapperAll = createSytheticSourceMapperService(mapping(b -> {
             b.startObject("field");
             b.field("synthetic_source_keep", "all");
@@ -1722,7 +1726,8 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
     }
 
     public void testSyntheticSourceKeepArrays() throws IOException {
-        SyntheticSourceExample example = syntheticSourceSupportForKeepTests(shouldUseIgnoreMalformed()).example(1);
+        SyntheticSourceExample example = syntheticSourceSupportForKeepTests(shouldUseIgnoreMalformed(), Mapper.SourceKeepMode.ARRAYS)
+            .example(1);
         DocumentMapper mapperAll = createSytheticSourceMapperService(mapping(b -> {
             b.startObject("field");
             b.field("synthetic_source_keep", randomSyntheticSourceKeep());

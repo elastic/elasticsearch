@@ -130,7 +130,6 @@ To mark a field as a metric, you must specify a metric type using the
 `time_series_metric` parameter:
 
 * <<aggregate-metric-double,`aggregate_metric_double`>>
-* <<histogram,`histogram`>>
 * All <<number,numeric field types>>
 
 Accepted metric types vary based on the field type:

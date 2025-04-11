@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.action;
 
 import org.elasticsearch.Build;
+import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.common.util.FeatureFlag;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.rest.action.admin.cluster.RestNodesCapabilitiesAction;
@@ -269,6 +270,14 @@ public class EsqlCapabilities {
         UNION_TYPES_FIX_RENAME_RESOLUTION,
 
         /**
+         * Execute `RENAME` operations sequentially from left to right,
+         * see <a href="https://github.com/elastic/elasticsearch/issues/122250">
+         *     ESQL: Align RENAME behavior with EVAL for sequential processing #122250
+         * </a>
+         */
+        RENAME_SEQUENTIAL_PROCESSING,
+
+        /**
          * Fix for union-types when some indexes are missing the required field. Done in #111932.
          */
         UNION_TYPES_MISSING_FIELD,
@@ -405,6 +414,15 @@ public class EsqlCapabilities {
          * support date diff function on date nanos type, and mixed nanos/millis
          */
         DATE_NANOS_DATE_DIFF(),
+        /**
+         * Indicates that https://github.com/elastic/elasticsearch/issues/125439 (incorrect lucene push down for date nanos) is fixed
+         */
+        FIX_DATE_NANOS_LUCENE_PUSHDOWN_BUG(),
+        /**
+         * Fixes a bug where dates are incorrectly formatted if a where clause compares nanoseconds to both milliseconds and nanoseconds,
+         * e.g. {@code WHERE millis > to_datenanos("2023-10-23T12:15:03.360103847") AND millis < to_datetime("2023-10-23T13:53:55.832")}
+         */
+        FIX_DATE_NANOS_MIXED_RANGE_PUSHDOWN_BUG(),
         /**
          * DATE_PARSE supports reading timezones
          */
@@ -734,7 +752,7 @@ public class EsqlCapabilities {
         /**
          * Use double parameter markers to represent field or function names.
          */
-        DOUBLE_PARAMETER_MARKERS_FOR_IDENTIFIERS(Build.current().isSnapshot()),
+        DOUBLE_PARAMETER_MARKERS_FOR_IDENTIFIERS,
 
         /**
          * Non full text functions do not contribute to score
@@ -742,9 +760,36 @@ public class EsqlCapabilities {
         NON_FULL_TEXT_FUNCTIONS_SCORING,
 
         /**
+         * Make numberOfChannels consistent with layout in DefaultLayout by removing duplicated ChannelSet.
+         */
+        MAKE_NUMBER_OF_CHANNELS_CONSISTENT_WITH_LAYOUT,
+
+        /**
+         * Index component selector syntax (my-data-stream-name::failures)
+         */
+        INDEX_COMPONENT_SELECTORS(DataStream.isFailureStoreFeatureFlagEnabled()),
+
+        /**
+         * Supercedes {@link Cap#MAKE_NUMBER_OF_CHANNELS_CONSISTENT_WITH_LAYOUT}.
+         */
+        FIX_REPLACE_MISSING_FIELD_WITH_NULL_DUPLICATE_NAME_ID_IN_LAYOUT,
+
+        /**
          * Support for to_aggregate_metric_double function
          */
-        AGGREGATE_METRIC_DOUBLE_CONVERT_TO(AGGREGATE_METRIC_DOUBLE_FEATURE_FLAG);
+        AGGREGATE_METRIC_DOUBLE_CONVERT_TO(AGGREGATE_METRIC_DOUBLE_FEATURE_FLAG),
+
+        /**
+         * Support for sorting when aggregate_metric_doubles are present
+         */
+        AGGREGATE_METRIC_DOUBLE_SORTING(AGGREGATE_METRIC_DOUBLE_FEATURE_FLAG),
+
+        /**
+         * When creating constant null blocks in {@link org.elasticsearch.compute.lucene.ValuesSourceReaderOperator}, we also handed off
+         * the ownership of that block - but didn't account for the fact that the caller might close it, leading to double releases
+         * in some union type queries. C.f. https://github.com/elastic/elasticsearch/issues/125850
+         */
+        FIX_DOUBLY_RELEASED_NULL_BLOCKS_IN_VALUESOURCEREADER;
 
         private final boolean enabled;
 

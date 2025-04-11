@@ -17,6 +17,7 @@ import org.elasticsearch.common.util.LazyInitializable;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
+import org.elasticsearch.inference.ChunkInferenceInput;
 import org.elasticsearch.inference.ChunkedInference;
 import org.elasticsearch.inference.InferenceServiceConfiguration;
 import org.elasticsearch.inference.InferenceServiceExtension;
@@ -109,6 +110,8 @@ public class TestDenseInferenceServiceExtension implements InferenceServiceExten
         public void infer(
             Model model,
             @Nullable String query,
+            @Nullable Boolean returnDocuments,
+            @Nullable Integer topN,
             List<String> input,
             boolean stream,
             Map<String, Object> taskSettings,
@@ -144,7 +147,7 @@ public class TestDenseInferenceServiceExtension implements InferenceServiceExten
         public void chunkedInfer(
             Model model,
             @Nullable String query,
-            List<String> input,
+            List<ChunkInferenceInput> input,
             Map<String, Object> taskSettings,
             InputType inputType,
             TimeValue timeout,
@@ -173,21 +176,20 @@ public class TestDenseInferenceServiceExtension implements InferenceServiceExten
             return new TextEmbeddingFloatResults(embeddings);
         }
 
-        private List<ChunkedInference> makeChunkedResults(List<String> input, ServiceSettings serviceSettings) {
-            TextEmbeddingFloatResults nonChunkedResults = makeResults(input, serviceSettings);
-
+        private List<ChunkedInference> makeChunkedResults(List<ChunkInferenceInput> inputs, ServiceSettings serviceSettings) {
             var results = new ArrayList<ChunkedInference>();
-            for (int i = 0; i < input.size(); i++) {
-                results.add(
-                    new ChunkedInferenceEmbedding(
-                        List.of(
-                            new TextEmbeddingFloatResults.Chunk(
-                                nonChunkedResults.embeddings().get(i).values(),
-                                new ChunkedInference.TextOffset(0, input.get(i).length())
-                            )
+            for (ChunkInferenceInput input : inputs) {
+                List<ChunkedInput> chunkedInput = chunkInputs(input);
+                List<TextEmbeddingFloatResults.Chunk> chunks = chunkedInput.stream()
+                    .map(
+                        c -> new TextEmbeddingFloatResults.Chunk(
+                            makeResults(List.of(c.input()), serviceSettings).embeddings().get(0),
+                            new ChunkedInference.TextOffset(c.startOffset(), c.endOffset())
                         )
                     )
-                );
+                    .toList();
+                ChunkedInferenceEmbedding chunkedInferenceEmbedding = new ChunkedInferenceEmbedding(chunks);
+                results.add(chunkedInferenceEmbedding);
             }
             return results;
         }
@@ -333,7 +335,7 @@ public class TestDenseInferenceServiceExtension implements InferenceServiceExten
         public TestServiceSettings(StreamInput in) throws IOException {
             this(
                 in.readString(),
-                in.readOptionalInt(),
+                in.readInt(),
                 in.readOptionalEnum(SimilarityMeasure.class),
                 in.readOptionalEnum(DenseVectorFieldMapper.ElementType.class)
             );

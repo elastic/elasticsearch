@@ -4,8 +4,6 @@
 <titleabbrev>Semantic</titleabbrev>
 ++++
 
-beta[]
-
 The `semantic` query type enables you to perform <<semantic-search,semantic search>> on data stored in a <<semantic-text,`semantic_text`>> field.
 
 

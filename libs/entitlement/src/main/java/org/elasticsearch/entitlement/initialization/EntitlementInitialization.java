@@ -68,6 +68,7 @@ import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
 
 import static org.elasticsearch.entitlement.runtime.policy.Platform.LINUX;
+import static org.elasticsearch.entitlement.runtime.policy.entitlements.FilesEntitlement.BaseDir.CONFIG;
 import static org.elasticsearch.entitlement.runtime.policy.entitlements.FilesEntitlement.BaseDir.DATA;
 import static org.elasticsearch.entitlement.runtime.policy.entitlements.FilesEntitlement.BaseDir.SHARED_REPO;
 import static org.elasticsearch.entitlement.runtime.policy.entitlements.FilesEntitlement.Mode.READ;
@@ -182,6 +183,8 @@ public class EntitlementInitialization {
             FileData.ofPath(bootstrapArgs.libDir(), READ),
             FileData.ofRelativePath(Path.of(""), DATA, READ_WRITE),
             FileData.ofRelativePath(Path.of(""), SHARED_REPO, READ_WRITE),
+            // exclusive settings file
+            FileData.ofRelativePath(Path.of("operator/settings.json"), CONFIG, READ_WRITE).withExclusive(true),
 
             // OS release on Linux
             FileData.ofPath(Path.of("/etc/os-release"), READ).withPlatform(LINUX),
@@ -484,7 +487,11 @@ public class EntitlementInitialization {
      * transformed and undergo verification. In order to avoid circularity errors as much as possible, we force a partial order.
      */
     private static void ensureClassesSensitiveToVerificationAreInitialized() {
-        var classesToInitialize = Set.of("sun.net.www.protocol.http.HttpURLConnection");
+        var classesToInitialize = Set.of(
+            "sun.net.www.protocol.http.HttpURLConnection",
+            "sun.nio.ch.SocketChannelImpl",
+            "java.net.ProxySelector"
+        );
         for (String className : classesToInitialize) {
             try {
                 Class.forName(className);

@@ -9,6 +9,7 @@
 package org.elasticsearch.common.settings;
 
 import org.apache.logging.log4j.LogManager;
+import org.elasticsearch.action.admin.cluster.allocation.TransportGetAllocationStatsAction;
 import org.elasticsearch.action.admin.cluster.configuration.TransportAddVotingConfigExclusionsAction;
 import org.elasticsearch.action.admin.indices.close.TransportCloseIndexAction;
 import org.elasticsearch.action.bulk.IncrementalBulkService;
@@ -474,6 +475,7 @@ public final class ClusterSettings extends AbstractScopedSettings {
         SearchService.ALLOW_EXPENSIVE_QUERIES,
         SearchService.CCS_VERSION_CHECK_SETTING,
         SearchService.CCS_COLLECT_TELEMETRY,
+        SearchService.BATCHED_QUERY_PHASE,
         MultiBucketConsumerService.MAX_BUCKET_SETTING,
         SearchService.LOW_LEVEL_CANCELLATION_SETTING,
         SearchService.MAX_OPEN_SCROLL_CONTEXT,
@@ -623,6 +625,7 @@ public final class ClusterSettings extends AbstractScopedSettings {
         DataStreamGlobalRetentionSettings.DATA_STREAMS_DEFAULT_RETENTION_SETTING,
         DataStreamGlobalRetentionSettings.DATA_STREAMS_MAX_RETENTION_SETTING,
         ShardsAvailabilityHealthIndicatorService.REPLICA_UNASSIGNED_BUFFER_TIME,
-        DataStream.isFailureStoreFeatureFlagEnabled() ? DataStreamFailureStoreSettings.DATA_STREAM_FAILURE_STORED_ENABLED_SETTING : null
+        DataStream.isFailureStoreFeatureFlagEnabled() ? DataStreamFailureStoreSettings.DATA_STREAM_FAILURE_STORED_ENABLED_SETTING : null,
+        TransportGetAllocationStatsAction.CACHE_TTL_SETTING
     ).filter(Objects::nonNull).collect(toSet());
 }

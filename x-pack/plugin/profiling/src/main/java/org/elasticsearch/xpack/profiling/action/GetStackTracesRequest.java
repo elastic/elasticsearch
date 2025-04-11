@@ -13,7 +13,6 @@ import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.core.UpdateForV9;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
@@ -43,7 +42,6 @@ public class GetStackTracesRequest extends ActionRequest implements IndicesReque
     public static final ParseField LIMIT_FIELD = new ParseField("limit");
     public static final ParseField INDICES_FIELD = new ParseField("indices");
     public static final ParseField STACKTRACE_IDS_FIELD = new ParseField("stacktrace_ids_field");
-    @UpdateForV9 // Remove this BWC layer and allow only AGGREGATION_FIELDS
     public static final ParseField AGGREGATION_FIELD = new ParseField("aggregation_field");
     public static final ParseField AGGREGATION_FIELDS = new ParseField("aggregation_fields");
     public static final ParseField REQUESTED_DURATION_FIELD = new ParseField("requested_duration");
@@ -62,7 +60,6 @@ public class GetStackTracesRequest extends ActionRequest implements IndicesReque
     private String[] indices;
     private boolean userProvidedIndices;
     private String stackTraceIdsField;
-    @UpdateForV9 // Remove this BWC layer and allow only aggregationFields
     private String aggregationField;
     private String[] aggregationFields;
     private Double requestedDuration;

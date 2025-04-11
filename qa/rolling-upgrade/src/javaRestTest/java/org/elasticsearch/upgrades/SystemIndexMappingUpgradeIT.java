@@ -14,7 +14,6 @@ import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.SuppressForbidden;
-import org.elasticsearch.core.UpdateForV9;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.cluster.local.distribution.DistributionType;
 import org.elasticsearch.test.cluster.util.Version;
@@ -107,7 +106,6 @@ public class SystemIndexMappingUpgradeIT extends ESRestTestCase {
         return (Map<String, Object>) (objectMap.get(field));
     }
 
-    @UpdateForV9()
     public void testGrowShrinkUpgradeUpdatesSystemIndexMapping() throws Exception {
         /*
          * From 8.11, CompatibilityVersions  holds a map of system index names to their mappings versions, alongside the transport version.

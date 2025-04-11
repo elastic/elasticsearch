@@ -27,7 +27,6 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.util.concurrent.ThrottledTaskRunner;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.core.UpdateForV9;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.node.ReportingService;
 import org.elasticsearch.telemetry.metric.Instrument;
@@ -155,11 +154,9 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
 
     public enum ThreadPoolType {
         @Deprecated(forRemoval = true)
-        @UpdateForV9 // no longer used, remove in v9
         DIRECT("direct"),
         FIXED("fixed"),
         @Deprecated(forRemoval = true)
-        @UpdateForV9 // no longer used, remove in v9
         FIXED_AUTO_QUEUE_SIZE("fixed_auto_queue_size"),
         SCALING("scaling");
 

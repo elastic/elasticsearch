@@ -667,12 +667,12 @@ public class TransportBulkAction extends TransportAbstractBulkAction {
             ComposableIndexTemplate composableIndexTemplate = metadata.templatesV2().get(template);
             if (composableIndexTemplate.getDataStreamTemplate() != null) {
                 // Check if the data stream has the failure store enabled
-                DataStreamOptions dataStreamOptions = MetadataIndexTemplateService.resolveDataStreamOptions(
+                DataStreamOptions.Builder dataStreamOptionsBuilder = MetadataIndexTemplateService.resolveDataStreamOptions(
                     composableIndexTemplate,
                     metadata.componentTemplates()
-                ).mapAndGet(DataStreamOptions.Template::toDataStreamOptions);
+                );
                 return DataStream.isFailureStoreEffectivelyEnabled(
-                    dataStreamOptions,
+                    dataStreamOptionsBuilder == null ? null : dataStreamOptionsBuilder.build(),
                     dataStreamFailureStoreSettings,
                     IndexNameExpressionResolver.resolveDateMathExpression(indexName, epochMillis),
                     systemIndices

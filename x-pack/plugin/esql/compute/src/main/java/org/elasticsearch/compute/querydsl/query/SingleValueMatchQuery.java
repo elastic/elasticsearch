@@ -37,7 +37,17 @@ import java.io.IOException;
 import java.util.Objects;
 
 /**
- * Finds all fields with a single-value. If a field has a multi-value, it emits a {@link Warnings}.
+ * Finds all fields with a single-value. If a field has a multi-value, it emits
+ * a {@link Warnings warning}.
+ * <p>
+ *     Warnings are only emitted if the {@link TwoPhaseIterator#matches}. Meaning that,
+ *     if the other query skips the doc either because the index doesn't match or because it's
+ *     {@link TwoPhaseIterator#matches} doesn't match, then we won't log warnings. So it's
+ *     most safe to say that this will emit a warning if the document would have
+ *     matched but for having a multivalued field. If the document doesn't match but
+ *     "almost" matches in some fairly lucene-specific ways then it *might* emit
+ *     a warning.
+ * </p>
  */
 public final class SingleValueMatchQuery extends Query {
 

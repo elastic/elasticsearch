@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.profiling.action;
 
-import org.elasticsearch.core.UpdateForV9;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 
@@ -74,7 +73,6 @@ final class InstanceType implements ToXContentObject {
         return new InstanceType(provider, region, null);
     }
 
-    @UpdateForV9 // remove this method
     private static InstanceType fromObsoleteHostSource(Map<String, Object> source) {
         // Check and handle AWS.
         String region = (String) source.get("ec2.placement.region");

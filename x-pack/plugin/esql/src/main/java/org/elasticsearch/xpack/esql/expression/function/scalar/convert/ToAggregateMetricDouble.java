@@ -30,6 +30,7 @@ import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter;
@@ -49,7 +50,7 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.UNSIGNED_LONG;
 public class ToAggregateMetricDouble extends AbstractConvertFunction {
 
     private static final Map<DataType, AbstractConvertFunction.BuildFactory> EVALUATORS = Map.ofEntries(
-        Map.entry(AGGREGATE_METRIC_DOUBLE, (fieldEval, source) -> fieldEval),
+        Map.entry(AGGREGATE_METRIC_DOUBLE, (source, fieldEval) -> fieldEval),
         Map.entry(DOUBLE, DoubleFactory::new),
         Map.entry(INTEGER, IntFactory::new),
         Map.entry(LONG, LongFactory::new),
@@ -62,13 +63,19 @@ public class ToAggregateMetricDouble extends AbstractConvertFunction {
         ToAggregateMetricDouble::new
     );
 
-    @FunctionInfo(returnType = "aggregate_metric_double", description = "Encode a numeric to an aggregate_metric_double.")
+    @FunctionInfo(
+        returnType = "aggregate_metric_double",
+        description = "Encode a numeric to an aggregate_metric_double.",
+        examples = {
+            @Example(file = "convert", tag = "toAggregateMetricDouble"),
+            @Example(description = "The expression also accepts multi-values", file = "convert", tag = "toAggregateMetricDoubleMv") }
+    )
     public ToAggregateMetricDouble(
         Source source,
         @Param(
             name = "number",
             type = { "double", "long", "unsigned_long", "integer", "aggregate_metric_double" },
-            description = "Input value. The input can be a single-valued column or an expression."
+            description = "Input value. The input can be a single- or multi-valued column or an expression."
         ) Expression field
     ) {
         super(source, field);
@@ -166,7 +173,7 @@ public class ToAggregateMetricDouble extends AbstractConvertFunction {
 
         private final EvalOperator.ExpressionEvaluator.Factory fieldEvaluator;
 
-        public DoubleFactory(EvalOperator.ExpressionEvaluator.Factory fieldEvaluator, Source source) {
+        public DoubleFactory(Source source, EvalOperator.ExpressionEvaluator.Factory fieldEvaluator) {
             this.fieldEvaluator = fieldEvaluator;
             this.source = source;
         }
@@ -266,7 +273,7 @@ public class ToAggregateMetricDouble extends AbstractConvertFunction {
 
         private final EvalOperator.ExpressionEvaluator.Factory fieldEvaluator;
 
-        public IntFactory(EvalOperator.ExpressionEvaluator.Factory fieldEvaluator, Source source) {
+        public IntFactory(Source source, EvalOperator.ExpressionEvaluator.Factory fieldEvaluator) {
             this.fieldEvaluator = fieldEvaluator;
             this.source = source;
         }
@@ -366,7 +373,7 @@ public class ToAggregateMetricDouble extends AbstractConvertFunction {
 
         private final EvalOperator.ExpressionEvaluator.Factory fieldEvaluator;
 
-        public LongFactory(EvalOperator.ExpressionEvaluator.Factory fieldEvaluator, Source source) {
+        public LongFactory(Source source, EvalOperator.ExpressionEvaluator.Factory fieldEvaluator) {
             this.fieldEvaluator = fieldEvaluator;
             this.source = source;
         }
@@ -466,7 +473,7 @@ public class ToAggregateMetricDouble extends AbstractConvertFunction {
 
         private final EvalOperator.ExpressionEvaluator.Factory fieldEvaluator;
 
-        public UnsignedLongFactory(EvalOperator.ExpressionEvaluator.Factory fieldEvaluator, Source source) {
+        public UnsignedLongFactory(Source source, EvalOperator.ExpressionEvaluator.Factory fieldEvaluator) {
             this.fieldEvaluator = fieldEvaluator;
             this.source = source;
         }

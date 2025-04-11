@@ -7,6 +7,7 @@
 package org.elasticsearch.xpack.esql.session;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.NoShardAvailableActionException;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesFailure;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesIndexResponse;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesRequest;
@@ -144,6 +145,13 @@ public class IndexResolver {
             fieldCapsResponse.getFailures()
         );
 
+        Set<NoShardAvailableActionException> unavailableShards = new HashSet<>();
+        for (FieldCapabilitiesFailure failure : fieldCapsResponse.getFailures()) {
+            if (failure.getException() instanceof NoShardAvailableActionException e) {
+                unavailableShards.add(e);
+            }
+        }
+
         Map<String, IndexMode> concreteIndices = Maps.newMapWithExpectedSize(fieldCapsResponse.getIndexResponses().size());
         for (FieldCapabilitiesIndexResponse ir : fieldCapsResponse.getIndexResponses()) {
             concreteIndices.put(ir.getIndexName(), ir.getIndexMode());
@@ -153,11 +161,9 @@ public class IndexResolver {
         for (FieldCapabilitiesIndexResponse ir : fieldCapsResponse.getIndexResponses()) {
             allEmpty &= ir.get().isEmpty();
         }
-        if (allEmpty) {
-            // If all the mappings are empty we return an empty set of resolved indices to line up with QL
-            return IndexResolution.valid(new EsIndex(indexPattern, rootFields, Map.of()), concreteIndices.keySet(), unavailableRemotes);
-        }
-        return IndexResolution.valid(new EsIndex(indexPattern, rootFields, concreteIndices), concreteIndices.keySet(), unavailableRemotes);
+        // If all the mappings are empty we return an empty set of resolved indices to line up with QL
+        var index = new EsIndex(indexPattern, rootFields, allEmpty ? Map.of() : concreteIndices);
+        return IndexResolution.valid(index, concreteIndices.keySet(), unavailableShards, unavailableRemotes);
     }
 
     private static Map<String, List<IndexFieldCapabilities>> collectFieldCaps(FieldCapabilitiesResponse fieldCapsResponse) {

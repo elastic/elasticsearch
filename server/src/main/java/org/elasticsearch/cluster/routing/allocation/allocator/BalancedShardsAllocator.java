@@ -41,7 +41,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.Tuple;
-import org.elasticsearch.core.UpdateForV9;
 import org.elasticsearch.gateway.PriorityComparator;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.injection.guice.Inject;
@@ -149,7 +148,6 @@ public class BalancedShardsAllocator implements ShardsAllocator {
      *
      * Once {@link org.elasticsearch.Version#V_7_17_0} goes out of scope, start to properly reject such bad values.
      */
-    @UpdateForV9
     private static float ensureValidThreshold(float threshold) {
         if (1.0f <= threshold) {
             return threshold;

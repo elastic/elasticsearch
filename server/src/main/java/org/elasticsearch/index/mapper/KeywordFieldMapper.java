@@ -41,6 +41,7 @@ import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.fielddata.FieldData;
@@ -389,7 +390,8 @@ public final class KeywordFieldMapper extends FieldMapper {
                 hasDocValues.getValue(),
                 stored.getValue(),
                 this,
-                indexCreatedVersion
+                indexCreatedVersion,
+                IndexVersions.SYNTHETIC_SOURCE_STORE_ARRAYS_NATIVELY
             );
             return new KeywordFieldMapper(
                 leafName(),
@@ -1152,7 +1154,7 @@ public final class KeywordFieldMapper extends FieldMapper {
     public SourceLoader.SyntheticFieldLoader syntheticFieldLoader(String fullFieldName, String leafFieldName) {
         assert fieldType.stored() || hasDocValues;
 
-        var layers = new ArrayList<CompositeSyntheticFieldLoader.Layer>();
+        var layers = new ArrayList<CompositeSyntheticFieldLoader.Layer>(2);
         if (fieldType.stored()) {
             layers.add(new CompositeSyntheticFieldLoader.StoredFieldLayer(fullPath()) {
                 @Override

@@ -23,7 +23,6 @@ import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
-import org.elasticsearch.core.UpdateForV9;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.action.search.RestSearchAction;
 import org.elasticsearch.test.StreamsUtils;
@@ -291,7 +290,6 @@ public class FullClusterRestartIT extends AbstractXpackFullClusterRestartTestCas
     }
 
     public void testServiceAccountApiKey() throws IOException {
-        @UpdateForV9
         var originalClusterSupportsServiceAccounts = oldClusterHasFeature(RestTestLegacyFeatures.SERVICE_ACCOUNTS_SUPPORTED);
         assumeTrue("no service accounts in versions before 7.13", originalClusterSupportsServiceAccounts);
 
@@ -521,7 +519,6 @@ public class FullClusterRestartIT extends AbstractXpackFullClusterRestartTestCas
     }
 
     public void testTransformLegacyTemplateCleanup() throws Exception {
-        @UpdateForV9
         var originalClusterSupportsTransform = oldClusterHasFeature(RestTestLegacyFeatures.TRANSFORM_SUPPORTED);
         assumeTrue("Before 7.2 transforms didn't exist", originalClusterSupportsTransform);
 
@@ -603,7 +600,6 @@ public class FullClusterRestartIT extends AbstractXpackFullClusterRestartTestCas
     }
 
     public void testSlmPolicyAndStats() throws IOException {
-        @UpdateForV9
         var originalClusterSupportsSlm = oldClusterHasFeature(RestTestLegacyFeatures.SLM_SUPPORTED);
 
         SnapshotLifecyclePolicy slmPolicy = new SnapshotLifecyclePolicy(
@@ -956,10 +952,8 @@ public class FullClusterRestartIT extends AbstractXpackFullClusterRestartTestCas
     @SuppressWarnings("unchecked")
     public void testDataStreams() throws Exception {
 
-        @UpdateForV9
         var originalClusterSupportsDataStreams = oldClusterHasFeature(RestTestLegacyFeatures.DATA_STREAMS_SUPPORTED);
 
-        @UpdateForV9
         var originalClusterDataStreamHasDateInIndexName = oldClusterHasFeature(RestTestLegacyFeatures.NEW_DATA_STREAMS_INDEX_NAME_FORMAT);
 
         assumeTrue("no data streams in versions before 7.9.0", originalClusterSupportsDataStreams);
@@ -1009,7 +1003,6 @@ public class FullClusterRestartIT extends AbstractXpackFullClusterRestartTestCas
     /**
      * Tests that a single document survives. Super basic smoke test.
      */
-    @UpdateForV9 // Can be removed
     public void testDisableFieldNameField() throws IOException {
         assumeFalse(
             "can only disable field names field before 8.0",

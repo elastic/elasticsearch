@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.esql.session;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.OriginalIndices;
-import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.common.Strings;
@@ -19,7 +18,6 @@ import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverProfile;
 import org.elasticsearch.core.Releasables;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.indices.IndicesExpressionGrouper;
@@ -78,7 +76,6 @@ import org.elasticsearch.xpack.esql.plugin.TransportActionServices;
 import org.elasticsearch.xpack.esql.telemetry.PlanTelemetry;
 
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
@@ -117,6 +114,7 @@ public class EsqlSession {
     private final PhysicalPlanOptimizer physicalPlanOptimizer;
     private final PlanTelemetry planTelemetry;
     private final IndicesExpressionGrouper indicesExpressionGrouper;
+    private Set<String> configuredClusters;
 
     public EsqlSession(
         String sessionId,
@@ -303,6 +301,8 @@ public class EsqlSession {
             plan.setAnalyzed();
             return plan;
         };
+        // Capture configured remotes list to ensure consistency throughout the session
+        configuredClusters = Set.copyOf(indicesExpressionGrouper.getConfiguredClusters());
 
         PreAnalyzer.PreAnalysis preAnalysis = preAnalyzer.preAnalyze(parsed);
         var unresolvedPolicies = preAnalysis.enriches.stream()
@@ -315,16 +315,11 @@ public class EsqlSession {
             .collect(Collectors.toSet());
         final List<TableInfo> indices = preAnalysis.indices;
 
-        EsqlCCSUtils.checkForCcsLicense(executionInfo, indices, indicesExpressionGrouper, verifier.licenseState());
-
-        final Set<String> targetClusters = enrichPolicyResolver.groupIndicesPerCluster(
-            indices.stream()
-                .flatMap(t -> Arrays.stream(Strings.commaDelimitedListToStringArray(t.id().indexPattern())))
-                .toArray(String[]::new)
-        ).keySet();
+        EsqlCCSUtils.checkForCcsLicense(executionInfo, indices, indicesExpressionGrouper, configuredClusters, verifier.licenseState());
+        initializeClusterData(indices, executionInfo);
 
         var listener = SubscribableListener.<EnrichResolution>newForked(
-            l -> enrichPolicyResolver.resolvePolicies(targetClusters, unresolvedPolicies, l)
+            l -> enrichPolicyResolver.resolvePolicies(unresolvedPolicies, executionInfo, l)
         ).<PreAnalysisResult>andThen((l, enrichResolution) -> resolveFieldNames(parsed, enrichResolution, l));
         // first resolve the lookup indices, then the main indices
         for (TableInfo lookupIndex : preAnalysis.lookupIndices) {
@@ -338,7 +333,7 @@ public class EsqlSession {
             // invalid index resolution to updateExecutionInfo
             if (result.indices.isValid()) {
                 // CCS indices and skip_unavailable cluster values can stop the analysis right here
-                if (analyzeCCSIndices(executionInfo, targetClusters, unresolvedPolicies, result, logicalPlanListener, l)) return;
+                if (allCCSClustersSkipped(executionInfo, result, logicalPlanListener)) return;
             }
             // whatever tuple we have here (from CCS-special handling or from the original pre-analysis), pass it on to the next step
             l.onResponse(result);
@@ -347,12 +342,6 @@ public class EsqlSession {
             analyzeAndMaybeRetry(analyzeAction, requestFilter, result, logicalPlanListener, l);
         }).<PreAnalysisResult>andThen((l, result) -> {
             assert requestFilter != null : "The second pre-analysis shouldn't take place when there is no index filter in the request";
-
-            // "reset" execution information for all ccs or non-ccs (local) clusters, since we are performing the indices
-            // resolving one more time (the first attempt failed and the query had a filter)
-            for (String clusterAlias : executionInfo.clusterAliases()) {
-                executionInfo.swapCluster(clusterAlias, (k, v) -> null);
-            }
 
             // here the requestFilter is set to null, performing the pre-analysis after the first step failed
             preAnalyzeIndices(preAnalysis.indices, executionInfo, result, null, l);
@@ -384,6 +373,26 @@ public class EsqlSession {
         // TODO: Verify that the resolved index actually has indexMode: "lookup"
     }
 
+    private void initializeClusterData(List<TableInfo> indices, EsqlExecutionInfo executionInfo) {
+        if (indices.isEmpty()) {
+            return;
+        }
+        assert indices.size() == 1 : "Only single index pattern is supported";
+        Map<String, OriginalIndices> clusterIndices = indicesExpressionGrouper.groupIndices(
+            configuredClusters,
+            IndicesOptions.DEFAULT,
+            indices.get(0).id().indexPattern()
+        );
+        for (Map.Entry<String, OriginalIndices> entry : clusterIndices.entrySet()) {
+            final String clusterAlias = entry.getKey();
+            String indexExpr = Strings.arrayToCommaDelimitedString(entry.getValue().indices());
+            executionInfo.swapCluster(clusterAlias, (k, v) -> {
+                assert v == null : "No cluster for " + clusterAlias + " should have been added to ExecutionInfo yet";
+                return new EsqlExecutionInfo.Cluster(clusterAlias, indexExpr, executionInfo.isSkipUnavailable(clusterAlias));
+            });
+        }
+    }
+
     private void preAnalyzeIndices(
         List<TableInfo> indices,
         EsqlExecutionInfo executionInfo,
@@ -396,38 +405,9 @@ public class EsqlSession {
             // Note: JOINs are not supported but we detect them when
             listener.onFailure(new MappingException("Queries with multiple indices are not supported"));
         } else if (indices.size() == 1) {
-            // known to be unavailable from the enrich policy API call
-            Map<String, Exception> unavailableClusters = result.enrichResolution.getUnavailableClusters();
             TableInfo tableInfo = indices.get(0);
             IndexPattern table = tableInfo.id();
 
-            Map<String, OriginalIndices> clusterIndices = indicesExpressionGrouper.groupIndices(
-                IndicesOptions.DEFAULT,
-                table.indexPattern()
-            );
-            for (Map.Entry<String, OriginalIndices> entry : clusterIndices.entrySet()) {
-                final String clusterAlias = entry.getKey();
-                String indexExpr = Strings.arrayToCommaDelimitedString(entry.getValue().indices());
-                executionInfo.swapCluster(clusterAlias, (k, v) -> {
-                    assert v == null : "No cluster for " + clusterAlias + " should have been added to ExecutionInfo yet";
-                    if (unavailableClusters.containsKey(k)) {
-                        return new EsqlExecutionInfo.Cluster(
-                            clusterAlias,
-                            indexExpr,
-                            executionInfo.isSkipUnavailable(clusterAlias),
-                            EsqlExecutionInfo.Cluster.Status.SKIPPED,
-                            0,
-                            0,
-                            0,
-                            0,
-                            List.of(new ShardSearchFailure(unavailableClusters.get(k))),
-                            new TimeValue(0)
-                        );
-                    } else {
-                        return new EsqlExecutionInfo.Cluster(clusterAlias, indexExpr, executionInfo.isSkipUnavailable(clusterAlias));
-                    }
-                });
-            }
             // if the preceding call to the enrich policy API found unavailable clusters, recreate the index expression to search
             // based only on available clusters (which could now be an empty list)
             String indexExpressionToResolve = EsqlCCSUtils.createIndexExpressionFromAvailableClusters(executionInfo);
@@ -442,7 +422,13 @@ public class EsqlSession {
                     indexExpressionToResolve,
                     result.fieldNames,
                     requestFilter,
-                    listener.map(indexResolution -> result.withIndexResolution(indexResolution))
+                    listener.delegateFailure((l, indexResolution) -> {
+                        if (configuration.allowPartialResults() == false && indexResolution.getUnavailableShards().isEmpty() == false) {
+                            l.onFailure(indexResolution.getUnavailableShards().iterator().next());
+                        } else {
+                            l.onResponse(result.withIndexResolution(indexResolution));
+                        }
+                    })
                 );
             }
         } else {
@@ -455,13 +441,14 @@ public class EsqlSession {
         }
     }
 
-    private boolean analyzeCCSIndices(
+    /**
+     * Check if there are any clusters to search.
+     * @return true if there are no clusters to search, false otherwise
+     */
+    private boolean allCCSClustersSkipped(
         EsqlExecutionInfo executionInfo,
-        Set<String> targetClusters,
-        Set<EnrichPolicyResolver.UnresolvedPolicy> unresolvedPolicies,
         PreAnalysisResult result,
-        ActionListener<LogicalPlan> logicalPlanListener,
-        ActionListener<PreAnalysisResult> l
+        ActionListener<LogicalPlan> logicalPlanListener
     ) {
         IndexResolution indexResolution = result.indices;
         EsqlCCSUtils.updateExecutionInfoWithClustersWithNoMatchingIndices(executionInfo, indexResolution);
@@ -473,22 +460,6 @@ public class EsqlSession {
             return true;
         }
 
-        Set<String> newClusters = enrichPolicyResolver.groupIndicesPerCluster(
-            indexResolution.get().concreteIndices().toArray(String[]::new)
-        ).keySet();
-        // If new clusters appear when resolving the main indices, we need to resolve the enrich policies again
-        // or exclude main concrete indices. Since this is rare, it's simpler to resolve the enrich policies again.
-        // TODO: add a test for this
-        if (targetClusters.containsAll(newClusters) == false
-            // do not bother with a re-resolution if only remotes were requested and all were offline
-            && executionInfo.getClusterStateCount(EsqlExecutionInfo.Cluster.Status.RUNNING) > 0) {
-            enrichPolicyResolver.resolvePolicies(
-                newClusters,
-                unresolvedPolicies,
-                l.map(enrichResolution -> result.withEnrichResolution(enrichResolution))
-            );
-            return true;
-        }
         return false;
     }
 
@@ -564,55 +535,55 @@ public class EsqlSession {
             return result.withFieldNames(IndexResolver.ALL_FIELDS);
         }
 
-        AttributeSet references = new AttributeSet();
+        var referencesBuilder = AttributeSet.builder();
         // "keep" attributes are special whenever a wildcard is used in their name
         // ie "from test | eval lang = languages + 1 | keep *l" should consider both "languages" and "*l" as valid fields to ask for
-        AttributeSet keepCommandReferences = new AttributeSet();
-        AttributeSet keepJoinReferences = new AttributeSet();
+        var keepCommandRefsBuilder = AttributeSet.builder();
+        var keepJoinRefsBuilder = AttributeSet.builder();
         Set<String> wildcardJoinIndices = new java.util.HashSet<>();
 
         parsed.forEachDown(p -> {// go over each plan top-down
             if (p instanceof RegexExtract re) { // for Grok and Dissect
                 // remove other down-the-tree references to the extracted fields
                 for (Attribute extracted : re.extractedFields()) {
-                    references.removeIf(attr -> matchByName(attr, extracted.name(), false));
+                    referencesBuilder.removeIf(attr -> matchByName(attr, extracted.name(), false));
                 }
                 // but keep the inputs needed by Grok/Dissect
-                references.addAll(re.input().references());
+                referencesBuilder.addAll(re.input().references());
             } else if (p instanceof Enrich enrich) {
-                AttributeSet enrichRefs = Expressions.references(enrich.enrichFields());
-                enrichRefs = enrichRefs.combine(enrich.matchField().references());
+                AttributeSet enrichFieldRefs = Expressions.references(enrich.enrichFields());
+                AttributeSet.Builder enrichRefs = enrichFieldRefs.combine(enrich.matchField().references()).asBuilder();
                 // Enrich adds an EmptyAttribute if no match field is specified
                 // The exact name of the field will be added later as part of enrichPolicyMatchFields Set
                 enrichRefs.removeIf(attr -> attr instanceof EmptyAttribute);
-                references.addAll(enrichRefs);
+                referencesBuilder.addAll(enrichRefs);
             } else if (p instanceof LookupJoin join) {
                 if (join.config().type() instanceof JoinTypes.UsingJoinType usingJoinType) {
-                    keepJoinReferences.addAll(usingJoinType.columns());
+                    keepJoinRefsBuilder.addAll(usingJoinType.columns());
                 }
-                if (keepCommandReferences.isEmpty()) {
+                if (keepCommandRefsBuilder.isEmpty()) {
                     // No KEEP commands after the JOIN, so we need to mark this index for "*" field resolution
                     wildcardJoinIndices.add(((UnresolvedRelation) join.right()).indexPattern().indexPattern());
                 } else {
                     // Keep commands can reference the join columns with names that shadow aliases, so we block their removal
-                    keepJoinReferences.addAll(keepCommandReferences);
+                    keepJoinRefsBuilder.addAll(keepCommandRefsBuilder);
                 }
             } else {
-                references.addAll(p.references());
+                referencesBuilder.addAll(p.references());
                 if (p instanceof UnresolvedRelation ur && ur.indexMode() == IndexMode.TIME_SERIES) {
                     // METRICS aggs generally rely on @timestamp without the user having to mention it.
-                    references.add(new UnresolvedAttribute(ur.source(), MetadataAttribute.TIMESTAMP_FIELD));
+                    referencesBuilder.add(new UnresolvedAttribute(ur.source(), MetadataAttribute.TIMESTAMP_FIELD));
                 }
                 // special handling for UnresolvedPattern (which is not an UnresolvedAttribute)
                 p.forEachExpression(UnresolvedNamePattern.class, up -> {
                     var ua = new UnresolvedAttribute(up.source(), up.name());
-                    references.add(ua);
+                    referencesBuilder.add(ua);
                     if (p instanceof Keep) {
-                        keepCommandReferences.add(ua);
+                        keepCommandRefsBuilder.add(ua);
                     }
                 });
                 if (p instanceof Keep) {
-                    keepCommandReferences.addAll(p.references());
+                    keepCommandRefsBuilder.addAll(p.references());
                 }
             }
 
@@ -627,11 +598,11 @@ public class EsqlSession {
                 if (fieldNames.contains(alias.name())) {
                     return;
                 }
-                references.removeIf(attr -> matchByName(attr, alias.name(), keepCommandReferences.contains(attr)));
+                referencesBuilder.removeIf(attr -> matchByName(attr, alias.name(), keepCommandRefsBuilder.contains(attr)));
             });
         });
         // Add JOIN ON column references afterward to avoid Alias removal
-        references.addAll(keepJoinReferences);
+        referencesBuilder.addAll(keepJoinRefsBuilder);
         // If any JOIN commands need wildcard field-caps calls, persist the index names
         if (wildcardJoinIndices.isEmpty() == false) {
             result = result.withWildcardJoinIndices(wildcardJoinIndices);
@@ -639,8 +610,8 @@ public class EsqlSession {
 
         // remove valid metadata attributes because they will be filtered out by the IndexResolver anyway
         // otherwise, in some edge cases, we will fail to ask for "*" (all fields) instead
-        references.removeIf(a -> a instanceof MetadataAttribute || MetadataAttribute.isSupported(a.name()));
-        Set<String> fieldNames = references.names();
+        referencesBuilder.removeIf(a -> a instanceof MetadataAttribute || MetadataAttribute.isSupported(a.name()));
+        Set<String> fieldNames = referencesBuilder.build().names();
 
         if (fieldNames.isEmpty() && enrichPolicyMatchFields.isEmpty()) {
             // there cannot be an empty list of fields, we'll ask the simplest and lightest one instead: _index

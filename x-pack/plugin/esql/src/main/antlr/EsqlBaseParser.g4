@@ -139,9 +139,15 @@ fromCommand
 
 indexPattern
     : (clusterString COLON)? indexString
+    | {this.isDevVersion()}? indexString (CAST_OP selectorString)?
     ;
 
 clusterString
+    : UNQUOTED_SOURCE
+    | QUOTED_STRING
+    ;
+
+selectorString
     : UNQUOTED_SOURCE
     | QUOTED_STRING
     ;
@@ -204,7 +210,7 @@ identifier
 identifierPattern
     : ID_PATTERN
     | parameter
-    | {this.isDevVersion()}? doubleParameter
+    | doubleParameter
     ;
 
 constant
@@ -233,7 +239,7 @@ doubleParameter
 identifierOrParameter
     : identifier
     | parameter
-    | {this.isDevVersion()}? doubleParameter
+    | doubleParameter
     ;
 
 limitCommand

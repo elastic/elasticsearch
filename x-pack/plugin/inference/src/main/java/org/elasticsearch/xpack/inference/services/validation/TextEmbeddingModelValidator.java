@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.inference.services.validation;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.InferenceService;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.inference.Model;
@@ -26,14 +27,14 @@ public class TextEmbeddingModelValidator implements ModelValidator {
     }
 
     @Override
-    public void validate(InferenceService service, Model model, ActionListener<Model> listener) {
-        serviceIntegrationValidator.validate(service, model, listener.delegateFailureAndWrap((delegate, r) -> {
+    public void validate(InferenceService service, Model model, TimeValue timeout, ActionListener<Model> listener) {
+        serviceIntegrationValidator.validate(service, model, timeout, listener.delegateFailureAndWrap((delegate, r) -> {
             delegate.onResponse(postValidate(service, model, r));
         }));
     }
 
     private Model postValidate(InferenceService service, Model model, InferenceServiceResults results) {
-        if (results instanceof TextEmbeddingResults<?, ?> embeddingResults) {
+        if (results instanceof TextEmbeddingResults<?> embeddingResults) {
             var serviceSettings = model.getServiceSettings();
             var dimensions = serviceSettings.dimensions();
             int embeddingSize = getEmbeddingSize(embeddingResults);
@@ -67,7 +68,7 @@ public class TextEmbeddingModelValidator implements ModelValidator {
         }
     }
 
-    private int getEmbeddingSize(TextEmbeddingResults<?, ?> embeddingResults) {
+    private int getEmbeddingSize(TextEmbeddingResults<?> embeddingResults) {
         int embeddingSize;
         try {
             embeddingSize = embeddingResults.getFirstEmbeddingSize();

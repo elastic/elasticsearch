@@ -17,13 +17,14 @@ import org.elasticsearch.test.rest.FakeRestRequest;
 import org.elasticsearch.test.rest.RestActionTestCase;
 import org.elasticsearch.xcontent.XContentType;
 import org.junit.Before;
-import org.mockito.Mockito;
 
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
+import static org.elasticsearch.rest.RestResponseUtils.setUpXContentMock;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.mockito.Mockito.mock;
 
 public final class RestGraphActionTests extends RestActionTestCase {
     private final List<String> compatibleMediaType = Collections.singletonList(randomCompatibleMediaType(RestApiVersion.V_7));
@@ -33,7 +34,7 @@ public final class RestGraphActionTests extends RestActionTestCase {
         controller().registerHandler(new RestGraphAction());
         verifyingClient.setExecuteVerifier((actionType, request) -> {
             assertThat(request, instanceOf(GraphExploreRequest.class));
-            return Mockito.mock(GraphExploreResponse.class);
+            return setUpXContentMock(mock(GraphExploreResponse.class));
         });
     }
 
@@ -58,4 +59,5 @@ public final class RestGraphActionTests extends RestActionTestCase {
             assertCriticalWarnings(RestGraphAction.TYPES_DEPRECATION_MESSAGE);
         }
     }
+
 }

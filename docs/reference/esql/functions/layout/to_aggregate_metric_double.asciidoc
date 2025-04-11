@@ -12,3 +12,4 @@ image::esql/functions/signature/to_aggregate_metric_double.svg[Embedded,opts=inl
 include::../parameters/to_aggregate_metric_double.asciidoc[]
 include::../description/to_aggregate_metric_double.asciidoc[]
 include::../types/to_aggregate_metric_double.asciidoc[]
+include::../examples/to_aggregate_metric_double.asciidoc[]

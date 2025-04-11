@@ -45,10 +45,7 @@ public class GetInferenceModelAction extends ActionType<GetInferenceModelAction.
         private final boolean persistDefaultConfig;
 
         public Request(String inferenceEntityId, TaskType taskType) {
-            super(TRAPPY_IMPLICIT_DEFAULT_MASTER_NODE_TIMEOUT, DEFAULT_ACK_TIMEOUT);
-            this.inferenceEntityId = Objects.requireNonNull(inferenceEntityId);
-            this.taskType = Objects.requireNonNull(taskType);
-            this.persistDefaultConfig = PERSIST_DEFAULT_CONFIGS;
+            this(inferenceEntityId, taskType, PERSIST_DEFAULT_CONFIGS);
         }
 
         public Request(String inferenceEntityId, TaskType taskType, boolean persistDefaultConfig) {
@@ -68,7 +65,6 @@ public class GetInferenceModelAction extends ActionType<GetInferenceModelAction.
             } else {
                 this.persistDefaultConfig = PERSIST_DEFAULT_CONFIGS;
             }
-
         }
 
         public String getInferenceEntityId() {

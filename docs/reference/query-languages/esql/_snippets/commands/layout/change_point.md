@@ -1,7 +1,7 @@
 ## `CHANGE_POINT` [esql-change_point]
 
 :::{note}
-The `CHANGE_POINT` function requires a [platinum license](https://www.elastic.co/subscriptions).
+The `CHANGE_POINT` command requires a [platinum license](https://www.elastic.co/subscriptions).
 :::
 
 ::::{warning}

@@ -70,6 +70,7 @@ echo --- Building release artifacts
   $VERSION_QUALIFIER_ARG \
   buildReleaseArtifacts \
   exportCompressedDockerImages \
+  exportDockerContexts \
   :distribution:generateDependenciesReport
 
 PATH="$PATH:${JAVA_HOME}/bin" # Required by the following script

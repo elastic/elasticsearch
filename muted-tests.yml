@@ -378,9 +378,6 @@ tests:
 - class: org.elasticsearch.search.SearchWithRejectionsIT
   method: testOpenContextsAfterRejections
   issue: https://github.com/elastic/elasticsearch/issues/126340
-- class: org.elasticsearch.xpack.ilm.ClusterStateWaitThresholdBreachTests
-  method: testWaitInShrunkShardsAllocatedExceedsThreshold
-  issue: https://github.com/elastic/elasticsearch/issues/126348
 - class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
   method: test {p0=search.vectors/42_knn_search_bbq_flat/Vector rescoring has same scoring as exact search for kNN section}
   issue: https://github.com/elastic/elasticsearch/issues/126368
@@ -402,9 +399,6 @@ tests:
 - class: org.elasticsearch.xpack.downsample.ILMDownsampleDisruptionIT
   method: testILMDownsampleRollingRestart
   issue: https://github.com/elastic/elasticsearch/issues/126495
-- class: org.elasticsearch.xpack.search.AsyncSearchErrorTraceIT
-  method: testDataNodeLogsStackTraceWhenErrorTraceFalseOrEmpty
-  issue: https://github.com/elastic/elasticsearch/issues/126357
 - class: org.elasticsearch.smoketest.MlWithSecurityIT
   method: test {yaml=ml/get_trained_model_stats/Test get stats given trained models}
   issue: https://github.com/elastic/elasticsearch/issues/126510
@@ -423,6 +417,9 @@ tests:
 - class: org.elasticsearch.xpack.esql.action.EsqlActionIT
   method: testQueryOnEmptyDataIndex
   issue: https://github.com/elastic/elasticsearch/issues/126580
+- class: org.elasticsearch.repositories.blobstore.testkit.analyze.S3RepositoryAnalysisRestIT
+  method: testRepositoryAnalysis
+  issue: https://github.com/elastic/elasticsearch/issues/126576
 
 # Examples:
 #

@@ -457,15 +457,15 @@ public class DataNodeRequestSenderTests extends ComputeTestCase {
         DataNodeRequestSender requestSender = new DataNodeRequestSender(
             transportService,
             executor,
-            "",
             task,
             new OriginalIndices(new String[0], SearchRequest.DEFAULT_INDICES_OPTIONS),
             null,
+            "",
             allowPartialResults,
             concurrentRequests
         ) {
             @Override
-            void searchShards(Predicate<ShardId> predicate, ActionListener<TargetShards> listener) {
+            void searchShards(String[] indices, Predicate<ShardId> predicate, ActionListener<TargetShards> listener) {
                 var targetShards = new TargetShards(
                     shards.stream().collect(Collectors.toMap(TargetShard::shardId, Function.identity())),
                     shards.size(),

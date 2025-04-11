@@ -77,9 +77,12 @@ abstract class DataNodeRequestSender {
 
     private final TransportService transportService;
     private final Executor esqlExecutor;
-    private final String clusterAlias;
     private final CancellableTask rootTask;
-    private final SearchShardsRequest searchShardsRequest;
+
+    private final String clusterAlias;
+    private final OriginalIndices originalIndices;
+    private final QueryBuilder requestFilter;
+
     private final boolean allowPartialResults;
     private final Semaphore concurrentRequests;
     private final ReentrantLock sendingLock = new ReentrantLock();
@@ -94,48 +97,47 @@ abstract class DataNodeRequestSender {
     DataNodeRequestSender(
         TransportService transportService,
         Executor esqlExecutor,
-        String clusterAlias,
         CancellableTask rootTask,
         OriginalIndices originalIndices,
         QueryBuilder requestFilter,
+        String clusterAlias,
         boolean allowPartialResults,
         int concurrentRequests
     ) {
         this.transportService = transportService;
         this.esqlExecutor = esqlExecutor;
-        this.clusterAlias = clusterAlias;
         this.rootTask = rootTask;
-        this.searchShardsRequest = new SearchShardsRequest(
-            originalIndices.indices(),
-            originalIndices.indicesOptions(),
-            requestFilter,
-            null,
-            null,
-            true, // unavailable_shards will be handled by the sender
-            clusterAlias
-        );
+        this.originalIndices = originalIndices;
+        this.requestFilter = requestFilter;
+        this.clusterAlias = clusterAlias;
         this.allowPartialResults = allowPartialResults;
         this.concurrentRequests = concurrentRequests > 0 ? new Semaphore(concurrentRequests) : null;
     }
 
     final void startComputeOnDataNodes(Set<String> concreteIndices, Runnable runOnTaskFailure, ActionListener<ComputeResponse> listener) {
         final long startTimeInNanos = System.nanoTime();
-        searchShards(shardId -> concreteIndices.contains(shardId.getIndexName()), ActionListener.wrap(targetShards -> {
-            try (var computeListener = new ComputeListener(transportService.getThreadPool(), runOnTaskFailure, listener.map(profiles -> {
-                return new ComputeResponse(
-                    profiles,
-                    timeValueNanos(System.nanoTime() - startTimeInNanos),
-                    targetShards.totalShards(),
-                    targetShards.totalShards() - shardFailures.size() - skippedShards.get(),
-                    targetShards.skippedShards() + skippedShards.get(),
-                    shardFailures.size(),
-                    selectFailures()
-                );
-            }))) {
-                pendingShardIds.addAll(order(targetShards));
-                trySendingRequestsForPendingShards(targetShards, computeListener);
-            }
-        }, listener::onFailure));
+        searchShards(
+            originalIndices.indices(),
+            shardId -> concreteIndices.contains(shardId.getIndexName()),
+            ActionListener.wrap(targetShards -> {
+                try (
+                    var computeListener = new ComputeListener(transportService.getThreadPool(), runOnTaskFailure, listener.map(profiles -> {
+                        return new ComputeResponse(
+                            profiles,
+                            timeValueNanos(System.nanoTime() - startTimeInNanos),
+                            targetShards.totalShards(),
+                            targetShards.totalShards() - shardFailures.size() - skippedShards.get(),
+                            targetShards.skippedShards() + skippedShards.get(),
+                            shardFailures.size(),
+                            selectFailures()
+                        );
+                    }))
+                ) {
+                    pendingShardIds.addAll(order(targetShards));
+                    trySendingRequestsForPendingShards(targetShards, computeListener);
+                }
+            }, listener::onFailure)
+        );
     }
 
     private static List<ShardId> order(TargetShards targetShards) {
@@ -255,8 +257,8 @@ abstract class DataNodeRequestSender {
                 // TODO limit attempts
                 if (pendingRetries.isEmpty() == false) {
                     reResolvingUnavailableShards.set(true);
-                    // TODO narrow down search resolution to pending shards only
-                    searchShards(pendingRetries::contains, computeListener.acquireAvoid().delegateFailure((l, newSearchShards) -> {
+                    var indices = pendingRetries.stream().map(ShardId::getIndexName).distinct().toArray(String[]::new);
+                    searchShards(indices, pendingRetries::contains, computeListener.acquireAvoid().delegateFailure((l, newSearchShards) -> {
                         for (var entry : newSearchShards.shards.entrySet()) {
                             targetShards.shards.get(entry.getKey()).remainingNodes.addAll(entry.getValue().remainingNodes);
                         }
@@ -353,7 +355,7 @@ abstract class DataNodeRequestSender {
     }
 
     /**
-     * Result from {@link #searchShards(Predicate, ActionListener)} where can_match is performed to
+     * Result from {@link #searchShards(String[], Predicate, ActionListener)} where can_match is performed to
      * determine what shards can be skipped and which target nodes are needed for running the ES|QL query
      *
      * @param shards        List of target shards to perform the ES|QL query on
@@ -443,7 +445,7 @@ abstract class DataNodeRequestSender {
      * Ideally, the search_shards API should be called before the field-caps API; however, this can lead
      * to a situation where the column structure (i.e., matched data types) differs depending on the query.
      */
-    void searchShards(Predicate<ShardId> predicate, ActionListener<TargetShards> listener) {
+    void searchShards(String[] indices, Predicate<ShardId> predicate, ActionListener<TargetShards> listener) {
         ActionListener<SearchShardsResponse> searchShardsListener = listener.map(resp -> {
             Map<String, DiscoveryNode> nodes = new HashMap<>();
             for (DiscoveryNode node : resp.getNodes()) {
@@ -471,6 +473,15 @@ abstract class DataNodeRequestSender {
             }
             return new TargetShards(shards, totalShards, skippedShards);
         });
+        var searchShardsRequest = new SearchShardsRequest(
+            indices,
+            originalIndices.indicesOptions(),
+            requestFilter,
+            null,
+            null,
+            true, // unavailable_shards will be handled by the sender
+            clusterAlias
+        );
         transportService.sendChildRequest(
             transportService.getLocalNode(),
             EsqlSearchShardsAction.TYPE.name(),

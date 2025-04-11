@@ -18,6 +18,7 @@ import org.elasticsearch.cluster.metadata.LifecycleExecutionState;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.xcontent.ToXContentObject;
@@ -444,22 +445,26 @@ public final class IndexLifecycleTransition {
      */
     public static ClusterState removePolicyForIndexes(final Index[] indices, ClusterState currentState, List<String> failedIndexes) {
         final ProjectMetadata currentProject = currentState.metadata().getProject();
-        final ProjectMetadata updatedProject = removePolicyForIndexes(indices, currentProject, failedIndexes);
+        final ProjectMetadata.Builder updatedProject = removePolicyForIndexes(indices, currentProject, failedIndexes);
 
-        if (currentProject == updatedProject) {
+        if (updatedProject == null) {
             return currentState;
         } else {
             return ClusterState.builder(currentState).putProjectMetadata(updatedProject).build();
         }
     }
 
-    private static ProjectMetadata removePolicyForIndexes(
+    /**
+     * @return If one or more policies were removed, then a new builder representing the changed project state.
+     *         Otherwise {@code null} (if no changes were made)
+     */
+    @Nullable
+    private static ProjectMetadata.Builder removePolicyForIndexes(
         final Index[] indices,
         ProjectMetadata currentProject,
         List<String> failedIndexes
     ) {
-        ProjectMetadata.Builder newProject = ProjectMetadata.builder(currentProject);
-        boolean projectChanged = false;
+        ProjectMetadata.Builder newProject = null;
         for (Index index : indices) {
             IndexMetadata indexMetadata = currentProject.index(index);
             if (indexMetadata == null) {
@@ -468,16 +473,15 @@ public final class IndexLifecycleTransition {
             } else {
                 IndexMetadata.Builder newIdxMetadata = removePolicyForIndex(indexMetadata);
                 if (newIdxMetadata != null) {
+                    if (newProject == null) {
+                        newProject = ProjectMetadata.builder(currentProject);
+                    }
                     newProject.put(newIdxMetadata);
-                    projectChanged = true;
                 }
             }
         }
-        if (projectChanged) {
-            return newProject.build();
-        } else {
-            return currentProject;
-        }
+
+        return newProject;
     }
 
     /**

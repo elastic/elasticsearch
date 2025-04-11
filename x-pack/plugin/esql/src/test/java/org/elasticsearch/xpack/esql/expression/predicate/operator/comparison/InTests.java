@@ -91,7 +91,7 @@ public class InTests extends AbstractFunctionTestCase {
         In in = new In(
             EMPTY,
             new FieldAttribute(Source.EMPTY, "field", new EsField("suffix", DataType.KEYWORD, Map.of(), true)),
-            Arrays.asList(ONE, new Literal(Source.EMPTY, null, DataType.INTEGER), THREE)
+            Arrays.asList(ONE, new Literal(Source.EMPTY, null, randomFrom(DataType.types())), THREE)
         );
         var query = in.asQuery(TranslatorHandler.TRANSLATOR_HANDLER);
         assertEquals(new TermsQuery(EMPTY, "field", Set.of(1, 3)), query);

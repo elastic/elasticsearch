@@ -75,9 +75,6 @@ tests:
 - class: org.elasticsearch.xpack.shutdown.NodeShutdownIT
   method: testAllocationPreventedForRemoval
   issue: https://github.com/elastic/elasticsearch/issues/116363
-- class: org.elasticsearch.reservedstate.service.RepositoriesFileSettingsIT
-  method: testSettingsApplied
-  issue: https://github.com/elastic/elasticsearch/issues/116694
 - class: org.elasticsearch.xpack.security.authc.ldap.ActiveDirectoryGroupsResolverTests
   issue: https://github.com/elastic/elasticsearch/issues/116182
 - class: org.elasticsearch.xpack.test.rest.XPackRestIT

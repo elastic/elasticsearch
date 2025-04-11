@@ -411,9 +411,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.action.ForkIT
   method: testWithStatsSimple
   issue: https://github.com/elastic/elasticsearch/issues/126607
-- class: org.elasticsearch.index.shard.IndexShardTests
-  method: testReentrantEngineReadLockAcquisitionInRefreshListener
-  issue: https://github.com/elastic/elasticsearch/issues/126628
 - class: org.elasticsearch.xpack.esql.action.EsqlActionIT
   method: testQueryOnEmptyDataIndex
   issue: https://github.com/elastic/elasticsearch/issues/126580

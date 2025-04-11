@@ -478,7 +478,7 @@ public class In extends EsqlScalarFunction implements TranslationAware.SingleVal
         List<Query> queries = new ArrayList<>();
 
         for (Expression rhs : list()) {
-            if (DataType.isNull(rhs.dataType()) == false) {
+            if (Expressions.isGuaranteedNull(rhs) == false) {
                 if (needsTypeSpecificValueHandling(attribute.dataType())) {
                     // delegates to BinaryComparisons translator to ensure consistent handling of date and time values
                     // TODO:

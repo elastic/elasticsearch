@@ -459,7 +459,7 @@ public class IpFieldMapper extends FieldMapper {
 
         @Override
         public BlockLoader blockLoader(BlockLoaderContext blContext) {
-            if (hasDocValues()) {
+            if (hasDocValues() && (blContext.fieldExtractPreference() != FieldExtractPreference.STORED || isSyntheticSource)) {
                 return new BlockDocValuesReader.BytesRefsFromOrdsBlockLoader(name());
             }
 
@@ -471,7 +471,8 @@ public class IpFieldMapper extends FieldMapper {
                 return blockLoaderFromFallbackSyntheticSource(blContext);
             }
 
-            BlockSourceReader.LeafIteratorLookup lookup = isIndexed()
+            // see #indexValue
+            BlockSourceReader.LeafIteratorLookup lookup = hasDocValues() == false && isIndexed()
                 ? BlockSourceReader.lookupFromFieldNames(blContext.fieldNames(), name())
                 : BlockSourceReader.lookupMatchingAll();
             return new BlockSourceReader.IpsBlockLoader(sourceValueFetcher(blContext.sourcePaths(name())), lookup);

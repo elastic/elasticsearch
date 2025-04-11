@@ -12,7 +12,6 @@ package org.elasticsearch.http.netty4;
 import io.netty.buffer.Unpooled;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.ChannelInboundHandlerAdapter;
-import io.netty.channel.ChannelOutboundHandlerAdapter;
 import io.netty.channel.DefaultEventLoop;
 import io.netty.channel.SimpleChannelInboundHandler;
 import io.netty.channel.embedded.EmbeddedChannel;
@@ -43,13 +42,15 @@ public class Netty4HttpRequestBodyStreamTests extends ESTestCase {
     static HttpBody.ChunkHandler discardHandler = (chunk, isLast) -> chunk.close();
     private final ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
     private EmbeddedChannel channel;
+    private ReadSniffer readSniffer;
     private Netty4HttpRequestBodyStream stream;
 
     @Override
     public void setUp() throws Exception {
         super.setUp();
         channel = new EmbeddedChannel();
-        channel.pipeline().addLast("flow", new FlowControlHandler());
+        readSniffer = new ReadSniffer();
+        channel.pipeline().addLast(new FlowControlHandler(), readSniffer);
         channel.config().setAutoRead(false);
         channel.pipeline().addLast(new SimpleChannelInboundHandler<HttpContent>(false) {
             @Override
@@ -72,8 +73,8 @@ public class Netty4HttpRequestBodyStreamTests extends ESTestCase {
         stream.close();
     }
 
-    // ensures all received chunks can be flushed downstream
-    public void testFlushAllReceivedChunks() {
+    // ensures all chunks are passed to downstream
+    public void testPassAllChunks() {
         var chunks = new ArrayList<ReleasableBytesReference>();
         var totalBytes = new AtomicInteger();
         stream.setHandler((chunk, isLast) -> {
@@ -81,32 +82,35 @@ public class Netty4HttpRequestBodyStreamTests extends ESTestCase {
             totalBytes.addAndGet(chunk.length());
             chunk.close();
         });
-
         var chunkSize = 1024;
         var totalChunks = randomIntBetween(1, 100);
         for (int i = 0; i < totalChunks; i++) {
             channel.writeInbound(randomContent(chunkSize));
             stream.next();
             channel.runPendingTasks();
-            assertEquals("should receive all chunks as single composite", i + 1, chunks.size());
+
         }
+        assertEquals(totalChunks, chunks.size());
         assertEquals(chunkSize * totalChunks, totalBytes.get());
     }
 
     // ensures that we read from channel after last chunk
     public void testChannelReadAfterLastContent() {
-        var readCounter = new AtomicInteger();
-        channel.pipeline().addAfter("flow", "read-counter", new ChannelOutboundHandlerAdapter() {
-            @Override
-            public void read(ChannelHandlerContext ctx) throws Exception {
-                readCounter.incrementAndGet();
-                super.read(ctx);
-            }
-        });
         channel.writeInbound(randomLastContent(10));
         stream.next();
         channel.runPendingTasks();
-        assertEquals("should have at least 2 reads, one for last content, and one after last", 2, readCounter.get());
+        assertEquals("should have at least 2 reads, one for last content, and one after last", 2, readSniffer.readCount);
+    }
+
+    // ensures when stream is closing we read and discard chunks
+    public void testReadAndReleaseOnClosing() {
+        var unexpectedChunk = new AtomicBoolean();
+        stream.setHandler((chunk, isLast) -> unexpectedChunk.set(true));
+        stream.close();
+        channel.writeInbound(randomContent(1024));
+        channel.writeInbound(randomLastContent(0));
+        assertFalse("chunk should be discarded", unexpectedChunk.get());
+        assertEquals("expect 3 reads, a first from stream.close, and other two after chunks", 3, readSniffer.readCount);
     }
 
     public void testReadFromHasCorrectThreadContext() throws InterruptedException {

@@ -319,6 +319,9 @@ public class Netty4HttpServerTransport extends AbstractHttpServerTransport {
 
         @Override
         protected void initChannel(Channel ch) throws Exception {
+            // auto-read must be disabled all the time
+            ch.config().setAutoRead(false);
+
             Netty4HttpChannel nettyHttpChannel = new Netty4HttpChannel(ch);
             ch.attr(HTTP_CHANNEL_KEY).set(nettyHttpChannel);
             if (acceptChannelPredicate != null) {
@@ -374,9 +377,6 @@ public class Netty4HttpServerTransport extends AbstractHttpServerTransport {
                 long missingReadIntervalMs = 10_000;
                 ch.pipeline().addLast(new MissingReadDetector(transport.threadPool, missingReadIntervalMs));
             }
-            // disable auto-read and issue first read, following reads must come from handlers
-            ch.config().setAutoRead(false);
-            ch.read();
 
             if (httpValidator != null) {
                 // runs a validation function on the first HTTP message piece which contains all the headers
@@ -435,6 +435,9 @@ public class Netty4HttpServerTransport extends AbstractHttpServerTransport {
                     new Netty4HttpPipeliningHandler(transport.pipeliningMaxEvents, transport, threadWatchdogActivityTracker)
                 );
             transport.serverAcceptedChannel(nettyHttpChannel);
+
+            // make very first read call, since auto-read is disabled; following reads must come from the handlers
+            ch.read();
         }
 
         @Override

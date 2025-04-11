@@ -12,6 +12,7 @@ package org.elasticsearch.http.netty4;
 import io.netty.buffer.Unpooled;
 import io.netty.channel.Channel;
 import io.netty.channel.embedded.EmbeddedChannel;
+import io.netty.handler.codec.DecoderResult;
 import io.netty.handler.codec.http.DefaultHttpContent;
 import io.netty.handler.codec.http.DefaultHttpRequest;
 import io.netty.handler.codec.http.DefaultLastHttpContent;
@@ -41,9 +42,12 @@ public class Netty4HttpHeaderValidatorTests extends ESTestCase {
     public void setUp() throws Exception {
         super.setUp();
         validatorRequestQueue = new LinkedBlockingQueue<>();
-        channel = new EmbeddedChannel(new Netty4HttpHeaderValidator((httpRequest, channel, listener) -> {
-            validatorRequestQueue.add(new ValidationRequest(httpRequest, channel, listener));
-        }, new ThreadContext(Settings.EMPTY)));
+        channel = new EmbeddedChannel(
+            new Netty4HttpHeaderValidator(
+                (httpRequest, channel, listener) -> validatorRequestQueue.add(new ValidationRequest(httpRequest, channel, listener)),
+                new ThreadContext(Settings.EMPTY)
+            )
+        );
         channel.config().setAutoRead(false);
     }
 
@@ -63,6 +67,15 @@ public class Netty4HttpHeaderValidatorTests extends ESTestCase {
         channel.writeInbound(newHttpRequest());
         assertEquals(1, validatorRequestQueue.size());
         assertNull(channel.readInbound());
+    }
+
+    public void testDecoderFailurePassThrough() {
+        for (var i = 0; i < 1000; i++) {
+            var httpRequest = newHttpRequest();
+            httpRequest.setDecoderResult(DecoderResult.failure(new Exception("bad")));
+            channel.writeInbound(httpRequest);
+            assertEquals(httpRequest, channel.readInbound());
+        }
     }
 
     /**
@@ -94,9 +107,9 @@ public class Netty4HttpHeaderValidatorTests extends ESTestCase {
             );
             assertEquals(request, gotRequest);
 
+            channel.writeInbound(content);
+            channel.writeInbound(last);
             if (shouldPassValidation) {
-                channel.writeInbound(content);
-                channel.writeInbound(last);
                 assertEquals("should pass content for valid request", content, channel.readInbound());
                 assertEquals(last, channel.readInbound());
             } else {

@@ -36,8 +36,8 @@ class MissingReadDetector extends ChannelDuplexHandler {
     private long lastRead;
     private ScheduledFuture<?> checker;
 
-    MissingReadDetector(TimeProvider timer, long missingReadInterval) {
-        this.interval = missingReadInterval;
+    MissingReadDetector(TimeProvider timer, long missingReadIntervalMillis) {
+        this.interval = missingReadIntervalMillis;
         this.timer = timer;
     }
 
@@ -70,6 +70,7 @@ class MissingReadDetector extends ChannelDuplexHandler {
 
     @Override
     public void channelRead(ChannelHandlerContext ctx, Object msg) throws Exception {
+        assert ctx.channel().config().isAutoRead() == false : "auto-read must be always disabled";
         pendingRead = false;
         lastRead = timer.absoluteTimeInMillis();
         ctx.fireChannelRead(msg);

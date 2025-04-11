@@ -37,7 +37,6 @@ public class Netty4HttpHeaderValidator extends ChannelDuplexHandler {
 
     @Override
     public void channelRead(ChannelHandlerContext ctx, Object msg) throws Exception {
-        assert ctx.channel().config().isAutoRead() == false : "auto-read should be always disabled";
         if (msg instanceof HttpObject httpObject) {
             if (httpObject.decoderResult().isFailure()) {
                 ctx.fireChannelRead(httpObject); // pass-through for decoding failures

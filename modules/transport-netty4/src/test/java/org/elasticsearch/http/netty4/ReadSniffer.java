@@ -32,11 +32,11 @@ import io.netty.channel.ChannelOutboundHandlerAdapter;
  */
 public class ReadSniffer extends ChannelOutboundHandlerAdapter {
 
-    int readCnt;
+    int readCount;
 
     @Override
     public void read(ChannelHandlerContext ctx) throws Exception {
-        readCnt++;
+        readCount++;
         super.read(ctx);
     }
 }

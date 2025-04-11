@@ -15,6 +15,7 @@ import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.logsdb.datageneration.FieldType;
 
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.function.Function;
@@ -75,7 +76,7 @@ public class KeywordFieldBlockLoaderTests extends BlockLoaderTestCase {
         }
         if (Objects.equals(normalizer, "lowercase")) {
             // hopefully not Turkish...
-            value = value.toLowerCase();
+            value = value.toLowerCase(Locale.ROOT);
         } else if (normalizer != null) {
             // we probably can't get here anyway, since MapperServiceTestCase only initializes the lowercase normalizer
             throw new IllegalArgumentException("normalizer [" + normalizer + "] not supported for block loader tests");

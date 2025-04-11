@@ -347,9 +347,11 @@ interface FieldSpecificMatcher {
         @Override
         Object convert(Object value, Object nullValue) {
             if (value == null) {
-                return nullValue;
+                // Normalization could also be applied to the null value
+                value = nullValue;
             }
             if (value instanceof String s && this.normalizer != null && this.normalizer.equals("lowercase")) {
+                // Currently, tests only support lowercase for normalization.
                 value = s.toLowerCase(Locale.ROOT);
             }
 

@@ -399,9 +399,6 @@ tests:
 - class: org.elasticsearch.xpack.test.rest.XPackRestIT
   method: test {p0=transform/transforms_start_stop/Test start/stop only starts/stops specified transform}
   issue: https://github.com/elastic/elasticsearch/issues/126466
-- class: org.elasticsearch.xpack.security.cli.HttpCertificateCommandTests
-  method: testGenerateMultipleCertificateWithNewCA
-  issue: https://github.com/elastic/elasticsearch/issues/126471
 - class: org.elasticsearch.xpack.downsample.ILMDownsampleDisruptionIT
   method: testILMDownsampleRollingRestart
   issue: https://github.com/elastic/elasticsearch/issues/126495
@@ -420,9 +417,6 @@ tests:
 - class: org.elasticsearch.repositories.blobstore.testkit.rest.SnapshotRepoTestKitClientYamlTestSuiteIT
   method: test {p0=/10_analyze/Analysis without details}
   issue: https://github.com/elastic/elasticsearch/issues/126569
-- class: org.elasticsearch.repositories.blobstore.testkit.analyze.S3RepositoryAnalysisRestIT
-  method: testRepositoryAnalysis
-  issue: https://github.com/elastic/elasticsearch/issues/126576
 - class: org.elasticsearch.xpack.esql.action.ForkIT
   method: testWithStatsSimple
   issue: https://github.com/elastic/elasticsearch/issues/126607
@@ -435,6 +429,9 @@ tests:
 - class: org.elasticsearch.upgrades.SearchStatesIT
   method: testCanMatch
   issue: https://github.com/elastic/elasticsearch/issues/126633
+- class: org.elasticsearch.xpack.esql.action.EsqlActionIT
+  method: testQueryOnEmptyDataIndex
+  issue: https://github.com/elastic/elasticsearch/issues/126580
 
 # Examples:
 #

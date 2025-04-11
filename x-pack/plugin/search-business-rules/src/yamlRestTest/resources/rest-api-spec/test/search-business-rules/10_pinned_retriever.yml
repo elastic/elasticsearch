@@ -400,7 +400,7 @@ setup:
 ---
 "pinned retriever error cases":
   - do:
-      catch: /\[pinned\] duplicate id found in list: doc1/
+      catch: '/\[pinned\] duplicate id found in list: doc1/'
       search:
         index: test-index1
         body:
@@ -413,7 +413,7 @@ setup:
                     match_all: {}
 
   - do:
-      catch: /\[pinned\] Cannot specify both ids and docs parameters/
+      catch: '/\[pinned\] Cannot specify both ids and docs parameters/'
       search:
         index: test-index1
         body:

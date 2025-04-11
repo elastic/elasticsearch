@@ -37,7 +37,7 @@ To get started with {esql} in Discover, open the main menu and select
 [[esql-kibana-query-bar]]
 === The query bar
 
-After switching to {esql} mode, the query bar shows a sample query. For example:
+After switching to {esql} mode, the query bar shows your previous KQL or Lucene query converted into {esql}. If the query was empty, it shows a sample query. For example:
 
 [source,esql]
 ----

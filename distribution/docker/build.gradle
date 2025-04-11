@@ -590,7 +590,7 @@ for (final Architecture architecture : Architecture.values()) {
     }
     if(base == DockerBase.DEFAULT) {
       // Add additional docker hub specific context which we use solely for publishing to docker hub.
-      // At the moment it only differs in not labels added that we need for openshit certification
+      // At the moment it only differs in not labels added that we need for openshift certification
       addBuildDockerContextTask(architecture, base, 'DockerHubContext', "docker-hub-build-context")
     }
   }

@@ -297,6 +297,10 @@ public class FileSettingsServiceTests extends ESTestCase {
         // contents of the JSON don't matter, we just need a file to exist
         writeTestFile(watchedFile, "{}");
 
+        // It's important to configure all the mocks before calling start() here,
+        // because otherwise there can be races between configuration and use of mocks
+        // which leads to a UnfinishedStubbingException.
+
         fileSettingsService.start();
         fileSettingsService.clusterChanged(new ClusterChangedEvent("test", clusterService.state(), ClusterState.EMPTY_STATE));
 

@@ -257,20 +257,22 @@ public class TransportGetDataStreamsAction extends TransportLocalProjectMetadata
                     indexTemplatePreferIlmValue = PREFER_ILM_SETTING.get(settings);
                 }
             } else {
-                ComposableIndexTemplate effectiveTemplate = dataStream.getEffectiveIndexTemplate(state.metadata());
                 indexTemplate = MetadataIndexTemplateService.findV2Template(state.metadata(), dataStream.getName(), false);
-                if (effectiveTemplate != null && effectiveTemplate.template() != null) {
-                    Settings settings;
-                    if (effectiveTemplate.template() != null && effectiveTemplate.template().settings() != null) {
-                        settings = effectiveTemplate.template().settings();
-                    } else {
-                        settings = Settings.EMPTY;
+                if (indexTemplate != null) { // TODO hack
+                    ComposableIndexTemplate effectiveTemplate = dataStream.getEffectiveIndexTemplate(state.metadata());
+                    if (effectiveTemplate != null && effectiveTemplate.template() != null) {
+                        Settings settings;
+                        if (effectiveTemplate.template() != null && effectiveTemplate.template().settings() != null) {
+                            settings = effectiveTemplate.template().settings();
+                        } else {
+                            settings = Settings.EMPTY;
+                        }
+                        ilmPolicyName = settings.get(IndexMetadata.LIFECYCLE_NAME);
+                        if (indexMode == null) {
+                            indexMode = resolveMode(state, indexSettingProviders, dataStream, settings, effectiveTemplate);
+                        }
+                        indexTemplatePreferIlmValue = PREFER_ILM_SETTING.get(settings);
                     }
-                    ilmPolicyName = settings.get(IndexMetadata.LIFECYCLE_NAME);
-                    if (indexMode == null) {
-                        indexMode = resolveMode(state, indexSettingProviders, dataStream, settings, effectiveTemplate);
-                    }
-                    indexTemplatePreferIlmValue = PREFER_ILM_SETTING.get(settings);
                 } else {
                     LOGGER.warn(
                         "couldn't find any matching template for data stream [{}]. has it been restored (and possibly renamed)"

@@ -76,7 +76,7 @@ public class RetryingHttpSenderTests extends ESTestCase {
         Answer<InferenceServiceResults> answer = (invocation) -> inferenceResults;
 
         var handler = mock(ResponseHandler.class);
-        doThrow(new RetryException(true, "failed")).doNothing().when(handler).validateResponse(any(), any(), any(), any());
+        doThrow(new RetryException(true, "failed")).doNothing().when(handler).validateResponse(any(), any(), any(), any(), any());
         // Mockito.thenReturn() does not compile when returning a
         // bounded wild card list, thenAnswer must be used instead.
         when(handler.parseResult(any(Request.class), any(HttpResult.class))).thenAnswer(answer);
@@ -351,7 +351,7 @@ public class RetryingHttpSenderTests extends ESTestCase {
         var handler = mock(ResponseHandler.class);
         doThrow(new RetryException(true, "failed")).doThrow(new IllegalStateException("failed again"))
             .when(handler)
-            .validateResponse(any(), any(), any(), any());
+            .validateResponse(any(), any(), any(), any(), any());
         when(handler.parseResult(any(Request.class), any(HttpResult.class))).thenAnswer(answer);
 
         var retrier = createRetrier(sender);
@@ -388,7 +388,7 @@ public class RetryingHttpSenderTests extends ESTestCase {
         var handler = mock(ResponseHandler.class);
         doThrow(new RetryException(true, "failed")).doThrow(new RetryException(false, "failed again"))
             .when(handler)
-            .validateResponse(any(), any(), any(), any());
+            .validateResponse(any(), any(), any(), any(), any());
         when(handler.parseResult(any(Request.class), any(HttpResult.class))).thenAnswer(answer);
 
         var retrier = createRetrier(httpClient);
@@ -701,8 +701,13 @@ public class RetryingHttpSenderTests extends ESTestCase {
         // testing failed requests
         return new ResponseHandler() {
             @Override
-            public void validateResponse(ThrottlerManager throttlerManager, Logger logger, Request request, HttpResult result)
-                throws RetryException {
+            public void validateResponse(
+                ThrottlerManager throttlerManager,
+                Logger logger,
+                Request request,
+                HttpResult result,
+                boolean checkForErrorObject
+            ) throws RetryException {
                 throw new RetryException(true, new IOException("response handler validate failed as designed"));
             }
 

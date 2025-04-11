@@ -199,7 +199,6 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                 );
             }
         }.startComputeOnDataNodes(
-            clusterAlias,
             concreteIndices,
             originalIndices,
             PlannerUtils.canMatchFilter(dataNodePlan),

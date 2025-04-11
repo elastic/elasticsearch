@@ -52,6 +52,7 @@ import static java.nio.charset.StandardCharsets.UTF_8;
 import static org.elasticsearch.test.fixture.HttpHeaderParser.parseRangeHeader;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertNull;
 import static org.w3c.dom.Node.ELEMENT_NODE;
 
 /**
@@ -121,9 +122,11 @@ public class S3HttpHandler implements HttpHandler {
                 uploadsList.append("<MaxUploads>10000</MaxUploads>");
                 uploadsList.append("<IsTruncated>false</IsTruncated>");
 
-                for (final var multipartUpload : uploads.values()) {
-                    if (multipartUpload.getPath().startsWith(prefix)) {
-                        multipartUpload.appendXml(uploadsList);
+                synchronized (uploads) {
+                    for (final var multipartUpload : uploads.values()) {
+                        if (multipartUpload.getPath().startsWith(prefix)) {
+                            multipartUpload.appendXml(uploadsList);
+                        }
                     }
                 }
 
@@ -135,9 +138,7 @@ public class S3HttpHandler implements HttpHandler {
                 exchange.getResponseBody().write(response);
 
             } else if (request.isInitiateMultipartUploadRequest()) {
-                final var upload = new MultipartUpload(UUIDs.randomBase64UUID(), request.path().substring(bucket.length() + 2));
-                uploads.put(upload.getUploadId(), upload);
-
+                final var upload = putUpload(request.path().substring(bucket.length() + 2));
                 final var uploadResult = new StringBuilder();
                 uploadResult.append("<?xml version='1.0' encoding='UTF-8'?>");
                 uploadResult.append("<InitiateMultipartUploadResult>");
@@ -152,7 +153,7 @@ public class S3HttpHandler implements HttpHandler {
                 exchange.getResponseBody().write(response);
 
             } else if (request.isUploadPartRequest()) {
-                final var upload = uploads.get(request.getQueryParamOnce("uploadId"));
+                final var upload = getUpload(request.getQueryParamOnce("uploadId"));
                 if (upload == null) {
                     exchange.sendResponseHeaders(RestStatus.NOT_FOUND.getStatus(), -1);
                 } else {
@@ -187,42 +188,45 @@ public class S3HttpHandler implements HttpHandler {
                 }
 
             } else if (request.isCompleteMultipartUploadRequest()) {
-                final var upload = uploads.remove(request.getQueryParamOnce("uploadId"));
-                if (upload == null) {
-                    if (Randomness.get().nextBoolean()) {
-                        exchange.sendResponseHeaders(RestStatus.NOT_FOUND.getStatus(), -1);
+                final byte[] responseBody;
+                synchronized (uploads) {
+                    final var upload = removeUpload(request.getQueryParamOnce("uploadId"));
+                    if (upload == null) {
+                        if (Randomness.get().nextBoolean()) {
+                            responseBody = null;
+                        } else {
+                            responseBody = """
+                                <?xml version="1.0" encoding="UTF-8"?>
+                                <Error>
+                                <Code>NoSuchUpload</Code>
+                                <Message>No such upload</Message>
+                                <RequestId>test-request-id</RequestId>
+                                <HostId>test-host-id</HostId>
+                                </Error>""".getBytes(StandardCharsets.UTF_8);
+                        }
                     } else {
-                        byte[] response = ("""
-                            <?xml version="1.0" encoding="UTF-8"?>
-                            <Error>
-                            <Code>NoSuchUpload</Code>
-                            <Message>No such upload</Message>
-                            <RequestId>test-request-id</RequestId>
-                            <HostId>test-host-id</HostId>
-                            </Error>""").getBytes(StandardCharsets.UTF_8);
-                        exchange.getResponseHeaders().add("Content-Type", "application/xml");
-                        exchange.sendResponseHeaders(RestStatus.OK.getStatus(), response.length);
-                        exchange.getResponseBody().write(response);
+                        final var blobContents = upload.complete(extractPartEtags(Streams.readFully(exchange.getRequestBody())));
+                        blobs.put(request.path(), blobContents);
+                        responseBody = ("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n"
+                            + "<CompleteMultipartUploadResult>\n"
+                            + "<Bucket>"
+                            + bucket
+                            + "</Bucket>\n"
+                            + "<Key>"
+                            + request.path()
+                            + "</Key>\n"
+                            + "</CompleteMultipartUploadResult>").getBytes(StandardCharsets.UTF_8);
                     }
+                }
+                if (responseBody == null) {
+                    exchange.sendResponseHeaders(RestStatus.NOT_FOUND.getStatus(), -1);
                 } else {
-                    final var blobContents = upload.complete(extractPartEtags(Streams.readFully(exchange.getRequestBody())));
-                    blobs.put(request.path(), blobContents);
-
-                    byte[] response = ("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n"
-                        + "<CompleteMultipartUploadResult>\n"
-                        + "<Bucket>"
-                        + bucket
-                        + "</Bucket>\n"
-                        + "<Key>"
-                        + request.path()
-                        + "</Key>\n"
-                        + "</CompleteMultipartUploadResult>").getBytes(StandardCharsets.UTF_8);
                     exchange.getResponseHeaders().add("Content-Type", "application/xml");
-                    exchange.sendResponseHeaders(RestStatus.OK.getStatus(), response.length);
-                    exchange.getResponseBody().write(response);
+                    exchange.sendResponseHeaders(RestStatus.OK.getStatus(), responseBody.length);
+                    exchange.getResponseBody().write(responseBody);
                 }
             } else if (request.isAbortMultipartUploadRequest()) {
-                final var upload = uploads.remove(request.getQueryParamOnce("uploadId"));
+                final var upload = removeUpload(request.getQueryParamOnce("uploadId"));
                 exchange.sendResponseHeaders((upload == null ? RestStatus.NOT_FOUND : RestStatus.NO_CONTENT).getStatus(), -1);
 
             } else if (request.isPutObjectRequest()) {
@@ -521,8 +525,24 @@ public class S3HttpHandler implements HttpHandler {
         return parseRangeHeader(sourceRangeHeaders.getFirst());
     }
 
+    MultipartUpload putUpload(String path) {
+        final var upload = new MultipartUpload(UUIDs.randomBase64UUID(), path);
+        synchronized (uploads) {
+            assertNull("upload " + upload.getUploadId() + " should not exist", uploads.put(upload.getUploadId(), upload));
+            return upload;
+        }
+    }
+
     MultipartUpload getUpload(String uploadId) {
-        return uploads.get(uploadId);
+        synchronized (uploads) {
+            return uploads.get(uploadId);
+        }
+    }
+
+    MultipartUpload removeUpload(String uploadId) {
+        synchronized (uploads) {
+            return uploads.remove(uploadId);
+        }
     }
 
     public S3Request parseRequest(HttpExchange exchange) {

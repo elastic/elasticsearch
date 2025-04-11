@@ -215,6 +215,10 @@ public final class DataStreamTestHelper {
             .numberOfReplicas(NUMBER_OF_REPLICAS);
     }
 
+    public static IndexMetadata.Builder createFirstFailureStore(String dataStreamName) {
+        return createFailureStore(dataStreamName, 1, System.currentTimeMillis());
+    }
+
     public static IndexMetadata.Builder createFirstFailureStore(String dataStreamName, long epochMillis) {
         return createFailureStore(dataStreamName, 1, epochMillis);
     }

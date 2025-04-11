@@ -278,9 +278,6 @@ public class MetadataCreateDataStreamService {
         // responsibility to check that before setting.
         IndexMetadata failureStoreIndex = null;
         if (initializeFailureStore) {
-            if (isSystem) {
-                throw new IllegalArgumentException("Failure stores are not supported on system data streams");
-            }
             String failureStoreIndexName = DataStream.getDefaultFailureStoreName(dataStreamName, initialGeneration, request.startTime());
             currentState = createFailureStoreIndex(
                 metadataCreateIndexService,
@@ -290,8 +287,8 @@ public class MetadataCreateDataStreamService {
                 currentState,
                 request.startTime(),
                 dataStreamName,
-                systemDataStreamDescriptor,
                 template,
+                systemDataStreamDescriptor,
                 failureStoreIndexName,
                 null
             );
@@ -420,8 +417,8 @@ public class MetadataCreateDataStreamService {
         ClusterState currentState,
         long nameResolvedInstant,
         String dataStreamName,
-        SystemDataStreamDescriptor systemDataStreamDescriptor,
         ComposableIndexTemplate template,
+        SystemDataStreamDescriptor systemDataStreamDescriptor,
         String failureStoreIndexName,
         @Nullable BiConsumer<ProjectMetadata.Builder, IndexMetadata> metadataTransformer
     ) throws Exception {

@@ -411,7 +411,7 @@ public class StatelessReshardIT extends AbstractStatelessIntegTestCase {
                 "split handoff failed",
                 MetadataReshardIndexService.class.getCanonicalName(),
                 Level.DEBUG,
-                ".*\\[" + indexName + "\\]\\[1\\] cannot complete split handoff because source primary term advanced \\[.*"
+                ".*\\[" + indexName + "\\]\\[1\\] cannot transition target state \\[HANDOFF\\] because source primary term advanced \\[.*"
             )
         );
 
@@ -423,7 +423,7 @@ public class StatelessReshardIT extends AbstractStatelessIntegTestCase {
     }
 
     @TestLogging(value = "co.elastic.elasticsearch.stateless.reshard.MetadataReshardIndexService:DEBUG", reason = "logging assertions")
-    public void testReshardTargetWillNotTransitionToHandoffIfTargetPrimaryTermChanged() throws Exception {
+    public void testReshardTargetStateWillNotTransitionTargetPrimaryTermChanged() throws Exception {
         startMasterOnlyNode();
         String indexNode = startIndexNode();
         ensureStableCluster(2);
@@ -454,13 +454,25 @@ public class StatelessReshardIT extends AbstractStatelessIntegTestCase {
         Index index = resolveIndex(indexName);
 
         MockTransportService mockTransportService = MockTransportService.getInstance(indexNode);
-        CountDownLatch handoffAttemptedLatch = new CountDownLatch(1);
+        IndexReshardingState.Split.TargetShardState targetShardStateToDisrupt = randomFrom(
+            IndexReshardingState.Split.TargetShardState.HANDOFF,
+            IndexReshardingState.Split.TargetShardState.SPLIT,
+            IndexReshardingState.Split.TargetShardState.DONE
+        );
+        CountDownLatch handoffAttemptedLatch = new CountDownLatch(switch (targetShardStateToDisrupt) {
+            case HANDOFF -> 1;
+            case SPLIT -> 2;
+            case DONE -> 3;
+            case CLONE -> throw new AssertionError();
+        });
         CountDownLatch handoffLatch = new CountDownLatch(1);
         mockTransportService.addSendBehavior((connection, requestId, action, request1, options) -> {
             if (TransportUpdateSplitStateAction.TYPE.name().equals(action) && handoffAttemptedLatch.getCount() != 0) {
                 try {
                     handoffAttemptedLatch.countDown();
-                    handoffLatch.await();
+                    if (handoffAttemptedLatch.getCount() == 0) {
+                        handoffLatch.await();
+                    }
                 } catch (InterruptedException e) {
                     throw new RuntimeException(e);
                 }
@@ -500,10 +512,14 @@ public class StatelessReshardIT extends AbstractStatelessIntegTestCase {
         },
             MetadataReshardIndexService.class,
             new MockLog.PatternSeenEventExpectation(
-                "split handoff failed",
+                "state transition failed",
                 MetadataReshardIndexService.class.getCanonicalName(),
                 Level.DEBUG,
-                ".*\\[" + indexName + "\\]\\[1\\] cannot complete split handoff because target primary term advanced \\[.*"
+                ".*\\["
+                    + indexName
+                    + "\\]\\[1\\] cannot transition target state \\["
+                    + targetShardStateToDisrupt
+                    + "\\] because target primary term advanced \\[.*"
             )
         );
 
@@ -678,7 +694,7 @@ public class StatelessReshardIT extends AbstractStatelessIntegTestCase {
             );
         });
 
-        // TODO: At this point we finish the reshard once all the target states are SPLIT. In the future we maybe need to switch this
+        // TODO: At this point we finish the reshard once all the target states are DONE. In the future we maybe need to switch this
         // assertion to reflect the usage of additional states
         executed.actionGet();
 

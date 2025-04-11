@@ -19,6 +19,7 @@ package co.elastic.elasticsearch.stateless.cache;
 
 import co.elastic.elasticsearch.stateless.Stateless;
 import co.elastic.elasticsearch.stateless.cache.reader.CacheBlobReader;
+import co.elastic.elasticsearch.stateless.cache.reader.LazyRangeMissingHandler;
 import co.elastic.elasticsearch.stateless.cache.reader.SequentialRangeMissingHandler;
 import co.elastic.elasticsearch.stateless.commits.BlobFile;
 import co.elastic.elasticsearch.stateless.commits.BlobLocation;
@@ -777,14 +778,16 @@ public class SharedBlobCacheWarmingService {
                             cacheKey,
                             i,
                             cacheService.getRegionSize(),
-                            new SequentialRangeMissingHandler(
-                                WarmBlobLocationTask.this,
-                                cacheKey.fileName(),
-                                ByteRange.of(offset, offset + cacheService.getRegionSize()),
-                                directory.getCacheBlobReaderForWarming(cacheKey.fileName(), blobLocation),
-                                () -> writeBuffer.get().clear(),
-                                totalBytesCopied::addAndGet,
-                                Stateless.PREWARM_THREAD_POOL
+                            new LazyRangeMissingHandler<>(
+                                () -> new SequentialRangeMissingHandler(
+                                    WarmBlobLocationTask.this,
+                                    cacheKey.fileName(),
+                                    ByteRange.of(offset, offset + cacheService.getRegionSize()),
+                                    directory.getCacheBlobReaderForWarming(cacheKey.fileName(), blobLocation),
+                                    () -> writeBuffer.get().clear(),
+                                    totalBytesCopied::addAndGet,
+                                    Stateless.PREWARM_THREAD_POOL
+                                )
                             ),
                             fetchExecutor,
                             ref.acquire().map(b -> null)

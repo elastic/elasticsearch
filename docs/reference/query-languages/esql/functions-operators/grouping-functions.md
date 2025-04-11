@@ -17,7 +17,7 @@ The [`STATS`](/reference/query-languages/esql/commands/processing-commands.md#es
 :::
 
 :::{note} 
-The `CATEGORIZE` function requires a platinum license
+The `CATEGORIZE` function requires a [platinum license](https://www.elastic.co/subscriptions).
 :::
 
 :::{include} ../_snippets/functions/layout/categorize.md

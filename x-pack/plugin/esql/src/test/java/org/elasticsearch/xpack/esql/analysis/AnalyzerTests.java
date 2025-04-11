@@ -3464,7 +3464,7 @@ public class AnalyzerTests extends ESTestCase {
 
         {
             LogicalPlan plan = analyze(
-                " FROM books METADATA _score | RERANK \"italian food recipe\" ON title WITH `reranking-inference-id`",
+                "FROM books METADATA _score | RERANK \"italian food recipe\" ON title WITH `reranking-inference-id`",
                 "mapping-books.json"
             );
             Rerank rerank = as(as(plan, Limit.class).child(), Rerank.class);
@@ -3637,8 +3637,8 @@ public class AnalyzerTests extends ESTestCase {
         assumeTrue("Requires COMPLETION command", EsqlCapabilities.Cap.COMPLETION.isEnabled());
 
         LogicalPlan plan = analyze("""
-                FROM books METADATA _score
-                | COMPLETION CONCAT("Translate the following text in French\\n", description) WITH `completion-inference-id`
+            FROM books METADATA _score
+            | COMPLETION CONCAT("Translate the following text in French\\n", description) WITH `completion-inference-id`
             """, "mapping-books.json");
         Completion completion = as(as(plan, Limit.class).child(), Completion.class);
         assertThat(completion.inferenceId(), equalTo(string("completion-inference-id")));
@@ -3649,8 +3649,8 @@ public class AnalyzerTests extends ESTestCase {
 
         assertError(
             """
-                    FROM books METADATA _score
-                    | COMPLETION CONCAT("Translate the following text in French\\n", description) WITH `reranking-inference-id`
+                FROM books METADATA _score
+                | COMPLETION CONCAT("Translate the following text in French\\n", description) WITH `reranking-inference-id`
                 """,
             "mapping-books.json",
             new QueryParams(),
@@ -3663,8 +3663,8 @@ public class AnalyzerTests extends ESTestCase {
         assumeTrue("Requires COMPLETION command", EsqlCapabilities.Cap.COMPLETION.isEnabled());
 
         assertError("""
-                FROM books METADATA _score
-                | COMPLETION CONCAT("Translate the following text in French\\n", description) WITH `unknown-inference-id`
+            FROM books METADATA _score
+            | COMPLETION CONCAT("Translate the following text in French\\n", description) WITH `unknown-inference-id`
             """, "mapping-books.json", new QueryParams(), "unresolved inference [unknown-inference-id]");
     }
 
@@ -3672,8 +3672,8 @@ public class AnalyzerTests extends ESTestCase {
         assumeTrue("Requires COMPLETION command", EsqlCapabilities.Cap.COMPLETION.isEnabled());
 
         assertError("""
-                FROM books METADATA _score
-                | COMPLETION CONCAT("Translate the following text in French\\n", description) WITH `error-inference-id`
+            FROM books METADATA _score
+            | COMPLETION CONCAT("Translate the following text in French\\n", description) WITH `error-inference-id`
             """, "mapping-books.json", new QueryParams(), "error with inference resolution");
     }
 
@@ -3681,9 +3681,8 @@ public class AnalyzerTests extends ESTestCase {
         assumeTrue("Requires COMPLETION command", EsqlCapabilities.Cap.COMPLETION.isEnabled());
 
         LogicalPlan plan = analyze("""
-                FROM books METADATA _score
-                | COMPLETION CONCAT(
-                    "Translate the following text in French\\n", description) WITH `completion-inference-id` AS translation
+            FROM books METADATA _score
+            | COMPLETION CONCAT("Translate the following text in French\\n", description) WITH `completion-inference-id` AS translation
             """, "mapping-books.json");
 
         Completion completion = as(as(plan, Limit.class).child(), Completion.class);
@@ -3694,8 +3693,8 @@ public class AnalyzerTests extends ESTestCase {
         assumeTrue("Requires COMPLETION command", EsqlCapabilities.Cap.COMPLETION.isEnabled());
 
         LogicalPlan plan = analyze("""
-              FROM books METADATA _score
-              | COMPLETION CONCAT("Translate the following text in French\\n", description) WITH `completion-inference-id`
+            FROM books METADATA _score
+            | COMPLETION CONCAT("Translate the following text in French\\n", description) WITH `completion-inference-id`
             """, "mapping-books.json");
 
         Completion completion = as(as(plan, Limit.class).child(), Completion.class);
@@ -3706,7 +3705,7 @@ public class AnalyzerTests extends ESTestCase {
         assumeTrue("Requires COMPLETION command", EsqlCapabilities.Cap.COMPLETION.isEnabled());
 
         LogicalPlan plan = analyze("""
-              FROM books METADATA _score
+            FROM books METADATA _score
             | COMPLETION CONCAT("Translate the following text in French\\n", description) WITH `completion-inference-id`
             """, "mapping-books.json");
 
@@ -3723,8 +3722,8 @@ public class AnalyzerTests extends ESTestCase {
         assumeTrue("Requires COMPLETION command", EsqlCapabilities.Cap.COMPLETION.isEnabled());
 
         assertError("""
-                FROM books METADATA _score
-                | COMPLETION LENGTH(description) WITH `completion-inference-id`
+            FROM books METADATA _score
+            | COMPLETION LENGTH(description) WITH `completion-inference-id`
             """, "mapping-books.json", new QueryParams(), "prompt must be of type [text] but is [integer]");
     }
 
@@ -3732,8 +3731,8 @@ public class AnalyzerTests extends ESTestCase {
         assumeTrue("Requires COMPLETION command", EsqlCapabilities.Cap.COMPLETION.isEnabled());
 
         LogicalPlan plan = analyze("""
-                FROM books METADATA _score
-                | COMPLETION CONCAT("Translate the following text in French\\n", description) WITH `completion-inference-id` AS description
+            FROM books METADATA _score
+            | COMPLETION CONCAT("Translate the following text in French\\n", description) WITH `completion-inference-id` AS description
             """, "mapping-books.json");
 
         Completion completion = as(as(plan, Limit.class).child(), Completion.class);

@@ -29,7 +29,6 @@ import org.elasticsearch.xpack.core.LocalStateCompositeXPackPlugin;
 
 import java.util.Collection;
 import java.util.List;
-import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_DOWNSAMPLE_STATUS;
 import static org.elasticsearch.xpack.downsample.DataStreamLifecycleDriver.getBackingIndices;
@@ -116,6 +115,6 @@ public class DataStreamLifecycleDownsampleDisruptionIT extends ESIntegTestCase {
             }
             return false;
         });
-        safeAwait(listener, timeout.millis(), TimeUnit.MILLISECONDS);
+        safeAwait(listener, timeout);
     }
 }

@@ -615,19 +615,6 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 prompt = prompt.transformUp(UnresolvedAttribute.class, ua -> maybeResolveAttribute(ua, childrenOutput));
             }
 
-            if (prompt.resolved() && DataType.isString(prompt.dataType()) == false) {
-                prompt = new UnresolvedAttribute(
-                    prompt.source(),
-                    "unsupported",
-                    LoggerMessageFormat.format(
-                        null,
-                        "prompt must be of type [{}] but is [{}]",
-                        TEXT.typeName(),
-                        prompt.dataType().typeName()
-                    )
-                );
-            }
-
             return new Completion(p.source(), p.child(), p.inferenceId(), prompt, targetField);
         }
 

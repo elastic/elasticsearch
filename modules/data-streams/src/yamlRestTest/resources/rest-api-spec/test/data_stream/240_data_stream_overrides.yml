@@ -1,0 +1,95 @@
+---
+setup:
+  - requires:
+      reason: "Data stream failure stores config in templates was added in 8.16+"
+      test_runner_features: [ capabilities, allowed_warnings ]
+
+---
+"Test single data stream":
+  - do:
+      allowed_warnings:
+        - "index template [my-template] has index patterns [data-*] matching patterns from existing older templates [global] with patterns (global => [*]); this template [my-template] will take precedence during new index creation"
+      indices.put_index_template:
+        name: my-template
+        body:
+          index_patterns: [ my-data-stream-* ]
+          data_stream: { }
+          template:
+            settings:
+              number_of_replicas: 0
+              lifecycle.name: my-policy
+
+  - do:
+      indices.create_data_stream:
+        name: my-data-stream-1
+
+  - do:
+      indices.rollover:
+        alias: "my-data-stream-1"
+
+  - do:
+      cluster.health:
+        index: "my-data-stream-1"
+        wait_for_status: green
+
+  - do:
+      indices.post_data_stream:
+        name: my-data-stream-1
+        body:
+          template:
+            settings:
+              index:
+                number_of_shards: 2
+  - match: { data_streams.0.name: my-data-stream-1 }
+  - match: { data_streams.0.applied_to_data_stream: true }
+  - match: { data_streams.0.index_settings_results.0.name: index.number_of_shards }
+  - match: { data_streams.0.index_settings_results.0.applied_to_backing_indices: false }
+  - match: { data_streams.0.effective_template.index_patterns.0: "my-data-stream-*" }
+  - match: { data_streams.0.effective_template.template.settings.index.number_of_shards: "2" }
+  - match: { data_streams.0.effective_template.template.settings.index.number_of_replicas: "0" }
+  - match: { data_streams.0.effective_template.template.settings.index.lifecycle.name: "my-policy" }
+
+---
+"Test invalid settings":
+  - do:
+      allowed_warnings:
+        - "index template [my-template] has index patterns [data-*] matching patterns from existing older templates [global] with patterns (global => [*]); this template [my-template] will take precedence during new index creation"
+      indices.put_index_template:
+        name: my-template
+        body:
+          index_patterns: [ my-data-stream-* ]
+          data_stream: { }
+          template:
+            settings:
+              number_of_replicas: 0
+              lifecycle.name: my-policy
+
+  - do:
+      indices.create_data_stream:
+        name: my-data-stream-1
+
+  - do:
+      indices.rollover:
+        alias: "my-data-stream-1"
+
+  - do:
+      cluster.health:
+        index: "my-data-stream-1"
+        wait_for_status: green
+
+  - do:
+      indices.post_data_stream:
+        name: my-data-stream-1
+        body:
+          template:
+            settings:
+              index:
+                fake_setting: 1234
+  - match: { data_streams.0.name: my-data-stream-1 }
+  - match: { data_streams.0.applied_to_data_stream: true }
+  - match: { data_streams.0.index_settings_results.0.name: index.fake_setting }
+  - match: { data_streams.0.index_settings_results.0.applied_to_backing_indices: false }
+  - match: { data_streams.0.effective_template.index_patterns.0: "my-data-stream-*" }
+  - match: { data_streams.0.effective_template.template.settings.index.fake_setting: "1234" }
+  - match: { data_streams.0.effective_template.template.settings.index.number_of_replicas: "0" }
+  - match: { data_streams.0.effective_template.template.settings.index.lifecycle.name: "my-policy" }

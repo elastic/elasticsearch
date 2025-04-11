@@ -56,7 +56,7 @@ public class ComposableIndexTemplate implements SimpleDiffable<ComposableIndexTe
         "index_template",
         false,
         a -> new ComposableIndexTemplate(
-            (List<String>) a[0],
+            a[0] == null ? List.of() : (List<String>) a[0],
             (Template) a[1],
             (List<String>) a[2],
             (Long) a[3],
@@ -108,7 +108,7 @@ public class ComposableIndexTemplate implements SimpleDiffable<ComposableIndexTe
 
     public static ComposableIndexTemplate parse(XContentParser parser) throws IOException {
         ComposableIndexTemplate composableIndexTemplate = PARSER.parse(parser, null);
-        if (composableIndexTemplate.indexPatterns() == null) {
+        if (composableIndexTemplate.indexPatterns().isEmpty()) {
             throw new IllegalArgumentException("Required [index_patterns]");
         }
         return composableIndexTemplate;

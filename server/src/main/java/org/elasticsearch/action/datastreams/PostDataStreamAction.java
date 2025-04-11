@@ -105,7 +105,7 @@ public class PostDataStreamAction extends ActionType<AcknowledgedResponse> {
 
         @Override
         public IndicesOptions indicesOptions() {
-            return IndicesOptions.strictSingleIndexNoExpandForbidClosed();
+            return IndicesOptions.LENIENT_EXPAND_OPEN_CLOSED;
         }
     }
 
@@ -122,7 +122,7 @@ public class PostDataStreamAction extends ActionType<AcknowledgedResponse> {
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            out.writeGenericList(dataStreamResponses, (out1, value) -> value.writeTo(out1));
+            out.writeCollection(dataStreamResponses, (out1, value) -> value.writeTo(out1));
         }
 
         @Override
@@ -162,7 +162,7 @@ public class PostDataStreamAction extends ActionType<AcknowledgedResponse> {
             out.writeBoolean(dataStreamSucceeded);
             out.writeOptionalString(dataStreamErrorMessage);
             out.writeOptionalWriteable(effectiveTemplate);
-            out.writeGenericList(indexSettingResults, (out1, value) -> value.writeTo(out1));
+            out.writeCollection(indexSettingResults, (out1, value) -> value.writeTo(out1));
         }
 
         @Override
@@ -204,7 +204,7 @@ public class PostDataStreamAction extends ActionType<AcknowledgedResponse> {
             public void writeTo(StreamOutput out) throws IOException {
                 out.writeString(name);
                 out.writeBoolean(appliedToBackingIndices);
-                out.writeGenericList(indexSettingErrors, (out1, value) -> value.writeTo(out1));
+                out.writeCollection(indexSettingErrors, (out1, value) -> value.writeTo(out1));
             }
         }
 

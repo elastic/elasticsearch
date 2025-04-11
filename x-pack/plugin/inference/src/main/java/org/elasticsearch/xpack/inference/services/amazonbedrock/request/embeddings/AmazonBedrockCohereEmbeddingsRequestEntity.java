@@ -12,6 +12,7 @@ import org.elasticsearch.inference.InputType;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.inference.services.amazonbedrock.embeddings.AmazonBedrockEmbeddingsTaskSettings;
+import org.elasticsearch.xpack.inference.services.cohere.embeddings.CohereEmbeddingType;
 
 import java.io.IOException;
 import java.util.List;
@@ -22,7 +23,8 @@ import static org.elasticsearch.inference.InputType.invalidInputTypeMessage;
 public record AmazonBedrockCohereEmbeddingsRequestEntity(
     List<String> input,
     @Nullable InputType inputType,
-    AmazonBedrockEmbeddingsTaskSettings taskSettings
+    AmazonBedrockEmbeddingsTaskSettings taskSettings,
+    @Nullable CohereEmbeddingType embeddingType
 ) implements ToXContentObject {
 
     private static final String TEXTS_FIELD = "texts";
@@ -32,6 +34,7 @@ public record AmazonBedrockCohereEmbeddingsRequestEntity(
     private static final String CLUSTERING = "clustering";
     private static final String CLASSIFICATION = "classification";
     private static final String TRUNCATE = "truncate";
+    private static final String EMBEDDING_TYPES = "embedding_types";
 
     public AmazonBedrockCohereEmbeddingsRequestEntity {
         Objects.requireNonNull(input);
@@ -52,6 +55,10 @@ public record AmazonBedrockCohereEmbeddingsRequestEntity(
 
         if (taskSettings.cohereTruncation() != null) {
             builder.field(TRUNCATE, taskSettings.cohereTruncation().name());
+        }
+
+        if (embeddingType != null) {
+            builder.field(EMBEDDING_TYPES, List.of(embeddingType.toRequestString()));
         }
 
         builder.endObject();

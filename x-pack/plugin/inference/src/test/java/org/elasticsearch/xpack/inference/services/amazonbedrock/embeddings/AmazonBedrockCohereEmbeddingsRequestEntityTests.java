@@ -12,6 +12,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.inference.services.amazonbedrock.request.AmazonBedrockJsonBuilder;
 import org.elasticsearch.xpack.inference.services.amazonbedrock.request.embeddings.AmazonBedrockCohereEmbeddingsRequestEntity;
 import org.elasticsearch.xpack.inference.services.cohere.CohereTruncation;
+import org.elasticsearch.xpack.inference.services.cohere.embeddings.CohereEmbeddingType;
 
 import java.io.IOException;
 import java.util.List;
@@ -23,7 +24,8 @@ public class AmazonBedrockCohereEmbeddingsRequestEntityTests extends ESTestCase 
         var entity = new AmazonBedrockCohereEmbeddingsRequestEntity(
             List.of("test input"),
             InputType.CLASSIFICATION,
-            AmazonBedrockEmbeddingsTaskSettingsTests.emptyTaskSettings()
+            AmazonBedrockEmbeddingsTaskSettingsTests.emptyTaskSettings(),
+            null
         );
         var builder = new AmazonBedrockJsonBuilder(entity);
         var result = builder.getStringContent();
@@ -34,7 +36,8 @@ public class AmazonBedrockCohereEmbeddingsRequestEntityTests extends ESTestCase 
         var entity = new AmazonBedrockCohereEmbeddingsRequestEntity(
             List.of("test input"),
             InputType.INTERNAL_SEARCH,
-            AmazonBedrockEmbeddingsTaskSettingsTests.emptyTaskSettings()
+            AmazonBedrockEmbeddingsTaskSettingsTests.emptyTaskSettings(),
+            null
         );
         var builder = new AmazonBedrockJsonBuilder(entity);
         var result = builder.getStringContent();
@@ -45,7 +48,8 @@ public class AmazonBedrockCohereEmbeddingsRequestEntityTests extends ESTestCase 
         var entity = new AmazonBedrockCohereEmbeddingsRequestEntity(
             List.of("test input"),
             null,
-            AmazonBedrockEmbeddingsTaskSettingsTests.emptyTaskSettings()
+            AmazonBedrockEmbeddingsTaskSettingsTests.emptyTaskSettings(),
+            null
         );
         var builder = new AmazonBedrockJsonBuilder(entity);
         var result = builder.getStringContent();
@@ -56,10 +60,38 @@ public class AmazonBedrockCohereEmbeddingsRequestEntityTests extends ESTestCase 
         var entity = new AmazonBedrockCohereEmbeddingsRequestEntity(
             List.of("test input"),
             null,
-            new AmazonBedrockEmbeddingsTaskSettings(CohereTruncation.START)
+            new AmazonBedrockEmbeddingsTaskSettings(CohereTruncation.START),
+            null
         );
         var builder = new AmazonBedrockJsonBuilder(entity);
         var result = builder.getStringContent();
         assertThat(result, is("{\"texts\":[\"test input\"],\"input_type\":\"search_document\",\"truncate\":\"START\"}"));
+    }
+
+    public void testRequestEntity_GeneratesExpectedJsonBody_WithFloatEmbedding() throws IOException {
+        testEmbeddingType(CohereEmbeddingType.FLOAT, "float");
+    }
+
+    public void testRequestEntity_GeneratesExpectedJsonBody_WithInt8Embedding() throws IOException {
+        testEmbeddingType(CohereEmbeddingType.INT8, "int8");
+    }
+
+    public void testRequestEntity_GeneratesExpectedJsonBody_WithByteEmbedding() throws IOException {
+        testEmbeddingType(CohereEmbeddingType.BYTE, "int8");
+    }
+
+    private void testEmbeddingType(CohereEmbeddingType cohereEmbeddingType, String expectedField) throws IOException {
+        var entity = new AmazonBedrockCohereEmbeddingsRequestEntity(
+            List.of("test input"),
+            null,
+            AmazonBedrockEmbeddingsTaskSettingsTests.emptyTaskSettings(),
+            cohereEmbeddingType
+        );
+        var builder = new AmazonBedrockJsonBuilder(entity);
+        var result = builder.getStringContent();
+        assertThat(
+            result,
+            is("{\"texts\":[\"test input\"],\"input_type\":\"search_document\",\"embedding_types\":[\"" + expectedField + "\"]}")
+        );
     }
 }

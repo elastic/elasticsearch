@@ -137,9 +137,13 @@ public class CohereEmbeddingsResponseEntity {
      * </pre>
      */
     public static InferenceServiceResults fromResponse(Request request, HttpResult response) throws IOException {
+        return fromResponse(response.body());
+    }
+
+    public static InferenceServiceResults fromResponse(byte[] body) throws IOException {
         var parserConfig = XContentParserConfiguration.EMPTY.withDeprecationHandler(LoggingDeprecationHandler.INSTANCE);
 
-        try (XContentParser jsonParser = XContentFactory.xContent(XContentType.JSON).createParser(parserConfig, response.body())) {
+        try (XContentParser jsonParser = XContentFactory.xContent(XContentType.JSON).createParser(parserConfig, body)) {
             moveToFirstToken(jsonParser);
 
             XContentParser.Token token = jsonParser.currentToken();

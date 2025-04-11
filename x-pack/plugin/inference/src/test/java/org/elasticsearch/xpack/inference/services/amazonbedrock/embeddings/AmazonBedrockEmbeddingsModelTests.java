@@ -134,7 +134,8 @@ public class AmazonBedrockEmbeddingsModelTests extends ESTestCase {
                 dimensionsSetByUser,
                 maxTokens,
                 similarity,
-                rateLimitSettings
+                rateLimitSettings,
+                null
             ),
             AmazonBedrockEmbeddingsTaskSettingsTests.emptyTaskSettings(),
             chunkingSettings,
@@ -197,7 +198,8 @@ public class AmazonBedrockEmbeddingsModelTests extends ESTestCase {
                 dimensionsSetByUser,
                 maxTokens,
                 similarity,
-                rateLimitSettings
+                rateLimitSettings,
+                null
             ),
             taskSettings,
             null,

@@ -16,6 +16,7 @@ import org.elasticsearch.common.io.stream.ByteArrayStreamInput;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
+import java.util.Arrays;
 
 import static java.nio.charset.StandardCharsets.UTF_8;
 
@@ -24,14 +25,10 @@ public class MultipartUploadTests extends ESTestCase {
     // produces content that does not contain boundary
     static String randomPartContent(int len, String boundary) {
         assert len > 0 && boundary.isEmpty() == false;
-        var n = 100;
-        for (var i = 0; i < 100; i++) {
-            var content = randomAlphanumericOfLength(len);
-            if (content.contains(boundary) == false) {
-                return content;
-            }
-        }
-        throw new IllegalStateException("cannot generate part content for len=" + len + " boundary=" + boundary);
+        var content = randomAlphanumericOfLength(len);
+        var replacement = boundary.getBytes(UTF_8);
+        replacement[0]++; // change single char to make it different from original
+        return content.replace(boundary, Arrays.toString(replacement));
     }
 
     public void testGenericMultipart() throws IOException {

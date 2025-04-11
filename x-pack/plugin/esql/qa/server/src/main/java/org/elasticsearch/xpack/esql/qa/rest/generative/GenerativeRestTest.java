@@ -25,6 +25,7 @@ import java.util.stream.Collectors;
 
 import static org.elasticsearch.xpack.esql.CsvTestsDataLoader.CSV_DATASET_MAP;
 import static org.elasticsearch.xpack.esql.CsvTestsDataLoader.ENRICH_POLICIES;
+import static org.elasticsearch.xpack.esql.CsvTestsDataLoader.availableDatasetsForEs;
 import static org.elasticsearch.xpack.esql.CsvTestsDataLoader.loadDataSetIntoEs;
 
 public abstract class GenerativeRestTest extends ESRestTestCase {
@@ -41,7 +42,6 @@ public abstract class GenerativeRestTest extends ESRestTestCase {
         "Unbounded sort not supported yet",
         "The field names are too complex to process", // field_caps problem
         "must be \\[any type except counter types\\]", // TODO refine the generation of count()
-        "mismatched input .* expecting", // identifier generator needs to be refined, this happens when an identifier is a reserved keyword
 
         // warnings
         "Field '.*' shadowed by field at line .*",
@@ -56,6 +56,7 @@ public abstract class GenerativeRestTest extends ESRestTestCase {
         "optimized incorrectly due to missing references", // https://github.com/elastic/elasticsearch/issues/116781
         "No matches found for pattern", // https://github.com/elastic/elasticsearch/issues/126418
         "JOIN left field .* is incompatible with right field", // https://github.com/elastic/elasticsearch/issues/126419
+        "Unsupported type .* for enrich", // most likely still https://github.com/elastic/elasticsearch/issues/126419
         "The incoming YAML document exceeds the limit:" // still to investigate, but it seems to be specific to the test framework
     );
 
@@ -85,7 +86,7 @@ public abstract class GenerativeRestTest extends ESRestTestCase {
         }
     }
 
-    public void test() {
+    public void test() throws IOException {
         List<String> indices = availableIndices();
         List<LookupIdx> lookupIndices = lookupIndices();
         List<CsvTestsDataLoader.EnrichConfig> policies = availableEnrichPolicies();
@@ -142,14 +143,11 @@ public abstract class GenerativeRestTest extends ESRestTestCase {
         return cols.stream().map(x -> new EsqlQueryGenerator.Column(x.get("name"), x.get("type"))).collect(Collectors.toList());
     }
 
-    private List<String> availableIndices() {
-        return new ArrayList<>(
-            CSV_DATASET_MAP.entrySet()
-                .stream()
-                .filter(x -> x.getValue().requiresInferenceEndpoint() == false)
-                .map(Map.Entry::getKey)
-                .toList()
-        );
+    private List<String> availableIndices() throws IOException {
+        return availableDatasetsForEs(client(), true, supportsSourceFieldMapping()).stream()
+            .filter(x -> x.requiresInferenceEndpoint() == false)
+            .map(x -> x.indexName())
+            .toList();
     }
 
     record LookupIdx(String idxName, String key, String keyType) {}

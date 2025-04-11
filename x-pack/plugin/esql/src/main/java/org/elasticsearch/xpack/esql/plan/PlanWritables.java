@@ -22,6 +22,7 @@ import org.elasticsearch.xpack.esql.plan.logical.MvExpand;
 import org.elasticsearch.xpack.esql.plan.logical.OrderBy;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.TopN;
+import org.elasticsearch.xpack.esql.plan.logical.inference.Completion;
 import org.elasticsearch.xpack.esql.plan.logical.inference.Rerank;
 import org.elasticsearch.xpack.esql.plan.logical.join.InlineJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.Join;
@@ -65,6 +66,7 @@ public class PlanWritables {
     public static List<NamedWriteableRegistry.Entry> logical() {
         return List.of(
             Aggregate.ENTRY,
+            Completion.ENTRY,
             Dissect.ENTRY,
             Enrich.ENTRY,
             EsRelation.ENTRY,

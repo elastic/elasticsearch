@@ -63,6 +63,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.Rename;
 import org.elasticsearch.xpack.esql.plan.logical.Row;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
+import org.elasticsearch.xpack.esql.plan.logical.inference.Completion;
 import org.elasticsearch.xpack.esql.plan.logical.inference.Rerank;
 import org.elasticsearch.xpack.esql.plan.logical.join.JoinTypes;
 import org.elasticsearch.xpack.esql.plan.logical.join.LookupJoin;
@@ -3298,6 +3299,68 @@ public class StatementParserTests extends AbstractStatementParserTests {
         expectError("FROM foo* | RERANK \"query text\" WITH inferenceId", "line 1:33: mismatched input 'WITH' expecting 'on'");
 
         expectError("FROM foo* | RERANK \"query text\" ON title", "line 1:41: mismatched input '<EOF>' expecting {'and',");
+    }
+
+    public void testCompletionUsingFieldAsPrompt() {
+        assumeTrue("COMPLETION requires corresponding capability", EsqlCapabilities.Cap.COMPLETION.isEnabled());
+
+        var plan = as(processingCommand("COMPLETION prompt_field WITH inferenceID AS targetField"), Completion.class);
+
+        assertThat(plan.prompt(), equalTo(attribute("prompt_field")));
+        assertThat(plan.inferenceId(), equalTo(literalString("inferenceID")));
+        assertThat(plan.targetField(), equalTo(attribute("targetField")));
+    }
+
+    public void testCompletionUsingFunctionAsPrompt() {
+        assumeTrue("COMPLETION requires corresponding capability", EsqlCapabilities.Cap.COMPLETION.isEnabled());
+
+        var plan = as(processingCommand("COMPLETION CONCAT(fieldA, fieldB) WITH inferenceID AS targetField"), Completion.class);
+
+        assertThat(plan.prompt(), equalTo(function("CONCAT", List.of(attribute("fieldA"), attribute("fieldB")))));
+        assertThat(plan.inferenceId(), equalTo(literalString("inferenceID")));
+        assertThat(plan.targetField(), equalTo(attribute("targetField")));
+    }
+
+    public void testCompletionDefaultFieldName() {
+        assumeTrue("COMPLETION requires corresponding capability", EsqlCapabilities.Cap.COMPLETION.isEnabled());
+
+        var plan = as(processingCommand("COMPLETION prompt_field WITH inferenceID"), Completion.class);
+
+        assertThat(plan.prompt(), equalTo(attribute("prompt_field")));
+        assertThat(plan.inferenceId(), equalTo(literalString("inferenceID")));
+        assertThat(plan.targetField(), equalTo(attribute("completion")));
+    }
+
+    public void testCompletionWithPositionalParameters() {
+        assumeTrue("COMPLETION requires corresponding capability", EsqlCapabilities.Cap.COMPLETION.isEnabled());
+
+        var queryParams = new QueryParams(List.of(paramAsConstant(null, "inferenceId")));
+        var plan = as(parser.createStatement("row a = 1 | COMPLETION prompt_field WITH ?", queryParams), Completion.class);
+
+        assertThat(plan.prompt(), equalTo(attribute("prompt_field")));
+        assertThat(plan.inferenceId(), equalTo(literalString("inferenceId")));
+        assertThat(plan.targetField(), equalTo(attribute("completion")));
+    }
+
+    public void testCompletionWithNamedParameters() {
+        assumeTrue("COMPLETION requires corresponding capability", EsqlCapabilities.Cap.COMPLETION.isEnabled());
+
+        var queryParams = new QueryParams(List.of(paramAsConstant("inferenceId", "myInference")));
+        var plan = as(parser.createStatement("row a = 1 | COMPLETION prompt_field WITH ?inferenceId", queryParams), Completion.class);
+
+        assertThat(plan.prompt(), equalTo(attribute("prompt_field")));
+        assertThat(plan.inferenceId(), equalTo(literalString("myInference")));
+        assertThat(plan.targetField(), equalTo(attribute("completion")));
+    }
+
+    public void testInvalidCompletion() {
+        assumeTrue("COMPLETION requires corresponding capability", EsqlCapabilities.Cap.COMPLETION.isEnabled());
+
+        expectError("FROM foo* | COMPLETION WITH inferenceId", "line 1:24: extraneous input 'WITH' expecting {");
+
+        expectError("FROM foo* | COMPLETION prompt WITH", "line 1:35: mismatched input '<EOF>' expecting {");
+
+        expectError("FROM foo* | COMPLETION prompt AS targetField", "line 1:31: mismatched input 'AS' expecting {");
     }
 
     static Alias alias(String name, Expression value) {

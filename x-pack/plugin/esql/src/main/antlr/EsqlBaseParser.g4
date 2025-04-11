@@ -54,6 +54,7 @@ processingCommand
     | joinCommand
     | changePointCommand
     // in development
+    | {this.isDevVersion()}? completionCommand
     | {this.isDevVersion()}? inlinestatsCommand
     | {this.isDevVersion()}? lookupCommand
     | {this.isDevVersion()}? rerankCommand
@@ -370,4 +371,8 @@ joinPredicate
 
 rerankCommand
     : DEV_RERANK queryText=constant ON fields WITH inferenceId=identifierOrParameter
+    ;
+
+completionCommand
+    : DEV_COMPLETION prompt=primaryExpression WITH inferenceId=identifierOrParameter (AS targetField=qualifiedName)?
     ;

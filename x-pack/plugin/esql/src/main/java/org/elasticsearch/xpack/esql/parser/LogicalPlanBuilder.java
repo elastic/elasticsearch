@@ -61,6 +61,7 @@ import org.elasticsearch.xpack.esql.plan.logical.OrderBy;
 import org.elasticsearch.xpack.esql.plan.logical.Rename;
 import org.elasticsearch.xpack.esql.plan.logical.Row;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
+import org.elasticsearch.xpack.esql.plan.logical.inference.Completion;
 import org.elasticsearch.xpack.esql.plan.logical.inference.Rerank;
 import org.elasticsearch.xpack.esql.plan.logical.join.LookupJoin;
 import org.elasticsearch.xpack.esql.plan.logical.show.ShowInfo;
@@ -643,12 +644,7 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
 
     @Override
     public PlanFactory visitRerankCommand(EsqlBaseParser.RerankCommandContext ctx) {
-        var source = source(ctx);
-
-        if (false == EsqlCapabilities.Cap.RERANK.isEnabled()) {
-            throw new ParsingException(source, "RERANK is in preview and only available in SNAPSHOT build");
-        }
-
+        Source source = source(ctx);
         Expression queryText = expression(ctx.queryText);
         if (queryText instanceof Literal queryTextLiteral && DataType.isString(queryText.dataType())) {
             if (queryTextLiteral.value() == null) {
@@ -667,6 +663,18 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
         }
 
         return p -> new Rerank(source, p, inferenceId(ctx.inferenceId), queryText, visitFields(ctx.fields()));
+    }
+
+    @Override
+    public PlanFactory visitCompletionCommand(EsqlBaseParser.CompletionCommandContext ctx) {
+        Source source = source(ctx);
+        Expression prompt = expression(ctx.prompt);
+        Literal inferenceId = inferenceId(ctx.inferenceId);
+        Attribute targetField = ctx.targetField == null
+            ? new UnresolvedAttribute(source, Completion.DEFAULT_OUTPUT_FIELD_NAME)
+            : visitQualifiedName(ctx.targetField);
+
+        return p -> new Completion(source, p, inferenceId, prompt, targetField);
     }
 
     public Literal inferenceId(EsqlBaseParser.IdentifierOrParameterContext ctx) {

@@ -16,6 +16,10 @@ The [`STATS`](/reference/query-languages/esql/commands/processing-commands.md#es
 :::{include} ../_snippets/functions/layout/bucket.md
 :::
 
+:::{note} 
+The `CATEGORIZE` function requires a [platinum license](https://www.elastic.co/subscriptions).
+:::
+
 :::{include} ../_snippets/functions/layout/categorize.md
 :::
 

@@ -10,6 +10,7 @@
 package org.elasticsearch.repositories.s3;
 
 import com.amazonaws.AmazonClientException;
+import com.amazonaws.AmazonServiceException;
 import com.amazonaws.services.s3.AmazonS3;
 import com.amazonaws.services.s3.model.AbortMultipartUploadRequest;
 import com.amazonaws.services.s3.model.AmazonS3Exception;
@@ -376,12 +377,11 @@ class S3BlobContainer extends AbstractBlobContainer {
                     SocketAccess.doPrivilegedVoid(() -> { clientReference.client().copyObject(copyRequest); });
                 }
             }
-        } catch (final AmazonClientException e) {
-            if (e instanceof AmazonS3Exception amazonS3Exception) {
-                if (amazonS3Exception.getStatusCode() == RestStatus.NOT_FOUND.getStatus()) {
-                    final var sourceKey = s3SourceBlobContainer.buildKey(sourceBlobName);
-                    throw new NoSuchFileException("Copy source [" + sourceKey + "] not found: " + amazonS3Exception.getMessage());
-                }
+        } catch (final Exception e) {
+            if (e instanceof AmazonServiceException ase && ase.getStatusCode() == RestStatus.NOT_FOUND.getStatus()) {
+                throw new NoSuchFileException(
+                    "Copy source [" + s3SourceBlobContainer.buildKey(sourceBlobName) + "] not found: " + ase.getMessage()
+                );
             }
             throw new IOException("Unable to copy object [" + blobName + "] from [" + sourceBlobContainer + "][" + sourceBlobName + "]", e);
         }
@@ -618,8 +618,10 @@ class S3BlobContainer extends AbstractBlobContainer {
                 SocketAccess.doPrivilegedVoid(() -> clientReference.client().completeMultipartUpload(complRequest));
             }
             success = true;
-
-        } catch (final AmazonClientException e) {
+        } catch (final Exception e) {
+            if (e instanceof AmazonServiceException ase && ase.getStatusCode() == RestStatus.NOT_FOUND.getStatus()) {
+                throw new NoSuchFileException(blobName, null, e.getMessage());
+            }
             throw new IOException("Unable to upload or copy object [" + blobName + "] using multipart upload", e);
         } finally {
             if ((success == false) && Strings.hasLength(uploadId.get())) {

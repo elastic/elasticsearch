@@ -339,7 +339,12 @@ interface FieldSpecificMatcher {
         }
 
         @Override
-        public MatchResult match(List<Object> actual, List<Object> expected, Map<String, Object> actualMapping, Map<String, Object> expectedMapping) {
+        public MatchResult match(
+            List<Object> actual,
+            List<Object> expected,
+            Map<String, Object> actualMapping,
+            Map<String, Object> expectedMapping
+        ) {
             this.normalizer = (String) FieldSpecificMatcher.getMappingParameter("normalizer", actualMapping, expectedMapping);
             return super.match(actual, expected, actualMapping, expectedMapping);
         }

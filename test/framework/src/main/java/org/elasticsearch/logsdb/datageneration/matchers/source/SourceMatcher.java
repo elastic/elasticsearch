@@ -98,7 +98,10 @@ public class SourceMatcher extends GenericEqualsMatcher<List<Map<String, Object>
 
             MatchResult matchIncludingFieldSpecificMatchers = matchWithFieldSpecificMatcher(name, actualValues, expectedValues);
             if (matchIncludingFieldSpecificMatchers.isMatch() == false) {
-                String message = "Source documents don't match for field [" + name + "]: " + matchIncludingFieldSpecificMatchers.getMessage();
+                String message = "Source documents don't match for field ["
+                    + name
+                    + "]: "
+                    + matchIncludingFieldSpecificMatchers.getMessage();
                 return MatchResult.noMatch(message);
             }
         }

@@ -2398,8 +2398,9 @@ public abstract class ESTestCase extends LuceneTestCase {
      * complete are a big drag on CI times which slows everyone down.
      * <p>
      * For instance, tests which verify things that require the passage of time ought to simulate this (e.g. using a {@link
-     * org.elasticsearch.common.util.concurrent.DeterministicTaskQueue}). Excessive busy-waits ought to be replaced by blocking waits (e.g.
-     * using a {@link CountDownLatch}) which release as soon as the condition is satisfied.
+     * org.elasticsearch.common.util.concurrent.DeterministicTaskQueue}). Excessive busy-waits ought to be replaced by blocking waits. For
+     * instance, use a {@link CountDownLatch} or {@link CyclicBarrier} or similar to continue execution as soon as a condition is satisfied.
+     * To wait for a particular cluster state, use {@link ClusterServiceUtils#addTemporaryStateListener} rather than busy-waiting on an API.
      */
     public static final TimeValue SAFE_AWAIT_TIMEOUT = TimeValue.timeValueSeconds(10);
 
@@ -2477,7 +2478,7 @@ public abstract class ESTestCase extends LuceneTestCase {
      * @return The value with which the {@code listener} was completed.
      */
     public static <T> T safeAwait(SubscribableListener<T> listener) {
-        return safeAwait(listener, SAFE_AWAIT_TIMEOUT.getMillis(), TimeUnit.MILLISECONDS);
+        return safeAwait(listener, SAFE_AWAIT_TIMEOUT);
     }
 
     /**
@@ -2486,10 +2487,10 @@ public abstract class ESTestCase extends LuceneTestCase {
      *
      * @return The value with which the {@code listener} was completed.
      */
-    public static <T> T safeAwait(SubscribableListener<T> listener, long timeout, TimeUnit unit) {
+    public static <T> T safeAwait(SubscribableListener<T> listener, TimeValue timeout) {
         final var future = new TestPlainActionFuture<T>();
         listener.addListener(future);
-        return safeGet(future, timeout, unit);
+        return safeGet(future, timeout);
     }
 
     /**
@@ -2519,7 +2520,7 @@ public abstract class ESTestCase extends LuceneTestCase {
      * @return The value with which the {@code future} was completed.
      */
     public static <T> T safeGet(Future<T> future) {
-        return safeGet(future, SAFE_AWAIT_TIMEOUT.millis(), TimeUnit.MILLISECONDS);
+        return safeGet(future, SAFE_AWAIT_TIMEOUT);
     }
 
     /**
@@ -2528,9 +2529,10 @@ public abstract class ESTestCase extends LuceneTestCase {
      *
      * @return The value with which the {@code future} was completed.
      */
-    public static <T> T safeGet(Future<T> future, long timeout, TimeUnit unit) {
+    // NB private because tests should be designed not to need to wait for longer than SAFE_AWAIT_TIMEOUT.
+    private static <T> T safeGet(Future<T> future, TimeValue timeout) {
         try {
-            return future.get(timeout, unit);
+            return future.get(timeout.millis(), TimeUnit.MILLISECONDS);
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
             throw new AssertionError("safeGet: interrupted waiting for SubscribableListener", e);

@@ -879,6 +879,11 @@ public class EsqlCapabilities {
         RERANK(Build.current().isSnapshot()),
 
         /**
+         * Support for COMPLETION command
+         */
+        COMPLETION(Build.current().isSnapshot()),
+
+        /**
          * Allow mixed numeric types in conditional functions - case, greatest and least
          */
         MIXED_NUMERIC_TYPES_IN_CASE_GREATEST_LEAST,
@@ -950,11 +955,47 @@ public class EsqlCapabilities {
         FIX_REPLACE_MISSING_FIELD_WITH_NULL_DUPLICATE_NAME_ID_IN_LAYOUT,
 
         /**
+         * Support for filter in converted null.
+         * See <a href="https://github.com/elastic/elasticsearch/issues/125832"> ESQL: Fix `NULL` handling in `IN` clause #125832 </a>
+         */
+        FILTER_IN_CONVERTED_NULL,
+
+        /**
          * When creating constant null blocks in {@link org.elasticsearch.compute.lucene.ValuesSourceReaderOperator}, we also handed off
          * the ownership of that block - but didn't account for the fact that the caller might close it, leading to double releases
          * in some union type queries. C.f. https://github.com/elastic/elasticsearch/issues/125850
          */
-        FIX_DOUBLY_RELEASED_NULL_BLOCKS_IN_VALUESOURCEREADER;
+        FIX_DOUBLY_RELEASED_NULL_BLOCKS_IN_VALUESOURCEREADER,
+
+        /**
+         * Listing queries and getting information on a specific query.
+         */
+        QUERY_MONITORING,
+
+        /**
+         * Support max_over_time aggregation that gets evaluated per time-series
+         */
+        MAX_OVER_TIME(Build.current().isSnapshot()),
+
+        /**
+         * Support STATS/EVAL/DISSECT in Fork branches
+         */
+        FORK_V2(Build.current().isSnapshot()),
+
+        /**
+         * Support for the {@code leading_zeros} named parameter.
+         */
+        TO_IP_LEADING_ZEROS,
+
+        /**
+         * Does the usage information for ESQL contain a histogram of {@code took} values?
+         */
+        USAGE_CONTAINS_TOOK,
+
+        /**
+         * Support avg_over_time aggregation that gets evaluated per time-series
+         */
+        AVG_OVER_TIME(Build.current().isSnapshot());
 
         private final boolean enabled;
 

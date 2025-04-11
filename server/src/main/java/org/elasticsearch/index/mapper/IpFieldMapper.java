@@ -461,7 +461,7 @@ public class IpFieldMapper extends FieldMapper {
 
         @Override
         public BlockLoader blockLoader(BlockLoaderContext blContext) {
-            if (hasDocValues() && (blContext.fieldExtractPreference() != FieldExtractPreference.STORED || isSyntheticSource)) {
+            if (hasDocValues()) {
                 return new BlockDocValuesReader.BytesRefsFromOrdsBlockLoader(name());
             }
 

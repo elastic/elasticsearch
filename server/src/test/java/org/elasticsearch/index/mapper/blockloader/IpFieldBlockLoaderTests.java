@@ -13,7 +13,6 @@ import org.apache.lucene.document.InetAddressPoint;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.index.mapper.BlockLoaderTestCase;
-import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.logsdb.datageneration.FieldType;
 
 import java.util.List;
@@ -39,10 +38,7 @@ public class IpFieldBlockLoaderTests extends BlockLoaderTestCase {
         }
 
         boolean hasDocValues = hasDocValues(fieldMapping, true);
-        boolean useDocValues = params.preference() == MappedFieldType.FieldExtractPreference.NONE
-            || params.preference() == MappedFieldType.FieldExtractPreference.DOC_VALUES
-            || params.syntheticSource();
-        if (hasDocValues && useDocValues) {
+        if (hasDocValues) {
             var resultList = ((List<String>) value).stream()
                 .map(v -> convert(v, nullValue))
                 .filter(Objects::nonNull)

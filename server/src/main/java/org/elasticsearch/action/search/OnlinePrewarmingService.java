@@ -17,16 +17,12 @@ import org.elasticsearch.index.shard.IndexShard;
  * that are more speculative.
  */
 public interface OnlinePrewarmingService {
-    OnlinePrewarmingService NOOP = (indexShard, skipPrewarmingCondition) -> {};
+    OnlinePrewarmingService NOOP = indexShard -> {};
 
     /**
      * Prewarms resources (typically segments) for the given index shard.
      *
      * @param indexShard the index shard for which resources should be prewarmed
-     * @param skipPrewarming a flag indicating whether prewarming should be skipped.
-     *                       Callers should  decide if certain prewarming calls
-     *                       should be skipped and indicate this decision via this
-     *                       flag.
      */
-    void prewarm(IndexShard indexShard, boolean skipPrewarming);
+    void prewarm(IndexShard indexShard);
 }

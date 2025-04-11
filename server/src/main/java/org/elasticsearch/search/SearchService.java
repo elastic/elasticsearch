@@ -290,7 +290,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
     // the system has a chance to catch up and prewarming doesn't take over the network bandwidth
     public static final Setting<Integer> PREWARMING_THRESHOLD_THREADPOOL_SIZE_FACTOR_POOL_SIZE = Setting.intSetting(
         "search.online_prewarming_threshold_poolsize_factor",
-        10,
+        10, // we will only execute online prewarming if there are less than 10 queued up items/ search thread
         0, // 0 would mean we only execute online prewarming if there's no queuing in the search tp
         Setting.Property.NodeScope
     );
@@ -719,11 +719,9 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             if (waitForCheckpoint <= UNASSIGNED_SEQ_NO) {
                 runAsync(executor, executable, listener);
                 // we successfully submitted the async task to the search pool so let's prewarm the shard
-                onlinePrewarmingService.prewarm(
-                    shard,
-                    executor instanceof ThreadPoolExecutor tpe
-                        && ((tpe.getMaximumPoolSize() * prewarmingMaxPoolFactorThreshold) < tpe.getQueue().size())
-                );
+                if (isExecutorQueuedBeyondPrewarmingFactor(executor, prewarmingMaxPoolFactorThreshold) == false) {
+                    onlinePrewarmingService.prewarm(shard);
+                }
                 return;
             }
             if (shard.indexSettings().getRefreshInterval().getMillis() <= 0) {
@@ -801,16 +799,36 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                         }
                         runAsync(executor, executable, listener);
                         // we successfully submitted the async task to the search pool so let's prewarm the shard
-                        onlinePrewarmingService.prewarm(
-                            shard,
-                            executor instanceof ThreadPoolExecutor tpe
-                                && ((tpe.getMaximumPoolSize() * prewarmingMaxPoolFactorThreshold) < tpe.getQueue().size())
-                        );
+                        if (isExecutorQueuedBeyondPrewarmingFactor(executor, prewarmingMaxPoolFactorThreshold) == false) {
+                            onlinePrewarmingService.prewarm(shard);
+                        }
                     }
                 }
             });
         } catch (Exception e) {
             listener.onFailure(e);
+        }
+    }
+
+    /**
+     * Checks if the executor is queued beyond the prewarming factor threshold, relative to the
+     * number of threads in the pool.
+     * This is used to determine if we should prewarm the shard - i.e. if the executor doesn't
+     * contain queued tasks beyond the prewarming factor threshold X max pool size.
+     *
+     * @param searchOperationsExecutor the executor that executes the search operations
+     * @param prewarmingMaxPoolFactorThreshold maximum number of queued up items / thread in the search pool
+     */
+    // visible for testing
+    static boolean isExecutorQueuedBeyondPrewarmingFactor(Executor searchOperationsExecutor, int prewarmingMaxPoolFactorThreshold) {
+        if (searchOperationsExecutor instanceof ThreadPoolExecutor tpe) {
+            return (tpe.getMaximumPoolSize() * prewarmingMaxPoolFactorThreshold) < tpe.getQueue().size();
+        } else {
+            logger.trace(
+                "received executor [{}] that we can't inspect for queueing. allowing online prewarming for all searches",
+                searchOperationsExecutor
+            );
+            return false;
         }
     }
 
@@ -995,11 +1013,9 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             }
         }, wrapFailureListener(listener, readerContext, markAsUsed));
         // we successfully submitted the async task to the search pool so let's prewarm the shard
-        onlinePrewarmingService.prewarm(
-            readerContext.indexShard(),
-            executor instanceof ThreadPoolExecutor tpe
-                && ((tpe.getMaximumPoolSize() * prewarmingMaxPoolFactorThreshold) < tpe.getQueue().size())
-        );
+        if (isExecutorQueuedBeyondPrewarmingFactor(executor, prewarmingMaxPoolFactorThreshold) == false) {
+            onlinePrewarmingService.prewarm(readerContext.indexShard());
+        }
     }
 
     /**
@@ -1066,11 +1082,9 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                 }
             }, wrapFailureListener(l, readerContext, markAsUsed));
             // we successfully submitted the async task to the search pool so let's prewarm the shard
-            onlinePrewarmingService.prewarm(
-                readerContext.indexShard(),
-                executor instanceof ThreadPoolExecutor tpe
-                    && ((tpe.getMaximumPoolSize() * prewarmingMaxPoolFactorThreshold) < tpe.getQueue().size())
-            );
+            if (isExecutorQueuedBeyondPrewarmingFactor(executor, prewarmingMaxPoolFactorThreshold) == false) {
+                onlinePrewarmingService.prewarm(readerContext.indexShard());
+            }
         }));
     }
 

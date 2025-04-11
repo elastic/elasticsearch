@@ -138,14 +138,14 @@ public abstract class AbstractLookupService<R extends AbstractLookupService.Requ
     private final boolean mergePages;
 
     AbstractLookupService(
-            String actionName,
-            ClusterService clusterService,
-            LookupShardContextFactory lookupShardContextFactory,
-            TransportService transportService,
-            BigArrays bigArrays,
-            BlockFactory blockFactory,
-            boolean mergePages,
-            CheckedBiFunction<StreamInput, BlockFactory, T, IOException> readRequest
+        String actionName,
+        ClusterService clusterService,
+        LookupShardContextFactory lookupShardContextFactory,
+        TransportService transportService,
+        BigArrays bigArrays,
+        BlockFactory blockFactory,
+        boolean mergePages,
+        CheckedBiFunction<StreamInput, BlockFactory, T, IOException> readRequest
     ) {
         this.actionName = actionName;
         this.clusterService = clusterService;
@@ -157,10 +157,10 @@ public abstract class AbstractLookupService<R extends AbstractLookupService.Requ
         this.localBreakerSettings = new LocalCircuitBreaker.SizeSettings(clusterService.getSettings());
         this.mergePages = mergePages;
         transportService.registerRequestHandler(
-                actionName,
-                transportService.getThreadPool().executor(EsqlPlugin.ESQL_WORKER_THREAD_POOL_NAME),
-                in -> readRequest.apply(in, blockFactory),
-                new TransportHandler()
+            actionName,
+            transportService.getThreadPool().executor(EsqlPlugin.ESQL_WORKER_THREAD_POOL_NAME),
+            in -> readRequest.apply(in, blockFactory),
+            new TransportHandler()
         );
     }
 
@@ -178,11 +178,11 @@ public abstract class AbstractLookupService<R extends AbstractLookupService.Requ
      * Build a list of queries to perform inside the actual lookup.
      */
     protected abstract QueryList queryList(
-            T request,
-            SearchExecutionContext context,
-            Block inputBlock,
-            DataType inputDataType,
-            Warnings warnings
+        T request,
+        SearchExecutionContext context,
+        Block inputBlock,
+        DataType inputDataType,
+        Warnings warnings
     );
 
     /**
@@ -196,10 +196,10 @@ public abstract class AbstractLookupService<R extends AbstractLookupService.Requ
     protected abstract LookupResponse readLookupResponse(StreamInput in, BlockFactory blockFactory) throws IOException;
 
     protected static QueryList termQueryList(
-            MappedFieldType field,
-            SearchExecutionContext searchExecutionContext,
-            Block block,
-            DataType inputDataType
+        MappedFieldType field,
+        SearchExecutionContext searchExecutionContext,
+        Block block,
+        DataType inputDataType
     ) {
         return switch (inputDataType) {
             case IP -> QueryList.ipTermQueryList(field, searchExecutionContext, (BytesRefBlock) block);
@@ -214,7 +214,7 @@ public abstract class AbstractLookupService<R extends AbstractLookupService.Requ
     public final void lookupAsync(R request, CancellableTask parentTask, ActionListener<List<Page>> outListener) {
         ClusterState clusterState = clusterService.state();
         List<ShardIterator> shardIterators = clusterService.operationRouting()
-                .searchShards(clusterState.projectState(), new String[]{request.index}, Map.of(), "_local");
+            .searchShards(clusterState.projectState(), new String[] { request.index }, Map.of(), "_local");
         if (shardIterators.size() != 1) {
             outListener.onFailure(new EsqlIllegalArgumentException("target index {} has more than one shard", request.index));
             return;
@@ -233,22 +233,22 @@ public abstract class AbstractLookupService<R extends AbstractLookupService.Requ
     }
 
     protected void sendChildRequest(
-            CancellableTask parentTask,
-            ActionListener<List<Page>> delegate,
-            DiscoveryNode targetNode,
-            T transportRequest
+        CancellableTask parentTask,
+        ActionListener<List<Page>> delegate,
+        DiscoveryNode targetNode,
+        T transportRequest
     ) {
         transportService.sendChildRequest(
-                targetNode,
-                actionName,
-                transportRequest,
-                parentTask,
-                TransportRequestOptions.EMPTY,
-                new ActionListenerResponseHandler<>(
-                        delegate.map(LookupResponse::takePages),
-                        in -> readLookupResponse(in, blockFactory),
-                        executor
-                )
+            targetNode,
+            actionName,
+            transportRequest,
+            parentTask,
+            TransportRequestOptions.EMPTY,
+            new ActionListenerResponseHandler<>(
+                delegate.map(LookupResponse::takePages),
+                in -> readLookupResponse(in, blockFactory),
+                executor
+            )
         );
     }
 
@@ -256,8 +256,8 @@ public abstract class AbstractLookupService<R extends AbstractLookupService.Requ
         Block inputBlock = request.inputPage.getBlock(0);
         if (inputBlock.areAllValuesNull()) {
             List<Page> nullResponse = mergePages
-                    ? List.of(createNullResponse(request.inputPage.getPositionCount(), request.extractFields))
-                    : List.of();
+                ? List.of(createNullResponse(request.inputPage.getPositionCount(), request.extractFields))
+                : List.of();
             listener.onResponse(nullResponse);
             return;
         }
@@ -267,9 +267,9 @@ public abstract class AbstractLookupService<R extends AbstractLookupService.Requ
             LookupShardContext shardContext = lookupShardContextFactory.create(request.shardId);
             releasables.add(shardContext.release);
             final LocalCircuitBreaker localBreaker = new LocalCircuitBreaker(
-                    blockFactory.breaker(),
-                    localBreakerSettings.overReservedBytes(),
-                    localBreakerSettings.maxOverReservedBytes()
+                blockFactory.breaker(),
+                localBreakerSettings.overReservedBytes(),
+                localBreakerSettings.maxOverReservedBytes()
             );
             releasables.add(localBreaker);
             final DriverContext driverContext = new DriverContext(bigArrays, blockFactory.newChildFactory(localBreaker));
@@ -281,8 +281,8 @@ public abstract class AbstractLookupService<R extends AbstractLookupService.Requ
             final Operator finishPages;
             final OrdinalBytesRefBlock ordinalsBytesRefBlock;
             if (mergePages  // TODO fix this optimization for Lookup.
-                    && inputBlock instanceof BytesRefBlock bytesRefBlock
-                    && (ordinalsBytesRefBlock = bytesRefBlock.asOrdinals()) != null) {
+                && inputBlock instanceof BytesRefBlock bytesRefBlock
+                && (ordinalsBytesRefBlock = bytesRefBlock.asOrdinals()) != null) {
 
                 inputBlock = ordinalsBytesRefBlock.getDictionaryVector().asBlock();
                 var selectedPositions = ordinalsBytesRefBlock.getOrdinalsBlock();
@@ -291,11 +291,11 @@ public abstract class AbstractLookupService<R extends AbstractLookupService.Requ
                 if (mergePages) {
                     try (var selectedPositions = IntVector.range(0, inputBlock.getPositionCount(), blockFactory).asBlock()) {
                         finishPages = new MergePositionsOperator(
-                                1,
-                                mergingChannels,
-                                mergingTypes,
-                                selectedPositions,
-                                driverContext.blockFactory()
+                            1,
+                            mergingChannels,
+                            mergingTypes,
+                            selectedPositions,
+                            driverContext.blockFactory()
                         );
                     }
                 } else {
@@ -304,18 +304,18 @@ public abstract class AbstractLookupService<R extends AbstractLookupService.Requ
             }
             releasables.add(finishPages);
             var warnings = Warnings.createWarnings(
-                    DriverContext.WarningsMode.COLLECT,
-                    request.source.source().getLineNumber(),
-                    request.source.source().getColumnNumber(),
-                    request.source.text()
+                DriverContext.WarningsMode.COLLECT,
+                request.source.source().getLineNumber(),
+                request.source.source().getColumnNumber(),
+                request.source.text()
             );
             QueryList queryList = queryList(request, shardContext.executionContext, inputBlock, request.inputDataType, warnings);
             var queryOperator = new EnrichQuerySourceOperator(
-                    driverContext.blockFactory(),
-                    EnrichQuerySourceOperator.DEFAULT_MAX_PAGE_SIZE,
-                    queryList,
-                    shardContext.context.searcher().getIndexReader(),
-                    warnings
+                driverContext.blockFactory(),
+                EnrichQuerySourceOperator.DEFAULT_MAX_PAGE_SIZE,
+                queryList,
+                shardContext.context.searcher().getIndexReader(),
+                warnings
             );
             releasables.add(queryOperator);
             var extractFieldsOperator = extractFieldsOperator(shardContext.context, driverContext, request.extractFields);
@@ -332,19 +332,19 @@ public abstract class AbstractLookupService<R extends AbstractLookupService.Requ
             OutputOperator outputOperator = new OutputOperator(List.of(), Function.identity(), collectedPages::add);
             releasables.add(outputOperator);
             Driver driver = new Driver(
-                    "enrich-lookup:" + request.sessionId,
-                    "enrich",
-                    clusterService.getClusterName().value(),
-                    clusterService.getNodeName(),
-                    System.currentTimeMillis(),
-                    System.nanoTime(),
-                    driverContext,
-                    request::toString,
-                    queryOperator,
-                    List.of(extractFieldsOperator, finishPages),
-                    outputOperator,
-                    Driver.DEFAULT_STATUS_INTERVAL,
-                    Releasables.wrap(shardContext.release, localBreaker)
+                "enrich-lookup:" + request.sessionId,
+                "enrich",
+                clusterService.getClusterName().value(),
+                clusterService.getNodeName(),
+                System.currentTimeMillis(),
+                System.nanoTime(),
+                driverContext,
+                request::toString,
+                queryOperator,
+                List.of(extractFieldsOperator, finishPages),
+                outputOperator,
+                Driver.DEFAULT_STATUS_INTERVAL,
+                Releasables.wrap(shardContext.release, localBreaker)
             );
             task.addListener(() -> {
                 String reason = Objects.requireNonNullElse(task.getReasonCancelled(), "task was cancelled");
@@ -381,35 +381,35 @@ public abstract class AbstractLookupService<R extends AbstractLookupService.Requ
     }
 
     private static Operator extractFieldsOperator(
-            EsPhysicalOperationProviders.ShardContext shardContext,
-            DriverContext driverContext,
-            List<NamedExpression> extractFields
+        EsPhysicalOperationProviders.ShardContext shardContext,
+        DriverContext driverContext,
+        List<NamedExpression> extractFields
     ) {
         List<ValuesSourceReaderOperator.FieldInfo> fields = new ArrayList<>(extractFields.size());
         for (NamedExpression extractField : extractFields) {
             BlockLoader loader = shardContext.blockLoader(
-                    extractField instanceof Alias a ? ((NamedExpression) a.child()).name() : extractField.name(),
-                    extractField.dataType() == DataType.UNSUPPORTED,
-                    MappedFieldType.FieldExtractPreference.NONE
+                extractField instanceof Alias a ? ((NamedExpression) a.child()).name() : extractField.name(),
+                extractField.dataType() == DataType.UNSUPPORTED,
+                MappedFieldType.FieldExtractPreference.NONE
             );
             fields.add(
-                    new ValuesSourceReaderOperator.FieldInfo(
-                            extractField.name(),
-                            PlannerUtils.toElementType(extractField.dataType()),
-                            shardIdx -> {
-                                if (shardIdx != 0) {
-                                    throw new IllegalStateException("only one shard");
-                                }
-                                return loader;
-                            }
-                    )
+                new ValuesSourceReaderOperator.FieldInfo(
+                    extractField.name(),
+                    PlannerUtils.toElementType(extractField.dataType()),
+                    shardIdx -> {
+                        if (shardIdx != 0) {
+                            throw new IllegalStateException("only one shard");
+                        }
+                        return loader;
+                    }
+                )
             );
         }
         return new ValuesSourceReaderOperator(
-                driverContext.blockFactory(),
-                fields,
-                List.of(new ValuesSourceReaderOperator.ShardContext(shardContext.searcher().getIndexReader(), shardContext::newSourceLoader)),
-                0
+            driverContext.blockFactory(),
+            fields,
+            List.of(new ValuesSourceReaderOperator.ShardContext(shardContext.searcher().getIndexReader(), shardContext::newSourceLoader)),
+            0
         );
     }
 
@@ -445,11 +445,11 @@ public abstract class AbstractLookupService<R extends AbstractLookupService.Requ
             request.incRef();
             ActionListener<LookupResponse> listener = ActionListener.runBefore(new ChannelActionListener<>(channel), request::decRef);
             doLookup(
-                    request,
-                    (CancellableTask) task,
-                    listener.delegateFailureAndWrap(
-                            (l, resultPages) -> ActionListener.respondAndRelease(l, createLookupResponse(resultPages, blockFactory))
-                    )
+                request,
+                (CancellableTask) task,
+                listener.delegateFailureAndWrap(
+                    (l, resultPages) -> ActionListener.respondAndRelease(l, createLookupResponse(resultPages, blockFactory))
+                )
             );
         }
     }
@@ -463,12 +463,12 @@ public abstract class AbstractLookupService<R extends AbstractLookupService.Requ
         final Source source;
 
         Request(
-                String sessionId,
-                String index,
-                DataType inputDataType,
-                Page inputPage,
-                List<NamedExpression> extractFields,
-                Source source
+            String sessionId,
+            String index,
+            DataType inputDataType,
+            Page inputPage,
+            List<NamedExpression> extractFields,
+            Source source
         ) {
             this.sessionId = sessionId;
             this.index = index;
@@ -495,13 +495,13 @@ public abstract class AbstractLookupService<R extends AbstractLookupService.Requ
         final RefCounted refs = AbstractRefCounted.of(this::releasePage);
 
         TransportRequest(
-                String sessionId,
-                ShardId shardId,
-                DataType inputDataType,
-                Page inputPage,
-                Page toRelease,
-                List<NamedExpression> extractFields,
-                Source source
+            String sessionId,
+            ShardId shardId,
+            DataType inputDataType,
+            Page inputPage,
+            Page toRelease,
+            List<NamedExpression> extractFields,
+            Source source
         ) {
             this.sessionId = sessionId;
             this.shardId = shardId;
@@ -514,7 +514,7 @@ public abstract class AbstractLookupService<R extends AbstractLookupService.Requ
 
         @Override
         public final String[] indices() {
-            return new String[]{shardId.getIndexName()};
+            return new String[] { shardId.getIndexName() };
         }
 
         @Override
@@ -561,18 +561,18 @@ public abstract class AbstractLookupService<R extends AbstractLookupService.Requ
         @Override
         public final String toString() {
             return "LOOKUP("
-                    + " session="
-                    + sessionId
-                    + " ,shard="
-                    + shardId
-                    + " ,input_type="
-                    + inputDataType
-                    + " ,extract_fields="
-                    + extractFields
-                    + " ,positions="
-                    + inputPage.getPositionCount()
-                    + extraDescription()
-                    + ")";
+                + " session="
+                + sessionId
+                + " ,shard="
+                + shardId
+                + " ,input_type="
+                + inputDataType
+                + " ,extract_fields="
+                + extractFields
+                + " ,positions="
+                + inputPage.getPositionCount()
+                + extraDescription()
+                + ")";
         }
 
         protected abstract String extraDescription();
@@ -627,7 +627,7 @@ public abstract class AbstractLookupService<R extends AbstractLookupService.Requ
             return shardId -> {
                 ShardSearchRequest shardSearchRequest = new ShardSearchRequest(shardId, 0, AliasFilter.EMPTY);
                 return LookupShardContext.fromSearchContext(
-                        searchService.createSearchContext(shardSearchRequest, SearchService.NO_TIMEOUT)
+                    searchService.createSearchContext(shardSearchRequest, SearchService.NO_TIMEOUT)
                 );
             };
         }
@@ -638,19 +638,19 @@ public abstract class AbstractLookupService<R extends AbstractLookupService.Requ
      * it needs to perform to actually do the lookup.
      */
     public record LookupShardContext(
-            EsPhysicalOperationProviders.ShardContext context,
-            SearchExecutionContext executionContext,
-            Releasable release
+        EsPhysicalOperationProviders.ShardContext context,
+        SearchExecutionContext executionContext,
+        Releasable release
     ) {
         public static LookupShardContext fromSearchContext(SearchContext context) {
             return new LookupShardContext(
-                    new EsPhysicalOperationProviders.DefaultShardContext(
-                            0,
-                            context.getSearchExecutionContext(),
-                            context.request().getAliasFilter()
-                    ),
+                new EsPhysicalOperationProviders.DefaultShardContext(
+                    0,
                     context.getSearchExecutionContext(),
-                    context
+                    context.request().getAliasFilter()
+                ),
+                context.getSearchExecutionContext(),
+                context
             );
         }
     }

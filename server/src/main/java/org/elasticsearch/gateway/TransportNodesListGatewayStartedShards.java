@@ -39,7 +39,6 @@ import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.AbstractTransportRequest;
-import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 
@@ -55,11 +54,11 @@ import static org.elasticsearch.core.Strings.format;
  * shards after node or cluster restarts.
  */
 public class TransportNodesListGatewayStartedShards extends TransportNodesAction<
-        TransportNodesListGatewayStartedShards.Request,
-        TransportNodesListGatewayStartedShards.NodesGatewayStartedShards,
-        TransportNodesListGatewayStartedShards.NodeRequest,
-        TransportNodesListGatewayStartedShards.NodeGatewayStartedShards,
-        Void> {
+    TransportNodesListGatewayStartedShards.Request,
+    TransportNodesListGatewayStartedShards.NodesGatewayStartedShards,
+    TransportNodesListGatewayStartedShards.NodeRequest,
+    TransportNodesListGatewayStartedShards.NodeGatewayStartedShards,
+    Void> {
 
     private static final Logger logger = LogManager.getLogger(TransportNodesListGatewayStartedShards.class);
 
@@ -73,22 +72,22 @@ public class TransportNodesListGatewayStartedShards extends TransportNodesAction
 
     @Inject
     public TransportNodesListGatewayStartedShards(
-            Settings settings,
-            ThreadPool threadPool,
-            ClusterService clusterService,
-            TransportService transportService,
-            ActionFilters actionFilters,
-            NodeEnvironment env,
-            IndicesService indicesService,
-            NamedXContentRegistry namedXContentRegistry
+        Settings settings,
+        ThreadPool threadPool,
+        ClusterService clusterService,
+        TransportService transportService,
+        ActionFilters actionFilters,
+        NodeEnvironment env,
+        IndicesService indicesService,
+        NamedXContentRegistry namedXContentRegistry
     ) {
         super(
-                ACTION_NAME,
-                clusterService,
-                transportService,
-                actionFilters,
-                NodeRequest::new,
-                threadPool.executor(ThreadPool.Names.FETCH_SHARD_STARTED)
+            ACTION_NAME,
+            clusterService,
+            transportService,
+            actionFilters,
+            NodeRequest::new,
+            threadPool.executor(ThreadPool.Names.FETCH_SHARD_STARTED)
         );
         this.settings = settings;
         this.nodeEnv = env;
@@ -110,9 +109,9 @@ public class TransportNodesListGatewayStartedShards extends TransportNodesAction
 
     @Override
     protected NodesGatewayStartedShards newResponse(
-            Request request,
-            List<NodeGatewayStartedShards> responses,
-            List<FailedNodeException> failures
+        Request request,
+        List<NodeGatewayStartedShards> responses,
+        List<FailedNodeException> failures
     ) {
         return new NodesGatewayStartedShards(clusterService.getClusterName(), responses, failures);
     }
@@ -123,9 +122,9 @@ public class TransportNodesListGatewayStartedShards extends TransportNodesAction
             final ShardId shardId = request.getShardId();
             logger.trace("{} loading local shard state info", shardId);
             ShardStateMetadata shardStateMetadata = ShardStateMetadata.FORMAT.loadLatestState(
-                    logger,
-                    namedXContentRegistry,
-                    nodeEnv.availableShardPaths(request.shardId)
+                logger,
+                namedXContentRegistry,
+                nodeEnv.availableShardPaths(request.shardId)
             );
             if (shardStateMetadata != null) {
                 if (indicesService.getShardOrNull(shardId) == null) {
@@ -153,20 +152,20 @@ public class TransportNodesListGatewayStartedShards extends TransportNodesAction
                     } catch (Exception exception) {
                         final ShardPath finalShardPath = shardPath;
                         logger.trace(
-                                () -> format(
-                                        "%s can't open index for shard [%s] in path [%s]",
-                                        shardId,
-                                        shardStateMetadata,
-                                        (finalShardPath != null) ? finalShardPath.resolveIndex() : ""
-                                ),
-                                exception
+                            () -> format(
+                                "%s can't open index for shard [%s] in path [%s]",
+                                shardId,
+                                shardStateMetadata,
+                                (finalShardPath != null) ? finalShardPath.resolveIndex() : ""
+                            ),
+                            exception
                         );
                         String allocationId = shardStateMetadata.allocationId != null ? shardStateMetadata.allocationId.getId() : null;
                         return new NodeGatewayStartedShards(
-                                clusterService.localNode(),
-                                allocationId,
-                                shardStateMetadata.primary,
-                                exception
+                            clusterService.localNode(),
+                            allocationId,
+                            shardStateMetadata.primary,
+                            exception
                         );
                     }
                 }
@@ -212,9 +211,9 @@ public class TransportNodesListGatewayStartedShards extends TransportNodesAction
     public static class NodesGatewayStartedShards extends BaseNodesResponse<NodeGatewayStartedShards> {
 
         public NodesGatewayStartedShards(
-                ClusterName clusterName,
-                List<NodeGatewayStartedShards> nodes,
-                List<FailedNodeException> failures
+            ClusterName clusterName,
+            List<NodeGatewayStartedShards> nodes,
+            List<FailedNodeException> failures
         ) {
             super(clusterName, nodes, failures);
         }
@@ -334,8 +333,8 @@ public class TransportNodesListGatewayStartedShards extends TransportNodesAction
             NodeGatewayStartedShards that = (NodeGatewayStartedShards) o;
 
             return primary == that.primary
-                    && Objects.equals(allocationId, that.allocationId)
-                    && Objects.equals(storeException, that.storeException);
+                && Objects.equals(allocationId, that.allocationId)
+                && Objects.equals(storeException, that.storeException);
         }
 
         @Override

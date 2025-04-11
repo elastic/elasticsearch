@@ -18,7 +18,6 @@ import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.transport.AbstractTransportRequest;
-import org.elasticsearch.transport.TransportRequest;
 
 import java.io.IOException;
 
@@ -71,16 +70,16 @@ public class StartRecoveryRequest extends AbstractTransportRequest {
      * @param canDownloadSnapshotFiles flag that indicates if the snapshot files can be downloaded
      */
     public StartRecoveryRequest(
-            final ShardId shardId,
-            final String targetAllocationId,
-            final DiscoveryNode sourceNode,
-            final DiscoveryNode targetNode,
-            final long clusterStateVersion,
-            final Store.MetadataSnapshot metadataSnapshot,
-            final boolean primaryRelocation,
-            final long recoveryId,
-            final long startingSeqNo,
-            final boolean canDownloadSnapshotFiles
+        final ShardId shardId,
+        final String targetAllocationId,
+        final DiscoveryNode sourceNode,
+        final DiscoveryNode targetNode,
+        final long clusterStateVersion,
+        final Store.MetadataSnapshot metadataSnapshot,
+        final boolean primaryRelocation,
+        final long recoveryId,
+        final long startingSeqNo,
+        final boolean canDownloadSnapshotFiles
     ) {
         this.clusterStateVersion = clusterStateVersion;
         this.recoveryId = recoveryId;
@@ -93,7 +92,7 @@ public class StartRecoveryRequest extends AbstractTransportRequest {
         this.startingSeqNo = startingSeqNo;
         this.canDownloadSnapshotFiles = canDownloadSnapshotFiles;
         assert startingSeqNo == SequenceNumbers.UNASSIGNED_SEQ_NO || metadataSnapshot.getHistoryUUID() != null
-                : "starting seq no is set but not history uuid";
+            : "starting seq no is set but not history uuid";
     }
 
     public long recoveryId() {
@@ -139,18 +138,18 @@ public class StartRecoveryRequest extends AbstractTransportRequest {
     @Override
     public String getDescription() {
         return Strings.format(
-                """
-                        recovery of %s to %s \
-                        [recoveryId=%d, targetAllocationId=%s, clusterStateVersion=%d, startingSeqNo=%d, \
-                        primaryRelocation=%s, canDownloadSnapshotFiles=%s]""",
-                shardId,
-                targetNode.descriptionWithoutAttributes(),
-                recoveryId,
-                targetAllocationId,
-                clusterStateVersion,
-                startingSeqNo,
-                primaryRelocation,
-                canDownloadSnapshotFiles
+            """
+                recovery of %s to %s \
+                [recoveryId=%d, targetAllocationId=%s, clusterStateVersion=%d, startingSeqNo=%d, \
+                primaryRelocation=%s, canDownloadSnapshotFiles=%s]""",
+            shardId,
+            targetNode.descriptionWithoutAttributes(),
+            recoveryId,
+            targetAllocationId,
+            clusterStateVersion,
+            startingSeqNo,
+            primaryRelocation,
+            canDownloadSnapshotFiles
         );
     }
 
@@ -174,22 +173,22 @@ public class StartRecoveryRequest extends AbstractTransportRequest {
     @Override
     public String toString() {
         return "StartRecoveryRequest{"
-                + "shardId="
-                + shardId
-                + ", targetNode="
-                + targetNode.descriptionWithoutAttributes()
-                + ", recoveryId="
-                + recoveryId
-                + ", targetAllocationId='"
-                + targetAllocationId
-                + "', clusterStateVersion="
-                + clusterStateVersion
-                + ", primaryRelocation="
-                + primaryRelocation
-                + ", startingSeqNo="
-                + startingSeqNo
-                + ", canDownloadSnapshotFiles="
-                + canDownloadSnapshotFiles
-                + '}';
+            + "shardId="
+            + shardId
+            + ", targetNode="
+            + targetNode.descriptionWithoutAttributes()
+            + ", recoveryId="
+            + recoveryId
+            + ", targetAllocationId='"
+            + targetAllocationId
+            + "', clusterStateVersion="
+            + clusterStateVersion
+            + ", primaryRelocation="
+            + primaryRelocation
+            + ", startingSeqNo="
+            + startingSeqNo
+            + ", canDownloadSnapshotFiles="
+            + canDownloadSnapshotFiles
+            + '}';
     }
 }

@@ -21,7 +21,6 @@ import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.transport.AbstractTransportRequest;
-import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.async.AsyncSearchIndexServiceTests.TestAsyncResponse;
 import org.junit.Before;
@@ -50,13 +49,13 @@ public class AsyncResultsServiceTests extends ESSingleNodeTestCase {
         private long expirationTimeMillis;
 
         public TestTask(
-                AsyncExecutionId executionId,
-                long id,
-                String type,
-                String action,
-                String description,
-                TaskId parentTaskId,
-                Map<String, String> headers
+            AsyncExecutionId executionId,
+            long id,
+            String type,
+            String action,
+            String description,
+            TaskId parentTaskId,
+            Map<String, String> headers
         ) {
             super(id, type, action, description, parentTaskId, headers);
             this.executionId = executionId;
@@ -124,8 +123,8 @@ public class AsyncResultsServiceTests extends ESSingleNodeTestCase {
         @Override
         public Task createTask(long id, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
             AsyncExecutionId asyncExecutionId = new AsyncExecutionId(
-                    randomAlphaOfLength(10),
-                    new TaskId(clusterService.localNode().getId(), id)
+                randomAlphaOfLength(10),
+                new TaskId(clusterService.localNode().getId(), id)
             );
             return new TestTask(asyncExecutionId, id, type, action, string, parentTaskId, headers);
         }
@@ -138,26 +137,26 @@ public class AsyncResultsServiceTests extends ESSingleNodeTestCase {
         BigArrays bigArrays = getInstanceFromNode(BigArrays.class);
         taskManager = transportService.getTaskManager();
         indexService = new AsyncTaskIndexService<>(
-                "test",
-                clusterService,
-                transportService.getThreadPool().getThreadContext(),
-                client(),
-                ASYNC_SEARCH_ORIGIN,
-                TestAsyncResponse::new,
-                writableRegistry(),
-                bigArrays
+            "test",
+            clusterService,
+            transportService.getThreadPool().getThreadContext(),
+            client(),
+            ASYNC_SEARCH_ORIGIN,
+            TestAsyncResponse::new,
+            writableRegistry(),
+            bigArrays
         );
 
     }
 
     private AsyncResultsService<TestTask, TestAsyncResponse> createResultsService(boolean updateInitialResultsInStore) {
         return new AsyncResultsService<>(
-                indexService,
-                updateInitialResultsInStore,
-                TestTask.class,
-                TestTask::addListener,
-                taskManager,
-                clusterService
+            indexService,
+            updateInitialResultsInStore,
+            TestTask.class,
+            TestTask::addListener,
+            taskManager,
+            clusterService
         );
     }
 
@@ -189,18 +188,18 @@ public class AsyncResultsServiceTests extends ESSingleNodeTestCase {
                 // we need to store initial result
                 PlainActionFuture<DocWriteResponse> future = new PlainActionFuture<>();
                 indexService.createResponse(
-                        task.getExecutionId().getDocId(),
-                        task.getOriginHeaders(),
-                        new TestAsyncResponse(null, task.getExpirationTime()),
-                        future
+                    task.getExecutionId().getDocId(),
+                    task.getOriginHeaders(),
+                    new TestAsyncResponse(null, task.getExpirationTime()),
+                    future
                 );
                 future.actionGet(TimeValue.timeValueSeconds(10));
             }
 
             PlainActionFuture<TestAsyncResponse> listener = new PlainActionFuture<>();
             service.retrieveResult(
-                    new GetAsyncResultRequest(task.getExecutionId().getEncoded()).setWaitForCompletionTimeout(TimeValue.timeValueSeconds(5)),
-                    listener
+                new GetAsyncResultRequest(task.getExecutionId().getEncoded()).setWaitForCompletionTimeout(TimeValue.timeValueSeconds(5)),
+                listener
             );
             if (randomBoolean()) {
                 // Test success
@@ -237,10 +236,10 @@ public class AsyncResultsServiceTests extends ESSingleNodeTestCase {
                 // we need to store initial result
                 PlainActionFuture<DocWriteResponse> future = new PlainActionFuture<>();
                 indexService.createResponse(
-                        task.getExecutionId().getDocId(),
-                        task.getOriginHeaders(),
-                        new TestAsyncResponse(null, task.getExpirationTime()),
-                        future
+                    task.getExecutionId().getDocId(),
+                    task.getOriginHeaders(),
+                    new TestAsyncResponse(null, task.getExpirationTime()),
+                    future
                 );
                 future.actionGet(TimeValue.timeValueSeconds(10));
             }
@@ -279,28 +278,28 @@ public class AsyncResultsServiceTests extends ESSingleNodeTestCase {
                 // we need to store initial result
                 PlainActionFuture<DocWriteResponse> futureCreate = new PlainActionFuture<>();
                 indexService.createResponse(
-                        task.getExecutionId().getDocId(),
-                        task.getOriginHeaders(),
-                        new TestAsyncResponse(null, task.getExpirationTime()),
-                        futureCreate
+                    task.getExecutionId().getDocId(),
+                    task.getOriginHeaders(),
+                    new TestAsyncResponse(null, task.getExpirationTime()),
+                    futureCreate
                 );
                 futureCreate.actionGet(TimeValue.timeValueSeconds(10));
 
                 PlainActionFuture<UpdateResponse> futureUpdate = new PlainActionFuture<>();
                 indexService.updateResponse(
-                        task.getExecutionId().getDocId(),
-                        emptyMap(),
-                        new TestAsyncResponse("final_response", task.getExpirationTime()),
-                        futureUpdate
+                    task.getExecutionId().getDocId(),
+                    emptyMap(),
+                    new TestAsyncResponse("final_response", task.getExpirationTime()),
+                    futureUpdate
                 );
                 futureUpdate.actionGet(TimeValue.timeValueSeconds(10));
             } else {
                 PlainActionFuture<DocWriteResponse> futureCreate = new PlainActionFuture<>();
                 indexService.createResponse(
-                        task.getExecutionId().getDocId(),
-                        task.getOriginHeaders(),
-                        new TestAsyncResponse("final_response", task.getExpirationTime()),
-                        futureCreate
+                    task.getExecutionId().getDocId(),
+                    task.getOriginHeaders(),
+                    new TestAsyncResponse("final_response", task.getExpirationTime()),
+                    futureCreate
                 );
                 futureCreate.actionGet(TimeValue.timeValueSeconds(10));
             }

@@ -26,7 +26,6 @@ import org.elasticsearch.core.Releasables;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.transport.AbstractTransportRequest;
 import org.elasticsearch.transport.LeakTracker;
-import org.elasticsearch.transport.TransportRequest;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -111,8 +110,7 @@ public class NodesReloadSecureSettingsRequest extends BaseNodesRequest {
                 }
             } else {
                 this.secureSettingsPassword = null;
-                this.refs = LeakTracker.wrap(AbstractRefCounted.of(() -> {
-                }));
+                this.refs = LeakTracker.wrap(AbstractRefCounted.of(() -> {}));
             }
         }
 

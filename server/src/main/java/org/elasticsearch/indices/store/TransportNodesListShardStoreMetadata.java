@@ -47,7 +47,6 @@ import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.AbstractTransportRequest;
-import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
@@ -59,11 +58,11 @@ import java.util.concurrent.TimeUnit;
 import static java.util.Collections.emptyList;
 
 public class TransportNodesListShardStoreMetadata extends TransportNodesAction<
-        TransportNodesListShardStoreMetadata.Request,
-        TransportNodesListShardStoreMetadata.NodesStoreFilesMetadata,
-        TransportNodesListShardStoreMetadata.NodeRequest,
-        TransportNodesListShardStoreMetadata.NodeStoreFilesMetadata,
-        Void> {
+    TransportNodesListShardStoreMetadata.Request,
+    TransportNodesListShardStoreMetadata.NodesStoreFilesMetadata,
+    TransportNodesListShardStoreMetadata.NodeRequest,
+    TransportNodesListShardStoreMetadata.NodeStoreFilesMetadata,
+    Void> {
 
     private static final Logger logger = LogManager.getLogger(TransportNodesListShardStoreMetadata.class);
 
@@ -76,21 +75,21 @@ public class TransportNodesListShardStoreMetadata extends TransportNodesAction<
 
     @Inject
     public TransportNodesListShardStoreMetadata(
-            Settings settings,
-            ThreadPool threadPool,
-            ClusterService clusterService,
-            TransportService transportService,
-            IndicesService indicesService,
-            NodeEnvironment nodeEnv,
-            ActionFilters actionFilters
+        Settings settings,
+        ThreadPool threadPool,
+        ClusterService clusterService,
+        TransportService transportService,
+        IndicesService indicesService,
+        NodeEnvironment nodeEnv,
+        ActionFilters actionFilters
     ) {
         super(
-                ACTION_NAME,
-                clusterService,
-                transportService,
-                actionFilters,
-                NodeRequest::new,
-                threadPool.executor(ThreadPool.Names.FETCH_SHARD_STORE)
+            ACTION_NAME,
+            clusterService,
+            transportService,
+            actionFilters,
+            NodeRequest::new,
+            threadPool.executor(ThreadPool.Names.FETCH_SHARD_STORE)
         );
         this.settings = settings;
         this.indicesService = indicesService;
@@ -111,9 +110,9 @@ public class TransportNodesListShardStoreMetadata extends TransportNodesAction<
 
     @Override
     protected NodesStoreFilesMetadata newResponse(
-            Request request,
-            List<NodeStoreFilesMetadata> responses,
-            List<FailedNodeException> failures
+        Request request,
+        List<NodeStoreFilesMetadata> responses,
+        List<FailedNodeException> failures
     ) {
         return new NodesStoreFilesMetadata(clusterService.getClusterName(), responses, failures);
     }
@@ -139,8 +138,8 @@ public class TransportNodesListShardStoreMetadata extends TransportNodesAction<
                 if (indexShard != null) {
                     try {
                         final StoreFilesMetadata storeFilesMetadata = new StoreFilesMetadata(
-                                indexShard.snapshotStoreMetadata(),
-                                indexShard.getPeerRecoveryRetentionLeases()
+                            indexShard.snapshotStoreMetadata(),
+                            indexShard.getPeerRecoveryRetentionLeases()
                         );
                         exists = true;
                         return storeFilesMetadata;
@@ -179,10 +178,10 @@ public class TransportNodesListShardStoreMetadata extends TransportNodesAction<
             // 2) A shard is shutting down and has not cleared it's content within lock timeout. In this case the master may not
             // reuse local resources.
             final Store.MetadataSnapshot metadataSnapshot = Store.readMetadataSnapshot(
-                    shardPath.resolveIndex(),
-                    shardId,
-                    nodeEnv::shardLock,
-                    logger
+                shardPath.resolveIndex(),
+                shardId,
+                nodeEnv::shardLock,
+                logger
             );
             // We use peer recovery retention leases from the primary for allocating replicas. We should always have retention leases when
             // we refresh shard info after the primary has started. Hence, we can ignore retention leases if there is no active shard.
@@ -197,9 +196,8 @@ public class TransportNodesListShardStoreMetadata extends TransportNodesAction<
         }
     }
 
-    public record StoreFilesMetadata(Store.MetadataSnapshot metadataSnapshot,
-                                     List<RetentionLease> peerRecoveryRetentionLeases)
-            implements
+    public record StoreFilesMetadata(Store.MetadataSnapshot metadataSnapshot, List<RetentionLease> peerRecoveryRetentionLeases)
+        implements
             Iterable<StoreFileMetadata>,
             Writeable {
 
@@ -253,10 +251,10 @@ public class TransportNodesListShardStoreMetadata extends TransportNodesAction<
             assert node != null;
             final String retentionLeaseId = ReplicationTracker.getPeerRecoveryRetentionLeaseId(node.getId());
             return peerRecoveryRetentionLeases.stream()
-                    .filter(lease -> lease.id().equals(retentionLeaseId))
-                    .mapToLong(RetentionLease::retainingSequenceNumber)
-                    .findFirst()
-                    .orElse(-1L);
+                .filter(lease -> lease.id().equals(retentionLeaseId))
+                .mapToLong(RetentionLease::retainingSequenceNumber)
+                .findFirst()
+                .orElse(-1L);
         }
 
         @Override

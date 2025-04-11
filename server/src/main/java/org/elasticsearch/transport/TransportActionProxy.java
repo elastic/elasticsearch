@@ -30,8 +30,7 @@ import java.util.function.Function;
  */
 public final class TransportActionProxy {
 
-    private TransportActionProxy() {
-    } // no instance
+    private TransportActionProxy() {} // no instance
 
     private static class ProxyRequestHandler<T extends ProxyRequest<TransportRequest>> implements TransportRequestHandler<T> {
 
@@ -40,9 +39,9 @@ public final class TransportActionProxy {
         private final Function<TransportRequest, Writeable.Reader<? extends TransportResponse>> responseFunction;
 
         ProxyRequestHandler(
-                TransportService service,
-                String action,
-                Function<TransportRequest, Writeable.Reader<? extends TransportResponse>> responseFunction
+            TransportService service,
+            String action,
+            Function<TransportRequest, Writeable.Reader<? extends TransportResponse>> responseFunction
         ) {
             this.service = service;
             this.action = action;
@@ -86,7 +85,7 @@ public final class TransportActionProxy {
         private static boolean assertConsistentTaskType(Task proxyTask, TransportRequest wrapped) {
             final Task targetTask = wrapped.createTask(0, proxyTask.getType(), proxyTask.getAction(), TaskId.EMPTY_TASK_ID, Map.of());
             assert targetTask instanceof CancellableTask == proxyTask instanceof CancellableTask
-                    : "Cancellable property of proxy action ["
+                : "Cancellable property of proxy action ["
                     + proxyTask.getAction()
                     + "] is configured inconsistently: "
                     + "expected ["
@@ -171,21 +170,21 @@ public final class TransportActionProxy {
      * response type changes based on the upcoming request (quite rare)
      */
     public static void registerProxyActionWithDynamicResponseType(
-            TransportService service,
-            String action,
-            boolean cancellable,
-            Function<TransportRequest, Writeable.Reader<? extends TransportResponse>> responseFunction
+        TransportService service,
+        String action,
+        boolean cancellable,
+        Function<TransportRequest, Writeable.Reader<? extends TransportResponse>> responseFunction
     ) {
         RequestHandlerRegistry<? extends TransportRequest> requestHandler = service.getRequestHandler(action);
         service.registerRequestHandler(
-                getProxyAction(action),
-                EsExecutors.DIRECT_EXECUTOR_SERVICE,
-                true,
-                false,
-                in -> cancellable
-                        ? new CancellableProxyRequest<>(in, requestHandler::newRequest)
-                        : new ProxyRequest<>(in, requestHandler::newRequest),
-                new ProxyRequestHandler<>(service, action, responseFunction)
+            getProxyAction(action),
+            EsExecutors.DIRECT_EXECUTOR_SERVICE,
+            true,
+            false,
+            in -> cancellable
+                ? new CancellableProxyRequest<>(in, requestHandler::newRequest)
+                : new ProxyRequest<>(in, requestHandler::newRequest),
+            new ProxyRequestHandler<>(service, action, responseFunction)
         );
     }
 
@@ -194,10 +193,10 @@ public final class TransportActionProxy {
      * response type is always the same (most of the cases).
      */
     public static void registerProxyAction(
-            TransportService service,
-            String action,
-            boolean cancellable,
-            Writeable.Reader<? extends TransportResponse> reader
+        TransportService service,
+        String action,
+        boolean cancellable,
+        Writeable.Reader<? extends TransportResponse> reader
     ) {
         registerProxyActionWithDynamicResponseType(service, action, cancellable, request -> reader);
     }

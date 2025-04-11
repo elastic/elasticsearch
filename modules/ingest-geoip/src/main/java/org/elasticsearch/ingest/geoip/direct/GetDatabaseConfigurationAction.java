@@ -19,7 +19,6 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.transport.AbstractTransportRequest;
-import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 
@@ -79,10 +78,10 @@ public class GetDatabaseConfigurationAction extends ActionType<Response> {
         private final List<DatabaseConfigurationMetadata> databases;
 
         public Response(
-                List<DatabaseConfigurationMetadata> databases,
-                ClusterName clusterName,
-                List<NodeResponse> nodes,
-                List<FailedNodeException> failures
+            List<DatabaseConfigurationMetadata> databases,
+            ClusterName clusterName,
+            List<NodeResponse> nodes,
+            List<FailedNodeException> failures
         ) {
             super(clusterName, nodes, failures);
             this.databases = List.copyOf(databases); // defensive copy
@@ -118,9 +117,9 @@ public class GetDatabaseConfigurationAction extends ActionType<Response> {
                 builder.field("id", database.id()); // serialize including the id -- this is get response serialization
                 builder.field(VERSION.getPreferredName(), item.version());
                 builder.timestampFieldsFromUnixEpochMillis(
-                        MODIFIED_DATE_MILLIS.getPreferredName(),
-                        MODIFIED_DATE.getPreferredName(),
-                        item.modifiedDate()
+                    MODIFIED_DATE_MILLIS.getPreferredName(),
+                    MODIFIED_DATE.getPreferredName(),
+                    item.modifiedDate()
                 );
                 builder.field(DATABASE.getPreferredName(), database);
                 builder.endObject();
@@ -139,10 +138,10 @@ public class GetDatabaseConfigurationAction extends ActionType<Response> {
             if (o == null || getClass() != o.getClass()) return false;
             Response response = (Response) o;
             return Objects.equals(databases, response.databases)
-                    && Objects.equals(getClusterName(), response.getClusterName())
-                    && Objects.equals(equalsHashCodeFailures(), response.equalsHashCodeFailures())
-                    && Objects.equals(getNodes(), response.getNodes())
-                    && Objects.equals(equalsHashCodeNodesMap(), response.equalsHashCodeNodesMap());
+                && Objects.equals(getClusterName(), response.getClusterName())
+                && Objects.equals(equalsHashCodeFailures(), response.equalsHashCodeFailures())
+                && Objects.equals(getNodes(), response.getNodes())
+                && Objects.equals(equalsHashCodeNodesMap(), response.equalsHashCodeNodesMap());
         }
 
         /*
@@ -168,7 +167,7 @@ public class GetDatabaseConfigurationAction extends ActionType<Response> {
                 if (o == null || getClass() != o.getClass()) return false;
                 EqualsHashCodeFailedNodeException other = (EqualsHashCodeFailedNodeException) o;
                 return Objects.equals(failedNodeException.nodeId(), other.failedNodeException.nodeId())
-                        && Objects.equals(failedNodeException.getMessage(), other.failedNodeException.getMessage());
+                    && Objects.equals(failedNodeException.getMessage(), other.failedNodeException.getMessage());
             }
 
             @Override

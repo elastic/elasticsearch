@@ -22,7 +22,6 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.transport.AbstractTransportRequest;
-import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 
@@ -74,8 +73,7 @@ public class GeoIpStatsAction {
             super(in);
         }
 
-        public NodeRequest() {
-        }
+        public NodeRequest() {}
     }
 
     public static class Response extends BaseNodesResponse<NodeResponse> implements Writeable, ToXContentObject {
@@ -177,17 +175,17 @@ public class GeoIpStatsAction {
             databases = in.readCollectionAsImmutableSet(StreamInput::readString);
             filesInTemp = in.readCollectionAsImmutableSet(StreamInput::readString);
             configDatabases = in.getTransportVersion().onOrAfter(TransportVersions.V_8_0_0)
-                    ? in.readCollectionAsImmutableSet(StreamInput::readString)
-                    : null;
+                ? in.readCollectionAsImmutableSet(StreamInput::readString)
+                : null;
         }
 
         protected NodeResponse(
-                DiscoveryNode node,
-                GeoIpDownloaderStats downloaderStats,
-                CacheStats cacheStats,
-                Set<String> databases,
-                Set<String> filesInTemp,
-                Set<String> configDatabases
+            DiscoveryNode node,
+            GeoIpDownloaderStats downloaderStats,
+            CacheStats cacheStats,
+            Set<String> databases,
+            Set<String> filesInTemp,
+            Set<String> configDatabases
         ) {
             super(node);
             this.downloaderStats = downloaderStats;
@@ -239,10 +237,10 @@ public class GeoIpStatsAction {
             if (o == null || getClass() != o.getClass()) return false;
             NodeResponse that = (NodeResponse) o;
             return downloaderStats.equals(that.downloaderStats)
-                    && Objects.equals(cacheStats, that.cacheStats)
-                    && databases.equals(that.databases)
-                    && filesInTemp.equals(that.filesInTemp)
-                    && Objects.equals(configDatabases, that.configDatabases);
+                && Objects.equals(cacheStats, that.cacheStats)
+                && databases.equals(that.databases)
+                && filesInTemp.equals(that.filesInTemp)
+                && Objects.equals(configDatabases, that.configDatabases);
         }
 
         @Override

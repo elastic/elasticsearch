@@ -30,7 +30,6 @@ import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.transport.AbstractTransportRequest;
-import org.elasticsearch.transport.TransportRequest;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -70,14 +69,14 @@ public class CanMatchNodeRequest extends AbstractTransportRequest implements Ind
         private final long waitForCheckpoint;
 
         public Shard(
-                String[] indices,
-                ShardId shardId,
-                int shardRequestIndex,
-                AliasFilter aliasFilter,
-                float indexBoost,
-                ShardSearchContextId readerId,
-                TimeValue keepAlive,
-                long waitForCheckpoint
+            String[] indices,
+            ShardId shardId,
+            int shardRequestIndex,
+            AliasFilter aliasFilter,
+            float indexBoost,
+            ShardSearchContextId readerId,
+            TimeValue keepAlive,
+            long waitForCheckpoint
         ) {
             this.indices = indices;
             this.shardId = shardId;
@@ -128,12 +127,12 @@ public class CanMatchNodeRequest extends AbstractTransportRequest implements Ind
     }
 
     public CanMatchNodeRequest(
-            SearchRequest searchRequest,
-            IndicesOptions indicesOptions,
-            List<Shard> shards,
-            int numberOfShards,
-            long nowInMillis,
-            @Nullable String clusterAlias
+        SearchRequest searchRequest,
+        IndicesOptions indicesOptions,
+        List<Shard> shards,
+        int numberOfShards,
+        long nowInMillis,
+        @Nullable String clusterAlias
     ) {
         this.source = getCanMatchSource(searchRequest);
         this.indicesOptions = indicesOptions;
@@ -192,7 +191,7 @@ public class CanMatchNodeRequest extends AbstractTransportRequest implements Ind
             String[] types = in.readStringArray();
             if (types.length > 0) {
                 throw new IllegalStateException(
-                        "types are no longer supported in search requests but found [" + Arrays.toString(types) + "]"
+                    "types are no longer supported in search requests but found [" + Arrays.toString(types) + "]"
                 );
             }
         }
@@ -233,24 +232,24 @@ public class CanMatchNodeRequest extends AbstractTransportRequest implements Ind
 
     public ShardSearchRequest createShardSearchRequest(Shard r) {
         ShardSearchRequest shardSearchRequest = new ShardSearchRequest(
-                new OriginalIndices(r.indices, indicesOptions),
-                r.shardId,
-                r.shardRequestIndex,
-                numberOfShards,
-                searchType,
-                source,
-                requestCache,
-                r.aliasFilter,
-                r.indexBoost,
-                allowPartialSearchResults,
-                scroll,
-                nowInMillis,
-                clusterAlias,
-                r.readerId,
-                r.keepAlive,
-                r.waitForCheckpoint,
-                waitForCheckpointsTimeout,
-                false
+            new OriginalIndices(r.indices, indicesOptions),
+            r.shardId,
+            r.shardRequestIndex,
+            numberOfShards,
+            searchType,
+            source,
+            requestCache,
+            r.aliasFilter,
+            r.indexBoost,
+            allowPartialSearchResults,
+            scroll,
+            nowInMillis,
+            clusterAlias,
+            r.readerId,
+            r.keepAlive,
+            r.waitForCheckpoint,
+            waitForCheckpointsTimeout,
+            false
         );
         shardSearchRequest.setParentTask(getParentTask());
         return shardSearchRequest;

@@ -54,9 +54,9 @@ public class TransportActionProxyTests extends ESTestCase {
     // we use always a non-alpha or beta version here otherwise minimumCompatibilityVersion will be different for the two used versions
     private static final Version CURRENT_VERSION = Version.fromString(String.valueOf(Version.CURRENT.major) + ".0.0");
     protected static final VersionInformation version0 = new VersionInformation(
-            CURRENT_VERSION.minimumCompatibilityVersion(),
-            IndexVersions.MINIMUM_COMPATIBLE,
-            IndexVersion.current()
+        CURRENT_VERSION.minimumCompatibilityVersion(),
+        IndexVersions.MINIMUM_COMPATIBLE,
+        IndexVersion.current()
     );
     protected static final TransportVersion transportVersion0 = TransportVersions.MINIMUM_COMPATIBLE;
 
@@ -64,9 +64,9 @@ public class TransportActionProxyTests extends ESTestCase {
     protected MockTransportService serviceA;
 
     protected static final VersionInformation version1 = new VersionInformation(
-            Version.fromId(CURRENT_VERSION.id + 1),
-            IndexVersions.MINIMUM_COMPATIBLE,
-            IndexVersion.current()
+        Version.fromId(CURRENT_VERSION.id + 1),
+        IndexVersions.MINIMUM_COMPATIBLE,
+        IndexVersion.current()
     );
     protected static final TransportVersion transportVersion1 = TransportVersion.fromId(TransportVersion.current().id() + 1);
     protected DiscoveryNode nodeB;
@@ -99,9 +99,7 @@ public class TransportActionProxyTests extends ESTestCase {
     @Override
     public void tearDown() throws Exception {
         super.tearDown();
-        IOUtils.close(serviceA, serviceB, serviceC, serviceD, () -> {
-            terminate(threadPool);
-        });
+        IOUtils.close(serviceA, serviceB, serviceC, serviceD, () -> { terminate(threadPool); });
     }
 
     private MockTransportService buildService(VersionInformation version, TransportVersion transportVersion) {
@@ -114,48 +112,48 @@ public class TransportActionProxyTests extends ESTestCase {
 
     public void testSendMessage() throws InterruptedException {
         serviceA.registerRequestHandler(
-                "internal:test",
-                EsExecutors.DIRECT_EXECUTOR_SERVICE,
-                SimpleTestRequest::new,
-                (request, channel, task) -> {
-                    assertEquals(request.sourceNode, "TS_A");
-                    final SimpleTestResponse response = new SimpleTestResponse("TS_A");
-                    channel.sendResponse(response);
-                    response.decRef();
-                    assertThat(response.hasReferences(), equalTo(false));
-                }
+            "internal:test",
+            EsExecutors.DIRECT_EXECUTOR_SERVICE,
+            SimpleTestRequest::new,
+            (request, channel, task) -> {
+                assertEquals(request.sourceNode, "TS_A");
+                final SimpleTestResponse response = new SimpleTestResponse("TS_A");
+                channel.sendResponse(response);
+                response.decRef();
+                assertThat(response.hasReferences(), equalTo(false));
+            }
         );
         final boolean cancellable = randomBoolean();
         TransportActionProxy.registerProxyAction(serviceA, "internal:test", cancellable, SimpleTestResponse::new);
         AbstractSimpleTransportTestCase.connectToNode(serviceA, nodeB);
 
         serviceB.registerRequestHandler(
-                "internal:test",
-                EsExecutors.DIRECT_EXECUTOR_SERVICE,
-                SimpleTestRequest::new,
-                (request, channel, task) -> {
-                    assertThat(task instanceof CancellableTask, equalTo(cancellable));
-                    assertEquals(request.sourceNode, "TS_A");
-                    final SimpleTestResponse response = new SimpleTestResponse("TS_B");
-                    channel.sendResponse(response);
-                    response.decRef();
-                    assertThat(response.hasReferences(), equalTo(false));
-                }
+            "internal:test",
+            EsExecutors.DIRECT_EXECUTOR_SERVICE,
+            SimpleTestRequest::new,
+            (request, channel, task) -> {
+                assertThat(task instanceof CancellableTask, equalTo(cancellable));
+                assertEquals(request.sourceNode, "TS_A");
+                final SimpleTestResponse response = new SimpleTestResponse("TS_B");
+                channel.sendResponse(response);
+                response.decRef();
+                assertThat(response.hasReferences(), equalTo(false));
+            }
         );
         TransportActionProxy.registerProxyAction(serviceB, "internal:test", cancellable, SimpleTestResponse::new);
         AbstractSimpleTransportTestCase.connectToNode(serviceB, nodeC);
         serviceC.registerRequestHandler(
-                "internal:test",
-                EsExecutors.DIRECT_EXECUTOR_SERVICE,
-                SimpleTestRequest::new,
-                (request, channel, task) -> {
-                    assertThat(task instanceof CancellableTask, equalTo(cancellable));
-                    assertEquals(request.sourceNode, "TS_A");
-                    final SimpleTestResponse response = new SimpleTestResponse("TS_C");
-                    channel.sendResponse(response);
-                    response.decRef();
-                    assertThat(response.hasReferences(), equalTo(false));
-                }
+            "internal:test",
+            EsExecutors.DIRECT_EXECUTOR_SERVICE,
+            SimpleTestRequest::new,
+            (request, channel, task) -> {
+                assertThat(task instanceof CancellableTask, equalTo(cancellable));
+                assertEquals(request.sourceNode, "TS_A");
+                final SimpleTestResponse response = new SimpleTestResponse("TS_C");
+                channel.sendResponse(response);
+                response.decRef();
+                assertThat(response.hasReferences(), equalTo(false));
+            }
         );
 
         TransportActionProxy.registerProxyAction(serviceC, "internal:test", cancellable, SimpleTestResponse::new);
@@ -164,46 +162,46 @@ public class TransportActionProxyTests extends ESTestCase {
             final List<TransportResponse> responses = Collections.synchronizedList(new ArrayList<>());
             final CountDownLatch latch = new CountDownLatch(1);
             serviceB.addRequestHandlingBehavior(
-                    TransportActionProxy.getProxyAction("internal:test"),
-                    (handler, request, channel, task) -> handler.messageReceived(
-                            request,
-                            new CapturingTransportChannel(channel, responses::add),
-                            task
-                    )
+                TransportActionProxy.getProxyAction("internal:test"),
+                (handler, request, channel, task) -> handler.messageReceived(
+                    request,
+                    new CapturingTransportChannel(channel, responses::add),
+                    task
+                )
             );
             serviceA.sendRequest(
-                    nodeB,
-                    TransportActionProxy.getProxyAction("internal:test"),
-                    TransportActionProxy.wrapRequest(nodeC, new SimpleTestRequest("TS_A", cancellable)),
-                    new TransportResponseHandler<SimpleTestResponse>() {
-                        @Override
-                        public SimpleTestResponse read(StreamInput in) throws IOException {
-                            return new SimpleTestResponse(in);
-                        }
+                nodeB,
+                TransportActionProxy.getProxyAction("internal:test"),
+                TransportActionProxy.wrapRequest(nodeC, new SimpleTestRequest("TS_A", cancellable)),
+                new TransportResponseHandler<SimpleTestResponse>() {
+                    @Override
+                    public SimpleTestResponse read(StreamInput in) throws IOException {
+                        return new SimpleTestResponse(in);
+                    }
 
-                        @Override
-                        public Executor executor() {
-                            return TransportResponseHandler.TRANSPORT_WORKER;
-                        }
+                    @Override
+                    public Executor executor() {
+                        return TransportResponseHandler.TRANSPORT_WORKER;
+                    }
 
-                        @Override
-                        public void handleResponse(SimpleTestResponse response) {
-                            try {
-                                assertEquals("TS_C", response.targetNode);
-                            } finally {
-                                latch.countDown();
-                            }
-                        }
-
-                        @Override
-                        public void handleException(TransportException exp) {
-                            try {
-                                throw new AssertionError(exp);
-                            } finally {
-                                latch.countDown();
-                            }
+                    @Override
+                    public void handleResponse(SimpleTestResponse response) {
+                        try {
+                            assertEquals("TS_C", response.targetNode);
+                        } finally {
+                            latch.countDown();
                         }
                     }
+
+                    @Override
+                    public void handleException(TransportException exp) {
+                        try {
+                            throw new AssertionError(exp);
+                        } finally {
+                            latch.countDown();
+                        }
+                    }
+                }
             );
             latch.await();
             assertThat(responses, hasSize(1));
@@ -216,46 +214,46 @@ public class TransportActionProxyTests extends ESTestCase {
             final CountDownLatch latch = new CountDownLatch(1);
             final List<TransportResponse> responses = Collections.synchronizedList(new ArrayList<>());
             serviceB.addRequestHandlingBehavior(
-                    TransportActionProxy.getProxyAction("internal:test"),
-                    (handler, request, channel, task) -> handler.messageReceived(
-                            request,
-                            new CapturingTransportChannel(channel, responses::add),
-                            task
-                    )
+                TransportActionProxy.getProxyAction("internal:test"),
+                (handler, request, channel, task) -> handler.messageReceived(
+                    request,
+                    new CapturingTransportChannel(channel, responses::add),
+                    task
+                )
             );
             serviceD.sendRequest(
-                    nodeB,
-                    TransportActionProxy.getProxyAction("internal:test"),
-                    TransportActionProxy.wrapRequest(nodeC, new SimpleTestRequest("TS_A", cancellable)),
-                    new TransportResponseHandler<SimpleTestResponse>() {
-                        @Override
-                        public SimpleTestResponse read(StreamInput in) throws IOException {
-                            return new SimpleTestResponse(in);
-                        }
+                nodeB,
+                TransportActionProxy.getProxyAction("internal:test"),
+                TransportActionProxy.wrapRequest(nodeC, new SimpleTestRequest("TS_A", cancellable)),
+                new TransportResponseHandler<SimpleTestResponse>() {
+                    @Override
+                    public SimpleTestResponse read(StreamInput in) throws IOException {
+                        return new SimpleTestResponse(in);
+                    }
 
-                        @Override
-                        public Executor executor() {
-                            return TransportResponseHandler.TRANSPORT_WORKER;
-                        }
+                    @Override
+                    public Executor executor() {
+                        return TransportResponseHandler.TRANSPORT_WORKER;
+                    }
 
-                        @Override
-                        public void handleResponse(SimpleTestResponse response) {
-                            try {
-                                assertEquals("TS_C", response.targetNode);
-                            } finally {
-                                latch.countDown();
-                            }
-                        }
-
-                        @Override
-                        public void handleException(TransportException exp) {
-                            try {
-                                throw new AssertionError(exp);
-                            } finally {
-                                latch.countDown();
-                            }
+                    @Override
+                    public void handleResponse(SimpleTestResponse response) {
+                        try {
+                            assertEquals("TS_C", response.targetNode);
+                        } finally {
+                            latch.countDown();
                         }
                     }
+
+                    @Override
+                    public void handleException(TransportException exp) {
+                        try {
+                            throw new AssertionError(exp);
+                        } finally {
+                            latch.countDown();
+                        }
+                    }
+                }
             );
             latch.await();
             assertThat(responses, hasSize(1));
@@ -285,38 +283,38 @@ public class TransportActionProxyTests extends ESTestCase {
 
         // Node A -> Proxy Node B (Local execution)
         serviceA.sendRequest(
-                nodeB,
-                TransportActionProxy.getProxyAction("internal:test"),
-                TransportActionProxy.wrapRequest(nodeB, new SimpleTestRequest("TS_A", cancellable)), // Request
-                new TransportResponseHandler<SimpleTestResponse>() {
-                    @Override
-                    public SimpleTestResponse read(StreamInput in) throws IOException {
-                        return new SimpleTestResponse(in);
-                    }
+            nodeB,
+            TransportActionProxy.getProxyAction("internal:test"),
+            TransportActionProxy.wrapRequest(nodeB, new SimpleTestRequest("TS_A", cancellable)), // Request
+            new TransportResponseHandler<SimpleTestResponse>() {
+                @Override
+                public SimpleTestResponse read(StreamInput in) throws IOException {
+                    return new SimpleTestResponse(in);
+                }
 
-                    @Override
-                    public Executor executor() {
-                        return TransportResponseHandler.TRANSPORT_WORKER;
-                    }
+                @Override
+                public Executor executor() {
+                    return TransportResponseHandler.TRANSPORT_WORKER;
+                }
 
-                    @Override
-                    public void handleResponse(SimpleTestResponse response) {
-                        try {
-                            assertEquals("TS_B", response.targetNode);
-                        } finally {
-                            latch.countDown();
-                        }
-                    }
-
-                    @Override
-                    public void handleException(TransportException exp) {
-                        try {
-                            throw new AssertionError(exp);
-                        } finally {
-                            latch.countDown();
-                        }
+                @Override
+                public void handleResponse(SimpleTestResponse response) {
+                    try {
+                        assertEquals("TS_B", response.targetNode);
+                    } finally {
+                        latch.countDown();
                     }
                 }
+
+                @Override
+                public void handleException(TransportException exp) {
+                    try {
+                        throw new AssertionError(exp);
+                    } finally {
+                        latch.countDown();
+                    }
+                }
+            }
         );
         latch.await();
 
@@ -329,75 +327,75 @@ public class TransportActionProxyTests extends ESTestCase {
     public void testException() throws InterruptedException {
         boolean cancellable = randomBoolean();
         serviceA.registerRequestHandler(
-                "internal:test",
-                EsExecutors.DIRECT_EXECUTOR_SERVICE,
-                SimpleTestRequest::new,
-                (request, channel, task) -> {
-                    assertEquals(request.sourceNode, "TS_A");
-                    SimpleTestResponse response = new SimpleTestResponse("TS_A");
-                    channel.sendResponse(response);
-                }
+            "internal:test",
+            EsExecutors.DIRECT_EXECUTOR_SERVICE,
+            SimpleTestRequest::new,
+            (request, channel, task) -> {
+                assertEquals(request.sourceNode, "TS_A");
+                SimpleTestResponse response = new SimpleTestResponse("TS_A");
+                channel.sendResponse(response);
+            }
         );
         TransportActionProxy.registerProxyAction(serviceA, "internal:test", cancellable, SimpleTestResponse::new);
         AbstractSimpleTransportTestCase.connectToNode(serviceA, nodeB);
 
         serviceB.registerRequestHandler(
-                "internal:test",
-                EsExecutors.DIRECT_EXECUTOR_SERVICE,
-                SimpleTestRequest::new,
-                (request, channel, task) -> {
-                    assertEquals(request.sourceNode, "TS_A");
-                    SimpleTestResponse response = new SimpleTestResponse("TS_B");
-                    channel.sendResponse(response);
-                }
+            "internal:test",
+            EsExecutors.DIRECT_EXECUTOR_SERVICE,
+            SimpleTestRequest::new,
+            (request, channel, task) -> {
+                assertEquals(request.sourceNode, "TS_A");
+                SimpleTestResponse response = new SimpleTestResponse("TS_B");
+                channel.sendResponse(response);
+            }
         );
         TransportActionProxy.registerProxyAction(serviceB, "internal:test", cancellable, SimpleTestResponse::new);
         AbstractSimpleTransportTestCase.connectToNode(serviceB, nodeC);
         serviceC.registerRequestHandler(
-                "internal:test",
-                EsExecutors.DIRECT_EXECUTOR_SERVICE,
-                SimpleTestRequest::new,
-                (request, channel, task) -> {
-                    throw new ElasticsearchException("greetings from TS_C");
-                }
+            "internal:test",
+            EsExecutors.DIRECT_EXECUTOR_SERVICE,
+            SimpleTestRequest::new,
+            (request, channel, task) -> {
+                throw new ElasticsearchException("greetings from TS_C");
+            }
         );
         TransportActionProxy.registerProxyAction(serviceC, "internal:test", cancellable, SimpleTestResponse::new);
 
         CountDownLatch latch = new CountDownLatch(1);
         serviceA.sendRequest(
-                nodeB,
-                TransportActionProxy.getProxyAction("internal:test"),
-                TransportActionProxy.wrapRequest(nodeC, new SimpleTestRequest("TS_A", cancellable)),
-                new TransportResponseHandler<SimpleTestResponse>() {
-                    @Override
-                    public SimpleTestResponse read(StreamInput in) throws IOException {
-                        return new SimpleTestResponse(in);
-                    }
+            nodeB,
+            TransportActionProxy.getProxyAction("internal:test"),
+            TransportActionProxy.wrapRequest(nodeC, new SimpleTestRequest("TS_A", cancellable)),
+            new TransportResponseHandler<SimpleTestResponse>() {
+                @Override
+                public SimpleTestResponse read(StreamInput in) throws IOException {
+                    return new SimpleTestResponse(in);
+                }
 
-                    @Override
-                    public Executor executor() {
-                        return TransportResponseHandler.TRANSPORT_WORKER;
-                    }
+                @Override
+                public Executor executor() {
+                    return TransportResponseHandler.TRANSPORT_WORKER;
+                }
 
-                    @Override
-                    public void handleResponse(SimpleTestResponse response) {
-                        try {
-                            fail("expected exception");
-                        } finally {
-                            latch.countDown();
-                        }
-                    }
-
-                    @Override
-                    public void handleException(TransportException exp) {
-                        try {
-                            Throwable cause = ExceptionsHelper.unwrapCause(exp);
-                            assertEquals("greetings from TS_C", cause.getMessage());
-                        } finally {
-                            latch.countDown();
-                        }
+                @Override
+                public void handleResponse(SimpleTestResponse response) {
+                    try {
+                        fail("expected exception");
+                    } finally {
+                        latch.countDown();
                     }
                 }
+
+                @Override
+                public void handleException(TransportException exp) {
+                    try {
+                        Throwable cause = ExceptionsHelper.unwrapCause(exp);
+                        assertEquals("greetings from TS_C", cause.getMessage());
+                    } finally {
+                        latch.countDown();
+                    }
+                }
+            }
         );
         latch.await();
     }
@@ -444,8 +442,7 @@ public class TransportActionProxyTests extends ESTestCase {
         final String targetNode;
         final RefCounted refCounted = LeakTracker.wrap(new AbstractRefCounted() {
             @Override
-            protected void closeInternal() {
-            }
+            protected void closeInternal() {}
         });
 
         SimpleTestResponse(String targetNode) {

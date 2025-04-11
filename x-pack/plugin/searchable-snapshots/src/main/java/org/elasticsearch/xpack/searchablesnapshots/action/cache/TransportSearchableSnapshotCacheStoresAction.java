@@ -25,7 +25,6 @@ import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.AbstractTransportRequest;
-import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots;
 import org.elasticsearch.xpack.searchablesnapshots.cache.full.CacheService;
@@ -37,11 +36,11 @@ import java.util.Optional;
 import static org.elasticsearch.snapshots.SearchableSnapshotsSettings.SNAPSHOT_PARTIAL_SETTING;
 
 public class TransportSearchableSnapshotCacheStoresAction extends TransportNodesAction<
-        TransportSearchableSnapshotCacheStoresAction.Request,
-        TransportSearchableSnapshotCacheStoresAction.NodesCacheFilesMetadata,
-        TransportSearchableSnapshotCacheStoresAction.NodeRequest,
-        TransportSearchableSnapshotCacheStoresAction.NodeCacheFilesMetadata,
-        Void> {
+    TransportSearchableSnapshotCacheStoresAction.Request,
+    TransportSearchableSnapshotCacheStoresAction.NodesCacheFilesMetadata,
+    TransportSearchableSnapshotCacheStoresAction.NodeRequest,
+    TransportSearchableSnapshotCacheStoresAction.NodeCacheFilesMetadata,
+    Void> {
 
     public static final String ACTION_NAME = "internal:admin/xpack/searchable_snapshots/cache/store";
 
@@ -51,28 +50,28 @@ public class TransportSearchableSnapshotCacheStoresAction extends TransportNodes
 
     @Inject
     public TransportSearchableSnapshotCacheStoresAction(
-            ThreadPool threadPool,
-            ClusterService clusterService,
-            TransportService transportService,
-            SearchableSnapshots.CacheServiceSupplier cacheService,
-            ActionFilters actionFilters
+        ThreadPool threadPool,
+        ClusterService clusterService,
+        TransportService transportService,
+        SearchableSnapshots.CacheServiceSupplier cacheService,
+        ActionFilters actionFilters
     ) {
         super(
-                ACTION_NAME,
-                clusterService,
-                transportService,
-                actionFilters,
-                NodeRequest::new,
-                threadPool.executor(ThreadPool.Names.MANAGEMENT)
+            ACTION_NAME,
+            clusterService,
+            transportService,
+            actionFilters,
+            NodeRequest::new,
+            threadPool.executor(ThreadPool.Names.MANAGEMENT)
         );
         this.cacheService = cacheService.get();
     }
 
     @Override
     protected NodesCacheFilesMetadata newResponse(
-            Request request,
-            List<NodeCacheFilesMetadata> nodesCacheFilesMetadata,
-            List<FailedNodeException> failures
+        Request request,
+        List<NodeCacheFilesMetadata> nodesCacheFilesMetadata,
+        List<FailedNodeException> failures
     ) {
         return new NodesCacheFilesMetadata(clusterService.getClusterName(), nodesCacheFilesMetadata, failures);
     }
@@ -91,8 +90,8 @@ public class TransportSearchableSnapshotCacheStoresAction extends TransportNodes
     protected NodeCacheFilesMetadata nodeOperation(NodeRequest request, Task task) {
         assert cacheService != null;
         assert Optional.ofNullable(clusterService.state().metadata().getProject().index(request.shardId.getIndex()))
-                .map(indexMetadata -> SNAPSHOT_PARTIAL_SETTING.get(indexMetadata.getSettings()))
-                .orElse(false) == false : request.shardId + " is partial, should not be fetching its cached size";
+            .map(indexMetadata -> SNAPSHOT_PARTIAL_SETTING.get(indexMetadata.getSettings()))
+            .orElse(false) == false : request.shardId + " is partial, should not be fetching its cached size";
         return new NodeCacheFilesMetadata(clusterService.localNode(), cacheService.getCachedSize(request.shardId, request.snapshotId));
     }
 

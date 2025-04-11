@@ -24,7 +24,6 @@ import org.elasticsearch.search.rank.RankDocShardInfo;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.transport.AbstractTransportRequest;
-import org.elasticsearch.transport.TransportRequest;
 
 import java.io.IOException;
 import java.util.List;

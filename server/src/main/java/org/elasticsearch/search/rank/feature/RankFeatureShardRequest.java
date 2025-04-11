@@ -19,7 +19,6 @@ import org.elasticsearch.search.internal.ShardSearchContextId;
 import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.transport.AbstractTransportRequest;
-import org.elasticsearch.transport.TransportRequest;
 
 import java.io.IOException;
 import java.util.List;
@@ -40,10 +39,10 @@ public class RankFeatureShardRequest extends AbstractTransportRequest implements
     private final int[] docIds;
 
     public RankFeatureShardRequest(
-            OriginalIndices originalIndices,
-            ShardSearchContextId contextId,
-            ShardSearchRequest shardSearchRequest,
-            List<Integer> docIds
+        OriginalIndices originalIndices,
+        ShardSearchContextId contextId,
+        ShardSearchRequest shardSearchRequest,
+        List<Integer> docIds
     ) {
         this.originalIndices = originalIndices;
         this.shardSearchRequest = shardSearchRequest;

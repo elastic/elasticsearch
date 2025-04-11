@@ -26,7 +26,6 @@ import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.AbstractTransportRequest;
-import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
@@ -34,11 +33,11 @@ import java.util.List;
 import java.util.Set;
 
 public class TransportNodesCapabilitiesAction extends TransportNodesAction<
-        NodesCapabilitiesRequest,
-        NodesCapabilitiesResponse,
-        TransportNodesCapabilitiesAction.NodeCapabilitiesRequest,
-        NodeCapability,
-        Void> {
+    NodesCapabilitiesRequest,
+    NodesCapabilitiesResponse,
+    TransportNodesCapabilitiesAction.NodeCapabilitiesRequest,
+    NodeCapability,
+    Void> {
 
     public static final ActionType<NodesCapabilitiesResponse> TYPE = new ActionType<>("cluster:monitor/nodes/capabilities");
 
@@ -47,20 +46,20 @@ public class TransportNodesCapabilitiesAction extends TransportNodesAction<
 
     @Inject
     public TransportNodesCapabilitiesAction(
-            ThreadPool threadPool,
-            ClusterService clusterService,
-            TransportService transportService,
-            ActionFilters actionFilters,
-            RestController restController,
-            FeatureService featureService
+        ThreadPool threadPool,
+        ClusterService clusterService,
+        TransportService transportService,
+        ActionFilters actionFilters,
+        RestController restController,
+        FeatureService featureService
     ) {
         super(
-                TYPE.name(),
-                clusterService,
-                transportService,
-                actionFilters,
-                NodeCapabilitiesRequest::new,
-                threadPool.executor(ThreadPool.Names.MANAGEMENT)
+            TYPE.name(),
+            clusterService,
+            transportService,
+            actionFilters,
+            NodeCapabilitiesRequest::new,
+            threadPool.executor(ThreadPool.Names.MANAGEMENT)
         );
         this.restController = restController;
         this.featureService = featureService;
@@ -68,9 +67,9 @@ public class TransportNodesCapabilitiesAction extends TransportNodesAction<
 
     @Override
     protected NodesCapabilitiesResponse newResponse(
-            NodesCapabilitiesRequest request,
-            List<NodeCapability> responses,
-            List<FailedNodeException> failures
+        NodesCapabilitiesRequest request,
+        List<NodeCapability> responses,
+        List<FailedNodeException> failures
     ) {
         return new NodesCapabilitiesResponse(clusterService.getClusterName(), responses, failures);
     }
@@ -102,11 +101,11 @@ public class TransportNodesCapabilitiesAction extends TransportNodesAction<
     @Override
     protected NodeCapability nodeOperation(NodeCapabilitiesRequest request, Task task) {
         boolean supported = restController.checkSupported(
-                request.method,
-                request.path,
-                request.parameters,
-                request.capabilities,
-                request.restApiVersion
+            request.method,
+            request.path,
+            request.parameters,
+            request.capabilities,
+            request.restApiVersion
         );
         return new NodeCapability(supported, transportService.getLocalNode());
     }
@@ -129,11 +128,11 @@ public class TransportNodesCapabilitiesAction extends TransportNodesAction<
         }
 
         public NodeCapabilitiesRequest(
-                RestRequest.Method method,
-                String path,
-                Set<String> parameters,
-                Set<String> capabilities,
-                RestApiVersion restApiVersion
+            RestRequest.Method method,
+            String path,
+            Set<String> parameters,
+            Set<String> capabilities,
+            RestApiVersion restApiVersion
         ) {
             this.method = method;
             this.path = path;

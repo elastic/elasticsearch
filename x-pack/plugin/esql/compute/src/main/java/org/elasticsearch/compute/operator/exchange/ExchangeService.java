@@ -36,7 +36,6 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.AbstractTransportRequest;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportChannel;
-import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportRequestHandler;
 import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportService;
@@ -88,33 +87,33 @@ public final class ExchangeService extends AbstractLifecycleComponent {
         final var inactiveInterval = settings.getAsTime(INACTIVE_SINKS_INTERVAL_SETTING, INACTIVE_SINKS_INTERVAL_DEFAULT);
         // Run the reaper every half of the keep_alive interval
         this.threadPool.scheduleWithFixedDelay(
-                new InactiveSinksReaper(LOGGER, threadPool, inactiveInterval),
-                TimeValue.timeValueMillis(Math.max(1, inactiveInterval.millis() / 2)),
-                executor
+            new InactiveSinksReaper(LOGGER, threadPool, inactiveInterval),
+            TimeValue.timeValueMillis(Math.max(1, inactiveInterval.millis() / 2)),
+            executor
         );
     }
 
     public void registerTransportHandler(TransportService transportService) {
         transportService.registerRequestHandler(EXCHANGE_ACTION_NAME, this.executor, ExchangeRequest::new, new ExchangeTransportAction());
         transportService.registerRequestHandler(
-                OPEN_EXCHANGE_ACTION_NAME,
-                this.executor,
-                OpenExchangeRequest::new,
-                new OpenExchangeRequestHandler()
+            OPEN_EXCHANGE_ACTION_NAME,
+            this.executor,
+            OpenExchangeRequest::new,
+            new OpenExchangeRequestHandler()
         );
 
         // This allows the system user access this action when executed over CCS and the API key based security model is in use
         transportService.registerRequestHandler(
-                EXCHANGE_ACTION_NAME_FOR_CCS,
-                this.executor,
-                ExchangeRequest::new,
-                new ExchangeTransportAction()
+            EXCHANGE_ACTION_NAME_FOR_CCS,
+            this.executor,
+            ExchangeRequest::new,
+            new ExchangeTransportAction()
         );
         transportService.registerRequestHandler(
-                OPEN_EXCHANGE_ACTION_NAME_FOR_CCS,
-                this.executor,
-                OpenExchangeRequest::new,
-                new OpenExchangeRequestHandler()
+            OPEN_EXCHANGE_ACTION_NAME_FOR_CCS,
+            this.executor,
+            OpenExchangeRequest::new,
+            new OpenExchangeRequestHandler()
         );
     }
 
@@ -160,19 +159,19 @@ public final class ExchangeService extends AbstractLifecycleComponent {
      * Opens a remote sink handler on the remote node for the given session ID.
      */
     public static void openExchange(
-            TransportService transportService,
-            Transport.Connection connection,
-            String sessionId,
-            int exchangeBuffer,
-            Executor responseExecutor,
-            ActionListener<Void> listener
+        TransportService transportService,
+        Transport.Connection connection,
+        String sessionId,
+        int exchangeBuffer,
+        Executor responseExecutor,
+        ActionListener<Void> listener
     ) {
         transportService.sendRequest(
-                connection,
-                OPEN_EXCHANGE_ACTION_NAME,
-                new OpenExchangeRequest(sessionId, exchangeBuffer),
-                TransportRequestOptions.EMPTY,
-                new ActionListenerResponseHandler<>(listener.map(unused -> null), in -> ActionResponse.Empty.INSTANCE, responseExecutor)
+            connection,
+            OPEN_EXCHANGE_ACTION_NAME,
+            new OpenExchangeRequest(sessionId, exchangeBuffer),
+            TransportRequestOptions.EMPTY,
+            new ActionListenerResponseHandler<>(listener.map(unused -> null), in -> ActionResponse.Empty.INSTANCE, responseExecutor)
         );
     }
 
@@ -297,8 +296,8 @@ public final class ExchangeService extends AbstractLifecycleComponent {
                     TimeValue elapsedTime = TimeValue.timeValueMillis(elapsedInMillis);
                     logger.debug("removed sink {} inactive for {}", e.getKey(), elapsedTime);
                     finishSinkHandler(
-                            e.getKey(),
-                            new ElasticsearchTimeoutException("Exchange sink {} has been inactive for {}", e.getKey(), elapsedTime)
+                        e.getKey(),
+                        new ElasticsearchTimeoutException("Exchange sink {} has been inactive for {}", e.getKey(), elapsedTime)
                     );
                 }
             }
@@ -329,12 +328,12 @@ public final class ExchangeService extends AbstractLifecycleComponent {
         final AtomicReference<SubscribableListener<Void>> completionListenerRef = new AtomicReference<>(null);
 
         TransportRemoteSink(
-                TransportService transportService,
-                BlockFactory blockFactory,
-                Transport.Connection connection,
-                Task parentTask,
-                String exchangeId,
-                Executor responseExecutor
+            TransportService transportService,
+            BlockFactory blockFactory,
+            Transport.Connection connection,
+            Task parentTask,
+            String exchangeId,
+            Executor responseExecutor
         ) {
             this.transportService = transportService;
             this.blockFactory = blockFactory;
@@ -378,19 +377,19 @@ public final class ExchangeService extends AbstractLifecycleComponent {
                 listener = ActionListener.runAfter(listener, () -> blockFactory.breaker().addWithoutBreaking(-reservedBytes));
             }
             transportService.sendChildRequest(
-                    connection,
-                    EXCHANGE_ACTION_NAME,
-                    new ExchangeRequest(exchangeId, allSourcesFinished),
-                    parentTask,
-                    TransportRequestOptions.EMPTY,
-                    new ActionListenerResponseHandler<>(listener, in -> {
-                        try (BlockStreamInput bsi = new BlockStreamInput(in, blockFactory)) {
-                            final ExchangeResponse resp = new ExchangeResponse(bsi);
-                            final long responseBytes = resp.ramBytesUsedByPage();
-                            estimatedPageSizeInBytes.getAndUpdate(curr -> Math.max(responseBytes, curr / 2));
-                            return resp;
-                        }
-                    }, responseExecutor)
+                connection,
+                EXCHANGE_ACTION_NAME,
+                new ExchangeRequest(exchangeId, allSourcesFinished),
+                parentTask,
+                TransportRequestOptions.EMPTY,
+                new ActionListenerResponseHandler<>(listener, in -> {
+                    try (BlockStreamInput bsi = new BlockStreamInput(in, blockFactory)) {
+                        final ExchangeResponse resp = new ExchangeResponse(bsi);
+                        final long responseBytes = resp.ramBytesUsedByPage();
+                        estimatedPageSizeInBytes.getAndUpdate(curr -> Math.max(responseBytes, curr / 2));
+                        return resp;
+                    }
+                }, responseExecutor)
             );
         }
 
@@ -398,7 +397,7 @@ public final class ExchangeService extends AbstractLifecycleComponent {
         public void close(ActionListener<Void> listener) {
             final SubscribableListener<Void> candidate = new SubscribableListener<>();
             final SubscribableListener<Void> actual = completionListenerRef.updateAndGet(
-                    curr -> Objects.requireNonNullElse(curr, candidate)
+                curr -> Objects.requireNonNullElse(curr, candidate)
             );
             actual.addListener(listener);
             if (candidate == actual) {

@@ -143,10 +143,10 @@ final class TransportHandshaker {
     private final boolean ignoreDeserializationErrors;
 
     TransportHandshaker(
-            TransportVersion version,
-            ThreadPool threadPool,
-            HandshakeRequestSender handshakeRequestSender,
-            boolean ignoreDeserializationErrors
+        TransportVersion version,
+        ThreadPool threadPool,
+        HandshakeRequestSender handshakeRequestSender,
+        boolean ignoreDeserializationErrors
     ) {
         this.version = version;
         this.threadPool = threadPool;
@@ -155,26 +155,26 @@ final class TransportHandshaker {
     }
 
     void sendHandshake(
-            long requestId,
-            DiscoveryNode node,
-            TcpChannel channel,
-            TimeValue timeout,
-            ActionListener<TransportVersion> listener
+        long requestId,
+        DiscoveryNode node,
+        TcpChannel channel,
+        TimeValue timeout,
+        ActionListener<TransportVersion> listener
     ) {
         numHandshakes.inc();
         final HandshakeResponseHandler handler = new HandshakeResponseHandler(requestId, channel, listener);
         pendingHandshakes.put(requestId, handler);
         channel.addCloseListener(
-                ActionListener.running(() -> handler.handleLocalException(new TransportException("handshake failed because connection reset")))
+            ActionListener.running(() -> handler.handleLocalException(new TransportException("handshake failed because connection reset")))
         );
         boolean success = false;
         try {
             handshakeRequestSender.sendRequest(node, channel, requestId, V9_HANDSHAKE_VERSION);
 
             threadPool.schedule(
-                    () -> handler.handleLocalException(new ConnectTransportException(node, "handshake_timeout[" + timeout + "]")),
-                    timeout,
-                    threadPool.generic()
+                () -> handler.handleLocalException(new ConnectTransportException(node, "handshake_timeout[" + timeout + "]")),
+                timeout,
+                threadPool.generic()
             );
             success = true;
         } catch (Exception e) {
@@ -198,30 +198,30 @@ final class TransportHandshaker {
         final int nextByte = stream.read();
         if (nextByte != -1) {
             final IllegalStateException exception = new IllegalStateException(
-                    "Handshake request not fully read for requestId ["
-                            + requestId
-                            + "], action ["
-                            + TransportHandshaker.HANDSHAKE_ACTION_NAME
-                            + "], available ["
-                            + stream.available()
-                            + "]; resetting"
+                "Handshake request not fully read for requestId ["
+                    + requestId
+                    + "], action ["
+                    + TransportHandshaker.HANDSHAKE_ACTION_NAME
+                    + "], available ["
+                    + stream.available()
+                    + "]; resetting"
             );
             assert ignoreDeserializationErrors : exception;
             throw exception;
         }
         channel.sendResponse(
-                new HandshakeResponse(
-                        ensureCompatibleVersion(version, handshakeRequest.transportVersion, handshakeRequest.releaseVersion, channel),
-                        Build.current().version()
-                )
+            new HandshakeResponse(
+                ensureCompatibleVersion(version, handshakeRequest.transportVersion, handshakeRequest.releaseVersion, channel),
+                Build.current().version()
+            )
         );
     }
 
     private static TransportVersion ensureCompatibleVersion(
-            TransportVersion localTransportVersion,
-            TransportVersion remoteTransportVersion,
-            String releaseVersion,
-            Object channel
+        TransportVersion localTransportVersion,
+        TransportVersion remoteTransportVersion,
+        String releaseVersion,
+        Object channel
     ) {
         if (TransportVersion.isCompatible(remoteTransportVersion)) {
             if (remoteTransportVersion.onOrAfter(localTransportVersion)) {
@@ -239,17 +239,17 @@ final class TransportHandshaker {
                     // that goes backwards in time and therefore may regress in some way, so we emit a warning. But we carry on with the
                     // best known version anyway since both ends will know it.
                     logger.warn(
-                            """
-                                    Negotiating transport handshake with remote node with version [{}/{}] received on [{}] which appears to be \
-                                    from a chronologically-older release with a numerically-newer version compared to this node's version [{}/{}]. \
-                                    Upgrading to a chronologically-older release may not work reliably and is not recommended. \
-                                    Falling back to transport protocol version [{}].""",
-                            releaseVersion,
-                            remoteTransportVersion,
-                            channel,
-                            Build.current().version(),
-                            localTransportVersion,
-                            bestKnownVersion
+                        """
+                            Negotiating transport handshake with remote node with version [{}/{}] received on [{}] which appears to be \
+                            from a chronologically-older release with a numerically-newer version compared to this node's version [{}/{}]. \
+                            Upgrading to a chronologically-older release may not work reliably and is not recommended. \
+                            Falling back to transport protocol version [{}].""",
+                        releaseVersion,
+                        remoteTransportVersion,
+                        channel,
+                        Build.current().version(),
+                        localTransportVersion,
+                        bestKnownVersion
                     );
                 } // else remote is semantically older and we _do_ know its version, so we just use that without further fuss.
                 return bestKnownVersion;
@@ -257,14 +257,14 @@ final class TransportHandshaker {
         }
 
         final var message = Strings.format(
-                """
-                        Rejecting unreadable transport handshake from remote node with version [%s/%s] received on [%s] since this node has \
-                        version [%s/%s] which has an incompatible wire format.""",
-                releaseVersion,
-                remoteTransportVersion,
-                channel,
-                Build.current().version(),
-                localTransportVersion
+            """
+                Rejecting unreadable transport handshake from remote node with version [%s/%s] received on [%s] since this node has \
+                version [%s/%s] which has an incompatible wire format.""",
+            releaseVersion,
+            remoteTransportVersion,
+            channel,
+            Build.current().version(),
+            localTransportVersion
         );
         logger.warn(message);
         throw new IllegalStateException(message);
@@ -311,13 +311,13 @@ final class TransportHandshaker {
             if (isDone.compareAndSet(false, true)) {
                 ActionListener.completeWith(listener, () -> {
                     final var resultVersion = ensureCompatibleVersion(
-                            version,
-                            response.getTransportVersion(),
-                            response.getReleaseVersion(),
-                            channel
+                        version,
+                        response.getTransportVersion(),
+                        response.getReleaseVersion(),
+                        channel
                     );
                     assert TransportVersion.current().before(version) // simulating a newer-version transport service for test purposes
-                            || resultVersion.isKnown() : "negotiated unknown version " + resultVersion;
+                        || resultVersion.isKnown() : "negotiated unknown version " + resultVersion;
                     return resultVersion;
                 });
             }
@@ -449,6 +449,6 @@ final class TransportHandshaker {
          *                                  {@link TransportHandshaker#V8_HANDSHAKE_VERSION} in production.
          */
         void sendRequest(DiscoveryNode node, TcpChannel channel, long requestId, TransportVersion handshakeTransportVersion)
-                throws IOException;
+            throws IOException;
     }
 }

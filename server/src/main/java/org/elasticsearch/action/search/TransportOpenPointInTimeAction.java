@@ -43,7 +43,6 @@ import org.elasticsearch.transport.AbstractTransportRequest;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportActionProxy;
 import org.elasticsearch.transport.TransportChannel;
-import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportRequestHandler;
 import org.elasticsearch.transport.TransportResponseHandler;
 import org.elasticsearch.transport.TransportService;
@@ -72,13 +71,13 @@ public class TransportOpenPointInTimeAction extends HandledTransportAction<OpenP
 
     @Inject
     public TransportOpenPointInTimeAction(
-            TransportService transportService,
-            SearchService searchService,
-            ActionFilters actionFilters,
-            TransportSearchAction transportSearchAction,
-            SearchTransportService searchTransportService,
-            NamedWriteableRegistry namedWriteableRegistry,
-            ClusterService clusterService
+        TransportService transportService,
+        SearchService searchService,
+        ActionFilters actionFilters,
+        TransportSearchAction transportSearchAction,
+        SearchTransportService searchTransportService,
+        NamedWriteableRegistry namedWriteableRegistry,
+        ClusterService clusterService
     ) {
         super(TYPE.name(), transportService, actionFilters, OpenPointInTimeRequest::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
         this.transportService = transportService;
@@ -88,17 +87,12 @@ public class TransportOpenPointInTimeAction extends HandledTransportAction<OpenP
         this.namedWriteableRegistry = namedWriteableRegistry;
         this.clusterService = clusterService;
         transportService.registerRequestHandler(
-                OPEN_SHARD_READER_CONTEXT_NAME,
-                EsExecutors.DIRECT_EXECUTOR_SERVICE,
-                ShardOpenReaderRequest::new,
-                new ShardOpenReaderRequestHandler()
+            OPEN_SHARD_READER_CONTEXT_NAME,
+            EsExecutors.DIRECT_EXECUTOR_SERVICE,
+            ShardOpenReaderRequest::new,
+            new ShardOpenReaderRequestHandler()
         );
-        TransportActionProxy.registerProxyAction(
-                transportService,
-                OPEN_SHARD_READER_CONTEXT_NAME,
-                false,
-                ShardOpenReaderResponse::new
-        );
+        TransportActionProxy.registerProxyAction(transportService, OPEN_SHARD_READER_CONTEXT_NAME, false, ShardOpenReaderResponse::new);
     }
 
     @Override
@@ -107,32 +101,32 @@ public class TransportOpenPointInTimeAction extends HandledTransportAction<OpenP
         // Check if all the nodes in this cluster know about the service
         if (request.allowPartialSearchResults() && clusterState.getMinTransportVersion().before(TransportVersions.V_8_16_0)) {
             listener.onFailure(
-                    new ElasticsearchStatusException(
-                            format(
-                                    "The [allow_partial_search_results] parameter cannot be used while the cluster is still upgrading. "
-                                            + "Please wait until the upgrade is fully completed and try again."
-                            ),
-                            RestStatus.BAD_REQUEST
-                    )
+                new ElasticsearchStatusException(
+                    format(
+                        "The [allow_partial_search_results] parameter cannot be used while the cluster is still upgrading. "
+                            + "Please wait until the upgrade is fully completed and try again."
+                    ),
+                    RestStatus.BAD_REQUEST
+                )
             );
             return;
         }
         final SearchRequest searchRequest = new SearchRequest().indices(request.indices())
-                .indicesOptions(request.indicesOptions())
-                .preference(request.preference())
-                .routing(request.routing())
-                .allowPartialSearchResults(request.allowPartialSearchResults())
-                .source(new SearchSourceBuilder().query(request.indexFilter()));
+            .indicesOptions(request.indicesOptions())
+            .preference(request.preference())
+            .routing(request.routing())
+            .allowPartialSearchResults(request.allowPartialSearchResults())
+            .source(new SearchSourceBuilder().query(request.indexFilter()));
         searchRequest.setMaxConcurrentShardRequests(request.maxConcurrentShardRequests());
         searchRequest.setCcsMinimizeRoundtrips(false);
         transportSearchAction.executeRequest((SearchTask) task, searchRequest, listener.map(r -> {
             assert r.pointInTimeId() != null : r;
             return new OpenPointInTimeResponse(
-                    r.pointInTimeId(),
-                    r.getTotalShards(),
-                    r.getSuccessfulShards(),
-                    r.getFailedShards(),
-                    r.getSkippedShards()
+                r.pointInTimeId(),
+                r.getTotalShards(),
+                r.getSuccessfulShards(),
+                r.getFailedShards(),
+                r.getSkippedShards()
             );
         }), searchListener -> new OpenPointInTimePhase(request, searchListener));
     }
@@ -148,116 +142,116 @@ public class TransportOpenPointInTimeAction extends HandledTransportAction<OpenP
 
         @Override
         public void runNewSearchPhase(
-                SearchTask task,
-                SearchRequest searchRequest,
-                Executor executor,
-                List<SearchShardIterator> shardIterators,
-                TransportSearchAction.SearchTimeProvider timeProvider,
-                BiFunction<String, String, Transport.Connection> connectionLookup,
-                ClusterState clusterState,
-                Map<String, AliasFilter> aliasFilter,
-                Map<String, Float> concreteIndexBoosts,
-                boolean preFilter,
-                ThreadPool threadPool,
-                SearchResponse.Clusters clusters
+            SearchTask task,
+            SearchRequest searchRequest,
+            Executor executor,
+            List<SearchShardIterator> shardIterators,
+            TransportSearchAction.SearchTimeProvider timeProvider,
+            BiFunction<String, String, Transport.Connection> connectionLookup,
+            ClusterState clusterState,
+            Map<String, AliasFilter> aliasFilter,
+            Map<String, Float> concreteIndexBoosts,
+            boolean preFilter,
+            ThreadPool threadPool,
+            SearchResponse.Clusters clusters
         ) {
             // Note: remote shards are prefiltered via can match as part of search shards. They don't need additional pre-filtering and
             // that is signaled to the local can match through the SearchShardIterator#prefiltered flag. Local shards do need to go
             // through the local can match phase.
             if (SearchService.canRewriteToMatchNone(searchRequest.source())) {
                 new CanMatchPreFilterSearchPhase(
-                        logger,
-                        searchTransportService,
-                        connectionLookup,
-                        aliasFilter,
-                        concreteIndexBoosts,
-                        threadPool.executor(ThreadPool.Names.SEARCH_COORDINATION),
-                        searchRequest,
-                        shardIterators,
-                        timeProvider,
-                        task,
-                        false,
-                        searchService.getCoordinatorRewriteContextProvider(timeProvider::absoluteStartMillis),
-                        listener.delegateFailureAndWrap(
-                                (searchResponseActionListener, searchShardIterators) -> runOpenPointInTimePhase(
-                                        task,
-                                        searchRequest,
-                                        executor,
-                                        searchShardIterators,
-                                        timeProvider,
-                                        connectionLookup,
-                                        clusterState,
-                                        aliasFilter,
-                                        concreteIndexBoosts,
-                                        clusters
-                                )
+                    logger,
+                    searchTransportService,
+                    connectionLookup,
+                    aliasFilter,
+                    concreteIndexBoosts,
+                    threadPool.executor(ThreadPool.Names.SEARCH_COORDINATION),
+                    searchRequest,
+                    shardIterators,
+                    timeProvider,
+                    task,
+                    false,
+                    searchService.getCoordinatorRewriteContextProvider(timeProvider::absoluteStartMillis),
+                    listener.delegateFailureAndWrap(
+                        (searchResponseActionListener, searchShardIterators) -> runOpenPointInTimePhase(
+                            task,
+                            searchRequest,
+                            executor,
+                            searchShardIterators,
+                            timeProvider,
+                            connectionLookup,
+                            clusterState,
+                            aliasFilter,
+                            concreteIndexBoosts,
+                            clusters
                         )
+                    )
                 ).start();
             } else {
                 runOpenPointInTimePhase(
-                        task,
-                        searchRequest,
-                        executor,
-                        shardIterators,
-                        timeProvider,
-                        connectionLookup,
-                        clusterState,
-                        aliasFilter,
-                        concreteIndexBoosts,
-                        clusters
+                    task,
+                    searchRequest,
+                    executor,
+                    shardIterators,
+                    timeProvider,
+                    connectionLookup,
+                    clusterState,
+                    aliasFilter,
+                    concreteIndexBoosts,
+                    clusters
                 );
             }
         }
 
         void runOpenPointInTimePhase(
-                SearchTask task,
-                SearchRequest searchRequest,
-                Executor executor,
-                List<SearchShardIterator> shardIterators,
-                TransportSearchAction.SearchTimeProvider timeProvider,
-                BiFunction<String, String, Transport.Connection> connectionLookup,
-                ClusterState clusterState,
-                Map<String, AliasFilter> aliasFilter,
-                Map<String, Float> concreteIndexBoosts,
-                SearchResponse.Clusters clusters
+            SearchTask task,
+            SearchRequest searchRequest,
+            Executor executor,
+            List<SearchShardIterator> shardIterators,
+            TransportSearchAction.SearchTimeProvider timeProvider,
+            BiFunction<String, String, Transport.Connection> connectionLookup,
+            ClusterState clusterState,
+            Map<String, AliasFilter> aliasFilter,
+            Map<String, Float> concreteIndexBoosts,
+            SearchResponse.Clusters clusters
         ) {
             assert searchRequest.getMaxConcurrentShardRequests() == pitRequest.maxConcurrentShardRequests()
-                    : searchRequest.getMaxConcurrentShardRequests() + " != " + pitRequest.maxConcurrentShardRequests();
+                : searchRequest.getMaxConcurrentShardRequests() + " != " + pitRequest.maxConcurrentShardRequests();
             new AbstractSearchAsyncAction<>(
-                    actionName,
-                    logger,
-                    namedWriteableRegistry,
-                    searchTransportService,
-                    connectionLookup,
-                    aliasFilter,
-                    concreteIndexBoosts,
-                    executor,
-                    searchRequest,
-                    listener,
-                    shardIterators,
-                    timeProvider,
-                    clusterState,
-                    task,
-                    new ArraySearchPhaseResults<>(shardIterators.size()),
-                    searchRequest.getMaxConcurrentShardRequests(),
-                    clusters
+                actionName,
+                logger,
+                namedWriteableRegistry,
+                searchTransportService,
+                connectionLookup,
+                aliasFilter,
+                concreteIndexBoosts,
+                executor,
+                searchRequest,
+                listener,
+                shardIterators,
+                timeProvider,
+                clusterState,
+                task,
+                new ArraySearchPhaseResults<>(shardIterators.size()),
+                searchRequest.getMaxConcurrentShardRequests(),
+                clusters
             ) {
                 @Override
                 protected void executePhaseOnShard(
-                        SearchShardIterator shardIt,
-                        Transport.Connection connection,
-                        SearchActionListener<SearchPhaseResult> phaseListener
+                    SearchShardIterator shardIt,
+                    Transport.Connection connection,
+                    SearchActionListener<SearchPhaseResult> phaseListener
                 ) {
                     transportService.sendChildRequest(
-                            connection,
-                            OPEN_SHARD_READER_CONTEXT_NAME,
-                            new ShardOpenReaderRequest(shardIt.shardId(), shardIt.getOriginalIndices(), pitRequest.keepAlive()),
-                            task,
-                            new ActionListenerResponseHandler<>(
-                                    phaseListener,
-                                    ShardOpenReaderResponse::new,
-                                    TransportResponseHandler.TRANSPORT_WORKER
-                            )
+                        connection,
+                        OPEN_SHARD_READER_CONTEXT_NAME,
+                        new ShardOpenReaderRequest(shardIt.shardId(), shardIt.getOriginalIndices(), pitRequest.keepAlive()),
+                        task,
+                        new ActionListenerResponseHandler<>(
+                            phaseListener,
+                            ShardOpenReaderResponse::new,
+                            TransportResponseHandler.TRANSPORT_WORKER
+                        )
                     );
                 }
 
@@ -339,9 +333,9 @@ public class TransportOpenPointInTimeAction extends HandledTransportAction<OpenP
         @Override
         public void messageReceived(ShardOpenReaderRequest request, TransportChannel channel, Task task) {
             searchService.openReaderContext(
-                    request.getShardId(),
-                    request.keepAlive,
-                    new ChannelActionListener<>(channel).map(ShardOpenReaderResponse::new)
+                request.getShardId(),
+                request.keepAlive,
+                new ChannelActionListener<>(channel).map(ShardOpenReaderResponse::new)
             );
         }
     }

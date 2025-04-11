@@ -21,7 +21,6 @@ import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.transport.AbstractTransportRequest;
-import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamOutput;
 import org.elasticsearch.xpack.esql.session.Configuration;
@@ -65,8 +64,8 @@ final class ClusterComputeRequest extends AbstractTransportRequest implements In
         this.clusterAlias = in.readString();
         this.sessionId = in.readString();
         this.configuration = new Configuration(
-                // TODO make EsqlConfiguration Releasable
-                new BlockStreamInput(in, new BlockFactory(new NoopCircuitBreaker(CircuitBreaker.REQUEST), BigArrays.NON_RECYCLING_INSTANCE))
+            // TODO make EsqlConfiguration Releasable
+            new BlockStreamInput(in, new BlockFactory(new NoopCircuitBreaker(CircuitBreaker.REQUEST), BigArrays.NON_RECYCLING_INSTANCE))
         );
         this.plan = RemoteClusterPlan.from(new PlanStreamInput(in, in.namedWriteableRegistry(), configuration));
         this.indices = plan.originalIndices().indices();
@@ -143,10 +142,10 @@ final class ClusterComputeRequest extends AbstractTransportRequest implements In
         if (o == null || getClass() != o.getClass()) return false;
         ClusterComputeRequest request = (ClusterComputeRequest) o;
         return clusterAlias.equals(request.clusterAlias)
-                && sessionId.equals(request.sessionId)
-                && configuration.equals(request.configuration)
-                && plan.equals(request.plan)
-                && getParentTask().equals(request.getParentTask());
+            && sessionId.equals(request.sessionId)
+            && configuration.equals(request.configuration)
+            && plan.equals(request.plan)
+            && getParentTask().equals(request.getParentTask());
     }
 
     @Override

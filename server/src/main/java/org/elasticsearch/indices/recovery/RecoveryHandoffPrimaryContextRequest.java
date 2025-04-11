@@ -14,7 +14,6 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.index.seqno.ReplicationTracker;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.transport.AbstractTransportRequest;
-import org.elasticsearch.transport.TransportRequest;
 
 import java.io.IOException;
 
@@ -45,9 +44,9 @@ class RecoveryHandoffPrimaryContextRequest extends AbstractTransportRequest {
      * @param primaryContext the primary context
      */
     RecoveryHandoffPrimaryContextRequest(
-            final long recoveryId,
-            final ShardId shardId,
-            final ReplicationTracker.PrimaryContext primaryContext
+        final long recoveryId,
+        final ShardId shardId,
+        final ReplicationTracker.PrimaryContext primaryContext
     ) {
         this.recoveryId = recoveryId;
         this.shardId = shardId;
@@ -77,12 +76,12 @@ class RecoveryHandoffPrimaryContextRequest extends AbstractTransportRequest {
     @Override
     public String toString() {
         return "RecoveryHandoffPrimaryContextRequest{"
-                + "recoveryId="
-                + recoveryId
-                + ", shardId="
-                + shardId
-                + ", primaryContext="
-                + primaryContext
-                + '}';
+            + "recoveryId="
+            + recoveryId
+            + ", shardId="
+            + shardId
+            + ", primaryContext="
+            + primaryContext
+            + '}';
     }
 }

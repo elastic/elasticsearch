@@ -32,7 +32,6 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.transport.AbstractTransportRequest;
 import org.elasticsearch.transport.TransportChannel;
-import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportRequestHandler;
 import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportResponse;
@@ -50,10 +49,10 @@ import java.util.concurrent.Executor;
  * The base class for transport actions that are interacting with currently running tasks.
  */
 public abstract class TransportTasksAction<
-        OperationTask extends Task,
-        TasksRequest extends BaseTasksRequest<TasksRequest>,
-        TasksResponse extends BaseTasksResponse,
-        TaskResponse extends Writeable> extends HandledTransportAction<TasksRequest, TasksResponse> {
+    OperationTask extends Task,
+    TasksRequest extends BaseTasksRequest<TasksRequest>,
+    TasksResponse extends BaseTasksResponse,
+    TaskResponse extends Writeable> extends HandledTransportAction<TasksRequest, TasksResponse> {
 
     protected final ClusterService clusterService;
     protected final TransportService transportService;
@@ -63,13 +62,13 @@ public abstract class TransportTasksAction<
     protected final String transportNodeAction;
 
     protected TransportTasksAction(
-            String actionName,
-            ClusterService clusterService,
-            TransportService transportService,
-            ActionFilters actionFilters,
-            Writeable.Reader<TasksRequest> requestReader,
-            Writeable.Reader<TaskResponse> responseReader,
-            Executor nodeExecutor
+        String actionName,
+        ClusterService clusterService,
+        TransportService transportService,
+        ActionFilters actionFilters,
+        Writeable.Reader<TasksRequest> requestReader,
+        Writeable.Reader<TaskResponse> responseReader,
+        Executor nodeExecutor
     ) {
         // coordination can run on SAME because it's only O(#nodes) work
         super(actionName, transportService, actionFilters, requestReader, EsExecutors.DIRECT_EXECUTOR_SERVICE);
@@ -104,12 +103,12 @@ public abstract class TransportTasksAction<
                 final NodeTaskRequest nodeTaskRequest = new NodeTaskRequest(request);
                 try {
                     transportService.sendChildRequest(
-                            discoveryNode,
-                            transportNodeAction,
-                            nodeTaskRequest,
-                            task,
-                            transportRequestOptions,
-                            new ActionListenerResponseHandler<>(listener, nodeResponseReader, TransportResponseHandler.TRANSPORT_WORKER)
+                        discoveryNode,
+                        transportNodeAction,
+                        nodeTaskRequest,
+                        task,
+                        transportRequestOptions,
+                        new ActionListenerResponseHandler<>(listener, nodeResponseReader, TransportResponseHandler.TRANSPORT_WORKER)
                     );
                 } finally {
                     nodeTaskRequest.decRef();
@@ -156,10 +155,10 @@ public abstract class TransportTasksAction<
     private final Writeable.Reader<NodeTasksResponse> nodeResponseReader = NodeTasksResponse::new;
 
     private void nodeOperation(
-            CancellableTask nodeTask,
-            ActionListener<NodeTasksResponse> listener,
-            TasksRequest request,
-            List<OperationTask> operationTasks
+        CancellableTask nodeTask,
+        ActionListener<NodeTasksResponse> listener,
+        TasksRequest request,
+        List<OperationTask> operationTasks
     ) {
         new CancellableFanOut<OperationTask, TaskResponse, NodeTasksResponse>() {
 
@@ -200,7 +199,7 @@ public abstract class TransportTasksAction<
 
     protected String[] resolveNodes(TasksRequest request, DiscoveryNodes discoveryNodes) {
         if (request.getTargetTaskId().isSet()) {
-            return new String[]{request.getTargetTaskId().getNodeId()};
+            return new String[] { request.getTargetTaskId().getNodeId() };
         } else {
             return discoveryNodes.resolveNodes(request.getNodes());
         }
@@ -236,10 +235,10 @@ public abstract class TransportTasksAction<
     }
 
     protected abstract TasksResponse newResponse(
-            TasksRequest request,
-            List<TaskResponse> tasks,
-            List<TaskOperationFailure> taskOperationFailures,
-            List<FailedNodeException> failedNodeExceptions
+        TasksRequest request,
+        List<TaskResponse> tasks,
+        List<TaskOperationFailure> taskOperationFailures,
+        List<FailedNodeException> failedNodeExceptions
     );
 
     /**
@@ -251,10 +250,10 @@ public abstract class TransportTasksAction<
      * @param listener   the listener to signal.
      */
     protected abstract void taskOperation(
-            CancellableTask actionTask,
-            TasksRequest request,
-            OperationTask task,
-            ActionListener<TaskResponse> listener
+        CancellableTask actionTask,
+        TasksRequest request,
+        OperationTask task,
+        ActionListener<TaskResponse> listener
     );
 
     class NodeTransportHandler implements TransportRequestHandler<NodeTaskRequest> {
@@ -264,11 +263,11 @@ public abstract class TransportTasksAction<
             assert task instanceof CancellableTask;
             TasksRequest tasksRequest = request.tasksRequest;
             processTasks(
-                    (CancellableTask) task,
-                    tasksRequest,
-                    new ChannelActionListener<NodeTasksResponse>(channel).delegateFailure(
-                            (l, tasks) -> nodeOperation((CancellableTask) task, l, tasksRequest, tasks)
-                    )
+                (CancellableTask) task,
+                tasksRequest,
+                new ChannelActionListener<NodeTasksResponse>(channel).delegateFailure(
+                    (l, tasks) -> nodeOperation((CancellableTask) task, l, tasksRequest, tasks)
+                )
             );
         }
     }

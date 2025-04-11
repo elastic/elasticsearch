@@ -20,45 +20,44 @@ import org.elasticsearch.repositories.RepositoryStatsSnapshot;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.AbstractTransportRequest;
-import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
 import java.util.List;
 
 public final class TransportClearRepositoriesStatsArchiveAction extends TransportNodesAction<
-        ClearRepositoriesMeteringArchiveRequest,
-        RepositoriesMeteringResponse,
-        TransportClearRepositoriesStatsArchiveAction.ClearRepositoriesStatsArchiveNodeRequest,
-        RepositoriesNodeMeteringResponse,
-        Void> {
+    ClearRepositoriesMeteringArchiveRequest,
+    RepositoriesMeteringResponse,
+    TransportClearRepositoriesStatsArchiveAction.ClearRepositoriesStatsArchiveNodeRequest,
+    RepositoriesNodeMeteringResponse,
+    Void> {
 
     private final RepositoriesService repositoriesService;
 
     @Inject
     public TransportClearRepositoriesStatsArchiveAction(
-            ThreadPool threadPool,
-            ClusterService clusterService,
-            TransportService transportService,
-            ActionFilters actionFilters,
-            RepositoriesService repositoriesService
+        ThreadPool threadPool,
+        ClusterService clusterService,
+        TransportService transportService,
+        ActionFilters actionFilters,
+        RepositoriesService repositoriesService
     ) {
         super(
-                ClearRepositoriesMeteringArchiveAction.NAME,
-                clusterService,
-                transportService,
-                actionFilters,
-                ClearRepositoriesStatsArchiveNodeRequest::new,
-                threadPool.executor(ThreadPool.Names.GENERIC)
+            ClearRepositoriesMeteringArchiveAction.NAME,
+            clusterService,
+            transportService,
+            actionFilters,
+            ClearRepositoriesStatsArchiveNodeRequest::new,
+            threadPool.executor(ThreadPool.Names.GENERIC)
         );
         this.repositoriesService = repositoriesService;
     }
 
     @Override
     protected RepositoriesMeteringResponse newResponse(
-            ClearRepositoriesMeteringArchiveRequest request,
-            List<RepositoriesNodeMeteringResponse> nodesResponses,
-            List<FailedNodeException> failures
+        ClearRepositoriesMeteringArchiveRequest request,
+        List<RepositoriesNodeMeteringResponse> nodesResponses,
+        List<FailedNodeException> failures
     ) {
         return new RepositoriesMeteringResponse(clusterService.getClusterName(), nodesResponses, failures);
     }

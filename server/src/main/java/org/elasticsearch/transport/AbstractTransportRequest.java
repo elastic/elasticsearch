@@ -31,8 +31,7 @@ public abstract class AbstractTransportRequest extends TransportMessage implemen
      */
     private volatile long requestId = -1;
 
-    public AbstractTransportRequest() {
-    }
+    public AbstractTransportRequest() {}
 
     public AbstractTransportRequest(StreamInput in) throws IOException {
         parentTaskId = TaskId.readFromStream(in);

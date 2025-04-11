@@ -44,7 +44,6 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.transport.AbstractTransportRequest;
 import org.elasticsearch.transport.TransportChannel;
-import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportRequestHandler;
 import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportResponse;
@@ -617,11 +616,9 @@ public abstract class TransportBroadcastByNodeAction<
     public static final class EmptyResult implements Writeable {
         public static final EmptyResult INSTANCE = new EmptyResult();
 
-        private EmptyResult() {
-        }
+        private EmptyResult() {}
 
         @Override
-        public void writeTo(StreamOutput out) {
-        }
+        public void writeTo(StreamOutput out) {}
     }
 }

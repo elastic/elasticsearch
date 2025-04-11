@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.enrich.action;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.support.ActionFilters;
-import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.action.support.nodes.BaseNodeResponse;
 import org.elasticsearch.action.support.nodes.BaseNodesRequest;
 import org.elasticsearch.action.support.nodes.BaseNodesResponse;
@@ -24,7 +23,6 @@ import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.AbstractTransportRequest;
-import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.enrich.action.EnrichStatsAction;
 import org.elasticsearch.xpack.core.enrich.action.EnrichStatsAction.Response.CoordinatorStats;
@@ -55,8 +53,7 @@ public class EnrichCoordinatorStatsAction extends ActionType<EnrichCoordinatorSt
 
     public static class NodeRequest extends AbstractTransportRequest {
 
-        NodeRequest() {
-        }
+        NodeRequest() {}
 
         NodeRequest(StreamInput in) throws IOException {
             super(in);
@@ -121,12 +118,12 @@ public class EnrichCoordinatorStatsAction extends ActionType<EnrichCoordinatorSt
 
         @Inject
         public TransportAction(
-                ThreadPool threadPool,
-                ClusterService clusterService,
-                TransportService transportService,
-                ActionFilters actionFilters,
-                EnrichCache enrichCache,
-                EnrichCoordinatorProxyAction.Coordinator coordinator
+            ThreadPool threadPool,
+            ClusterService clusterService,
+            TransportService transportService,
+            ActionFilters actionFilters,
+            EnrichCache enrichCache,
+            EnrichCoordinatorProxyAction.Coordinator coordinator
         ) {
             super(NAME, clusterService, transportService, actionFilters, NodeRequest::new, threadPool.executor(ThreadPool.Names.GENERIC));
             this.enrichCache = enrichCache;

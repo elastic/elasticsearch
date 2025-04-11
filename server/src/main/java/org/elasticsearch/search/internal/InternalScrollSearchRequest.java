@@ -17,7 +17,6 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.transport.AbstractTransportRequest;
-import org.elasticsearch.transport.TransportRequest;
 
 import java.io.IOException;
 import java.util.Map;
@@ -28,8 +27,7 @@ public class InternalScrollSearchRequest extends AbstractTransportRequest {
 
     private TimeValue scroll;
 
-    public InternalScrollSearchRequest() {
-    }
+    public InternalScrollSearchRequest() {}
 
     public InternalScrollSearchRequest(SearchScrollRequest request, ShardSearchContextId contextId) {
         this.contextId = contextId;

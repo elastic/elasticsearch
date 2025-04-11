@@ -22,7 +22,6 @@ import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.AbstractTransportRequest;
-import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
@@ -31,11 +30,11 @@ import java.util.List;
 @UpdateForV10(owner = UpdateForV10.Owner.CORE_INFRA)
 // this can be removed in v10. It may be called by v8 nodes to v9 nodes.
 public class TransportNodesFeaturesAction extends TransportNodesAction<
-        NodesFeaturesRequest,
-        NodesFeaturesResponse,
-        TransportNodesFeaturesAction.NodeFeaturesRequest,
-        NodeFeatures,
-        Void> {
+    NodesFeaturesRequest,
+    NodesFeaturesResponse,
+    TransportNodesFeaturesAction.NodeFeaturesRequest,
+    NodeFeatures,
+    Void> {
 
     public static final ActionType<NodesFeaturesResponse> TYPE = new ActionType<>("cluster:monitor/nodes/features");
 
@@ -43,28 +42,28 @@ public class TransportNodesFeaturesAction extends TransportNodesAction<
 
     @Inject
     public TransportNodesFeaturesAction(
-            ThreadPool threadPool,
-            ClusterService clusterService,
-            TransportService transportService,
-            ActionFilters actionFilters,
-            FeatureService featureService
+        ThreadPool threadPool,
+        ClusterService clusterService,
+        TransportService transportService,
+        ActionFilters actionFilters,
+        FeatureService featureService
     ) {
         super(
-                TYPE.name(),
-                clusterService,
-                transportService,
-                actionFilters,
-                NodeFeaturesRequest::new,
-                threadPool.executor(ThreadPool.Names.MANAGEMENT)
+            TYPE.name(),
+            clusterService,
+            transportService,
+            actionFilters,
+            NodeFeaturesRequest::new,
+            threadPool.executor(ThreadPool.Names.MANAGEMENT)
         );
         this.featureService = featureService;
     }
 
     @Override
     protected NodesFeaturesResponse newResponse(
-            NodesFeaturesRequest request,
-            List<NodeFeatures> responses,
-            List<FailedNodeException> failures
+        NodesFeaturesRequest request,
+        List<NodeFeatures> responses,
+        List<FailedNodeException> failures
     ) {
         return new NodesFeaturesResponse(clusterService.getClusterName(), responses, failures);
     }
@@ -89,7 +88,6 @@ public class TransportNodesFeaturesAction extends TransportNodesAction<
             super(in);
         }
 
-        public NodeFeaturesRequest() {
-        }
+        public NodeFeaturesRequest() {}
     }
 }

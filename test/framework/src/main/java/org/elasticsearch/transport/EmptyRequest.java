@@ -18,8 +18,7 @@ import java.io.IOException;
  * and the remote address (if applicable).
  */
 public final class EmptyRequest extends AbstractTransportRequest {
-    public EmptyRequest() {
-    }
+    public EmptyRequest() {}
 
     public EmptyRequest(StreamInput in) throws IOException {
         super(in);

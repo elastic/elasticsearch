@@ -22,7 +22,6 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.metrics.Counters;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.transport.AbstractTransportRequest;
-import org.elasticsearch.transport.TransportRequest;
 
 import java.io.IOException;
 import java.util.List;
@@ -57,8 +56,7 @@ public class HealthApiStatsAction extends ActionType<HealthApiStatsAction.Respon
                 super(in);
             }
 
-            public Node(Request ignored) {
-            }
+            public Node(Request ignored) {}
 
             @Override
             public void writeTo(StreamOutput out) throws IOException {

@@ -374,8 +374,7 @@ public abstract class TransportReplicationAction<
     }
 
     protected Releasable checkOperationLimits(final Request request) {
-        return () -> {
-        };
+        return () -> {};
     }
 
     protected void handlePrimaryRequest(final ConcreteShardRequest<Request> request, final TransportChannel channel, final Task task) {
@@ -394,8 +393,7 @@ public abstract class TransportReplicationAction<
     }
 
     protected Releasable checkPrimaryLimits(final Request request, boolean rerouteWasLocal, boolean localRerouteInitiatedByNodeClient) {
-        return () -> {
-        };
+        return () -> {};
     }
 
     class AsyncPrimaryAction extends AbstractRunnable {
@@ -570,7 +568,7 @@ public abstract class TransportReplicationAction<
 
     public static class PrimaryResult<ReplicaRequest extends ReplicationRequest<ReplicaRequest>, Response extends ReplicationResponse>
         implements
-        ReplicationOperation.PrimaryResult<ReplicaRequest> {
+            ReplicationOperation.PrimaryResult<ReplicaRequest> {
         private final ReplicaRequest replicaRequest;
         public final Response replicationResponse;
 
@@ -637,8 +635,7 @@ public abstract class TransportReplicationAction<
     }
 
     protected Releasable checkReplicaLimits(final ReplicaRequest request) {
-        return () -> {
-        };
+        return () -> {};
     }
 
     public static final class RetryOnReplicaException extends ElasticsearchException {
@@ -1135,8 +1132,8 @@ public abstract class TransportReplicationAction<
 
     class PrimaryShardReference
         implements
-        Releasable,
-        ReplicationOperation.Primary<Request, ReplicaRequest, PrimaryResult<ReplicaRequest, Response>> {
+            Releasable,
+            ReplicationOperation.Primary<Request, ReplicaRequest, PrimaryResult<ReplicaRequest, Response>> {
 
         protected final IndexShard indexShard;
         private final Releasable operationLock;
@@ -1338,8 +1335,9 @@ public abstract class TransportReplicationAction<
     /**
      * a wrapper class to encapsulate a request when being sent to a specific allocation id
      **/
-    public static class ConcreteShardRequest<R extends TransportRequest> extends AbstractTransportRequest implements
-        RawIndexingDataTransportRequest {
+    public static class ConcreteShardRequest<R extends TransportRequest> extends AbstractTransportRequest
+        implements
+            RawIndexingDataTransportRequest {
 
         /**
          * {@link AllocationId#getId()} of the shard this request is sent to

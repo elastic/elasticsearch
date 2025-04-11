@@ -16,7 +16,6 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.transport.AbstractTransportRequest;
-import org.elasticsearch.transport.TransportRequest;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -43,11 +42,11 @@ public class NodeTermsEnumRequest extends AbstractTransportRequest implements In
     private long nodeStartedTimeMillis;
 
     public NodeTermsEnumRequest(
-            OriginalIndices originalIndices,
-            final String nodeId,
-            final Set<ShardId> shardIds,
-            TermsEnumRequest request,
-            long taskStartTimeMillis
+        OriginalIndices originalIndices,
+        final String nodeId,
+        final Set<ShardId> shardIds,
+        TermsEnumRequest request,
+        long taskStartTimeMillis
     ) {
         this.originalIndices = originalIndices;
         this.field = request.field();

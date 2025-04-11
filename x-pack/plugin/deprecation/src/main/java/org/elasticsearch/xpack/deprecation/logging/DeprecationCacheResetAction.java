@@ -19,7 +19,6 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.transport.AbstractTransportRequest;
-import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 
@@ -102,8 +101,7 @@ public class DeprecationCacheResetAction extends ActionType<DeprecationCacheRese
             super(in);
         }
 
-        public NodeRequest() {
-        }
+        public NodeRequest() {}
     }
 
     public static class NodeResponse extends BaseNodeResponse {

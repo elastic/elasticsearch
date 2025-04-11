@@ -20,8 +20,6 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.transport.AbstractTransportRequest;
-import org.elasticsearch.transport.TransportRequest;
-import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.transform.transforms.TransformSchedulerStats;
@@ -98,8 +96,7 @@ public class GetTransformNodeStatsAction extends ActionType<GetTransformNodeStat
 
     public static class NodeStatsRequest extends AbstractTransportRequest {
 
-        public NodeStatsRequest() {
-        }
+        public NodeStatsRequest() {}
 
         public NodeStatsRequest(StreamInput in) throws IOException {
             super(in);

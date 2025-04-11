@@ -19,7 +19,6 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.AbstractTransportRequest;
-import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.ml.action.TrainedModelCacheInfoAction;
 import org.elasticsearch.xpack.core.ml.action.TrainedModelCacheInfoAction.Response.CacheInfo;
@@ -30,38 +29,38 @@ import java.util.List;
 import java.util.Map;
 
 public class TransportTrainedModelCacheInfoAction extends TransportNodesAction<
-        TrainedModelCacheInfoAction.Request,
-        TrainedModelCacheInfoAction.Response,
-        TransportTrainedModelCacheInfoAction.NodeModelCacheInfoRequest,
-        CacheInfo,
-        Void> {
+    TrainedModelCacheInfoAction.Request,
+    TrainedModelCacheInfoAction.Response,
+    TransportTrainedModelCacheInfoAction.NodeModelCacheInfoRequest,
+    CacheInfo,
+    Void> {
 
     private final ModelLoadingService modelLoadingService;
 
     @Inject
     public TransportTrainedModelCacheInfoAction(
-            ThreadPool threadPool,
-            ClusterService clusterService,
-            TransportService transportService,
-            ActionFilters actionFilters,
-            ModelLoadingService modelLoadingService
+        ThreadPool threadPool,
+        ClusterService clusterService,
+        TransportService transportService,
+        ActionFilters actionFilters,
+        ModelLoadingService modelLoadingService
     ) {
         super(
-                TrainedModelCacheInfoAction.NAME,
-                clusterService,
-                transportService,
-                actionFilters,
-                NodeModelCacheInfoRequest::new,
-                threadPool.executor(ThreadPool.Names.MANAGEMENT)
+            TrainedModelCacheInfoAction.NAME,
+            clusterService,
+            transportService,
+            actionFilters,
+            NodeModelCacheInfoRequest::new,
+            threadPool.executor(ThreadPool.Names.MANAGEMENT)
         );
         this.modelLoadingService = modelLoadingService;
     }
 
     @Override
     protected TrainedModelCacheInfoAction.Response newResponse(
-            TrainedModelCacheInfoAction.Request request,
-            List<CacheInfo> responses,
-            List<FailedNodeException> failures
+        TrainedModelCacheInfoAction.Request request,
+        List<CacheInfo> responses,
+        List<FailedNodeException> failures
     ) {
         return new TrainedModelCacheInfoAction.Response(clusterService.getClusterName(), responses, failures);
     }
@@ -80,16 +79,15 @@ public class TransportTrainedModelCacheInfoAction extends TransportNodesAction<
     protected CacheInfo nodeOperation(NodeModelCacheInfoRequest nodeModelCacheInfoRequest, Task task) {
         assert task instanceof CancellableTask;
         return new CacheInfo(
-                transportService.getLocalNode(),
-                modelLoadingService.getMaxCacheSize(),
-                modelLoadingService.getCurrentCacheSize()
+            transportService.getLocalNode(),
+            modelLoadingService.getMaxCacheSize(),
+            modelLoadingService.getCurrentCacheSize()
         );
     }
 
     public static class NodeModelCacheInfoRequest extends AbstractTransportRequest {
 
-        NodeModelCacheInfoRequest() {
-        }
+        NodeModelCacheInfoRequest() {}
 
         public NodeModelCacheInfoRequest(StreamInput in) throws IOException {
             super(in);

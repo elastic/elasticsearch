@@ -35,7 +35,6 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.AbstractTransportRequest;
-import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.transport.Transports;
 
@@ -46,11 +45,11 @@ import java.util.Map;
 import java.util.Objects;
 
 public class TransportNodesStatsAction extends TransportNodesAction<
-        NodesStatsRequest,
-        NodesStatsResponse,
-        TransportNodesStatsAction.NodeStatsRequest,
-        NodeStats,
-        SubscribableListener<TransportGetAllocationStatsAction.Response>> {
+    NodesStatsRequest,
+    NodesStatsResponse,
+    TransportNodesStatsAction.NodeStatsRequest,
+    NodeStats,
+    SubscribableListener<TransportGetAllocationStatsAction.Response>> {
 
     public static final ActionType<NodesStatsResponse> TYPE = new ActionType<>("cluster:monitor/nodes/stats");
 
@@ -59,20 +58,20 @@ public class TransportNodesStatsAction extends TransportNodesAction<
 
     @Inject
     public TransportNodesStatsAction(
-            ThreadPool threadPool,
-            ClusterService clusterService,
-            TransportService transportService,
-            ActionFilters actionFilters,
-            NodeService nodeService,
-            NodeClient client
+        ThreadPool threadPool,
+        ClusterService clusterService,
+        TransportService transportService,
+        ActionFilters actionFilters,
+        NodeService nodeService,
+        NodeClient client
     ) {
         super(
-                TYPE.name(),
-                clusterService,
-                transportService,
-                actionFilters,
-                NodeStatsRequest::new,
-                threadPool.executor(ThreadPool.Names.MANAGEMENT)
+            TYPE.name(),
+            clusterService,
+            transportService,
+            actionFilters,
+            NodeStatsRequest::new,
+            threadPool.executor(ThreadPool.Names.MANAGEMENT)
         );
         this.nodeService = nodeService;
         this.client = client;
@@ -90,13 +89,13 @@ public class TransportNodesStatsAction extends TransportNodesAction<
             var metrics = request.getNodesStatsRequestParameters().requestedMetrics();
             if (metrics.contains(Metric.FS) || metrics.contains(Metric.ALLOCATIONS)) {
                 new ParentTaskAssigningClient(client, clusterService.localNode(), task).execute(
-                        TransportGetAllocationStatsAction.TYPE,
-                        new TransportGetAllocationStatsAction.Request(
-                                Objects.requireNonNullElse(request.timeout(), RestUtils.REST_MASTER_TIMEOUT_DEFAULT),
-                                new TaskId(clusterService.localNode().getId(), task.getId()),
-                                metrics
-                        ),
-                        l
+                    TransportGetAllocationStatsAction.TYPE,
+                    new TransportGetAllocationStatsAction.Request(
+                        Objects.requireNonNullElse(request.timeout(), RestUtils.REST_MASTER_TIMEOUT_DEFAULT),
+                        new TaskId(clusterService.localNode().getId(), task.getId()),
+                        metrics
+                    ),
+                    l
                 );
             } else {
                 l.onResponse(null);
@@ -106,39 +105,39 @@ public class TransportNodesStatsAction extends TransportNodesAction<
 
     @Override
     protected void newResponseAsync(
-            Task task,
-            NodesStatsRequest request,
-            SubscribableListener<TransportGetAllocationStatsAction.Response> actionContext,
-            List<NodeStats> responses,
-            List<FailedNodeException> failures,
-            ActionListener<NodesStatsResponse> listener
+        Task task,
+        NodesStatsRequest request,
+        SubscribableListener<TransportGetAllocationStatsAction.Response> actionContext,
+        List<NodeStats> responses,
+        List<FailedNodeException> failures,
+        ActionListener<NodesStatsResponse> listener
     ) {
         actionContext
-                // merge in the stats from the master, if available
-                .andThenApply(
-                        getAllocationStatsResponse -> new NodesStatsResponse(
-                                clusterService.getClusterName(),
-                                getAllocationStatsResponse == null
-                                        ? responses
-                                        : merge(
-                                        responses,
-                                        getAllocationStatsResponse.getNodeAllocationStats(),
-                                        getAllocationStatsResponse.getDiskThresholdSettings()
-                                ),
-                                failures
-                        )
+            // merge in the stats from the master, if available
+            .andThenApply(
+                getAllocationStatsResponse -> new NodesStatsResponse(
+                    clusterService.getClusterName(),
+                    getAllocationStatsResponse == null
+                        ? responses
+                        : merge(
+                            responses,
+                            getAllocationStatsResponse.getNodeAllocationStats(),
+                            getAllocationStatsResponse.getDiskThresholdSettings()
+                        ),
+                    failures
                 )
-                .addListener(listener);
+            )
+            .addListener(listener);
     }
 
     private static List<NodeStats> merge(
-            List<NodeStats> responses,
-            Map<String, NodeAllocationStats> allocationStats,
-            DiskThresholdSettings masterThresholdSettings
+        List<NodeStats> responses,
+        Map<String, NodeAllocationStats> allocationStats,
+        DiskThresholdSettings masterThresholdSettings
     ) {
         return responses.stream()
-                .map(response -> response.withNodeAllocationStats(allocationStats.get(response.getNode().getId()), masterThresholdSettings))
-                .toList();
+            .map(response -> response.withNodeAllocationStats(allocationStats.get(response.getNode().getId()), masterThresholdSettings))
+            .toList();
     }
 
     @Override
@@ -160,23 +159,23 @@ public class TransportNodesStatsAction extends TransportNodesAction<
         final var metrics = nodesStatsRequestParameters.requestedMetrics();
 
         return nodeService.stats(
-                nodesStatsRequestParameters.indices(),
-                nodesStatsRequestParameters.includeShardsStats(),
-                metrics.contains(Metric.OS),
-                metrics.contains(Metric.PROCESS),
-                metrics.contains(Metric.JVM),
-                metrics.contains(Metric.THREAD_POOL),
-                metrics.contains(Metric.FS),
-                metrics.contains(Metric.TRANSPORT),
-                metrics.contains(Metric.HTTP),
-                metrics.contains(Metric.BREAKER),
-                metrics.contains(Metric.SCRIPT),
-                metrics.contains(Metric.DISCOVERY),
-                metrics.contains(Metric.INGEST),
-                metrics.contains(Metric.ADAPTIVE_SELECTION),
-                metrics.contains(Metric.SCRIPT_CACHE),
-                metrics.contains(Metric.INDEXING_PRESSURE),
-                metrics.contains(Metric.REPOSITORIES)
+            nodesStatsRequestParameters.indices(),
+            nodesStatsRequestParameters.includeShardsStats(),
+            metrics.contains(Metric.OS),
+            metrics.contains(Metric.PROCESS),
+            metrics.contains(Metric.JVM),
+            metrics.contains(Metric.THREAD_POOL),
+            metrics.contains(Metric.FS),
+            metrics.contains(Metric.TRANSPORT),
+            metrics.contains(Metric.HTTP),
+            metrics.contains(Metric.BREAKER),
+            metrics.contains(Metric.SCRIPT),
+            metrics.contains(Metric.DISCOVERY),
+            metrics.contains(Metric.INGEST),
+            metrics.contains(Metric.ADAPTIVE_SELECTION),
+            metrics.contains(Metric.SCRIPT_CACHE),
+            metrics.contains(Metric.INDEXING_PRESSURE),
+            metrics.contains(Metric.REPOSITORIES)
         );
     }
 
@@ -202,9 +201,9 @@ public class TransportNodesStatsAction extends TransportNodesAction<
                 @Override
                 public String getDescription() {
                     return Strings.format(
-                            "metrics=%s, flags=%s",
-                            nodesStatsRequestParameters.requestedMetrics().toString(),
-                            Arrays.toString(nodesStatsRequestParameters.indices().getFlags())
+                        "metrics=%s, flags=%s",
+                        nodesStatsRequestParameters.requestedMetrics().toString(),
+                        Arrays.toString(nodesStatsRequestParameters.indices().getFlags())
                     );
                 }
             };

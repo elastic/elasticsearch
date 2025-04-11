@@ -28,7 +28,6 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.AbstractTransportRequest;
 import org.elasticsearch.transport.TransportChannel;
-import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportRequestHandler;
 import org.elasticsearch.transport.TransportService;
 
@@ -41,35 +40,35 @@ public class TransportShardFlushAction extends TransportReplicationAction<ShardF
 
     @Inject
     public TransportShardFlushAction(
-            Settings settings,
-            TransportService transportService,
-            ClusterService clusterService,
-            IndicesService indicesService,
-            ThreadPool threadPool,
-            ShardStateAction shardStateAction,
-            ActionFilters actionFilters
+        Settings settings,
+        TransportService transportService,
+        ClusterService clusterService,
+        IndicesService indicesService,
+        ThreadPool threadPool,
+        ShardStateAction shardStateAction,
+        ActionFilters actionFilters
     ) {
         super(
-                settings,
-                NAME,
-                transportService,
-                clusterService,
-                indicesService,
-                threadPool,
-                shardStateAction,
-                actionFilters,
-                ShardFlushRequest::new,
-                ShardFlushRequest::new,
-                threadPool.executor(ThreadPool.Names.FLUSH),
-                SyncGlobalCheckpointAfterOperation.DoNotSync,
-                PrimaryActionExecution.RejectOnOverload,
-                ReplicaActionExecution.SubjectToCircuitBreaker
+            settings,
+            NAME,
+            transportService,
+            clusterService,
+            indicesService,
+            threadPool,
+            shardStateAction,
+            actionFilters,
+            ShardFlushRequest::new,
+            ShardFlushRequest::new,
+            threadPool.executor(ThreadPool.Names.FLUSH),
+            SyncGlobalCheckpointAfterOperation.DoNotSync,
+            PrimaryActionExecution.RejectOnOverload,
+            ReplicaActionExecution.SubjectToCircuitBreaker
         );
         transportService.registerRequestHandler(
-                PRE_SYNCED_FLUSH_ACTION_NAME,
-                threadPool.executor(ThreadPool.Names.FLUSH),
-                PreShardSyncedFlushRequest::new,
-                new PreSyncedFlushTransportHandler(indicesService)
+            PRE_SYNCED_FLUSH_ACTION_NAME,
+            threadPool.executor(ThreadPool.Names.FLUSH),
+            PreShardSyncedFlushRequest::new,
+            new PreSyncedFlushTransportHandler(indicesService)
         );
     }
 
@@ -80,9 +79,9 @@ public class TransportShardFlushAction extends TransportReplicationAction<ShardF
 
     @Override
     protected void shardOperationOnPrimary(
-            ShardFlushRequest shardRequest,
-            IndexShard primary,
-            ActionListener<PrimaryResult<ShardFlushRequest, ReplicationResponse>> listener
+        ShardFlushRequest shardRequest,
+        IndexShard primary,
+        ActionListener<PrimaryResult<ShardFlushRequest, ReplicationResponse>> listener
     ) {
         primary.flush(shardRequest.getRequest(), listener.map(flushed -> {
             logger.trace("{} flush request executed on primary", primary.shardId());

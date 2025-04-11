@@ -13,7 +13,6 @@ import org.elasticsearch.cluster.version.CompatibilityVersions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.transport.AbstractTransportRequest;
-import org.elasticsearch.transport.TransportRequest;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -53,11 +52,11 @@ public class JoinRequest extends AbstractTransportRequest {
     private final Optional<Join> optionalJoin;
 
     public JoinRequest(
-            DiscoveryNode sourceNode,
-            CompatibilityVersions compatibilityVersions,
-            Set<String> features,
-            long minimumTerm,
-            Optional<Join> optionalJoin
+        DiscoveryNode sourceNode,
+        CompatibilityVersions compatibilityVersions,
+        Set<String> features,
+        long minimumTerm,
+        Optional<Join> optionalJoin
     ) {
         assert optionalJoin.isPresent() == false || optionalJoin.get().votingNode().equals(sourceNode);
         this.sourceNode = sourceNode;
@@ -135,16 +134,16 @@ public class JoinRequest extends AbstractTransportRequest {
     @Override
     public String toString() {
         return "JoinRequest{"
-                + "sourceNode="
-                + sourceNode
-                + ", compatibilityVersions="
-                + compatibilityVersions
-                + ", features="
-                + features
-                + ", minimumTerm="
-                + minimumTerm
-                + ", optionalJoin="
-                + optionalJoin
-                + '}';
+            + "sourceNode="
+            + sourceNode
+            + ", compatibilityVersions="
+            + compatibilityVersions
+            + ", features="
+            + features
+            + ", minimumTerm="
+            + minimumTerm
+            + ", optionalJoin="
+            + optionalJoin
+            + '}';
     }
 }

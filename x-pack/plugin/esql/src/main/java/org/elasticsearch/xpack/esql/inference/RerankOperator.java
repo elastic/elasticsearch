@@ -15,7 +15,6 @@ import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.Page;
-import org.elasticsearch.compute.operator.AsyncOperator;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
 import org.elasticsearch.compute.operator.Operator;
@@ -26,11 +25,7 @@ import org.elasticsearch.xpack.core.inference.results.RankedDocsResults;
 
 import java.util.List;
 
-public class RerankOperator extends AsyncOperator<Page> {
-
-    // Move to a setting.
-    private static final int MAX_INFERENCE_WORKER = 10;
-
+public class RerankOperator extends InferenceOperator<Page> {
     public record Factory(
         InferenceRunner inferenceRunner,
         String inferenceId,
@@ -57,9 +52,7 @@ public class RerankOperator extends AsyncOperator<Page> {
         }
     }
 
-    private final InferenceRunner inferenceRunner;
     private final BlockFactory blockFactory;
-    private final String inferenceId;
     private final String queryText;
     private final ExpressionEvaluator rowEncoder;
     private final int scoreChannel;
@@ -72,13 +65,9 @@ public class RerankOperator extends AsyncOperator<Page> {
         ExpressionEvaluator rowEncoder,
         int scoreChannel
     ) {
-        super(driverContext, inferenceRunner.getThreadContext(), MAX_INFERENCE_WORKER);
-
-        assert inferenceRunner.getThreadContext() != null;
+        super(driverContext, inferenceRunner.getThreadContext(), inferenceRunner, inferenceId);
 
         this.blockFactory = driverContext.blockFactory();
-        this.inferenceRunner = inferenceRunner;
-        this.inferenceId = inferenceId;
         this.queryText = queryText;
         this.rowEncoder = rowEncoder;
         this.scoreChannel = scoreChannel;
@@ -90,7 +79,7 @@ public class RerankOperator extends AsyncOperator<Page> {
         final ActionListener<Page> outputListener = ActionListener.runAfter(listener, () -> { releasePageOnAnyThread(inputPage); });
 
         try {
-            inferenceRunner.doInference(
+            doInference(
                 buildInferenceRequest(inputPage),
                 ActionListener.wrap(
                     inferenceResponse -> outputListener.onResponse(buildOutput(inputPage, inferenceResponse)),
@@ -119,7 +108,7 @@ public class RerankOperator extends AsyncOperator<Page> {
 
     @Override
     public String toString() {
-        return "RerankOperator[inference_id=[" + inferenceId + "], query=[" + queryText + "], score_channel=[" + scoreChannel + "]]";
+        return "RerankOperator[inference_id=[" + inferenceId() + "], query=[" + queryText + "], score_channel=[" + scoreChannel + "]]";
     }
 
     private Page buildOutput(Page inputPage, InferenceAction.Response inferenceResponse) {
@@ -192,7 +181,7 @@ public class RerankOperator extends AsyncOperator<Page> {
                 }
             }
 
-            return InferenceAction.Request.builder(inferenceId, TaskType.RERANK).setInput(List.of(inputs)).setQuery(queryText).build();
+            return InferenceAction.Request.builder(inferenceId(), TaskType.RERANK).setInput(List.of(inputs)).setQuery(queryText).build();
         }
     }
 }

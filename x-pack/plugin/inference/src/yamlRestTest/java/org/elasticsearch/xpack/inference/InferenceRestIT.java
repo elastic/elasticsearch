@@ -58,13 +58,6 @@ public class InferenceRestIT extends ESClientYamlSuiteTestCase {
         return ESClientYamlSuiteTestCase.createParameters();
     }
 
-    @SuppressWarnings("unchecked")
-    static List<Map<String, Object>> getAllModels() throws IOException {
-        var request = new Request("GET", "_inference/_all");
-        var response = client().performRequest(request);
-        return (List<Map<String, Object>>) entityAsMap(response).get("endpoints");
-    }
-
     @After
     public void cleanup() throws Exception {
         for (var model : getAllModels()) {
@@ -76,5 +69,12 @@ public class InferenceRestIT extends ESClientYamlSuiteTestCase {
                 logger.warn(() -> "failed to delete inference endpoint " + inferenceId, ex);
             }
         }
+    }
+
+    @SuppressWarnings("unchecked")
+    static List<Map<String, Object>> getAllModels() throws IOException {
+        var request = new Request("GET", "_inference/_all");
+        var response = client().performRequest(request);
+        return (List<Map<String, Object>>) entityAsMap(response).get("endpoints");
     }
 }

@@ -280,6 +280,7 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
             if (useLegacyFormat && multiFieldsBuilder.hasMultiFields()) {
                 throw new IllegalArgumentException(CONTENT_TYPE + " field [" + leafName() + "] does not support multi-fields");
             }
+
             if (modelSettings.get() == null) {
                 try {
                     var resolvedModelSettings = modelRegistry.getMinimalServiceSettings(inferenceId.get());
@@ -290,19 +291,21 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
                     // We allow the inference ID to be unregistered at this point.
                     // This will delay the creation of sub-fields, so indexing and querying for this field won't work
                     // until the corresponding inference endpoint is created.
-                    logger.warn(
-                        "The field [{}] references an unknown inference ID [{}]. "
-                            + "Indexing and querying this field will not work correctly until the corresponding "
-                            + "inference endpoint is created.",
-                        leafName(),
-                        inferenceId.get()
-                    );
                 }
             }
 
             if (modelSettings.get() != null) {
                 validateServiceSettings(modelSettings.get());
+            } else {
+                logger.warn(
+                    "The field [{}] references an unknown inference ID [{}]. "
+                        + "Indexing and querying this field will not work correctly until the corresponding "
+                        + "inference endpoint is created.",
+                    leafName(),
+                    inferenceId.get()
+                );
             }
+
             final String fullName = context.buildFullName(leafName());
 
             if (context.isInNestedContext()) {

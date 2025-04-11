@@ -17,6 +17,7 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.Check;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Avg;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.AvgOverTime;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.CountDistinct;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Max;
@@ -434,6 +435,7 @@ public class EsqlFunctionRegistry {
                 def(Delay.class, Delay::new, "delay"),
                 def(Rate.class, Rate::withUnresolvedTimestamp, "rate"),
                 def(MaxOverTime.class, uni(MaxOverTime::new), "max_over_time"),
+                def(AvgOverTime.class, uni(AvgOverTime::new), "avg_over_time"),
                 def(Term.class, bi(Term::new), "term") } };
     }
 

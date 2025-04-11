@@ -512,7 +512,7 @@ public class MetadataDataStreamsService {
             "updating settings on data stream [" + dataStreamName + "]",
             new AckedClusterStateUpdateTask(Priority.HIGH, masterNodeTimeout, ackTimeout, listener) {
                 @Override
-                public ClusterState execute(ClusterState currentState) {
+                public ClusterState execute(ClusterState currentState) throws Exception {
                     ProjectMetadata projectMetadata = currentState.projectState(projectResolver.getProjectId()).metadata();
                     ProjectMetadata.Builder projectMetadataBuilder = ProjectMetadata.builder(projectMetadata);
                     Map<String, DataStream> dataStreamMap = projectMetadata.dataStreams();
@@ -532,7 +532,13 @@ public class MetadataDataStreamsService {
                     ProjectMetadata currentProject = currentState.projectState(projectResolver.getProjectId()).metadata();
                     final ComposableIndexTemplate template = lookupTemplateForDataStream(dataStreamName, currentProject);
                     ComposableIndexTemplate mergedTemplate = DataStream.mergeTemplates(template, templateOverrides);
-                    // Maybe MetadataIndexTemplateService::validateTemplate(mergedTemplate) here?
+                    if (templateOverrides.template() != null) {
+                        MetadataIndexTemplateService.validateTemplate(
+                            mergedTemplate.template().settings(),
+                            mergedTemplate.template().mappings(),
+                            indicesService
+                        );
+                    }
 
                     Template.Builder templateBuilder = Template.builder();
                     Settings.Builder mergedSettingsBuilder = Settings.builder().put(existingSettings);

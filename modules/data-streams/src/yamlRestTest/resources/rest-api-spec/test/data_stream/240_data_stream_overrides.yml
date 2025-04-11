@@ -86,10 +86,5 @@ setup:
               index:
                 fake_setting: 1234
   - match: { data_streams.0.name: my-data-stream-1 }
-  - match: { data_streams.0.applied_to_data_stream: true }
-  - match: { data_streams.0.index_settings_results.0.name: index.fake_setting }
-  - match: { data_streams.0.index_settings_results.0.applied_to_backing_indices: false }
-  - match: { data_streams.0.effective_template.index_patterns.0: "my-data-stream-*" }
-  - match: { data_streams.0.effective_template.template.settings.index.fake_setting: "1234" }
-  - match: { data_streams.0.effective_template.template.settings.index.number_of_replicas: "0" }
-  - match: { data_streams.0.effective_template.template.settings.index.lifecycle.name: "my-policy" }
+  - match: { data_streams.0.applied_to_data_stream: false }
+  - match: { data_streams.0.error: "unknown setting [index.fake_setting] please check that any required plugins are installed, or check the breaking changes documentation for removed settings" }

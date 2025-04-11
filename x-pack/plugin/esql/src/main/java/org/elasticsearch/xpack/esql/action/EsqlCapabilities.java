@@ -974,7 +974,12 @@ public class EsqlCapabilities {
         /**
          * Does the usage information for ESQL contain a histogram of {@code took} values?
          */
-        USAGE_CONTAINS_TOOK;
+        USAGE_CONTAINS_TOOK,
+
+        /**
+         * Support loading of ip fields if they are not indexed.
+         */
+        LOADING_NON_INDEXED_IP_FIELDS;
 
         private final boolean enabled;
 

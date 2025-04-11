@@ -91,8 +91,10 @@ abstract class DataNodeRequestSender {
     private final Map<ShardId, ShardFailure> shardFailures = ConcurrentCollections.newConcurrentMap();
     private final AtomicInteger skippedShards = new AtomicInteger();
     private final AtomicBoolean changed = new AtomicBoolean();
-    private final AtomicBoolean reResolvingUnavailableShards = new AtomicBoolean(false);
     private boolean reportedFailure = false; // guarded by sendingLock
+
+    private final AtomicInteger ongoingTargetShardResolutionAttempts = new AtomicInteger(0);
+    private final AtomicInteger remainingTargetShardSearchAttempts = new AtomicInteger(10);
 
     DataNodeRequestSender(
         TransportService transportService,
@@ -176,7 +178,7 @@ abstract class DataNodeRequestSender {
                     if (changed.compareAndSet(true, false) == false) {
                         break;
                     }
-                    if (reResolvingUnavailableShards.get() == false) {
+                    if (ongoingTargetShardResolutionAttempts.get() == 0) {
                         for (ShardId shardId : pendingShardIds) {
                             if (targetShards.getShard(shardId).remainingNodes.isEmpty()) {
                                 shardFailures.compute(
@@ -254,15 +256,14 @@ abstract class DataNodeRequestSender {
                     concurrentRequests.release();
                 }
 
-                // TODO limit attempts
-                if (pendingRetries.isEmpty() == false) {
-                    reResolvingUnavailableShards.set(true);
+                if (pendingRetries.isEmpty() == false && remainingTargetShardSearchAttempts.decrementAndGet() > 0) {
+                    ongoingTargetShardResolutionAttempts.incrementAndGet();
                     var indices = pendingRetries.stream().map(ShardId::getIndexName).distinct().toArray(String[]::new);
                     searchShards(indices, pendingRetries::contains, computeListener.acquireAvoid().delegateFailure((l, newSearchShards) -> {
                         for (var entry : newSearchShards.shards.entrySet()) {
                             targetShards.shards.get(entry.getKey()).remainingNodes.addAll(entry.getValue().remainingNodes);
                         }
-                        reResolvingUnavailableShards.set(false);
+                        ongoingTargetShardResolutionAttempts.decrementAndGet();
                         trySendingRequestsForPendingShards(targetShards, computeListener);
                         l.onResponse(null);
                     }));
@@ -293,7 +294,7 @@ abstract class DataNodeRequestSender {
             public void onFailure(Exception e, boolean receivedData) {
                 for (ShardId shardId : request.shardIds) {
                     trackShardLevelFailure(shardId, receivedData, e);
-                    pendingShardIds.add(shardId);// TODO should this shard be added only in case of non-fatal failure?
+                    pendingShardIds.add(shardId);
                     maybeScheduleRetry(shardId, e);
                 }
                 onAfter(List.of());

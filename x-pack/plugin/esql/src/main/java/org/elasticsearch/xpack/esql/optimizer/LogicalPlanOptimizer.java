@@ -61,7 +61,7 @@ import org.elasticsearch.xpack.esql.optimizer.rules.logical.SubstituteFilteredEx
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.SubstituteSpatialSurrogates;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.SubstituteSurrogatePlans;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.SubstituteSurrogates;
-import org.elasticsearch.xpack.esql.optimizer.rules.logical.TranslateMetricsAggregate;
+import org.elasticsearch.xpack.esql.optimizer.rules.logical.TranslateTimeSeriesAggregate;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.rule.ParameterizedRuleExecutor;
 import org.elasticsearch.xpack.esql.rule.RuleExecutor;
@@ -138,9 +138,10 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
             new ReplaceAggregateAggExpressionWithEval(),
             // lastly replace surrogate functions
             new SubstituteSurrogates(),
-            // translate metric aggregates after surrogate substitution and replace nested expressions with eval (again)
-            new TranslateMetricsAggregate(),
+            new TranslateTimeSeriesAggregate(),
             new PruneUnusedIndexMode(),
+            // after translating metric aggregates, we need to replace surrogate substitutions and nested expressions again.
+            new SubstituteSurrogates(),
             new ReplaceAggregateNestedExpressionWithEval(),
             // this one needs to be placed before ReplaceAliasingEvalWithProject, so that any potential aliasing eval (eval x = y)
             // is not replaced with a Project before the eval to be copied on the left hand side of an InlineJoin

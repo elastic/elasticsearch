@@ -983,6 +983,11 @@ public class EsqlCapabilities {
         FORK_V2(Build.current().isSnapshot()),
 
         /**
+         * Support for the {@code leading_zeros} named parameter.
+         */
+        TO_IP_LEADING_ZEROS,
+
+        /**
          * Does the usage information for ESQL contain a histogram of {@code took} values?
          */
         USAGE_CONTAINS_TOOK,

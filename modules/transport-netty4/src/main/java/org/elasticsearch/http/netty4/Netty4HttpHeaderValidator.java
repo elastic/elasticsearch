@@ -27,8 +27,7 @@ public class Netty4HttpHeaderValidator extends ChannelDuplexHandler {
 
     private final HttpValidator validator;
     private final ThreadContext threadContext;
-    private boolean droppingContent;
-    private boolean validatingRequest;
+    private State state;
 
     public Netty4HttpHeaderValidator(HttpValidator validator, ThreadContext threadContext) {
         this.validator = validator;
@@ -37,20 +36,22 @@ public class Netty4HttpHeaderValidator extends ChannelDuplexHandler {
 
     @Override
     public void channelRead(ChannelHandlerContext ctx, Object msg) throws Exception {
-        if (msg instanceof HttpObject httpObject) {
-            if (httpObject.decoderResult().isFailure()) {
-                ctx.fireChannelRead(httpObject); // pass-through for decoding failures
+        assert msg instanceof HttpObject;
+        var httpObject = (HttpObject) msg;
+        if (httpObject.decoderResult().isFailure()) {
+            ctx.fireChannelRead(httpObject); // pass-through for decoding failures
+        } else {
+            if (msg instanceof HttpRequest request) {
+                validate(ctx, request);
             } else {
-                if (msg instanceof HttpRequest request) {
-                    validate(ctx, request);
-                } else if (msg instanceof HttpContent content) {
-                    if (droppingContent) {
-                        content.release();
-                        ctx.read();
-                    } else {
-                        assert validatingRequest == false : "unexpected content before validation completed";
-                        ctx.fireChannelRead(content);
-                    }
+                assert msg instanceof HttpContent;
+                var content = (HttpContent) msg;
+                if (state == State.DROPPING) {
+                    content.release();
+                    ctx.read();
+                } else {
+                    assert state == State.PASSING : "unexpected content before validation completed";
+                    ctx.fireChannelRead(content);
                 }
             }
         }
@@ -60,15 +61,14 @@ public class Netty4HttpHeaderValidator extends ChannelDuplexHandler {
     public void read(ChannelHandlerContext ctx) throws Exception {
         // until validation is completed we can ignore read calls,
         // once validation is finished HttpRequest will be fired and downstream can read from there
-        if (validatingRequest == false) {
+        if (state != State.VALIDATING) {
             ctx.read();
         }
     }
 
     void validate(ChannelHandlerContext ctx, HttpRequest request) {
         assert Transports.assertDefaultThreadContext(threadContext);
-        droppingContent = false;
-        validatingRequest = true;
+        state = State.VALIDATING;
         ActionListener.run(
             // this prevents thread-context changes to propagate to the validation listener
             // atm, the validation listener submits to the event loop executor, which doesn't know about the ES thread-context,
@@ -104,11 +104,18 @@ public class Netty4HttpHeaderValidator extends ChannelDuplexHandler {
         ctx.channel().eventLoop().execute(() -> {
             if (validationError != null) {
                 request.setDecoderResult(DecoderResult.failure(validationError));
-                droppingContent = true;
+                state = State.DROPPING;
+            } else {
+                state = State.PASSING;
             }
-            validatingRequest = false;
             ctx.fireChannelRead(request);
         });
+    }
+
+    private enum State {
+        PASSING,
+        VALIDATING,
+        DROPPING
     }
 
 }

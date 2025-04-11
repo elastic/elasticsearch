@@ -18,6 +18,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Enumeration;
 import java.util.HexFormat;
@@ -43,9 +44,26 @@ public class Utils {
         }
     }
 
+    private record MismatchInfo(String jarEntryName, String expectedClassSha256, String foundClassSha256) {
+        @Override
+        public String toString() {
+            return "[class='"
+                + jarEntryName
+                + '\''
+                + ", expected='"
+                + expectedClassSha256
+                + '\''
+                + ", found='"
+                + foundClassSha256
+                + '\''
+                + ']';
+        }
+    }
+
     /**
-     * Patches the classes in the input JAR file, using the collection of patchers. If the patcher info specify a SHA256 digest, and
-     * the class to patch does not match it, an IllegalArgumentException is thrown.
+     * Patches the classes in the input JAR file, using the collection of patchers. Each patcher specifies a target class (its jar entry
+     * name) and the SHA256 digest on the class bytes.
+     * This digest is checked against the class bytes in the JAR, and if it does not match, an IllegalArgumentException is thrown.
      * If the input file does not contain all the classes to patch specified in the patcher info collection, an IllegalArgumentException
      * is also thrown.
      * @param inputFile the JAR file to patch
@@ -54,6 +72,7 @@ public class Utils {
      */
     public static void patchJar(File inputFile, File outputFile, Collection<PatcherInfo> patchers) {
         var classPatchers = patchers.stream().collect(Collectors.toMap(PatcherInfo::jarEntryName, Function.identity()));
+        var mismatchedClasses = new ArrayList<MismatchInfo>();
         try (JarFile jarFile = new JarFile(inputFile); JarOutputStream jos = new JarOutputStream(new FileOutputStream(outputFile))) {
             Enumeration<JarEntry> entries = jarFile.entries();
             while (entries.hasMoreElements()) {
@@ -67,27 +86,20 @@ public class Utils {
                     byte[] classToPatch = jarFile.getInputStream(entry).readAllBytes();
                     var classSha256 = SHA_256.digest(classToPatch);
 
-                    if (classPatcher.matches(classSha256) == false) {
-                        throw new IllegalArgumentException(
-                            String.format(
-                                Locale.ROOT,
-                                """
-                                    Error patching JAR [%s]: SHA256 digest mismatch for class [%s] (expected: [%s], \
-                                    found: [%s]). This JAR was updated to a version that contains a different class, \
-                                    for which this patcher was not designed for. Please check if the patcher still \
-                                    applies correctly to this class, and update its SHA256 digest.""",
-                                inputFile.getName(),
+                    if (classPatcher.matches(classSha256)) {
+                        ClassReader classReader = new ClassReader(classToPatch);
+                        ClassWriter classWriter = new ClassWriter(classReader, COMPUTE_MAXS | COMPUTE_FRAMES);
+                        classReader.accept(classPatcher.createVisitor(classWriter), 0);
+                        jos.write(classWriter.toByteArray());
+                    } else {
+                        mismatchedClasses.add(
+                            new MismatchInfo(
                                 classPatcher.jarEntryName(),
                                 HexFormat.of().formatHex(classPatcher.classSha256()),
                                 HexFormat.of().formatHex(classSha256)
                             )
                         );
                     }
-
-                    ClassReader classReader = new ClassReader(classToPatch);
-                    ClassWriter classWriter = new ClassWriter(classReader, COMPUTE_MAXS | COMPUTE_FRAMES);
-                    classReader.accept(classPatcher.visitorFactory().apply(classWriter), 0);
-                    jos.write(classWriter.toByteArray());
                 } else {
                     // Read the entry's data and write it to the new JAR
                     try (InputStream is = jarFile.getInputStream(entry)) {
@@ -98,6 +110,20 @@ public class Utils {
             }
         } catch (IOException ex) {
             throw new RuntimeException(ex);
+        }
+
+        if (mismatchedClasses.isEmpty() == false) {
+            throw new IllegalArgumentException(
+                String.format(
+                    Locale.ROOT,
+                    """
+                        Error patching JAR [%s]: SHA256 digest mismatch (%s). This JAR was updated to a version that contains different \
+                        classes, for which this patcher was not designed. Please check if the patcher still \
+                        applies correctly, and update the SHA256 digest(s).""",
+                    inputFile.getName(),
+                    mismatchedClasses.stream().map(MismatchInfo::toString).collect(Collectors.joining())
+                )
+            );
         }
 
         if (classPatchers.isEmpty() == false) {

@@ -16,12 +16,23 @@ import java.util.Arrays;
 import java.util.HexFormat;
 import java.util.function.Function;
 
-public record PatcherInfo(String jarEntryName, byte[] classSha256, Function<ClassWriter, ClassVisitor> visitorFactory) {
+public final class PatcherInfo {
+    private final String jarEntryName;
+    private final byte[] classSha256;
+    private final Function<ClassWriter, ClassVisitor> visitorFactory;
+
+    private PatcherInfo(String jarEntryName, byte[] classSha256, Function<ClassWriter, ClassVisitor> visitorFactory) {
+        this.jarEntryName = jarEntryName;
+        this.classSha256 = classSha256;
+        this.visitorFactory = visitorFactory;
+    }
+
     /**
      * Creates a patcher info entry, linking a jar entry path name and its SHA256 digest to a patcher factory (a factory to create an ASM
      * visitor)
-     * @param jarEntryName the jar entry path, as a string
-     * @param classSha256 the SHA256 digest of the class bytes, as a HEX string
+     *
+     * @param jarEntryName   the jar entry path, as a string
+     * @param classSha256    the SHA256 digest of the class bytes, as a HEX string
      * @param visitorFactory the factory to create an ASM visitor from a ASM writer
      */
     public static PatcherInfo classPatcher(String jarEntryName, String classSha256, Function<ClassWriter, ClassVisitor> visitorFactory) {
@@ -30,5 +41,17 @@ public record PatcherInfo(String jarEntryName, byte[] classSha256, Function<Clas
 
     boolean matches(byte[] otherClassSha256) {
         return Arrays.equals(this.classSha256, otherClassSha256);
+    }
+
+    public String jarEntryName() {
+        return jarEntryName;
+    }
+
+    public byte[] classSha256() {
+        return classSha256;
+    }
+
+    public ClassVisitor createVisitor(ClassWriter classWriter) {
+        return visitorFactory.apply(classWriter);
     }
 }

@@ -1305,7 +1305,7 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
     }
 
     public void testCombineLimits() {
-        var limitValues = new int[]{randomIntBetween(10, 99), randomIntBetween(100, 1000)};
+        var limitValues = new int[] { randomIntBetween(10, 99), randomIntBetween(100, 1000) };
         var firstLimit = randomBoolean() ? 0 : 1;
         var secondLimit = firstLimit == 0 ? 1 : 0;
         var oneLimit = new Limit(EMPTY, L(limitValues[firstLimit]), emptySource());
@@ -4312,7 +4312,7 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
      * This does not work for to_string(text) since that converts text to keyword
      */
     public void testTrivialTypeConversionWrittenAway() {
-        for (String type : new String[]{"keyword", "float", "double", "long", "integer", "boolean", "geo_point"}) {
+        for (String type : new String[] { "keyword", "float", "double", "long", "integer", "boolean", "geo_point" }) {
             var func = switch (type) {
                 case "keyword", "text" -> "to_string";
                 case "double", "float" -> "to_double";
@@ -5073,8 +5073,7 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         Function<Expression, Expression> replacementForConstant,
         Function<int[], Object> aggMultiValue,
         Function<Double, Object> aggSingleValue
-    ) {
-    }
+    ) {}
 
     ;
 
@@ -5201,7 +5200,7 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         var s = as(exprs.get(0), Alias.class);
         assertThat(s.source().toString(), containsString(LoggerMessageFormat.format(null, testCase.aggFunctionTemplate, "[1,2]")));
         assertEquals(s.child(), testCase.replacementForConstant.apply(new Literal(EMPTY, List.of(1, 2), INTEGER)));
-        assertEquals(s.child().fold(FoldContext.small()), testCase.aggMultiValue.apply(new int[]{1, 2}));
+        assertEquals(s.child().fold(FoldContext.small()), testCase.aggMultiValue.apply(new int[] { 1, 2 }));
 
         var s_expr = as(exprs.get(1), Alias.class);
         assertThat(s_expr.source().toString(), containsString(LoggerMessageFormat.format(null, testCase.aggFunctionTemplate, "314.0/100")));
@@ -5456,8 +5455,7 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
     record PushdownShadowingGeneratingPlanTestCase(
         BiFunction<LogicalPlan, Attribute, LogicalPlan> applyLogicalPlan,
         OptimizerRules.OptimizerRule<? extends LogicalPlan> rule
-    ) {
-    }
+    ) {}
 
     ;
 
@@ -5500,7 +5498,7 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
                 )
             ),
             new PushDownEnrich()
-        )};
+        ) };
 
     /**
      * Consider

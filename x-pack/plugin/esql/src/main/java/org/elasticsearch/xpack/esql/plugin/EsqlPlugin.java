@@ -82,7 +82,7 @@ import java.util.function.Predicate;
 import java.util.function.Supplier;
 
 public class EsqlPlugin extends Plugin implements ActionPlugin {
-    public static final FeatureFlag INLINESTATS_FEATURE_FLAG = new FeatureFlag("esql_inlinestats");
+    public static final boolean INLINESTATS_FEATURE_FLAG = new FeatureFlag("esql_inlinestats").isEnabled();
 
     public static final String ESQL_WORKER_THREAD_POOL_NAME = "esql_worker";
 

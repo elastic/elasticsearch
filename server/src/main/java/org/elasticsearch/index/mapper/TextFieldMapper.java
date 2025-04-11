@@ -996,7 +996,7 @@ public final class TextFieldMapper extends FieldMapper {
                 return false;
             }
             // Can't push equality if the field we're checking for is so big we'd ignore it.
-            return str.length() < syntheticSourceDelegate.ignoreAbove();
+            return str.length() <= syntheticSourceDelegate.ignoreAbove();
         }
 
         @Override

@@ -66,8 +66,9 @@ public class TransportUpdateSplitStateAction extends TransportMasterNodeAction<S
         if (request.getNewTargetShardState() == IndexReshardingState.Split.TargetShardState.HANDOFF) {
             reshardIndexService.transitionToHandoff(request, listener);
         } else {
-            assert request.getNewTargetShardState() == IndexReshardingState.Split.TargetShardState.SPLIT;
-            reshardIndexService.transitionToSplit(request, listener);
+            assert request.getNewTargetShardState() == IndexReshardingState.Split.TargetShardState.SPLIT
+                || request.getNewTargetShardState() == IndexReshardingState.Split.TargetShardState.DONE;
+            reshardIndexService.transitionTargetState(request, listener);
         }
     }
 

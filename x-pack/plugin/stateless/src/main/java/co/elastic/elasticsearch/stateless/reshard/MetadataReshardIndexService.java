@@ -56,6 +56,8 @@ import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.InvalidIndexNameException;
 import org.elasticsearch.threadpool.ThreadPool;
 
+import static org.elasticsearch.core.Strings.format;
+
 public class MetadataReshardIndexService {
 
     private static final Logger logger = LogManager.getLogger(MetadataReshardIndexService.class);
@@ -131,7 +133,7 @@ public class MetadataReshardIndexService {
                         // TODO: Eventually make this wait for source + targets DONE or other condition that we decide on.
                         return reshardingMetadata.getSplit()
                             .targetStates()
-                            .allMatch(target -> target == IndexReshardingState.Split.TargetShardState.SPLIT);
+                            .allMatch(target -> target == IndexReshardingState.Split.TargetShardState.DONE);
                     } else {
                         return false;
                     }
@@ -177,39 +179,18 @@ public class MetadataReshardIndexService {
                     long currentSourcePrimaryTerm = indexMetadata.primaryTerm(reshardingMetadata.getSplit().sourceShard(shardId.id()));
                     long startingSourcePrimaryTerm = splitStateRequest.getSourcePrimaryTerm();
                     if (startingTargetPrimaryTerm != currentTargetPrimaryTerm) {
-                        logger.debug(
-                            "{} cannot complete split handoff because target primary term advanced [{}>{}]",
-                            shardId,
-                            currentTargetPrimaryTerm,
-                            startingTargetPrimaryTerm
-                        );
-                        assert currentTargetPrimaryTerm > startingTargetPrimaryTerm;
-                        throw new IllegalStateException(
-                            "Cannot handoff "
-                                + shardId
-                                + ". Source primary term has advanced ["
-                                + currentSourcePrimaryTerm
-                                + ">"
-                                + startingSourcePrimaryTerm
-                                + "]."
-                        );
+                        handleTargetPrimaryTermAdvanced(currentTargetPrimaryTerm, startingTargetPrimaryTerm, shardId, splitStateRequest);
                     } else if (startingSourcePrimaryTerm != currentSourcePrimaryTerm) {
-                        logger.debug(
-                            "{} cannot complete split handoff because source primary term advanced [{}>{}]",
+                        String message = format(
+                            "%s cannot transition target state [%s] because source primary term advanced [%s>%s]",
                             shardId,
+                            splitStateRequest.getNewTargetShardState(),
                             currentSourcePrimaryTerm,
                             startingSourcePrimaryTerm
                         );
+                        logger.debug(message);
                         assert currentSourcePrimaryTerm > startingSourcePrimaryTerm;
-                        throw new IllegalStateException(
-                            "Cannot handoff "
-                                + shardId
-                                + ". Source primary term has advanced ["
-                                + currentSourcePrimaryTerm
-                                + ">"
-                                + startingSourcePrimaryTerm
-                                + "]."
-                        );
+                        throw new IllegalStateException(message);
                     }
 
                     ProjectMetadata.Builder projectMetadata = projectMetadataBuilder.put(
@@ -228,11 +209,11 @@ public class MetadataReshardIndexService {
         );
     }
 
-    public void transitionToSplit(SplitStateRequest splitStateRequest, ActionListener<ActionResponse> listener) {
+    public void transitionTargetState(SplitStateRequest splitStateRequest, ActionListener<ActionResponse> listener) {
         ShardId shardId = splitStateRequest.getShardId();
         Index index = shardId.getIndex();
         submitUnbatchedTask(
-            "transition-reshard-index-to-split [" + index.getName() + "]",
+            "transition-reshard-index-target-state [" + index.getName() + "]",
             new ClusterStateUpdateTask(Priority.URGENT, splitStateRequest.masterNodeTimeout()) {
 
                 @Override
@@ -249,22 +230,23 @@ public class MetadataReshardIndexService {
                 public ClusterState execute(ClusterState currentState) {
                     final ProjectMetadata project = currentState.metadata().projectFor(shardId.getIndex());
                     final ProjectState projectState = currentState.projectState(project.id());
-                    final IndexMetadata sourceMetadata = projectState.metadata().getIndexSafe(index);
-                    IndexReshardingMetadata reshardingMetadata = sourceMetadata.getReshardingMetadata();
+                    final IndexMetadata indexMetadata = projectState.metadata().getIndexSafe(index);
+                    IndexReshardingMetadata reshardingMetadata = indexMetadata.getReshardingMetadata();
                     if (reshardingMetadata == null) {
                         throw new IllegalStateException("no existing resharding operation on " + index + ".");
                     }
+                    long currentTargetPrimaryTerm = indexMetadata.primaryTerm(shardId.id());
+                    long startingTargetPrimaryTerm = splitStateRequest.getTargetPrimaryTerm();
+                    if (startingTargetPrimaryTerm != currentTargetPrimaryTerm) {
+                        handleTargetPrimaryTermAdvanced(currentTargetPrimaryTerm, startingTargetPrimaryTerm, shardId, splitStateRequest);
+                    }
 
                     ProjectMetadata.Builder projectMetadataBuilder = ProjectMetadata.builder(projectState.metadata());
-                    IndexMetadata indexMetadata = projectMetadataBuilder.getSafe(index);
 
                     ProjectMetadata.Builder projectMetadata = projectMetadataBuilder.put(
                         IndexMetadata.builder(indexMetadata)
                             .reshardingMetadata(
-                                reshardingMetadata.transitionSplitTargetToNewState(
-                                    shardId,
-                                    IndexReshardingState.Split.TargetShardState.SPLIT
-                                )
+                                reshardingMetadata.transitionSplitTargetToNewState(shardId, splitStateRequest.getNewTargetShardState())
                             )
                     );
 
@@ -272,6 +254,24 @@ public class MetadataReshardIndexService {
                 }
             }
         );
+    }
+
+    private static void handleTargetPrimaryTermAdvanced(
+        long currentTargetPrimaryTerm,
+        long startingTargetPrimaryTerm,
+        ShardId shardId,
+        SplitStateRequest splitStateRequest
+    ) {
+        String message = format(
+            "%s cannot transition target state [%s] because target primary term advanced [%s>%s]",
+            shardId,
+            splitStateRequest.getNewTargetShardState(),
+            currentTargetPrimaryTerm,
+            startingTargetPrimaryTerm
+        );
+        logger.debug(message);
+        assert currentTargetPrimaryTerm > startingTargetPrimaryTerm;
+        throw new IllegalStateException(message);
     }
 
     private void onlyReshardIndex(

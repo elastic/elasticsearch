@@ -148,6 +148,7 @@ final class ES819TSDBDocValuesConsumer extends XDocValuesConsumer {
         IndexedDISIBuilder docIdSetBuilder = null;
         try {
             if (numValues > 0) {
+                assert numDocsWithValue > 0;
                 // Special case for maxOrd of 1, signal -1 that no blocks will be written
                 meta.writeInt(maxOrd != 1 ? ES819TSDBDocValuesFormat.DIRECT_MONOTONIC_BLOCK_SHIFT : -1);
                 final ByteBuffersDataOutput indexOut = new ByteBuffersDataOutput();
@@ -166,7 +167,7 @@ final class ES819TSDBDocValuesConsumer extends XDocValuesConsumer {
                     final TSDBDocValuesEncoder encoder = new TSDBDocValuesEncoder(ES819TSDBDocValuesFormat.NUMERIC_BLOCK_SIZE);
                     values = valuesProducer.getSortedNumeric(field);
                     final int bitsPerOrd = maxOrd >= 0 ? PackedInts.bitsRequired(maxOrd - 1) : -1;
-                    if (numDocsWithValue != 0 && numDocsWithValue != maxDoc) {
+                    if (enableOptimizedMerge && numDocsWithValue < maxDoc) {
                         // TODO: which IOContext should be used here?
                         disiTempOutput = dir.createTempOutput(data.getName(), "disi", IOContext.DEFAULT);
                         skipListTempFileName = disiTempOutput.getName();

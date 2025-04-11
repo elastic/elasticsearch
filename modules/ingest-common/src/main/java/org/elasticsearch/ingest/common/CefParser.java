@@ -58,10 +58,6 @@ final class CefParser {
         this.timezone = timezone;
     }
 
-    private static final Pattern HEADER_PATTERN = Pattern.compile("(?:\\\\\\||\\\\\\\\|[^|])*?");
-    private static final Pattern HEADER_NEXT_FIELD_PATTERN = Pattern.compile("(" + HEADER_PATTERN.pattern() + ")\\|");
-    private static final Pattern HEADER_ESCAPE_CAPTURE = Pattern.compile("\\\\([\\\\|])");
-
     // New patterns for extension parsing
     private static final String EXTENSION_KEY_PATTERN = "(?:[\\w-]+(?:\\.[^\\.=\\s\\|\\\\\\[\\]]+)*(?:\\[[0-9]+\\])?(?==))";
     private static final Pattern EXTENSION_KEY_ARRAY_CAPTURE = Pattern.compile("^([^\\[\\]]+)((?:\\[[0-9]+\\])+)$");
@@ -302,14 +298,27 @@ final class CefParser {
 
     CefEvent process(String cefString) {
         List<String> headers = new ArrayList<>();
-        Matcher matcher = HEADER_NEXT_FIELD_PATTERN.matcher(cefString);
-        int extensionStart = 0;
-
-        for (int i = 0; i < 7 && matcher.find(); i++) {
-            String field = matcher.group(1);
-            field = HEADER_ESCAPE_CAPTURE.matcher(field).replaceAll("$1");
-            headers.add(field);
-            extensionStart = matcher.end();
+        int extensionStart = -1;
+        final StringBuilder buffer = new StringBuilder();
+        for (int i = 0; i < cefString.length(); i++) {
+            char curr = cefString.charAt(i);
+            char next = i < cefString.length() - 1 ? cefString.charAt(i + 1) : '\0';
+            if (curr == '\\' && next == '\\') { // an escaped backslash
+                buffer.append('\\'); // emit a backslash
+                i++; // and skip the next character
+            } else if (curr == '\\' && next == '|') { // an escaped pipe
+                buffer.append('|'); // emit a pipe
+                i++; // and skip the next character
+            } else if (curr == '|') { // a pipe, it's the end of a header
+                headers.add(buffer.toString()); // emit the header
+                buffer.setLength(0); // and reset the buffer
+                if (headers.size() == 7) {
+                    extensionStart = i + 1; // the extensions begin after this pipe
+                    break; // we've processed all the headers, so exit the loop
+                }
+            } else { // any other character
+                buffer.append(curr); // is just added to the header
+            }
         }
 
         if (headers.isEmpty() == false && headers.getFirst().startsWith("CEF:")) {

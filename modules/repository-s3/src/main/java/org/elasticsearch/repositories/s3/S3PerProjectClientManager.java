@@ -12,6 +12,8 @@ package org.elasticsearch.repositories.s3;
 import com.amazonaws.http.IdleConnectionReaper;
 import com.amazonaws.services.s3.AmazonS3;
 
+import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.metadata.ProjectId;
@@ -29,7 +31,9 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executor;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Function;
 
@@ -38,8 +42,10 @@ public class S3PerProjectClientManager implements ClusterStateListener {
     private final Settings settings;
     private final Function<S3ClientSettings, AmazonS3> clientBuilder;
     private final Executor executor;
-    // A map of projectId to clients holder. Adding to and removing from the map happen only with the cluster state listener thread.
+    // A map of projectId to clients holder. Adding to and removing from the map happen only in the cluster state listener thread.
     private final Map<ProjectId, ClientsHolder> perProjectClientsCache;
+    // Listener for tracking ongoing async closing of obsolete clients. Updated only in the cluster state listener thread.
+    private volatile SubscribableListener<Void> clientsCloseListener = null;
 
     public S3PerProjectClientManager(Settings settings, Function<S3ClientSettings, AmazonS3> clientBuilder, Executor executor) {
         this.settings = settings;
@@ -92,8 +98,24 @@ public class S3PerProjectClientManager implements ClusterStateListener {
             }
         }
         if (clientsHoldersToClose.isEmpty() == false) {
-            executor.execute(() -> IOUtils.closeWhileHandlingException(clientsHoldersToClose));
+            final var currentClientsCloseListener = new SubscribableListener<Void>();
+            final var previousClientsCloseListener = clientsCloseListener;
+            clientsCloseListener = currentClientsCloseListener;
+            if (previousClientsCloseListener != null && previousClientsCloseListener.isDone() == false) {
+                previousClientsCloseListener.addListener(
+                    ActionListener.running(() -> closeClientsAsync(clientsHoldersToClose, currentClientsCloseListener))
+                );
+            } else {
+                closeClientsAsync(clientsHoldersToClose, currentClientsCloseListener);
+            }
         }
+    }
+
+    private void closeClientsAsync(List<ClientsHolder> clientsHoldersToClose, ActionListener<Void> listener) {
+        executor.execute(() -> {
+            IOUtils.closeWhileHandlingException(clientsHoldersToClose);
+            listener.onResponse(null);
+        });
     }
 
     public AmazonS3Reference client(ProjectId projectId, RepositoryMetadata repositoryMetadata) {
@@ -125,6 +147,19 @@ public class S3PerProjectClientManager implements ClusterStateListener {
      */
     public void close() {
         IOUtils.closeWhileHandlingException(perProjectClientsCache.values());
+        final var currentClientsCloseListener = clientsCloseListener;
+        if (currentClientsCloseListener != null && currentClientsCloseListener.isDone() == false) {
+            // Wait for async clients closing to be completed
+            final CountDownLatch latch = new CountDownLatch(1);
+            currentClientsCloseListener.addListener(ActionListener.running(latch::countDown));
+            try {
+                if (latch.await(1, TimeUnit.MINUTES) == false) {
+                    // TODO: log warning
+                }
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+            }
+        }
     }
 
     private boolean newOrUpdated(ProjectId projectId, Map<String, S3ClientSettings> currentClientSettings) {

@@ -242,21 +242,21 @@ abstract class DataNodeRequestSender {
 
     private void sendOneNodeRequest(TargetShards targetShards, ComputeListener computeListener, NodeRequest request) {
         final ActionListener<List<DriverProfile>> listener = computeListener.acquireCompute();
-
-        var pendingRetries = new HashSet<ShardId>();
-
         sendRequest(request.node, request.shardIds, request.aliasFilters, new NodeListener() {
+
+            private final Set<ShardId> pendingRetries = new HashSet<>();
+
             void onAfter(List<DriverProfile> profiles) {
                 nodePermits.get(request.node).release();
                 if (concurrentRequests != null) {
                     concurrentRequests.release();
                 }
 
+                // TODO limit attempts
                 if (pendingRetries.isEmpty() == false) {
-                    var ll = computeListener.acquireAvoid();
                     reResolvingUnavailableShards.set(true);
                     // TODO narrow down search resolution to pending shards only
-                    searchShards(pendingRetries::contains, ll.delegateFailure((l, newSearchShards) -> {
+                    searchShards(pendingRetries::contains, computeListener.acquireAvoid().delegateFailure((l, newSearchShards) -> {
                         for (var entry : newSearchShards.shards.entrySet()) {
                             targetShards.shards.get(entry.getKey()).remainingNodes.addAll(entry.getValue().remainingNodes);
                         }
@@ -278,13 +278,11 @@ abstract class DataNodeRequestSender {
                         shardFailures.remove(shardId);
                     }
                 }
-                for (Map.Entry<ShardId, Exception> e : response.shardLevelFailures().entrySet()) {
-                    final ShardId shardId = e.getKey();
-                    trackShardLevelFailure(shardId, false, e.getValue());
+                for (var entry : response.shardLevelFailures().entrySet()) {
+                    final ShardId shardId = entry.getKey();
+                    trackShardLevelFailure(shardId, false, entry.getValue());
                     pendingShardIds.add(shardId);
-                    if (targetShards.getShard(shardId).remainingNodes.isEmpty() && unwrapFailure(e.getValue()) instanceof NoShardAvailableActionException) {
-                        pendingRetries.add(shardId);
-                    }
+                    maybeScheduleRetry(shardId, entry.getValue());
                 }
                 onAfter(response.profiles());
             }
@@ -294,9 +292,7 @@ abstract class DataNodeRequestSender {
                 for (ShardId shardId : request.shardIds) {
                     trackShardLevelFailure(shardId, receivedData, e);
                     pendingShardIds.add(shardId);// TODO should this shard be added only in case of non-fatal failure?
-                    if (targetShards.getShard(shardId).remainingNodes.isEmpty() && unwrapFailure(e) instanceof NoShardAvailableActionException) {
-                        pendingRetries.add(shardId);
-                    }
+                    maybeScheduleRetry(shardId, e);
                 }
                 onAfter(List.of());
             }
@@ -308,6 +304,13 @@ abstract class DataNodeRequestSender {
                     onFailure(new TaskCancelledException("null"), true);
                 } else {
                     onResponse(new DataNodeComputeResponse(List.of(), Map.of()));
+                }
+            }
+
+            private void maybeScheduleRetry(ShardId shardId, Exception e) {
+                if (targetShards.getShard(shardId).remainingNodes.isEmpty()
+                    && unwrapFailure(e) instanceof NoShardAvailableActionException) {
+                    pendingRetries.add(shardId);
                 }
             }
         });

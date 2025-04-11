@@ -60,7 +60,12 @@ public class DataNodeRequestSenderIT extends AbstractEsqlIntegTestCase {
                 (handler, request, channel, task) -> {
                     // move index shard
                     if (shouldMove.compareAndSet(true, false)) {
-                        var currentShardNodeId = clusterService().state().routingTable().index(index).shard(0).primaryShard().currentNodeId();
+                        var currentShardNodeId = clusterService().state()
+                            .routingTable()
+                            .index(index)
+                            .shard(0)
+                            .primaryShard()
+                            .currentNodeId();
                         assertAcked(
                             client().admin()
                                 .indices()

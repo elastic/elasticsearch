@@ -660,6 +660,8 @@ public class ThreadPoolMergeExecutorServiceTests extends ESTestCase {
         }
     }
 
+    // todo: testMergeEventListeners
+
     static ThreadPoolMergeExecutorService getThreadPoolMergeExecutorService(ThreadPool threadPool) {
         ThreadPoolMergeExecutorService threadPoolMergeExecutorService = ThreadPoolMergeExecutorService
             .maybeCreateThreadPoolMergeExecutorService(

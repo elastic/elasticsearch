@@ -27,6 +27,7 @@ import org.elasticsearch.plugins.ReloadablePlugin;
 import org.elasticsearch.plugins.RepositoryPlugin;
 import org.elasticsearch.repositories.RepositoriesMetrics;
 import org.elasticsearch.repositories.Repository;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 
@@ -91,7 +92,8 @@ public class S3RepositoryPlugin extends Plugin implements RepositoryPlugin, Relo
         if (services.projectResolver().supportsMultipleProjects()) {
             s3PerProjectClientManager = new S3PerProjectClientManager(
                 settings,
-                s3ClientSettings -> this.service.get().buildClient(s3ClientSettings)
+                s3ClientSettings -> this.service.get().buildClient(s3ClientSettings),
+                services.threadPool().executor(ThreadPool.Names.GENERIC)
             );
             services.clusterService().addListener(s3PerProjectClientManager);
         }

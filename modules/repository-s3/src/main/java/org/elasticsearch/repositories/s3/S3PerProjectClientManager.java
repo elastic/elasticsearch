@@ -23,10 +23,13 @@ import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.core.IOUtils;
 
 import java.io.Closeable;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Function;
 
@@ -34,12 +37,14 @@ public class S3PerProjectClientManager implements ClusterStateListener {
 
     private final Settings settings;
     private final Function<S3ClientSettings, AmazonS3> clientBuilder;
+    private final Executor executor;
     // A map of projectId to clients holder. Adding to and removing from the map happen only with the cluster state listener thread.
     private final Map<ProjectId, ClientsHolder> perProjectClientsCache;
 
-    public S3PerProjectClientManager(Settings settings, Function<S3ClientSettings, AmazonS3> clientBuilder) {
+    public S3PerProjectClientManager(Settings settings, Function<S3ClientSettings, AmazonS3> clientBuilder, Executor executor) {
         this.settings = settings;
         this.clientBuilder = clientBuilder;
+        this.executor = executor;
         this.perProjectClientsCache = new ConcurrentHashMap<>();
     }
 
@@ -70,21 +75,24 @@ public class S3PerProjectClientManager implements ClusterStateListener {
             }
         }
 
+        final List<ClientsHolder> clientsHoldersToClose = new ArrayList<>();
         // Updated projects
         for (var projectId : updatedPerProjectClients.keySet()) {
             final var old = perProjectClientsCache.put(projectId, updatedPerProjectClients.get(projectId));
             if (old != null) {
-                old.close();
+                clientsHoldersToClose.add(old);
             }
         }
-
         // removed projects
         for (var projectId : perProjectClientsCache.keySet()) {
             if (currentProjects.containsKey(projectId) == false) {
                 final var removed = perProjectClientsCache.remove(projectId);
                 assert removed != null;
-                removed.close();
+                clientsHoldersToClose.add(removed);
             }
+        }
+        if (clientsHoldersToClose.isEmpty() == false) {
+            executor.execute(() -> IOUtils.closeWhileHandlingException(clientsHoldersToClose));
         }
     }
 

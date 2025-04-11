@@ -41,12 +41,21 @@ public abstract sealed class GroupingFunction extends Function implements PostAn
         };
     }
 
+    /**
+     * This is a class of grouping functions that cannot be evaluated outside the context of an aggregation.
+     * They will have their evaluation implemented part of an aggregation, which may keep state for their execution, making them "stateful"
+     * grouping functions.
+     */
     public abstract static non-sealed class NonEvaluatableGroupingFunction extends GroupingFunction {
         protected NonEvaluatableGroupingFunction(Source source, List<Expression> fields) {
             super(source, fields);
         }
     }
 
+    /**
+     * This is a class of grouping functions that can be evaluated independently within an EVAL operator, independent of the aggregation
+     * they're used by.
+     */
     public abstract static non-sealed class EvaluatableGroupingFunction extends GroupingFunction implements EvaluatorMapper {
         protected EvaluatableGroupingFunction(Source source, List<Expression> fields) {
             super(source, fields);

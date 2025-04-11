@@ -15,7 +15,7 @@ import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
-import org.elasticsearch.xpack.esql.expression.function.grouping.Categorize;
+import org.elasticsearch.xpack.esql.expression.function.grouping.GroupingFunction;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
@@ -67,11 +67,11 @@ public final class CombineProjections extends OptimizerRules.OptimizerRule<Unary
                 for (Expression grouping : groupings) {
                     if (grouping instanceof Attribute attribute) {
                         groupingAttrs.add(attribute);
-                    } else if (grouping instanceof Alias as && as.child() instanceof Categorize) {
+                    } else if (grouping instanceof Alias as && as.child() instanceof GroupingFunction.NonEvaluatableGroupingFunction) {
                         groupingAttrs.add(as);
                     } else {
                         // After applying ReplaceAggregateNestedExpressionWithEval,
-                        // groupings (except Categorize) can only contain attributes.
+                        // evaluatable groupings can only contain attributes.
                         throw new EsqlIllegalArgumentException("Expected an Attribute, got {}", grouping);
                     }
                 }
@@ -145,7 +145,8 @@ public final class CombineProjections extends OptimizerRules.OptimizerRule<Unary
         List<? extends NamedExpression> lowerProjections
     ) {
         assert upperGroupings.size() <= 1
-            || upperGroupings.stream().anyMatch(group -> group.anyMatch(expr -> expr instanceof Categorize)) == false
+            || upperGroupings.stream()
+                .anyMatch(group -> group.anyMatch(expr -> expr instanceof GroupingFunction.NonEvaluatableGroupingFunction)) == false
             : "CombineProjections only tested with a single CATEGORIZE with no additional groups";
         // Collect the alias map for resolving the source (f1 = 1, f2 = f1, etc..)
         AttributeMap.Builder<Attribute> aliasesBuilder = AttributeMap.builder();

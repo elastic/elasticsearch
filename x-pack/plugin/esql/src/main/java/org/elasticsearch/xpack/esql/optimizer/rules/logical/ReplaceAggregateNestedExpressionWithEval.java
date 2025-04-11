@@ -132,13 +132,13 @@ public final class ReplaceAggregateNestedExpressionWithEval extends OptimizerRul
         GroupingFunction.NonEvaluatableGroupingFunction gf,
         List<Alias> evals
     ) {
-        int[] counter = new int[] { 0 };
+        int counter = 0;
         boolean childrenChanged = false;
         List<Expression> newChildren = new ArrayList<>(gf.children().size());
 
         for (Expression ex : gf.children()) {
             if (ex instanceof Attribute == false) { // TODO: foldables shouldn't require eval'ing either
-                var alias = new Alias(ex.source(), syntheticName(ex, gf, counter[0]++), ex, null, true);
+                var alias = new Alias(ex.source(), syntheticName(ex, gf, counter++), ex, null, true);
                 evals.add(alias);
                 newChildren.add(alias.toAttribute());
                 childrenChanged = true;
@@ -158,8 +158,6 @@ public final class ReplaceAggregateNestedExpressionWithEval extends OptimizerRul
 
         // do not replace nested aggregates
         Holder<Boolean> foundNestedAggs = new Holder<>(Boolean.FALSE);
-        // TODO: rm me
-        // af.children().forEach(e -> e.forEachDown(AggregateFunction.class, unused -> foundNestedAggs.set(Boolean.TRUE)));
         af.field().forEachDown(AggregateFunction.class, unused -> foundNestedAggs.set(Boolean.TRUE));
         return foundNestedAggs.get();
     }

@@ -393,9 +393,9 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         }
     }
 
-    private static class ResolveInference extends ParameterizedAnalyzerRule<InferencePlan, AnalyzerContext> {
+    private static class ResolveInference extends ParameterizedAnalyzerRule<InferencePlan<?>, AnalyzerContext> {
         @Override
-        protected LogicalPlan rule(InferencePlan plan, AnalyzerContext context) {
+        protected LogicalPlan rule(InferencePlan<?> plan, AnalyzerContext context) {
             assert plan.inferenceId().resolved() && plan.inferenceId().foldable();
 
             String inferenceId = plan.inferenceId().fold(FoldContext.small()).toString();

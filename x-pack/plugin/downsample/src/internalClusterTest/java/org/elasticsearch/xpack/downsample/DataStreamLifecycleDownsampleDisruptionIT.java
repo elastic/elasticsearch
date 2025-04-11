@@ -115,7 +115,7 @@ public class DataStreamLifecycleDownsampleDisruptionIT extends ESIntegTestCase {
                 return true;
             }
             return false;
-        });
+        }, timeout);
         safeAwait(listener, timeout.millis(), TimeUnit.MILLISECONDS);
     }
 }

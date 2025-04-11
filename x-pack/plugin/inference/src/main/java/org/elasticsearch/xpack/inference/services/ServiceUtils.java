@@ -480,6 +480,24 @@ public final class ServiceUtils {
     }
 
     /**
+     * Validates that each value in the map is a {@link String} and returns a new map of Map<String, String>.
+     */
+    public static Map<String, String> validateMapStringValues(
+        Map<String, ?> map,
+        String settingName,
+        ValidationException validationException,
+        boolean censorValue
+    ) {
+        if (map == null) {
+            return Map.of();
+        }
+
+        validateMapValues(map, List.of(String.class), settingName, validationException, censorValue);
+
+        return map.entrySet().stream().collect(Collectors.toMap(Map.Entry::getKey, e -> (String) e.getValue()));
+    }
+
+    /**
      * Ensures the values of the map match one of the supplied types.
      * @param map Map to validate
      * @param allowedTypes List of {@link Class} to accept
@@ -488,7 +506,7 @@ public final class ServiceUtils {
      * @param censorValue if true the key and value will be included in the exception message
      */
     public static void validateMapValues(
-        Map<String, Object> map,
+        Map<String, ?> map,
         List<Class<?>> allowedTypes,
         String settingName,
         ValidationException validationException,
@@ -536,17 +554,20 @@ public final class ServiceUtils {
         }
     }
 
-    public static void convertMapStringsToSecureString(Map<String, Object> map) {
+    public static Map<String, SecureString> convertMapStringsToSecureString(
+        Map<String, ?> map,
+        String settingName,
+        ValidationException validationException
+    ) {
         if (map == null) {
-            return;
+            return Map.of();
         }
 
-        for (var entry : map.entrySet()) {
-            var value = entry.getValue();
-            if (value instanceof String) {
-                map.put(entry.getKey(), new SecureString(((String) value).toCharArray()));
-            }
-        }
+        validateMapValues(map, List.of(String.class), settingName, validationException, true);
+
+        return map.entrySet()
+            .stream()
+            .collect(Collectors.toMap(Map.Entry::getKey, e -> new SecureString(((String) e.getValue()).toCharArray())));
     }
 
     /**

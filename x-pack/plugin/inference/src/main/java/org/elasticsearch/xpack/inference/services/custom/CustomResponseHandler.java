@@ -7,30 +7,19 @@
 
 package org.elasticsearch.xpack.inference.services.custom;
 
-import org.apache.logging.log4j.Logger;
 import org.elasticsearch.xpack.inference.external.http.HttpResult;
 import org.elasticsearch.xpack.inference.external.http.retry.BaseResponseHandler;
 import org.elasticsearch.xpack.inference.external.http.retry.ResponseParser;
 import org.elasticsearch.xpack.inference.external.http.retry.RetryException;
 import org.elasticsearch.xpack.inference.external.request.Request;
-import org.elasticsearch.xpack.inference.logging.ThrottlerManager;
-import org.elasticsearch.xpack.inference.services.custom.response.CustomErrorResponseEntity;
-
-import static org.elasticsearch.xpack.inference.external.http.HttpUtils.checkForEmptyBody;
+import org.elasticsearch.xpack.inference.services.custom.response.ErrorResponseParser;
 
 /**
  * Defines how to handle various errors returned from the custom integration.
  */
 public class CustomResponseHandler extends BaseResponseHandler {
-    public CustomResponseHandler(String requestType, ResponseParser parseFunction) {
-        super(requestType, parseFunction, CustomErrorResponseEntity::fromResponse);
-    }
-
-    @Override
-    public void validateResponse(ThrottlerManager throttlerManager, Logger logger, Request request, HttpResult result)
-        throws RetryException {
-        checkForFailureStatusCode(request, result);
-        checkForEmptyBody(throttlerManager, logger, request, result);
+    public CustomResponseHandler(String requestType, ResponseParser parseFunction, ErrorResponseParser errorParser) {
+        super(requestType, parseFunction, errorParser);
     }
 
     /**

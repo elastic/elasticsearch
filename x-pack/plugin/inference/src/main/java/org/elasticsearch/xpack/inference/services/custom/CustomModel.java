@@ -14,9 +14,7 @@ import org.elasticsearch.inference.ModelSecrets;
 import org.elasticsearch.inference.ServiceSettings;
 import org.elasticsearch.inference.TaskSettings;
 import org.elasticsearch.inference.TaskType;
-import org.elasticsearch.xpack.inference.external.action.ExecutableAction;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
-import org.elasticsearch.xpack.inference.services.custom.action.CustomActionVisitor;
 
 import java.util.Map;
 import java.util.Objects;
@@ -92,10 +90,6 @@ public class CustomModel extends Model {
     @Override
     public CustomSecretSettings getSecretSettings() {
         return (CustomSecretSettings) super.getSecretSettings();
-    }
-
-    public ExecutableAction accept(CustomActionVisitor visitor, Map<String, Object> taskSettings) {
-        return visitor.create(this, taskSettings);
     }
 
     public CustomRateLimitServiceSettings rateLimitServiceSettings() {

@@ -7,19 +7,12 @@
 
 package org.elasticsearch.xpack.inference.services.custom.request;
 
-import com.google.gson.Gson;
-
 import org.apache.commons.text.StringSubstitutor;
 import org.apache.http.HttpHeaders;
 import org.apache.http.client.methods.HttpPost;
-import org.apache.http.client.methods.HttpPut;
 import org.apache.http.client.methods.HttpRequestBase;
 import org.apache.http.entity.StringEntity;
-import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.inference.TaskType;
-import org.elasticsearch.rest.RestStatus;
-import org.elasticsearch.xcontent.ToXContentFragment;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.json.JsonXContent;
@@ -27,148 +20,70 @@ import org.elasticsearch.xpack.inference.external.request.HttpRequest;
 import org.elasticsearch.xpack.inference.external.request.Request;
 import org.elasticsearch.xpack.inference.services.custom.CustomModel;
 import org.elasticsearch.xpack.inference.services.custom.CustomServiceSettings;
-import org.elasticsearch.xpack.inference.services.custom.CustomTaskSettings;
 
 import java.io.IOException;
 import java.net.URI;
-import java.net.URISyntaxException;
 import java.nio.charset.StandardCharsets;
-import java.security.AccessController;
-import java.security.PrivilegedActionException;
-import java.security.PrivilegedExceptionAction;
 import java.util.HashMap;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
+import static org.elasticsearch.xpack.inference.services.custom.CustomServiceSettings.REQUEST_CONTENT;
+import static org.elasticsearch.xpack.inference.services.custom.CustomServiceSettings.URL;
+
 public class CustomRequest implements Request {
-    public static final Gson gson;
-    static {
-        gson = new Gson();
-    }
+    /**
+     * This regex pattern matches on the string "${<any characters>}"
+     */
+    private static final Pattern VARIABLE_PLACEHOLDER_PATTERN = Pattern.compile("\\$\\{.*?\\}");
 
     private static final String QUERY = "query";
     private static final String INPUT = "input";
 
-    private record Input(List<String> inputs) implements ToXContentFragment {
+    private final URI uri;
+    private final StringSubstitutor substitutor;
+    private final CustomModel model;
 
-        @Override
-        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            builder.startArray();
-            for (String input : inputs) {
-                builder.value(input);
-            }
-            builder.endArray();
+    public CustomRequest(String query, List<String> input, CustomModel model) {
+        this.model = Objects.requireNonNull(model);
 
-            return builder;
+        var jsonParams = new HashMap<String, String>();
+        addJsonStringParams(jsonParams, model.getSecretSettings().getSecretParameters());
+        addJsonStringParams(jsonParams, model.getTaskSettings().getParameters());
+
+        if (query != null) {
+            jsonParams.put(QUERY, toJson(query, QUERY));
         }
+
+        jsonParams.put(INPUT, toJson(input, INPUT));
+
+        substitutor = new StringSubstitutor(jsonParams, "${", "}");
+        uri = buildUri();
     }
 
-    private record Value<T>(T value) implements ToXContentFragment {
-
-        public String toJson() {
-            return Strings.toString(this);
-        }
-
-        @Override
-        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            builder.value(value);
-
-            return builder;
-        }
-    }
-
-    private static <T> String toJson(T value) {
+    private static <T> String toJson(T value, String field) {
         try {
             XContentBuilder builder = JsonXContent.contentBuilder();
             // TODO test this, I think it'll write the quotes for us so we don't need to include them in the content string
             builder.value(value);
             return Strings.toString(builder);
         } catch (IOException e) {
-            throw new ElasticsearchStatusException("failed to serialize custom request", RestStatus.BAD_REQUEST, e);
+            throw new IllegalStateException(Strings.format("Failed to serialize custom request value as json, field: %s"), e);
         }
     }
 
-    private final CustomServiceSettings serviceSettings;
-    private final CustomTaskSettings taskSettings;
-    private final String url;
-    private final Map<String, Object> headers;
-    private final String requestContentString;
-    private final URI uri;
-    StringSubstitutor substitutor;
-    private final String inferenceEntityId;
-
-    public CustomRequest(String query, List<String> input, CustomModel model) {
-        Objects.requireNonNull(model);
-
-        serviceSettings = model.getServiceSettings();
-        taskSettings = model.getTaskSettings();
-        var secretParameters = model.getSecretSettings().getSecretParameters();
-        headers = serviceSettings.getHeaders();
-        requestContentString = serviceSettings.getRequestContentString();
-        url = model.getServiceSettings().getUrl();
-
-        var jsonParams = new HashMap<String, String>();
-        addJsonStringParams(jsonParams, model.getSecretSettings().getSecretParameters());
-        addJsonStringParams(jsonParams, model.getTaskSettings().getParameters());
-
-        jsonParams.put(QUERY, toJson(query));
-
-//        Map<String, Object> customParamsObjectMap = new HashMap<>();
-//        if (secretParameters != null) {
-//            for (String key : secretParameters.keySet()) {
-//                Object paramValue = secretParameters.get(key);
-//                if (paramValue instanceof SecureString) {
-//                    customParamsObjectMap.put(key, ((SecureString) paramValue).toString());
-//                } else {
-//                    customParamsObjectMap.put(key, paramValue);
-//                }
-//            }
-//        }
-//
-//        Map<String, String> customParams = new HashMap<String, String>();
-//        if (taskSettings.getParameters() != null && taskSettings.getParameters().isEmpty() == false) {
-//            Map<String, String> taskParams = getParameterMap(taskSettings.getParameters());
-//            for (String key : taskParams.keySet()) {
-//                customParams.put(key, taskParams.get(key));
-//            }
-//        }
-
-        // if user's custom parameters contain input and query, it will be replaced by inference's input and query
-        if (query != null) {
-            customParamsObjectMap.put(QUERY, query);
-        }
-
-        TaskType taskType = model.getTaskType();
-        if (taskType.equals(TaskType.COMPLETION)) {
-            if (input.size() == 1) {
-                customParamsObjectMap.put(INPUT, input.get(0));
-            } else {
-                customParamsObjectMap.put(INPUT, input);
-            }
-        } else {
-            customParamsObjectMap.put(INPUT, input);
-        }
-        customParams.putAll(getParameterMap(customParamsObjectMap));
-
-        substitutor = new StringSubstitutor(customParams, "${", "}");
-
-        uri = buildUri();
-        inferenceEntityId = model.getInferenceEntityId();
-    }
-
-    private static void addJsonStringParams(Map<String, String> jsonStringParams, Map<String, Object> params) {
+    private static void addJsonStringParams(Map<String, String> jsonStringParams, Map<String, ?> params) {
         for (var entry : params.entrySet()) {
-            jsonStringParams.put(entry.getKey(), toJson(entry.getValue()));
+            jsonStringParams.put(entry.getKey(), toJson(entry.getValue(), entry.getKey()));
         }
     }
 
     @Override
     public HttpRequest createHttpRequest() {
-        HttpRequestBase httpRequest = new HttpPost(uri);
+        HttpPost httpRequest = new HttpPost(uri);
 
         setHeaders(httpRequest);
         setRequestContent(httpRequest);
@@ -180,30 +95,23 @@ public class CustomRequest implements Request {
         // Header content_type's default value, if user defines the Content-Type, it will be replaced by user's value;
         httpRequest.setHeader(HttpHeaders.CONTENT_TYPE, XContentType.JSON.mediaType());
 
-        if (headers != null && headers.isEmpty() == false) {
-            for (String key : headers.keySet()) {
-                String headersValue = (String) headers.get(key);
-                String replacedHeadersValue = substitutor.replace(headersValue);
-                placeholderValidation(replacedHeadersValue, taskSettings.getIgnorePlaceholderCheck());
-                httpRequest.setHeader(key, replacedHeadersValue);
-            }
+        for (var entry : model.getServiceSettings().getHeaders().entrySet()) {
+            String replacedHeadersValue = substitutor.replace(entry.getValue());
+            placeholderValidation(replacedHeadersValue, Strings.format("header.%s", entry.getKey()));
+            httpRequest.setHeader(entry.getKey(), replacedHeadersValue);
         }
     }
 
-    private void setRequestContent(HttpRequestBase httpRequest) {
-        String replacedRequestContentString = substitutor.replace(requestContentString);
-        placeholderValidation(replacedRequestContentString, taskSettings.getIgnorePlaceholderCheck());
+    private void setRequestContent(HttpPost httpRequest) {
+        String replacedRequestContentString = substitutor.replace(model.getServiceSettings().getRequestContentString());
+        placeholderValidation(replacedRequestContentString, REQUEST_CONTENT);
         StringEntity stringEntity = new StringEntity(replacedRequestContentString, StandardCharsets.UTF_8);
-        if (httpRequest instanceof HttpPost) {
-            ((HttpPost) httpRequest).setEntity(stringEntity);
-        } else if (httpRequest instanceof HttpPut) {
-            ((HttpPut) httpRequest).setEntity(stringEntity);
-        }
+        httpRequest.setEntity(stringEntity);
     }
 
     @Override
     public String getInferenceEntityId() {
-        return inferenceEntityId;
+        return model.getInferenceEntityId();
     }
 
     @Override
@@ -212,7 +120,7 @@ public class CustomRequest implements Request {
     }
 
     public CustomServiceSettings getServiceSettings() {
-        return serviceSettings;
+        return model.getServiceSettings();
     }
 
     @Override
@@ -225,50 +133,18 @@ public class CustomRequest implements Request {
         return null;
     }
 
+    // default for testing
     URI buildUri() {
-        try {
-            String replacedUrl = substitutor.replace(url);
-            placeholderValidation(replacedUrl, taskSettings.getIgnorePlaceholderCheck());
-            return new URI(replacedUrl);
-        } catch (URISyntaxException e) {
-            // using bad request here so that potentially sensitive URL information does not get logged
-            throw new ElasticsearchStatusException("Failed to construct custom service URL [" + url + "]", RestStatus.BAD_REQUEST, e);
-        }
+        String replacedUrl = substitutor.replace(model.getServiceSettings().getUrl());
+        placeholderValidation(replacedUrl, URL);
+        return URI.create(replacedUrl);
     }
 
-    @SuppressWarnings("removal")
-    public static Map<String, String> getParameterMap(Map<String, ?> parameterObjs) {
-        Map<String, String> parameters = new HashMap<>();
-        for (String key : parameterObjs.keySet()) {
-            Object value = parameterObjs.get(key);
-            try {
-                AccessController.doPrivileged((PrivilegedExceptionAction<Void>) () -> {
-                    if (value instanceof String) {
-                        parameters.put(key, (String) value);
-                    } else {
-                        parameters.put(key, gson.toJson(value));
-                    }
-                    return null;
-                });
-            } catch (PrivilegedActionException e) {
-                throw new RuntimeException(e);
-            }
-        }
-        return parameters;
-    }
-
-    static void placeholderValidation(String substitutedString, Boolean ignorePlaceHolderCheck) throws IllegalArgumentException {
-        if (Boolean.TRUE.equals(ignorePlaceHolderCheck)) {
-            return;
-        }
-        // String pattern = "\\$\\{.*?\\}";
-        var pattern = "\\$\\{[a-zA-Z0-9_\\-.]*\\}";
-        Pattern compiledPattern = Pattern.compile(pattern);
-        Matcher matcher = compiledPattern.matcher(substitutedString);
+    // default for testing
+    static void placeholderValidation(String substitutedString, String settingName) {
+        Matcher matcher = VARIABLE_PLACEHOLDER_PATTERN.matcher(substitutedString);
         if (matcher.find()) {
-            throw new IllegalArgumentException(
-                String.format(Locale.ROOT, "variable is not replaced, found placeholder in [%s]", substitutedString)
-            );
+            throw new IllegalStateException(String.format("Found placeholder in [%s] after replacement call", settingName));
         }
     }
 }

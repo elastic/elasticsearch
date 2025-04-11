@@ -97,7 +97,6 @@ public abstract class SenderService implements InferenceService {
                 }
                 yield new QueryAndDocsInputs(query, textInput, returnDocuments, topN, stream);
             }
-            case CUSTOM -> new QueryAndDocsInputs(query, input, true, null, stream); // TODO custom task type
             case TEXT_EMBEDDING, SPARSE_EMBEDDING -> {
                 ValidationException validationException = new ValidationException();
                 service.validateInputType(inputType, model, validationException);

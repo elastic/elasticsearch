@@ -12,25 +12,23 @@ import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.SecretSettings;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.convertMapStringsToSecureString;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalMap;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.removeNullValues;
-import static org.elasticsearch.xpack.inference.services.ServiceUtils.validateMapValues;
 
 public class CustomSecretSettings implements SecretSettings {
     public static final String NAME = "custom_secret_settings";
     public static final String SECRET_PARAMETERS = "secret_parameters";
-    private final Map<String, Object> secretParameters;
 
     public static CustomSecretSettings fromMap(@Nullable Map<String, Object> map) {
         if (map == null) {
@@ -41,30 +39,31 @@ public class CustomSecretSettings implements SecretSettings {
 
         Map<String, Object> requestSecretParamsMap = extractOptionalMap(map, SECRET_PARAMETERS, NAME, validationException);
         removeNullValues(requestSecretParamsMap);
-        validateMapValues(requestSecretParamsMap, List.of(String.class), SECRET_PARAMETERS, validationException, true);
-        convertMapStringsToSecureString(requestSecretParamsMap);
+        var secureStringMap = convertMapStringsToSecureString(requestSecretParamsMap, SECRET_PARAMETERS, validationException);
 
         if (validationException.validationErrors().isEmpty() == false) {
             throw validationException;
         }
 
-        return new CustomSecretSettings(Objects.requireNonNullElse(requestSecretParamsMap, new HashMap<>()));
+        return new CustomSecretSettings(Objects.requireNonNullElse(secureStringMap, new HashMap<>()));
     }
+
+    private final Map<String, SecureString> secretParameters;
 
     @Override
     public SecretSettings newSecretSettings(Map<String, Object> newSecrets) {
         return fromMap(new HashMap<>(newSecrets));
     }
 
-    public CustomSecretSettings(@Nullable Map<String, Object> secretParameters) {
+    public CustomSecretSettings(@Nullable Map<String, SecureString> secretParameters) {
         this.secretParameters = Objects.requireNonNullElse(secretParameters, new HashMap<>());
     }
 
     public CustomSecretSettings(StreamInput in) throws IOException {
-        secretParameters = in.readGenericMap();
+        secretParameters = in.readImmutableMap(StreamInput::readString, StreamInput::readSecureString);
     }
 
-    public Map<String, Object> getSecretParameters() {
+    public Map<String, SecureString> getSecretParameters() {
         return secretParameters;
     }
 
@@ -90,7 +89,7 @@ public class CustomSecretSettings implements SecretSettings {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeGenericMap(secretParameters);
+        out.writeMap(secretParameters, StreamOutput::writeString, StreamOutput::writeSecureString);
     }
 
     @Override

@@ -30,6 +30,7 @@ import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
+import org.elasticsearch.xpack.inference.external.action.SenderExecutableAction;
 import org.elasticsearch.xpack.inference.external.http.sender.EmbeddingsInput;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSender;
 import org.elasticsearch.xpack.inference.external.http.sender.InferenceInputs;
@@ -37,7 +38,6 @@ import org.elasticsearch.xpack.inference.external.http.sender.UnifiedChatInput;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.SenderService;
 import org.elasticsearch.xpack.inference.services.ServiceComponents;
-import org.elasticsearch.xpack.inference.services.custom.action.CustomActionCreator;
 
 import java.io.IOException;
 import java.util.EnumSet;
@@ -47,6 +47,7 @@ import java.util.Map;
 
 import static org.elasticsearch.inference.TaskType.unsupportedTaskTypeErrorMsg;
 import static org.elasticsearch.xcontent.ToXContent.EMPTY_PARAMS;
+import static org.elasticsearch.xpack.inference.external.action.ActionUtils.constructFailedToSendRequestMessage;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.createInvalidModelException;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.removeFromMapOrDefaultEmpty;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.removeFromMapOrThrowIfNull;
@@ -61,8 +62,7 @@ public class CustomService extends SenderService {
         TaskType.TEXT_EMBEDDING,
         TaskType.SPARSE_EMBEDDING,
         TaskType.RERANK,
-        TaskType.COMPLETION,
-        TaskType.CUSTOM
+        TaskType.COMPLETION
     );
 
     public CustomService(HttpRequestSender.Factory factory, ServiceComponents serviceComponents) {
@@ -206,9 +206,12 @@ public class CustomService extends SenderService {
 
         CustomModel customModel = (CustomModel) model;
 
-        var actionCreator = new CustomActionCreator(getSender(), getServiceComponents());
+        var overriddenModel = CustomModel.of(customModel, taskSettings);
 
-        var action = customModel.accept(actionCreator, taskSettings);
+        var failedToSendRequestErrorMessage = constructFailedToSendRequestMessage("Custom");
+        var manager = CustomRequestManager.of(overriddenModel, getServiceComponents().threadPool());
+        var action = new SenderExecutableAction(getSender(), manager, failedToSendRequestErrorMessage);
+
         action.execute(inputs, timeout, listener);
     }
 
@@ -227,18 +230,6 @@ public class CustomService extends SenderService {
         ActionListener<List<ChunkedInference>> listener
     ) {
         listener.onFailure(new ElasticsearchStatusException("Chunking not supported by the {} service", RestStatus.BAD_REQUEST, NAME));
-    }
-
-    /**
-     * For text embedding models get the embedding size and
-     * update the service settings.
-     *
-     * @param model    The new model
-     * @param listener The listener
-     */
-    @Override
-    public void checkModelConfig(Model model, ActionListener<Model> listener) {
-        listener.onResponse(model);
     }
 
     @Override

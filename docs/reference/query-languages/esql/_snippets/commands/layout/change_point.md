@@ -50,15 +50,5 @@ There must be at least 22 values for change point detection. Fewer than 1,000 is
 
 The following example shows the detection of a step change:
 
-```
-ROW key = [1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25]
-| MV_EXPAND key
-| EVAL value = CASE(key<13, 0, 42)
-| CHANGE_POINT value ON key
-| WHERE type IS NOT NULL
-;
-```
-
-| key:integer | value:integer | type:keyword | pvalue:double |
-|-------------|---------------|--------------|---------------|
-| 13          | 42            | step_change  | 0.0           |
+:::{include} ../examples/change_point.csv-spec/changePointForDocs.md
+:::

@@ -63,6 +63,45 @@ public class GetDataStreamActionTests extends ESTestCase {
         }
     }
 
+    @SuppressWarnings("unchecked")
+    public void testFailureStoreIndexManagedByIlmToXContent() throws IOException {
+        {
+
+            Index failureIndex = new Index("my-fs", randomUUID());
+            var failureIndexProperties = new GetDataStreamAction.Response.IndexProperties(
+                randomBoolean(),
+                "my-policy",
+                randomFrom(GetDataStreamAction.Response.ManagedBy.values()),
+                null
+            );
+            var dataStream = DataStream.builder(
+                randomAlphaOfLength(50),
+                List.of(new Index(randomAlphaOfLength(10), randomAlphaOfLength(10)))
+            )
+                .setGeneration(randomLongBetween(1, 1000))
+                .setFailureIndices(DataStream.DataStreamIndices.failureIndicesBuilder(List.of(failureIndex)).build())
+                .build();
+            var dataStreamInfo = new GetDataStreamAction.Response.DataStreamInfo(
+                dataStream,
+                randomBoolean(),
+                randomFrom(ClusterHealthStatus.values()),
+                null,
+                null,
+                null,
+                Map.of(failureIndex, failureIndexProperties),
+                randomBoolean(),
+                null,
+                null
+            );
+            Map<String, Object> failureStoreMap = (Map<String, Object>) getXContentMap(dataStreamInfo, null, null).get("failure_store");
+            Map<String, Object> failureIndexMap = ((List<Map<String, Object>>) failureStoreMap.get("indices")).get(0);
+            assertThat(failureIndexMap.get("index_name"), equalTo(failureIndex.getName()));
+            assertThat(failureIndexMap.get("managed_by"), equalTo(failureIndexProperties.managedBy().displayValue));
+            assertThat(failureIndexMap.get("prefer_ilm"), equalTo(failureIndexProperties.preferIlm()));
+            assertThat(failureIndexMap.get("ilm_policy"), equalTo(failureIndexProperties.ilmPolicyName()));
+        }
+    }
+
     /*
      * Calls toXContent on the given dataStreamInfo, and converts the response to a Map
      */

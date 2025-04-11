@@ -19,12 +19,12 @@ import org.elasticsearch.common.settings.KeyStoreWrapper;
 import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.env.Environment;
 
-import java.io.BufferedReader;
 import java.io.CharArrayWriter;
 import java.io.Closeable;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
+import java.io.Reader;
 import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 import java.util.List;
@@ -47,11 +47,6 @@ class AddStringKeyStoreCommand extends BaseKeyStoreCommand {
         this.arguments = parser.nonOptions("setting names");
     }
 
-    // pkg private so tests can manipulate
-    InputStream getStdin() {
-        return System.in;
-    }
-
     @Override
     protected void executeCommand(Terminal terminal, OptionSet options, Environment env) throws Exception {
         final List<String> settings = arguments.values(options);
@@ -64,7 +59,7 @@ class AddStringKeyStoreCommand extends BaseKeyStoreCommand {
         final Closeable closeable;
         final CheckedFunction<String, char[], IOException> valueSupplier;
         if (options.has(stdinOption)) {
-            final BufferedReader stdinReader = new BufferedReader(new InputStreamReader(getStdin(), StandardCharsets.UTF_8));
+            final Reader stdinReader = terminal.getReader();
             valueSupplier = s -> {
                 try (CharArrayWriter writer = new CharArrayWriter()) {
                     int c;

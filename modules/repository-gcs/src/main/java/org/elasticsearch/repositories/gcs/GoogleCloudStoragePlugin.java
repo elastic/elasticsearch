@@ -9,11 +9,13 @@
 
 package org.elasticsearch.repositories.gcs;
 
+import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.plugins.Plugin;
@@ -23,7 +25,10 @@ import org.elasticsearch.repositories.RepositoriesMetrics;
 import org.elasticsearch.repositories.Repository;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 
+import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -31,19 +36,37 @@ import java.util.Map;
 public class GoogleCloudStoragePlugin extends Plugin implements RepositoryPlugin, ReloadablePlugin {
 
     // package-private for tests
-    final GoogleCloudStorageService storageService;
+    final SetOnce<GoogleCloudStorageService> storageService = new SetOnce<>();
 
-    @SuppressWarnings("this-escape")
-    public GoogleCloudStoragePlugin(final Settings settings) {
+    public GoogleCloudStoragePlugin(final Settings settings) {}
+
+    @Override
+    public Collection<?> createComponents(PluginServices services) {
+        final Settings settings = services.clusterService().getSettings();
+        GcsPerProjectClientManager gcsPerProjectClientManager = null;
+        if (services.projectResolver().supportsMultipleProjects()) {
+            gcsPerProjectClientManager = new GcsPerProjectClientManager(settings, (gcsClientSettings, statsCollector) -> {
+                try {
+                    return storageService.get().createClient(gcsClientSettings, statsCollector);
+                } catch (IOException e) {
+                    throw new UncheckedIOException(e);
+                }
+            });
+            services.clusterService().addListener(gcsPerProjectClientManager);
+        }
         var isServerless = DiscoveryNode.isStateless(settings);
-        this.storageService = createStorageService(isServerless);
+        this.storageService.set(createStorageService(isServerless, gcsPerProjectClientManager));
         // eagerly load client settings so that secure settings are readable (not closed)
         reload(settings);
+        return List.of();
     }
 
     // overridable for tests
-    protected GoogleCloudStorageService createStorageService(boolean isServerless) {
-        return new GoogleCloudStorageService(isServerless);
+    protected GoogleCloudStorageService createStorageService(
+        boolean isServerless,
+        @Nullable GcsPerProjectClientManager gcsPerProjectClientManager
+    ) {
+        return new GoogleCloudStorageService(isServerless, gcsPerProjectClientManager);
     }
 
     @Override
@@ -60,7 +83,7 @@ public class GoogleCloudStoragePlugin extends Plugin implements RepositoryPlugin
             metadata -> new GoogleCloudStorageRepository(
                 metadata,
                 namedXContentRegistry,
-                this.storageService,
+                this.storageService.get(),
                 clusterService,
                 bigArrays,
                 recoverySettings,
@@ -93,6 +116,6 @@ public class GoogleCloudStoragePlugin extends Plugin implements RepositoryPlugin
         // `GoogleCloudStorageClientSettings` instance) instead of the `Settings`
         // instance.
         final Map<String, GoogleCloudStorageClientSettings> clientsSettings = GoogleCloudStorageClientSettings.load(settings);
-        this.storageService.refreshAndClearCache(clientsSettings);
+        this.storageService.get().refreshAndClearCache(clientsSettings);
     }
 }

@@ -25,6 +25,7 @@ import com.google.cloud.storage.StorageRetryStrategy;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.core.Nullable;
@@ -56,13 +57,16 @@ public class GoogleCloudStorageService {
     private volatile Map<String, GoogleCloudStorageClientSettings> clientSettings = emptyMap();
 
     private final boolean isServerless;
+    @Nullable
+    private GcsPerProjectClientManager gcsPerProjectClientManager;
 
     public GoogleCloudStorageService() {
-        this.isServerless = false;
+        this(false, null);
     }
 
-    public GoogleCloudStorageService(boolean isServerless) {
+    public GoogleCloudStorageService(boolean isServerless, @Nullable GcsPerProjectClientManager gcsPerProjectClientManager) {
         this.isServerless = isServerless;
+        this.gcsPerProjectClientManager = gcsPerProjectClientManager;
     }
 
     public boolean isServerless() {
@@ -132,11 +136,44 @@ public class GoogleCloudStorageService {
         }
     }
 
+    public MeteredStorage client(
+        @Nullable final ProjectId projectId,
+        final String clientName,
+        final String repositoryName,
+        final GcsRepositoryStatsCollector statsCollector
+    ) throws IOException {
+        if (gcsPerProjectClientManager == null) {
+            // single default project mode
+            assert ProjectId.DEFAULT.equals(projectId) : projectId;
+            return client(clientName, repositoryName, statsCollector);
+        } else if (projectId == null) {
+            // MP mode for cluster level client
+            return client(clientName, repositoryName, statsCollector);
+        } else {
+            // MP mode for per-project client
+            return gcsPerProjectClientManager.client(projectId, clientName, repositoryName, statsCollector);
+        }
+    }
+
     synchronized void closeRepositoryClients(String repositoryName) {
         clientCache = clientCache.entrySet()
             .stream()
             .filter(entry -> entry.getKey().equals(repositoryName) == false)
             .collect(Collectors.toUnmodifiableMap(Map.Entry::getKey, Map.Entry::getValue));
+    }
+
+    void closeRepositoryClients(@Nullable ProjectId projectId, String repositoryName) {
+        if (gcsPerProjectClientManager == null) {
+            // single default project mode
+            assert ProjectId.DEFAULT.equals(projectId) : projectId;
+            closeRepositoryClients(repositoryName);
+        } else if (projectId == null) {
+            // MP mode for cluster level client
+            closeRepositoryClients(repositoryName);
+        } else {
+            // MP mode for per-project client
+            gcsPerProjectClientManager.closeRepositoryClients(projectId, repositoryName);
+        }
     }
 
     /**
@@ -146,7 +183,7 @@ public class GoogleCloudStorageService {
      * @return a new client storage instance that can be used to manage objects
      *         (blobs)
      */
-    private MeteredStorage createClient(GoogleCloudStorageClientSettings gcsClientSettings, GcsRepositoryStatsCollector statsCollector)
+    MeteredStorage createClient(GoogleCloudStorageClientSettings gcsClientSettings, GcsRepositoryStatsCollector statsCollector)
         throws IOException {
         final HttpTransport httpTransport = SocketAccess.doPrivilegedIOException(() -> {
             final NetHttpTransport.Builder builder = new NetHttpTransport.Builder();

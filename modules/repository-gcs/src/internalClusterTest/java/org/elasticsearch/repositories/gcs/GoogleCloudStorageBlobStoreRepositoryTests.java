@@ -235,7 +235,10 @@ public class GoogleCloudStorageBlobStoreRepositoryTests extends ESMockAPIBasedRe
         }
 
         @Override
-        protected GoogleCloudStorageService createStorageService(boolean isServerless) {
+        protected GoogleCloudStorageService createStorageService(
+            boolean isServerless,
+            GcsPerProjectClientManager gcsPerProjectClientManager
+        ) {
             return new GoogleCloudStorageService() {
                 @Override
                 StorageOptions createStorageOptions(
@@ -279,7 +282,7 @@ public class GoogleCloudStorageBlobStoreRepositoryTests extends ESMockAPIBasedRe
                 metadata -> new GoogleCloudStorageRepository(
                     metadata,
                     registry,
-                    this.storageService,
+                    this.storageService.get(),
                     clusterService,
                     bigArrays,
                     recoverySettings,
@@ -291,7 +294,7 @@ public class GoogleCloudStorageBlobStoreRepositoryTests extends ESMockAPIBasedRe
                             metadata.settings().get("bucket"),
                             "test",
                             metadata.name(),
-                            storageService,
+                            storageService.get(),
                             bigArrays,
                             randomIntBetween(1, 8) * 1024,
                             BackoffPolicy.noBackoff(),

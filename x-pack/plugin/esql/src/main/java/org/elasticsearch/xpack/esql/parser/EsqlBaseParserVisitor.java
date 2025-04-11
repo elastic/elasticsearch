@@ -588,6 +588,12 @@ public interface EsqlBaseParserVisitor<T> extends ParseTreeVisitor<T> {
    */
   T visitEnrichWithClause(EsqlBaseParser.EnrichWithClauseContext ctx);
   /**
+   * Visit a parse tree produced by {@link EsqlBaseParser#changePointCommand}.
+   * @param ctx the parse tree
+   * @return the visitor result
+   */
+  T visitChangePointCommand(EsqlBaseParser.ChangePointCommandContext ctx);
+  /**
    * Visit a parse tree produced by {@link EsqlBaseParser#lookupCommand}.
    * @param ctx the parse tree
    * @return the visitor result
@@ -623,10 +629,4 @@ public interface EsqlBaseParserVisitor<T> extends ParseTreeVisitor<T> {
    * @return the visitor result
    */
   T visitJoinPredicate(EsqlBaseParser.JoinPredicateContext ctx);
-  /**
-   * Visit a parse tree produced by {@link EsqlBaseParser#changePointCommand}.
-   * @param ctx the parse tree
-   * @return the visitor result
-   */
-  T visitChangePointCommand(EsqlBaseParser.ChangePointCommandContext ctx);
 }

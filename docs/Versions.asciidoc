@@ -1,8 +1,8 @@
 
 include::{docs-root}/shared/versions/stack/{source_branch}.asciidoc[]
 
-:lucene_version:        10.2.0
-:lucene_version_path:   10_2_0
+:lucene_version:        10.2.1
+:lucene_version_path:   10_2_1
 :jdk:                   11.0.2
 :jdk_major:             11
 :build_type:            tar

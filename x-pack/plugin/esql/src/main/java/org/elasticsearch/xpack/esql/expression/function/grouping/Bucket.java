@@ -116,7 +116,7 @@ public class Bucket extends GroupingFunction.EvaluatableGroupingFunction
                     it’s to pick a range that people are comfortable with that provides at most the target number of buckets."""
             ),
             @Example(
-                description = "Combine `BUCKET` with an <<esql-agg-functions,aggregation>> to create a histogram:",
+                description = "Combine `BUCKET` with an <<esql-aggregation-functions,aggregation>> to create a histogram:",
                 file = "bucket",
                 tag = "docsBucketMonthlyHistogram",
                 explanation = """

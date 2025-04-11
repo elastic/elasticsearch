@@ -984,7 +984,12 @@ public class EsqlCapabilities {
         /**
          * Support avg_over_time aggregation that gets evaluated per time-series
          */
-        AVG_OVER_TIME(Build.current().isSnapshot());
+        AVG_OVER_TIME(Build.current().isSnapshot()),
+
+        /**
+         * chicken_score ES|QL function
+         */
+        CHICKEN_SCORE(Build.current().isSnapshot());
 
         private final boolean enabled;
 

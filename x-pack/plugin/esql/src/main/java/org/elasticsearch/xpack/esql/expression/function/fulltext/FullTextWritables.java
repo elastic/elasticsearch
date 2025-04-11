@@ -28,6 +28,9 @@ public class FullTextWritables {
         if (EsqlCapabilities.Cap.TERM_FUNCTION.isEnabled()) {
             entries.add(Term.ENTRY);
         }
+        if (EsqlCapabilities.Cap.CHICKEN_SCORE.isEnabled()) {
+            entries.add(ChickenScore.ENTRY);
+        }
 
         return Collections.unmodifiableList(entries);
     }

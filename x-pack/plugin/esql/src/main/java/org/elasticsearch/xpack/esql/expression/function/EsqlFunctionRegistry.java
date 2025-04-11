@@ -34,6 +34,7 @@ import org.elasticsearch.xpack.esql.expression.function.aggregate.Sum;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Top;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Values;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.WeightedAvg;
+import org.elasticsearch.xpack.esql.expression.function.fulltext.ChickenScore;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.Kql;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.Match;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.QueryString;
@@ -436,8 +437,8 @@ public class EsqlFunctionRegistry {
                 def(Rate.class, Rate::withUnresolvedTimestamp, "rate"),
                 def(MaxOverTime.class, uni(MaxOverTime::new), "max_over_time"),
                 def(AvgOverTime.class, uni(AvgOverTime::new), "avg_over_time"),
-                def(Term.class, bi(Term::new), "term") } };
-    }
+                def(ChickenScore.class, uni(ChickenScore::new), "chicken_score"),
+                def(Term.class, bi(Term::new), "term") } };}
 
     public EsqlFunctionRegistry snapshotRegistry() {
         if (Build.current().isSnapshot() == false) {

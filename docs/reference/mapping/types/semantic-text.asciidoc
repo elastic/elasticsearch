@@ -1,6 +1,7 @@
 [role="xpack"]
 [[semantic-text]]
 === Semantic text field type
+
 ++++
 <titleabbrev>Semantic text</titleabbrev>
 ++++
@@ -94,6 +95,35 @@ You can update this parameter by using the <<indices-put-mapping, Update mapping
 Use the <<put-inference-api>> to create the endpoint.
 If not specified, the {infer} endpoint defined by `inference_id` will be used at both index and query time.
 
+`chunking_settings`::
+(Optional, object) Settings for chunking text into smaller passages.
+If specified, these will override the chunking settings set in the {infer-cap} endpoint associated with `inference_id`.
+If chunking settings are updated, they will not be applied to existing documents until they are reindexed.
+
+.Valid values for `chunking_settings`
+[%collapsible%open]
+====
+`type`:::
+Indicates the type of chunking strategy to use.
+Valid values are `word` or `sentence`.
+Required.
+
+`max_chunk_size`:::
+The maximum number of works in a chunk.
+Required.
+
+`overlap`:::
+The number of overlapping words allowed in chunks.
+This cannot be defined as more than half of the `max_chunk_size`.
+Required for `word` type chunking settings.
+
+`sentence_overlap`:::
+The number of overlapping words allowed in chunks.
+Valid values are `0` or `1`.
+Required for `sentence` type chunking settings.
+
+====
+
 [discrete]
 [[infer-endpoint-validation]]
 ==== {infer-cap} endpoint validation
@@ -103,7 +133,6 @@ When the first document is indexed, the `inference_id` will be used to generate 
 
 WARNING: Removing an {infer} endpoint will cause ingestion of documents and semantic queries to fail on indices that define `semantic_text` fields with that {infer} endpoint as their `inference_id`.
 Trying to <<delete-inference-api,delete an {infer} endpoint>> that is used on a `semantic_text` field will result in an error.
-
 
 [discrete]
 [[auto-text-chunking]]
@@ -117,8 +146,7 @@ When querying, the individual passages will be automatically searched for each d
 
 For more details on chunking and how to configure chunking settings, see <<infer-chunking-config, Configuring chunking>> in the Inference API documentation.
 
-Refer to <<semantic-search-semantic-text,this tutorial>> to learn more about
-semantic search using `semantic_text` and the `semantic` query.
+Refer to <<semantic-search-semantic-text,this tutorial>> to learn more about semantic search using `semantic_text` and the `semantic` query.
 
 [discrete]
 [[semantic-text-highlighting]]
@@ -147,11 +175,11 @@ POST test-index/_search
 ------------------------------------------------------------
 // TEST[skip:Requires inference endpoint]
 <1> Specifies the maximum number of fragments to return.
-<2> Sorts highlighted fragments by score when set to `score`. By default, fragments will be output in the order they appear in the field (order: none).
+<2> Sorts highlighted fragments by score when set to `score`.
+By default, fragments will be output in the order they appear in the field (order: none).
 
 Highlighting is supported on fields other than semantic_text.
-However, if you want to restrict highlighting to the semantic highlighter and return no fragments when the field is not of type semantic_text,
-you can explicitly enforce the `semantic` highlighter in the query:
+However, if you want to restrict highlighting to the semantic highlighter and return no fragments when the field is not of type semantic_text, you can explicitly enforce the `semantic` highlighter in the query:
 
 [source,console]
 ------------------------------------------------------------
@@ -180,21 +208,15 @@ PUT test-index
 [[custom-indexing]]
 ==== Customizing `semantic_text` indexing
 
-`semantic_text` uses defaults for indexing data based on the {infer} endpoint
-specified. It enables you to quickstart your semantic search by providing
-automatic {infer} and a dedicated query so you don't need to provide further
-details.
+`semantic_text` uses defaults for indexing data based on the {infer} endpoint specified.
+It enables you to quickstart your semantic search by providing automatic {infer} and a dedicated query so you don't need to provide further details.
 
 In case you want to customize data indexing, use the
-<<sparse-vector,`sparse_vector`>> or <<dense-vector,`dense_vector`>> field
-types and create an ingest pipeline with an
+<<sparse-vector,`sparse_vector`>> or <<dense-vector,`dense_vector`>> field types and create an ingest pipeline with an
 <<inference-processor, {infer} processor>> to generate the embeddings.
-<<semantic-search-inference,This tutorial>> walks you through the process. In
-these cases - when you use `sparse_vector` or `dense_vector` field types instead
-of the `semantic_text` field type to customize indexing - using the
-<<query-dsl-semantic-query,`semantic_query`>> is not supported for querying the
-field data.
-
+<<semantic-search-inference,This tutorial>> walks you through the process.
+In these cases - when you use `sparse_vector` or `dense_vector` field types instead of the `semantic_text` field type to customize indexing - using the
+<<query-dsl-semantic-query,`semantic_query`>> is not supported for querying the field data.
 
 [discrete]
 [[update-script]]
@@ -203,13 +225,11 @@ field data.
 Updates that use scripts are not supported for an index contains a `semantic_text` field.
 Even if the script targets non-`semantic_text` fields, the update will fail when the index contains a `semantic_text` field.
 
-
 [discrete]
 [[copy-to-support]]
 ==== `copy_to` and multi-fields support
 
-The semantic_text field type can serve as the target of <<copy-to,copy_to fields>>,
-be part of a <<multi-fields,multi-field>> structure, or contain <<multi-fields,multi-fields>> internally.
+The semantic_text field type can serve as the target of <<copy-to,copy_to fields>>, be part of a <<multi-fields,multi-field>> structure, or contain <<multi-fields,multi-fields>> internally.
 This means you can use a single field to collect the values of other fields for semantic search.
 
 For example, the following mapping:

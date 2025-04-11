@@ -22,7 +22,6 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
-import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MetadataDataStreamsService;
 import org.elasticsearch.cluster.metadata.MetadataUpdateSettingsService;
@@ -39,8 +38,8 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 public class PostDataStreamTransportAction extends TransportMasterNodeAction<PostDataStreamAction.Request, PostDataStreamAction.Response> {
@@ -156,119 +155,122 @@ public class PostDataStreamTransportAction extends TransportMasterNodeAction<Pos
                 @Override
                 public void onResponse(AcknowledgedResponse acknowledgedResponse) {
                     if (acknowledgedResponse.isAcknowledged()) {
-                        final Index[] concreteIndices = clusterService.state()
+                        final List<Index> concreteIndices = clusterService.state()
                             .projectState(projectResolver.getProjectId())
                             .metadata()
                             .dataStreams()
                             .get(dataStreamName)
-                            .getIndices()
-                            .toArray(Index.EMPTY_ARRAY);
+                            .getIndices();
                         final Settings requestSettings = templateOverrides.template().settings();
-                        final Settings.Builder settingsBuilder = Settings.builder();
-                        for (String setting : requestSettings.keySet()) {
-                            if (APPLY_TO_BACKING_INDICES.contains(setting)) {
-                                settingsBuilder.put(setting, requestSettings.get(setting));
-                            }
-                        }
-                        Settings settingsToUpdate = settingsBuilder.build();
-                        // TODO do we want to do this once per setting per index?
-                        updateSettingsService.updateSettings(
-                            new UpdateSettingsClusterStateUpdateRequest(
-                                projectResolver.getProjectId(),
-                                masterNodeTimeout,
-                                ackTimeout,
-                                settingsToUpdate,
-                                UpdateSettingsClusterStateUpdateRequest.OnExisting.OVERWRITE,
-                                UpdateSettingsClusterStateUpdateRequest.OnStaticSetting.REOPEN_INDICES,
-                                concreteIndices
-                            ),
+                        final List<PostDataStreamAction.DataStreamResponse.IndexSettingResult> indexSettingResults = new ArrayList<>();
+                        CountDownActionListener settingCountDownListener = new CountDownActionListener(
+                            requestSettings.size() + 1,
                             new ActionListener<>() {
                                 @Override
-                                public void onResponse(AcknowledgedResponse acknowledgedResponse) {
-                                    DataStream dataStream = clusterService.state()
+                                public void onResponse(Void unused) {
+                                    ComposableIndexTemplate effectiveIndexTemplate = clusterService.state()
                                         .projectState(projectResolver.getProjectId())
                                         .metadata()
                                         .dataStreams()
-                                        .get(dataStreamName);
-                                    List<PostDataStreamAction.DataStreamResponse.IndexSettingResult> indexSettingResults =
-                                        new ArrayList<>();
-                                    for (String setting : requestSettings.keySet()) {
-                                        PostDataStreamAction.DataStreamResponse.IndexSettingResult indexSettingResult =
-                                            new PostDataStreamAction.DataStreamResponse.IndexSettingResult(
-                                                setting,
-                                                APPLY_TO_BACKING_INDICES.contains(setting),
-                                                List.of()
-                                            );
-                                        indexSettingResults.add(indexSettingResult);
-                                    }
-                                    PostDataStreamAction.DataStreamResponse dataStreamResponse =
+                                        .get(dataStreamName)
+                                        .getEffectiveIndexTemplate(
+                                            clusterService.state().projectState(projectResolver.getProjectId()).metadata()
+                                        );
+                                    listener.onResponse(
                                         new PostDataStreamAction.DataStreamResponse(
                                             dataStreamName,
                                             true,
                                             null,
-                                            dataStream.getEffectiveIndexTemplate(
-                                                clusterService.state().projectState(projectResolver.getProjectId()).metadata()
-                                            ),
+                                            effectiveIndexTemplate,
                                             indexSettingResults
-                                        );
-                                    listener.onResponse(dataStreamResponse);
+                                        )
+                                    );
                                 }
 
                                 @Override
                                 public void onFailure(Exception e) {
-                                    logger.debug(
-                                        () -> "failed to update settings on indices [" + Arrays.toString(concreteIndices) + "]",
-                                        e
-                                    );
-                                    if (e instanceof IllegalArgumentException) {
-                                        DataStream dataStream = clusterService.state()
-                                            .projectState(projectResolver.getProjectId())
-                                            .metadata()
-                                            .dataStreams()
-                                            .get(dataStreamName);
-                                        List<PostDataStreamAction.DataStreamResponse.IndexSettingResult> indexSettingResults =
-                                            new ArrayList<>();
-                                        for (String setting : requestSettings.keySet()) {
-                                            boolean attemptedToSet = APPLY_TO_BACKING_INDICES.contains(setting);
-                                            List<PostDataStreamAction.DataStreamResponse.IndexSettingError> indexSettingErrors;
-                                            if (attemptedToSet) {
-                                                indexSettingErrors = new ArrayList<>();
-                                                for (Index index : concreteIndices) {
-                                                    indexSettingErrors.add(
-                                                        new PostDataStreamAction.DataStreamResponse.IndexSettingError(
-                                                            index.getName(),
-                                                            e.getMessage()
-                                                        )
-                                                    );
-                                                }
-                                            } else {
-                                                indexSettingErrors = List.of();
-                                            }
-                                            PostDataStreamAction.DataStreamResponse.IndexSettingResult indexSettingResult =
-                                                new PostDataStreamAction.DataStreamResponse.IndexSettingResult(
-                                                    setting,
-                                                    attemptedToSet,
-                                                    indexSettingErrors
-                                                );
-                                            indexSettingResults.add(indexSettingResult);
-                                        }
-                                        PostDataStreamAction.DataStreamResponse dataStreamResponse =
-                                            new PostDataStreamAction.DataStreamResponse(
-                                                dataStreamName,
-                                                true,
-                                                null,
-                                                dataStream.getEffectiveIndexTemplate(
-                                                    clusterService.state().projectState(projectResolver.getProjectId()).metadata()
-                                                ),
-                                                indexSettingResults
-                                            );
-                                        listener.onResponse(dataStreamResponse);
-                                    } else {
-                                        listener.onFailure(e);
-                                    }
+                                    listener.onFailure(e);
                                 }
                             }
                         );
+                        settingCountDownListener.onResponse(null); // handles the case when there were zero settings
+                        ActionListener<PostDataStreamAction.DataStreamResponse.IndexSettingResult> indexSettingResultListener =
+                            new ActionListener<>() {
+                                // Called each time we have results for all indices for a single setting
+                                @Override
+                                public void onResponse(PostDataStreamAction.DataStreamResponse.IndexSettingResult indexSettingResult) {
+                                    indexSettingResults.add(indexSettingResult);
+                                    settingCountDownListener.onResponse(null);
+                                }
+
+                                @Override
+                                public void onFailure(Exception e) {
+                                    settingCountDownListener.onFailure(e);
+                                }
+                            };
+                        for (String setting : requestSettings.keySet()) {
+                            if (APPLY_TO_BACKING_INDICES.contains(setting)) {
+                                final List<PostDataStreamAction.DataStreamResponse.IndexSettingError> errors = new ArrayList<>();
+                                CountDownActionListener indexCountDownListener = new CountDownActionListener(
+                                    concreteIndices.size() + 1,
+                                    new ActionListener<>() {
+                                        @Override
+                                        public void onResponse(Void unused) {
+                                            indexSettingResultListener.onResponse(
+                                                new PostDataStreamAction.DataStreamResponse.IndexSettingResult(setting, true, errors)
+                                            );
+                                        }
+
+                                        @Override
+                                        public void onFailure(Exception e) {
+                                            indexSettingResultListener.onFailure(e);
+                                        }
+                                    }
+                                );
+                                indexCountDownListener.onResponse(null); // handles the case where there were zero indices
+                                for (Index index : concreteIndices) {
+                                    updateSingleSettingForSingleIndex(
+                                        setting,
+                                        requestSettings.get(setting),
+                                        index,
+                                        masterNodeTimeout,
+                                        ackTimeout,
+                                        new ActionListener<>() {
+                                            @Override
+                                            public void onResponse(AcknowledgedResponse response) {
+                                                if (response.isAcknowledged() == false) {
+                                                    errors.add(
+                                                        new PostDataStreamAction.DataStreamResponse.IndexSettingError(
+                                                            index.getName(),
+                                                            "Updating setting not acknowledged for unknown reason"
+                                                        )
+                                                    );
+                                                }
+                                                indexCountDownListener.onResponse(null);
+
+                                            }
+
+                                            @Override
+                                            public void onFailure(Exception e) {
+                                                errors.add(
+                                                    new PostDataStreamAction.DataStreamResponse.IndexSettingError(
+                                                        index.getName(),
+                                                        e.getMessage()
+                                                    )
+                                                );
+                                                indexCountDownListener.onResponse(null);
+                                            }
+                                        }
+                                    );
+                                }
+                            } else {
+                                // This is not a setting that we will apply to backing indices
+                                indexSettingResults.add(
+                                    new PostDataStreamAction.DataStreamResponse.IndexSettingResult(setting, false, List.of())
+                                );
+                                settingCountDownListener.onResponse(null);
+                            }
+                        }
                     } else {
                         listener.onResponse(
                             new PostDataStreamAction.DataStreamResponse(
@@ -287,6 +289,28 @@ public class PostDataStreamTransportAction extends TransportMasterNodeAction<Pos
                     listener.onFailure(e);
                 }
             }
+        );
+    }
+
+    private void updateSingleSettingForSingleIndex(
+        String settingName,
+        Object settingValue,
+        Index index,
+        TimeValue masterNodeTimeout,
+        TimeValue ackTimeout,
+        ActionListener<AcknowledgedResponse> listener
+    ) {
+        updateSettingsService.updateSettings(
+            new UpdateSettingsClusterStateUpdateRequest(
+                projectResolver.getProjectId(),
+                masterNodeTimeout,
+                ackTimeout,
+                Settings.builder().loadFromMap(Map.of(settingName, settingValue)).build(),
+                UpdateSettingsClusterStateUpdateRequest.OnExisting.OVERWRITE,
+                UpdateSettingsClusterStateUpdateRequest.OnStaticSetting.REOPEN_INDICES,
+                index
+            ),
+            listener
         );
     }
 

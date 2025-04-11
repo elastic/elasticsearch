@@ -1504,7 +1504,7 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
         }
         PARSER.declareObject(
             ConstructingObjectParser.optionalConstructorArg(),
-            (p, c) -> ComposableIndexTemplate.parse(p),
+            (p, c) -> ComposableIndexTemplate.parseNoIndexPatterns(p),
             INDEX_TEMPLATE_OVERRIDES_FIELD
         );
     }

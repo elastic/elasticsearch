@@ -197,7 +197,6 @@ public class AsyncSearchErrorTraceIT extends ESIntegTestCase {
                 responseEntity = performRequestAndGetResponseEntityAfterDelay(request, TimeValue.timeValueSeconds(1L));
             }
 
-            getRestClient().performRequest(searchRequest);
             mockLog.assertAllExpectationsMatched();
         }
     }
@@ -241,7 +240,6 @@ public class AsyncSearchErrorTraceIT extends ESIntegTestCase {
                 responseEntity = performRequestAndGetResponseEntityAfterDelay(request, TimeValue.timeValueSeconds(1L));
             }
 
-            getRestClient().performRequest(searchRequest);
             mockLog.assertAllExpectationsMatched();
         }
     }

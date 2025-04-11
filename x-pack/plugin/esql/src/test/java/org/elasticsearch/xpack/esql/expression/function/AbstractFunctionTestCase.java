@@ -46,6 +46,7 @@ import org.elasticsearch.xpack.esql.core.util.NumericUtils;
 import org.elasticsearch.xpack.esql.core.util.StringUtils;
 import org.elasticsearch.xpack.esql.evaluator.EvalMapper;
 import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
+import org.elasticsearch.xpack.esql.expression.SurrogateExpression;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.MatchOperator;
 import org.elasticsearch.xpack.esql.expression.function.scalar.conditional.Greatest;
 import org.elasticsearch.xpack.esql.expression.function.scalar.nulls.Coalesce;
@@ -540,11 +541,19 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
     }
 
     private Expression randomSerializeDeserialize(Expression expression) {
-        if (randomBoolean()) {
+        if (canSerialize() == false || randomBoolean()) {
             return expression;
         }
 
         return serializeDeserializeExpression(expression);
+    }
+
+    /**
+     * The expression being tested be serialized? The <strong>vast</strong>
+     * majority of expressions can be serialized.
+     */
+    protected boolean canSerialize() {
+        return true;
     }
 
     /**
@@ -600,6 +609,12 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
         e = new FoldNull().rule(e, unboundLogicalOptimizerContext());
         if (e.foldable()) {
             e = new Literal(e.source(), e.fold(FoldContext.small()), e.dataType());
+        }
+        if (e instanceof SurrogateExpression s) {
+            Expression surrogate = s.surrogate();
+            if (surrogate != null) {
+                e = surrogate;
+            }
         }
         Layout.Builder builder = new Layout.Builder();
         buildLayout(builder, e);
@@ -761,6 +776,7 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
     }
 
     public void testSerializationOfSimple() {
+        assumeTrue("can't serialize function", canSerialize());
         assertSerialization(buildFieldExpression(testCase), testCase.getConfiguration());
     }
 

@@ -57,9 +57,9 @@ import org.elasticsearch.xpack.esql.optimizer.rules.logical.SkipQueryOnEmptyMapp
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.SkipQueryOnLimitZero;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.SplitInWithFoldableValue;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.SubstituteFilteredExpression;
-import org.elasticsearch.xpack.esql.optimizer.rules.logical.SubstituteSpatialSurrogates;
+import org.elasticsearch.xpack.esql.optimizer.rules.logical.SubstituteSurrogateAggregations;
+import org.elasticsearch.xpack.esql.optimizer.rules.logical.SubstituteSurrogateExpressions;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.SubstituteSurrogatePlans;
-import org.elasticsearch.xpack.esql.optimizer.rules.logical.SubstituteSurrogates;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.TranslateMetricsAggregate;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.local.PruneLeftJoinOnNullMatchingField;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
@@ -137,15 +137,17 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
             // then extract nested aggs top-level
             new ReplaceAggregateAggExpressionWithEval(),
             // lastly replace surrogate functions
-            new SubstituteSurrogates(),
+            new SubstituteSurrogateAggregations(),
             // translate metric aggregates after surrogate substitution and replace nested expressions with eval (again)
             new TranslateMetricsAggregate(),
+            // after translating metric aggregates, we need to replace surrogate substitutions and nested expressions again.
+            new SubstituteSurrogateAggregations(),
             new ReplaceAggregateNestedExpressionWithEval(),
             new ReplaceRegexMatch(),
             new ReplaceTrivialTypeConversions(),
             new ReplaceAliasingEvalWithProject(),
             new SkipQueryOnEmptyMappings(),
-            new SubstituteSpatialSurrogates(),
+            new SubstituteSurrogateExpressions(),
             new ReplaceOrderByExpressionWithEval(),
             new PropagateInlineEvals()
             // new NormalizeAggregate(), - waits on https://github.com/elastic/elasticsearch/issues/100634

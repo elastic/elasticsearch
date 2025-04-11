@@ -45,8 +45,8 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDatetim
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDouble;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToGeoPoint;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToGeoShape;
-import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToIP;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToInteger;
+import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToIpLeadingZerosRejected;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToLong;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToString;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToTimeDuration;
@@ -124,7 +124,7 @@ public class EsqlDataTypeConverter {
         entry(GEO_POINT, ToGeoPoint::new),
         entry(GEO_SHAPE, ToGeoShape::new),
         entry(INTEGER, ToInteger::new),
-        entry(IP, ToIP::new),
+        entry(IP, ToIpLeadingZerosRejected::new),
         entry(LONG, ToLong::new),
         // ToRadians, typeless
         entry(KEYWORD, ToString::new),

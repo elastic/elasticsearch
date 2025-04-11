@@ -97,6 +97,8 @@ book_no:keyword
 ;
 
 testMultiMatchPhraseQuery
+required_capability: multi_match_function
+
 from books 
 | where multi_match("Lord of the rings", title, description, { "type": "phrase" } )
 | keep title
@@ -115,6 +117,8 @@ Return of the King Being the Third Part of The Lord of the Rings
 ;
 
 testMultiMatchPhrasePrefixQuery
+required_capability: multi_match_function
+
 from books 
 | where multi_match("Lord of the ri", title, { "type": "phrase_prefix" } )
 | keep title

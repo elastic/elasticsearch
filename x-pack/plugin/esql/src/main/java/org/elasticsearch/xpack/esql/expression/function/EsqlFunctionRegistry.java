@@ -16,7 +16,9 @@ import org.elasticsearch.xpack.esql.core.expression.function.Function;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.Check;
+import org.elasticsearch.xpack.esql.expression.SurrogateExpression;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Avg;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.AvgOverTime;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.CountDistinct;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Max;
@@ -55,8 +57,11 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDegrees
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDouble;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToGeoPoint;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToGeoShape;
-import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToIP;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToInteger;
+import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToIp;
+import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToIpLeadingZerosDecimal;
+import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToIpLeadingZerosOctal;
+import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToIpLeadingZerosRejected;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToLong;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToRadians;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToString;
@@ -229,6 +234,7 @@ public class EsqlFunctionRegistry {
     public EsqlFunctionRegistry() {
         register(functions());
         buildDataTypesForStringLiteralConversion(functions());
+        nameSurrogates();
     }
 
     EsqlFunctionRegistry(FunctionDefinition... functions) {
@@ -390,7 +396,7 @@ public class EsqlFunctionRegistry {
                 def(ToDouble.class, ToDouble::new, "to_double", "to_dbl"),
                 def(ToGeoPoint.class, ToGeoPoint::new, "to_geopoint"),
                 def(ToGeoShape.class, ToGeoShape::new, "to_geoshape"),
-                def(ToIP.class, ToIP::new, "to_ip"),
+                def(ToIp.class, ToIp::new, "to_ip"),
                 def(ToInteger.class, ToInteger::new, "to_integer", "to_int"),
                 def(ToLong.class, ToLong::new, "to_long"),
                 def(ToRadians.class, ToRadians::new, "to_radians"),
@@ -434,6 +440,7 @@ public class EsqlFunctionRegistry {
                 def(Delay.class, Delay::new, "delay"),
                 def(Rate.class, Rate::withUnresolvedTimestamp, "rate"),
                 def(MaxOverTime.class, uni(MaxOverTime::new), "max_over_time"),
+                def(AvgOverTime.class, uni(AvgOverTime::new), "avg_over_time"),
                 def(Term.class, bi(Term::new), "term") } };
     }
 
@@ -791,6 +798,15 @@ public class EsqlFunctionRegistry {
                 );
             }
         }
+    }
+
+    /**
+     * Add {@link #names} entries for functions that are not registered, but we rewrite to using {@link SurrogateExpression}.
+     */
+    private void nameSurrogates() {
+        names.put(ToIpLeadingZerosRejected.class, "TO_IP");
+        names.put(ToIpLeadingZerosDecimal.class, "TO_IP");
+        names.put(ToIpLeadingZerosOctal.class, "TO_IP");
     }
 
     protected interface FunctionBuilder {

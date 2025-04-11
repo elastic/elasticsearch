@@ -39,20 +39,16 @@ public final class RateFloatGroupingAggregatorFunction implements GroupingAggreg
 
   private final DriverContext driverContext;
 
-  private final long unitInMillis;
-
   public RateFloatGroupingAggregatorFunction(List<Integer> channels,
-      RateFloatAggregator.FloatRateGroupingState state, DriverContext driverContext,
-      long unitInMillis) {
+      RateFloatAggregator.FloatRateGroupingState state, DriverContext driverContext) {
     this.channels = channels;
     this.state = state;
     this.driverContext = driverContext;
-    this.unitInMillis = unitInMillis;
   }
 
   public static RateFloatGroupingAggregatorFunction create(List<Integer> channels,
-      DriverContext driverContext, long unitInMillis) {
-    return new RateFloatGroupingAggregatorFunction(channels, RateFloatAggregator.initGrouping(driverContext, unitInMillis), driverContext, unitInMillis);
+      DriverContext driverContext) {
+    return new RateFloatGroupingAggregatorFunction(channels, RateFloatAggregator.initGrouping(driverContext), driverContext);
   }
 
   public static List<IntermediateStateDesc> intermediateStateDesc() {

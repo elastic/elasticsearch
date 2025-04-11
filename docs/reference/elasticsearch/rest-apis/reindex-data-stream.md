@@ -1,7 +1,9 @@
 ---
 navigation_title: "Reindex data stream"
 mapped_pages:
-  - https://www.elastic.co/guide/en/elasticsearch/reference/master/data-stream-reindex-api.html
+  - https://www.elastic.co/guide/en/elasticsearch/reference/current/data-stream-reindex-api.html
+  # That link will 404 until 8.18 is current
+  # (see https://www.elastic.co/guide/en/elasticsearch/reference/8.18/data-stream-reindex-api.html)
 applies_to:
   stack: all
 ---

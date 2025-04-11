@@ -13,6 +13,7 @@ import org.elasticsearch.action.admin.cluster.reroute.ClusterRerouteUtils;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotResponse;
 import org.elasticsearch.action.admin.indices.stats.ShardStats;
+import org.elasticsearch.action.support.ActionTestUtils;
 import org.elasticsearch.cluster.ClusterInfoService;
 import org.elasticsearch.cluster.ClusterInfoServiceUtils;
 import org.elasticsearch.cluster.DiskUsageIntegTestCase;
@@ -34,6 +35,7 @@ import org.elasticsearch.repositories.fs.FsRepository;
 import org.elasticsearch.snapshots.RestoreInfo;
 import org.elasticsearch.snapshots.SnapshotInfo;
 import org.elasticsearch.snapshots.SnapshotState;
+import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.junit.annotations.TestIssueLogging;
 import org.hamcrest.Matcher;
@@ -43,6 +45,7 @@ import java.util.Comparator;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 
@@ -56,6 +59,7 @@ import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.in;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0)
 public class DiskThresholdDeciderIT extends DiskUsageIntegTestCase {
@@ -163,16 +167,6 @@ public class DiskThresholdDeciderIT extends DiskUsageIntegTestCase {
         assertBusyWithDiskUsageRefresh(dataNode0Id, indexName, contains(in(shardSizes.getSmallestShardIds())));
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/105331")
-    @TestIssueLogging(
-        value = "org.elasticsearch.cluster.routing.allocation.allocator.DesiredBalanceComputer:TRACE,"
-            + "org.elasticsearch.cluster.routing.allocation.allocator.DesiredBalanceReconciler:DEBUG,"
-            + "org.elasticsearch.cluster.routing.allocation.allocator.DesiredBalanceShardsAllocator:TRACE,"
-            + "org.elasticsearch.cluster.routing.allocation.allocator.BalancedShardsAllocator:TRACE,"
-            + "org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders:TRACE,"
-            + "org.elasticsearch.cluster.routing.allocation.decider.DiskThresholdDecider:TRACE",
-        issueUrl = "https://github.com/elastic/elasticsearch/issues/105331"
-    )
     public void testRestoreSnapshotAllocationDoesNotExceedWatermarkWithMultipleShards() throws Exception {
         internalCluster().startMasterOnlyNode();
         internalCluster().startDataOnlyNode();
@@ -228,6 +222,110 @@ public class DiskThresholdDeciderIT extends DiskUsageIntegTestCase {
         assertThat(restoreInfo.failedShards(), is(0));
 
         assertBusyWithDiskUsageRefresh(dataNode0Id, indexName, contains(in(shardSizes.getShardIdsWithSizeSmallerOrEqual(usableSpace))));
+    }
+
+    public void testRestoreSnapshotAllocationDoesNotExceedWatermarkWithMultipleRestores() {
+        internalCluster().startMasterOnlyNode();
+        final String dataNodeName = internalCluster().startDataOnlyNode();
+        internalCluster().startDataOnlyNode();
+        ensureStableCluster(3);
+
+        assertAcked(
+            clusterAdmin().preparePutRepository(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, "repo")
+                .setType(FsRepository.TYPE)
+                .setSettings(Settings.builder().put("location", randomRepoPath()).put("compress", randomBoolean()))
+        );
+
+        final AtomicBoolean allowRelocations = new AtomicBoolean(true);
+        final InternalClusterInfoService clusterInfoService = getInternalClusterInfoService();
+        internalCluster().getCurrentMasterNodeInstance(ClusterService.class).addListener(event -> {
+            ClusterInfoServiceUtils.refresh(clusterInfoService);
+            if (allowRelocations.get() == false) {
+                assertThat(
+                    "Expects no relocating shards but got: " + event.state().getRoutingNodes(),
+                    numberOfShardsWithState(event.state().getRoutingNodes(), ShardRoutingState.RELOCATING),
+                    equalTo(0)
+                );
+            }
+        });
+
+        final String indexName = randomIdentifier();
+        createIndex(indexName, indexSettings(6, 0).put(INDEX_STORE_STATS_REFRESH_INTERVAL_SETTING.getKey(), "0ms").build());
+        var shardSizes = createReasonableSizedShards(indexName);
+
+        final CreateSnapshotResponse createSnapshotResponse = clusterAdmin().prepareCreateSnapshot(TEST_REQUEST_TIMEOUT, "repo", "snap")
+            .setIndices(indexName)
+            .setWaitForCompletion(true)
+            .get();
+        final SnapshotInfo snapshotInfo = createSnapshotResponse.getSnapshotInfo();
+        assertThat(snapshotInfo.successfulShards(), is(snapshotInfo.totalShards()));
+        assertThat(snapshotInfo.state(), is(SnapshotState.SUCCESS));
+
+        assertAcked(indicesAdmin().prepareDelete(indexName).get());
+        updateClusterSettings(Settings.builder().put(CLUSTER_ROUTING_REBALANCE_ENABLE_SETTING.getKey(), Rebalance.NONE.toString()));
+        allowRelocations.set(false);
+
+        // reduce disk size of one data node so that only one shard copy fits there, forcing all the other shards to be assigned to the
+        // other data node
+        getTestFileStore(dataNodeName).setTotalSpace(shardSizes.getSmallestShardSize() * 2 + WATERMARK_BYTES - 1L);
+        refreshDiskUsage();
+
+        // We're going to restore the index twice in quick succession and verify that we don't assign more than one shard in total to the
+        // chosen node, but to do this we have to work backwards: first we have to set up listeners to react to events and then finally we
+        // trigger the whole chain by starting the first restore.
+        final var copyIndexName = indexName + "-copy";
+
+        // set up a listener that explicitly forbids more than one shard to be assigned to the tiny node
+        final String dataNodeId = internalCluster().getInstance(NodeEnvironment.class, dataNodeName).nodeId();
+        final var allShardsActiveListener = ClusterServiceUtils.addTemporaryStateListener(cs -> {
+            assertThat(cs.getRoutingNodes().toString(), cs.getRoutingNodes().node(dataNodeId).size(), lessThanOrEqualTo(1));
+            var seenCopy = false;
+            for (final IndexRoutingTable indexRoutingTable : cs.routingTable()) {
+                if (indexRoutingTable.getIndex().getName().equals(copyIndexName)) {
+                    seenCopy = true;
+                }
+                if (indexRoutingTable.allShardsActive() == false) {
+                    return false;
+                }
+            }
+            return seenCopy; // only remove this listener when we've started both restores and all the resulting shards are complete
+        });
+
+        // set up a listener which waits for the shards from the first restore to start initializing and then kick off another restore
+        final var secondRestoreCompleteLatch = new CountDownLatch(1);
+        final var secondRestoreStartedListener = ClusterServiceUtils.addTemporaryStateListener(cs -> {
+            final var indexRoutingTable = cs.routingTable().index(indexName);
+            if (indexRoutingTable != null && indexRoutingTable.shardsWithState(ShardRoutingState.INITIALIZING).isEmpty() == false) {
+                clusterAdmin().prepareRestoreSnapshot(TEST_REQUEST_TIMEOUT, "repo", "snap")
+                    .setWaitForCompletion(true)
+                    .setRenamePattern(indexName)
+                    .setRenameReplacement(indexName + "-copy")
+                    .execute(ActionTestUtils.assertNoFailureListener(restoreSnapshotResponse -> {
+                        final RestoreInfo restoreInfo = restoreSnapshotResponse.getRestoreInfo();
+                        assertThat(restoreInfo.successfulShards(), is(snapshotInfo.totalShards()));
+                        assertThat(restoreInfo.failedShards(), is(0));
+                        secondRestoreCompleteLatch.countDown();
+                    }));
+                return true;
+            }
+            return false;
+        });
+
+        // now set the ball rolling by doing the first restore, waiting for it to complete
+        final RestoreSnapshotResponse restoreSnapshotResponse = clusterAdmin().prepareRestoreSnapshot(TEST_REQUEST_TIMEOUT, "repo", "snap")
+            .setWaitForCompletion(true)
+            .get();
+        final RestoreInfo restoreInfo = restoreSnapshotResponse.getRestoreInfo();
+        assertThat(restoreInfo.successfulShards(), is(snapshotInfo.totalShards()));
+        assertThat(restoreInfo.failedShards(), is(0));
+
+        // wait for the second restore to complete too
+        safeAwait(secondRestoreStartedListener);
+        safeAwait(secondRestoreCompleteLatch);
+
+        // wait for all the shards to finish moving
+        safeAwait(allShardsActiveListener);
+        ensureGreen(indexName, indexName + "-copy");
     }
 
     private Set<ShardId> getShardIds(final String nodeId, final String indexName) {

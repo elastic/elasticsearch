@@ -298,6 +298,7 @@ s:keyword | ip:ip
 ;
 
 convertFromStringFancy
+required_capability: to_ip_leading_zeros
 FROM logs
 | KEEP @timestamp, system, message
 | EVAL client = CASE(

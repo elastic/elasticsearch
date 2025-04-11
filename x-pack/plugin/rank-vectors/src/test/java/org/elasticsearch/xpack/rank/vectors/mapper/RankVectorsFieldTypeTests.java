@@ -89,7 +89,7 @@ public class RankVectorsFieldTypeTests extends FieldTypeTestCase {
     public void testFetchSourceValue() throws IOException {
         RankVectorsFieldType fft = createFloatFieldType();
         List<List<Double>> vectorFromXContent = List.of(List.of(0.0, 1.0, 2.0, 3.0, 4.0, 6.0));
-        List<float[]> vector=List.of(new float[]{0.0f, 1.0f, 2.0f, 3.0f, 4.0f, 6.0f});
+        List<float[]> vector = List.of(new float[] { 0.0f, 1.0f, 2.0f, 3.0f, 4.0f, 6.0f });
         assertThat(fetchSourceValue(fft, vectorFromXContent), iterableWithSize(1));
         assertThat(fetchSourceValue(fft, vectorFromXContent).get(0), equalTo(vector.get(0)));
         RankVectorsFieldType bft = createByteFieldType();

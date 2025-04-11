@@ -384,7 +384,7 @@ public class RankVectorsFieldMapperTests extends MapperTestCase {
                 case BYTE -> assumeFalse("byte element type testing not currently added", false);
                 case FLOAT -> {
                     float[][] fetchedFloats = new float[fromNative.size()][];
-                    for (int i =0; i < fromNative.size(); i++) {
+                    for (int i = 0; i < fromNative.size(); i++) {
                         fetchedFloats[i] = (float[]) fromNative.get(i);
                     }
                     assertThat("fetching " + value, fetchedFloats, equalTo(value));

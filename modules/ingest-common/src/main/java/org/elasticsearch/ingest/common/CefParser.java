@@ -277,7 +277,7 @@ final class CefParser {
     private static final String INVALID_CEF_FORMAT = "Invalid CEF format";
 
     /**
-     * List of allowed timestamp formats for CEF spec v27, see:
+     * List of allowed timestamp formats for CEF spec v27, see: Appendix A: Date Formats
      * <a href="https://www.microfocus.com/documentation/arcsight/arcsight-smartconnectors-24.2/pdfdoc/cef-implementation-standard/cef-implementation-standard.pdf">documentation</a>
      */
     private static final List<String> TIME_LAYOUTS = List.of(

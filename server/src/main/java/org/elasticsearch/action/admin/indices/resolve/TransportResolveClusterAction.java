@@ -383,7 +383,7 @@ public class TransportResolveClusterAction extends HandledTransportAction<Resolv
         ResolveIndexAction.TransportAction.resolveIndices(
             localIndices.indices(),
             indicesOptions,
-            clusterState,
+            clusterState.projectState(),
             indexNameExpressionResolver,
             indices,
             aliases,

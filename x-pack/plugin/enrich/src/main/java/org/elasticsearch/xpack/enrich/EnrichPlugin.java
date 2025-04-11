@@ -6,8 +6,6 @@
  */
 package org.elasticsearch.xpack.enrich;
 
-import org.elasticsearch.action.ActionRequest;
-import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.cluster.NamedDiff;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
@@ -211,20 +209,20 @@ public class EnrichPlugin extends Plugin implements SystemIndexPlugin, IngestPlu
     }
 
     @Override
-    public List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {
+    public List<ActionHandler> getActions() {
         return List.of(
-            new ActionHandler<>(XPackInfoFeatureAction.ENRICH, EnrichInfoTransportAction.class),
-            new ActionHandler<>(XPackUsageFeatureAction.ENRICH, EnrichUsageTransportAction.class),
-            new ActionHandler<>(GetEnrichPolicyAction.INSTANCE, TransportGetEnrichPolicyAction.class),
-            new ActionHandler<>(DeleteEnrichPolicyAction.INSTANCE, TransportDeleteEnrichPolicyAction.class),
-            new ActionHandler<>(PutEnrichPolicyAction.INSTANCE, TransportPutEnrichPolicyAction.class),
-            new ActionHandler<>(ExecuteEnrichPolicyAction.INSTANCE, TransportExecuteEnrichPolicyAction.class),
-            new ActionHandler<>(EnrichStatsAction.INSTANCE, TransportEnrichStatsAction.class),
-            new ActionHandler<>(EnrichCoordinatorProxyAction.INSTANCE, EnrichCoordinatorProxyAction.TransportAction.class),
-            new ActionHandler<>(EnrichShardMultiSearchAction.INSTANCE, EnrichShardMultiSearchAction.TransportAction.class),
-            new ActionHandler<>(EnrichCoordinatorStatsAction.INSTANCE, EnrichCoordinatorStatsAction.TransportAction.class),
-            new ActionHandler<>(EnrichReindexAction.INSTANCE, TransportEnrichReindexAction.class),
-            new ActionHandler<>(InternalExecutePolicyAction.INSTANCE, InternalExecutePolicyAction.Transport.class)
+            new ActionHandler(XPackInfoFeatureAction.ENRICH, EnrichInfoTransportAction.class),
+            new ActionHandler(XPackUsageFeatureAction.ENRICH, EnrichUsageTransportAction.class),
+            new ActionHandler(GetEnrichPolicyAction.INSTANCE, TransportGetEnrichPolicyAction.class),
+            new ActionHandler(DeleteEnrichPolicyAction.INSTANCE, TransportDeleteEnrichPolicyAction.class),
+            new ActionHandler(PutEnrichPolicyAction.INSTANCE, TransportPutEnrichPolicyAction.class),
+            new ActionHandler(ExecuteEnrichPolicyAction.INSTANCE, TransportExecuteEnrichPolicyAction.class),
+            new ActionHandler(EnrichStatsAction.INSTANCE, TransportEnrichStatsAction.class),
+            new ActionHandler(EnrichCoordinatorProxyAction.INSTANCE, EnrichCoordinatorProxyAction.TransportAction.class),
+            new ActionHandler(EnrichShardMultiSearchAction.INSTANCE, EnrichShardMultiSearchAction.TransportAction.class),
+            new ActionHandler(EnrichCoordinatorStatsAction.INSTANCE, EnrichCoordinatorStatsAction.TransportAction.class),
+            new ActionHandler(EnrichReindexAction.INSTANCE, TransportEnrichReindexAction.class),
+            new ActionHandler(InternalExecutePolicyAction.INSTANCE, InternalExecutePolicyAction.Transport.class)
         );
     }
 
@@ -282,11 +280,11 @@ public class EnrichPlugin extends Plugin implements SystemIndexPlugin, IngestPlu
     @Override
     public List<NamedWriteableRegistry.Entry> getNamedWriteables() {
         return List.of(
-            new NamedWriteableRegistry.Entry(Metadata.Custom.class, EnrichMetadata.TYPE, EnrichMetadata::new),
+            new NamedWriteableRegistry.Entry(Metadata.ProjectCustom.class, EnrichMetadata.TYPE, EnrichMetadata::new),
             new NamedWriteableRegistry.Entry(
                 NamedDiff.class,
                 EnrichMetadata.TYPE,
-                in -> EnrichMetadata.readDiffFrom(Metadata.Custom.class, EnrichMetadata.TYPE, in)
+                in -> EnrichMetadata.readDiffFrom(Metadata.ProjectCustom.class, EnrichMetadata.TYPE, in)
             )
         );
     }
@@ -294,7 +292,7 @@ public class EnrichPlugin extends Plugin implements SystemIndexPlugin, IngestPlu
     @Override
     public List<NamedXContentRegistry.Entry> getNamedXContent() {
         return List.of(
-            new NamedXContentRegistry.Entry(Metadata.Custom.class, new ParseField(EnrichMetadata.TYPE), EnrichMetadata::fromXContent)
+            new NamedXContentRegistry.Entry(Metadata.ProjectCustom.class, new ParseField(EnrichMetadata.TYPE), EnrichMetadata::fromXContent)
         );
     }
 

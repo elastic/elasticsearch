@@ -22,6 +22,7 @@ import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
+import org.elasticsearch.cluster.project.TestProjectResolvers;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
@@ -91,6 +92,7 @@ public class TransportSimulateBulkActionTests extends ESTestCase {
                 new ActionFilters(Set.of()),
                 new IndexingPressure(Settings.EMPTY),
                 EmptySystemIndices.INSTANCE,
+                TestProjectResolvers.DEFAULT_PROJECT_ONLY,
                 indicesService,
                 NamedXContentRegistry.EMPTY,
                 new IndexSettingProviders(Set.of())

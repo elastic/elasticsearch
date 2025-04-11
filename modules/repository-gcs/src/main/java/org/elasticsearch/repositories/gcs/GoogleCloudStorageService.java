@@ -14,16 +14,17 @@ import com.google.api.client.http.HttpRequestInitializer;
 import com.google.api.client.http.HttpTransport;
 import com.google.api.client.http.javanet.NetHttpTransport;
 import com.google.api.client.util.SecurityUtils;
+import com.google.api.gax.retrying.ResultRetryAlgorithm;
 import com.google.auth.oauth2.GoogleCredentials;
 import com.google.auth.oauth2.ServiceAccountCredentials;
 import com.google.cloud.ServiceOptions;
 import com.google.cloud.http.HttpTransportOptions;
-import com.google.cloud.storage.Storage;
 import com.google.cloud.storage.StorageOptions;
 import com.google.cloud.storage.StorageRetryStrategy;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.core.Nullable;
@@ -36,10 +37,13 @@ import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.net.HttpURLConnection;
 import java.net.Proxy;
+import java.net.SocketException;
 import java.net.URI;
 import java.net.URL;
+import java.net.UnknownHostException;
 import java.security.KeyStore;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 import static java.nio.charset.StandardCharsets.UTF_8;
 import static java.util.Collections.emptyMap;
@@ -51,12 +55,25 @@ public class GoogleCloudStorageService {
 
     private volatile Map<String, GoogleCloudStorageClientSettings> clientSettings = emptyMap();
 
+    private final boolean isServerless;
+
+    public GoogleCloudStorageService() {
+        this.isServerless = false;
+    }
+
+    public GoogleCloudStorageService(boolean isServerless) {
+        this.isServerless = isServerless;
+    }
+
+    public boolean isServerless() {
+        return isServerless;
+    }
+
     /**
      * Dictionary of client instances. Client instances are built lazily from the
-     * latest settings. Each repository has its own client instance identified by
-     * the repository name.
+     * latest settings. Clients are cached by a composite repositoryName key.
      */
-    private volatile Map<String, Storage> clientCache = emptyMap();
+    private volatile Map<String, MeteredStorage> clientCache = emptyMap();
 
     /**
      * Refreshes the client settings and clears the client cache. Subsequent calls to
@@ -79,20 +96,19 @@ public class GoogleCloudStorageService {
      *
      * @param clientName name of the client settings used to create the client
      * @param repositoryName name of the repository that would use the client
-     * @param stats the stats collector used to gather information about the underlying SKD API calls.
      * @return a cached client storage instance that can be used to manage objects
      *         (blobs)
      */
-    public Storage client(final String clientName, final String repositoryName, final GoogleCloudStorageOperationsStats stats)
+    public MeteredStorage client(final String clientName, final String repositoryName, final GcsRepositoryStatsCollector statsCollector)
         throws IOException {
         {
-            final Storage storage = clientCache.get(repositoryName);
+            final MeteredStorage storage = clientCache.get(repositoryName);
             if (storage != null) {
                 return storage;
             }
         }
         synchronized (this) {
-            final Storage existing = clientCache.get(repositoryName);
+            final MeteredStorage existing = clientCache.get(repositoryName);
 
             if (existing != null) {
                 return existing;
@@ -110,25 +126,27 @@ public class GoogleCloudStorageService {
             }
 
             logger.debug(() -> format("creating GCS client with client_name [%s], endpoint [%s]", clientName, settings.getHost()));
-            final Storage storage = createClient(settings, stats);
+            final MeteredStorage storage = createClient(settings, statsCollector);
             clientCache = Maps.copyMapWithAddedEntry(clientCache, repositoryName, storage);
             return storage;
         }
     }
 
-    synchronized void closeRepositoryClient(String repositoryName) {
-        clientCache = Maps.copyMapWithRemovedEntry(clientCache, repositoryName);
+    synchronized void closeRepositoryClients(String repositoryName) {
+        clientCache = clientCache.entrySet()
+            .stream()
+            .filter(entry -> entry.getKey().equals(repositoryName) == false)
+            .collect(Collectors.toUnmodifiableMap(Map.Entry::getKey, Map.Entry::getValue));
     }
 
     /**
      * Creates a client that can be used to manage Google Cloud Storage objects. The client is thread-safe.
      *
      * @param gcsClientSettings client settings to use, including secure settings
-     * @param stats the stats collector to use by the underlying SDK
      * @return a new client storage instance that can be used to manage objects
      *         (blobs)
      */
-    private Storage createClient(GoogleCloudStorageClientSettings gcsClientSettings, GoogleCloudStorageOperationsStats stats)
+    private MeteredStorage createClient(GoogleCloudStorageClientSettings gcsClientSettings, GcsRepositoryStatsCollector statsCollector)
         throws IOException {
         final HttpTransport httpTransport = SocketAccess.doPrivilegedIOException(() -> {
             final NetHttpTransport.Builder builder = new NetHttpTransport.Builder();
@@ -149,8 +167,6 @@ public class GoogleCloudStorageService {
             return builder.build();
         });
 
-        final GoogleCloudStorageHttpStatsCollector httpStatsCollector = new GoogleCloudStorageHttpStatsCollector(stats);
-
         final HttpTransportOptions httpTransportOptions = new HttpTransportOptions(
             HttpTransportOptions.newBuilder()
                 .setConnectTimeout(toTimeout(gcsClientSettings.getConnectTimeout()))
@@ -164,14 +180,13 @@ public class GoogleCloudStorageService {
 
                 return (httpRequest) -> {
                     if (requestInitializer != null) requestInitializer.initialize(httpRequest);
-
-                    httpRequest.setResponseInterceptor(httpStatsCollector);
+                    httpRequest.setResponseInterceptor(GcsRepositoryStatsCollector.METERING_INTERCEPTOR);
                 };
             }
         };
 
         final StorageOptions storageOptions = createStorageOptions(gcsClientSettings, httpTransportOptions);
-        return storageOptions.getService();
+        return new MeteredStorage(storageOptions.getService(), statsCollector);
     }
 
     StorageOptions createStorageOptions(
@@ -179,7 +194,7 @@ public class GoogleCloudStorageService {
         final HttpTransportOptions httpTransportOptions
     ) {
         final StorageOptions.Builder storageOptionsBuilder = StorageOptions.newBuilder()
-            .setStorageRetryStrategy(StorageRetryStrategy.getLegacyStorageRetryStrategy())
+            .setStorageRetryStrategy(getRetryStrategy())
             .setTransportOptions(httpTransportOptions)
             .setHeaderProvider(() -> {
                 return Strings.hasLength(gcsClientSettings.getApplicationName())
@@ -234,6 +249,23 @@ public class GoogleCloudStorageService {
             storageOptionsBuilder.setCredentials(serviceAccountCredentials);
         }
         return storageOptionsBuilder.build();
+    }
+
+    protected StorageRetryStrategy getRetryStrategy() {
+        return ShouldRetryDecorator.decorate(
+            StorageRetryStrategy.getLegacyStorageRetryStrategy(),
+            (Throwable prevThrowable, Object prevResponse, ResultRetryAlgorithm<Object> delegate) -> {
+                // Retry in the event of an unknown host exception
+                if (ExceptionsHelper.unwrap(prevThrowable, UnknownHostException.class) != null) {
+                    return true;
+                }
+                // Also retry on `SocketException`s
+                if (ExceptionsHelper.unwrap(prevThrowable, SocketException.class) != null) {
+                    return true;
+                }
+                return delegate.shouldRetry(prevThrowable, prevResponse);
+            }
+        );
     }
 
     /**

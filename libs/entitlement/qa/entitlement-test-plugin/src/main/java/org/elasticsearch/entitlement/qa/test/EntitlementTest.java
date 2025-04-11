@@ -9,6 +9,8 @@
 
 package org.elasticsearch.entitlement.qa.test;
 
+import org.elasticsearch.entitlement.runtime.api.NotEntitledException;
+
 import java.lang.annotation.ElementType;
 import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
@@ -20,10 +22,14 @@ public @interface EntitlementTest {
     enum ExpectedAccess {
         PLUGINS,
         ES_MODULES_ONLY,
-        ALWAYS_DENIED
+        SERVER_ONLY,
+        ALWAYS_DENIED,
+        ALWAYS_ALLOWED
     }
 
     ExpectedAccess expectedAccess();
+
+    Class<? extends Exception> expectedExceptionIfDenied() default NotEntitledException.class;
 
     int fromJavaVersion() default -1;
 }

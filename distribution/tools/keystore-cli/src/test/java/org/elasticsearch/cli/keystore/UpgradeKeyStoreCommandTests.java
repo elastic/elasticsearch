@@ -62,11 +62,11 @@ public class UpgradeKeyStoreCommandTests extends KeyStoreCommandTestCase {
     }
 
     private void assertKeystoreUpgrade(String file, int version, @Nullable String password) throws Exception {
-        final Path keystore = KeyStoreWrapper.keystorePath(env.configFile());
+        final Path keystore = KeyStoreWrapper.keystorePath(env.configDir());
         try (InputStream is = KeyStoreWrapperTests.class.getResourceAsStream(file); OutputStream os = Files.newOutputStream(keystore)) {
             is.transferTo(os);
         }
-        try (KeyStoreWrapper beforeUpgrade = KeyStoreWrapper.load(env.configFile())) {
+        try (KeyStoreWrapper beforeUpgrade = KeyStoreWrapper.load(env.configDir())) {
             assertNotNull(beforeUpgrade);
             assertThat(beforeUpgrade.getFormatVersion(), equalTo(version));
         }
@@ -77,7 +77,7 @@ public class UpgradeKeyStoreCommandTests extends KeyStoreCommandTestCase {
         execute();
         terminal.reset();
 
-        try (KeyStoreWrapper afterUpgrade = KeyStoreWrapper.load(env.configFile())) {
+        try (KeyStoreWrapper afterUpgrade = KeyStoreWrapper.load(env.configDir())) {
             assertNotNull(afterUpgrade);
             assertThat(afterUpgrade.getFormatVersion(), equalTo(KeyStoreWrapper.CURRENT_VERSION));
             afterUpgrade.decrypt(password != null ? password.toCharArray() : new char[0]);
@@ -87,6 +87,6 @@ public class UpgradeKeyStoreCommandTests extends KeyStoreCommandTestCase {
 
     public void testKeystoreDoesNotExist() {
         final UserException e = expectThrows(UserException.class, this::execute);
-        assertThat(e, hasToString(containsString("keystore not found at [" + KeyStoreWrapper.keystorePath(env.configFile()) + "]")));
+        assertThat(e, hasToString(containsString("keystore not found at [" + KeyStoreWrapper.keystorePath(env.configDir()) + "]")));
     }
 }

@@ -19,8 +19,7 @@ public class RateSerializationTests extends AbstractExpressionSerializationTests
         Source source = randomSource();
         Expression field = randomChild();
         Expression timestamp = randomChild();
-        Expression unit = randomBoolean() ? null : randomChild();
-        return new Rate(source, field, timestamp, unit);
+        return new Rate(source, field, timestamp);
     }
 
     @Override
@@ -28,17 +27,10 @@ public class RateSerializationTests extends AbstractExpressionSerializationTests
         Source source = randomSource();
         Expression field = instance.field();
         Expression timestamp = instance.timestamp();
-        Expression unit = instance.unit();
-        switch (between(0, 2)) {
+        switch (between(0, 1)) {
             case 0 -> field = randomValueOtherThan(field, AbstractExpressionSerializationTests::randomChild);
             case 1 -> timestamp = randomValueOtherThan(timestamp, AbstractExpressionSerializationTests::randomChild);
-            case 2 -> unit = randomValueOtherThan(unit, () -> randomBoolean() ? null : randomChild());
         }
-        return new Rate(source, field, timestamp, unit);
-    }
-
-    @Override
-    protected boolean alwaysEmptySource() {
-        return true;
+        return new Rate(source, field, timestamp);
     }
 }

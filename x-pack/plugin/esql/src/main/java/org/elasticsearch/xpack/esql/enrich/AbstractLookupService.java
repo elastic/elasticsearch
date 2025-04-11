@@ -15,7 +15,6 @@ import org.elasticsearch.action.support.ChannelActionListener;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.cluster.routing.GroupShardsIterator;
 import org.elasticsearch.cluster.routing.ShardIterator;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -177,7 +176,13 @@ public abstract class AbstractLookupService<R extends AbstractLookupService.Requ
     /**
      * Build a list of queries to perform inside the actual lookup.
      */
-    protected abstract QueryList queryList(T request, SearchExecutionContext context, Block inputBlock, DataType inputDataType);
+    protected abstract QueryList queryList(
+        T request,
+        SearchExecutionContext context,
+        Block inputBlock,
+        DataType inputDataType,
+        Warnings warnings
+    );
 
     /**
      * Build the response.
@@ -207,8 +212,8 @@ public abstract class AbstractLookupService<R extends AbstractLookupService.Requ
      */
     public final void lookupAsync(R request, CancellableTask parentTask, ActionListener<List<Page>> outListener) {
         ClusterState clusterState = clusterService.state();
-        GroupShardsIterator<ShardIterator> shardIterators = clusterService.operationRouting()
-            .searchShards(clusterState, new String[] { request.index }, Map.of(), "_local");
+        List<ShardIterator> shardIterators = clusterService.operationRouting()
+            .searchShards(clusterState.projectState(), new String[] { request.index }, Map.of(), "_local");
         if (shardIterators.size() != 1) {
             outListener.onFailure(new EsqlIllegalArgumentException("target index {} has more than one shard", request.index));
             return;
@@ -297,13 +302,13 @@ public abstract class AbstractLookupService<R extends AbstractLookupService.Requ
                 }
             }
             releasables.add(finishPages);
-            QueryList queryList = queryList(request, shardContext.executionContext, inputBlock, request.inputDataType);
             var warnings = Warnings.createWarnings(
                 DriverContext.WarningsMode.COLLECT,
                 request.source.source().getLineNumber(),
                 request.source.source().getColumnNumber(),
                 request.source.text()
             );
+            QueryList queryList = queryList(request, shardContext.executionContext, inputBlock, request.inputDataType, warnings);
             var queryOperator = new EnrichQuerySourceOperator(
                 driverContext.blockFactory(),
                 EnrichQuerySourceOperator.DEFAULT_MAX_PAGE_SIZE,
@@ -327,6 +332,9 @@ public abstract class AbstractLookupService<R extends AbstractLookupService.Requ
             releasables.add(outputOperator);
             Driver driver = new Driver(
                 "enrich-lookup:" + request.sessionId,
+                "enrich",
+                clusterService.getClusterName().value(),
+                clusterService.getNodeName(),
                 System.currentTimeMillis(),
                 System.nanoTime(),
                 driverContext,

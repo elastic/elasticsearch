@@ -12,6 +12,7 @@ import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestUtils;
 import org.elasticsearch.rest.Scope;
 import org.elasticsearch.rest.ServerlessScope;
+import org.elasticsearch.rest.action.RestCancellableNodeClient;
 import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.xpack.core.enrich.action.EnrichStatsAction;
 
@@ -43,7 +44,11 @@ public class RestEnrichStatsAction extends BaseRestHandler {
     @Override
     protected RestChannelConsumer prepareRequest(final RestRequest restRequest, final NodeClient client) {
         final var request = new EnrichStatsAction.Request(RestUtils.getMasterNodeTimeout(restRequest));
-        return channel -> client.execute(EnrichStatsAction.INSTANCE, request, new RestToXContentListener<>(channel));
+        return channel -> new RestCancellableNodeClient(client, restRequest.getHttpChannel()).execute(
+            EnrichStatsAction.INSTANCE,
+            request,
+            new RestToXContentListener<>(channel)
+        );
     }
 
 }

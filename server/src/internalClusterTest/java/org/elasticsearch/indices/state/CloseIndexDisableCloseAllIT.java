@@ -50,7 +50,7 @@ public class CloseIndexDisableCloseAllIT extends ESIntegTestCase {
     private void assertIndexIsClosed(String... indices) {
         ClusterStateResponse clusterStateResponse = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get();
         for (String index : indices) {
-            IndexMetadata indexMetadata = clusterStateResponse.getState().metadata().indices().get(index);
+            IndexMetadata indexMetadata = clusterStateResponse.getState().metadata().getProject().indices().get(index);
             assertNotNull(indexMetadata);
             assertEquals(IndexMetadata.State.CLOSE, indexMetadata.getState());
         }

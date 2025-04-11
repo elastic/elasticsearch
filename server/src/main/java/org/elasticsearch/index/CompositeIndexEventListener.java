@@ -138,6 +138,28 @@ final class CompositeIndexEventListener implements IndexEventListener {
     }
 
     @Override
+    public void beforeIndexShardMutableOperation(IndexShard indexShard, boolean permitAcquired, ActionListener<Void> listener) {
+        iterateBeforeIndexShardMutableOperation(indexShard, permitAcquired, listener.delegateResponse((l, e) -> {
+            logger.warn(() -> format("%s failed to invoke the listener before ensuring shard mutability", indexShard.shardId()), e);
+            l.onFailure(e);
+        }));
+    }
+
+    private void iterateBeforeIndexShardMutableOperation(
+        IndexShard indexShard,
+        boolean permitAcquired,
+        ActionListener<Void> outerListener
+    ) {
+        callListeners(
+            indexShard,
+            listeners.stream()
+                .map(iel -> (Consumer<ActionListener<Void>>) (l) -> iel.beforeIndexShardMutableOperation(indexShard, permitAcquired, l))
+                .iterator(),
+            outerListener
+        );
+    }
+
+    @Override
     public void beforeIndexCreated(Index index, Settings indexSettings) {
         for (IndexEventListener listener : listeners) {
             try {

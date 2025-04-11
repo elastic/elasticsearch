@@ -110,7 +110,7 @@ public class Term extends FullTextFunction implements PostAnalysisPlanVerificati
         return (plan, failures) -> {
             super.postAnalysisPlanVerification().accept(plan, failures);
             plan.forEachExpression(Term.class, t -> {
-                if (t.field() instanceof FieldAttribute == false) { // TODO: is a conversion possible, similar to Match's case?
+                if (t.field() instanceof FieldAttribute == false) { // TODO: is a conversion possible, similar to Match’s case?
                     failures.add(
                         Failure.fail(
                             t.field(),
@@ -141,7 +141,8 @@ public class Term extends FullTextFunction implements PostAnalysisPlanVerificati
 
     @Override
     protected Query translate(TranslatorHandler handler) {
-        return new TermQuery(source(), ((FieldAttribute) field()).name(), queryAsObject());
+        // Uses a term query that contributes to scoring
+        return new TermQuery(source(), ((FieldAttribute) field()).name(), queryAsObject(), false, true);
     }
 
     @Override

@@ -52,7 +52,8 @@ public class TransformAuditor extends AbstractAuditor<TransformAuditMessage> {
             nodeName,
             TransformAuditMessage::new,
             clusterService,
-            indexNameExpressionResolver
+            indexNameExpressionResolver,
+            clusterService.threadPool().generic()
         );
         clusterService.addListener(event -> {
             if (event.metadataChanged()) {

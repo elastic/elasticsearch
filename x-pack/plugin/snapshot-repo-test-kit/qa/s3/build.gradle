@@ -37,7 +37,7 @@ if (!s3AccessKey && !s3SecretKey && !s3Bucket && !s3BasePath) {
 }
 
 tasks.named("javaRestTest").configure {
-  usesDefaultDistribution()
+  usesDefaultDistribution("to be triaged")
   systemProperty("tests.use.fixture", Boolean.toString(useFixture))
   systemProperty 'test.s3.bucket', s3Bucket
   systemProperty("s3AccessKey", s3AccessKey)

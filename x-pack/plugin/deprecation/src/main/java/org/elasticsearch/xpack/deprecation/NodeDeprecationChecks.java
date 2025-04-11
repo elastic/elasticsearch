@@ -41,6 +41,60 @@ import static org.elasticsearch.xpack.core.security.authc.RealmSettings.RESERVED
 
 public class NodeDeprecationChecks {
 
+    // Visible for testing
+    static final List<
+        NodeDeprecationCheck<Settings, PluginsAndModules, ClusterState, XPackLicenseState, DeprecationIssue>> SINGLE_NODE_CHECKS = List.of(
+            NodeDeprecationChecks::checkMultipleDataPaths,
+            NodeDeprecationChecks::checkDataPathsList,
+            NodeDeprecationChecks::checkSharedDataPathSetting,
+            NodeDeprecationChecks::checkReservedPrefixedRealmNames,
+            NodeDeprecationChecks::checkExporterUseIngestPipelineSettings,
+            NodeDeprecationChecks::checkExporterPipelineMasterTimeoutSetting,
+            NodeDeprecationChecks::checkExporterCreateLegacyTemplateSetting,
+            NodeDeprecationChecks::checkMonitoringSettingHistoryDuration,
+            NodeDeprecationChecks::checkMonitoringSettingHistoryDuration,
+            NodeDeprecationChecks::checkMonitoringSettingCollectIndexRecovery,
+            NodeDeprecationChecks::checkMonitoringSettingCollectIndices,
+            NodeDeprecationChecks::checkMonitoringSettingCollectCcrTimeout,
+            NodeDeprecationChecks::checkMonitoringSettingCollectEnrichStatsTimeout,
+            NodeDeprecationChecks::checkMonitoringSettingCollectIndexRecoveryStatsTimeout,
+            NodeDeprecationChecks::checkMonitoringSettingCollectIndexStatsTimeout,
+            NodeDeprecationChecks::checkMonitoringSettingCollectMlJobStatsTimeout,
+            NodeDeprecationChecks::checkMonitoringSettingCollectNodeStatsTimeout,
+            NodeDeprecationChecks::checkMonitoringSettingCollectClusterStatsTimeout,
+            NodeDeprecationChecks::checkMonitoringSettingExportersHost,
+            NodeDeprecationChecks::checkMonitoringSettingExportersBulkTimeout,
+            NodeDeprecationChecks::checkMonitoringSettingExportersConnectionTimeout,
+            NodeDeprecationChecks::checkMonitoringSettingExportersConnectionReadTimeout,
+            NodeDeprecationChecks::checkMonitoringSettingExportersAuthUsername,
+            NodeDeprecationChecks::checkMonitoringSettingExportersAuthPass,
+            NodeDeprecationChecks::checkMonitoringSettingExportersSSL,
+            NodeDeprecationChecks::checkMonitoringSettingExportersProxyBase,
+            NodeDeprecationChecks::checkMonitoringSettingExportersSniffEnabled,
+            NodeDeprecationChecks::checkMonitoringSettingExportersHeaders,
+            NodeDeprecationChecks::checkMonitoringSettingExportersTemplateTimeout,
+            NodeDeprecationChecks::checkMonitoringSettingExportersMasterTimeout,
+            NodeDeprecationChecks::checkMonitoringSettingExportersEnabled,
+            NodeDeprecationChecks::checkMonitoringSettingExportersType,
+            NodeDeprecationChecks::checkMonitoringSettingExportersAlertsEnabled,
+            NodeDeprecationChecks::checkMonitoringSettingExportersAlertsBlacklist,
+            NodeDeprecationChecks::checkMonitoringSettingExportersIndexNameTimeFormat,
+            NodeDeprecationChecks::checkMonitoringSettingDecommissionAlerts,
+            NodeDeprecationChecks::checkMonitoringSettingEsCollectionEnabled,
+            NodeDeprecationChecks::checkMonitoringSettingCollectionEnabled,
+            NodeDeprecationChecks::checkMonitoringSettingCollectionInterval,
+            NodeDeprecationChecks::checkScriptContextCache,
+            NodeDeprecationChecks::checkScriptContextCompilationsRateLimitSetting,
+            NodeDeprecationChecks::checkScriptContextCacheSizeSetting,
+            NodeDeprecationChecks::checkScriptContextCacheExpirationSetting,
+            NodeDeprecationChecks::checkEnforceDefaultTierPreferenceSetting,
+            NodeDeprecationChecks::checkLifecyleStepMasterTimeoutSetting,
+            NodeDeprecationChecks::checkEqlEnabledSetting,
+            NodeDeprecationChecks::checkNodeAttrData,
+            NodeDeprecationChecks::checkWatcherBulkConcurrentRequestsSetting,
+            NodeDeprecationChecks::checkTracingApmSettings
+        );
+
     static DeprecationIssue checkDeprecatedSetting(
         final Settings clusterSettings,
         final Settings nodeSettings,
@@ -75,15 +129,6 @@ public class NodeDeprecationChecks {
 
     private static Map<String, Object> createMetaMapForRemovableSettings(boolean canAutoRemoveSetting, List<String> removableSettings) {
         return canAutoRemoveSetting ? DeprecationIssue.createMetaMapForRemovableSettings(removableSettings) : null;
-    }
-
-    static DeprecationIssue checkRemovedSetting(
-        final Settings clusterSettings,
-        final Settings nodeSettings,
-        final Setting<?> removedSetting,
-        final String url
-    ) {
-        return checkRemovedSetting(clusterSettings, nodeSettings, removedSetting, url, null, DeprecationIssue.Level.CRITICAL);
     }
 
     static DeprecationIssue checkRemovedSetting(
@@ -1011,5 +1056,10 @@ public class NodeDeprecationChecks {
                 + " and should be replaced by [telemetry.*] or [telemetry.tracing.*] settings.",
             DeprecationIssue.Level.CRITICAL
         );
+    }
+
+    @FunctionalInterface
+    public interface NodeDeprecationCheck<A, B, C, D, R> {
+        R apply(A first, B second, C third, D fourth);
     }
 }

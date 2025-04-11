@@ -28,7 +28,7 @@ import org.elasticsearch.indices.TestSystemIndexDescriptorAllowsTemplates;
 import org.elasticsearch.indices.TestSystemIndexPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.SystemIndexPlugin;
-import org.elasticsearch.snapshots.SystemIndicesSnapshotIT;
+import org.elasticsearch.snapshots.SystemResourceSnapshotIT;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.xcontent.XContentType;
 import org.junit.After;
@@ -300,7 +300,7 @@ public class AutoCreateSystemIndexIT extends ESIntegTestCase {
 
         @Override
         public String getFeatureName() {
-            return SystemIndicesSnapshotIT.SystemIndexTestPlugin.class.getSimpleName();
+            return SystemResourceSnapshotIT.SystemIndexTestPlugin.class.getSimpleName();
         }
 
         @Override

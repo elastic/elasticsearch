@@ -13,21 +13,28 @@ import org.elasticsearch.logsdb.datageneration.FieldDataGenerator;
 import org.elasticsearch.logsdb.datageneration.datasource.DataSource;
 import org.elasticsearch.logsdb.datageneration.datasource.DataSourceRequest;
 
+import java.util.Map;
 import java.util.function.Supplier;
 
 public class UnsignedLongFieldDataGenerator implements FieldDataGenerator {
     private final Supplier<Object> valueGenerator;
+    private final Supplier<Object> valueGeneratorWithMalformed;
 
     public UnsignedLongFieldDataGenerator(String fieldName, DataSource dataSource) {
-        var unsignedLongs = dataSource.get(new DataSourceRequest.UnsignedLongGenerator());
-        var nulls = dataSource.get(new DataSourceRequest.NullWrapper());
-        var arrays = dataSource.get(new DataSourceRequest.ArrayWrapper());
+        var unsignedLongs = dataSource.get(new DataSourceRequest.UnsignedLongGenerator()).generator();
 
-        this.valueGenerator = arrays.wrapper().compose(nulls.wrapper()).apply(() -> unsignedLongs.generator().get());
+        this.valueGenerator = Wrappers.defaults(unsignedLongs::get, dataSource);
+
+        var strings = dataSource.get(new DataSourceRequest.StringGenerator()).generator();
+        this.valueGeneratorWithMalformed = Wrappers.defaultsWithMalformed(unsignedLongs::get, strings::get, dataSource);
     }
 
     @Override
-    public Object generateValue() {
+    public Object generateValue(Map<String, Object> fieldMapping) {
+        if (fieldMapping != null && (Boolean) fieldMapping.getOrDefault("ignore_malformed", false)) {
+            return valueGeneratorWithMalformed.get();
+        }
+
         return valueGenerator.get();
     }
 }

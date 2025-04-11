@@ -210,7 +210,8 @@ public class TimeSeriesRateAggregatorTests extends AggregatorTestCase {
             null,
             false,
             TimeSeriesParams.MetricType.COUNTER,
-            IndexMode.TIME_SERIES
+            IndexMode.TIME_SERIES,
+            false
         );
     }
 

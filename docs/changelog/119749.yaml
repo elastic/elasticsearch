@@ -1,5 +1,0 @@
-pr: 119749
-summary: Strengthen encryption for elasticsearch-keystore tool to AES 256
-area: Infra/CLI
-type: enhancement
-issues: []

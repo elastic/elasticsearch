@@ -13,13 +13,47 @@ apply plugin: 'com.gradleup.shadow'
 
 import com.github.jengelman.gradle.plugins.shadow.tasks.ShadowJar
 
+def hdfs2patched = Attribute.of('hdfs2-patched', Boolean)
+def hdfs3patched = Attribute.of('hdfs3-patched', Boolean)
 configurations {
-  hdfs2
-  hdfs3
+  hdfs2 {
+    attributes {
+      attribute(hdfs2patched, true)
+    }
+  }
+  hdfs3 {
+    attributes {
+      attribute(hdfs3patched, true)
+    }
+  }
   consumable("shadowedHdfs2")
 }
 
 dependencies {
+  attributesSchema {
+    attribute(hdfs2patched)
+    attribute(hdfs3patched)
+  }
+  artifactTypes.getByName("jar") {
+    attributes.attribute(hdfs2patched, false)
+    attributes.attribute(hdfs3patched, false)
+  }
+  registerTransform(org.elasticsearch.gradle.internal.dependencies.patches.hdfs.HdfsClassPatcher) {
+    from.attribute(hdfs2patched, false)
+    to.attribute(hdfs2patched, true)
+    parameters {
+      matchingArtifacts = ["hadoop2-common"]
+    }
+  }
+
+  registerTransform(org.elasticsearch.gradle.internal.dependencies.patches.hdfs.HdfsClassPatcher) {
+    from.attribute(hdfs3patched, false)
+    to.attribute(hdfs3patched, true)
+    parameters {
+      matchingArtifacts = ["hadoop3-common"]
+    }
+  }
+
   compileOnly("org.apache.hadoop:hadoop-minicluster:2.8.5")
   api("com.carrotsearch.randomizedtesting:randomizedtesting-runner:${versions.randomizedrunner}") {
     transitive = false

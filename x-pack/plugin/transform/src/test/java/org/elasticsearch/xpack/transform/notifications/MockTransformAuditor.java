@@ -14,8 +14,11 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.regex.Regex;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.common.notifications.Level;
 import org.elasticsearch.xpack.core.transform.notifications.TransformAuditMessage;
 
@@ -46,18 +49,23 @@ public class MockTransformAuditor extends TransformAuditor {
     public static MockTransformAuditor createMockAuditor() {
         Map<String, IndexTemplateMetadata> templates = Map.of(AUDIT_INDEX, mock(IndexTemplateMetadata.class));
         Metadata metadata = mock(Metadata.class);
-        when(metadata.getTemplates()).thenReturn(templates);
+        ProjectMetadata project = mock(ProjectMetadata.class);
+        when(metadata.getProject()).thenReturn(project);
+        when(project.templates()).thenReturn(templates);
         ClusterState state = mock(ClusterState.class);
         when(state.getMetadata()).thenReturn(metadata);
         ClusterService clusterService = mock(ClusterService.class);
         when(clusterService.state()).thenReturn(state);
+        ThreadPool threadPool = mock();
+        when(threadPool.generic()).thenReturn(EsExecutors.DIRECT_EXECUTOR_SERVICE);
+        when(clusterService.threadPool()).thenReturn(threadPool);
 
         return new MockTransformAuditor(clusterService, mock(IndexNameExpressionResolver.class));
     }
 
     private final List<AuditExpectation> expectations;
 
-    public MockTransformAuditor(ClusterService clusterService, IndexNameExpressionResolver indexNameResolver) {
+    private MockTransformAuditor(ClusterService clusterService, IndexNameExpressionResolver indexNameResolver) {
         super(mock(Client.class), MOCK_NODE_NAME, clusterService, indexNameResolver, true);
         expectations = new CopyOnWriteArrayList<>();
     }

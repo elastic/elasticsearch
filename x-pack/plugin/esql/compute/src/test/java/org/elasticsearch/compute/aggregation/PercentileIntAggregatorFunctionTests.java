@@ -31,8 +31,8 @@ public class PercentileIntAggregatorFunctionTests extends AggregatorFunctionTest
     }
 
     @Override
-    protected AggregatorFunctionSupplier aggregatorFunction(List<Integer> inputChannels) {
-        return new PercentileIntAggregatorFunctionSupplier(inputChannels, percentile);
+    protected AggregatorFunctionSupplier aggregatorFunction() {
+        return new PercentileIntAggregatorFunctionSupplier(percentile);
     }
 
     @Override

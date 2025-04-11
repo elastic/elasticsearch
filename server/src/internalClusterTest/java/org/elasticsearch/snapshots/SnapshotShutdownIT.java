@@ -597,7 +597,7 @@ public class SnapshotShutdownIT extends AbstractSnapshotIntegTestCase {
                 "SnapshotShutdownProgressTracker index shard snapshot messages",
                 SnapshotShutdownProgressTracker.class.getCanonicalName(),
                 Level.INFO,
-                "statusDescription='finished: master notification attempt complete'"
+                "*successfully sent shard snapshot state [PAUSED_FOR_NODE_REMOVAL] update to the master node*"
             )
         );
 

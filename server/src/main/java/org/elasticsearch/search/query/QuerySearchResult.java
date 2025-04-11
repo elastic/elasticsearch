@@ -11,6 +11,7 @@ package org.elasticsearch.search.query;
 
 import org.apache.lucene.search.FieldDoc;
 import org.apache.lucene.search.TotalHits;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.DelayableWriteable;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -68,6 +69,8 @@ public final class QuerySearchResult extends SearchPhaseResult {
     private long serviceTimeEWMA = -1;
     private int nodeQueueSize = -1;
 
+    private boolean reduced;
+
     private final boolean isNull;
 
     private final RefCounted refCounted;
@@ -88,10 +91,11 @@ public final class QuerySearchResult extends SearchPhaseResult {
      * @param delayedAggregations whether to use delayed aggregations or not
      */
     public QuerySearchResult(StreamInput in, boolean delayedAggregations) throws IOException {
-        super(in);
         isNull = in.readBoolean();
         if (isNull == false) {
-            ShardSearchContextId id = new ShardSearchContextId(in);
+            ShardSearchContextId id = versionSupportsBatchedExecution(in.getTransportVersion())
+                ? in.readOptionalWriteable(ShardSearchContextId::new)
+                : new ShardSearchContextId(in);
             readFromWithId(id, in, delayedAggregations);
         }
         refCounted = null;
@@ -137,6 +141,23 @@ public final class QuerySearchResult extends SearchPhaseResult {
     @Override
     public QuerySearchResult queryResult() {
         return this;
+    }
+
+    /**
+     * @return true if this result was already partially reduced on the data node that it originated on so that the coordinating node
+     * will skip trying to merge aggregations and top-hits from this instance on the final reduce pass
+     */
+    public boolean isPartiallyReduced() {
+        return reduced;
+    }
+
+    /**
+     * See {@link #isPartiallyReduced()}, calling this method marks this hit as having undergone partial reduction on the data node.
+     */
+    public void markAsPartiallyReduced() {
+        assert (hasConsumedTopDocs() || topDocsAndMaxScore.topDocs.scoreDocs.length == 0) && aggregations == null
+            : "result not yet partially reduced [" + topDocsAndMaxScore + "][" + aggregations + "]";
+        this.reduced = true;
     }
 
     public void searchTimedOut(boolean searchTimedOut) {
@@ -234,6 +255,15 @@ public final class QuerySearchResult extends SearchPhaseResult {
             throw new IllegalStateException("aggs already released");
         }
         return aggregations;
+    }
+
+    public DelayableWriteable<InternalAggregations> consumeAggs() {
+        if (aggregations == null) {
+            throw new IllegalStateException("aggs already released");
+        }
+        var res = aggregations;
+        aggregations = null;
+        return res;
     }
 
     /**
@@ -381,7 +411,13 @@ public final class QuerySearchResult extends SearchPhaseResult {
                 sortValueFormats[i] = in.readNamedWriteable(DocValueFormat.class);
             }
         }
-        setTopDocs(readTopDocs(in));
+        if (versionSupportsBatchedExecution(in.getTransportVersion())) {
+            if (in.readBoolean()) {
+                setTopDocs(readTopDocs(in));
+            }
+        } else {
+            setTopDocs(readTopDocs(in));
+        }
         hasAggs = in.readBoolean();
         boolean success = false;
         try {
@@ -405,6 +441,9 @@ public final class QuerySearchResult extends SearchPhaseResult {
             setRescoreDocIds(new RescoreDocIds(in));
             if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_8_0)) {
                 rankShardResult = in.readOptionalNamedWriteable(RankShardResult.class);
+                if (versionSupportsBatchedExecution(in.getTransportVersion())) {
+                    reduced = in.readBoolean();
+                }
             }
             success = true;
         } finally {
@@ -423,7 +462,11 @@ public final class QuerySearchResult extends SearchPhaseResult {
         }
         out.writeBoolean(isNull);
         if (isNull == false) {
-            contextId.writeTo(out);
+            if (versionSupportsBatchedExecution(out.getTransportVersion())) {
+                out.writeOptionalWriteable(contextId);
+            } else {
+                contextId.writeTo(out);
+            }
             writeToNoId(out);
         }
     }
@@ -439,7 +482,17 @@ public final class QuerySearchResult extends SearchPhaseResult {
                 out.writeNamedWriteable(sortValueFormats[i]);
             }
         }
-        writeTopDocs(out, topDocsAndMaxScore);
+        if (versionSupportsBatchedExecution(out.getTransportVersion())) {
+            if (topDocsAndMaxScore != null) {
+                out.writeBoolean(true);
+                writeTopDocs(out, topDocsAndMaxScore);
+            } else {
+                assert isPartiallyReduced();
+                out.writeBoolean(false);
+            }
+        } else {
+            writeTopDocs(out, topDocsAndMaxScore);
+        }
         out.writeOptionalWriteable(aggregations);
         if (suggest == null) {
             out.writeBoolean(false);
@@ -458,6 +511,9 @@ public final class QuerySearchResult extends SearchPhaseResult {
             out.writeOptionalNamedWriteable(rankShardResult);
         } else if (rankShardResult != null) {
             throw new IllegalArgumentException("cannot serialize [rank] to version [" + out.getTransportVersion().toReleaseVersion() + "]");
+        }
+        if (versionSupportsBatchedExecution(out.getTransportVersion())) {
+            out.writeBoolean(reduced);
         }
     }
 
@@ -505,5 +561,10 @@ public final class QuerySearchResult extends SearchPhaseResult {
             return refCounted.hasReferences();
         }
         return super.hasReferences();
+    }
+
+    private static boolean versionSupportsBatchedExecution(TransportVersion transportVersion) {
+        return transportVersion.onOrAfter(TransportVersions.BATCHED_QUERY_PHASE_VERSION)
+            || transportVersion.isPatchFrom(TransportVersions.BATCHED_QUERY_PHASE_VERSION_BACKPORT_8_X);
     }
 }

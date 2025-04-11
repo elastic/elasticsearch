@@ -7,14 +7,11 @@
 package org.elasticsearch.xpack.monitoring;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.ActionRequest;
-import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.client.internal.node.NodeClient;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
@@ -52,10 +49,9 @@ public class LocalStateMonitoring extends LocalStateCompositeXPackPlugin {
             TransportService transportService,
             ClusterService clusterService,
             ActionFilters actionFilters,
-            IndexNameExpressionResolver indexNameExpressionResolver,
             NodeClient client
         ) {
-            super(threadPool, transportService, clusterService, actionFilters, indexNameExpressionResolver, client);
+            super(threadPool, transportService, clusterService, actionFilters, client);
         }
 
         @Override
@@ -112,12 +108,12 @@ public class LocalStateMonitoring extends LocalStateCompositeXPackPlugin {
     }
 
     @Override
-    public List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {
+    public List<ActionHandler> getActions() {
         var actions = super.getActions();
         // ccr StatsCollector
-        actions.add(new ActionHandler<>(CcrStatsAction.INSTANCE, TransportCcrStatsStubAction.class));
+        actions.add(new ActionHandler(CcrStatsAction.INSTANCE, TransportCcrStatsStubAction.class));
         // For EnrichStatsCollector:
-        actions.add(new ActionHandler<>(EnrichStatsAction.INSTANCE, TransportEnrichStatsStubAction.class));
+        actions.add(new ActionHandler(EnrichStatsAction.INSTANCE, TransportEnrichStatsStubAction.class));
         return actions;
     }
 

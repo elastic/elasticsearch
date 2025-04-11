@@ -20,6 +20,7 @@ import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.core.security.authc.RealmConfig;
 import org.elasticsearch.xpack.core.security.support.NoOpLogger;
 import org.elasticsearch.xpack.core.security.support.Validation;
+import org.elasticsearch.xpack.security.PrivilegedFileWatcher;
 import org.elasticsearch.xpack.security.support.SecurityFiles;
 
 import java.io.IOException;
@@ -57,7 +58,7 @@ public class FileUserRolesStore {
         file = resolveFile(config.env());
         userRoles = parseFileLenient(file, logger);
         listeners = new CopyOnWriteArrayList<>(Collections.singletonList(listener));
-        FileWatcher watcher = new FileWatcher(file.getParent());
+        FileWatcher watcher = new PrivilegedFileWatcher(file.getParent());
         watcher.addListener(new FileListener());
         try {
             watcherService.add(watcher, ResourceWatcherService.Frequency.HIGH);

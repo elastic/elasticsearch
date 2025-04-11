@@ -14,9 +14,10 @@ import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.util.LazyInitializable;
-import org.elasticsearch.common.xcontent.ChunkedToXContent;
 import org.elasticsearch.common.xcontent.ChunkedToXContentHelper;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.inference.ChunkInferenceInput;
 import org.elasticsearch.inference.ChunkedInference;
 import org.elasticsearch.inference.InferenceServiceConfiguration;
 import org.elasticsearch.inference.InferenceServiceExtension;
@@ -30,14 +31,18 @@ import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.inference.UnifiedCompletionRequest;
 import org.elasticsearch.inference.configuration.SettingsConfigurationFieldType;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.inference.results.StreamingChatCompletionResults;
 import org.elasticsearch.xpack.core.inference.results.StreamingUnifiedChatCompletionResults;
+import org.elasticsearch.xpack.core.inference.results.TextEmbeddingFloatResults;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.EnumSet;
 import java.util.HashMap;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -56,7 +61,11 @@ public class TestStreamingCompletionServiceExtension implements InferenceService
         private static final String NAME = "streaming_completion_test_service";
         private static final Set<TaskType> supportedStreamingTasks = Set.of(TaskType.COMPLETION, TaskType.CHAT_COMPLETION);
 
-        private static final EnumSet<TaskType> supportedTaskTypes = EnumSet.of(TaskType.COMPLETION, TaskType.CHAT_COMPLETION);
+        private static final EnumSet<TaskType> supportedTaskTypes = EnumSet.of(
+            TaskType.COMPLETION,
+            TaskType.CHAT_COMPLETION,
+            TaskType.SPARSE_EMBEDDING
+        );
 
         public TestInferenceService(InferenceServiceExtension.InferenceServiceFactoryContext context) {}
 
@@ -102,6 +111,8 @@ public class TestStreamingCompletionServiceExtension implements InferenceService
         public void infer(
             Model model,
             String query,
+            @Nullable Boolean returnDocuments,
+            @Nullable Integer topN,
             List<String> input,
             boolean stream,
             Map<String, Object> taskSettings,
@@ -110,7 +121,21 @@ public class TestStreamingCompletionServiceExtension implements InferenceService
             ActionListener<InferenceServiceResults> listener
         ) {
             switch (model.getConfigurations().getTaskType()) {
-                case COMPLETION -> listener.onResponse(makeResults(input));
+                case COMPLETION -> listener.onResponse(makeChatCompletionResults(input));
+                case SPARSE_EMBEDDING -> {
+                    if (stream) {
+                        listener.onFailure(
+                            new ElasticsearchStatusException(
+                                TaskType.unsupportedTaskTypeErrorMsg(model.getConfigurations().getTaskType(), name()),
+                                RestStatus.BAD_REQUEST
+                            )
+                        );
+                    } else {
+                        // Return text embedding results when creating a sparse_embedding inference endpoint to allow creation validation to
+                        // pass. This is required to test that streaming fails for a sparse_embedding endpoint.
+                        listener.onResponse(makeTextEmbeddingResults(input));
+                    }
+                }
                 default -> listener.onFailure(
                     new ElasticsearchStatusException(
                         TaskType.unsupportedTaskTypeErrorMsg(model.getConfigurations().getTaskType(), name()),
@@ -138,7 +163,7 @@ public class TestStreamingCompletionServiceExtension implements InferenceService
             }
         }
 
-        private StreamingChatCompletionResults makeResults(List<String> input) {
+        private StreamingChatCompletionResults makeChatCompletionResults(List<String> input) {
             var responseIter = input.stream().map(s -> s.toUpperCase(Locale.ROOT)).iterator();
             return new StreamingChatCompletionResults(subscriber -> {
                 subscriber.onSubscribe(new Flow.Subscription() {
@@ -157,10 +182,43 @@ public class TestStreamingCompletionServiceExtension implements InferenceService
             });
         }
 
-        private ChunkedToXContent completionChunk(String delta) {
-            return params -> ChunkedToXContentHelper.chunk(
-                (b, p) -> b.startObject().startArray(COMPLETION).startObject().field("delta", delta).endObject().endArray().endObject()
-            );
+        private TextEmbeddingFloatResults makeTextEmbeddingResults(List<String> input) {
+            var embeddings = new ArrayList<TextEmbeddingFloatResults.Embedding>();
+            for (int i = 0; i < input.size(); i++) {
+                var values = new float[5];
+                for (int j = 0; j < 5; j++) {
+                    values[j] = random.nextFloat();
+                }
+                embeddings.add(new TextEmbeddingFloatResults.Embedding(values));
+            }
+            return new TextEmbeddingFloatResults(embeddings);
+        }
+
+        private InferenceServiceResults.Result completionChunk(String delta) {
+            return new InferenceServiceResults.Result() {
+                @Override
+                public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params params) {
+                    return ChunkedToXContentHelper.chunk(
+                        (b, p) -> b.startObject()
+                            .startArray(COMPLETION)
+                            .startObject()
+                            .field("delta", delta)
+                            .endObject()
+                            .endArray()
+                            .endObject()
+                    );
+                }
+
+                @Override
+                public void writeTo(StreamOutput out) throws IOException {
+                    out.writeString(delta);
+                }
+
+                @Override
+                public String getWriteableName() {
+                    return "test_completionChunk";
+                }
+            };
         }
 
         private StreamingUnifiedChatCompletionResults makeUnifiedResults(UnifiedCompletionRequest request) {
@@ -198,29 +256,44 @@ public class TestStreamingCompletionServiceExtension implements InferenceService
           "object": "chat.completion.chunk"
         }
          */
-        private ChunkedToXContent unifiedCompletionChunk(String delta) {
-            return params -> ChunkedToXContentHelper.chunk(
-                (b, p) -> b.startObject()
-                    .field("id", "id")
-                    .startArray("choices")
-                    .startObject()
-                    .startObject("delta")
-                    .field("content", delta)
-                    .endObject()
-                    .field("index", 0)
-                    .endObject()
-                    .endArray()
-                    .field("model", "gpt-4o-2024-08-06")
-                    .field("object", "chat.completion.chunk")
-                    .endObject()
-            );
+        private InferenceServiceResults.Result unifiedCompletionChunk(String delta) {
+            return new InferenceServiceResults.Result() {
+                @Override
+                public String getWriteableName() {
+                    return "test_unifiedCompletionChunk";
+                }
+
+                @Override
+                public void writeTo(StreamOutput out) throws IOException {
+                    out.writeString(delta);
+                }
+
+                @Override
+                public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params params) {
+                    return ChunkedToXContentHelper.chunk(
+                        (b, p) -> b.startObject()
+                            .field("id", "id")
+                            .startArray("choices")
+                            .startObject()
+                            .startObject("delta")
+                            .field("content", delta)
+                            .endObject()
+                            .field("index", 0)
+                            .endObject()
+                            .endArray()
+                            .field("model", "gpt-4o-2024-08-06")
+                            .field("object", "chat.completion.chunk")
+                            .endObject()
+                    );
+                }
+            };
         }
 
         @Override
         public void chunkedInfer(
             Model model,
             String query,
-            List<String> input,
+            List<ChunkInferenceInput> input,
             Map<String, Object> taskSettings,
             InputType inputType,
             TimeValue timeout,

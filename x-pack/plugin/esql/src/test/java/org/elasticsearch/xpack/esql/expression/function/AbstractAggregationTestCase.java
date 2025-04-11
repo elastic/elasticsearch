@@ -11,6 +11,7 @@ import org.elasticsearch.compute.aggregation.Aggregator;
 import org.elasticsearch.compute.aggregation.AggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.AggregatorMode;
 import org.elasticsearch.compute.aggregation.GroupingAggregator;
+import org.elasticsearch.compute.aggregation.GroupingAggregatorEvaluationContext;
 import org.elasticsearch.compute.aggregation.GroupingAggregatorFunction;
 import org.elasticsearch.compute.aggregation.SeenGroupIds;
 import org.elasticsearch.compute.data.Block;
@@ -354,7 +355,7 @@ public abstract class AbstractAggregationTestCase extends AbstractFunctionTestCa
         var resultBlockIndex = randomIntBetween(0, blocksArraySize - 1);
         var blocks = new Block[blocksArraySize];
         try (var groups = IntVector.range(0, groupCount, driverContext().blockFactory())) {
-            aggregator.evaluate(blocks, resultBlockIndex, groups, driverContext());
+            aggregator.evaluate(blocks, resultBlockIndex, groups, new GroupingAggregatorEvaluationContext(driverContext()));
 
             var block = blocks[resultBlockIndex];
 
@@ -410,15 +411,15 @@ public abstract class AbstractAggregationTestCase extends AbstractFunctionTestCa
     }
 
     private Aggregator aggregator(Expression expression, List<Integer> inputChannels, AggregatorMode mode) {
-        AggregatorFunctionSupplier aggregatorFunctionSupplier = ((ToAggregator) expression).supplier(inputChannels);
+        AggregatorFunctionSupplier aggregatorFunctionSupplier = ((ToAggregator) expression).supplier();
 
-        return new Aggregator(aggregatorFunctionSupplier.aggregator(driverContext()), mode);
+        return new Aggregator(aggregatorFunctionSupplier.aggregator(driverContext(), inputChannels), mode);
     }
 
     private GroupingAggregator groupingAggregator(Expression expression, List<Integer> inputChannels, AggregatorMode mode) {
-        AggregatorFunctionSupplier aggregatorFunctionSupplier = ((ToAggregator) expression).supplier(inputChannels);
+        AggregatorFunctionSupplier aggregatorFunctionSupplier = ((ToAggregator) expression).supplier();
 
-        return new GroupingAggregator(aggregatorFunctionSupplier.groupingAggregator(driverContext()), mode);
+        return new GroupingAggregator(aggregatorFunctionSupplier.groupingAggregator(driverContext(), inputChannels), mode);
     }
 
     /**

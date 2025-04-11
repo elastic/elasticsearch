@@ -14,7 +14,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
-import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
+import org.elasticsearch.persistent.ClusterPersistentTasksCustomMetadata;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.Set;
@@ -55,10 +55,10 @@ public class HealthNodeTests extends ESTestCase {
     }
 
     public void testfindHealthNodeNoAssignment() {
-        PersistentTasksCustomMetadata.Builder tasks = PersistentTasksCustomMetadata.builder();
+        ClusterPersistentTasksCustomMetadata.Builder tasks = ClusterPersistentTasksCustomMetadata.builder();
         tasks.addTask(HealthNode.TASK_NAME, HealthNode.TASK_NAME, HealthNodeTaskParams.INSTANCE, NO_NODE_FOUND);
         ClusterState state = ClusterStateCreationUtils.state(node1, node1, allNodes)
-            .copyAndUpdateMetadata(b -> b.putCustom(PersistentTasksCustomMetadata.TYPE, tasks.build()));
+            .copyAndUpdateMetadata(b -> b.putCustom(ClusterPersistentTasksCustomMetadata.TYPE, tasks.build()));
         assertThat(HealthNode.findHealthNode(state), nullValue());
     }
 

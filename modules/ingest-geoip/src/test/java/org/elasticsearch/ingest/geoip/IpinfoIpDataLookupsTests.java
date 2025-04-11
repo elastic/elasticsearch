@@ -104,16 +104,16 @@ public class IpinfoIpDataLookupsTests extends ESTestCase {
     public void testAsnFree() {
         assumeFalse("https://github.com/elastic/elasticsearch/issues/114266", Constants.WINDOWS);
         String databaseName = "ip_asn_sample.mmdb";
-        String ip = "23.32.184.0";
+        String ip = "23.200.217.1";
         assertExpectedLookupResults(
             databaseName,
             ip,
             new IpinfoIpDataLookups.Asn(Database.AsnV2.properties()),
             Map.ofEntries(
                 entry("ip", ip),
-                entry("organization_name", "Akamai Technologies, Inc."),
-                entry("asn", 16625L),
-                entry("network", "23.32.184.0/21"),
+                entry("organization_name", "Akamai Technologies Tokyo ASN"),
+                entry("asn", 24319L),
+                entry("network", "23.200.217.0/24"),
                 entry("domain", "akamai.com")
             ),
             Map.ofEntries(entry("name", "organization_name"), entry("asn", "asn"), entry("network", "network"), entry("domain", "domain")),
@@ -125,17 +125,17 @@ public class IpinfoIpDataLookupsTests extends ESTestCase {
     public void testAsnStandard() {
         assumeFalse("https://github.com/elastic/elasticsearch/issues/114266", Constants.WINDOWS);
         String databaseName = "asn_sample.mmdb";
-        String ip = "69.19.224.0";
+        String ip = "207.244.150.1";
         assertExpectedLookupResults(
             databaseName,
             ip,
             new IpinfoIpDataLookups.Asn(Database.AsnV2.properties()),
             Map.ofEntries(
                 entry("ip", ip),
-                entry("organization_name", "TPx Communications"),
-                entry("asn", 14265L),
-                entry("network", "69.19.224.0/22"),
-                entry("domain", "tpx.com"),
+                entry("organization_name", "Wowrack.com"),
+                entry("asn", 23033L),
+                entry("network", "207.244.150.0/23"),
+                entry("domain", "wowrack.com"),
                 entry("type", "hosting"),
                 entry("country_iso_code", "US")
             ),
@@ -192,15 +192,15 @@ public class IpinfoIpDataLookupsTests extends ESTestCase {
     public void testCountryFree() {
         assumeFalse("https://github.com/elastic/elasticsearch/issues/114266", Constants.WINDOWS);
         String databaseName = "ip_country_sample.mmdb";
-        String ip = "20.33.76.0";
+        String ip = "149.7.32.1";
         assertExpectedLookupResults(
             databaseName,
             ip,
             new IpinfoIpDataLookups.Country(Database.CountryV2.properties()),
             Map.ofEntries(
                 entry("ip", ip),
-                entry("country_name", "Ireland"),
-                entry("country_iso_code", "IE"),
+                entry("country_name", "United Kingdom"),
+                entry("country_iso_code", "GB"),
                 entry("continent_name", "Europe"),
                 entry("continent_code", "EU")
             ),
@@ -289,14 +289,14 @@ public class IpinfoIpDataLookupsTests extends ESTestCase {
     public void testPrivacyDetectionStandard() {
         assumeFalse("https://github.com/elastic/elasticsearch/issues/114266", Constants.WINDOWS);
         String databaseName = "privacy_detection_sample.mmdb";
-        String ip = "2.57.109.154";
+        String ip = "20.102.24.249";
         assertExpectedLookupResults(
             databaseName,
             ip,
             new IpinfoIpDataLookups.PrivacyDetection(Database.PrivacyDetection.properties()),
             Map.ofEntries(
                 entry("ip", ip),
-                entry("hosting", false),
+                entry("hosting", true),
                 entry("proxy", false),
                 entry("relay", false),
                 entry("tor", false),
@@ -317,7 +317,7 @@ public class IpinfoIpDataLookupsTests extends ESTestCase {
     public void testPrivacyDetectionStandardNonEmptyService() {
         assumeFalse("https://github.com/elastic/elasticsearch/issues/114266", Constants.WINDOWS);
         String databaseName = "privacy_detection_sample.mmdb";
-        String ip = "59.29.201.246";
+        String ip = "14.52.64.231";
         assertExpectedLookupResults(
             databaseName,
             ip,

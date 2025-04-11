@@ -235,7 +235,7 @@ public class LogsdbWithBasicRestIT extends ESRestTestCase {
         var settings = (Map<?, ?>) ((Map<?, ?>) getIndexSettings(index).get(index)).get("settings");
         assertEquals("logsdb", settings.get("index.mode"));
         assertEquals(SourceFieldMapper.Mode.STORED.toString(), settings.get("index.mapping.source.mode"));
-        assertEquals("true", settings.get(IndexSettings.LOGSDB_ROUTE_ON_SORT_FIELDS.getKey()));
-        assertEquals(List.of("host.name", "message"), settings.get(IndexMetadata.INDEX_ROUTING_PATH.getKey()));
+        assertEquals("false", settings.get(IndexSettings.LOGSDB_ROUTE_ON_SORT_FIELDS.getKey()));
+        assertNull(settings.get(IndexMetadata.INDEX_ROUTING_PATH.getKey()));
     }
 }

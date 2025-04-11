@@ -33,8 +33,8 @@ public class MaxFloatGroupingAggregatorFunctionTests extends GroupingAggregatorF
     }
 
     @Override
-    protected AggregatorFunctionSupplier aggregatorFunction(List<Integer> inputChannels) {
-        return new MaxFloatAggregatorFunctionSupplier(inputChannels);
+    protected AggregatorFunctionSupplier aggregatorFunction() {
+        return new MaxFloatAggregatorFunctionSupplier();
     }
 
     @Override

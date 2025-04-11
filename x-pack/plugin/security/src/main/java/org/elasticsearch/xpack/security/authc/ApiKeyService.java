@@ -111,6 +111,7 @@ import org.elasticsearch.xpack.security.support.FeatureNotEnabledException;
 import org.elasticsearch.xpack.security.support.FeatureNotEnabledException.Feature;
 import org.elasticsearch.xpack.security.support.LockingAtomicCounter;
 import org.elasticsearch.xpack.security.support.SecurityIndexManager;
+import org.elasticsearch.xpack.security.support.SecurityIndexManager.IndexState;
 
 import java.io.Closeable;
 import java.io.IOException;
@@ -575,33 +576,34 @@ public class ApiKeyService implements Closeable {
                 bulkRequestBuilder.setRefreshPolicy(request.getRefreshPolicy());
                 final BulkRequest bulkRequest = bulkRequestBuilder.request();
 
-                securityIndex.prepareIndexIfNeededThenExecute(
-                    listener::onFailure,
-                    () -> executeAsyncWithOrigin(
-                        client,
-                        SECURITY_ORIGIN,
-                        TransportBulkAction.TYPE,
-                        bulkRequest,
-                        TransportBulkAction.<IndexResponse>unwrappingSingleItemBulkResponse(ActionListener.wrap(indexResponse -> {
-                            assert request.getId().equals(indexResponse.getId())
-                                : "Mismatched API key (request=["
-                                    + request.getId()
-                                    + "](name=["
-                                    + request.getName()
-                                    + "]) index=["
-                                    + indexResponse.getId()
-                                    + "])";
-                            assert indexResponse.getResult() == DocWriteResponse.Result.CREATED
-                                : "Index response was [" + indexResponse.getResult() + "]";
-                            if (apiKeyAuthCache != null) {
-                                final ListenableFuture<CachedApiKeyHashResult> listenableFuture = new ListenableFuture<>();
-                                listenableFuture.onResponse(new CachedApiKeyHashResult(true, apiKey));
-                                apiKeyAuthCache.put(request.getId(), listenableFuture);
-                            }
-                            listener.onResponse(new CreateApiKeyResponse(request.getName(), request.getId(), apiKey, expiration));
-                        }, listener::onFailure))
-                    )
-                );
+                securityIndex.forCurrentProject()
+                    .prepareIndexIfNeededThenExecute(
+                        listener::onFailure,
+                        () -> executeAsyncWithOrigin(
+                            client,
+                            SECURITY_ORIGIN,
+                            TransportBulkAction.TYPE,
+                            bulkRequest,
+                            TransportBulkAction.<IndexResponse>unwrappingSingleItemBulkResponse(ActionListener.wrap(indexResponse -> {
+                                assert request.getId().equals(indexResponse.getId())
+                                    : "Mismatched API key (request=["
+                                        + request.getId()
+                                        + "](name=["
+                                        + request.getName()
+                                        + "]) index=["
+                                        + indexResponse.getId()
+                                        + "])";
+                                assert indexResponse.getResult() == DocWriteResponse.Result.CREATED
+                                    : "Index response was [" + indexResponse.getResult() + "]";
+                                if (apiKeyAuthCache != null) {
+                                    final ListenableFuture<CachedApiKeyHashResult> listenableFuture = new ListenableFuture<>();
+                                    listenableFuture.onResponse(new CachedApiKeyHashResult(true, apiKey));
+                                    apiKeyAuthCache.put(request.getId(), listenableFuture);
+                                }
+                                listener.onResponse(new CreateApiKeyResponse(request.getName(), request.getId(), apiKey, expiration));
+                            }, listener::onFailure))
+                        )
+                    );
             } catch (IOException e) {
                 listener.onFailure(e);
             } finally {
@@ -717,19 +719,20 @@ public class ApiKeyService implements Closeable {
 
         logger.trace("Executing bulk request to update [{}] API keys", bulkRequestBuilder.numberOfActions());
         bulkRequestBuilder.setRefreshPolicy(defaultCreateDocRefreshPolicy(settings));
-        securityIndex.prepareIndexIfNeededThenExecute(
-            ex -> listener.onFailure(traceLog("prepare security index before update", ex)),
-            () -> executeAsyncWithOrigin(
-                client.threadPool().getThreadContext(),
-                SECURITY_ORIGIN,
-                bulkRequestBuilder.request(),
-                ActionListener.<BulkResponse>wrap(
-                    bulkResponse -> buildResponseAndClearCache(bulkResponse, responseBuilder, listener),
-                    ex -> listener.onFailure(traceLog("execute bulk request for update", ex))
-                ),
-                client::bulk
-            )
-        );
+        securityIndex.forCurrentProject()
+            .prepareIndexIfNeededThenExecute(
+                ex -> listener.onFailure(traceLog("prepare security index before update", ex)),
+                () -> executeAsyncWithOrigin(
+                    client.threadPool().getThreadContext(),
+                    SECURITY_ORIGIN,
+                    bulkRequestBuilder.request(),
+                    ActionListener.<BulkResponse>wrap(
+                        bulkResponse -> buildResponseAndClearCache(bulkResponse, responseBuilder, listener),
+                        ex -> listener.onFailure(traceLog("execute bulk request for update", ex))
+                    ),
+                    client::bulk
+                )
+            );
     }
 
     // package-private for testing
@@ -1525,12 +1528,12 @@ public class ApiKeyService implements Closeable {
             listener.onResponse(Map.of());
             return;
         }
-        final SecurityIndexManager frozenSecurityIndex = securityIndex.defensiveCopy();
-        if (frozenSecurityIndex.indexExists() == false) {
+        final IndexState projectSecurityIndex = securityIndex.forCurrentProject();
+        if (projectSecurityIndex.indexExists() == false) {
             logger.debug("security index does not exist");
             listener.onResponse(Map.of("total", 0, "ccs", 0, "ccr", 0, "ccs_ccr", 0));
-        } else if (frozenSecurityIndex.isAvailable(SEARCH_SHARDS) == false) {
-            listener.onFailure(frozenSecurityIndex.getUnavailableReason(SEARCH_SHARDS));
+        } else if (projectSecurityIndex.isAvailable(SEARCH_SHARDS) == false) {
+            listener.onFailure(projectSecurityIndex.getUnavailableReason(SEARCH_SHARDS));
         } else {
             final BoolQueryBuilder boolQuery = QueryBuilders.boolQuery()
                 .filter(QueryBuilders.termQuery("doc_type", "api_key"))
@@ -1837,10 +1840,16 @@ public class ApiKeyService implements Closeable {
                 .setSize(1000)
                 .setFetchSource(true)
                 .request();
-            securityIndex.checkIndexVersionThenExecute(
-                listener::onFailure,
-                () -> ScrollHelper.fetchAllByEntity(client, request, new ContextPreservingActionListener<>(supplier, listener), hitParser)
-            );
+            securityIndex.forCurrentProject()
+                .checkIndexVersionThenExecute(
+                    listener::onFailure,
+                    () -> ScrollHelper.fetchAllByEntity(
+                        client,
+                        request,
+                        new ContextPreservingActionListener<>(supplier, listener),
+                        hitParser
+                    )
+                );
         }
     }
 
@@ -1888,11 +1897,11 @@ public class ApiKeyService implements Closeable {
         Function<SearchHit, T> hitParser,
         ActionListener<Collection<T>> listener
     ) {
-        final SecurityIndexManager frozenSecurityIndex = securityIndex.defensiveCopy();
-        if (frozenSecurityIndex.indexExists() == false) {
+        final IndexState projectSecurityIndex = securityIndex.forCurrentProject();
+        if (projectSecurityIndex.indexExists() == false) {
             listener.onResponse(Collections.emptyList());
-        } else if (frozenSecurityIndex.isAvailable(SEARCH_SHARDS) == false) {
-            listener.onFailure(frozenSecurityIndex.getUnavailableReason(SEARCH_SHARDS));
+        } else if (projectSecurityIndex.isAvailable(SEARCH_SHARDS) == false) {
+            listener.onFailure(projectSecurityIndex.getUnavailableReason(SEARCH_SHARDS));
         } else {
             final BoolQueryBuilder boolQuery = QueryBuilders.boolQuery().filter(QueryBuilders.termQuery("doc_type", "api_key"));
             QueryBuilder realmsQuery = filterForRealmNames(realmNames);
@@ -1978,45 +1987,46 @@ public class ApiKeyService implements Closeable {
                     + "] api keys to invalidate";
 
             bulkRequestBuilder.setRefreshPolicy(defaultCreateDocRefreshPolicy(settings));
-            securityIndex.prepareIndexIfNeededThenExecute(
-                ex -> listener.onFailure(traceLog("prepare security index", ex)),
-                () -> executeAsyncWithOrigin(
-                    client.threadPool().getThreadContext(),
-                    SECURITY_ORIGIN,
-                    bulkRequestBuilder.request(),
-                    ActionListener.<BulkResponse>wrap(bulkResponse -> {
-                        ArrayList<String> previouslyInvalidated = new ArrayList<>();
-                        ArrayList<String> invalidated = new ArrayList<>();
-                        for (BulkItemResponse bulkItemResponse : bulkResponse.getItems()) {
-                            if (bulkItemResponse.isFailed()) {
-                                Throwable cause = bulkItemResponse.getFailure().getCause();
-                                final String failedApiKeyId = bulkItemResponse.getFailure().getId();
-                                traceLog("invalidate api key", failedApiKeyId, cause);
-                                failedRequestResponses.add(new ElasticsearchException("Error invalidating api key", cause));
-                            } else {
-                                UpdateResponse updateResponse = bulkItemResponse.getResponse();
-                                if (updateResponse.getResult() == DocWriteResponse.Result.UPDATED) {
-                                    logger.debug("Invalidated api key for doc [{}]", updateResponse.getId());
-                                    invalidated.add(updateResponse.getId());
-                                } else if (updateResponse.getResult() == DocWriteResponse.Result.NOOP) {
-                                    previouslyInvalidated.add(updateResponse.getId());
+            securityIndex.forCurrentProject()
+                .prepareIndexIfNeededThenExecute(
+                    ex -> listener.onFailure(traceLog("prepare security index", ex)),
+                    () -> executeAsyncWithOrigin(
+                        client.threadPool().getThreadContext(),
+                        SECURITY_ORIGIN,
+                        bulkRequestBuilder.request(),
+                        ActionListener.<BulkResponse>wrap(bulkResponse -> {
+                            ArrayList<String> previouslyInvalidated = new ArrayList<>();
+                            ArrayList<String> invalidated = new ArrayList<>();
+                            for (BulkItemResponse bulkItemResponse : bulkResponse.getItems()) {
+                                if (bulkItemResponse.isFailed()) {
+                                    Throwable cause = bulkItemResponse.getFailure().getCause();
+                                    final String failedApiKeyId = bulkItemResponse.getFailure().getId();
+                                    traceLog("invalidate api key", failedApiKeyId, cause);
+                                    failedRequestResponses.add(new ElasticsearchException("Error invalidating api key", cause));
+                                } else {
+                                    UpdateResponse updateResponse = bulkItemResponse.getResponse();
+                                    if (updateResponse.getResult() == DocWriteResponse.Result.UPDATED) {
+                                        logger.debug("Invalidated api key for doc [{}]", updateResponse.getId());
+                                        invalidated.add(updateResponse.getId());
+                                    } else if (updateResponse.getResult() == DocWriteResponse.Result.NOOP) {
+                                        previouslyInvalidated.add(updateResponse.getId());
+                                    }
                                 }
                             }
-                        }
-                        InvalidateApiKeyResponse result = new InvalidateApiKeyResponse(
-                            invalidated,
-                            previouslyInvalidated,
-                            failedRequestResponses
-                        );
-                        clearCache(result, listener);
-                    }, e -> {
-                        Throwable cause = ExceptionsHelper.unwrapCause(e);
-                        traceLog("invalidate api keys", cause);
-                        listener.onFailure(e);
-                    }),
-                    client::bulk
-                )
-            );
+                            InvalidateApiKeyResponse result = new InvalidateApiKeyResponse(
+                                invalidated,
+                                previouslyInvalidated,
+                                failedRequestResponses
+                            );
+                            clearCache(result, listener);
+                        }, e -> {
+                            Throwable cause = ExceptionsHelper.unwrapCause(e);
+                            traceLog("invalidate api keys", cause);
+                            listener.onFailure(e);
+                        }),
+                        client::bulk
+                    )
+                );
         }
     }
 
@@ -2186,7 +2196,7 @@ public class ApiKeyService implements Closeable {
     }
 
     private void maybeStartApiKeyRemover() {
-        if (securityIndex.isAvailable(PRIMARY_SHARDS)) {
+        if (securityIndex.forCurrentProject().isAvailable(PRIMARY_SHARDS)) {
             inactiveApiKeysRemover.maybeSubmit(client.threadPool());
         }
     }
@@ -2245,14 +2255,14 @@ public class ApiKeyService implements Closeable {
 
     public void queryApiKeys(SearchRequest searchRequest, boolean withLimitedBy, ActionListener<QueryApiKeysResult> listener) {
         ensureEnabled();
-        final SecurityIndexManager frozenSecurityIndex = securityIndex.defensiveCopy();
-        if (frozenSecurityIndex.indexExists() == false) {
+        final IndexState projectSecurityIndex = securityIndex.forCurrentProject();
+        if (projectSecurityIndex.indexExists() == false) {
             logger.debug("security index does not exist");
             listener.onResponse(QueryApiKeysResult.EMPTY);
-        } else if (frozenSecurityIndex.isAvailable(SEARCH_SHARDS) == false) {
-            listener.onFailure(frozenSecurityIndex.getUnavailableReason(SEARCH_SHARDS));
+        } else if (projectSecurityIndex.isAvailable(SEARCH_SHARDS) == false) {
+            listener.onFailure(projectSecurityIndex.getUnavailableReason(SEARCH_SHARDS));
         } else {
-            securityIndex.checkIndexVersionThenExecute(
+            projectSecurityIndex.checkIndexVersionThenExecute(
                 listener::onFailure,
                 () -> executeAsyncWithOrigin(
                     client,

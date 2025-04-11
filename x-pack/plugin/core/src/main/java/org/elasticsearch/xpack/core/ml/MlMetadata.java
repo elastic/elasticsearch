@@ -34,7 +34,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.SortedMap;
 
-public class MlMetadata implements Metadata.Custom {
+public class MlMetadata implements Metadata.ProjectCustom {
 
     public static final String TYPE = "ml";
     public static final ParseField UPGRADE_MODE = new ParseField("upgrade_mode");
@@ -81,7 +81,7 @@ public class MlMetadata implements Metadata.Custom {
     }
 
     @Override
-    public Diff<Metadata.Custom> diff(Metadata.Custom previousState) {
+    public Diff<Metadata.ProjectCustom> diff(Metadata.ProjectCustom previousState) {
         return new MlMetadataDiff((MlMetadata) previousState, this);
     }
 
@@ -128,7 +128,7 @@ public class MlMetadata implements Metadata.Custom {
         );
     }
 
-    public static class MlMetadataDiff implements NamedDiff<Metadata.Custom> {
+    public static class MlMetadataDiff implements NamedDiff<Metadata.ProjectCustom> {
 
         final boolean upgradeMode;
         final boolean resetMode;
@@ -158,7 +158,7 @@ public class MlMetadata implements Metadata.Custom {
          * @return The new ML metadata.
          */
         @Override
-        public Metadata.Custom apply(Metadata.Custom part) {
+        public Metadata.ProjectCustom apply(Metadata.ProjectCustom part) {
             return new MlMetadata(upgradeMode, resetMode);
         }
 
@@ -244,8 +244,9 @@ public class MlMetadata implements Metadata.Custom {
         }
     }
 
+    @Deprecated(forRemoval = true)
     public static MlMetadata getMlMetadata(ClusterState state) {
-        MlMetadata mlMetadata = (state == null) ? null : state.getMetadata().custom(TYPE);
+        MlMetadata mlMetadata = (state == null) ? null : state.metadata().getSingleProjectCustom(TYPE);
         if (mlMetadata == null) {
             return EMPTY_METADATA;
         }

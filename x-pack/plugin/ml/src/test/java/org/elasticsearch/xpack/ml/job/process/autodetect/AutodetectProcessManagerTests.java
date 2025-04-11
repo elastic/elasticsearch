@@ -168,7 +168,16 @@ public class AutodetectProcessManagerTests extends ESTestCase {
                 if (v == TransportClusterHealthAction.TYPE) {
                     ActionListener<ClusterHealthResponse> listener = (ActionListener<ClusterHealthResponse>) l;
                     listener.onResponse(
-                        new ClusterHealthResponse("test", new String[0], ClusterState.EMPTY_STATE, 0, 0, 0, TimeValue.ZERO)
+                        new ClusterHealthResponse(
+                            "test",
+                            new String[0],
+                            ClusterState.EMPTY_STATE,
+                            Metadata.DEFAULT_PROJECT_ID,
+                            0,
+                            0,
+                            0,
+                            TimeValue.ZERO
+                        )
                     );
                     return null;
                 }

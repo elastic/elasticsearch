@@ -200,7 +200,7 @@ public class IndicesClusterStateServiceRandomUpdatesTests extends AbstractIndice
         // check that in memory data structures have been removed once the new cluster state is applied,
         // but the persistent data is still there
         RecordingIndicesService indicesService = (RecordingIndicesService) indicesCSSvc.indicesService;
-        for (IndexMetadata indexMetadata : stateWithIndex.metadata()) {
+        for (IndexMetadata indexMetadata : stateWithIndex.metadata().getProject()) {
             Index index = indexMetadata.getIndex();
             assertNull(indicesService.indexService(index));
             assertFalse(indicesService.isDeleted(index));
@@ -249,9 +249,9 @@ public class IndicesClusterStateServiceRandomUpdatesTests extends AbstractIndice
         state = cluster.applyStartedShards(state, state.routingTable().index(index).shard(0).replicaShards());
 
         // close the index and open it up again (this will sometimes swap roles between primary and replica)
-        CloseIndexRequest closeIndexRequest = new CloseIndexRequest(state.metadata().index(index).getIndex().getName());
+        CloseIndexRequest closeIndexRequest = new CloseIndexRequest(state.metadata().getProject().index(index).getIndex().getName());
         state = cluster.closeIndices(state, closeIndexRequest);
-        OpenIndexRequest openIndexRequest = new OpenIndexRequest(state.metadata().index(index).getIndex().getName());
+        OpenIndexRequest openIndexRequest = new OpenIndexRequest(state.metadata().getProject().index(index).getIndex().getName());
         openIndexRequest.waitForActiveShards(ActiveShardCount.NONE);
         state = cluster.openIndices(state, openIndexRequest);
 
@@ -371,7 +371,7 @@ public class IndicesClusterStateServiceRandomUpdatesTests extends AbstractIndice
 
         // randomly create new indices (until we have 200 max)
         for (int i = 0; i < randomInt(5); i++) {
-            if (state.metadata().indices().size() > 200) {
+            if (state.metadata().getProject().indices().size() > 200) {
                 break;
             }
             String name = "index_" + randomAlphaOfLength(15).toLowerCase(Locale.ROOT);
@@ -385,34 +385,43 @@ public class IndicesClusterStateServiceRandomUpdatesTests extends AbstractIndice
             }
             CreateIndexRequest request = new CreateIndexRequest(name, settingsBuilder.build()).waitForActiveShards(ActiveShardCount.NONE);
             state = cluster.createIndex(state, request);
-            assertTrue(state.metadata().hasIndex(name));
+            assertTrue(state.metadata().getProject().hasIndex(name));
         }
 
         // randomly delete indices
         Set<String> indicesToDelete = new HashSet<>();
-        int numberOfIndicesToDelete = randomInt(Math.min(2, state.metadata().indices().size()));
-        for (String index : randomSubsetOf(numberOfIndicesToDelete, state.metadata().indices().keySet().toArray(new String[0]))) {
-            indicesToDelete.add(state.metadata().index(index).getIndex().getName());
+        int numberOfIndicesToDelete = randomInt(Math.min(2, state.metadata().getProject().indices().size()));
+        for (String index : randomSubsetOf(
+            numberOfIndicesToDelete,
+            state.metadata().getProject().indices().keySet().toArray(new String[0])
+        )) {
+            indicesToDelete.add(state.metadata().getProject().index(index).getIndex().getName());
         }
         if (indicesToDelete.isEmpty() == false) {
             DeleteIndexRequest deleteRequest = new DeleteIndexRequest(indicesToDelete.toArray(new String[indicesToDelete.size()]));
             state = cluster.deleteIndices(state, deleteRequest);
             for (String index : indicesToDelete) {
-                assertFalse(state.metadata().hasIndex(index));
+                assertFalse(state.metadata().getProject().hasIndex(index));
             }
         }
 
         // randomly close indices
-        int numberOfIndicesToClose = randomInt(Math.min(1, state.metadata().indices().size()));
-        for (String index : randomSubsetOf(numberOfIndicesToClose, state.metadata().indices().keySet().toArray(new String[0]))) {
-            CloseIndexRequest closeIndexRequest = new CloseIndexRequest(state.metadata().index(index).getIndex().getName());
+        int numberOfIndicesToClose = randomInt(Math.min(1, state.metadata().getProject().indices().size()));
+        for (String index : randomSubsetOf(
+            numberOfIndicesToClose,
+            state.metadata().getProject().indices().keySet().toArray(new String[0])
+        )) {
+            CloseIndexRequest closeIndexRequest = new CloseIndexRequest(state.metadata().getProject().index(index).getIndex().getName());
             state = cluster.closeIndices(state, closeIndexRequest);
         }
 
         // randomly open indices
-        int numberOfIndicesToOpen = randomInt(Math.min(1, state.metadata().indices().size()));
-        for (String index : randomSubsetOf(numberOfIndicesToOpen, state.metadata().indices().keySet().toArray(new String[0]))) {
-            OpenIndexRequest openIndexRequest = new OpenIndexRequest(state.metadata().index(index).getIndex().getName());
+        int numberOfIndicesToOpen = randomInt(Math.min(1, state.metadata().getProject().indices().size()));
+        for (String index : randomSubsetOf(
+            numberOfIndicesToOpen,
+            state.metadata().getProject().indices().keySet().toArray(new String[0])
+        )) {
+            OpenIndexRequest openIndexRequest = new OpenIndexRequest(state.metadata().getProject().index(index).getIndex().getName());
             openIndexRequest.waitForActiveShards(ActiveShardCount.NONE);
             state = cluster.openIndices(state, openIndexRequest);
         }
@@ -420,10 +429,13 @@ public class IndicesClusterStateServiceRandomUpdatesTests extends AbstractIndice
         // randomly update settings
         Set<String> indicesToUpdate = new HashSet<>();
         boolean containsClosedIndex = false;
-        int numberOfIndicesToUpdate = randomInt(Math.min(2, state.metadata().indices().size()));
-        for (String index : randomSubsetOf(numberOfIndicesToUpdate, state.metadata().indices().keySet().toArray(new String[0]))) {
-            indicesToUpdate.add(state.metadata().index(index).getIndex().getName());
-            if (state.metadata().index(index).getState() == IndexMetadata.State.CLOSE) {
+        int numberOfIndicesToUpdate = randomInt(Math.min(2, state.metadata().getProject().indices().size()));
+        for (String index : randomSubsetOf(
+            numberOfIndicesToUpdate,
+            state.metadata().getProject().indices().keySet().toArray(new String[0])
+        )) {
+            indicesToUpdate.add(state.metadata().getProject().index(index).getIndex().getName());
+            if (state.metadata().getProject().index(index).getState() == IndexMetadata.State.CLOSE) {
                 containsClosedIndex = true;
             }
         }

@@ -365,7 +365,6 @@ public class TransportPutTrainedModelActionTests extends ESTestCase {
             threadPool,
             null,
             mockFilters,
-            null,
             mockClient,
             null,
             null

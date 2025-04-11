@@ -30,8 +30,8 @@
       "matchDatasources": [
         "docker"
       ],
-      "matchPackagePatterns": [
-        "^docker.elastic.co/wolfi/chainguard-base$"
+      "matchPackageNames": [
+        "/^docker.elastic.co/wolfi/chainguard-base$/"
       ]
     }
   ],

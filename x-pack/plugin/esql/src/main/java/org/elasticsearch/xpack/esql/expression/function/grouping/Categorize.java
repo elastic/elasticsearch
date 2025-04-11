@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.esql.expression.function.grouping;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Nullability;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
@@ -18,6 +17,7 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
+import org.elasticsearch.xpack.esql.expression.function.FunctionType;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 
@@ -36,7 +36,7 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isStr
  *     For the implementation, see {@link org.elasticsearch.compute.aggregation.blockhash.CategorizeBlockHash}
  * </p>
  */
-public class Categorize extends GroupingFunction {
+public class Categorize extends GroupingFunction.NonEvaluatableGroupingFunction {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         Expression.class,
         "Categorize",
@@ -51,16 +51,17 @@ public class Categorize extends GroupingFunction {
         detailedDescription = """
             `CATEGORIZE` has the following limitations:
 
-            * can't be used within other expressions
-            * can't be used with multiple groupings
-            * can't be used or referenced within aggregate functions""",
+            * can’t be used within other expressions
+            * can’t be used more than once in the groupings
+            * can’t be used or referenced within aggregate functions and it has to be the first grouping""",
         examples = {
             @Example(
                 file = "docs",
                 tag = "docsCategorize",
                 description = "This example categorizes server logs messages into categories and aggregates their counts. "
             ) },
-        preview = true
+        preview = true,
+        type = FunctionType.GROUPING
     )
     public Categorize(
         Source source,
@@ -94,14 +95,9 @@ public class Categorize extends GroupingFunction {
 
     @Override
     public Nullability nullable() {
-        // Null strings and strings that don't produce tokens after analysis lead to null values.
+        // Null strings and strings that don’t produce tokens after analysis lead to null values.
         // This includes empty strings, only whitespace, (hexa)decimal numbers and stopwords.
         return Nullability.TRUE;
-    }
-
-    @Override
-    public ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
-        throw new UnsupportedOperationException("CATEGORIZE is only evaluated during aggregations");
     }
 
     @Override

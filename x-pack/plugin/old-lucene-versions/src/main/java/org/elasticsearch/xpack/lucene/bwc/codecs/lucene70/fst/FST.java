@@ -39,27 +39,8 @@ import java.io.OutputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 
-// TODO: break this into WritableFST and ReadOnlyFST.. then
-// we can have subclasses of ReadOnlyFST to handle the
-// different byte[] level encodings (packed or
-// not)... and things like nodeCount, arcCount are read only
-
-// TODO: if FST is pure prefix trie we can do a more compact
-// job, ie, once we are at a 'suffix only', just store the
-// completion labels as a string not as a series of arcs.
-
-// NOTE: while the FST is able to represent a non-final
-// dead-end state (NON_FINAL_END_NODE=0), the layers above
-// (FSTEnum, Util) have problems with this!!
-
 /**
- * Represents an finite state machine (FST), using a compact byte[] format.
- *
- * <p>The format is similar to what's used by Morfologik
- * (https://github.com/morfologik/morfologik-stemming).
- *
- * <p>See the {@link org.apache.lucene.util.fst package documentation} for some simple examples.
- *
+ * This is an adapted fork of {@link org.apache.lucene.util.fst.FST} that supports reading from ancient Lucene versions.
  */
 public final class FST<T> implements Accountable {
 

@@ -1418,6 +1418,20 @@ public final class InternalTestCluster extends TestCluster {
         }
     }
 
+    public void assertMergeExecutorIsDone() throws Exception {
+        assertBusy(() -> {
+            for (String nodeName : getNodeNames()) {
+                IndicesService indicesService = getInstance(IndicesService.class, nodeName);
+                if (indicesService.getThreadPoolMergeExecutorService() != null) {
+                    assertTrue(
+                        "thread pool merge executor is not done after test",
+                        indicesService.getThreadPoolMergeExecutorService().allDone()
+                    );
+                }
+            }
+        });
+    }
+
     public void assertNoInFlightDocsInEngine() throws Exception {
         assertBusy(() -> {
             for (String nodeName : getNodeNames()) {
@@ -1808,7 +1822,7 @@ public final class InternalTestCluster extends TestCluster {
                     .distinct()
                     .collect(Collectors.toList());
                 Set<Path> configPaths = Stream.concat(currentNodes.stream(), newNodes.stream())
-                    .map(nac -> nac.node.getEnvironment().configFile())
+                    .map(nac -> nac.node.getEnvironment().configDir())
                     .collect(Collectors.toSet());
                 logger.debug("configuring discovery with {} at {}", discoveryFileContents, configPaths);
                 for (final Path configPath : configPaths) {
@@ -1822,7 +1836,7 @@ public final class InternalTestCluster extends TestCluster {
     }
 
     public Collection<Path> configPaths() {
-        return nodes.values().stream().map(nac -> nac.node.getEnvironment().configFile()).toList();
+        return nodes.values().stream().map(nac -> nac.node.getEnvironment().configDir()).toList();
     }
 
     private void stopNodesAndClient(NodeAndClient nodeAndClient) throws IOException {
@@ -2361,7 +2375,7 @@ public final class InternalTestCluster extends TestCluster {
                     greaterThan(shard)
                 );
                 ClusterState clusterState = clusterService.state();
-                IndexRouting indexRouting = IndexRouting.fromIndexMetadata(clusterState.metadata().getIndexSafe(index));
+                IndexRouting indexRouting = IndexRouting.fromIndexMetadata(clusterState.metadata().getProject().getIndexSafe(index));
                 while (true) {
                     String routing = RandomStrings.randomAsciiLettersOfLength(random, 10);
                     if (shard == indexRouting.indexShard("id", routing, null, null)) {
@@ -2526,6 +2540,7 @@ public final class InternalTestCluster extends TestCluster {
         assertRequestsFinished();
         assertSearchContextsReleased();
         assertNoInFlightDocsInEngine();
+        assertMergeExecutorIsDone();
         awaitIndexShardCloseAsyncTasks();
         for (NodeAndClient nodeAndClient : nodes.values()) {
             NodeEnvironment env = nodeAndClient.node().getNodeEnvironment();

@@ -9,7 +9,6 @@
 
 package org.elasticsearch.action.admin.cluster.snapshots.get;
 
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
@@ -31,13 +30,9 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Base64;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
-import java.util.Map;
 import java.util.Set;
-
-import static org.hamcrest.CoreMatchers.containsString;
 
 public class GetSnapshotsResponseTests extends ESTestCase {
     // We can not subclass AbstractSerializingTestCase because it
@@ -60,12 +55,6 @@ public class GetSnapshotsResponseTests extends ESTestCase {
     private void assertEqualInstances(GetSnapshotsResponse expectedInstance, GetSnapshotsResponse newInstance) {
         assertEquals(expectedInstance.getSnapshots(), newInstance.getSnapshots());
         assertEquals(expectedInstance.next(), newInstance.next());
-        assertEquals(expectedInstance.getFailures().keySet(), newInstance.getFailures().keySet());
-        for (Map.Entry<String, ElasticsearchException> expectedEntry : expectedInstance.getFailures().entrySet()) {
-            ElasticsearchException expectedException = expectedEntry.getValue();
-            ElasticsearchException newException = newInstance.getFailures().get(expectedEntry.getKey());
-            assertThat(newException.getMessage(), containsString(expectedException.getMessage()));
-        }
     }
 
     private List<SnapshotInfo> createSnapshotInfos(String repoName) {
@@ -99,7 +88,6 @@ public class GetSnapshotsResponseTests extends ESTestCase {
 
     private GetSnapshotsResponse createTestInstance() {
         Set<String> repositories = new HashSet<>();
-        Map<String, ElasticsearchException> failures = new HashMap<>();
         List<SnapshotInfo> responses = new ArrayList<>();
 
         for (int i = 0; i < randomIntBetween(0, 5); i++) {
@@ -111,12 +99,10 @@ public class GetSnapshotsResponseTests extends ESTestCase {
         for (int i = 0; i < randomIntBetween(0, 5); i++) {
             String repository = randomValueOtherThanMany(repositories::contains, () -> randomAlphaOfLength(10));
             repositories.add(repository);
-            failures.put(repository, new ElasticsearchException(randomAlphaOfLength(10)));
         }
 
         return new GetSnapshotsResponse(
             responses,
-            failures,
             randomBoolean()
                 ? Base64.getUrlEncoder()
                     .encodeToString(

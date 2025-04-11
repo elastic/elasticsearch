@@ -13,19 +13,19 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.logsdb.datageneration.matchers.GenericEqualsMatcher;
-import org.elasticsearch.logsdb.datageneration.matchers.ListEqualMatcher;
 import org.elasticsearch.logsdb.datageneration.matchers.MatchResult;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Optional;
 
 import static org.elasticsearch.logsdb.datageneration.matchers.Messages.formatErrorMessage;
 import static org.elasticsearch.logsdb.datageneration.matchers.Messages.prettyPrintCollections;
 
 public class SourceMatcher extends GenericEqualsMatcher<List<Map<String, Object>>> {
+    private final Map<String, Map<String, Object>> mappingLookup;
+
     private final Map<String, MappingTransforms.FieldMapping> actualNormalizedMapping;
     private final Map<String, MappingTransforms.FieldMapping> expectedNormalizedMapping;
 
@@ -33,6 +33,7 @@ public class SourceMatcher extends GenericEqualsMatcher<List<Map<String, Object>
     private final DynamicFieldMatcher dynamicFieldMatcher;
 
     public SourceMatcher(
+        final Map<String, Map<String, Object>> mappingLookup,
         final XContentBuilder actualMappings,
         final Settings.Builder actualSettings,
         final XContentBuilder expectedMappings,
@@ -43,6 +44,8 @@ public class SourceMatcher extends GenericEqualsMatcher<List<Map<String, Object>
     ) {
         super(actualMappings, actualSettings, expectedMappings, expectedSettings, actual, expected, ignoringSort);
 
+        this.mappingLookup = mappingLookup;
+
         var actualMappingAsMap = XContentHelper.convertToMap(BytesReference.bytes(actualMappings), false, actualMappings.contentType())
             .v2();
         this.actualNormalizedMapping = MappingTransforms.normalizeMapping(actualMappingAsMap);
@@ -51,14 +54,7 @@ public class SourceMatcher extends GenericEqualsMatcher<List<Map<String, Object>
             .v2();
         this.expectedNormalizedMapping = MappingTransforms.normalizeMapping(expectedMappingAsMap);
 
-        this.fieldSpecificMatchers = Map.of(
-            "half_float",
-            new FieldSpecificMatcher.HalfFloatMatcher(actualMappings, actualSettings, expectedMappings, expectedSettings),
-            "scaled_float",
-            new FieldSpecificMatcher.ScaledFloatMatcher(actualMappings, actualSettings, expectedMappings, expectedSettings),
-            "unsigned_long",
-            new FieldSpecificMatcher.UnsignedLongMatcher(actualMappings, actualSettings, expectedMappings, expectedSettings)
-        );
+        this.fieldSpecificMatchers = FieldSpecificMatcher.matchers(actualMappings, actualSettings, expectedMappings, expectedSettings);
         this.dynamicFieldMatcher = new DynamicFieldMatcher(actualMappings, actualSettings, expectedMappings, expectedSettings);
     }
 
@@ -76,8 +72,8 @@ public class SourceMatcher extends GenericEqualsMatcher<List<Map<String, Object>
             );
         }
 
-        var sortedAndFlattenedActual = actual.stream().map(SourceTransforms::normalize).toList();
-        var sortedAndFlattenedExpected = expected.stream().map(SourceTransforms::normalize).toList();
+        var sortedAndFlattenedActual = actual.stream().map(s -> SourceTransforms.normalize(s, mappingLookup)).toList();
+        var sortedAndFlattenedExpected = expected.stream().map(s -> SourceTransforms.normalize(s, mappingLookup)).toList();
 
         for (int i = 0; i < sortedAndFlattenedActual.size(); i++) {
             var actual = sortedAndFlattenedActual.get(i);
@@ -100,18 +96,7 @@ public class SourceMatcher extends GenericEqualsMatcher<List<Map<String, Object>
             var actualValues = actual.get(name);
             var expectedValues = expectedFieldEntry.getValue();
 
-            // There are cases when field values are stored in ignored source
-            // so we try to match them as is first and then apply field specific matcher.
-            // This is temporary, we should be able to tell when source is exact using mappings.
-            // See #111916.
-            var genericMatchResult = matchWithGenericMatcher(actualValues, expectedValues);
-            if (genericMatchResult.isMatch()) {
-                continue;
-            }
-
-            var matchIncludingFieldSpecificMatchers = matchWithFieldSpecificMatcher(name, actualValues, expectedValues).orElse(
-                genericMatchResult
-            );
+            var matchIncludingFieldSpecificMatchers = matchWithFieldSpecificMatcher(name, actualValues, expectedValues);
             if (matchIncludingFieldSpecificMatchers.isMatch() == false) {
                 var message = "Source documents don't match for field [" + name + "]: " + matchIncludingFieldSpecificMatchers.getMessage();
                 return MatchResult.noMatch(message);
@@ -120,7 +105,7 @@ public class SourceMatcher extends GenericEqualsMatcher<List<Map<String, Object>
         return MatchResult.match();
     }
 
-    private Optional<MatchResult> matchWithFieldSpecificMatcher(String fieldName, List<Object> actualValues, List<Object> expectedValues) {
+    private MatchResult matchWithFieldSpecificMatcher(String fieldName, List<Object> actualValues, List<Object> expectedValues) {
         var actualFieldMapping = actualNormalizedMapping.get(fieldName);
         if (actualFieldMapping == null) {
             if (expectedNormalizedMapping.get(fieldName) != null
@@ -160,30 +145,13 @@ public class SourceMatcher extends GenericEqualsMatcher<List<Map<String, Object>
         }
 
         var fieldSpecificMatcher = fieldSpecificMatchers.get(actualFieldType);
-        if (fieldSpecificMatcher == null) {
-            return Optional.empty();
-        }
+        assert fieldSpecificMatcher != null : "Missing matcher for field type [" + actualFieldType + "]";
 
-        MatchResult matched = fieldSpecificMatcher.match(
+        return fieldSpecificMatcher.match(
             actualValues,
             expectedValues,
             actualFieldMapping.mappingParameters(),
             expectedFieldMapping.mappingParameters()
         );
-        return Optional.of(matched);
-    }
-
-    private MatchResult matchWithGenericMatcher(List<Object> actualValues, List<Object> expectedValues) {
-        var genericListMatcher = new ListEqualMatcher(
-            actualMappings,
-            actualSettings,
-            expectedMappings,
-            expectedSettings,
-            SourceTransforms.normalizeValues(actualValues),
-            SourceTransforms.normalizeValues(expectedValues),
-            true
-        );
-
-        return genericListMatcher.match();
     }
 }

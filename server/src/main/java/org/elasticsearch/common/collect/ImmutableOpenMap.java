@@ -297,6 +297,12 @@ public final class ImmutableOpenMap<KType, VType> extends AbstractMap<KType, VTy
         return builder;
     }
 
+    public static <KType, VType> Builder<KType, VType> builder(KType key, VType value) {
+        Builder<KType, VType> builder = new Builder<>(1);
+        builder.put(key, value);
+        return builder;
+    }
+
     public static class Builder<KType, VType> {
 
         // if the Builder was constructed with a reference to an existing ImmutableOpenMap, then this will be non-null

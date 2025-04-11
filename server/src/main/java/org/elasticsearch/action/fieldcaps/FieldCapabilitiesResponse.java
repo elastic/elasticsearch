@@ -69,7 +69,6 @@ public class FieldCapabilitiesResponse extends ActionResponse implements Chunked
     }
 
     public FieldCapabilitiesResponse(StreamInput in) throws IOException {
-        super(in);
         indices = in.readStringArray();
         this.responseMap = in.readMap(FieldCapabilitiesResponse::readField);
         this.indexResponses = FieldCapabilitiesIndexResponse.readList(in);

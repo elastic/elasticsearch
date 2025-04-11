@@ -68,11 +68,11 @@ public final class PushDownAndCombineFilters extends OptimizerRules.OptimizerRul
             plan = maybePushDownPastUnary(filter, eval, evalAliases::containsKey, resolveRenames);
         } else if (child instanceof RegexExtract re) {
             // Push down filters that do not rely on attributes created by RegexExtract
-            var attributes = new AttributeSet(Expressions.asAttributes(re.extractedFields()));
+            var attributes = AttributeSet.of(Expressions.asAttributes(re.extractedFields()));
             plan = maybePushDownPastUnary(filter, re, attributes::contains, NO_OP);
         } else if (child instanceof Enrich enrich) {
             // Push down filters that do not rely on attributes created by Enrich
-            var attributes = new AttributeSet(Expressions.asAttributes(enrich.enrichFields()));
+            var attributes = AttributeSet.of(Expressions.asAttributes(enrich.enrichFields()));
             plan = maybePushDownPastUnary(filter, enrich, attributes::contains, NO_OP);
         } else if (child instanceof Project) {
             return PushDownUtils.pushDownPastProject(filter);

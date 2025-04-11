@@ -16,7 +16,6 @@ import org.elasticsearch.action.support.master.TransportMasterNodeAction;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
@@ -46,6 +45,7 @@ import org.elasticsearch.xpack.inference.InferencePlugin;
 import org.elasticsearch.xpack.inference.registry.ModelRegistry;
 import org.elasticsearch.xpack.inference.services.ServiceUtils;
 import org.elasticsearch.xpack.inference.services.elasticsearch.ElasticsearchInternalService;
+import org.elasticsearch.xpack.inference.services.validation.ModelValidatorBuilder;
 
 import java.io.IOException;
 import java.util.List;
@@ -72,7 +72,6 @@ public class TransportPutInferenceModelAction extends TransportMasterNodeAction<
         ClusterService clusterService,
         ThreadPool threadPool,
         ActionFilters actionFilters,
-        IndexNameExpressionResolver indexNameExpressionResolver,
         XPackLicenseState licenseState,
         ModelRegistry modelRegistry,
         InferenceServiceRegistry serviceRegistry,
@@ -192,19 +191,24 @@ public class TransportPutInferenceModelAction extends TransportMasterNodeAction<
         ActionListener<Model> storeModelListener = listener.delegateFailureAndWrap(
             (delegate, verifiedModel) -> modelRegistry.storeModel(
                 verifiedModel,
-                ActionListener.wrap(r -> startInferenceEndpoint(service, timeout, verifiedModel, delegate), e -> {
-                    if (e.getCause() instanceof StrictDynamicMappingException && e.getCause().getMessage().contains("chunking_settings")) {
-                        delegate.onFailure(
-                            new ElasticsearchStatusException(
-                                "One or more nodes in your cluster does not support chunking_settings. "
-                                    + "Please update all nodes in your cluster to the latest version to use chunking_settings.",
-                                RestStatus.BAD_REQUEST
-                            )
-                        );
-                    } else {
-                        delegate.onFailure(e);
+                ActionListener.wrap(
+                    r -> listener.onResponse(new PutInferenceModelAction.Response(verifiedModel.getConfigurations())),
+                    e -> {
+                        if (e.getCause() instanceof StrictDynamicMappingException
+                            && e.getCause().getMessage().contains("chunking_settings")) {
+                            delegate.onFailure(
+                                new ElasticsearchStatusException(
+                                    "One or more nodes in your cluster does not support chunking_settings. "
+                                        + "Please update all nodes in your cluster to the latest version to use chunking_settings.",
+                                    RestStatus.BAD_REQUEST
+                                )
+                            );
+                        } else {
+                            delegate.onFailure(e);
+                        }
                     }
-                })
+                ),
+                timeout
             )
         );
 
@@ -212,24 +216,12 @@ public class TransportPutInferenceModelAction extends TransportMasterNodeAction<
             if (skipValidationAndStart) {
                 storeModelListener.onResponse(model);
             } else {
-                service.checkModelConfig(model, storeModelListener);
+                ModelValidatorBuilder.buildModelValidator(model.getTaskType(), service instanceof ElasticsearchInternalService)
+                    .validate(service, model, timeout, storeModelListener);
             }
         });
 
         service.parseRequestConfig(inferenceEntityId, taskType, config, parsedModelListener);
-    }
-
-    private void startInferenceEndpoint(
-        InferenceService service,
-        TimeValue timeout,
-        Model model,
-        ActionListener<PutInferenceModelAction.Response> listener
-    ) {
-        if (skipValidationAndStart) {
-            listener.onResponse(new PutInferenceModelAction.Response(model.getConfigurations()));
-        } else {
-            service.start(model, timeout, listener.map(started -> new PutInferenceModelAction.Response(model.getConfigurations())));
-        }
     }
 
     private Map<String, Object> requestToMap(PutInferenceModelAction.Request request) throws IOException {

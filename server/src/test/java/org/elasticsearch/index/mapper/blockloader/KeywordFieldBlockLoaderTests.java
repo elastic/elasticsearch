@@ -11,9 +11,9 @@ package org.elasticsearch.index.mapper.blockloader;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.index.mapper.BlockLoaderTestCase;
+import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.logsdb.datageneration.FieldType;
 
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -21,34 +21,44 @@ import java.util.function.Function;
 import java.util.stream.Stream;
 
 public class KeywordFieldBlockLoaderTests extends BlockLoaderTestCase {
-    public KeywordFieldBlockLoaderTests() {
-        super(FieldType.KEYWORD);
+    public KeywordFieldBlockLoaderTests(Params params) {
+        super(FieldType.KEYWORD.toString(), params);
+    }
+
+    @Override
+    protected Object expected(Map<String, Object> fieldMapping, Object value, TestContext testContext) {
+        return expectedValue(fieldMapping, value, params, testContext);
     }
 
     @SuppressWarnings("unchecked")
-    @Override
-    protected Object expected(Map<String, Object> fieldMapping, Object value, boolean syntheticSource) {
-        if (value == null) {
-            return null;
-        }
+    public static Object expectedValue(Map<String, Object> fieldMapping, Object value, Params params, TestContext testContext) {
+        var nullValue = (String) fieldMapping.get("null_value");
 
         var ignoreAbove = fieldMapping.get("ignore_above") == null
             ? Integer.MAX_VALUE
             : ((Number) fieldMapping.get("ignore_above")).intValue();
 
-        if (value instanceof String s) {
-            return convert(s, ignoreAbove);
+        if (value == null) {
+            return convert(null, nullValue, ignoreAbove);
         }
 
-        Function<Stream<String>, Stream<BytesRef>> convertValues = s -> s.map(v -> convert(v, ignoreAbove)).filter(Objects::nonNull);
+        if (value instanceof String s) {
+            return convert(s, nullValue, ignoreAbove);
+        }
 
-        if ((boolean) fieldMapping.getOrDefault("doc_values", false)) {
+        Function<Stream<String>, Stream<BytesRef>> convertValues = s -> s.map(v -> convert(v, nullValue, ignoreAbove))
+            .filter(Objects::nonNull);
+
+        boolean hasDocValues = hasDocValues(fieldMapping, true);
+        boolean useDocValues = params.preference() == MappedFieldType.FieldExtractPreference.NONE
+            || params.preference() == MappedFieldType.FieldExtractPreference.DOC_VALUES
+            || params.syntheticSource();
+        if (hasDocValues && useDocValues) {
             // Sorted and no duplicates
-
-            var values = new HashSet<>((List<String>) value);
-            var resultList = convertValues.compose(s -> values.stream().filter(Objects::nonNull).sorted())
+            var resultList = convertValues.andThen(Stream::distinct)
+                .andThen(Stream::sorted)
                 .andThen(Stream::toList)
-                .apply(values.stream());
+                .apply(((List<String>) value).stream());
             return maybeFoldList(resultList);
         }
 
@@ -57,21 +67,13 @@ public class KeywordFieldBlockLoaderTests extends BlockLoaderTestCase {
         return maybeFoldList(resultList);
     }
 
-    private Object maybeFoldList(List<?> list) {
-        if (list.isEmpty()) {
-            return null;
-        }
-
-        if (list.size() == 1) {
-            return list.get(0);
-        }
-
-        return list;
-    }
-
-    private BytesRef convert(String value, int ignoreAbove) {
+    private static BytesRef convert(String value, String nullValue, int ignoreAbove) {
         if (value == null) {
-            return null;
+            if (nullValue != null) {
+                value = nullValue;
+            } else {
+                return null;
+            }
         }
 
         return value.length() <= ignoreAbove ? new BytesRef(value) : null;

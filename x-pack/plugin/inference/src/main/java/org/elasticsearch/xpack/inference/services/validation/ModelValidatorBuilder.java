@@ -11,7 +11,16 @@ import org.elasticsearch.core.Strings;
 import org.elasticsearch.inference.TaskType;
 
 public class ModelValidatorBuilder {
-    public static ModelValidator buildModelValidator(TaskType taskType) {
+    public static ModelValidator buildModelValidator(TaskType taskType, boolean isElasticsearchInternalService) {
+        var modelValidator = buildModelValidatorForTaskType(taskType);
+        if (isElasticsearchInternalService) {
+            return new ElasticsearchInternalServiceModelValidator(modelValidator);
+        } else {
+            return modelValidator;
+        }
+    }
+
+    private static ModelValidator buildModelValidatorForTaskType(TaskType taskType) {
         if (taskType == null) {
             throw new IllegalArgumentException("Task type can't be null");
         }
@@ -29,7 +38,7 @@ public class ModelValidatorBuilder {
             case SPARSE_EMBEDDING, RERANK, ANY -> {
                 return new SimpleModelValidator(new SimpleServiceIntegrationValidator());
             }
-            default -> throw new IllegalArgumentException(Strings.format("Can't validate inference model of for task type %s ", taskType));
+            default -> throw new IllegalArgumentException(Strings.format("Can't validate inference model for task type %s", taskType));
         }
     }
 }

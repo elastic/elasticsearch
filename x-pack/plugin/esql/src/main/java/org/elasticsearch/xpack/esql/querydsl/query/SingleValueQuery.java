@@ -65,8 +65,8 @@ public class SingleValueQuery extends Query {
     }
 
     @Override
-    public Builder asBuilder() {
-        return new Builder(next.asBuilder(), field, next.source());
+    protected Builder asBuilder() {
+        return new Builder(next.toQueryBuilder(), field, next.source());
     }
 
     @Override
@@ -180,7 +180,8 @@ public class SingleValueQuery extends Query {
                     source.source().getLineNumber(),
                     source.source().getColumnNumber(),
                     source.text()
-                )
+                ),
+                "single-value function encountered multi-value"
             );
             org.apache.lucene.search.Query rewrite = singleValueQuery.rewrite(context.searcher());
             if (rewrite instanceof MatchAllDocsQuery) {

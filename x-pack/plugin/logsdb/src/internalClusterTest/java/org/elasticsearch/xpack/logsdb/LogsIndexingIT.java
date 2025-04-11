@@ -175,7 +175,7 @@ public class LogsIndexingIT extends ESSingleNodeTestCase {
 
         // Verify settings.
         final GetSettingsResponse getSettingsResponse = indicesAdmin().getSettings(
-            new GetSettingsRequest().indices(indexName).includeDefaults(false)
+            new GetSettingsRequest(TEST_REQUEST_TIMEOUT).indices(indexName).includeDefaults(false)
         ).actionGet();
         final Settings settings = getSettingsResponse.getIndexToSettings().get(indexName);
         assertEquals("message,k8s.pod.uid,@timestamp", settings.get("index.sort.field"));

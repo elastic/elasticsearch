@@ -158,7 +158,7 @@ public class URLRepository extends BlobStoreRepository {
                 if (normalizedUrl == null) {
                     String logMessage = "The specified url [{}] doesn't start with any repository paths specified by the "
                         + "path.repo setting or by {} setting: [{}] ";
-                    logger.warn(logMessage, urlToCheck, ALLOWED_URLS_SETTING.getKey(), environment.repoFiles());
+                    logger.warn(logMessage, urlToCheck, ALLOWED_URLS_SETTING.getKey(), environment.repoDirs());
                     String exceptionMessage = "file url ["
                         + urlToCheck
                         + "] doesn't match any of the locations specified by path.repo or "

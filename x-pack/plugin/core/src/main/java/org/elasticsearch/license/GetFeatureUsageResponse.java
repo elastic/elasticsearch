@@ -7,7 +7,6 @@
 
 package org.elasticsearch.license;
 
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -48,31 +47,19 @@ public class GetFeatureUsageResponse extends ActionResponse implements ToXConten
         }
 
         public FeatureUsageInfo(StreamInput in) throws IOException {
-            if (in.getTransportVersion().onOrAfter(TransportVersions.V_7_16_0)) {
-                this.family = in.readOptionalString();
-            } else {
-                this.family = null;
-            }
+            this.family = in.readOptionalString();
             this.name = in.readString();
             this.lastUsedTime = ZonedDateTime.ofInstant(Instant.ofEpochSecond(in.readLong()), ZoneOffset.UTC);
-            if (in.getTransportVersion().onOrAfter(TransportVersions.V_7_15_0)) {
-                this.context = in.readOptionalString();
-            } else {
-                this.context = null;
-            }
+            this.context = in.readOptionalString();
             this.licenseLevel = in.readString();
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            if (out.getTransportVersion().onOrAfter(TransportVersions.V_7_16_0)) {
-                out.writeOptionalString(this.family);
-            }
+            out.writeOptionalString(this.family);
             out.writeString(name);
             out.writeLong(lastUsedTime.toEpochSecond());
-            if (out.getTransportVersion().onOrAfter(TransportVersions.V_7_15_0)) {
-                out.writeOptionalString(this.context);
-            }
+            out.writeOptionalString(this.context);
             out.writeString(licenseLevel);
         }
 

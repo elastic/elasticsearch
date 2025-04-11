@@ -260,7 +260,8 @@ abstract class CentroidPointAggregator {
         }
 
         /** Needed for generated code that does null tracking, which we do not need because we use count */
-        final void enableGroupIdTracking(SeenGroupIds ignore) {}
+        @Override
+        public final void enableGroupIdTracking(SeenGroupIds ignore) {}
 
         private void ensureCapacity(int groupId) {
             if (groupId >= xValues.size()) {

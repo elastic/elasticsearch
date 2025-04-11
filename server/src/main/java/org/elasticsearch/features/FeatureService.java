@@ -53,14 +53,14 @@ public class FeatureService {
     /**
      * Returns {@code true} if {@code node} can have assumed features.
      */
-    public boolean featuresCanBeAssumedForNode(DiscoveryNode node) {
+    public static boolean featuresCanBeAssumedForNode(DiscoveryNode node) {
         return ClusterFeatures.featuresCanBeAssumedForNode(node);
     }
 
     /**
     * Returns {@code true} if one or more nodes in {@code nodes} can have assumed features.
     */
-    public boolean featuresCanBeAssumedForNodes(DiscoveryNodes nodes) {
+    public static boolean featuresCanBeAssumedForNodes(DiscoveryNodes nodes) {
         return ClusterFeatures.featuresCanBeAssumedForNodes(nodes);
     }
 

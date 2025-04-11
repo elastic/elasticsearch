@@ -42,7 +42,7 @@ public abstract class DefaultBuildParameterExtension implements BuildParameterEx
     private final String testSeed;
     private final Boolean isCi;
     private final Integer defaultParallel;
-    private final Boolean isSnapshotBuild;
+    private final Boolean snapshotBuild;
 
     // not final for testing
     private Provider<BwcVersions> bwcVersions;
@@ -81,7 +81,7 @@ public abstract class DefaultBuildParameterExtension implements BuildParameterEx
         this.testSeed = testSeed;
         this.isCi = isCi;
         this.defaultParallel = defaultParallel;
-        this.isSnapshotBuild = isSnapshotBuild;
+        this.snapshotBuild = isSnapshotBuild;
         this.bwcVersions = cache(providers, bwcVersions);
         this.gitOrigin = gitOrigin;
     }
@@ -183,7 +183,7 @@ public abstract class DefaultBuildParameterExtension implements BuildParameterEx
     }
 
     @Override
-    public Boolean isCi() {
+    public Boolean getCi() {
         return isCi;
     }
 
@@ -193,8 +193,8 @@ public abstract class DefaultBuildParameterExtension implements BuildParameterEx
     }
 
     @Override
-    public Boolean isSnapshotBuild() {
-        return isSnapshotBuild;
+    public Boolean getSnapshotBuild() {
+        return snapshotBuild;
     }
 
     @Override
@@ -208,7 +208,7 @@ public abstract class DefaultBuildParameterExtension implements BuildParameterEx
     }
 
     @Override
-    public Boolean isGraalVmRuntime() {
+    public Boolean getGraalVmRuntime() {
         return runtimeJavaDetails.get().toLowerCase().contains("graalvm");
     }
 

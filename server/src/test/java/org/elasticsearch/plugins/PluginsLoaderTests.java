@@ -52,7 +52,7 @@ public class PluginsLoaderTests extends ESTestCase {
     static PluginsLoader newPluginsLoader(Settings settings) {
         return PluginsLoader.createPluginsLoader(
             Set.of(),
-            PluginsLoader.loadPluginsBundles(TestEnvironment.newEnvironment(settings).pluginsFile()),
+            PluginsLoader.loadPluginsBundles(TestEnvironment.newEnvironment(settings).pluginsDir()),
             Map.of(),
             false
         );
@@ -121,7 +121,7 @@ public class PluginsLoaderTests extends ESTestCase {
 
         var pluginsLoader = PluginsLoader.createPluginsLoader(
             Set.of(),
-            PluginsLoader.loadPluginsBundles(TestEnvironment.newEnvironment(settings).pluginsFile()),
+            PluginsLoader.loadPluginsBundles(TestEnvironment.newEnvironment(settings).pluginsDir()),
             Map.of(STABLE_PLUGIN_NAME, Set.of(STABLE_PLUGIN_MODULE_NAME)),
             false
         );
@@ -182,7 +182,7 @@ public class PluginsLoaderTests extends ESTestCase {
 
         var pluginsLoader = PluginsLoader.createPluginsLoader(
             Set.of(),
-            PluginsLoader.loadPluginsBundles(TestEnvironment.newEnvironment(settings).pluginsFile()),
+            PluginsLoader.loadPluginsBundles(TestEnvironment.newEnvironment(settings).pluginsDir()),
             Map.of(MODULAR_PLUGIN_NAME, Set.of(MODULAR_PLUGIN_MODULE_NAME)),
             false
         );

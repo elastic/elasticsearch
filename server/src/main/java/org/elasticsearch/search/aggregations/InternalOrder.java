@@ -26,6 +26,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
+import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Objects;
@@ -188,33 +189,22 @@ public abstract class InternalOrder extends BucketOrder {
 
         @Override
         public <T extends Bucket> Comparator<BucketAndOrd<T>> partiallyBuiltBucketComparator(Aggregator aggregator) {
-            List<Comparator<BucketAndOrd<T>>> comparators = new ArrayList<>(orderElements.size());
-            for (BucketOrder order : orderElements) {
-                comparators.add(order.partiallyBuiltBucketComparator(aggregator));
+            Iterator<BucketOrder> iterator = orderElements.iterator();
+            Comparator<BucketAndOrd<T>> comparator = iterator.next().partiallyBuiltBucketComparator(aggregator);
+            while (iterator.hasNext()) {
+                comparator = comparator.thenComparing(iterator.next().partiallyBuiltBucketComparator(aggregator));
             }
-            return (lhs, rhs) -> {
-                for (Comparator<BucketAndOrd<T>> c : comparators) {
-                    int result = c.compare(lhs, rhs);
-                    if (result != 0) {
-                        return result;
-                    }
-                }
-                return 0;
-            };
+            return comparator;
         }
 
         @Override
         public Comparator<Bucket> comparator() {
-            List<Comparator<Bucket>> comparators = orderElements.stream().map(BucketOrder::comparator).toList();
-            return (lhs, rhs) -> {
-                for (Comparator<Bucket> c : comparators) {
-                    int result = c.compare(lhs, rhs);
-                    if (result != 0) {
-                        return result;
-                    }
-                }
-                return 0;
-            };
+            Iterator<BucketOrder> iterator = orderElements.iterator();
+            Comparator<Bucket> comparator = iterator.next().comparator();
+            while (iterator.hasNext()) {
+                comparator = comparator.thenComparing(iterator.next().comparator());
+            }
+            return comparator;
         }
 
         @Override
@@ -222,18 +212,12 @@ public abstract class InternalOrder extends BucketOrder {
             BiFunction<List<B>, AggregationReduceContext, B> reduce,
             AggregationReduceContext reduceContext
         ) {
-            List<Comparator<DelayedBucket<B>>> comparators = orderElements.stream()
-                .map(b -> b.delayedBucketComparator(reduce, reduceContext))
-                .toList();
-            return (lhs, rhs) -> {
-                for (Comparator<DelayedBucket<B>> c : comparators) {
-                    int result = c.compare(lhs, rhs);
-                    if (result != 0) {
-                        return result;
-                    }
-                }
-                return 0;
-            };
+            Iterator<BucketOrder> iterator = orderElements.iterator();
+            Comparator<DelayedBucket<B>> comparator = iterator.next().delayedBucketComparator(reduce, reduceContext);
+            while (iterator.hasNext()) {
+                comparator = comparator.thenComparing(iterator.next().delayedBucketComparator(reduce, reduceContext));
+            }
+            return comparator;
         }
 
         @Override
@@ -285,12 +269,13 @@ public abstract class InternalOrder extends BucketOrder {
             return comparator;
         }
 
+        @SuppressWarnings({ "rawtypes", "unchecked" })
         @Override
         <B extends InternalMultiBucketAggregation.InternalBucket> Comparator<DelayedBucket<B>> delayedBucketComparator(
             BiFunction<List<B>, AggregationReduceContext, B> reduce,
             AggregationReduceContext reduceContext
         ) {
-            return delayedBucketCompator::compare;
+            return (Comparator) delayedBucketCompator;
         }
 
         @Override
@@ -453,16 +438,7 @@ public abstract class InternalOrder extends BucketOrder {
      * @return {@code true} if the order matches, {@code false} otherwise.
      */
     private static boolean isOrder(BucketOrder order, BucketOrder expected) {
-        if (order == expected) {
-            return true;
-        } else if (order instanceof CompoundOrder) {
-            // check if its a compound order with the first element that matches
-            List<BucketOrder> orders = ((CompoundOrder) order).orderElements;
-            if (orders.size() >= 1) {
-                return isOrder(orders.get(0), expected);
-            }
-        }
-        return false;
+        return order == expected || (order instanceof CompoundOrder compoundOrder && compoundOrder.orderElements.getFirst() == expected);
     }
 
     /**

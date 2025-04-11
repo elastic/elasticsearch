@@ -47,7 +47,12 @@ public class LookupIndexModeIT extends ESIntegTestCase {
         createRequest.settings(lookupSettings);
         createRequest.simpleMapping("ip", "type=ip", "os", "type=keyword");
         assertAcked(client().admin().indices().execute(TransportCreateIndexAction.TYPE, createRequest));
-        Settings settings = client().admin().indices().prepareGetSettings("hosts").get().getIndexToSettings().get("hosts");
+        Settings settings = client().admin()
+            .indices()
+            .prepareGetSettings(TEST_REQUEST_TIMEOUT, "hosts")
+            .get()
+            .getIndexToSettings()
+            .get("hosts");
         assertThat(settings.get("index.mode"), equalTo("lookup"));
         assertNull(settings.get("index.auto_expand_replicas"));
         Map<String, String> allHosts = Map.of(
@@ -138,7 +143,12 @@ public class LookupIndexModeIT extends ESIntegTestCase {
         ResizeRequest clone = new ResizeRequest("lookup-2", "lookup-1");
         clone.setResizeType(ResizeType.CLONE);
         assertAcked(client().admin().indices().execute(ResizeAction.INSTANCE, clone).actionGet());
-        Settings settings = client().admin().indices().prepareGetSettings("lookup-2").get().getIndexToSettings().get("lookup-2");
+        Settings settings = client().admin()
+            .indices()
+            .prepareGetSettings(TEST_REQUEST_TIMEOUT, "lookup-2")
+            .get()
+            .getIndexToSettings()
+            .get("lookup-2");
         assertThat(settings.get("index.mode"), equalTo("lookup"));
         assertThat(settings.get("index.number_of_shards"), equalTo("1"));
 
@@ -211,7 +221,12 @@ public class LookupIndexModeIT extends ESIntegTestCase {
         createRequest.settings(createSettings);
         createRequest.simpleMapping("ip", "type=ip", "os", "type=keyword");
         assertAcked(client().admin().indices().execute(TransportCreateIndexAction.TYPE, createRequest));
-        Settings settings = client().admin().indices().prepareGetSettings("hosts").get().getIndexToSettings().get("hosts");
+        Settings settings = client().admin()
+            .indices()
+            .prepareGetSettings(TEST_REQUEST_TIMEOUT, "hosts")
+            .get()
+            .getIndexToSettings()
+            .get("hosts");
         assertThat(settings.get("index.mode"), equalTo("lookup"));
         assertThat(settings.get("index.auto_expand_replicas"), equalTo("3-5"));
     }

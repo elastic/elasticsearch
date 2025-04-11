@@ -423,12 +423,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.action.ForkIT
   method: testWithStatsSimple
   issue: https://github.com/elastic/elasticsearch/issues/126607
-- class: org.elasticsearch.upgrades.SearchStatesIT
-  method: testBWCSearchStates
-  issue: https://github.com/elastic/elasticsearch/issues/126632
-- class: org.elasticsearch.upgrades.SearchStatesIT
-  method: testCanMatch
-  issue: https://github.com/elastic/elasticsearch/issues/126633
 - class: org.elasticsearch.xpack.esql.action.EsqlActionIT
   method: testQueryOnEmptyDataIndex
   issue: https://github.com/elastic/elasticsearch/issues/126580

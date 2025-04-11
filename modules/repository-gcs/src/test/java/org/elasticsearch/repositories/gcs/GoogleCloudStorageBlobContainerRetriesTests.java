@@ -265,12 +265,11 @@ public class GoogleCloudStorageBlobContainerRetriesTests extends AbstractBlobCon
         final CountDown countDown = new CountDown(maxRetries);
 
         final BlobContainer blobContainer = blobContainerBuilder().maxRetries(maxRetries).build();
-        final byte[] bytes = randomBlobContent();
+        final byte[] bytes = randomBlobContent(0);
         httpServer.createContext("/upload/storage/v1/b/bucket/o", safeHandler(exchange -> {
             assertThat(exchange.getRequestURI().getQuery(), containsString("uploadType=multipart"));
             if (countDown.countDown()) {
                 MultipartUpload multipartUpload = MultipartUpload.parseBody(exchange, exchange.getRequestBody());
-                assertTrue(multipartUpload.content().length() > 0);
                 assertEquals(multipartUpload.name(), blobContainer.path().buildAsString() + "write_blob_max_retries");
                 if (multipartUpload.content().equals(new BytesArray(bytes))) {
                     byte[] response = Strings.format("""

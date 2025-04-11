@@ -3,10 +3,23 @@ The static content exists in this directory and can be edited by hand.
 However, the sub-directories `_snippets`, `images` and `kibana` contain mostly
 generated content.
 
+## Static content
+
+The root `esql` directory and the following two subdirectories contain static content:
+* `commands` - contains the static content for the ES|QL commands.
+  This content will typically contain mostly include directives for content in the `_snippets` or `images` directories.
+* `functions-operators` - contains the static content for the ES|QL functions and operators.
+  Again this will contain mostly include directives for content in the `_snippets` or `images` directories.
+
+## Mixed static and generated content
+
+Generated content is created by running the ESQL tests in the `x-pack/plugin/esql` module.
+It will be written into three subdirectories of the `esql` directory:
+
 ### _snippets
 
-In `_snippets` there are files that can be included within other files
-using the [File Inclusion](https://elastic.github.io/docs-builder/syntax/file_inclusion/)
+In `_snippets` there are files that can be included within other files using the
+[File Inclusion](https://elastic.github.io/docs-builder/syntax/file_inclusion/)
 feature of the Elastic Docs V3 system.
 Most, but not all, files in this directory are generated.
 In particular the directories `_snippets/functions/*` and `_snippets/operators/*`
@@ -34,6 +47,19 @@ To regenerate the files for all functions run all of ESQL's tests using gradle:
 ./gradlew :x-pack:plugin:esql:test
 ```
 
+#### Commands
+
+The `_snippets/commands` directory contains the content for the ES|QL commands.
+There are two subdirectories, one static and one generated:
+* `layout` - contains the static content for the ES|QL commands.
+  The files in this directory are the main content for the documentation for the commands.
+  They are not generated, and so this is the primary place to edit the content, or add new commands.
+* `examples` - contains the generated content for the ES|QL commands.
+  The files in this directory are generated from the test `CommandsDocsTests` in the `x-pack/plugin/esql` module.
+  The structure of the subdirectories mimics the csv-spec files and test tags used in the tests.
+
+Including generated examples in the command documentation is done by using the include directive.
+
 ### images
 
 The `images` directory contains `functions` and `operators` sub-directories with
@@ -48,3 +74,14 @@ The `kibana` directory contains `definition` and `docs` sub-directories that are
 * `kibana/docs` - the inline docs for kibana
 
 These are also generated as part of the unit tests described above.
+
+## Tutorials
+
+### Adding a new command
+
+When adding a new command, for example adding the `CHANGE_POINT` comamand, do the following:
+1. Create a new file in the `_snippets/commands/layout` directory with the name of the command, for example `change_point.md`.
+2. Add the content for the command to the file. See other files in this directory for examples.
+3. Add the command to the list in `_snippets/lists/processing-commands-md`.
+4. Add an include directive to the `commands/processing-commands.md` file to include the new command.
+5. Add tested examples to the `_snippets/commands/examples` directory. See below for details.

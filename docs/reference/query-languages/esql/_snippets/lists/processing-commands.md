@@ -1,3 +1,4 @@
+* [`CHANGE_POINT`](../../commands/processing-commands.md#esql-change_point)
 * [`DISSECT`](../../commands/processing-commands.md#esql-dissect)
 * [`DROP`](../../commands/processing-commands.md#esql-drop)
 * [`ENRICH`](../../commands/processing-commands.md#esql-enrich)

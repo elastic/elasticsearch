@@ -286,7 +286,9 @@ public class UpdateTimeSeriesRangeServiceTests extends ESTestCase {
             message,
             equalTo(
                 "unable to update [index.time_series.end_time] for data stream [logs-app2-broken] and "
-                    + "backing index [" + im.getIndex().getName() + "]"
+                    + "backing index ["
+                    + im.getIndex().getName()
+                    + "]"
             )
         );
     }

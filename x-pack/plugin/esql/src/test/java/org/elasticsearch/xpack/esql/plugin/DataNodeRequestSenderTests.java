@@ -104,9 +104,9 @@ public class DataNodeRequestSenderTests extends ComputeTestCase {
 
     public void testEmpty() {
         var future = sendRequests(
-            List.of(),
             randomBoolean(),
             -1,
+            List.of(),
             (node, shardIds, aliasFilters, listener) -> fail("expect no data-node request is sent")
         );
         var resp = safeGet(future);
@@ -121,7 +121,7 @@ public class DataNodeRequestSenderTests extends ComputeTestCase {
             targetShard(shard4, node2, node3)
         );
         Queue<NodeRequest> sent = ConcurrentCollections.newQueue();
-        var future = sendRequests(targetShards, randomBoolean(), -1, (node, shardIds, aliasFilters, listener) -> {
+        var future = sendRequests(randomBoolean(), -1, targetShards, (node, shardIds, aliasFilters, listener) -> {
             sent.add(nodeRequest(node, shardIds));
             runWithDelay(() -> listener.onResponse(new DataNodeComputeResponse(List.of(), Map.of())));
         });
@@ -133,14 +133,14 @@ public class DataNodeRequestSenderTests extends ComputeTestCase {
     public void testMissingShards() {
         {
             var targetShards = List.of(targetShard(shard1, node1), targetShard(shard3), targetShard(shard4, node2, node3));
-            var future = sendRequests(targetShards, false, -1, (node, shardIds, aliasFilters, listener) -> {
+            var future = sendRequests(false, -1, targetShards, (node, shardIds, aliasFilters, listener) -> {
                 fail("expect no data-node request is sent when target shards are missing");
             });
             expectThrows(NoShardAvailableActionException.class, containsString("no shard copies found"), future::actionGet);
         }
         {
             var targetShards = List.of(targetShard(shard1, node1), targetShard(shard3), targetShard(shard4, node2, node3));
-            var future = sendRequests(targetShards, true, -1, (node, shardIds, aliasFilters, listener) -> {
+            var future = sendRequests(true, -1, targetShards, (node, shardIds, aliasFilters, listener) -> {
                 assertThat(shard3, not(in(shardIds)));
                 runWithDelay(() -> listener.onResponse(new DataNodeComputeResponse(List.of(), Map.of())));
             });
@@ -164,7 +164,7 @@ public class DataNodeRequestSenderTests extends ComputeTestCase {
             targetShard(shard5, node1, node3, node2)
         );
         Queue<NodeRequest> sent = ConcurrentCollections.newQueue();
-        var future = sendRequests(targetShards, randomBoolean(), -1, (node, shardIds, aliasFilters, listener) -> {
+        var future = sendRequests(randomBoolean(), -1, targetShards, (node, shardIds, aliasFilters, listener) -> {
             sent.add(nodeRequest(node, shardIds));
             Map<ShardId, Exception> failures = new HashMap<>();
             if (node.equals(node1) && shardIds.contains(shard5)) {
@@ -197,7 +197,7 @@ public class DataNodeRequestSenderTests extends ComputeTestCase {
             targetShard(shard5, node1, node3, node2)
         );
         Queue<NodeRequest> sent = ConcurrentCollections.newQueue();
-        var future = sendRequests(targetShards, false, -1, (node, shardIds, aliasFilters, listener) -> {
+        var future = sendRequests(false, -1, targetShards, (node, shardIds, aliasFilters, listener) -> {
             sent.add(nodeRequest(node, shardIds));
             Map<ShardId, Exception> failures = new HashMap<>();
             if (shardIds.contains(shard5)) {
@@ -221,7 +221,7 @@ public class DataNodeRequestSenderTests extends ComputeTestCase {
         var targetShards = List.of(targetShard(shard1, node1), targetShard(shard2, node2), targetShard(shard3, node1));
         Queue<NodeRequest> sent = ConcurrentCollections.newQueue();
         AtomicBoolean failed = new AtomicBoolean();
-        var future = sendRequests(targetShards, false, -1, (node, shardIds, aliasFilters, listener) -> {
+        var future = sendRequests(false, -1, targetShards, (node, shardIds, aliasFilters, listener) -> {
             sent.add(nodeRequest(node, shardIds));
             if (node1.equals(node) && failed.compareAndSet(false, true)) {
                 runWithDelay(() -> listener.onFailure(new IOException("test request level failure"), true));
@@ -240,7 +240,7 @@ public class DataNodeRequestSenderTests extends ComputeTestCase {
         var targetShards = List.of(targetShard(shard1, node1), targetShard(shard2, node2), targetShard(shard3, node1, node2));
         Queue<NodeRequest> sent = ConcurrentCollections.newQueue();
         AtomicBoolean failed = new AtomicBoolean();
-        var future = sendRequests(targetShards, true, -1, (node, shardIds, aliasFilters, listener) -> {
+        var future = sendRequests(true, -1, targetShards, (node, shardIds, aliasFilters, listener) -> {
             sent.add(nodeRequest(node, shardIds));
             if (node1.equals(node) && failed.compareAndSet(false, true)) {
                 runWithDelay(() -> listener.onFailure(new IOException("test request level failure"), true));
@@ -260,7 +260,7 @@ public class DataNodeRequestSenderTests extends ComputeTestCase {
     public void testNonFatalErrorIsRetriedOnAnotherShard() {
         var targetShards = List.of(targetShard(shard1, node1, node2));
         var sent = ConcurrentCollections.<NodeRequest>newQueue();
-        var response = safeGet(sendRequests(targetShards, false, -1, (node, shardIds, aliasFilters, listener) -> {
+        var response = safeGet(sendRequests(false, -1, targetShards, (node, shardIds, aliasFilters, listener) -> {
             sent.add(nodeRequest(node, shardIds));
             if (Objects.equals(node1, node)) {
                 runWithDelay(() -> listener.onFailure(new RuntimeException("test request level non fatal failure"), false));
@@ -277,7 +277,7 @@ public class DataNodeRequestSenderTests extends ComputeTestCase {
     public void testNonFatalFailedOnAllNodes() {
         var targetShards = List.of(targetShard(shard1, node1, node2));
         var sent = ConcurrentCollections.<NodeRequest>newQueue();
-        var future = sendRequests(targetShards, false, -1, (node, shardIds, aliasFilters, listener) -> {
+        var future = sendRequests(false, -1, targetShards, (node, shardIds, aliasFilters, listener) -> {
             sent.add(nodeRequest(node, shardIds));
             runWithDelay(() -> listener.onFailure(new RuntimeException("test request level non fatal failure"), false));
         });
@@ -288,7 +288,7 @@ public class DataNodeRequestSenderTests extends ComputeTestCase {
     public void testDoNotRetryCircuitBreakerException() {
         var targetShards = List.of(targetShard(shard1, node1, node2));
         var sent = ConcurrentCollections.<NodeRequest>newQueue();
-        var future = sendRequests(targetShards, false, -1, (node, shardIds, aliasFilters, listener) -> {
+        var future = sendRequests(false, -1, targetShards, (node, shardIds, aliasFilters, listener) -> {
             sent.add(nodeRequest(node, shardIds));
             runWithDelay(() -> listener.onFailure(new CircuitBreakingException("cbe", randomFrom(Durability.values())), false));
         });
@@ -309,7 +309,7 @@ public class DataNodeRequestSenderTests extends ComputeTestCase {
         AtomicInteger maxConcurrentRequests = new AtomicInteger(0);
         AtomicInteger concurrentRequests = new AtomicInteger(0);
         var sent = ConcurrentCollections.<NodeRequest>newQueue();
-        var response = safeGet(sendRequests(targetShards, randomBoolean(), concurrency, (node, shardIds, aliasFilters, listener) -> {
+        var response = safeGet(sendRequests(randomBoolean(), concurrency, targetShards, (node, shardIds, aliasFilters, listener) -> {
             concurrentRequests.incrementAndGet();
 
             while (true) {
@@ -343,7 +343,7 @@ public class DataNodeRequestSenderTests extends ComputeTestCase {
         );
 
         AtomicInteger processed = new AtomicInteger(0);
-        var response = safeGet(sendRequests(targetShards, randomBoolean(), 1, (node, shardIds, aliasFilters, listener) -> {
+        var response = safeGet(sendRequests(randomBoolean(), 1, targetShards, (node, shardIds, aliasFilters, listener) -> {
             runWithDelay(() -> {
                 if (processed.incrementAndGet() == 1) {
                     listener.onResponse(new DataNodeComputeResponse(List.of(), Map.of()));
@@ -362,7 +362,7 @@ public class DataNodeRequestSenderTests extends ComputeTestCase {
         var targetShards = List.of(targetShard(shard1, node1, node2), targetShard(shard2, node3));
 
         var sent = ConcurrentCollections.<NodeRequest>newQueue();
-        var response = safeGet(sendRequests(targetShards, randomBoolean(), 1, (node, shardIds, aliasFilters, listener) -> {
+        var response = safeGet(sendRequests(randomBoolean(), 1, targetShards, (node, shardIds, aliasFilters, listener) -> {
             sent.add(nodeRequest(node, shardIds));
             runWithDelay(() -> {
                 if (Objects.equals(node.getId(), node1.getId()) && shardIds.equals(List.of(shard1))) {
@@ -382,20 +382,31 @@ public class DataNodeRequestSenderTests extends ComputeTestCase {
     }
 
     public void testQueryHotShardsFirst() {
+        var warnNode = DiscoveryNodeUtils.builder("node-2").roles(Set.of(DATA_WARM_NODE_ROLE)).build();
+        var coldNode = DiscoveryNodeUtils.builder("node-3").roles(Set.of(DATA_COLD_NODE_ROLE)).build();
+        var frozenNode = DiscoveryNodeUtils.builder("node-4").roles(Set.of(DATA_FROZEN_NODE_ROLE)).build();
         var targetShards = shuffledList(
             List.of(
                 targetShard(shard1, node1),
-                targetShard(shard2, DiscoveryNodeUtils.builder("node-2").roles(Set.of(DATA_WARM_NODE_ROLE)).build()),
-                targetShard(shard3, DiscoveryNodeUtils.builder("node-3").roles(Set.of(DATA_COLD_NODE_ROLE)).build()),
-                targetShard(shard4, DiscoveryNodeUtils.builder("node-4").roles(Set.of(DATA_FROZEN_NODE_ROLE)).build())
+                targetShard(shard2, warnNode),
+                targetShard(shard3, coldNode),
+                targetShard(shard4, frozenNode)
             )
         );
-        var sent = Collections.synchronizedList(new ArrayList<String>());
-        safeGet(sendRequests(targetShards, randomBoolean(), -1, (node, shardIds, aliasFilters, listener) -> {
-            sent.add(node.getId());
+        var sent = ConcurrentCollections.<NodeRequest>newQueue();
+        safeGet(sendRequests(randomBoolean(), -1, targetShards, (node, shardIds, aliasFilters, listener) -> {
+            sent.add(nodeRequest(node, shardIds));
             runWithDelay(() -> listener.onResponse(new DataNodeComputeResponse(List.of(), Map.of())));
         }));
-        assertThat(sent, equalTo(List.of("node-1", "node-2", "node-3", "node-4")));
+        assertThat(
+            sent,
+            contains(
+                nodeRequest(node1, shard1),
+                nodeRequest(warnNode, shard2),
+                nodeRequest(coldNode, shard3),
+                nodeRequest(frozenNode, shard4)
+            )
+        );
     }
 
     public void testQueryHotShardsFirstWhenIlmMovesShard() {
@@ -404,11 +415,11 @@ public class DataNodeRequestSenderTests extends ComputeTestCase {
             List.of(targetShard(shard1, node1), targetShard(shard2, shuffledList(List.of(node2, warmNode2)).toArray(DiscoveryNode[]::new)))
         );
         var sent = ConcurrentCollections.<NodeRequest>newQueue();
-        safeGet(sendRequests(targetShards, randomBoolean(), -1, (node, shardIds, aliasFilters, listener) -> {
+        safeGet(sendRequests(randomBoolean(), -1, targetShards, (node, shardIds, aliasFilters, listener) -> {
             sent.add(nodeRequest(node, shardIds));
             runWithDelay(() -> listener.onResponse(new DataNodeComputeResponse(List.of(), Map.of())));
         }));
-        assertThat(take(sent, 1), containsInAnyOrder(nodeRequest(node1, shard1)));
+        assertThat(take(sent, 1), contains(nodeRequest(node1, shard1)));
         assertThat(take(sent, 1), anyOf(contains(nodeRequest(node2, shard2)), contains(nodeRequest(warmNode2, shard2))));
     }
 
@@ -443,11 +454,24 @@ public class DataNodeRequestSenderTests extends ComputeTestCase {
     }
 
     PlainActionFuture<ComputeResponse> sendRequests(
-        List<DataNodeRequestSender.TargetShard> shards,
         boolean allowPartialResults,
         int concurrentRequests,
+        List<DataNodeRequestSender.TargetShard> shards,
         Sender sender
     ) {
+        return sendRequests(
+            allowPartialResults,
+            concurrentRequests,
+            () -> new DataNodeRequestSender.TargetShards(
+                shards.stream().collect(Collectors.toMap(DataNodeRequestSender.TargetShard::shardId, Function.identity())),
+                shards.size(),
+                0
+            ),
+            sender
+        );
+    }
+
+    PlainActionFuture<ComputeResponse> sendRequests(boolean allowPartialResults, int concurrentRequests, Resolver resolver, Sender sender) {
         PlainActionFuture<ComputeResponse> future = new PlainActionFuture<>();
         TransportService transportService = MockTransportService.createNewService(
             Settings.EMPTY,
@@ -463,7 +487,7 @@ public class DataNodeRequestSenderTests extends ComputeTestCase {
             TaskId.EMPTY_TASK_ID,
             Collections.emptyMap()
         );
-        DataNodeRequestSender requestSender = new DataNodeRequestSender(
+        new DataNodeRequestSender(
             transportService,
             executor,
             task,
@@ -475,12 +499,7 @@ public class DataNodeRequestSenderTests extends ComputeTestCase {
         ) {
             @Override
             void searchShards(String[] indices, Predicate<ShardId> predicate, ActionListener<TargetShards> listener) {
-                var targetShards = new TargetShards(
-                    shards.stream().collect(Collectors.toMap(TargetShard::shardId, Function.identity())),
-                    shards.size(),
-                    0
-                );
-                runWithDelay(() -> listener.onResponse(targetShards));
+                runWithDelay(() -> listener.onResponse(resolver.resolve()));
             }
 
             @Override
@@ -492,9 +511,12 @@ public class DataNodeRequestSenderTests extends ComputeTestCase {
             ) {
                 sender.sendRequestToOneNode(node, shardIds, aliasFilters, listener);
             }
-        };
-        requestSender.startComputeOnDataNodes(Set.of(randomAlphaOfLength(10)), () -> {}, future);
+        }.startComputeOnDataNodes(Set.of(randomAlphaOfLength(10)), () -> {}, future);
         return future;
+    }
+
+    interface Resolver {
+        DataNodeRequestSender.TargetShards resolve();
     }
 
     interface Sender {

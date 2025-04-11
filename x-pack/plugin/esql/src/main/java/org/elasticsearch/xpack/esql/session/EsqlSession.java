@@ -60,16 +60,25 @@ import org.elasticsearch.xpack.esql.parser.EsqlParser;
 import org.elasticsearch.xpack.esql.parser.QueryParams;
 import org.elasticsearch.xpack.esql.plan.IndexPattern;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
+import org.elasticsearch.xpack.esql.plan.logical.Drop;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
+import org.elasticsearch.xpack.esql.plan.logical.Eval;
+import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.Fork;
+import org.elasticsearch.xpack.esql.plan.logical.InlineStats;
+import org.elasticsearch.xpack.esql.plan.logical.Insist;
 import org.elasticsearch.xpack.esql.plan.logical.Keep;
+import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.esql.plan.logical.MvExpand;
+import org.elasticsearch.xpack.esql.plan.logical.OrderBy;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.RegexExtract;
+import org.elasticsearch.xpack.esql.plan.logical.Rename;
+import org.elasticsearch.xpack.esql.plan.logical.TopN;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
 import org.elasticsearch.xpack.esql.plan.logical.inference.InferencePlan;
 import org.elasticsearch.xpack.esql.plan.logical.join.InlineJoin;
-import org.elasticsearch.xpack.esql.plan.logical.join.Join;
 import org.elasticsearch.xpack.esql.plan.logical.join.JoinTypes;
 import org.elasticsearch.xpack.esql.plan.logical.join.LookupJoin;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
@@ -614,11 +623,11 @@ public class EsqlSession {
         var keepJoinRefsBuilder = AttributeSet.builder();
         Set<String> wildcardJoinIndices = new java.util.HashSet<>();
 
-        boolean[] joinsFound = new boolean[] { false };
+        boolean[] canRemoveAliases = new boolean[] { true };
 
         parsed.forEachDown(p -> {// go over each plan top-down
-            if (p instanceof Join || p instanceof Enrich) {
-                joinsFound[0] = true;
+            if (couldOverrideAliases(p)) {
+                canRemoveAliases[0] = false;
             }
             if (p instanceof RegexExtract re) { // for Grok and Dissect
                 // remove other down-the-tree references to the extracted fields
@@ -672,7 +681,7 @@ public class EsqlSession {
             p.forEachExpressionDown(Alias.class, alias -> {
                 // If there are joins/enriches in the middle, these could override some of these fields.
                 // We don't know at this stage, so we have to keep all of them.
-                if (joinsFound[0] == false) {
+                if (canRemoveAliases[0]) {
                     // do not remove the UnresolvedAttribute that has the same name as its alias, ie "rename id = id"
                     // or the UnresolvedAttributes that are used in Functions that have aliases "STATS id = MAX(id)"
                     if (fieldNames.contains(alias.name())) {
@@ -704,6 +713,30 @@ public class EsqlSession {
             fieldNames.addAll(subfields(enrichPolicyMatchFields));
             return result.withFieldNames(fieldNames);
         }
+    }
+
+    /**
+     * Could a plan "accidentally" override aliases?
+     * Examples are JOIN and ENRICH, that _could_ produce fields with the same
+     * name of an existing alias, based on their index mapping.
+     * Here we just have to consider commands where this information is not available before index resolution,
+     * eg. EVAL, GROK, DISSECT can override an alias, but we know it in advance, ie. we don't need to resolve indices to know.
+     */
+    private static boolean couldOverrideAliases(LogicalPlan p) {
+        return (p instanceof Drop
+            || p instanceof Eval
+            || p instanceof Filter
+            || p instanceof Fork
+            || p instanceof InlineStats
+            || p instanceof Insist
+            || p instanceof Keep
+            || p instanceof Limit
+            || p instanceof MvExpand
+            || p instanceof OrderBy
+            || p instanceof Project
+            || p instanceof RegexExtract
+            || p instanceof Rename
+            || p instanceof TopN) == false;
     }
 
     private static boolean matchByName(Attribute attr, String other, boolean skipIfPattern) {

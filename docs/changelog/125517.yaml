@@ -1,5 +1,5 @@
 pr: 125517
-summary: Add Semantic Text Chunking OOM Circuit Breaker
-area: "Machine Learning, Relevance"
+summary: Semantic Text Chunking Indexing Pressure
+area: Machine Learning
 type: enhancement
 issues: []

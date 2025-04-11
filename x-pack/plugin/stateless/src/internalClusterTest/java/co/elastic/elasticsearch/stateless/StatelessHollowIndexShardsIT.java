@@ -27,7 +27,6 @@ import co.elastic.elasticsearch.stateless.engine.PrimaryTermAndGeneration;
 import co.elastic.elasticsearch.stateless.objectstore.ObjectStoreService;
 import co.elastic.elasticsearch.stateless.objectstore.ObjectStoreTestUtils;
 
-import org.apache.lucene.store.AlreadyClosedException;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
@@ -46,8 +45,6 @@ import org.elasticsearch.action.datastreams.CreateDataStreamAction;
 import org.elasticsearch.action.datastreams.GetDataStreamAction;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.get.MultiGetItemResponse;
-import org.elasticsearch.action.get.TransportGetFromTranslogAction;
-import org.elasticsearch.action.get.TransportShardMultiGetFomTranslogAction;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.internal.Requests;
@@ -101,7 +98,6 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
@@ -1410,38 +1406,25 @@ public class StatelessHollowIndexShardsIT extends AbstractStatelessIntegTestCase
                     List<String> docIds = randomSubsetOf(Math.min(8, insertedDocs.size()), insertedDocs);
                     try {
                         if (randomBoolean()) {
-                            assertBusy(() -> {
-                                try {
-                                    var multiGetItemResponse = safeGet(client().prepareMultiGet().addIds(indexName, docIds).execute());
-                                    for (MultiGetItemResponse itemResponse : multiGetItemResponse) {
-                                        assertFalse(itemResponse.isFailed());
-                                        assertTrue(itemResponse.getResponse().isExists());
-                                    }
-                                } catch (Exception e) {
-                                    // Retry on AlreadyClosedException
-                                    if (ExceptionsHelper.unwrap(e, AlreadyClosedException.class) != null) {
-                                        throw new AssertionError(e);
-                                    }
-                                    throw e;
+                            var multiGetItemResponse = safeGet(client().prepareMultiGet().addIds(indexName, docIds).execute());
+                            for (MultiGetItemResponse itemResponse : multiGetItemResponse) {
+                                if (itemResponse.isFailed()) {
+                                    assertThat(
+                                        "Expected no failure but got: "
+                                            + org.elasticsearch.common.Strings.toString(itemResponse.getFailure()),
+                                        itemResponse.getFailure(),
+                                        nullValue()
+                                    );
                                 }
-                            }, 30, TimeUnit.SECONDS);
+                                assertTrue(itemResponse.getResponse().isExists());
+                            }
                         } else {
                             for (String docId : docIds) {
-                                assertBusy(() -> {
-                                    try {
-                                        assertTrue(safeGet(client().prepareGet(indexName, docId).execute()).isExists());
-                                    } catch (Exception e) {
-                                        // Retry on AlreadyClosedException
-                                        if (ExceptionsHelper.unwrap(e, AlreadyClosedException.class) != null) {
-                                            throw new AssertionError(e);
-                                        }
-                                        throw e;
-                                    }
-                                }, 30, TimeUnit.SECONDS);
+                                assertTrue(safeGet(client().prepareGet(indexName, docId).execute()).isExists());
                             }
                         }
                     } catch (Exception e) {
-                        throw new RuntimeException("Unable to get docs in real-time", e);
+                        throw new AssertionError("Unable to get docs in real-time", e);
                     }
                 }
                 logger.info("exiting");
@@ -1590,73 +1573,6 @@ public class StatelessHollowIndexShardsIT extends AbstractStatelessIntegTestCase
         var nonRealTimeMultiGetResponse = client().prepareMultiGet().addIds(indexName, ids).setRealtime(false).get();
         assertTrue(Stream.of(nonRealTimeMultiGetResponse.getResponses()).noneMatch(MultiGetItemResponse::isFailed));
         assertTrue(Stream.of(nonRealTimeMultiGetResponse.getResponses()).map(e -> e.getResponse()).allMatch(GetResponse::isExists));
-    }
-
-    public void testGetFromTranslogRetriesOnAlreadyClosedException() throws Exception {
-        startMasterOnlyNode();
-        int numOfShards = randomIntBetween(2, 4);
-        int numOfReplicas = 1;
-        var indexNodeSettings = Settings.builder()
-            .put(disableIndexingDiskAndMemoryControllersNodeSettings())
-            .put(SETTING_HOLLOW_INGESTION_TTL.getKey(), TimeValue.timeValueMillis(1))
-            .build();
-        var indexNodeA = startIndexNode(indexNodeSettings);
-        var indexNodeB = startIndexNode(indexNodeSettings);
-        startSearchNodes(numOfReplicas);
-
-        var indexName = randomIdentifier();
-        createIndex(
-            indexName,
-            indexSettings(numOfShards, numOfReplicas).put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), -1).build()
-        );
-        ensureGreen(indexName);
-        var index = resolveIndex(indexName);
-
-        indexDocs(indexName, randomIntBetween(16, 32));
-        flush(indexName);
-        var bulkResponse = indexDocs(indexName, randomIntBetween(256, 512));
-        List<String> docIds = Arrays.stream(bulkResponse.getItems()).map(BulkItemResponse::getId).toList();
-
-        updateIndexSettings(Settings.builder().put("index.routing.allocation.exclude._name", indexNodeA), indexName);
-        assertBusy(() -> assertThat(internalCluster().nodesInclude(indexName), not(hasItem(indexNodeA))));
-        ensureGreen(indexName);
-
-        var failCount = randomIntBetween(1, 3);
-        var getFromTranslogCounter = new AtomicInteger();
-        var multiGetFromTranslogCounter = new AtomicInteger();
-        var mockTransportService = MockTransportService.getInstance(indexNodeB);
-        mockTransportService.addRequestHandlingBehavior(TransportGetFromTranslogAction.NAME, (handler, request, channel, task) -> {
-            if (getFromTranslogCounter.incrementAndGet() <= failCount) {
-                channel.sendResponse(new AlreadyClosedException(indexName));
-            } else {
-                handler.messageReceived(request, channel, task);
-            }
-        });
-        mockTransportService.addRequestHandlingBehavior(TransportShardMultiGetFomTranslogAction.NAME, (handler, request, channel, task) -> {
-            if (multiGetFromTranslogCounter.incrementAndGet() <= failCount) {
-                channel.sendResponse(new AlreadyClosedException(indexName));
-            } else {
-                handler.messageReceived(request, channel, task);
-            }
-        });
-
-        var getResponseFuture = client().prepareGet(indexName, randomFrom(docIds)).setRealtime(true).execute();
-        triggerClusterUpdates(indexName, failCount);
-        assertThat(getResponseFuture.get().isExists(), is(true));
-
-        var multiGetResponseFuture = client().prepareMultiGet()
-            .addIds(indexName, randomNonEmptySubsetOf(docIds))
-            .setRealtime(true)
-            .execute();
-        triggerClusterUpdates(indexName, failCount);
-        assertTrue(Stream.of(safeGet(multiGetResponseFuture).getResponses()).map(e -> e.getResponse()).allMatch(GetResponse::isExists));
-    }
-
-    private static void triggerClusterUpdates(String indexName, int amount) {
-        // Trigger cluster state updates for retries
-        for (int i = 0; i < amount; i++) {
-            safeGet(indicesAdmin().preparePutMapping(indexName).setSource(randomIdentifier(), "type=keyword").execute());
-        }
     }
 
     private void ensureGreenViaMasterNode(String masterNode, String index, boolean waitForEvents) {

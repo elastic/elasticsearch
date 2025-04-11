@@ -1,4 +1,4 @@
-## Subtract `-` [esql-sub]
+### Subtract `-` [esql-sub]
 
 :::{image} ../../../images/operators/sub.svg
 :alt: Embedded

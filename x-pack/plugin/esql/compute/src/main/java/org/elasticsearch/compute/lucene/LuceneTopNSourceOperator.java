@@ -44,6 +44,9 @@ import java.util.Optional;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
+import static org.apache.lucene.search.ScoreMode.TOP_DOCS;
+import static org.apache.lucene.search.ScoreMode.TOP_DOCS_WITH_SCORES;
+
 /**
  * Source operator that builds Pages out of the output of a TopFieldCollector (aka TopN)
  */
@@ -63,7 +66,16 @@ public final class LuceneTopNSourceOperator extends LuceneOperator {
             List<SortBuilder<?>> sorts,
             boolean needsScore
         ) {
-            super(contexts, weightFunction(queryFunction, sorts, needsScore), dataPartitioning, taskConcurrency, limit, needsScore);
+            super(
+                contexts,
+                queryFunction,
+                dataPartitioning,
+                query -> LuceneSliceQueue.PartitioningStrategy.SHARD,
+                taskConcurrency,
+                limit,
+                needsScore,
+                needsScore ? TOP_DOCS_WITH_SCORES : TOP_DOCS
+            );
             this.maxPageSize = maxPageSize;
             this.sorts = sorts;
         }

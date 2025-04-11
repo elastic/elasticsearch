@@ -33,7 +33,7 @@ setup:
           path: /_query
           parameters: []
           # A snapshot function was removed in match_function_options, it can't work on mixed cluster tests otherwise.
-          capabilities: [ snapshot_test_for_telemetry, fn_byte_length, match_function_options, max_over_time]
+          capabilities: [ snapshot_test_for_telemetry, fn_byte_length, match_function_options, avg_over_time]
       reason: "Test that should only be executed on snapshot versions"
 
   - do: {xpack.usage: {}}
@@ -179,3 +179,25 @@ setup:
   - match: {esql.functions.coalesce: $functions_coalesce}
   - gt: {esql.functions.categorize: $functions_categorize}
   - length: {esql.functions: 131} # check the "sister" test above for a likely update to the same esql.functions length check
+
+---
+took:
+  - requires:
+      test_runner_features: [capabilities]
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: []
+          capabilities: [usage_contains_took]
+      reason: "Test that should only be executed on snapshot versions"
+
+  - do: {xpack.usage: {}}
+  - exists: esql.took.lt_10ms
+  - exists: esql.took.lt_1s
+  - exists: esql.took.lt_10s
+  - exists: esql.took.lt_1m
+  - exists: esql.took.lt_10m
+  - exists: esql.took.lt_1h
+  - exists: esql.took.lt_10h
+  - exists: esql.took.lt_1d
+  - exists: esql.took.gt_1d

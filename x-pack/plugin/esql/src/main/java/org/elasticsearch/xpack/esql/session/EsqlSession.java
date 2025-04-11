@@ -723,7 +723,8 @@ public class EsqlSession {
      * eg. EVAL, GROK, DISSECT can override an alias, but we know it in advance, ie. we don't need to resolve indices to know.
      */
     private static boolean couldOverrideAliases(LogicalPlan p) {
-        return (p instanceof Drop
+        return (p instanceof Aggregate
+            || p instanceof Drop
             || p instanceof Eval
             || p instanceof Filter
             || p instanceof Fork

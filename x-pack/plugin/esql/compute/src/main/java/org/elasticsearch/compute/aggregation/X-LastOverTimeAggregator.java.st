@@ -8,7 +8,6 @@
 package org.elasticsearch.compute.aggregation;
 
 import org.elasticsearch.common.util.BigArrays;
-import org.elasticsearch.common.util.BitArray;
 $if(int||double||float)$
 import org.elasticsearch.common.util.$Type$Array;
 $endif$
@@ -22,11 +21,10 @@ $endif$
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.operator.DriverContext;
-import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 
 /**
- * A time-series aggregation function that collects the last value of each time series in each grouping
+ * A time-series aggregation function that collects the most recent value of a time series in a specified interval.
  * This class is generated. Edit `X-LastOverTimeAggregator.java.st` instead.
  */
 @GroupingAggregator(
@@ -40,7 +38,7 @@ public class LastOverTime$Type$Aggregator {
     }
 
     public static void combine(GroupingState current, int groupId, long timestamp, $type$ value) {
-        current.maybeCollect(groupId, timestamp, value);
+        current.collectValue(groupId, timestamp, value);
     }
 
     public static void combineIntermediate(
@@ -55,7 +53,7 @@ public class LastOverTime$Type$Aggregator {
             long timestamp = timestamps.getLong(timestamps.getFirstValueIndex(otherPosition));
             int firstIndex = values.getFirstValueIndex(otherPosition);
             for (int i = 0; i < valueCount; i++) {
-                current.maybeCollect(groupId, timestamp, values.get$Type$(firstIndex + i));
+                current.collectValue(groupId, timestamp, values.get$Type$(firstIndex + i));
             }
         }
     }
@@ -64,7 +62,7 @@ public class LastOverTime$Type$Aggregator {
         if (otherGroupId < otherState.timestamps.size() && otherState.hasValue(otherGroupId)) {
             var timestamp = otherState.timestamps.get(otherGroupId);
             var value = otherState.values.get(otherGroupId);
-            current.maybeCollect(currentGroupId, timestamp, value);
+            current.collectValue(currentGroupId, timestamp, value);
         }
     }
 
@@ -72,69 +70,47 @@ public class LastOverTime$Type$Aggregator {
         return state.evaluateFinal(selected, evalContext);
     }
 
-    public static final class GroupingState implements GroupingAggregatorState, Releasable {
+    public static final class GroupingState extends AbstractArrayState {
         private final BigArrays bigArrays;
         private LongArray timestamps;
         private $Type$Array values;
-        private BitArray hasValues = null;
-        private int maxGroupId = -1;
 
         GroupingState(BigArrays bigArrays) {
+            super(bigArrays);
             this.bigArrays = bigArrays;
             boolean success = false;
             LongArray timestamps = null;
-            $Type$Array values = null;
             try {
                 timestamps = bigArrays.newLongArray(1, false);
-                values = bigArrays.new$Type$Array(1, false);
                 this.timestamps = timestamps;
-                this.values = values;
+                this.values = bigArrays.new$Type$Array(1, false);
                 success = true;
             } finally {
                 if (success == false) {
-                    Releasables.close(timestamps, values);
+                    Releasables.close(timestamps, values, super::close);
                 }
             }
         }
 
-        void maybeCollect(int groupId, long timestamp, $type$ value) {
-            if (groupId > maxGroupId) {
-                timestamps = bigArrays.grow(timestamps, groupId + 1);
-                values = bigArrays.grow(values, groupId + 1);
-                timestamps.set(groupId, timestamp);
-                values.set(groupId, value);
-            } else {
+        void collectValue(int groupId, long timestamp, $type$ value) {
+            if (groupId < timestamps.size()) {
                 // TODO: handle multiple values?
                 if (hasValue(groupId) == false || timestamps.get(groupId) < timestamp) {
                     timestamps.set(groupId, timestamp);
                     values.set(groupId, value);
                 }
-            }
-            maybeTrackGroup(groupId);
-        }
-
-        private void maybeTrackGroup(int groupId) {
-            if (hasValues != null) {
-                hasValues.set(groupId, true);
             } else {
-                if (groupId > maxGroupId + 1) {
-                    hasValues = new BitArray(groupId + 1, bigArrays);
-                    if (maxGroupId >= 0) {
-                        hasValues.fill(0, maxGroupId + 1, true);
-                    }
-                    hasValues.set(groupId, true);
-                }
+                timestamps = bigArrays.grow(timestamps, groupId + 1);
+                values = bigArrays.grow(values, groupId + 1);
+                timestamps.set(groupId, timestamp);
+                values.set(groupId, value);
             }
-            maxGroupId = Math.max(maxGroupId, groupId);
-        }
-
-        boolean hasValue(long groupId) {
-            return groupId <= maxGroupId && (hasValues == null || hasValues.get(groupId));
+            trackGroupId(groupId);
         }
 
         @Override
         public void close() {
-            Releasables.close(timestamps, values, hasValues);
+            Releasables.close(timestamps, values, super::close);
         }
 
         @Override
@@ -145,7 +121,7 @@ public class LastOverTime$Type$Aggregator {
             ) {
                 for (int p = 0; p < selected.getPositionCount(); p++) {
                     int group = selected.getInt(p);
-                    if (hasValue(group)) {
+                    if (group < timestamps.size() && hasValue(group)) {
                         timestampsBuilder.appendLong(timestamps.get(group));
                         valuesBuilder.append$Type$(values.get(group));
                     } else {
@@ -162,7 +138,7 @@ public class LastOverTime$Type$Aggregator {
             try (var builder = evalContext.blockFactory().new$Type$BlockBuilder(selected.getPositionCount())) {
                 for (int p = 0; p < selected.getPositionCount(); p++) {
                     int group = selected.getInt(p);
-                    if (hasValue(group)) {
+                    if (group < timestamps.size() && hasValue(group)) {
                         builder.append$Type$(values.get(group));
                     } else {
                         builder.appendNull();
@@ -170,11 +146,6 @@ public class LastOverTime$Type$Aggregator {
                 }
                 return builder.build();
             }
-        }
-
-        @Override
-        public void enableGroupIdTracking(SeenGroupIds seenGroupIds) {
-            // tracking via hasValues
         }
     }
 }

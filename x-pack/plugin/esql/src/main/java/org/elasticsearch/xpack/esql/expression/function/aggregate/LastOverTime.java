@@ -45,7 +45,7 @@ public class LastOverTime extends TimeSeriesAggregateFunction implements Optiona
 
     @FunctionInfo(
         returnType = { "int", "double", "integer", "long" },
-        description = "Collect the last value of a time-series. Available with TS command only",
+        description = "Collect the most recent value of a time-series in the specified interval. Available with TS command only",
         type = FunctionType.AGGREGATE
     )
     public LastOverTime(

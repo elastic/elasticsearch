@@ -532,17 +532,6 @@ public class MetadataDataStreamsService {
                     ProjectMetadata currentProject = currentState.projectState(projectResolver.getProjectId()).metadata();
                     final ComposableIndexTemplate template = lookupTemplateForDataStream(dataStreamName, currentProject);
                     ComposableIndexTemplate mergedTemplate = DataStream.mergeTemplates(template, templateOverrides);
-                    if (mergedTemplate == null) {
-                        throw new IllegalArgumentException("no matching index template found for data stream [" + dataStreamName + "]");
-                    } else if (mergedTemplate.getDataStreamTemplate() == null) {
-                        throw new IllegalArgumentException(
-                            "matching index template ["
-                                + MetadataIndexTemplateService.findV2Template(currentProject, dataStreamName, false)
-                                + "] for data stream ["
-                                + dataStreamName
-                                + "] has no data stream template"
-                        );
-                    }
                     // Maybe MetadataIndexTemplateService::validateTemplate(mergedTemplate) here?
 
                     Template.Builder templateBuilder = Template.builder();

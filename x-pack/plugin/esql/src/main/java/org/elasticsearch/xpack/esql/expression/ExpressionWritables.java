@@ -37,6 +37,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.math.Acos;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Asin;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Atan;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Cbrt;
+import org.elasticsearch.xpack.esql.expression.function.scalar.math.CopySign;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Ceil;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Cos;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Cosh;
@@ -153,6 +154,7 @@ public class ExpressionWritables {
         entries.add(ByteLength.ENTRY);
         entries.add(Cbrt.ENTRY);
         entries.add(Ceil.ENTRY);
+        entries.add(CopySign.ENTRY);
         entries.add(Cos.ENTRY);
         entries.add(Cosh.ENTRY);
         entries.add(Exp.ENTRY);

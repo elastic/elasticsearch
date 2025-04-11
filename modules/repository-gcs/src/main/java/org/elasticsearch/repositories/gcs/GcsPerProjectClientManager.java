@@ -25,7 +25,7 @@ public class GcsPerProjectClientManager implements ClusterStateListener {
 
     private final Settings settings;
     private final BiFunction<GoogleCloudStorageClientSettings, GcsRepositoryStatsCollector, MeteredStorage> clientBuilder;
-    private final Map<ProjectId, ClientHolder> perProjectClientsCache;
+    private final Map<ProjectId, ClientsHolder> perProjectClientsCache;
 
     public GcsPerProjectClientManager(
         Settings settings,
@@ -40,7 +40,7 @@ public class GcsPerProjectClientManager implements ClusterStateListener {
     public void clusterChanged(ClusterChangedEvent event) {
         final Map<ProjectId, ProjectMetadata> currentProjects = event.state().metadata().projects();
 
-        final var updatedPerProjectClients = new HashMap<ProjectId, ClientHolder>();
+        final var updatedPerProjectClients = new HashMap<ProjectId, ClientsHolder>();
         for (var project : currentProjects.values()) {
             final ProjectSecrets projectSecrets = project.custom(ProjectSecrets.TYPE);
             if (projectSecrets == null) {
@@ -61,9 +61,10 @@ public class GcsPerProjectClientManager implements ClusterStateListener {
             // TODO: Building and comparing the whole GoogleCloudStorageClientSettings may be insufficient, we could just compare the
             // relevant secrets
             if (newOrUpdated(project.id(), clientSettings)) {
-                updatedPerProjectClients.put(project.id(), new ClientHolder(clientSettings));
+                updatedPerProjectClients.put(project.id(), new ClientsHolder(clientSettings));
             }
         }
+
         // Updated projects
         perProjectClientsCache.putAll(updatedPerProjectClients);
 
@@ -81,39 +82,39 @@ public class GcsPerProjectClientManager implements ClusterStateListener {
         String repositoryName,
         GcsRepositoryStatsCollector statsCollector
     ) {
-        final var clientHolder = perProjectClientsCache.get(projectId);
-        if (clientHolder == null) {
+        final var clientsHolder = perProjectClientsCache.get(projectId);
+        if (clientsHolder == null) {
             throw new IllegalArgumentException("No project found for [" + projectId + "]");
         }
-        return clientHolder.client(clientName, repositoryName, statsCollector);
+        return clientsHolder.client(clientName, repositoryName, statsCollector);
     }
 
     public void closeRepositoryClients(ProjectId projectId, String repositoryName) {
-        final var clientHolder = perProjectClientsCache.get(projectId);
-        if (clientHolder != null) {
-            clientHolder.closeRepositoryClients(repositoryName);
+        final var clientsHolder = perProjectClientsCache.get(projectId);
+        if (clientsHolder != null) {
+            clientsHolder.closeRepositoryClients(repositoryName);
         }
     }
 
     private boolean newOrUpdated(ProjectId projectId, Map<String, GoogleCloudStorageClientSettings> currentClientSettings) {
-        if (perProjectClientsCache.containsKey(projectId) == false) {
+        final ClientsHolder old = perProjectClientsCache.get(projectId);
+        if (old == null) {
             return true;
         }
-        final var previousClientSettings = perProjectClientsCache.get(projectId).clientSettings();
-        return currentClientSettings.equals(previousClientSettings) == false;
+        return currentClientSettings.equals(old.clientSettings()) == false;
     }
 
-    private final class ClientHolder {
+    private final class ClientsHolder {
         // clientName -> client settings
         private final Map<String, GoogleCloudStorageClientSettings> clientSettings;
         // repositoryName -> client
         private final Map<String, MeteredStorage> clientCache = new ConcurrentHashMap<>();
 
-        ClientHolder(Map<String, GoogleCloudStorageClientSettings> clientSettings) {
+        ClientsHolder(Map<String, GoogleCloudStorageClientSettings> clientSettings) {
             this.clientSettings = clientSettings;
         }
 
-        public Map<String, GoogleCloudStorageClientSettings> clientSettings() {
+        Map<String, GoogleCloudStorageClientSettings> clientSettings() {
             return clientSettings;
         }
 

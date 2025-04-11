@@ -32,10 +32,8 @@ import java.util.function.Function;
 
 public class S3PerProjectClientManager implements ClusterStateListener {
 
-    // Original settings at node startup time
     private final Settings settings;
     private final Function<S3ClientSettings, AmazonS3> clientBuilder;
-
     // A map of projectId to clients holder. Adding to and removing from the map happen only with the cluster state listener thread.
     private final Map<ProjectId, ClientsHolder> perProjectClientsCache;
 
@@ -107,11 +105,11 @@ public class S3PerProjectClientManager implements ClusterStateListener {
         final var old = perProjectClientsCache.get(projectId);
         if (old != null) {
             old.clearCache();
+            // TODO: do we need this?
+            // shutdown IdleConnectionReaper background thread
+            // it will be restarted on new client usage
+            IdleConnectionReaper.shutdown();
         }
-        // TODO: do we need this?
-        // shutdown IdleConnectionReaper background thread
-        // it will be restarted on new client usage
-        IdleConnectionReaper.shutdown();
     }
 
     /**
@@ -126,8 +124,7 @@ public class S3PerProjectClientManager implements ClusterStateListener {
         if (old == null) {
             return true;
         }
-        final var oldClientSettings = old.clientSettings();
-        return currentClientSettings.equals(oldClientSettings) == false;
+        return currentClientSettings.equals(old.clientSettings()) == false;
     }
 
     private final class ClientsHolder implements Closeable {
@@ -139,11 +136,11 @@ public class S3PerProjectClientManager implements ClusterStateListener {
             this.clientSettings = clientSettings;
         }
 
-        public Map<String, S3ClientSettings> clientSettings() {
+        Map<String, S3ClientSettings> clientSettings() {
             return clientSettings;
         }
 
-        public AmazonS3Reference client(String clientName) {
+        AmazonS3Reference client(String clientName) {
             final var clientReference = clientsCache.get(clientName);
             // It is ok to retrieve an existing client when the cache is being cleared or the holder is closing.
             // As long as there are paired incRef/decRef calls, the client will be closed when the last reference is released
@@ -174,10 +171,10 @@ public class S3PerProjectClientManager implements ClusterStateListener {
         }
 
         /**
-         * Clear the cache by closing and clear out all clients. New {@link #client(String)} call will recreate
+         * Clear the cache by closing and clear out all clients. Subsequent {@link #client(String)} calls will recreate
          * the clients and populate the cache again.
          */
-        public synchronized void clearCache() {
+        synchronized void clearCache() {
             IOUtils.closeWhileHandlingException(clientsCache.values());
             clientsCache = Collections.emptyMap();
         }

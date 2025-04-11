@@ -26,10 +26,14 @@ public class KeywordFieldBlockLoaderTests extends BlockLoaderTestCase {
         super(FieldType.KEYWORD.toString(), params);
     }
 
-    @SuppressWarnings("unchecked")
     @Override
     protected Object expected(Map<String, Object> fieldMapping, Object value, TestContext testContext) {
-        String nullValue = (String) fieldMapping.get("null_value");
+        return expectedValue(fieldMapping, value, params, testContext);
+    }
+
+    @SuppressWarnings("unchecked")
+    public static Object expectedValue(Map<String, Object> fieldMapping, Object value, Params params, TestContext testContext) {
+        var nullValue = (String) fieldMapping.get("null_value");
 
         int ignoreAbove = fieldMapping.get("ignore_above") == null
             ? Integer.MAX_VALUE
@@ -48,7 +52,7 @@ public class KeywordFieldBlockLoaderTests extends BlockLoaderTestCase {
         Function<Stream<String>, Stream<BytesRef>> convertValues = s -> s.map(v -> convert(v, nullValue, ignoreAbove, normalizerName))
             .filter(Objects::nonNull);
 
-        boolean hasDocValues = hasDocValues(fieldMapping, false);
+        boolean hasDocValues = hasDocValues(fieldMapping, true);
         boolean useDocValues = params.preference() == MappedFieldType.FieldExtractPreference.NONE
             || params.preference() == MappedFieldType.FieldExtractPreference.DOC_VALUES
             || params.syntheticSource();
@@ -66,7 +70,7 @@ public class KeywordFieldBlockLoaderTests extends BlockLoaderTestCase {
         return maybeFoldList(resultList);
     }
 
-    private BytesRef convert(String value, String nullValue, int ignoreAbove, String normalizer) {
+    private static BytesRef convert(String value, String nullValue, int ignoreAbove, String normalizer) {
         if (value == null) {
             if (nullValue != null) {
                 value = nullValue;

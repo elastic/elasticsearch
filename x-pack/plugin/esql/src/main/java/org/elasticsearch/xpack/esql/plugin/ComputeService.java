@@ -17,6 +17,7 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.RunOnce;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.lucene.DataPartitioning;
 import org.elasticsearch.compute.operator.Driver;
 import org.elasticsearch.compute.operator.DriverProfile;
 import org.elasticsearch.compute.operator.DriverTaskRunner;
@@ -49,6 +50,7 @@ import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.enrich.EnrichLookupService;
 import org.elasticsearch.xpack.esql.enrich.LookupFromIndexService;
+import org.elasticsearch.xpack.esql.inference.InferenceRunner;
 import org.elasticsearch.xpack.esql.plan.physical.ExchangeSinkExec;
 import org.elasticsearch.xpack.esql.plan.physical.ExchangeSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.OutputExec;
@@ -125,33 +127,35 @@ public class ComputeService {
     private final DriverTaskRunner driverRunner;
     private final EnrichLookupService enrichLookupService;
     private final LookupFromIndexService lookupFromIndexService;
+    private final InferenceRunner inferenceRunner;
     private final ClusterService clusterService;
     private final AtomicLong childSessionIdGenerator = new AtomicLong();
     private final DataNodeComputeHandler dataNodeComputeHandler;
     private final ClusterComputeHandler clusterComputeHandler;
     private final ExchangeService exchangeService;
 
+    private volatile DataPartitioning defaultDataPartitioning;
+
     @SuppressWarnings("this-escape")
     public ComputeService(
-        SearchService searchService,
-        TransportService transportService,
-        ExchangeService exchangeService,
+        TransportActionServices transportActionServices,
         EnrichLookupService enrichLookupService,
         LookupFromIndexService lookupFromIndexService,
-        ClusterService clusterService,
         ThreadPool threadPool,
         BigArrays bigArrays,
         BlockFactory blockFactory
     ) {
-        this.searchService = searchService;
-        this.transportService = transportService;
+        this.searchService = transportActionServices.searchService();
+        this.transportService = transportActionServices.transportService();
+        this.exchangeService = transportActionServices.exchangeService();
         this.bigArrays = bigArrays.withCircuitBreaking();
         this.blockFactory = blockFactory;
         var esqlExecutor = threadPool.executor(ThreadPool.Names.SEARCH);
         this.driverRunner = new DriverTaskRunner(transportService, esqlExecutor);
         this.enrichLookupService = enrichLookupService;
         this.lookupFromIndexService = lookupFromIndexService;
-        this.clusterService = clusterService;
+        this.inferenceRunner = transportActionServices.inferenceRunner();
+        this.clusterService = transportActionServices.clusterService();
         this.dataNodeComputeHandler = new DataNodeComputeHandler(this, searchService, transportService, exchangeService, esqlExecutor);
         this.clusterComputeHandler = new ClusterComputeHandler(
             this,
@@ -160,7 +164,7 @@ public class ComputeService {
             esqlExecutor,
             dataNodeComputeHandler
         );
-        this.exchangeService = exchangeService;
+        clusterService.getClusterSettings().initializeAndWatch(EsqlPlugin.DEFAULT_DATA_PARTITIONING, v -> this.defaultDataPartitioning = v);
     }
 
     public void execute(
@@ -428,7 +432,13 @@ public class ComputeService {
                 context.exchangeSinkSupplier(),
                 enrichLookupService,
                 lookupFromIndexService,
-                new EsPhysicalOperationProviders(context.foldCtx(), contexts, searchService.getIndicesService().getAnalysis()),
+                inferenceRunner,
+                new EsPhysicalOperationProviders(
+                    context.foldCtx(),
+                    contexts,
+                    searchService.getIndicesService().getAnalysis(),
+                    defaultDataPartitioning
+                ),
                 contexts
             );
 

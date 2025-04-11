@@ -52,10 +52,10 @@ processingCommand
     | enrichCommand
     | mvExpandCommand
     | joinCommand
+    | changePointCommand
     // in development
     | {this.isDevVersion()}? inlinestatsCommand
     | {this.isDevVersion()}? lookupCommand
-    | {this.isDevVersion()}? changePointCommand
     ;
 
 whereCommand
@@ -336,6 +336,10 @@ enrichWithClause
     : (newName=qualifiedNamePattern ASSIGN)? enrichField=qualifiedNamePattern
     ;
 
+changePointCommand
+    : CHANGE_POINT value=qualifiedName (ON key=qualifiedName)? (AS targetType=qualifiedName COMMA targetPvalue=qualifiedName)?
+    ;
+
 //
 // In development
 //
@@ -361,8 +365,4 @@ joinCondition
 
 joinPredicate
     : valueExpression
-    ;
-
-changePointCommand
-    : DEV_CHANGE_POINT value=qualifiedName (ON key=qualifiedName)? (AS targetType=qualifiedName COMMA targetPvalue=qualifiedName)?
     ;

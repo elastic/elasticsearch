@@ -183,3 +183,39 @@ cost:double | cluster:keyword | time_bucket:datetime
 22.75       | prod            | 2024-05-10T00:13:00.000Z
 22.75       | qa              | 2024-05-10T00:08:00.000Z
 ;
+
+max_of_avg_over_time
+required_capability: metrics_command
+required_capability: avg_over_time
+TS k8s | STATS max_cost=max(avg_over_time(network.cost)) BY cluster, time_bucket = bucket(@timestamp,1minute) | SORT max_cost DESC, time_bucket DESC, cluster | LIMIT 10;
+
+max_cost:double | cluster:keyword | time_bucket:datetime    
+12.375          | prod            | 2024-05-10T00:17:00.000Z
+12.375          | qa              | 2024-05-10T00:01:00.000Z
+12.25           | prod            | 2024-05-10T00:19:00.000Z
+12.0625         | qa              | 2024-05-10T00:06:00.000Z
+11.875          | prod            | 2024-05-10T00:15:00.000Z
+11.875          | qa              | 2024-05-10T00:09:00.000Z
+11.625          | prod            | 2024-05-10T00:12:00.000Z
+11.5            | prod            | 2024-05-10T00:05:00.000Z
+11.25           | prod            | 2024-05-10T00:13:00.000Z
+11.0            | qa              | 2024-05-10T00:07:00.000Z
+;
+
+avg_of_avg_over_time
+required_capability: metrics_command
+required_capability: avg_over_time
+TS k8s | STATS avg_cost=avg(avg_over_time(network.cost)) BY cluster, time_bucket = bucket(@timestamp,1minute) | SORT avg_cost DESC, time_bucket DESC, cluster | LIMIT 10;
+
+avg_cost:double    | cluster:keyword | time_bucket:datetime    
+11.625             | prod            | 2024-05-10T00:12:00.000Z
+10.6875            | prod            | 2024-05-10T00:00:00.000Z
+10.145833333333332 | qa              | 2024-05-10T00:04:00.000Z
+10.0               | staging         | 2024-05-10T00:11:00.000Z
+9.895833333333334  | qa              | 2024-05-10T00:06:00.000Z
+9.666666666666666  | prod            | 2024-05-10T00:19:00.000Z
+8.875              | qa              | 2024-05-10T00:01:00.000Z
+8.805555555555555  | qa              | 2024-05-10T00:09:00.000Z
+8.71875            | prod            | 2024-05-10T00:22:00.000Z
+8.5625             | qa              | 2024-05-10T00:22:00.000Z
+;

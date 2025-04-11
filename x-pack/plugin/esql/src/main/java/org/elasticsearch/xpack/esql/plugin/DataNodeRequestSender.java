@@ -15,8 +15,11 @@ import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.search.SearchShardsGroup;
 import org.elasticsearch.action.search.SearchShardsRequest;
 import org.elasticsearch.action.search.SearchShardsResponse;
+import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.action.support.TransportActions;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeRole;
+import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.compute.operator.DriverProfile;
 import org.elasticsearch.compute.operator.FailureCollector;
@@ -24,6 +27,7 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
@@ -35,9 +39,11 @@ import org.elasticsearch.xpack.esql.action.EsqlSearchShardsAction;
 
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.IdentityHashMap;
 import java.util.Iterator;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Queue;
@@ -45,6 +51,7 @@ import java.util.Set;
 import java.util.concurrent.Executor;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.locks.ReentrantLock;
 
 /**
@@ -52,22 +59,48 @@ import java.util.concurrent.locks.ReentrantLock;
  * and executing these computes on the data nodes.
  */
 abstract class DataNodeRequestSender {
+
+    /**
+     * Query order according to the
+     * <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/node-roles-overview.html">node roles</a>.
+     */
+    private static final List<String> NODE_QUERY_ORDER = List.of(
+        DiscoveryNodeRole.SEARCH_ROLE.roleName(),
+        DiscoveryNodeRole.DATA_CONTENT_NODE_ROLE.roleName(),
+        DiscoveryNodeRole.DATA_HOT_NODE_ROLE.roleName(),
+        DiscoveryNodeRole.DATA_WARM_NODE_ROLE.roleName(),
+        DiscoveryNodeRole.DATA_COLD_NODE_ROLE.roleName(),
+        DiscoveryNodeRole.DATA_FROZEN_NODE_ROLE.roleName()
+    );
+
     private final TransportService transportService;
     private final Executor esqlExecutor;
+    private final String clusterAlias;
     private final CancellableTask rootTask;
     private final boolean allowPartialResults;
+    private final Semaphore concurrentRequests;
     private final ReentrantLock sendingLock = new ReentrantLock();
     private final Queue<ShardId> pendingShardIds = ConcurrentCollections.newQueue();
     private final Map<DiscoveryNode, Semaphore> nodePermits = new HashMap<>();
     private final Map<ShardId, ShardFailure> shardFailures = ConcurrentCollections.newConcurrentMap();
+    private final AtomicInteger skippedShards = new AtomicInteger();
     private final AtomicBoolean changed = new AtomicBoolean();
     private boolean reportedFailure = false; // guarded by sendingLock
 
-    DataNodeRequestSender(TransportService transportService, Executor esqlExecutor, CancellableTask rootTask, boolean allowPartialResults) {
+    DataNodeRequestSender(
+        TransportService transportService,
+        Executor esqlExecutor,
+        String clusterAlias,
+        CancellableTask rootTask,
+        boolean allowPartialResults,
+        int concurrentRequests
+    ) {
         this.transportService = transportService;
         this.esqlExecutor = esqlExecutor;
+        this.clusterAlias = clusterAlias;
         this.rootTask = rootTask;
         this.allowPartialResults = allowPartialResults;
+        this.concurrentRequests = concurrentRequests > 0 ? new Semaphore(concurrentRequests) : null;
     }
 
     final void startComputeOnDataNodes(
@@ -81,15 +114,14 @@ abstract class DataNodeRequestSender {
         final long startTimeInNanos = System.nanoTime();
         searchShards(rootTask, clusterAlias, requestFilter, concreteIndices, originalIndices, ActionListener.wrap(targetShards -> {
             try (var computeListener = new ComputeListener(transportService.getThreadPool(), runOnTaskFailure, listener.map(profiles -> {
-                TimeValue took = TimeValue.timeValueNanos(System.nanoTime() - startTimeInNanos);
-                final int failedShards = shardFailures.size();
                 return new ComputeResponse(
                     profiles,
-                    took,
+                    TimeValue.timeValueNanos(System.nanoTime() - startTimeInNanos),
                     targetShards.totalShards(),
-                    targetShards.totalShards() - failedShards,
-                    targetShards.skippedShards(),
-                    failedShards
+                    targetShards.totalShards() - shardFailures.size() - skippedShards.get(),
+                    targetShards.skippedShards() + skippedShards.get(),
+                    shardFailures.size(),
+                    selectFailures()
                 );
             }))) {
                 for (TargetShard shard : targetShards.shards.values()) {
@@ -97,10 +129,37 @@ abstract class DataNodeRequestSender {
                         nodePermits.putIfAbsent(node, new Semaphore(1));
                     }
                 }
-                pendingShardIds.addAll(targetShards.shards.keySet());
+                pendingShardIds.addAll(order(targetShards));
                 trySendingRequestsForPendingShards(targetShards, computeListener);
             }
         }, listener::onFailure));
+    }
+
+    private static List<ShardId> order(TargetShards targetShards) {
+        var computedNodeOrder = new HashMap<DiscoveryNode, Integer>();
+        var ordered = new ArrayList<>(targetShards.shards.keySet());
+        ordered.sort(Comparator.comparingInt(shardId -> nodesOrder(targetShards.getShard(shardId).remainingNodes, computedNodeOrder)));
+        return ordered;
+    }
+
+    private static int nodesOrder(List<DiscoveryNode> nodes, Map<DiscoveryNode, Integer> computedNodeOrder) {
+        if (nodes.isEmpty()) {
+            return Integer.MAX_VALUE;
+        }
+        var order = 0;
+        for (var node : nodes) {
+            order = Math.max(order, computedNodeOrder.computeIfAbsent(node, DataNodeRequestSender::nodeOrder));
+        }
+        return order;
+    }
+
+    private static int nodeOrder(DiscoveryNode node) {
+        for (int i = 0; i < NODE_QUERY_ORDER.size(); i++) {
+            if (node.hasRole(NODE_QUERY_ORDER.get(i))) {
+                return i;
+            }
+        }
+        return Integer.MAX_VALUE;
     }
 
     private void trySendingRequestsForPendingShards(TargetShards targetShards, ComputeListener computeListener) {
@@ -128,8 +187,7 @@ abstract class DataNodeRequestSender {
                         reportedFailure = true;
                         reportFailures(computeListener);
                     } else {
-                        var nodeRequests = selectNodeRequests(targetShards);
-                        for (NodeRequest request : nodeRequests) {
+                        for (NodeRequest request : selectNodeRequests(targetShards)) {
                             sendOneNodeRequest(targetShards, computeListener, request);
                         }
                     }
@@ -156,11 +214,35 @@ abstract class DataNodeRequestSender {
         }
     }
 
+    private List<ShardSearchFailure> selectFailures() {
+        assert reportedFailure == false;
+        final List<ShardSearchFailure> failures = new ArrayList<>();
+        final Set<Exception> seen = Collections.newSetFromMap(new IdentityHashMap<>());
+        for (Map.Entry<ShardId, ShardFailure> e : shardFailures.entrySet()) {
+            final ShardFailure failure = e.getValue();
+            if (ExceptionsHelper.unwrap(failure.failure(), TaskCancelledException.class) != null) {
+                continue;
+            }
+            if (seen.add(failure.failure) && failures.size() < 5) {
+                failures.add(new ShardSearchFailure(failure.failure, new SearchShardTarget(null, e.getKey(), clusterAlias)));
+            }
+        }
+        // pick any cancellation exception
+        if (failures.isEmpty() && shardFailures.isEmpty() == false) {
+            final ShardFailure any = shardFailures.values().iterator().next();
+            failures.add(new ShardSearchFailure(any.failure));
+        }
+        return failures;
+    }
+
     private void sendOneNodeRequest(TargetShards targetShards, ComputeListener computeListener, NodeRequest request) {
         final ActionListener<List<DriverProfile>> listener = computeListener.acquireCompute();
         sendRequest(request.node, request.shardIds, request.aliasFilters, new NodeListener() {
             void onAfter(List<DriverProfile> profiles) {
                 nodePermits.get(request.node).release();
+                if (concurrentRequests != null) {
+                    concurrentRequests.release();
+                }
                 trySendingRequestsForPendingShards(targetShards, computeListener);
                 listener.onResponse(profiles);
             }
@@ -189,6 +271,16 @@ abstract class DataNodeRequestSender {
                 }
                 onAfter(List.of());
             }
+
+            @Override
+            public void onSkip() {
+                skippedShards.incrementAndGet();
+                if (rootTask.isCancelled()) {
+                    onFailure(new TaskCancelledException("null"), true);
+                } else {
+                    onResponse(new DataNodeComputeResponse(List.of(), Map.of()));
+                }
+            }
         });
     }
 
@@ -198,6 +290,8 @@ abstract class DataNodeRequestSender {
         void onResponse(DataNodeComputeResponse response);
 
         void onFailure(Exception e, boolean receivedData);
+
+        void onSkip();
     }
 
     private static Exception unwrapFailure(Exception e) {
@@ -211,18 +305,18 @@ abstract class DataNodeRequestSender {
 
     private void trackShardLevelFailure(ShardId shardId, boolean fatal, Exception originalEx) {
         final Exception e = unwrapFailure(originalEx);
-        // Retain only one meaningful exception and avoid suppressing previous failures to minimize memory usage, especially when handling
-        // many shards.
+        final boolean isTaskCanceledException = ExceptionsHelper.unwrap(e, TaskCancelledException.class) != null;
+        final boolean isCircuitBreakerException = ExceptionsHelper.unwrap(e, CircuitBreakingException.class) != null;
         shardFailures.compute(shardId, (k, current) -> {
-            boolean mergedFatal = fatal || ExceptionsHelper.unwrap(e, TaskCancelledException.class) != null;
-            if (current == null) {
-                return new ShardFailure(mergedFatal, e);
-            }
-            mergedFatal |= current.fatal;
-            if (e instanceof NoShardAvailableActionException || ExceptionsHelper.unwrap(e, TaskCancelledException.class) != null) {
-                return new ShardFailure(mergedFatal, current.failure);
-            }
-            return new ShardFailure(mergedFatal, e);
+            boolean mergedFatal = fatal || isTaskCanceledException || isCircuitBreakerException;
+            return current == null
+                ? new ShardFailure(mergedFatal, e)
+                : new ShardFailure(
+                    mergedFatal || current.fatal,
+                    // Retain only one meaningful exception and avoid suppressing previous failures to minimize memory usage,
+                    // especially when handling many shards.
+                    isTaskCanceledException || e instanceof NoShardAvailableActionException ? current.failure : e
+                );
         });
     }
 
@@ -243,17 +337,11 @@ abstract class DataNodeRequestSender {
     /**
      * (Remaining) allocated nodes of a given shard id and its alias filter
      */
-    record TargetShard(ShardId shardId, List<DiscoveryNode> remainingNodes, AliasFilter aliasFilter) {
+    record TargetShard(ShardId shardId, List<DiscoveryNode> remainingNodes, AliasFilter aliasFilter) {}
 
-    }
+    record NodeRequest(DiscoveryNode node, List<ShardId> shardIds, Map<Index, AliasFilter> aliasFilters) {}
 
-    record NodeRequest(DiscoveryNode node, List<ShardId> shardIds, Map<Index, AliasFilter> aliasFilters) {
-
-    }
-
-    private record ShardFailure(boolean fatal, Exception failure) {
-
-    }
+    private record ShardFailure(boolean fatal, Exception failure) {}
 
     /**
      * Selects the next nodes to send requests to. Limits to at most one outstanding request per node.
@@ -262,8 +350,9 @@ abstract class DataNodeRequestSender {
      */
     private List<NodeRequest> selectNodeRequests(TargetShards targetShards) {
         assert sendingLock.isHeldByCurrentThread();
-        final Map<DiscoveryNode, List<ShardId>> nodeToShardIds = new HashMap<>();
+        final Map<DiscoveryNode, List<ShardId>> nodeToShardIds = new LinkedHashMap<>();
         final Iterator<ShardId> shardsIt = pendingShardIds.iterator();
+
         while (shardsIt.hasNext()) {
             ShardId shardId = shardsIt.next();
             ShardFailure failure = shardFailures.get(shardId);
@@ -273,23 +362,37 @@ abstract class DataNodeRequestSender {
             }
             TargetShard shard = targetShards.getShard(shardId);
             Iterator<DiscoveryNode> nodesIt = shard.remainingNodes.iterator();
-            DiscoveryNode selectedNode = null;
             while (nodesIt.hasNext()) {
                 DiscoveryNode node = nodesIt.next();
-                if (nodeToShardIds.containsKey(node) || nodePermits.get(node).tryAcquire()) {
+                List<ShardId> pendingRequest = nodeToShardIds.get(node);
+                if (pendingRequest != null) {
+                    pendingRequest.add(shard.shardId);
                     nodesIt.remove();
                     shardsIt.remove();
-                    selectedNode = node;
                     break;
                 }
-            }
-            if (selectedNode != null) {
-                nodeToShardIds.computeIfAbsent(selectedNode, unused -> new ArrayList<>()).add(shard.shardId);
+
+                if (concurrentRequests == null || concurrentRequests.tryAcquire()) {
+                    if (nodePermits.get(node).tryAcquire()) {
+                        pendingRequest = new ArrayList<>();
+                        pendingRequest.add(shard.shardId);
+                        nodeToShardIds.put(node, pendingRequest);
+
+                        nodesIt.remove();
+                        shardsIt.remove();
+
+                        break;
+                    } else if (concurrentRequests != null) {
+                        concurrentRequests.release();
+                    }
+                }
             }
         }
+
         final List<NodeRequest> nodeRequests = new ArrayList<>(nodeToShardIds.size());
-        for (var e : nodeToShardIds.entrySet()) {
-            List<ShardId> shardIds = e.getValue();
+        for (var entry : nodeToShardIds.entrySet()) {
+            var node = entry.getKey();
+            var shardIds = entry.getValue();
             Map<Index, AliasFilter> aliasFilters = new HashMap<>();
             for (ShardId shardId : shardIds) {
                 var aliasFilter = targetShards.getShard(shardId).aliasFilter;
@@ -297,7 +400,7 @@ abstract class DataNodeRequestSender {
                     aliasFilters.put(shardId.getIndex(), aliasFilter);
                 }
             }
-            nodeRequests.add(new NodeRequest(e.getKey(), shardIds, aliasFilters));
+            nodeRequests.add(new NodeRequest(node, shardIds, aliasFilters));
         }
         return nodeRequests;
     }

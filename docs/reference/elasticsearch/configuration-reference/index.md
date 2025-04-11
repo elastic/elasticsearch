@@ -1,13 +1,25 @@
 ---
 navigation_title: "Configuration"
+applies_to:
+  deployment:
+    ess:
+    ece:
+    self:
+  serverless:
 ---
 
 # Elasticsearch configuration reference
 
+:::{note}
+This section provides detailed **reference information** for Elasticsearch configuration.
+
+Refer to [Elasticsearch configuration](docs-content://deploy-manage/deploy/cloud-on-k8s/elasticsearch-configuration.md) in the **Deploy and manage** section for overview, getting started and conceptual information.
+:::
+
 Configuration settings enable you to customize the behavior of Elasticsearch features.
 This reference provides details about each setting, such as its purpose, default behavior, and availability in Elastic Cloud environments.
 
-% TO-DO: For information about how to update these settings, refer to "Configure Elasticsearch" (link to appropriate deployment pages) %
+For details on updating user settings, see [Edit Elastic Stack settings](docs-content://deploy-manage/deploy/elastic-cloud/edit-stack-settings.md) for {{ech}} deployments, [Add Elasticsearch user settings](docs-content://deploy-manage/deploy/cloud-enterprise/edit-stack-settings-elasticsearch.md) for {{ece}} deployments and [Differences from other Elasticsearch offerings](docs-content://deploy-manage/deploy/elastic-cloud/differences-from-other-elasticsearch-offerings.md) for {{serverless-short}}.
 
 The settings are grouped by feature or purpose, for example:
 
@@ -16,6 +28,7 @@ The settings are grouped by feature or purpose, for example:
 - [Cluster formation and discovery](/reference/elasticsearch/configuration-reference/discovery-cluster-formation-settings.md)
 - [Cross-cluster replication](/reference/elasticsearch/configuration-reference/cross-cluster-replication-settings.md)
 - [Data stream lifecycle](/reference/elasticsearch/configuration-reference/data-stream-lifecycle-settings.md)
+- [Enrich settings](/reference/elasticsearch/configuration-reference/enrich-settings.md)
 - [Field data cache](/reference/elasticsearch/configuration-reference/field-data-cache-settings.md)
 - [Health diagnostic](/reference/elasticsearch/configuration-reference/health-diagnostic-settings.md)
 - [Index lifecycle management](/reference/elasticsearch/configuration-reference/index-lifecycle-management-settings.md), 

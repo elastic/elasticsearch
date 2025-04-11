@@ -40,6 +40,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.hamcrest.Matchers.aMapWithSize;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 
@@ -143,7 +144,27 @@ public abstract class AbstractCrossClusterTestCase extends AbstractMultiClusters
                 assertThat((int) inner.get("total"), equalTo(numClusters));
                 assertTrue(inner.containsKey("details"));
             } else {
-                assertNull(clusters);
+                final Object partial = esqlResponseAsMap.get("is_partial");
+                if (partial != null && (Boolean) partial) {
+                    // If we have partial response, we could have cluster metadata, it should contain details.
+                    // Details should not be empty, and it should contain clusters with failures.
+                    if (clusters != null) {
+                        @SuppressWarnings("unchecked")
+                        Map<String, Object> inner = (Map<String, Object>) clusters;
+                        assertThat(inner, aMapWithSize(1));
+                        assertTrue(inner.containsKey("details"));
+                        @SuppressWarnings("unchecked")
+                        Map<String, Object> details = (Map<String, Object>) inner.get("details");
+                        assertThat(details.size(), greaterThanOrEqualTo(1));
+                        details.forEach((k, v) -> {
+                            @SuppressWarnings("unchecked")
+                            Map<String, Object> cluster = (Map<String, Object>) v;
+                            assertTrue(cluster.containsKey("failures"));
+                        });
+                    }
+                } else {
+                    assertNull(clusters);
+                }
             }
         } catch (IOException e) {
             fail("Could not convert ESQLQueryResponse to Map: " + e);

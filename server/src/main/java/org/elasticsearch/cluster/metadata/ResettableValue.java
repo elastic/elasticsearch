@@ -19,7 +19,6 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import java.io.IOException;
 import java.util.Map;
 import java.util.Objects;
-import java.util.function.BiFunction;
 import java.util.function.Function;
 
 /**
@@ -118,7 +117,6 @@ public class ResettableValue<T> {
      *
      * @throws IOException
      */
-    @Nullable
     static <T> ResettableValue<T> read(StreamInput in, Writeable.Reader<T> reader) throws IOException {
         boolean isDefined = in.readBoolean();
         if (isDefined == false) {
@@ -153,23 +151,6 @@ public class ResettableValue<T> {
             return reset();
         }
         return ResettableValue.create(mapper.apply(value));
-    }
-
-    /**
-     * Ιt merges the values of the ResettableValue's when they are defined using the provided mergeFunction.
-     */
-    public static <T> ResettableValue<T> merge(ResettableValue<T> initial, ResettableValue<T> update, BiFunction<T, T, T> mergeFunction) {
-        if (update.shouldReset()) {
-            return undefined();
-        }
-        if (update.isDefined() == false) {
-            return initial;
-        }
-        if (initial.isDefined() == false || initial.shouldReset()) {
-            return update;
-        }
-        // Because we checked that's defined and not in reset state, we can directly apply the merge function.
-        return ResettableValue.create(mergeFunction.apply(initial.value, update.value));
     }
 
     public XContentBuilder toXContent(XContentBuilder builder, ToXContent.Params params, String field) throws IOException {

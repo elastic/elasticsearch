@@ -96,7 +96,6 @@ public class GrokProcessorGetAction {
         }
 
         Response(StreamInput in) throws IOException {
-            super(in);
             grokPatterns = in.readMap(StreamInput::readString);
         }
 

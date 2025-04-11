@@ -15,7 +15,8 @@ Find all events that occurred outside of business hours (before 9 AM or after 5P
 
 ```esql
 FROM sample_data
-| WHERE DATE_EXTRACT("hour_of_day", @timestamp) < 9 AND DATE_EXTRACT("hour_of_day", @timestamp) >= 17
+| WHERE DATE_EXTRACT("hour_of_day", @timestamp) < 9
+    AND DATE_EXTRACT("hour_of_day", @timestamp) >= 17
 ```
 
 | @timestamp:date | client_ip:ip | event_duration:long | message:keyword |

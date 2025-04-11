@@ -1,6 +1,0 @@
-pr: 122409
-summary: Allow setting the `type` in the reroute processor
-area: Ingest Node
-type: enhancement
-issues:
- - 121553

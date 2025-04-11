@@ -18,7 +18,8 @@ FROM employees
 | Bamford | Bam |
 | Bernatsky | Ber |
 
-A negative start position is interpreted as being relative to the end of the string. This example returns the last three characters of of every last name:
+A negative start position is interpreted as being relative to the end of the string.
+This example returns the last three characters of every last name:
 
 ```esql
 FROM employees
@@ -34,7 +35,8 @@ FROM employees
 | Bamford | ord |
 | Bernatsky | sky |
 
-If length is omitted, substring returns the remainder of the string. This example returns all characters except for the first:
+If length is omitted, substring returns the remainder of the string.
+This example returns all characters except for the first:
 
 ```esql
 FROM employees

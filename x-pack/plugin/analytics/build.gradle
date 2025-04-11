@@ -19,11 +19,10 @@ base {
   archivesName = 'x-pack-analytics'
 }
 
-tasks.named('javaRestTest') {
-  usesDefaultDistribution()
-}
-
 dependencies {
+  clusterModules project(':modules:aggregations')
+  clusterPlugins project(':x-pack:plugin:analytics')
+
   api 'org.apache.commons:commons-math3:3.6.1'
   compileOnly project(path: xpackModule('core'))
   compileOnly project(":server")

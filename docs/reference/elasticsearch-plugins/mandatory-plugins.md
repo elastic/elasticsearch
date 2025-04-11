@@ -1,6 +1,9 @@
 ---
 mapped_pages:
   - https://www.elastic.co/guide/en/elasticsearch/plugins/current/mandatory-plugins.html
+applies_to:
+  deployment:
+    self: ga
 ---
 
 # Mandatory plugins [mandatory-plugins]

@@ -58,7 +58,6 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.AbstractRefCounted;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexService;
@@ -167,7 +166,6 @@ import static org.elasticsearch.search.SearchService.SEARCH_WORKER_THREADS_ENABL
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchHits;
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.instanceOf;
@@ -179,6 +177,8 @@ import static org.hamcrest.Matchers.not;
 import static org.mockito.Mockito.mock;
 
 public class SearchServiceSingleNodeTests extends ESSingleNodeTestCase {
+
+    private static final int SEARCH_POOL_SIZE = 10;
 
     @Override
     protected boolean resetNodeAfterTest() {
@@ -265,7 +265,10 @@ public class SearchServiceSingleNodeTests extends ESSingleNodeTestCase {
 
     @Override
     protected Settings nodeSettings() {
-        return Settings.builder().put("search.default_search_timeout", "5s").build();
+        return Settings.builder()
+            .put("search.default_search_timeout", "5s")
+            .put("thread_pool.search.size", SEARCH_POOL_SIZE) // customized search pool size, reconfiguring at runtime is unsupported
+            .build();
     }
 
     public void testClearOnClose() {
@@ -1846,46 +1849,6 @@ public class SearchServiceSingleNodeTests extends ESSingleNodeTestCase {
         );
     }
 
-    public void testSetSearchThrottled() throws IOException {
-        createIndex("throttled_threadpool_index");
-        client().execute(
-            InternalOrPrivateSettingsPlugin.UpdateInternalOrPrivateAction.INSTANCE,
-            new InternalOrPrivateSettingsPlugin.UpdateInternalOrPrivateAction.Request(
-                "throttled_threadpool_index",
-                IndexSettings.INDEX_SEARCH_THROTTLED.getKey(),
-                "true"
-            )
-        ).actionGet();
-        final SearchService service = getInstanceFromNode(SearchService.class);
-        Index index = resolveIndex("throttled_threadpool_index");
-        assertTrue(service.getIndicesService().indexServiceSafe(index).getIndexSettings().isSearchThrottled());
-        prepareIndex("throttled_threadpool_index").setId("1").setSource("field", "value").setRefreshPolicy(IMMEDIATE).get();
-        assertSearchHits(
-            client().prepareSearch("throttled_threadpool_index")
-                .setIndicesOptions(IndicesOptions.STRICT_EXPAND_OPEN_FORBID_CLOSED)
-                .setSize(1),
-            "1"
-        );
-        // we add a search action listener in a plugin above to assert that this is actually used
-        client().execute(
-            InternalOrPrivateSettingsPlugin.UpdateInternalOrPrivateAction.INSTANCE,
-            new InternalOrPrivateSettingsPlugin.UpdateInternalOrPrivateAction.Request(
-                "throttled_threadpool_index",
-                IndexSettings.INDEX_SEARCH_THROTTLED.getKey(),
-                "false"
-            )
-        ).actionGet();
-
-        IllegalArgumentException iae = expectThrows(
-            IllegalArgumentException.class,
-            () -> indicesAdmin().prepareUpdateSettings("throttled_threadpool_index")
-                .setSettings(Settings.builder().put(IndexSettings.INDEX_SEARCH_THROTTLED.getKey(), false))
-                .get()
-        );
-        assertEquals("can not update private setting [index.search.throttled]; this setting is managed by Elasticsearch", iae.getMessage());
-        assertFalse(service.getIndicesService().indexServiceSafe(index).getIndexSettings().isSearchThrottled());
-    }
-
     public void testAggContextGetsMatchAll() throws IOException {
         createIndex("test");
         withAggregationContext("test", context -> assertThat(context.query(), equalTo(new MatchAllDocsQuery())));
@@ -1935,22 +1898,6 @@ public class SearchServiceSingleNodeTests extends ESSingleNodeTestCase {
                 check.accept(context.aggregations().factories().context());
             }
         }
-    }
-
-    public void testExpandSearchThrottled() {
-        createIndex("throttled_threadpool_index");
-        client().execute(
-            InternalOrPrivateSettingsPlugin.UpdateInternalOrPrivateAction.INSTANCE,
-            new InternalOrPrivateSettingsPlugin.UpdateInternalOrPrivateAction.Request(
-                "throttled_threadpool_index",
-                IndexSettings.INDEX_SEARCH_THROTTLED.getKey(),
-                "true"
-            )
-        ).actionGet();
-
-        prepareIndex("throttled_threadpool_index").setId("1").setSource("field", "value").setRefreshPolicy(IMMEDIATE).get();
-        assertHitCount(client().prepareSearch(), 1L);
-        assertHitCount(client().prepareSearch().setIndicesOptions(IndicesOptions.STRICT_EXPAND_OPEN_FORBID_CLOSED), 1L);
     }
 
     public void testExpandSearchFrozen() {
@@ -2146,6 +2093,7 @@ public class SearchServiceSingleNodeTests extends ESSingleNodeTestCase {
             CountDownLatch latch = new CountDownLatch(1);
             shardRequest.source().query(new MatchNoneQueryBuilder());
             service.executeQueryPhase(shardRequest, task, new ActionListener<>() {
+
                 @Override
                 public void onResponse(SearchPhaseResult result) {
                     try {
@@ -2746,8 +2694,11 @@ public class SearchServiceSingleNodeTests extends ESSingleNodeTestCase {
     public void testSlicingBehaviourForParallelCollection() throws Exception {
         IndexService indexService = createIndex("index", Settings.EMPTY);
         ThreadPoolExecutor executor = (ThreadPoolExecutor) indexService.getThreadPool().executor(ThreadPool.Names.SEARCH);
-        final int configuredMaxPoolSize = 10;
-        executor.setMaximumPoolSize(configuredMaxPoolSize); // We set this explicitly to be independent of CPU cores.
+
+        // We configure the executor pool size explicitly in nodeSettings to be independent of CPU cores
+        assert String.valueOf(SEARCH_POOL_SIZE).equals(node().settings().get("thread_pool.search.size"))
+            : "Unexpected thread_pool.search.size";
+
         int numDocs = randomIntBetween(50, 100);
         for (int i = 0; i < numDocs; i++) {
             prepareIndex("index").setId(String.valueOf(i)).setSource("field", "value").get();
@@ -2780,7 +2731,7 @@ public class SearchServiceSingleNodeTests extends ESSingleNodeTestCase {
                     final int maxPoolSize = executor.getMaximumPoolSize();
                     assertEquals(
                         "Sanity check to ensure this isn't the default of 1 when pool size is unset",
-                        configuredMaxPoolSize,
+                        SEARCH_POOL_SIZE,
                         maxPoolSize
                     );
 
@@ -2810,7 +2761,7 @@ public class SearchServiceSingleNodeTests extends ESSingleNodeTestCase {
                     final int maxPoolSize = executor.getMaximumPoolSize();
                     assertEquals(
                         "Sanity check to ensure this isn't the default of 1 when pool size is unset",
-                        configuredMaxPoolSize,
+                        SEARCH_POOL_SIZE,
                         maxPoolSize
                     );
 
@@ -2901,7 +2852,7 @@ public class SearchServiceSingleNodeTests extends ESSingleNodeTestCase {
                         final int maxPoolSize = executor.getMaximumPoolSize();
                         assertEquals(
                             "Sanity check to ensure this isn't the default of 1 when pool size is unset",
-                            configuredMaxPoolSize,
+                            SEARCH_POOL_SIZE,
                             maxPoolSize
                         );
 

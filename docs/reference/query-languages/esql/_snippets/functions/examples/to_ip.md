@@ -12,7 +12,10 @@ ROW str1 = "1.1.1.1", str2 = "foo"
 | --- | --- | --- | --- |
 | 1.1.1.1 | foo | 1.1.1.1 | null |
 
-Note that in this example, the last conversion of the string isn’t possible. When this happens, the result is a **null** value. In this case a *Warning* header is added to the response. The header will provide information on the source of the failure:
+
+Note that in this example, the last conversion of the string isn’t possible.
+When this happens, the result is a `null` value. In this case a _Warning_ header is added to the response.
+The header will provide information on the source of the failure:
 
 `"Line 1:68: evaluation of [TO_IP(str2)] failed, treating result as null. Only first 20 failures recorded."`
 

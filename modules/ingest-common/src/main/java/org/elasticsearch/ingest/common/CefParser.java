@@ -281,29 +281,13 @@ final class CefParser {
      * <a href="https://www.microfocus.com/documentation/arcsight/arcsight-smartconnectors-24.2/pdfdoc/cef-implementation-standard/cef-implementation-standard.pdf">documentation</a>
      */
     private static final List<String> TIME_LAYOUTS = List.of(
-        // MMM dd HH:mm:ss.SSS zzz
-        "MMM dd HH:mm:ss.SSS z",
-        "MMM dd HH:mm:ss.SSS Z",
-        "MMM dd HH:mm:ss.SSS 'GMT'XX:XX",
-        // MMM dd HH:mm:sss.SSS
+        "MMM dd HH:mm:ss.SSS zzz",
         "MMM dd HH:mm:ss.SSS",
-        // MMM dd HH:mm:ss zzz
-        "MMM dd HH:mm:ss z",
-        "MMM dd HH:mm:ss Z",
-        "MMM dd HH:mm:ss 'GMT'XX:XX",
-        // MMM dd HH:mm:ss
+        "MMM dd HH:mm:ss zzz",
         "MMM dd HH:mm:ss",
-        // MMM dd yyyy HH:mm:ss.SSS zzz
-        "MMM dd yyyy HH:mm:ss.SSS z",
-        "MMM dd yyyy HH:mm:ss.SSS Z",
-        "MMM dd yyyy HH:mm:ss.SSS 'GMT'XX:XX",
-        // MMM dd yyyy HH:mm:ss.SSS
+        "MMM dd yyyy HH:mm:ss.SSS zzz",
         "MMM dd yyyy HH:mm:ss.SSS",
-        // MMM dd yyyy HH:mm:ss zzz
-        "MMM dd yyyy HH:mm:ss z",
-        "MMM dd yyyy HH:mm:ss Z",
-        "MMM dd yyyy HH:mm:ss 'GMT'XX:XX",
-        // MMM dd yyyy HH:mm:ss
+        "MMM dd yyyy HH:mm:ss zzz",
         "MMM dd yyyy HH:mm:ss"
     );
 

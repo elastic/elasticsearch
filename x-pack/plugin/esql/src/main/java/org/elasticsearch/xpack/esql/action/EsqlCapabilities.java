@@ -789,7 +789,42 @@ public class EsqlCapabilities {
          * the ownership of that block - but didn't account for the fact that the caller might close it, leading to double releases
          * in some union type queries. C.f. https://github.com/elastic/elasticsearch/issues/125850
          */
-        FIX_DOUBLY_RELEASED_NULL_BLOCKS_IN_VALUESOURCEREADER;
+        FIX_DOUBLY_RELEASED_NULL_BLOCKS_IN_VALUESOURCEREADER,
+
+        /**
+         * Listing queries and getting information on a specific query.
+         */
+        QUERY_MONITORING,
+
+        /**
+         * Support max_over_time aggregation that gets evaluated per time-series
+         */
+        MAX_OVER_TIME(Build.current().isSnapshot()),
+
+        /**
+         * Support STATS/EVAL/DISSECT in Fork branches
+         */
+        FORK_V2(Build.current().isSnapshot()),
+
+        /**
+         * Support for the {@code leading_zeros} named parameter.
+         */
+        TO_IP_LEADING_ZEROS,
+
+        /**
+         * Does the usage information for ESQL contain a histogram of {@code took} values?
+         */
+        USAGE_CONTAINS_TOOK,
+
+        /**
+         * Support avg_over_time aggregation that gets evaluated per time-series
+         */
+        AVG_OVER_TIME(Build.current().isSnapshot()),
+
+        /**
+         * Support loading of ip fields if they are not indexed.
+         */
+        LOADING_NON_INDEXED_IP_FIELDS;
 
         private final boolean enabled;
 

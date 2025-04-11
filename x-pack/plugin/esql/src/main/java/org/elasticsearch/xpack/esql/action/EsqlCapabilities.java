@@ -979,7 +979,12 @@ public class EsqlCapabilities {
         /**
          * Support avg_over_time aggregation that gets evaluated per time-series
          */
-        AVG_OVER_TIME(Build.current().isSnapshot());
+        AVG_OVER_TIME(Build.current().isSnapshot()),
+
+        /**
+         * Support last_over_time aggregation that gets evaluated per time-series
+         */
+        LAST_OVER_TIME(Build.current().isSnapshot());
 
         private final boolean enabled;
 

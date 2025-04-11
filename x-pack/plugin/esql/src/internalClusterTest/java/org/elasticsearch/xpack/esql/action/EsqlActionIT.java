@@ -594,7 +594,7 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
             int countIndex = results.columns().indexOf(new ColumnInfoImpl("a", "null"));
             assertThat(results.columns().stream().map(ColumnInfo::name).toList(), contains("a"));
             assertThat(results.columns().stream().map(ColumnInfoImpl::type).toList(), contains(DataType.NULL));
-            assertNull(getValuesList(results).getFirst().get(countIndex));
+            assertNull(getValuesList(results).get(0).get(countIndex));
         }
     }
 
@@ -605,7 +605,7 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
             int countIndex = results.columns().indexOf(new ColumnInfoImpl("a", "null"));
             assertThat(results.columns().stream().map(ColumnInfo::name).toList(), contains("a"));
             assertThat(results.columns().stream().map(ColumnInfoImpl::type).toList(), contains(DataType.NULL));
-            assertNull(getValuesList(results).getFirst().get(countIndex));
+            assertNull(getValuesList(results).get(0).get(countIndex));
         }
     }
 

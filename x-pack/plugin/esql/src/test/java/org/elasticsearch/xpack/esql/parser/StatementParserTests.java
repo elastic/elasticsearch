@@ -3119,7 +3119,8 @@ public class StatementParserTests extends AbstractStatementParserTests {
         {
             var randomIndex = randomIndexPattern();
             // Select an invalid char to sneak in.
-            char[] invalidChars = { ' ', '/', '<', '>', '?', '|' };
+            // Note: some chars like '|' and '"' are excluded to generate a proper invalid name.
+            char[] invalidChars = { ' ', '/', '<', '>', '?' };
             var randomInvalidChar = invalidChars[randomIntBetween(0, invalidChars.length - 1)];
 
             // Construct the new invalid index pattern.

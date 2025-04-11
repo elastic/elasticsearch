@@ -246,6 +246,7 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
             services,
             ActionListener.wrap(result -> {
                 recordCCSTelemetry(task, executionInfo, request, null);
+                planExecutor.metrics().recordTook(executionInfo.overallTook().millis());
                 listener.onResponse(toResponse(task, request, configuration, result));
             }, ex -> {
                 recordCCSTelemetry(task, executionInfo, request, ex);

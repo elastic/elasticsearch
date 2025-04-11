@@ -99,7 +99,7 @@ public class GcsPerProjectClientManager implements ClusterStateListener {
         if (perProjectClientsCache.containsKey(projectId) == false) {
             return true;
         }
-        final var previousClientSettings = perProjectClientsCache.get(projectId).getClientSettings();
+        final var previousClientSettings = perProjectClientsCache.get(projectId).clientSettings();
         return currentClientSettings.equals(previousClientSettings) == false;
     }
 
@@ -113,7 +113,7 @@ public class GcsPerProjectClientManager implements ClusterStateListener {
             this.clientSettings = clientSettings;
         }
 
-        public Map<String, GoogleCloudStorageClientSettings> getClientSettings() {
+        public Map<String, GoogleCloudStorageClientSettings> clientSettings() {
             return clientSettings;
         }
 

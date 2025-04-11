@@ -256,7 +256,7 @@ public class RepositoryCredentialsTests extends ESSingleNodeTestCase {
             Environment environment,
             Settings nodeSettings,
             ResourceWatcherService resourceWatcherService,
-            PerProjectClientManager perProjectClientManager
+            S3PerProjectClientManager s3PerProjectClientManager
         ) {
             return new ProxyS3Service(environment, nodeSettings, resourceWatcherService);
         }

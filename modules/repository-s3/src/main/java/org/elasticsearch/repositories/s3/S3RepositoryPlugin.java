@@ -87,20 +87,20 @@ public class S3RepositoryPlugin extends Plugin implements RepositoryPlugin, Relo
 
     @Override
     public Collection<?> createComponents(PluginServices services) {
-        PerProjectClientManager perProjectClientManager = null;
+        S3PerProjectClientManager s3PerProjectClientManager = null;
         if (services.projectResolver().supportsMultipleProjects()) {
-            perProjectClientManager = new PerProjectClientManager(
+            s3PerProjectClientManager = new S3PerProjectClientManager(
                 settings,
                 s3ClientSettings -> this.service.get().buildClient(s3ClientSettings)
             );
-            services.clusterService().addListener(perProjectClientManager);
+            services.clusterService().addListener(s3PerProjectClientManager);
         }
         service.set(
             s3Service(
                 services.environment(),
                 services.clusterService().getSettings(),
                 services.resourceWatcherService(),
-                perProjectClientManager
+                s3PerProjectClientManager
             )
         );
         this.service.get().refreshAndClearCache(S3ClientSettings.load(settings));
@@ -116,9 +116,9 @@ public class S3RepositoryPlugin extends Plugin implements RepositoryPlugin, Relo
         Environment environment,
         Settings nodeSettings,
         ResourceWatcherService resourceWatcherService,
-        @Nullable PerProjectClientManager perProjectClientManager
+        @Nullable S3PerProjectClientManager s3PerProjectClientManager
     ) {
-        return new S3Service(environment, nodeSettings, resourceWatcherService, perProjectClientManager);
+        return new S3Service(environment, nodeSettings, resourceWatcherService, s3PerProjectClientManager);
     }
 
     @Override

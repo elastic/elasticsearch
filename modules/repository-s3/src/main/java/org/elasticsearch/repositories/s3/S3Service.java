@@ -101,7 +101,7 @@ class S3Service implements Closeable {
     final TimeValue compareAndExchangeTimeToLive;
     final TimeValue compareAndExchangeAntiContentionDelay;
     final boolean isStateless;
-    private final PerProjectClientManager perProjectClientManager;
+    private final S3PerProjectClientManager s3PerProjectClientManager;
 
     @Deprecated(forRemoval = true)
     S3Service(Environment environment, Settings nodeSettings, ResourceWatcherService resourceWatcherService) {
@@ -112,7 +112,7 @@ class S3Service implements Closeable {
         Environment environment,
         Settings nodeSettings,
         ResourceWatcherService resourceWatcherService,
-        @Nullable PerProjectClientManager perProjectClientManager
+        @Nullable S3PerProjectClientManager s3PerProjectClientManager
     ) {
         webIdentityTokenCredentialsProvider = new CustomWebIdentityTokenCredentialsProvider(
             environment,
@@ -124,7 +124,7 @@ class S3Service implements Closeable {
         compareAndExchangeTimeToLive = REPOSITORY_S3_CAS_TTL_SETTING.get(nodeSettings);
         compareAndExchangeAntiContentionDelay = REPOSITORY_S3_CAS_ANTI_CONTENTION_DELAY_SETTING.get(nodeSettings);
         isStateless = DiscoveryNode.isStateless(nodeSettings);
-        this.perProjectClientManager = perProjectClientManager;
+        this.s3PerProjectClientManager = s3PerProjectClientManager;
     }
 
     /**
@@ -175,7 +175,7 @@ class S3Service implements Closeable {
      * per-project client manager. Throws if project-id or the client does not exist. The client maybe initialized lazily.
      */
     public AmazonS3Reference client(@Nullable ProjectId projectId, RepositoryMetadata repositoryMetadata) {
-        if (perProjectClientManager == null) {
+        if (s3PerProjectClientManager == null) {
             // Multi-Project is disabled and we have a single default project
             assert ProjectId.DEFAULT.equals(projectId) : projectId;
             return client(repositoryMetadata);
@@ -183,7 +183,7 @@ class S3Service implements Closeable {
             // Multi-Project is enabled and we are retrieving a client for the cluster level blobstore
             return client(repositoryMetadata);
         } else {
-            return perProjectClientManager.client(projectId, repositoryMetadata);
+            return s3PerProjectClientManager.client(projectId, repositoryMetadata);
         }
     }
 
@@ -342,7 +342,7 @@ class S3Service implements Closeable {
     }
 
     public void onBlobStoreClose(@Nullable ProjectId projectId) {
-        if (perProjectClientManager == null) {
+        if (s3PerProjectClientManager == null) {
             // Multi-Project is disabled and we have a single default project
             assert ProjectId.DEFAULT.equals(projectId) : projectId;
             onBlobStoreClose();
@@ -350,15 +350,15 @@ class S3Service implements Closeable {
             // Multi-Project is enabled and this is for the cluster level blobstore
             onBlobStoreClose();
         } else {
-            perProjectClientManager.clearCacheForProject(projectId);
+            s3PerProjectClientManager.clearCacheForProject(projectId);
         }
     }
 
     @Override
     public void close() throws IOException {
         releaseCachedClients();
-        if (perProjectClientManager != null) {
-            perProjectClientManager.close();
+        if (s3PerProjectClientManager != null) {
+            s3PerProjectClientManager.close();
         }
         webIdentityTokenCredentialsProvider.shutdown();
     }

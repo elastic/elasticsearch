@@ -80,7 +80,7 @@ public class DataNodeRequestSenderIT extends AbstractEsqlIntegTestCase {
             );
         }
 
-        try (EsqlQueryResponse resp = run("FROM " + index + "*")) {
+        try (EsqlQueryResponse resp = run("FROM " + randomFrom(index, index + "*"))) {
             assertThat(getValuesList(resp), hasSize(1));
         }
     }

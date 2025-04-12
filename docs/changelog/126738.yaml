@@ -1,0 +1,5 @@
+pr: 126738
+summary: Fix missing index exception
+area: ES|QL
+type: bug
+issues: []

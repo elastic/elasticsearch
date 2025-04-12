@@ -95,7 +95,7 @@ public class RankVectorsFieldTypeTests extends FieldTypeTestCase {
         RankVectorsFieldType bft = createByteFieldType();
         assertThat(fetchSourceValue(bft, vectorFromXContent), iterableWithSize(1));
         assertThat(fetchSourceValue(bft, vectorFromXContent).get(0), equalTo(vector.get(0)));
-                String hexStr = HexFormat.of().formatHex(new byte[] { 0, 1, 2, 3, 4, 6 });
+        String hexStr = HexFormat.of().formatHex(new byte[] { 0, 1, 2, 3, 4, 6 });
         List<String> hexVecs = List.of(hexStr);
         assertThat(fetchSourceValue(bft, hexVecs), iterableWithSize(1));
         assertThat(fetchSourceValue(bft, hexVecs).get(0), equalTo(hexStr));

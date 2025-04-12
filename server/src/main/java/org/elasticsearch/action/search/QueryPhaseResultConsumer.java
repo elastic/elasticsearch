@@ -393,56 +393,33 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
         if (resultSetSize == 0) {
             return null;
         }
-        if (resultSetSize == 1) {
-            if (partialResults.hasNext()) {
-                return InternalAggregations.reduce(partialResults.next(), reduceContext);
-            }
+        final InternalAggregations first;
+        if (partialResults.hasNext()) {
+            first = partialResults.next();
+        } else {
             try (var delayable = toConsume.next().consumeAggs()) {
-                return InternalAggregations.reduce(delayable.expand(), reduceContext);
+                first = delayable.expand();
             }
+        }
+        if (resultSetSize == 1) {
+            return InternalAggregations.reduce(first, reduceContext);
         }
         try {
             // general case
-            if (partialResults.hasNext()) {
-                return consumeAggResults(partialResults, toConsume, createReducer(resultSetSize, reduceContext, partialResults.next()));
+            try (var reducer = new AggregatorsReducer(first, reduceContext, resultSetSize)) {
+                reducer.accept(first);
+                partialResults.forEachRemaining(reducer::accept);
+                while (toConsume.hasNext()) {
+                    final InternalAggregations next;
+                    try (var delayable = toConsume.next().consumeAggs()) {
+                        next = delayable.expand();
+                    }
+                    reducer.accept(next);
+                }
+                return reducer.get();
             }
-            AggregatorsReducer reducer;
-            try (var delayable = toConsume.next().consumeAggs()) {
-                reducer = createReducer(resultSetSize, reduceContext, delayable.expand());
-            }
-            return consumeAggResults(partialResults, toConsume, reducer);
         } finally {
             toConsume.forEachRemaining(QuerySearchResult::releaseAggs);
-        }
-    }
-
-    private static AggregatorsReducer createReducer(int resultSetSize, AggregationReduceContext reduceContext, InternalAggregations first) {
-        boolean success = false;
-        var reducer = new AggregatorsReducer(first, reduceContext, resultSetSize);
-        try {
-            reducer.accept(first);
-            success = true;
-            return reducer;
-        } finally {
-            if (success == false) {
-                reducer.close();
-            }
-        }
-    }
-
-    private static InternalAggregations consumeAggResults(
-        Iterator<InternalAggregations> partialResults,
-        Iterator<QuerySearchResult> toConsume,
-        AggregatorsReducer reducer
-    ) {
-        try (reducer) {
-            partialResults.forEachRemaining(reducer::accept);
-            while (toConsume.hasNext()) {
-                try (var delayable = toConsume.next().consumeAggs()) {
-                    reducer.accept(delayable.expand());
-                }
-            }
-            return reducer.get();
         }
     }
 

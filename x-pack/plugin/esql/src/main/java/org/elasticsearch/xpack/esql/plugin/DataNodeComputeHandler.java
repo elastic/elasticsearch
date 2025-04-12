@@ -42,6 +42,7 @@ import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.plan.physical.ExchangeSinkExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
+import org.elasticsearch.xpack.esql.planner.PlanConcurrencyCalculator;
 import org.elasticsearch.xpack.esql.planner.PlannerUtils;
 import org.elasticsearch.xpack.esql.session.Configuration;
 
@@ -98,13 +99,15 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
         Runnable runOnTaskFailure,
         ActionListener<ComputeResponse> outListener
     ) {
+        Integer maxConcurrentNodesPerCluster = PlanConcurrencyCalculator.INSTANCE.calculateNodesConcurrency(dataNodePlan, configuration);
+
         new DataNodeRequestSender(
             transportService,
             esqlExecutor,
             clusterAlias,
             parentTask,
             configuration.allowPartialResults(),
-            configuration.pragmas().maxConcurrentNodesPerCluster()
+            maxConcurrentNodesPerCluster == null ? -1 : maxConcurrentNodesPerCluster
         ) {
             @Override
             protected void sendRequest(
@@ -196,7 +199,6 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                 );
             }
         }.startComputeOnDataNodes(
-            clusterAlias,
             concreteIndices,
             originalIndices,
             PlannerUtils.canMatchFilter(dataNodePlan),

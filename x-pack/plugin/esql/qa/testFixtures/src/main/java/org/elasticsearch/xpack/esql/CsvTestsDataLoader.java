@@ -133,6 +133,7 @@ public class CsvTestsDataLoader {
     private static final TestDataset ADDRESSES = new TestDataset("addresses");
     private static final TestDataset BOOKS = new TestDataset("books").withSetting("books-settings.json");
     private static final TestDataset SEMANTIC_TEXT = new TestDataset("semantic_text").withInferenceEndpoint(true);
+    private static final TestDataset LOGS = new TestDataset("logs");
 
     public static final Map<String, TestDataset> CSV_DATASET_MAP = Map.ofEntries(
         Map.entry(EMPLOYEES.indexName, EMPLOYEES),
@@ -182,7 +183,8 @@ public class CsvTestsDataLoader {
         Map.entry(DISTANCES.indexName, DISTANCES),
         Map.entry(ADDRESSES.indexName, ADDRESSES),
         Map.entry(BOOKS.indexName, BOOKS),
-        Map.entry(SEMANTIC_TEXT.indexName, SEMANTIC_TEXT)
+        Map.entry(SEMANTIC_TEXT.indexName, SEMANTIC_TEXT),
+        Map.entry(LOGS.indexName, LOGS)
     );
 
     private static final EnrichConfig LANGUAGES_ENRICH = new EnrichConfig("languages_policy", "enrich-policy-languages.json");
@@ -386,6 +388,47 @@ public class CsvTestsDataLoader {
 
     public static boolean clusterHasInferenceEndpoint(RestClient client) throws IOException {
         Request request = new Request("GET", "_inference/sparse_embedding/test_sparse_inference");
+        try {
+            client.performRequest(request);
+        } catch (ResponseException e) {
+            if (e.getResponse().getStatusLine().getStatusCode() == 404) {
+                return false;
+            }
+            throw e;
+        }
+        return true;
+    }
+
+    public static void createRerankInferenceEndpoint(RestClient client) throws IOException {
+        Request request = new Request("PUT", "_inference/rerank/test_reranker");
+        request.setJsonEntity("""
+            {
+                "service": "test_reranking_service",
+                "service_settings": {
+                    "model_id": "my_model",
+                    "api_key": "abc64"
+                },
+                "task_settings": {
+                    "use_text_length": true
+                }
+            }
+            """);
+        client.performRequest(request);
+    }
+
+    public static void deleteRerankInferenceEndpoint(RestClient client) throws IOException {
+        try {
+            client.performRequest(new Request("DELETE", "_inference/rerank/test_reranker"));
+        } catch (ResponseException e) {
+            // 404 here means the endpoint was not created
+            if (e.getResponse().getStatusLine().getStatusCode() != 404) {
+                throw e;
+            }
+        }
+    }
+
+    public static boolean clusterHasRerankInferenceEndpoint(RestClient client) throws IOException {
+        Request request = new Request("GET", "_inference/rerank/test_reranker");
         try {
             client.performRequest(request);
         } catch (ResponseException e) {

@@ -12,6 +12,7 @@ package org.elasticsearch.arrow.bulk;
 import org.apache.arrow.vector.IntVector;
 import org.apache.arrow.vector.VarCharVector;
 import org.apache.arrow.vector.VectorSchemaRoot;
+import org.apache.arrow.vector.ipc.ArrowStreamReader;
 import org.apache.arrow.vector.ipc.ArrowStreamWriter;
 import org.apache.arrow.vector.types.pojo.ArrowType;
 import org.apache.arrow.vector.types.pojo.Field;
@@ -78,8 +79,8 @@ public class ArrowBulkActionIT extends ESSingleNodeRestTestCase {
         Field strField = new Field("strings", FieldType.nullable(new ArrowType.Utf8()), null);
         Schema schema = new Schema(List.of(intField, strField));
 
-        int batchCount = randomInt(10);
-        int rowCount = randomInt(10);
+        int batchCount = randomIntBetween(1, 10);
+        int rowCount = randomIntBetween(1, 10);
 
         byte[] payload;
 
@@ -91,12 +92,10 @@ public class ArrowBulkActionIT extends ESSingleNodeRestTestCase {
 
             try (ArrowStreamWriter writer = new ArrowStreamWriter(root, null, baos)) {
                 for (int batch = 0; batch < batchCount; batch++) {
-                    intVector.allocateNew(rowCount);
-                    stringVector.allocateNew(rowCount);
                     for (int row = 0; row < rowCount; row++) {
                         int globalRow = row + batch * rowCount;
-                        intVector.set(row, globalRow);
-                        stringVector.set(row, new Text("row" + globalRow));
+                        intVector.setSafe(row, globalRow);
+                        stringVector.setSafe(row, new Text("row" + globalRow));
                     }
                     root.setRowCount(rowCount);
                     writer.writeBatch();
@@ -109,15 +108,24 @@ public class ArrowBulkActionIT extends ESSingleNodeRestTestCase {
             // Bulk insert the arrow stream
             var request = new Request("POST", "/_arrow/" + index + "/_bulk");
             request.addParameter("refresh", "wait_for");
+            request.addParameter("error_trace", "true");
+            request.setOptions(request.getOptions().toBuilder().addHeader("Content-type", "application/vnd.apache.arrow.stream"));
             request.setEntity(new ByteArrayEntity(payload, ContentType.create(Arrow.MEDIA_TYPE)));
 
             var response = restClient.performRequest(request);
-            var result = XContentType.JSON.xContent()
-                .createParser(XContentParserConfiguration.EMPTY, response.getEntity().getContent())
-                .map();
 
-            assertEquals(Boolean.FALSE, result.get("errors"));
-            assertEquals(batchCount * rowCount, ((List<?>) result.get("items")).size());
+            // Response is an Arrow stream with empty vectors, indicating success
+            assertEquals(Arrow.MEDIA_TYPE, response.getHeader("Content-Type"));
+            try (
+                var allocator = Arrow.newChildAllocator("test", 0, Long.MAX_VALUE);
+                var reader = new ArrowStreamReader(response.getEntity().getContent(), allocator);
+            ) {
+                reader.loadNextBatch();
+                var root = reader.getVectorSchemaRoot();
+                var itemNoVector = root.getVector(ArrowBulkAction.ERR_ITEM_NO);
+                assertNotNull(itemNoVector);
+                assertEquals(0, itemNoVector.getValueCount());
+            }
         }
 
         {

@@ -15,6 +15,7 @@ import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.bulk.AbstractBulkRequestParser;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkRequestParser;
+import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.bulk.BulkShardRequest;
 import org.elasticsearch.action.bulk.IncrementalBulkService;
 import org.elasticsearch.action.support.ActiveShardCount;
@@ -199,6 +200,10 @@ public class RestBulkAction extends BaseRestHandler {
             request.contentStream().next();
         }
 
+        protected ActionListener<BulkResponse> createResponseListener(RestChannel channel) {
+            return new RestRefCountedChunkedToXContentListener<>(channel);
+        }
+
         @Override
         public void handleChunk(RestChannel channel, ReleasableBytesReference chunk, boolean isLast) {
             assert handler != null;
@@ -244,7 +249,7 @@ public class RestBulkAction extends BaseRestHandler {
                     assert channel != null;
                     ArrayList<DocWriteRequest<?>> toPass = new ArrayList<>(items);
                     items.clear();
-                    handler.lastItems(toPass, () -> Releasables.close(releasables), new RestRefCountedChunkedToXContentListener<>(channel));
+                    handler.lastItems(toPass, () -> Releasables.close(releasables), createResponseListener(channel));
                 }
             } else if (items.isEmpty() == false) {
                 ArrayList<DocWriteRequest<?>> toPass = new ArrayList<>(items);

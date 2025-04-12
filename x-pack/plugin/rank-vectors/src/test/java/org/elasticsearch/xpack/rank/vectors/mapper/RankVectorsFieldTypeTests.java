@@ -19,6 +19,7 @@ import org.elasticsearch.xpack.rank.vectors.mapper.RankVectorsFieldMapper.RankVe
 
 import java.io.IOException;
 import java.util.Collections;
+import java.util.HexFormat;
 import java.util.List;
 import java.util.Set;
 

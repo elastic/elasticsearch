@@ -10,7 +10,6 @@
 package org.elasticsearch.arrow.bulk;
 
 import org.apache.arrow.memory.BufferAllocator;
-import org.apache.arrow.memory.RootAllocator;
 import org.apache.arrow.vector.BaseIntVector;
 import org.apache.arrow.vector.FieldVector;
 import org.apache.arrow.vector.ValueVector;
@@ -30,7 +29,6 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.arrow.xcontent.ArrowToXContent;
 import org.elasticsearch.arrow.xcontent.XContentBuffer;
-import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.libs.arrow.Arrow;
@@ -40,7 +38,6 @@ import org.elasticsearch.xcontent.XContent;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
 
-import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
@@ -54,14 +51,9 @@ class ArrowBulkIncrementalParser extends BulkRequestParser.XContentIncrementalPa
     /** XContent format used to encode source documents */
     private static final XContent SOURCE_XCONTENT = XContentType.CBOR.xContent();
 
-    private static final String ID = "_id";
-    private static final String INDEX = "_index";
-    private static final String ACTION = "_bulk_action";
+    private final DocWriteRequest.OpType defaultOpType;
 
-    private DocWriteRequest.OpType defaultOpType;
-
-    private ArrowIncrementalParser arrowParser;
-    private BufferAllocator allocator;
+    private final ArrowIncrementalParser arrowParser;
     private VectorSchemaRoot schemaRoot;
     private Map<Long, Dictionary> dictionaries;
 
@@ -69,6 +61,8 @@ class ArrowBulkIncrementalParser extends BulkRequestParser.XContentIncrementalPa
     private Integer indexField = null;
     private Integer actionField = null;
     private BitSet valueFields;
+
+    private final ArrowToXContent arrowToXContent = new ArrowToXContent();
 
     ArrowBulkIncrementalParser(
         DocWriteRequest.OpType defaultOpType,
@@ -106,9 +100,9 @@ class ArrowBulkIncrementalParser extends BulkRequestParser.XContentIncrementalPa
         this.defaultOpType = defaultOpType;
 
         // FIXME: hard-coded limit to 100 MiB per record batch. Should we add an AllocationListener that calls ES memory management?
-        this.allocator = Arrow.newChildAllocator("bulk-ingestion", 0, 100 * 1024 * 1024);
+        BufferAllocator allocator = Arrow.newChildAllocator("bulk-ingestion", 0, 100 * 1024 * 1024);
 
-        this.arrowParser = new ArrowIncrementalParser(new RootAllocator(), new ArrowIncrementalParser.Listener() {
+        this.arrowParser = new ArrowIncrementalParser(allocator, new ArrowIncrementalParser.Listener() {
             @Override
             public void startStream(VectorSchemaRoot schemaRoot) throws IOException {
                 startArrowStream(schemaRoot);
@@ -151,12 +145,12 @@ class ArrowBulkIncrementalParser extends BulkRequestParser.XContentIncrementalPa
             var field = schemaFields.get(i);
 
             switch (field.getName()) {
-                case ID -> idField = i;
-                case INDEX -> indexField = i;
-                case ACTION -> {
+                case ArrowBulkAction.ID -> idField = i;
+                case ArrowBulkAction.INDEX -> indexField = i;
+                case ArrowBulkAction.ACTION -> {
                     var type = field.getMinorType();
                     if (type != Types.MinorType.MAP && type != Types.MinorType.STRUCT) {
-                        throw new ArrowFormatException("Field '" + ACTION + "' should be a map or a struct");
+                        throw new ArrowFormatException("Field '" + ArrowBulkAction.ACTION + "' should be a map or a struct");
                     }
                     actionField = i;
                 }
@@ -206,7 +200,7 @@ class ArrowBulkIncrementalParser extends BulkRequestParser.XContentIncrementalPa
             int rowCount = schemaRoot.getRowCount();
             for (int i = 0; i < rowCount; i++) {
                 if (valueFields.get(i)) {
-                    ArrowToXContent.writeField(schemaRoot.getVector(i), position, dictionaries, generator);
+                    arrowToXContent.writeField(schemaRoot.getVector(i), position, dictionaries, generator);
                 }
             }
             generator.writeEndObject();
@@ -242,7 +236,7 @@ class ArrowBulkIncrementalParser extends BulkRequestParser.XContentIncrementalPa
                 // Note: the "op_type" property may also exist, but the action parser accepts it.
                 generator.writeStartObject();
                 generator.writeFieldName(opType);
-                ArrowToXContent.writeValue(actionVector, position, dictionaries, generator);
+                arrowToXContent.writeValue(actionVector, position, dictionaries, generator);
                 generator.writeEndObject();
             }
 
@@ -252,7 +246,13 @@ class ArrowBulkIncrementalParser extends BulkRequestParser.XContentIncrementalPa
         if (id != null) {
             if (request.id() != null) {
                 throw new ArrowFormatException(
-                    "'" + ID + "' found both as top-level field and in '" + ACTION + "' at position [" + position + "]"
+                    "'"
+                        + ArrowBulkAction.ID
+                        + "' found both as top-level field and in '"
+                        + ArrowBulkAction.ACTION
+                        + "' at position ["
+                        + position
+                        + "]"
                 );
             }
 
@@ -268,7 +268,13 @@ class ArrowBulkIncrementalParser extends BulkRequestParser.XContentIncrementalPa
             // Testing references on purpose to detect default index passed down to the request
             if (request.index() != defaultIndex) {
                 throw new ArrowFormatException(
-                    "'" + INDEX + "' found both as top-level field and in '" + ACTION + "' at position [" + position + "]"
+                    "'"
+                        + ArrowBulkAction.INDEX
+                        + "' found both as top-level field and in '"
+                        + ArrowBulkAction.ACTION
+                        + "' at position ["
+                        + position
+                        + "]"
                 );
             }
             request.index(index);
@@ -340,14 +346,5 @@ class ArrowBulkIncrementalParser extends BulkRequestParser.XContentIncrementalPa
                 throw new ArrowFormatException("Arrow type [" + vector.getMinorType() + "] cannot be converted to string");
             }
         };
-    }
-
-    /**
-     * A byte array stream that can be converted to {@code BytesReference} with zero copy.
-     */
-    private static class BytesReferenceOutputStream extends ByteArrayOutputStream {
-        BytesArray asBytesReference() {
-            return new BytesArray(buf, 0, count);
-        }
     }
 }

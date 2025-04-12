@@ -13,7 +13,18 @@ import org.apache.arrow.vector.BaseIntVector;
 import org.apache.arrow.vector.BitVector;
 import org.apache.arrow.vector.FixedSizeBinaryVector;
 import org.apache.arrow.vector.FloatingPointVector;
-import org.apache.arrow.vector.TimeStampVector;
+import org.apache.arrow.vector.TimeMicroVector;
+import org.apache.arrow.vector.TimeMilliVector;
+import org.apache.arrow.vector.TimeNanoVector;
+import org.apache.arrow.vector.TimeSecVector;
+import org.apache.arrow.vector.TimeStampMicroTZVector;
+import org.apache.arrow.vector.TimeStampMicroVector;
+import org.apache.arrow.vector.TimeStampMilliTZVector;
+import org.apache.arrow.vector.TimeStampMilliVector;
+import org.apache.arrow.vector.TimeStampNanoTZVector;
+import org.apache.arrow.vector.TimeStampNanoVector;
+import org.apache.arrow.vector.TimeStampSecTZVector;
+import org.apache.arrow.vector.TimeStampSecVector;
 import org.apache.arrow.vector.ValueVector;
 import org.apache.arrow.vector.VarCharVector;
 import org.apache.arrow.vector.VariableWidthFieldVector;
@@ -29,21 +40,26 @@ import org.elasticsearch.xcontent.XContentGenerator;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
+import java.time.Instant;
+import java.time.ZoneId;
+import java.time.ZoneOffset;
 import java.util.EnumSet;
+import java.util.HashMap;
 import java.util.Map;
 
 /**
  * Utility methods to serialize Arrow dataframes to XContent events.
  * <p>
- * Limitations:
+ * Limitations and caveats:
  * <ul>
- * <li>time and timestamps are converted to milliseconds (no support for nanoseconds)
+ * <li>time and timestamps are converted to milliseconds or nanoseconds depending on their unit
  * </li>
  * <li>some types aren't implemented
  * </li>
  * </ul>
  *
  * @see <a href="https://arrow.apache.org/docs/format/Columnar.html#data-types">Arrow data types</a>
+ * @see <a href="https://github.com/apache/arrow/blob/main/format/Schema.fbs">Arrow schema</a>
  */
 public class ArrowToXContent {
 
@@ -53,6 +69,22 @@ public class ArrowToXContent {
         Types.MinorType.VIEWVARCHAR
     );
 
+    static final long MILLIS_PER_SEC = 1_000L;
+    static final long NANOS_PER_SEC = 1_000_000_000L;
+    static final long NANOS_PER_MILLI = 1_000_000L;
+    static final long NANOS_PER_MICRO = 1_000L;
+
+    private final Map<String, ZoneId> zidCache = new HashMap<>();
+
+    final long getUTCOffsetSeconds(long millis, String tz) {
+        var tzId = zidCache.computeIfAbsent(tz, ZoneId::of);
+        if (tzId instanceof ZoneOffset zo) {
+            return zo.getTotalSeconds();
+        }
+        var instant = Instant.ofEpochMilli(millis);
+        return tzId.getRules().getOffset(instant).getTotalSeconds();
+    }
+
     /**
      * Write a field and its value from an Arrow vector as XContent
      *
@@ -61,7 +93,7 @@ public class ArrowToXContent {
      * @param dictionaries to look up values for dictionary-encoded vectors
      * @param generator XContent output
      */
-    public static void writeField(ValueVector vector, int position, Map<Long, Dictionary> dictionaries, XContentGenerator generator)
+    public void writeField(ValueVector vector, int position, Map<Long, Dictionary> dictionaries, XContentGenerator generator)
         throws IOException {
         generator.writeFieldName(vector.getName());
         writeValue(vector, position, dictionaries, generator);
@@ -75,8 +107,9 @@ public class ArrowToXContent {
      * @param dictionaries to look up values for dictionary-encoded vectors
      * @param generator XContent output
      */
-    public static void writeValue(ValueVector vector, int position, Map<Long, Dictionary> dictionaries, XContentGenerator generator)
+    public void writeValue(ValueVector vector, int position, Map<Long, Dictionary> dictionaries, XContentGenerator generator)
         throws IOException {
+
         if (vector.isNull(position)) {
             generator.writeNull();
             return;
@@ -87,8 +120,15 @@ public class ArrowToXContent {
             // Note: to improve performance and reduce GC thrashing, we could eagerly convert dictionary
             // VarCharVectors to String arrays (likely the most frequent use of dictionaries)
             Dictionary dictionary = dictionaries.get(dictEncoding.getId());
+            // The spec allows any integer type, although signed 32 bits are recommended
             position = (int) ((BaseIntVector) vector).getValueAsLong(position);
             vector = dictionary.getVector();
+
+            // Dictionary entries can be null
+            if (vector.isNull(position)) {
+                generator.writeNull();
+                return;
+            }
         }
 
         Void x = switch (vector.getMinorType()) {
@@ -110,7 +150,7 @@ public class ArrowToXContent {
                 yield null;
             }
 
-            // ----- strings and bytes
+            // ----- Strings and bytes
 
             case VARCHAR, LARGEVARCHAR, VIEWVARCHAR -> {
                 var bytesVector = (VariableWidthFieldVector) vector;
@@ -130,7 +170,7 @@ public class ArrowToXContent {
                 yield null;
             }
 
-            // ----- lists
+            // ----- Lists
 
             case LIST, FIXED_SIZE_LIST, LISTVIEW -> {
                 var listVector = (BaseListVector) vector;
@@ -146,35 +186,104 @@ public class ArrowToXContent {
                 yield null;
             }
 
-            // ----- Time & Timestamp (time + timezone)
-
-            // Timestamps are the elapsed time since the Epoch, with an optional timezone that
-            // can be used for timezome-aware operations or display. Since ES date fields
-            // don't support timezones, we ignore it.
-            // See https://github.com/apache/arrow/blob/main/format/Schema.fbs
-            // and https://www.elastic.co/guide/en/elasticsearch/reference/current/date.html
-
-            case TIMESEC, TIMESTAMPSEC -> {
-                var tsVector = (TimeStampVector) vector;
-                generator.writeNumber(tsVector.get(position) * 1000);
+            // ----- Time
+            //
+            // "Time is either a 32-bit or 64-bit signed integer type representing an
+            // elapsed time since midnight, stored in either of four units: seconds,
+            // milliseconds, microseconds or nanoseconds."
+            //
+            // There's no such type in ES. Convert it to either milliseconds or nanoseconds to avoid losing precision.
+            case TIMESEC -> {
+                var tsVector = (TimeSecVector) vector;
+                generator.writeNumber(tsVector.get(position) * MILLIS_PER_SEC); // millisecs
                 yield null;
             }
 
-            case TIMEMILLI, TIMESTAMPMILLI -> {
-                var tsVector = (TimeStampVector) vector;
-                generator.writeNumber(tsVector.get(position));
+            case TIMEMILLI -> {
+                var tsVector = (TimeMilliVector) vector;
+                generator.writeNumber(tsVector.get(position)); // millisecs
                 yield null;
             }
 
-            case TIMEMICRO, TIMESTAMPMICRO -> {
-                var tsVector = (TimeStampVector) vector;
-                generator.writeNumber(tsVector.get(position) / 1000);
+            case TIMEMICRO -> {
+                var tsVector = (TimeMicroVector) vector;
+                generator.writeNumber(tsVector.get(position) * NANOS_PER_MICRO); // nanosecs
                 yield null;
             }
 
-            case TIMENANO, TIMESTAMPNANO -> {
-                var tsVector = (TimeStampVector) vector;
-                generator.writeNumber(tsVector.get(position) / 1_000_000);
+            case TIMENANO -> {
+                var tsVector = (TimeNanoVector) vector;
+                generator.writeNumber(tsVector.get(position)); // nanosecs
+                yield null;
+            }
+
+            // ----- Timestamp
+            //
+            // From the spec: "Timestamp is a 64-bit signed integer representing an elapsed time since a
+            // fixed epoch, stored in either of four units: seconds, milliseconds,
+            // microseconds or nanoseconds, and is optionally annotated with a timezone.
+            // If a Timestamp column has no timezone value, its epoch is
+            // 1970-01-01 00:00:00 (January 1st 1970, midnight) in an *unknown* timezone."
+            //
+            // Arrow/Java uses different types for timestamps with a timezone (TIMESTAMPXXXTZ) and without
+            // a timezone (TIMESTAMPXXX).
+            // ES doesn't support timezones, so the TIMESTAMPXXXTZ are not supported.
+
+            case TIMESTAMPSEC -> {
+                var tsVector = (TimeStampSecVector) vector;
+                generator.writeNumber(tsVector.get(position) * MILLIS_PER_SEC); // millisecs
+                yield null;
+            }
+
+            case TIMESTAMPMILLI -> {
+                var tsVector = (TimeStampMilliVector) vector;
+                generator.writeNumber(tsVector.get(position)); // millisecs
+                yield null;
+            }
+
+            case TIMESTAMPMICRO -> {
+                var tsVector = (TimeStampMicroVector) vector;
+                generator.writeNumber(tsVector.get(position) * NANOS_PER_MICRO); // nanosecs
+                yield null;
+            }
+
+            case TIMESTAMPNANO -> {
+                var tsVector = (TimeStampNanoVector) vector;
+                generator.writeNumber(tsVector.get(position)); // nanosecs
+                yield null;
+            }
+
+            // ----- Timestamp with a timezone
+
+            case TIMESTAMPSECTZ -> {
+                var tsVector = (TimeStampSecTZVector) vector;
+                long millis = tsVector.get(position) * MILLIS_PER_SEC;
+                millis -= getUTCOffsetSeconds(millis, tsVector.getTimeZone()) * MILLIS_PER_SEC;
+                generator.writeNumber(millis);
+                yield null;
+            }
+
+            case TIMESTAMPMILLITZ -> {
+                var tsVector = (TimeStampMilliTZVector) vector;
+                long millis = tsVector.get(position);
+                millis -= getUTCOffsetSeconds(millis, tsVector.getTimeZone()) * MILLIS_PER_SEC;
+                generator.writeNumber(millis);
+                yield null;
+            }
+
+            case TIMESTAMPMICROTZ -> {
+                var tsVector = (TimeStampMicroTZVector) vector;
+                long nanos = tsVector.get(position) * NANOS_PER_MICRO;
+                nanos -= getUTCOffsetSeconds(nanos / NANOS_PER_MILLI, tsVector.getTimeZone()) * NANOS_PER_SEC;
+                generator.writeNumber(nanos);
+                yield null;
+            }
+
+            case TIMESTAMPNANOTZ -> {
+                var tsVector = (TimeStampNanoTZVector) vector;
+                long nanos = tsVector.get(position);
+                nanos -= getUTCOffsetSeconds(nanos / NANOS_PER_SEC, tsVector.getTimeZone()) * NANOS_PER_SEC;
+                generator.writeNumber(nanos);
                 yield null;
             }
 
@@ -248,8 +357,7 @@ public class ArrowToXContent {
 
             // TODO
             case DATEDAY, DATEMILLI, INTERVALDAY, INTERVALMONTHDAYNANO, DURATION, INTERVALYEAR, DECIMAL, DECIMAL256, LARGELIST,
-                LARGELISTVIEW, TIMESTAMPSECTZ, TIMESTAMPMILLITZ, TIMESTAMPMICROTZ, TIMESTAMPNANOTZ, EXTENSIONTYPE, RUNENDENCODED ->
-                throw new ArrowFormatException(
+                LARGELISTVIEW, EXTENSIONTYPE, RUNENDENCODED -> throw new ArrowFormatException(
                     "Arrow type [" + vector.getMinorType() + "] not supported for field [" + vector.getName() + "]"
                 );
         };

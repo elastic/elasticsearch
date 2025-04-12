@@ -93,7 +93,6 @@ public class ArrowBulkIncrementalParserTests extends ESTestCase {
         try (var parser = createParser("test", operations)) {
             parse(parser, payload, incremental);
         }
-        ;
 
         assertEquals(batchCount * rowCount, operations.size());
 

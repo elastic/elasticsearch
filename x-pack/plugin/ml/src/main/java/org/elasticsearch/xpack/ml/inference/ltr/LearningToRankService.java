@@ -101,7 +101,7 @@ public class LearningToRankService {
      */
     public void loadLearningToRankConfig(String modelId, Map<String, Object> params, ActionListener<LearningToRankConfig> listener) {
         trainedModelProvider.getTrainedModel(
-            modelId,
+            modelLoadingService.getModelId(modelId),
             GetTrainedModelsAction.Includes.all(),
             null,
             ActionListener.wrap(trainedModelConfig -> {

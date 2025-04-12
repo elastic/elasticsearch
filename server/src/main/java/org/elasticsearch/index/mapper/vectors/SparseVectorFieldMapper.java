@@ -22,6 +22,7 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.lucene.Lucene;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
@@ -31,6 +32,8 @@ import org.elasticsearch.index.mapper.DocumentParserContext;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperBuilderContext;
+import org.elasticsearch.index.mapper.MapperParsingException;
+import org.elasticsearch.index.mapper.MappingParserContext;
 import org.elasticsearch.index.mapper.SourceLoader;
 import org.elasticsearch.index.mapper.SourceValueFetcher;
 import org.elasticsearch.index.mapper.TextSearchInfo;
@@ -38,6 +41,7 @@ import org.elasticsearch.index.mapper.ValueFetcher;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.search.fetch.StoredFieldsSpec;
 import org.elasticsearch.search.lookup.Source;
+import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser.Token;
 
@@ -46,6 +50,7 @@ import java.io.UncheckedIOException;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.stream.Stream;
 
 import static org.elasticsearch.index.query.AbstractQueryBuilder.DEFAULT_BOOST;
@@ -65,6 +70,9 @@ public class SparseVectorFieldMapper extends FieldMapper {
 
     static final IndexVersion NEW_SPARSE_VECTOR_INDEX_VERSION = IndexVersions.NEW_SPARSE_VECTOR;
     static final IndexVersion SPARSE_VECTOR_IN_FIELD_NAMES_INDEX_VERSION = IndexVersions.SPARSE_VECTOR_IN_FIELD_NAMES_SUPPORT;
+    static final IndexVersion SPARSE_VECTOR_PRUNING_INDEX_OPTIONS_VERSION = IndexVersion.SPARSE_VECTOR_PRUNING_INDEX_OPTIONS_SUPPORT;
+
+    private final SparseVectorFieldMapper.IndexOptions indexOptions;
 
     private static SparseVectorFieldMapper toType(FieldMapper in) {
         return (SparseVectorFieldMapper) in;
@@ -73,9 +81,23 @@ public class SparseVectorFieldMapper extends FieldMapper {
     public static class Builder extends FieldMapper.Builder {
         private final Parameter<Boolean> stored = Parameter.storeParam(m -> toType(m).fieldType().isStored(), false);
         private final Parameter<Map<String, String>> meta = Parameter.metaParam();
+        private final Parameter<IndexOptions> indexOptions;
 
         public Builder(String name) {
             super(name);
+            this.indexOptions = new Parameter<>(
+                "index_options",
+                true,
+                () -> null,
+                (n, c, o) -> o == null ? null : parseIndexOptions(n, c, o),
+                m -> toType(m).fieldType().indexOptions,
+                (b, n, v) -> {
+                    if (v != null) {
+                        b.field(n, v);
+                    }
+                },
+                Objects::toString
+            );
         }
 
         public Builder setStored(boolean value) {
@@ -85,17 +107,113 @@ public class SparseVectorFieldMapper extends FieldMapper {
 
         @Override
         protected Parameter<?>[] getParameters() {
-            return new Parameter<?>[] { stored, meta };
+            return new Parameter<?>[] { stored, meta, indexOptions };
         }
 
         @Override
         public SparseVectorFieldMapper build(MapperBuilderContext context) {
             return new SparseVectorFieldMapper(
                 leafName(),
-                new SparseVectorFieldType(context.buildFullName(leafName()), stored.getValue(), meta.getValue()),
-                builderParams(this, context)
+                new SparseVectorFieldType(context.buildFullName(leafName()), stored.getValue(), meta.getValue(), indexOptions.getValue()),
+                builderParams(this, context),
+                indexOptions.getValue()
             );
         }
+    }
+
+    public IndexOptions getIndexOptions() {
+        return this.indexOptions;
+    }
+
+    private static SparseVectorFieldMapper.IndexOptions parseIndexOptions(String fieldName, MappingParserContext context, Object propNode) {
+        @SuppressWarnings("unchecked")
+        Map<String, ?> indexOptionsMap = (Map<String, ?>) propNode;
+
+        boolean hasOneOption = false;
+        Boolean prune = null;
+        PruningConfig pruningConfig = null;
+
+        Object shouldPrune = indexOptionsMap.remove(IndexOptions.PRUNE_FIELD_NAME);
+        if (shouldPrune != null) {
+            if ((shouldPrune instanceof Boolean) == false) {
+                throw new MapperParsingException("[index_options] field [prune] should be true or false");
+            }
+            hasOneOption = true;
+            prune = ((Boolean) shouldPrune);
+        }
+
+        Object hasPruningConfiguration = indexOptionsMap.remove(IndexOptions.PRUNING_CONFIG_FIELD_NAME);
+        if (hasPruningConfiguration != null) {
+            if ((hasPruningConfiguration instanceof Map) == false) {
+                throw new MapperParsingException("[index_options] field [pruning_config] should be a map");
+            }
+
+            Integer tokensFreqRatioThreshold = null;
+            Double tokensWeightThreshold = null;
+
+            @SuppressWarnings("unchecked")
+            Map<String, ?> pruningConfigMap = (Map<String, ?>) hasPruningConfiguration;
+            Object hasTokensFreqRatioThreshold = pruningConfigMap.remove(PruningConfig.TOKENS_FREQ_RATIO_THRESHOLD_FIELD_NAME);
+            Object hasTokensWeightThreshold = pruningConfigMap.remove(PruningConfig.TOKENS_WEIGHT_THRESHOLD_FIELD_NAME);
+
+            if (pruningConfigMap.isEmpty() == false) {
+                throw new MapperParsingException("[index_options] field [pruning_config] has unknown fields");
+            }
+
+            if (hasTokensFreqRatioThreshold != null) {
+                if ((hasTokensFreqRatioThreshold instanceof Integer) == false) {
+                    throw new MapperParsingException(
+                        "[pruning_config] field [tokens_freq_ratio_threshold] field should be an integer between 1 and 100"
+                    );
+                }
+                tokensFreqRatioThreshold = (Integer) hasTokensFreqRatioThreshold;
+                if (tokensFreqRatioThreshold < PruningConfig.MIN_TOKENS_FREQ_RATIO_THRESHOLD
+                    || tokensFreqRatioThreshold > PruningConfig.MAX_TOKENS_FREQ_RATIO_THRESHOLD) {
+                    throw new MapperParsingException(
+                        "[pruning_config] field [tokens_freq_ratio_threshold] field should be an integer between 1 and 100"
+                    );
+                }
+            }
+
+            if (hasTokensWeightThreshold != null) {
+                if ((hasTokensWeightThreshold instanceof Double) == false) {
+                    throw new MapperParsingException(
+                        "[pruning_config] field [tokens_weight_threshold] field should be an number between 0.0 and 1.0"
+                    );
+                }
+                tokensWeightThreshold = (Double) hasTokensWeightThreshold;
+                if (tokensWeightThreshold < PruningConfig.MIN_TOKENS_WEIGHT_THRESHOLD
+                    || tokensWeightThreshold > PruningConfig.MAX_TOKENS_WEIGHT_THRESHOLD) {
+                    throw new MapperParsingException(
+                        "[pruning_config] field [tokens_weight_threshold] field should be an number between 0.0 and 1.0"
+                    );
+                }
+            }
+
+            if (tokensFreqRatioThreshold != null || tokensWeightThreshold != null) {
+                pruningConfig = new PruningConfig(tokensFreqRatioThreshold, tokensWeightThreshold);
+                hasOneOption = true;
+            }
+        }
+
+        if (hasOneOption == false) {
+            if (context.indexVersionCreated().before(SPARSE_VECTOR_PRUNING_INDEX_OPTIONS_VERSION)) {
+                // don't set defaults if this index was created before
+                // we added this functionality in, so it will
+                // not change current index behaviour
+                return null;
+            }
+
+            // index options are not set - for new indices, we
+            // need to set pruning to true by default
+            // with a default pruning configuration
+            return new IndexOptions(
+                true,
+                new PruningConfig(PruningConfig.DEFAULT_TOKENS_FREQ_RATIO_THRESHOLD, PruningConfig.DEFAULT_TOKENS_WEIGHT_THRESHOLD)
+            );
+        }
+
+        return new SparseVectorFieldMapper.IndexOptions(prune, pruningConfig);
     }
 
     public static final TypeParser PARSER = new TypeParser((n, c) -> {
@@ -109,9 +227,21 @@ public class SparseVectorFieldMapper extends FieldMapper {
     }, notInMultiFields(CONTENT_TYPE));
 
     public static final class SparseVectorFieldType extends MappedFieldType {
+        private final IndexOptions indexOptions;
 
         public SparseVectorFieldType(String name, boolean isStored, Map<String, String> meta) {
             super(name, true, isStored, false, TextSearchInfo.SIMPLE_MATCH_ONLY, meta);
+            this.indexOptions = null;
+        }
+
+        public SparseVectorFieldType(
+            String name,
+            boolean isStored,
+            Map<String, String> meta,
+            @Nullable SparseVectorFieldMapper.IndexOptions indexOptions
+        ) {
+            super(name, true, isStored, false, TextSearchInfo.SIMPLE_MATCH_ONLY, meta);
+            this.indexOptions = indexOptions;
         }
 
         @Override
@@ -157,8 +287,14 @@ public class SparseVectorFieldMapper extends FieldMapper {
         }
     }
 
-    private SparseVectorFieldMapper(String simpleName, MappedFieldType mappedFieldType, BuilderParams builderParams) {
+    private SparseVectorFieldMapper(
+        String simpleName,
+        MappedFieldType mappedFieldType,
+        BuilderParams builderParams,
+        @Nullable IndexOptions indexOptions
+    ) {
         super(simpleName, mappedFieldType, builderParams);
+        this.indexOptions = indexOptions;
     }
 
     @Override
@@ -364,4 +500,118 @@ public class SparseVectorFieldMapper extends FieldMapper {
         }
     }
 
+    public static class IndexOptions implements ToXContent {
+        public static final String PRUNE_FIELD_NAME = "prune";
+        public static final String PRUNING_CONFIG_FIELD_NAME = "pruning_config";
+
+        final Boolean prune;
+        final PruningConfig pruningConfig;
+
+        IndexOptions(@Nullable Boolean prune, @Nullable PruningConfig pruningConfig) {
+            this.prune = prune;
+            this.pruningConfig = pruningConfig;
+        }
+
+        public Boolean getPrune() {
+            return prune;
+        }
+
+        public PruningConfig getPruningConfig() {
+            return pruningConfig;
+        }
+
+        @Override
+        public final boolean equals(Object other) {
+            if (other == this) {
+                return true;
+            }
+            if (other instanceof IndexOptions otherOptions) {
+                return Objects.equals(prune, otherOptions.prune) && Objects.equals(pruningConfig, otherOptions.pruningConfig);
+            }
+            return false;
+        }
+
+        @Override
+        public final int hashCode() {
+            return Objects.hash(prune, pruningConfig);
+        }
+
+        @Override
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            builder.startObject();
+            if (prune != null) {
+                builder.field(PRUNE_FIELD_NAME, prune);
+            }
+            if (pruningConfig != null) {
+                builder.field(PRUNING_CONFIG_FIELD_NAME, pruningConfig);
+            }
+            builder.endObject();
+            return builder;
+        }
+    }
+
+    public static class PruningConfig implements ToXContent {
+        public static final String TOKENS_FREQ_RATIO_THRESHOLD_FIELD_NAME = "tokens_freq_ratio_threshold";
+        public static final String TOKENS_WEIGHT_THRESHOLD_FIELD_NAME = "tokens_weight_threshold";
+
+        public static Integer DEFAULT_TOKENS_FREQ_RATIO_THRESHOLD = 5;
+        public static Integer MIN_TOKENS_FREQ_RATIO_THRESHOLD = 1;
+        public static Integer MAX_TOKENS_FREQ_RATIO_THRESHOLD = 100;
+
+        public static Double DEFAULT_TOKENS_WEIGHT_THRESHOLD = 0.4;
+        public static Double MIN_TOKENS_WEIGHT_THRESHOLD = 0.0;
+        public static Double MAX_TOKENS_WEIGHT_THRESHOLD = 1.0;
+
+        final Integer tokens_freq_ratio_threshold;
+        final Double tokens_weight_threshold;
+
+        PruningConfig(@Nullable Integer tokens_freq_ratio_threshold, @Nullable Double tokens_weight_threshold) {
+            this.tokens_freq_ratio_threshold = tokens_freq_ratio_threshold;
+            this.tokens_weight_threshold = tokens_weight_threshold;
+        }
+
+        public int getTokensFreqRatioThresholdOrDefault() {
+            if (tokens_freq_ratio_threshold == null) {
+                return DEFAULT_TOKENS_FREQ_RATIO_THRESHOLD;
+            }
+            return tokens_freq_ratio_threshold;
+        }
+
+        public double getTokensWeightThresholdOrDefault() {
+            if (tokens_weight_threshold == null) {
+                return DEFAULT_TOKENS_WEIGHT_THRESHOLD;
+            }
+            return tokens_weight_threshold;
+        }
+
+        @Override
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            builder.startObject();
+            if (tokens_freq_ratio_threshold != null) {
+                builder.field(TOKENS_FREQ_RATIO_THRESHOLD_FIELD_NAME, tokens_freq_ratio_threshold);
+            }
+            if (tokens_weight_threshold != null) {
+                builder.field(TOKENS_WEIGHT_THRESHOLD_FIELD_NAME, tokens_weight_threshold);
+            }
+            builder.endObject();
+            return builder;
+        }
+
+        @Override
+        public final boolean equals(Object other) {
+            if (other == this) {
+                return true;
+            }
+            if (other instanceof PruningConfig otherConfig) {
+                return Objects.equals(tokens_freq_ratio_threshold, otherConfig.tokens_freq_ratio_threshold)
+                    && Objects.equals(tokens_weight_threshold, otherConfig.tokens_weight_threshold);
+            }
+            return false;
+        }
+
+        @Override
+        public final int hashCode() {
+            return Objects.hash(tokens_freq_ratio_threshold, tokens_weight_threshold);
+        }
+    }
 }

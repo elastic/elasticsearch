@@ -67,6 +67,23 @@ public class SparseVectorFieldMapperTests extends MapperTestCase {
         b.field("type", "sparse_vector");
     }
 
+    protected void mappingWithIndexOptionsPrune(XContentBuilder b) throws IOException {
+        b.field("type", "sparse_vector");
+        b.startObject("index_options");
+        b.field("prune", true);
+        b.endObject();
+    }
+
+    protected void mappingWithIndexOptionsPruningConfig(XContentBuilder b) throws IOException {
+        b.field("type", "sparse_vector");
+        b.startObject("index_options");
+        b.startObject("pruning_config");
+        b.field("tokens_freq_ratio_threshold", 5);
+        b.field("tokens_weight_threshold", 0.4);
+        b.endObject();
+        b.endObject();
+    }
+
     @Override
     protected boolean supportsStoredFields() {
         return false;
@@ -118,6 +135,20 @@ public class SparseVectorFieldMapperTests extends MapperTestCase {
         int freq1 = getFrequency(featureField1.tokenStream(null, null));
         int freq2 = getFrequency(featureField2.tokenStream(null, null));
         assertTrue(freq1 < freq2);
+    }
+
+    public void testWithIndexOptionsPrune() throws Exception {
+        DocumentMapper mapper = createDocumentMapper(fieldMapping(this::mappingWithIndexOptionsPrune));
+        assertEquals(Strings.toString(fieldMapping(this::mappingWithIndexOptionsPrune)), mapper.mappingSource().toString());
+
+        // TODO -- finish
+    }
+
+    public void testWithIndexOptionsPruningConfig() throws Exception {
+        DocumentMapper mapper = createDocumentMapper(fieldMapping(this::mappingWithIndexOptionsPruningConfig));
+        assertEquals(Strings.toString(fieldMapping(this::mappingWithIndexOptionsPruningConfig)), mapper.mappingSource().toString());
+
+        // TODO -- finish
     }
 
     public void testDotInFieldName() throws Exception {

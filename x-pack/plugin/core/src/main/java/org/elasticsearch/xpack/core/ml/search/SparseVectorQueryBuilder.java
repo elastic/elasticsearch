@@ -18,6 +18,10 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.Mapper;
+import org.elasticsearch.index.mapper.Mapping;
+import org.elasticsearch.index.mapper.RootObjectMapper;
+import org.elasticsearch.index.mapper.vectors.SparseVectorFieldMapper;
 import org.elasticsearch.index.query.AbstractQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryRewriteContext;
@@ -61,7 +65,7 @@ public class SparseVectorQueryBuilder extends AbstractQueryBuilder<SparseVectorQ
     private final List<WeightedToken> queryVectors;
     private final String inferenceId;
     private final String query;
-    private final boolean shouldPruneTokens;
+    private final Boolean shouldPruneTokens;
 
     private final SetOnce<TextExpansionResults> weightedTokensSupplier;
 
@@ -81,13 +85,11 @@ public class SparseVectorQueryBuilder extends AbstractQueryBuilder<SparseVectorQ
         @Nullable TokenPruningConfig tokenPruningConfig
     ) {
         this.fieldName = Objects.requireNonNull(fieldName, "[" + NAME + "] requires a [" + FIELD_FIELD.getPreferredName() + "]");
-        this.shouldPruneTokens = (shouldPruneTokens != null ? shouldPruneTokens : DEFAULT_PRUNE);
+        this.shouldPruneTokens = shouldPruneTokens;
         this.queryVectors = queryVectors;
         this.inferenceId = inferenceId;
         this.query = query;
-        this.tokenPruningConfig = (tokenPruningConfig != null
-            ? tokenPruningConfig
-            : (this.shouldPruneTokens ? new TokenPruningConfig() : null));
+        this.tokenPruningConfig = tokenPruningConfig;
         this.weightedTokensSupplier = null;
 
         // Preserve BWC error messaging
@@ -124,7 +126,7 @@ public class SparseVectorQueryBuilder extends AbstractQueryBuilder<SparseVectorQ
     public SparseVectorQueryBuilder(StreamInput in) throws IOException {
         super(in);
         this.fieldName = in.readString();
-        this.shouldPruneTokens = in.readBoolean();
+        this.shouldPruneTokens = in.readOptionalBoolean();
         this.queryVectors = in.readOptionalCollectionAsList(WeightedToken::new);
         this.inferenceId = in.readOptionalString();
         this.query = in.readOptionalString();
@@ -159,7 +161,7 @@ public class SparseVectorQueryBuilder extends AbstractQueryBuilder<SparseVectorQ
     }
 
     public boolean shouldPruneTokens() {
-        return shouldPruneTokens;
+        return shouldPruneTokens != null ? shouldPruneTokens : DEFAULT_PRUNE;
     }
 
     public TokenPruningConfig getTokenPruningConfig() {
@@ -173,7 +175,7 @@ public class SparseVectorQueryBuilder extends AbstractQueryBuilder<SparseVectorQ
         }
 
         out.writeString(fieldName);
-        out.writeBoolean(shouldPruneTokens);
+        out.writeOptionalBoolean(shouldPruneTokens);
         out.writeOptionalCollection(queryVectors);
         out.writeOptionalString(inferenceId);
         out.writeOptionalString(query);
@@ -196,7 +198,9 @@ public class SparseVectorQueryBuilder extends AbstractQueryBuilder<SparseVectorQ
             }
             builder.field(QUERY_FIELD.getPreferredName(), query);
         }
-        builder.field(PRUNE_FIELD.getPreferredName(), shouldPruneTokens);
+        if (shouldPruneTokens != null) {
+            builder.field(PRUNE_FIELD.getPreferredName(), shouldPruneTokens);
+        }
         if (tokenPruningConfig != null) {
             builder.field(PRUNING_CONFIG_FIELD.getPreferredName(), tokenPruningConfig);
         }
@@ -222,8 +226,27 @@ public class SparseVectorQueryBuilder extends AbstractQueryBuilder<SparseVectorQ
             );
         }
 
-        return (shouldPruneTokens)
-            ? WeightedTokensUtils.queryBuilderWithPrunedTokens(fieldName, tokenPruningConfig, queryVectors, ft, context)
+        // if the query options for pruning are not set,
+        // we need to check the index options for this field
+        // and use those if set.
+        boolean doPruneTokens = false;
+        TokenPruningConfig setTokenPruningConfig = tokenPruningConfig;
+
+        if (shouldPruneTokens == null || setTokenPruningConfig == null) {
+            SparseVectorFieldMapper sparseVectorFieldMapper = getSparseVectorFieldMapperForSearchExecution(fieldName, context);
+            IndexFieldPruningSettings indexPruningSettings = getIndexFieldPruningSettings(sparseVectorFieldMapper);
+            if (shouldPruneTokens == null && indexPruningSettings.prune != null && indexPruningSettings.prune) {
+                doPruneTokens = true;
+            }
+            if (setTokenPruningConfig == null && indexPruningSettings.pruningConfig != null) {
+                setTokenPruningConfig = indexPruningSettings.pruningConfig;
+            }
+        } else {
+            doPruneTokens = shouldPruneTokens;
+        }
+
+        return (doPruneTokens)
+            ? WeightedTokensUtils.queryBuilderWithPrunedTokens(fieldName, setTokenPruningConfig, queryVectors, ft, context)
             : WeightedTokensUtils.queryBuilderWithAllTokens(fieldName, queryVectors, ft, context);
     }
 
@@ -231,10 +254,31 @@ public class SparseVectorQueryBuilder extends AbstractQueryBuilder<SparseVectorQ
     protected QueryBuilder doRewrite(QueryRewriteContext queryRewriteContext) {
         if (queryVectors != null) {
             return this;
-        } else if (weightedTokensSupplier != null) {
+        }
+
+        if (weightedTokensSupplier != null) {
             TextExpansionResults textExpansionResults = weightedTokensSupplier.get();
             if (textExpansionResults == null) {
                 return this; // No results yet
+            }
+
+            // if the query options for pruning are not set,
+            // we need to check the index options for this field
+            // and use those if set.
+            boolean doPruneTokens = false;
+            TokenPruningConfig setTokenPruningConfig = tokenPruningConfig;
+
+            if (shouldPruneTokens == null || setTokenPruningConfig == null) {
+                SparseVectorFieldMapper sparseVectorFieldMapper = getSparseVectorFieldMapperForQueryRewrite(fieldName, queryRewriteContext);
+                IndexFieldPruningSettings indexPruningSettings = getIndexFieldPruningSettings(sparseVectorFieldMapper);
+                if (shouldPruneTokens == null && indexPruningSettings.prune != null && indexPruningSettings.prune) {
+                    doPruneTokens = true;
+                }
+                if (setTokenPruningConfig == null && indexPruningSettings.pruningConfig != null) {
+                    setTokenPruningConfig = indexPruningSettings.pruningConfig;
+                }
+            } else {
+                doPruneTokens = shouldPruneTokens;
             }
 
             return new SparseVectorQueryBuilder(
@@ -242,8 +286,8 @@ public class SparseVectorQueryBuilder extends AbstractQueryBuilder<SparseVectorQ
                 textExpansionResults.getWeightedTokens(),
                 null,
                 null,
-                shouldPruneTokens,
-                tokenPruningConfig
+                doPruneTokens,
+                setTokenPruningConfig
             );
         } else if (inferenceId == null) {
             // Edge case, where inference_id was not specified in the request,
@@ -377,5 +421,49 @@ public class SparseVectorQueryBuilder extends AbstractQueryBuilder<SparseVectorQ
         } catch (IllegalArgumentException e) {
             throw new ParsingException(parser.getTokenLocation(), e.getMessage(), e);
         }
+    }
+
+    private record IndexFieldPruningSettings(@Nullable Boolean prune, @Nullable TokenPruningConfig pruningConfig) {}
+
+    private IndexFieldPruningSettings getIndexFieldPruningSettings(SparseVectorFieldMapper sparseVectorFieldMapper) {
+        if (sparseVectorFieldMapper == null) {
+            return new IndexFieldPruningSettings(null, null);
+        }
+
+        SparseVectorFieldMapper.IndexOptions indexOptions = sparseVectorFieldMapper.getIndexOptions();
+        if (indexOptions == null) {
+            return new IndexFieldPruningSettings(null, null);
+        }
+
+        Boolean indexOptionsPrune = indexOptions.getPrune();
+
+        SparseVectorFieldMapper.PruningConfig indexPruningConfig = indexOptions.getPruningConfig();
+        TokenPruningConfig indexTokenPruningConfig = indexPruningConfig != null
+            ? new TokenPruningConfig(
+                indexPruningConfig.getTokensFreqRatioThresholdOrDefault(),
+                (float) indexPruningConfig.getTokensWeightThresholdOrDefault(),
+                false
+            )
+            : null;
+
+        return new IndexFieldPruningSettings(indexOptionsPrune, indexTokenPruningConfig);
+    }
+
+    private SparseVectorFieldMapper getSparseVectorFieldMapper(String fieldName, Mapping fieldMapping) {
+        RootObjectMapper rootMapping = fieldMapping.getRoot();
+        Mapper thisMapper = rootMapping.getMapper(fieldName);
+        if (thisMapper instanceof SparseVectorFieldMapper) {
+            return (SparseVectorFieldMapper) thisMapper;
+        }
+
+        return null;
+    }
+
+    private SparseVectorFieldMapper getSparseVectorFieldMapperForSearchExecution(String fieldName, SearchExecutionContext context) {
+        return getSparseVectorFieldMapper(fieldName, context.getMappingLookup().getMapping());
+    }
+
+    private SparseVectorFieldMapper getSparseVectorFieldMapperForQueryRewrite(String fieldName, QueryRewriteContext context) {
+        return getSparseVectorFieldMapper(fieldName, context.getMappingLookup().getMapping());
     }
 }

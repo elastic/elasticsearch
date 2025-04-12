@@ -411,6 +411,9 @@ tests:
 - class: org.elasticsearch.xpack.ilm.TimeSeriesDataStreamsIT
   method: testShrinkActionInPolicyWithoutHotPhase
   issue: https://github.com/elastic/elasticsearch/issues/126746
+- class: org.elasticsearch.repositories.blobstore.testkit.analyze.RepositoryAnalysisFailureIT
+  method: testFailsOnWriteException
+  issue: https://github.com/elastic/elasticsearch/issues/126747
 
 # Examples:
 #

@@ -390,6 +390,9 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
         int resultSetSize,
         AggregationReduceContext reduceContext
     ) {
+        if (resultSetSize == 0) {
+            return null;
+        }
         if (resultSetSize == 1) {
             if (partialResults.hasNext()) {
                 return InternalAggregations.reduce(partialResults.next(), reduceContext);

@@ -983,6 +983,11 @@ public class EsqlCapabilities {
         FORK_V2(Build.current().isSnapshot()),
 
         /**
+         * Support for the {@code leading_zeros} named parameter.
+         */
+        TO_IP_LEADING_ZEROS,
+
+        /**
          * Does the usage information for ESQL contain a histogram of {@code took} values?
          */
         USAGE_CONTAINS_TOOK,
@@ -990,7 +995,12 @@ public class EsqlCapabilities {
         /**
          * Support avg_over_time aggregation that gets evaluated per time-series
          */
-        AVG_OVER_TIME(Build.current().isSnapshot());
+        AVG_OVER_TIME(Build.current().isSnapshot()),
+
+        /**
+         * Support loading of ip fields if they are not indexed.
+         */
+        LOADING_NON_INDEXED_IP_FIELDS;
 
         private final boolean enabled;
 

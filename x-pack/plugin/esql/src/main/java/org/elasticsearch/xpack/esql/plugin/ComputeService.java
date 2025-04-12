@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.esql.plugin;
 
-import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.search.SearchRequest;
@@ -29,7 +28,6 @@ import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
-import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
@@ -320,8 +318,7 @@ public class ComputeService {
                                 );
                                 dataNodesListener.onResponse(r.getProfiles());
                             }, e -> {
-                                if (configuration.allowPartialResults()
-                                    && (ExceptionsHelper.unwrapCause(e) instanceof IndexNotFoundException) == false) {
+                                if (configuration.allowPartialResults()) {
                                     execInfo.swapCluster(
                                         LOCAL_CLUSTER,
                                         (k, v) -> new EsqlExecutionInfo.Cluster.Builder(v).setStatus(

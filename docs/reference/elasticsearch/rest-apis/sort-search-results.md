@@ -46,10 +46,15 @@ GET /my-index-000001/_search
   }
 }
 ```
-For multiple sort fields, each field defined in the sort array acts as a tie-breaker for the ones listed before it. The order of the fields matters:
-* It first sorts by "post_date".
-* If two documents have the same "post_date", it moves to the next sort field "name".
-* If those are still the same, it checks "age", then "user", and so on.
+Order matters when defining multiple sort fields, because {{es}} attempts to sort on the first field in the array. Each subsequent field in the array is only used if the previous fields result in a tie. If documents have identical values across all specified sort fields, {{es}} uses the document ID as the final tie-breaker.
+
+Here's how the example query attempts to sort results:
+
+- First by `post_date` 
+- If `post_date` values are identical, sorts by `name` 
+- If both `post_date` and `name` are identical, sorts by `age`
+- If the first three fields are identical, sorts by `user` 
+- If all previous fields are identical, sorts by `_score`
 
 By default, Elasticsearch sorts `numeric` fields in descending order and `string` fields in ascending order unless you explicitly specify otherwise. All three formats shown in the example above are valid. Some make the sort order explicit, while others rely on Elasticsearch’s default behavior.
 

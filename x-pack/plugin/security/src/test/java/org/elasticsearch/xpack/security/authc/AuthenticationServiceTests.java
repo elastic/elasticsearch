@@ -406,7 +406,8 @@ public class AuthenticationServiceTests extends ESTestCase {
         doAnswer(invocationOnMock -> {
             final Object[] arguments = invocationOnMock.getArguments();
             assertThat(arguments[0], is(token));
-            @SuppressWarnings("unchecked") final ActionListener<AuthenticationResult<User>> listener = (ActionListener<AuthenticationResult<User>>) arguments[1];
+            @SuppressWarnings("unchecked")
+            final ActionListener<AuthenticationResult<User>> listener = (ActionListener<AuthenticationResult<User>>) arguments[1];
             listener.onResponse(authenticationResult);
             return null;
         }).when(secondRealm).authenticate(eq(token), anyActionListener());

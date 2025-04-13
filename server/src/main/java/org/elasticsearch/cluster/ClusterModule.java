@@ -89,7 +89,6 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskResultsService;
 import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.upgrades.FeatureMigrationResults;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ParseField;
 
@@ -226,7 +225,7 @@ public class ClusterModule extends AbstractModule {
             RepositoryCleanupInProgress::readDiffFrom
         );
         // Metadata
-        registerMetadataCustom(entries, RepositoriesMetadata.TYPE, RepositoriesMetadata::new, RepositoriesMetadata::readDiffFrom);
+        registerProjectCustom(entries, RepositoriesMetadata.TYPE, RepositoriesMetadata::new, RepositoriesMetadata::readDiffFrom);
         registerProjectCustom(entries, IngestMetadata.TYPE, IngestMetadata::new, IngestMetadata::readDiffFrom);
         registerProjectCustom(entries, ScriptMetadata.TYPE, ScriptMetadata::new, ScriptMetadata::readDiffFrom);
         registerProjectCustom(entries, IndexGraveyard.TYPE, IndexGraveyard::new, IndexGraveyard::readDiffFrom);
@@ -257,7 +256,6 @@ public class ClusterModule extends AbstractModule {
             ComposableIndexTemplateMetadata::readDiffFrom
         );
         registerProjectCustom(entries, DataStreamMetadata.TYPE, DataStreamMetadata::new, DataStreamMetadata::readDiffFrom);
-        registerProjectCustom(entries, FeatureMigrationResults.TYPE, FeatureMigrationResults::new, FeatureMigrationResults::readDiffFrom);
         registerMetadataCustom(entries, NodesShutdownMetadata.TYPE, NodesShutdownMetadata::new, NodesShutdownMetadata::readDiffFrom);
         registerMetadataCustom(entries, DesiredNodesMetadata.TYPE, DesiredNodesMetadata::new, DesiredNodesMetadata::readDiffFrom);
         registerProjectCustom(
@@ -283,7 +281,7 @@ public class ClusterModule extends AbstractModule {
         // Metadata
         entries.add(
             new NamedXContentRegistry.Entry(
-                Metadata.ClusterCustom.class,
+                Metadata.ProjectCustom.class,
                 new ParseField(RepositoriesMetadata.TYPE),
                 RepositoriesMetadata::fromXContent
             )

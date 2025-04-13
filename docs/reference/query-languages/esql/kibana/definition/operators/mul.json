@@ -3,7 +3,8 @@
   "type" : "operator",
   "operator" : "*",
   "name" : "mul",
-  "description" : "Multiply two numbers together. If either field is <<esql-multivalued-fields,multivalued>> then the result is `null`.",
+  "titleName" : "multiply",
+  "description" : "Multiply two numbers together. If either field is multivalued then the result is `null`.",
   "signatures" : [
     {
       "params" : [

@@ -84,7 +84,6 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.INTEGER;
 import static org.elasticsearch.xpack.esql.core.type.DataType.IP;
 import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
 import static org.elasticsearch.xpack.esql.core.type.DataType.LONG;
-import static org.elasticsearch.xpack.esql.core.type.DataType.SEMANTIC_TEXT;
 import static org.elasticsearch.xpack.esql.core.type.DataType.TEXT;
 import static org.elasticsearch.xpack.esql.core.type.DataType.UNSIGNED_LONG;
 import static org.elasticsearch.xpack.esql.core.type.DataType.VERSION;
@@ -99,7 +98,6 @@ public class Match extends FullTextFunction implements OptionalArgument, PostAna
     public static final Set<DataType> FIELD_DATA_TYPES = Set.of(
         KEYWORD,
         TEXT,
-        SEMANTIC_TEXT,
         BOOLEAN,
         DATETIME,
         DATE_NANOS,
@@ -156,7 +154,7 @@ public class Match extends FullTextFunction implements OptionalArgument, PostAna
             Match can use <<esql-function-named-params,function named parameters>> to specify additional options for the match query.
             All <<match-field-params,match query parameters>> are supported.
 
-            For a simplified syntax, you can use the <<esql-search-operators,match operator>> `:` operator instead of `MATCH`.
+            For a simplified syntax, you can use the <<esql-match-operator,match operator>> `:` operator instead of `MATCH`.
 
             `MATCH` returns true if the provided query matches the row.""",
         examples = {
@@ -165,8 +163,7 @@ public class Match extends FullTextFunction implements OptionalArgument, PostAna
         appliesTo = {
             @FunctionAppliesTo(
                 lifeCycle = FunctionAppliesToLifecycle.COMING,
-                version = "9.1.0",
-                description = "Support for optional named parameters is only available from 9.1.0"
+                description = "Support for optional named parameters is only available in serverless, or in a future {{es}} release"
             ) }
     )
     public Match(

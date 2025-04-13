@@ -78,56 +78,9 @@ esplugin.bundleSpec.from('config/repository-s3') {
     into 'config'
 }
 
-def testRepositoryCreds = tasks.register("testRepositoryCreds", Test) {
-  include '**/RepositoryCredentialsTests.class'
-  systemProperty 'es.allow_insecure_settings', 'true'
-  classpath = sourceSets.test.runtimeClasspath
-  testClassesDirs = sourceSets.test.output.classesDirs
-}
-
-tasks.named('test').configure {
-  // this is tested explicitly in separate test tasks
-  exclude '**/RepositoryCredentialsTests.class'
-}
-
-boolean useFixture = false
-String s3PermanentAccessKey = System.getenv("amazon_s3_access_key")
-String s3PermanentSecretKey = System.getenv("amazon_s3_secret_key")
-String s3PermanentBucket = System.getenv("amazon_s3_bucket")
-String s3PermanentBasePath = System.getenv("amazon_s3_base_path")
-
-// If all these variables are missing then we are testing against the internal fixture instead, which has the following credentials hard-coded in.
-
-if (!s3PermanentAccessKey && !s3PermanentSecretKey && !s3PermanentBucket && !s3PermanentBasePath) {
-  useFixture = true
-  s3PermanentAccessKey = 's3_test_access_key'
-  s3PermanentSecretKey = 's3_test_secret_key'
-  s3PermanentBucket = 'bucket'
-  s3PermanentBasePath = 'base_path'
-}
-
 tasks.named("internalClusterTest").configure {
-  // this is tested explicitly in a separate test task
-  exclude '**/S3RepositoryThirdPartyTests.class'
   // TODO: remove once https://github.com/elastic/elasticsearch/issues/101608 is fixed
   systemProperty 'es.insecure_network_trace_enabled', 'true'
-}
-
-// 3rd Party Tests, i.e. testing against a real S3 repository
-tasks.register("s3ThirdPartyTest", Test) {
-  SourceSetContainer sourceSets = project.getExtensions().getByType(SourceSetContainer.class);
-  SourceSet internalTestSourceSet = sourceSets.getByName(InternalClusterTestPlugin.SOURCE_SET_NAME)
-  setTestClassesDirs(internalTestSourceSet.getOutput().getClassesDirs())
-  setClasspath(internalTestSourceSet.getRuntimeClasspath())
-  include '**/S3RepositoryThirdPartyTests.class'
-  systemProperty("tests.use.fixture", Boolean.toString(useFixture))
-  systemProperty 'test.s3.account', s3PermanentAccessKey
-  systemProperty 'test.s3.key', s3PermanentSecretKey
-  systemProperty 'test.s3.bucket', s3PermanentBucket
-  nonInputProperties.systemProperty 'test.s3.base', s3PermanentBasePath + "_third_party_tests_" + buildParams.testSeed
-
-  // test container accesses ~/.testcontainers.properties read
-  systemProperty "tests.security.manager", "false"
 }
 
 tasks.named("thirdPartyAudit").configure {
@@ -152,9 +105,3 @@ tasks.named("thirdPartyAudit").configure {
           'javax.activation.DataHandler'
   )
 }
-
-tasks.named("check").configure {
-  dependsOn(tasks.withType(Test))
-  dependsOn(testRepositoryCreds)
-}
-

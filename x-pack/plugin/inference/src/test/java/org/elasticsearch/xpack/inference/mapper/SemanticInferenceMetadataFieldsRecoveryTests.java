@@ -63,13 +63,6 @@ public class SemanticInferenceMetadataFieldsRecoveryTests extends EngineTestCase
         this.chunkingSettings = generateRandomChunkingSettings();
         this.useSynthetic = useSynthetic;
         this.useIncludesExcludes = useIncludesExcludes;
-        System.out.println(
-            model1.getServiceSettings().dimensions()
-                + " "
-                + model1.getServiceSettings().similarity()
-                + " "
-                + model1.getServiceSettings().elementType()
-        );
     }
 
     @ParametersFactory

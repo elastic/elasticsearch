@@ -163,7 +163,7 @@ final class CefParser {
         entry("c6a3", new ExtensionMapping("deviceCustomIPv6Address3", IPType, null)),
         entry("c6a3Label", new ExtensionMapping("deviceCustomIPv6Address3Label", StringType, null)),
         entry("c6a4", new ExtensionMapping("deviceCustomIPv6Address4", IPType, null)),
-        entry("C6a4Label", new ExtensionMapping("deviceCustomIPv6Address4Label", StringType, null)),
+        entry("c6a4Label", new ExtensionMapping("deviceCustomIPv6Address4Label", StringType, null)),
         entry("cn1", new ExtensionMapping("deviceCustomNumber1", LongType, null)),
         entry("cn1Label", new ExtensionMapping("deviceCustomNumber1Label", StringType, null)),
         entry("cn2", new ExtensionMapping("deviceCustomNumber2", LongType, null)),

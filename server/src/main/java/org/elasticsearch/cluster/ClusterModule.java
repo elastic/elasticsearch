@@ -44,7 +44,7 @@ import org.elasticsearch.cluster.routing.allocation.allocator.DesiredBalanceShar
 import org.elasticsearch.cluster.routing.allocation.allocator.DesiredBalanceShardsAllocator.DesiredBalanceReconcilerAction;
 import org.elasticsearch.cluster.routing.allocation.allocator.GlobalBalancingWeightsFactory;
 import org.elasticsearch.cluster.routing.allocation.allocator.ShardsAllocator;
-import org.elasticsearch.cluster.routing.allocation.allocator.TieredBalancingWeightsFactory;
+import org.elasticsearch.cluster.routing.allocation.allocator.StatelessBalancingWeightsFactory;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
 import org.elasticsearch.cluster.routing.allocation.decider.AwarenessAllocationDecider;
@@ -153,7 +153,7 @@ public class ClusterModule extends AbstractModule {
         // I'm aware that the following is an anti-pattern and will implement as an SPI provider or plugin
         // if we decide to go ahead with this.
         final BalancingWeightsFactory balancingWeightsFactory = DiscoveryNode.isStateless(settings)
-            ? new TieredBalancingWeightsFactory(balancerSettings, clusterService.getClusterSettings())
+            ? new StatelessBalancingWeightsFactory(balancerSettings, clusterService.getClusterSettings())
             : new GlobalBalancingWeightsFactory(balancerSettings);
         var nodeAllocationStatsAndWeightsCalculator = new NodeAllocationStatsAndWeightsCalculator(
             writeLoadForecaster,

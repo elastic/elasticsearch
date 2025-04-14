@@ -24,7 +24,7 @@ import java.util.stream.Stream;
 import static org.elasticsearch.cluster.routing.allocation.allocator.BalancedShardsAllocator.SHARD_BALANCE_FACTOR_SETTING;
 import static org.elasticsearch.cluster.routing.allocation.allocator.BalancedShardsAllocator.WRITE_LOAD_BALANCE_FACTOR_SETTING;
 
-public class TieredBalancingWeightsFactory implements BalancingWeightsFactory {
+public class StatelessBalancingWeightsFactory implements BalancingWeightsFactory {
 
     public static final Setting<Float> INDEXING_TIER_SHARD_BALANCE_FACTOR_SETTING = Setting.floatSetting(
         "cluster.routing.allocation.balance.shard.indexing",
@@ -55,7 +55,7 @@ public class TieredBalancingWeightsFactory implements BalancingWeightsFactory {
     private volatile float searchTierShardBalanceFactor;
     private volatile float indexingTierWriteLoadBalanceFactor;
 
-    public TieredBalancingWeightsFactory(BalancerSettings balancerSettings, ClusterSettings clusterSettings) {
+    public StatelessBalancingWeightsFactory(BalancerSettings balancerSettings, ClusterSettings clusterSettings) {
         this.balancerSettings = balancerSettings;
         clusterSettings.initializeAndWatch(
             INDEXING_TIER_SHARD_BALANCE_FACTOR_SETTING,
@@ -70,15 +70,15 @@ public class TieredBalancingWeightsFactory implements BalancingWeightsFactory {
 
     @Override
     public BalancingWeights create() {
-        return new TieredBalancingWeights();
+        return new StatelessBalancingWeights();
     }
 
-    private class TieredBalancingWeights implements BalancingWeights {
+    private class StatelessBalancingWeights implements BalancingWeights {
 
         private final WeightFunction searchWeightFunction;
         private final WeightFunction indexingWeightFunction;
 
-        private TieredBalancingWeights() {
+        private StatelessBalancingWeights() {
             this.searchWeightFunction = new WeightFunction(
                 searchTierShardBalanceFactor,
                 balancerSettings.getIndexBalanceFactor(),

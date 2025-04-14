@@ -19,11 +19,11 @@ package co.elastic.elasticsearch.stateless.cache.action;
 
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.transport.TransportRequest;
+import org.elasticsearch.transport.AbstractTransportRequest;
 
 import java.io.IOException;
 
-public class ClearBlobCacheNodeRequest extends TransportRequest {
+public class ClearBlobCacheNodeRequest extends AbstractTransportRequest {
 
     public ClearBlobCacheNodeRequest(StreamInput in) throws IOException {
         super(in);

@@ -54,6 +54,7 @@ import org.elasticsearch.search.suggest.Suggest.Suggestion;
 import org.elasticsearch.search.suggest.completion.CompletionSuggestion;
 
 import java.io.IOException;
+import java.lang.reflect.Array;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
@@ -150,17 +151,29 @@ public final class SearchPhaseController {
             return topDocs;
         } else if (topDocs instanceof TopFieldGroups firstTopDocs) {
             final Sort sort = new Sort(firstTopDocs.fields);
-            final TopFieldGroups[] shardTopDocs = results.stream().filter(td -> td != Lucene.EMPTY_TOP_DOCS).toArray(TopFieldGroups[]::new);
+            final TopFieldGroups[] shardTopDocs = removeEmptyResults(results).toArray(TopFieldGroups[]::new);
             mergedTopDocs = TopFieldGroups.merge(sort, from, topN, shardTopDocs, false);
         } else if (topDocs instanceof TopFieldDocs firstTopDocs) {
             final Sort sort = checkSameSortTypes(results, firstTopDocs.fields);
-            final TopFieldDocs[] shardTopDocs = results.stream().filter((td -> td != Lucene.EMPTY_TOP_DOCS)).toArray(TopFieldDocs[]::new);
+            final TopFieldDocs[] shardTopDocs = removeEmptyResults(results).toArray(TopFieldDocs[]::new);
             mergedTopDocs = TopDocs.merge(sort, from, topN, shardTopDocs);
         } else {
             final TopDocs[] shardTopDocs = results.toArray(new TopDocs[numShards]);
             mergedTopDocs = TopDocs.merge(from, topN, shardTopDocs);
         }
         return mergedTopDocs;
+    }
+
+    private static <T extends TopDocs> List<T> removeEmptyResults(List<T> results) {
+        List<T> nonEmptyResults = new ArrayList<>();
+        for (T result : results) {
+            if (result.totalHits.value() > 0 || result.totalHits.relation() != Relation.EQUAL_TO) {
+                nonEmptyResults.add(result);
+            } else {
+                assert result.scoreDocs.length == 0;
+            }
+        }
+        return nonEmptyResults;
     }
 
     private static Sort checkSameSortTypes(Collection<TopDocs> results, SortField[] firstSortFields) {

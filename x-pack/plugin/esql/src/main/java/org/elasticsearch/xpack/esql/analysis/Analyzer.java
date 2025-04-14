@@ -58,6 +58,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.conditional.Case;
 import org.elasticsearch.xpack.esql.expression.function.scalar.conditional.Greatest;
 import org.elasticsearch.xpack.esql.expression.function.scalar.conditional.Least;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.AbstractConvertFunction;
+import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ConvertFunction;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.FoldablesConvertFunction;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDouble;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToInteger;
@@ -70,6 +71,7 @@ import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.In;
 import org.elasticsearch.xpack.esql.index.EsIndex;
 import org.elasticsearch.xpack.esql.index.IndexResolution;
 import org.elasticsearch.xpack.esql.inference.ResolvedInference;
+import org.elasticsearch.xpack.esql.optimizer.rules.logical.SubstituteSurrogateExpressions;
 import org.elasticsearch.xpack.esql.parser.ParsingException;
 import org.elasticsearch.xpack.esql.plan.IndexPattern;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
@@ -89,6 +91,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.Rename;
 import org.elasticsearch.xpack.esql.plan.logical.RrfScoreEval;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
+import org.elasticsearch.xpack.esql.plan.logical.inference.Completion;
 import org.elasticsearch.xpack.esql.plan.logical.inference.InferencePlan;
 import org.elasticsearch.xpack.esql.plan.logical.inference.Rerank;
 import org.elasticsearch.xpack.esql.plan.logical.join.Join;
@@ -153,8 +156,9 @@ import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.maybeParse
 public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerContext> {
     // marker list of attributes for plans that do not have any concrete fields to return, but have other computed columns to return
     // ie from test | stats c = count(*)
+    public static final String NO_FIELDS_NAME = "<no-fields>";
     public static final List<Attribute> NO_FIELDS = List.of(
-        new ReferenceAttribute(Source.EMPTY, "<no-fields>", DataType.NULL, Nullability.TRUE, null, true)
+        new ReferenceAttribute(Source.EMPTY, NO_FIELDS_NAME, DataType.NULL, Nullability.TRUE, null, true)
     );
 
     private static final List<Batch<LogicalPlan>> RULES = List.of(
@@ -392,9 +396,9 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         }
     }
 
-    private static class ResolveInference extends ParameterizedAnalyzerRule<InferencePlan, AnalyzerContext> {
+    private static class ResolveInference extends ParameterizedAnalyzerRule<InferencePlan<?>, AnalyzerContext> {
         @Override
-        protected LogicalPlan rule(InferencePlan plan, AnalyzerContext context) {
+        protected LogicalPlan rule(InferencePlan<?> plan, AnalyzerContext context) {
             assert plan.inferenceId().resolved() && plan.inferenceId().foldable();
 
             String inferenceId = plan.inferenceId().fold(FoldContext.small()).toString();
@@ -487,6 +491,10 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 return resolveAggregate(aggregate, childrenOutput);
             }
 
+            if (plan instanceof Completion c) {
+                return resolveCompletion(c, childrenOutput);
+            }
+
             if (plan instanceof Drop d) {
                 return resolveDrop(d, childrenOutput);
             }
@@ -497,6 +505,10 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
 
             if (plan instanceof Keep p) {
                 return resolveKeep(p, childrenOutput);
+            }
+
+            if (plan instanceof Fork f) {
+                return resolveFork(f, context);
             }
 
             if (plan instanceof Eval p) {
@@ -591,6 +603,21 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             }
 
             return aggregate;
+        }
+
+        private LogicalPlan resolveCompletion(Completion p, List<Attribute> childrenOutput) {
+            Attribute targetField = p.targetField();
+            Expression prompt = p.prompt();
+
+            if (targetField instanceof UnresolvedAttribute ua) {
+                targetField = new ReferenceAttribute(ua.source(), ua.name(), TEXT);
+            }
+
+            if (prompt.resolved() == false) {
+                prompt = prompt.transformUp(UnresolvedAttribute.class, ua -> maybeResolveAttribute(ua, childrenOutput));
+            }
+
+            return new Completion(p.source(), p.child(), p.inferenceId(), prompt, targetField);
         }
 
         private LogicalPlan resolveMvExpand(MvExpand p, List<Attribute> childrenOutput) {
@@ -712,6 +739,56 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 return join.withConfig(new JoinConfig(type, singletonList(errorAttribute), emptyList(), emptyList()));
             }
             return join;
+        }
+
+        private LogicalPlan resolveFork(Fork fork, AnalyzerContext context) {
+            // we align the outputs of the sub plans such that they have the same columns
+            boolean changed = false;
+            List<LogicalPlan> newSubPlans = new ArrayList<>();
+            Set<String> forkColumns = fork.outputSet().names();
+
+            for (LogicalPlan logicalPlan : fork.children()) {
+                Source source = logicalPlan.source();
+
+                // find the missing columns
+                List<Attribute> missing = new ArrayList<>();
+                Set<String> currentNames = logicalPlan.outputSet().names();
+                for (Attribute attr : fork.outputSet()) {
+                    if (currentNames.contains(attr.name()) == false) {
+                        missing.add(attr);
+                    }
+                }
+
+                List<Alias> aliases = missing.stream().map(attr -> new Alias(source, attr.name(), Literal.of(attr, null))).toList();
+
+                // add the missing columns
+                if (aliases.size() > 0) {
+                    logicalPlan = new Eval(source, logicalPlan, aliases);
+                    changed = true;
+                }
+
+                List<String> subPlanColumns = logicalPlan.output().stream().map(Attribute::name).toList();
+                // We need to add an explicit Keep even if the outputs align
+                // This is because at the moment the sub plans are executed and optimized separately and the output might change
+                // during optimizations. Once we add streaming we might not need to add a Keep when the outputs already align.
+                // Note that until we add explicit support for KEEP in FORK branches, this condition will always be true.
+                if (logicalPlan instanceof Keep == false || subPlanColumns.equals(forkColumns) == false) {
+                    changed = true;
+                    List<Attribute> newOutput = new ArrayList<>();
+                    for (String attrName : forkColumns) {
+                        for (Attribute subAttr : logicalPlan.output()) {
+                            if (attrName.equals(subAttr.name())) {
+                                newOutput.add(subAttr);
+                            }
+                        }
+                    }
+                    logicalPlan = new Keep(logicalPlan.source(), logicalPlan, newOutput);
+                }
+
+                newSubPlans.add(logicalPlan);
+            }
+
+            return changed ? new Fork(fork.source(), newSubPlans) : fork;
         }
 
         private LogicalPlan resolveRerank(Rerank rerank, List<Attribute> childrenOutput) {
@@ -1523,10 +1600,12 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             int alreadyAddedUnionFieldAttributes = unionFieldAttributes.size();
             // See if the eval function has an unresolved MultiTypeEsField field
             // Replace the entire convert function with a new FieldAttribute (containing type conversion knowledge)
-            plan = plan.transformExpressionsOnly(
-                AbstractConvertFunction.class,
-                convert -> resolveConvertFunction(convert, unionFieldAttributes)
-            );
+            plan = plan.transformExpressionsOnly(e -> {
+                if (e instanceof ConvertFunction convert) {
+                    return resolveConvertFunction(convert, unionFieldAttributes);
+                }
+                return e;
+            });
             // If no union fields were generated, return the plan as is
             if (unionFieldAttributes.size() == alreadyAddedUnionFieldAttributes) {
                 return plan;
@@ -1557,7 +1636,8 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             return plan;
         }
 
-        private Expression resolveConvertFunction(AbstractConvertFunction convert, List<FieldAttribute> unionFieldAttributes) {
+        private Expression resolveConvertFunction(ConvertFunction convert, List<FieldAttribute> unionFieldAttributes) {
+            Expression convertExpression = (Expression) convert;
             if (convert.field() instanceof FieldAttribute fa && fa.field() instanceof InvalidMappedField imf) {
                 HashMap<TypeResolutionKey, Expression> typeResolutions = new HashMap<>();
                 Set<DataType> supportedTypes = convert.supportedTypes();
@@ -1584,9 +1664,11 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                     return createIfDoesNotAlreadyExist(fa, resolvedField, unionFieldAttributes);
                 }
             } else if (convert.field() instanceof AbstractConvertFunction subConvert) {
-                return convert.replaceChildren(Collections.singletonList(resolveConvertFunction(subConvert, unionFieldAttributes)));
+                return convertExpression.replaceChildren(
+                    Collections.singletonList(resolveConvertFunction(subConvert, unionFieldAttributes))
+                );
             }
-            return convert;
+            return convertExpression;
         }
 
         private Expression createIfDoesNotAlreadyExist(
@@ -1622,7 +1704,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             return MultiTypeEsField.resolveFrom(imf, typesToConversionExpressions);
         }
 
-        private Expression typeSpecificConvert(AbstractConvertFunction convert, Source source, DataType type, InvalidMappedField mtf) {
+        private Expression typeSpecificConvert(ConvertFunction convert, Source source, DataType type, InvalidMappedField mtf) {
             EsField field = new EsField(mtf.getName(), type, mtf.getProperties(), mtf.isAggregatable());
             FieldAttribute originalFieldAttr = (FieldAttribute) convert.field();
             FieldAttribute resolvedAttr = new FieldAttribute(
@@ -1634,7 +1716,13 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 originalFieldAttr.id(),
                 true
             );
-            return convert.replaceChildren(Collections.singletonList(resolvedAttr));
+            Expression e = ((Expression) convert).replaceChildren(Collections.singletonList(resolvedAttr));
+            /*
+             * Resolve surrogates immediately because these type specific conversions are serialized
+             * and SurrogateExpressions are expected to be resolved on the coordinating node. At least,
+             * TO_IP is expected to be resolved there.
+             */
+            return SubstituteSurrogateExpressions.rule(e);
         }
     }
 

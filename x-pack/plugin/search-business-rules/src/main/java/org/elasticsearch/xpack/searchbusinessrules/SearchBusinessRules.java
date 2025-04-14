@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.searchbusinessrules;
 
-import org.elasticsearch.features.FeatureSpecification;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.xcontent.ParseField;

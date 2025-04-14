@@ -5,26 +5,24 @@
  * 2.0.
  */
 
- package org.elasticsearch.xpack.searchbusinessrules;
+package org.elasticsearch.xpack.searchbusinessrules;
 
- import org.elasticsearch.features.FeatureSpecification;
- import org.elasticsearch.features.NodeFeature;
- 
- import java.util.Set;
- 
- public class SearchBusinessRulesFeatures implements FeatureSpecification {
- 
-     public static final NodeFeature PINNED_RETRIEVER_FEATURE = new NodeFeature(
-         "pinned_retriever");
- 
-     @Override
-     public Set<NodeFeature> getFeatures() {
-         return Set.of();
-     }
- 
-     @Override
-     public Set<NodeFeature> getTestFeatures() {
-         return Set.of(PINNED_RETRIEVER_FEATURE);
-     }
- }
- 
+import org.elasticsearch.features.FeatureSpecification;
+import org.elasticsearch.features.NodeFeature;
+
+import java.util.Set;
+
+public class SearchBusinessRulesFeatures implements FeatureSpecification {
+
+    public static final NodeFeature PINNED_RETRIEVER_FEATURE = new NodeFeature("pinned_retriever");
+
+    @Override
+    public Set<NodeFeature> getFeatures() {
+        return Set.of();
+    }
+
+    @Override
+    public Set<NodeFeature> getTestFeatures() {
+        return Set.of(PINNED_RETRIEVER_FEATURE);
+    }
+}

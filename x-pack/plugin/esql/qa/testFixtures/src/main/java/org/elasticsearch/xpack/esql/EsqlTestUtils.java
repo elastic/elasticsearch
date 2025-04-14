@@ -884,6 +884,10 @@ public final class EsqlTestUtils {
         return collection.iterator().next();
     }
 
+    public static Attribute getAttributeByName(Collection<Attribute> attributes, String name) {
+        return attributes.stream().filter(attr -> attr.name().equals(name)).findAny().orElse(null);
+    }
+
     public static Map<String, Object> jsonEntityToMap(HttpEntity entity) throws IOException {
         return entityToMap(entity, XContentType.JSON);
     }

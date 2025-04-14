@@ -1,0 +1,17 @@
+{
+  "properties": {
+    "host": {
+      "properties": {
+        "name": {
+          "type": "keyword"
+        }
+      }
+    },
+    "count": {
+      "type": "long"
+    },
+    "details": {
+      "type": "keyword"
+    }
+  }
+}

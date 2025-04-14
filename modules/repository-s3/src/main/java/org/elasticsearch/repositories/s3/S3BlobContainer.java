@@ -377,7 +377,7 @@ class S3BlobContainer extends AbstractBlobContainer {
                     SocketAccess.doPrivilegedVoid(() -> { clientReference.client().copyObject(copyRequest); });
                 }
             }
-        } catch (final Exception e) {
+        } catch (final AmazonClientException e) {
             if (e instanceof AmazonServiceException ase && ase.getStatusCode() == RestStatus.NOT_FOUND.getStatus()) {
                 throw new NoSuchFileException(
                     "Copy source [" + s3SourceBlobContainer.buildKey(sourceBlobName) + "] not found: " + ase.getMessage()
@@ -618,7 +618,7 @@ class S3BlobContainer extends AbstractBlobContainer {
                 SocketAccess.doPrivilegedVoid(() -> clientReference.client().completeMultipartUpload(complRequest));
             }
             success = true;
-        } catch (final Exception e) {
+        } catch (final AmazonClientException e) {
             if (e instanceof AmazonServiceException ase && ase.getStatusCode() == RestStatus.NOT_FOUND.getStatus()) {
                 throw new NoSuchFileException(blobName, null, e.getMessage());
             }

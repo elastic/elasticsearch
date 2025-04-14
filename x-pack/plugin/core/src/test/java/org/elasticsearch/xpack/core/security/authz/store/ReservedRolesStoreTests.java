@@ -1031,8 +1031,8 @@ public class ReservedRolesStoreTests extends ESTestCase {
         // Tests for third-party agent indices that `kibana_system` has only `read` access
         Arrays.asList(
             "logs-sentinel_one." + randomAlphaOfLength(randomIntBetween(0, 13)),
-            "logs-crowdstrike." + randomAlphaOfLength(randomIntBetween(0, 13))
-            "logs-microsoft_defender_endpoint." + randomAlphaOfLength(randomIntBetween(0, 13))
+            "logs-crowdstrike." + randomAlphaOfLength(randomIntBetween(0, 13)),
+            "logs-microsoft_defender_endpoint." + randomAlphaOfLength(randomIntBetween(0, 13)),
             "logs-m365_defender." + randomAlphaOfLength(randomIntBetween(0, 13))
         ).forEach((index) -> {
             final IndexAbstraction indexAbstraction = mockIndexAbstraction(index);

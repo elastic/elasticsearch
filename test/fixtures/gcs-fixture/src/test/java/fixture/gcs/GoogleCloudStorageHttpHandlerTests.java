@@ -791,8 +791,6 @@ public class GoogleCloudStorageHttpHandlerTests extends ESTestCase {
         return Headers.of("Range", Strings.format("bytes=%d-%d", start, end));
     }
 
-    private static final String MULTIPART_BOUNDARY = "__END_OF_PART__a607a67c-6df7-4b87-b8a1-81f639a75a97__";
-
     private static String newMultipartBoundary() {
         return "__END_OF_PART__" + randomUUID();
     }

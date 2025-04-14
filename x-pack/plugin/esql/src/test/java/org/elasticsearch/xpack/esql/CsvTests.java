@@ -309,7 +309,7 @@ public class CsvTests extends ESTestCase {
             );
             assumeFalse(
                 "CSV tests cannot currently handle FORK",
-                testCase.requiredCapabilities.contains(EsqlCapabilities.Cap.FORK.capabilityName())
+                testCase.requiredCapabilities.contains(EsqlCapabilities.Cap.FORK_V3.capabilityName())
             );
 
             if (Build.current().isSnapshot()) {

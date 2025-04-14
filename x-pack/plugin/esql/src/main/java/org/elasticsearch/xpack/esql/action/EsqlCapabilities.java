@@ -978,9 +978,9 @@ public class EsqlCapabilities {
         MAX_OVER_TIME(Build.current().isSnapshot()),
 
         /**
-         * Support STATS/EVAL/DISSECT in Fork branches
+         * Support streaming of sub plan results
          */
-        FORK_V2(Build.current().isSnapshot()),
+        FORK_V3(Build.current().isSnapshot()),
 
         /**
          * Does the usage information for ESQL contain a histogram of {@code took} values?

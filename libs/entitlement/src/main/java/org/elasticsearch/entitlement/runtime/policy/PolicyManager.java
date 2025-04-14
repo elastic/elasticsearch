@@ -620,18 +620,14 @@ public class PolicyManager {
         }
 
         // plugins
+        String moduleName = getScopeName(requestingModule);
         var pluginName = pluginResolver.apply(requestingClass);
         if (pluginName != null) {
             var pluginEntitlements = pluginsEntitlements.get(pluginName);
             if (pluginEntitlements == null) {
-                return defaultEntitlements(pluginName, sourcePaths.get(pluginName), requestingModule.getName());
+                return defaultEntitlements(pluginName, sourcePaths.get(pluginName), moduleName);
             } else {
-                return getModuleScopeEntitlements(
-                    pluginEntitlements,
-                    getScopeName(requestingModule),
-                    pluginName,
-                    sourcePaths.get(pluginName)
-                );
+                return getModuleScopeEntitlements(pluginEntitlements, moduleName, pluginName, sourcePaths.get(pluginName));
             }
         }
 
@@ -645,7 +641,7 @@ public class PolicyManager {
             );
         }
 
-        return defaultEntitlements(UNKNOWN_COMPONENT_NAME, null, requestingModule.getName());
+        return defaultEntitlements(UNKNOWN_COMPONENT_NAME, null, moduleName);
     }
 
     private static String getScopeName(Module requestingModule) {

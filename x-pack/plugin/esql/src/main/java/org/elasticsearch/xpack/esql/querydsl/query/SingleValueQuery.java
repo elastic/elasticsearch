@@ -190,6 +190,9 @@ public class SingleValueQuery extends Query {
         }
     }
 
+    /**
+     * Builds a {@code bool} query combining the "next" query and a {@link SingleValueMatchQuery}.
+     */
     public static class Builder extends AbstractBuilder {
         Builder(QueryBuilder next, String field, Source source) {
             super(next, field, source);
@@ -251,6 +254,29 @@ public class SingleValueQuery extends Query {
         }
     }
 
+    /**
+     * Builds a {@code bool} query combining the "next" query, a {@link SingleValueMatchQuery},
+     * and a {@link TermQuery} making sure we didn't ignore any values.
+     * <p>
+     *     This is used in the case when you do {@code text_field == "foo"} and {@code text_field}
+     *     has a {@code keyword} sub-field. See, {@code text} typed fields can't do our equality -
+     *     they only do matching. But {@code keyword} fields *can* do the equality. In this case
+     *     the "next" query is a {@link TermQuery} like {@code text_field.raw:foo}.
+     * </p>
+     * <p>
+     *     But there's a big wrinkle! If you index a field longer than {@code ignore_above} into
+     *     {@code text_field.raw} field then it'll drop its value on the floor. So the
+     *     {@link SingleValueMatchQuery} isn't enough to emulate {@code ==}. You have to remove
+     *     any matches that ignored a field. Luckilly we have {@link IgnoredFieldMapper}! We can
+     *     do a {@link TermQuery} like {@code NOT(_ignored:text_field.raw)} to filter those out.
+     * </p>
+     * <p>
+     *     You may be asking "how would the first {@code text_field.raw:foo} query work if the
+     *     value we're searching for is very long? In that case we never use this query at all.
+     *     We have to delegate the filtering to the compute engine. No fancy lucene searches in
+     *     that case.
+     * </p>
+     */
     public static class SyntheticSourceDelegateBuilder extends AbstractBuilder {
         SyntheticSourceDelegateBuilder(QueryBuilder next, String field, Source source) {
             super(next, field, source);

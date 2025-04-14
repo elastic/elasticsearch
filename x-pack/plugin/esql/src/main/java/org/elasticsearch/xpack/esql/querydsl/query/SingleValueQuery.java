@@ -11,6 +11,7 @@ import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
+import org.apache.lucene.search.TermQuery;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
@@ -19,6 +20,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.Warnings;
 import org.elasticsearch.compute.querydsl.query.SingleValueMatchQuery;
+import org.elasticsearch.index.mapper.IgnoredFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.TextFieldMapper;
 import org.elasticsearch.index.query.AbstractQueryBuilder;
@@ -30,6 +32,7 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.esql.core.querydsl.query.Query;
 import org.elasticsearch.xpack.esql.core.tree.Location;
 import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.expression.function.fulltext.Term;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 
 import java.io.IOException;
@@ -163,35 +166,6 @@ public class SingleValueQuery extends Query {
             return source;
         }
 
-        protected abstract MappedFieldType mappedFieldType(SearchExecutionContext context);
-
-        @Override
-        protected final org.apache.lucene.search.Query doToQuery(SearchExecutionContext context) throws IOException {
-            MappedFieldType ft = mappedFieldType(context);
-            if (ft == null) {
-                return new MatchNoDocsQuery("missing field [" + field + "]");
-            }
-            SingleValueMatchQuery singleValueQuery = new SingleValueMatchQuery(
-                context.getForField(ft, MappedFieldType.FielddataOperation.SEARCH),
-                Warnings.createWarnings(
-                    DriverContext.WarningsMode.COLLECT,
-                    source.source().getLineNumber(),
-                    source.source().getColumnNumber(),
-                    source.text()
-                ),
-                "single-value function encountered multi-value"
-            );
-            org.apache.lucene.search.Query rewrite = singleValueQuery.rewrite(context.searcher());
-            if (rewrite instanceof MatchAllDocsQuery) {
-                // nothing to filter
-                return next.toQuery(context);
-            }
-            BooleanQuery.Builder builder = new BooleanQuery.Builder();
-            builder.add(next.toQuery(context), BooleanClause.Occur.FILTER);
-            builder.add(rewrite, BooleanClause.Occur.FILTER);
-            return builder.build();
-        }
-
         protected abstract AbstractBuilder rewrite(QueryBuilder next);
 
         @Override
@@ -246,8 +220,30 @@ public class SingleValueQuery extends Query {
         }
 
         @Override
-        protected MappedFieldType mappedFieldType(SearchExecutionContext context) {
-            return context.getFieldType(field());
+        protected final org.apache.lucene.search.Query doToQuery(SearchExecutionContext context) throws IOException {
+            MappedFieldType ft = context.getFieldType(field());
+            if (ft == null) {
+                return new MatchNoDocsQuery("missing field [" + field() + "]");
+            }
+            SingleValueMatchQuery singleValueQuery = new SingleValueMatchQuery(
+                context.getForField(ft, MappedFieldType.FielddataOperation.SEARCH),
+                Warnings.createWarnings(
+                    DriverContext.WarningsMode.COLLECT,
+                    source().source().getLineNumber(),
+                    source().source().getColumnNumber(),
+                    source().text()
+                ),
+                "single-value function encountered multi-value"
+            );
+            org.apache.lucene.search.Query rewrite = singleValueQuery.rewrite(context.searcher());
+            if (rewrite instanceof MatchAllDocsQuery) {
+                // nothing to filter
+                return next().toQuery(context);
+            }
+            BooleanQuery.Builder builder = new BooleanQuery.Builder();
+            builder.add(next().toQuery(context), BooleanClause.Occur.FILTER);
+            builder.add(rewrite, BooleanClause.Occur.FILTER);
+            return builder.build();
         }
 
         @Override
@@ -261,13 +257,9 @@ public class SingleValueQuery extends Query {
             super(next, field, source);
         }
 
-        SyntheticSourceDelegateBuilder(StreamInput in) throws IOException {
-            super(in);
-        }
-
         @Override
         public String getWriteableName() {
-            throw new UnsupportedOperationException();
+            throw new UnsupportedOperationException("Not serialized");
         }
 
         @Override
@@ -281,12 +273,42 @@ public class SingleValueQuery extends Query {
 
         @Override
         public TransportVersion getMinimalSupportedVersion() {
-            throw new UnsupportedOperationException();
+            throw new UnsupportedOperationException("Not serialized");
         }
 
         @Override
-        protected MappedFieldType mappedFieldType(SearchExecutionContext context) {
-            return ((TextFieldMapper.TextFieldType) context.getFieldType(field())).syntheticSourceDelegate();
+        protected final org.apache.lucene.search.Query doToQuery(SearchExecutionContext context) throws IOException {
+            MappedFieldType ft = context.getFieldType(field());
+            if (ft == null) {
+                return new MatchNoDocsQuery("missing field [" + field() + "]");
+            }
+            ft = ((TextFieldMapper.TextFieldType) ft).syntheticSourceDelegate();
+
+            BooleanQuery.Builder builder = new BooleanQuery.Builder();
+            builder.add(next().toQuery(context), BooleanClause.Occur.FILTER);
+
+            org.apache.lucene.search.Query singleValueQuery = new SingleValueMatchQuery(
+                context.getForField(ft, MappedFieldType.FielddataOperation.SEARCH),
+                Warnings.createWarnings(
+                    DriverContext.WarningsMode.COLLECT,
+                    source().source().getLineNumber(),
+                    source().source().getColumnNumber(),
+                    source().text()
+                ),
+                "single-value function encountered multi-value"
+            );
+            singleValueQuery = singleValueQuery.rewrite(context.searcher());
+            if (singleValueQuery instanceof MatchAllDocsQuery == false) {
+                builder.add(singleValueQuery, BooleanClause.Occur.FILTER);
+            }
+
+            org.apache.lucene.search.Query ignored = new TermQuery(new org.apache.lucene.index.Term(IgnoredFieldMapper.NAME, ft.name()));
+            ignored = ignored.rewrite(context.searcher());
+            if (ignored instanceof MatchNoDocsQuery == false) {
+                builder.add(ignored, BooleanClause.Occur.MUST_NOT);
+            }
+
+            return builder.build();
         }
 
         @Override

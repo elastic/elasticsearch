@@ -15,7 +15,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  *
- * Modifications copyright (C) 2024 Elasticsearch B.V.
+ * Modifications copyright (C) 2025 Elasticsearch B.V.
  */
 package org.elasticsearch.index.codec.vectors.es818;
 
@@ -50,7 +50,7 @@ import java.io.UncheckedIOException;
 import static org.apache.lucene.codecs.lucene99.Lucene99HnswVectorsReader.readSimilarityFunction;
 import static org.apache.lucene.codecs.lucene99.Lucene99HnswVectorsReader.readVectorEncoding;
 
-/** Copied from Lucene99FlatVectorsReader in Lucene 10.1, then modified */
+/** Copied from Lucene99FlatVectorsReader in Lucene 10.1, then modified to support DirectIOIndexInputSupplier */
 @SuppressForbidden(reason = "Copied from lucene")
 public class ES818FlatVectorsReader extends FlatVectorsReader {
 
@@ -119,6 +119,7 @@ public class ES818FlatVectorsReader extends FlatVectorsReader {
         IOContext context
     ) throws IOException {
         String fileName = IndexFileNames.segmentFileName(state.segmentInfo.name, state.segmentSuffix, fileExtension);
+        // use direct IO for accessing raw vector data for searches
         IndexInput in = context.context() == IOContext.Context.DEFAULT && state.directory instanceof DirectIOIndexInputSupplier did
             ? did.openInputDirect(fileName, context)
             : state.directory.openInput(fileName, context);

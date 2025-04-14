@@ -234,7 +234,9 @@ public class RepositoryAnalysisFailureIT extends AbstractSnapshotIntegTestCase {
         request.maxBlobSize(ByteSizeValue.ofBytes(10L));
         request.abortWritePermitted(false);
 
-        final CountDown countDown = new CountDown(between(1, request.getBlobCount()));
+        // requests that create copies count as two blobs. Halving the count ensures that we trigger the disruption
+        // even if every request is a copy
+        final CountDown countDown = new CountDown(between(1, request.getBlobCount() / 2));
 
         blobStore.setDisruption(new Disruption() {
 

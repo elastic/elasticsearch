@@ -287,7 +287,7 @@ LABEL name="Elasticsearch" \\
   description="You know, for search."
 <% } %>
 
-RUN mkdir /licenses && cp LICENSE.txt /licenses/LICENSE
+RUN mkdir /licenses && ln LICENSE.txt /licenses/LICENSE
 <% if (docker_base == 'iron_bank') { %>
 COPY LICENSE /licenses/LICENSE.addendum
 <% } %>

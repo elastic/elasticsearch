@@ -286,6 +286,13 @@
           capabilities: [ dense_vector_off_heap_stats ]
       test_runner_features: [ capabilities ]
       reason: Capability required to run test
+   - requires:
+      capabilities:
+        - method: POST
+          path: /_search
+          capabilities: [ optimized_scalar_quantization_bbq ]
+      test_runner_features: capabilities
+      reason: "Uses bbq"
 
    - do:
       indices.create:
@@ -581,6 +588,13 @@
           capabilities: [ dense_vector_off_heap_stats ]
       test_runner_features: [ capabilities ]
       reason: Capability required to run test
+   - requires:
+       capabilities:
+         - method: POST
+           path: /_search
+           capabilities: [ optimized_scalar_quantization_bbq ]
+       test_runner_features: capabilities
+       reason: "Uses bbq"
 
    - do:
       indices.create:

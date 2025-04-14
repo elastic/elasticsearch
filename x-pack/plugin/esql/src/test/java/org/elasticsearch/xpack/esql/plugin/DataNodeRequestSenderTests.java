@@ -33,6 +33,8 @@ import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.threadpool.FixedExecutorBuilder;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xpack.esql.plugin.DataNodeRequestSender.NodeListener;
+import org.elasticsearch.xpack.esql.plugin.DataNodeRequestSender.TargetShards;
 import org.junit.After;
 import org.junit.Before;
 
@@ -433,9 +435,9 @@ public class DataNodeRequestSenderTests extends ComputeTestCase {
                 randomBoolean(),
                 -1,
                 (indices, predicate, listener) -> runWithDelay(() -> listener.onResponse(switch (attempt.incrementAndGet()) {
-                    case 1 -> new DataNodeRequestSender.TargetShards(Map.of(shard1, targetShard(shard1, node1)), 1, 0);
-                    case 2 -> new DataNodeRequestSender.TargetShards(Map.of(shard1, targetShard(shard1, node2)), 1, 0);
-                    default -> new DataNodeRequestSender.TargetShards(Map.of(shard1, targetShard(shard1, node3)), 1, 0);
+                    case 1 -> new TargetShards(Map.of(shard1, targetShard(shard1, node1)), 1, 0);
+                    case 2 -> new TargetShards(Map.of(shard1, targetShard(shard1, node2)), 1, 0);
+                    default -> new TargetShards(Map.of(shard1, targetShard(shard1, node3)), 1, 0);
                 })),
                 (node, shardIds, aliasFilters, listener) -> runWithDelay(
                     () -> listener.onResponse(
@@ -455,13 +457,9 @@ public class DataNodeRequestSenderTests extends ComputeTestCase {
 
     public void testDoesNotRetryMovedShardIndefinitely() {
         var attempt = new AtomicInteger(0);
-        var attemptIndices = new AtomicReference<String[]>();
-        var response = safeGet(sendRequests(randomBoolean(), -1, (indices, predicate, listener) -> {
+        var response = safeGet(sendRequests(true, -1, (indices, predicate, listener) -> {
             attempt.incrementAndGet();
-            attemptIndices.set(indices);
-            runWithDelay(
-                () -> listener.onResponse(new DataNodeRequestSender.TargetShards(Map.of(shard1, targetShard(shard1, node1)), 1, 0))
-            );
+            runWithDelay(() -> listener.onResponse(new TargetShards(Map.of(shard1, targetShard(shard1, node1)), 1, 0)));
         },
             (node, shardIds, aliasFilters, listener) -> runWithDelay(
                 () -> listener.onResponse(new DataNodeComputeResponse(List.of(), Map.of(shard1, new ShardNotFoundException(shard1))))
@@ -472,7 +470,33 @@ public class DataNodeRequestSenderTests extends ComputeTestCase {
         assertThat(response.skippedShards, equalTo(0));
         assertThat(response.failedShards, equalTo(1));
         assertThat(attempt.get(), equalTo(10));
-        assertThat("Must retry only affected indices", attemptIndices.get(), arrayContaining(shard1.getIndexName()));
+    }
+
+    public void testRetryOnlyIndicesWithMovedShards() {
+        var attempt = new AtomicInteger(0);
+        var attemptIndices = new AtomicReference<String[]>();
+        var response = safeGet(sendRequests(randomBoolean(), -1, (indices, predicate, listener) -> runWithDelay(() -> {
+            attemptIndices.set(indices);
+            listener.onResponse(
+                attempt.incrementAndGet() == 1
+                    ? new TargetShards(Map.of(shard1, targetShard(shard1, node1), shard2, targetShard(shard2, node2)), 1, 0)
+                    : new TargetShards(Map.of(shard2, targetShard(shard2, node3)), 1, 0)
+            );
+        }),
+            (node, shardIds, aliasFilters, listener) -> runWithDelay(
+                () -> listener.onResponse(
+                    Objects.equals(node, node2)
+                        ? new DataNodeComputeResponse(List.of(), Map.of(shard2, new ShardNotFoundException(shard2)))
+                        : new DataNodeComputeResponse(List.of(), Map.of())
+                )
+            )
+        ));
+        assertThat(response.totalShards, equalTo(1));
+        assertThat(response.successfulShards, equalTo(1));
+        assertThat(response.skippedShards, equalTo(0));
+        assertThat(response.failedShards, equalTo(0));
+        assertThat(attempt.get(), equalTo(2));
+        assertThat("Must retry only affected indices", attemptIndices.get(), arrayContaining(shard2.getIndexName()));
     }
 
     static DataNodeRequestSender.TargetShard targetShard(ShardId shardId, DiscoveryNode... nodes) {
@@ -514,7 +538,7 @@ public class DataNodeRequestSenderTests extends ComputeTestCase {
         return sendRequests(allowPartialResults, concurrentRequests, (indices, predicate, listener) -> {
             runWithDelay(
                 () -> listener.onResponse(
-                    new DataNodeRequestSender.TargetShards(
+                    new TargetShards(
                         shards.stream().collect(Collectors.toMap(DataNodeRequestSender.TargetShard::shardId, Function.identity())),
                         shards.size(),
                         0
@@ -569,15 +593,10 @@ public class DataNodeRequestSenderTests extends ComputeTestCase {
     }
 
     interface Resolver {
-        void resolve(String[] indices, Predicate<ShardId> predicate, ActionListener<DataNodeRequestSender.TargetShards> listener);
+        void resolve(String[] indices, Predicate<ShardId> predicate, ActionListener<TargetShards> listener);
     }
 
     interface Sender {
-        void sendRequestToOneNode(
-            DiscoveryNode node,
-            List<ShardId> shardIds,
-            Map<Index, AliasFilter> aliasFilters,
-            DataNodeRequestSender.NodeListener listener
-        );
+        void sendRequestToOneNode(DiscoveryNode node, List<ShardId> shardIds, Map<Index, AliasFilter> aliasFilters, NodeListener listener);
     }
 }

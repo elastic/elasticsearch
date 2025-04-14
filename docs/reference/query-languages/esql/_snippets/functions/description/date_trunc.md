@@ -2,6 +2,5 @@
 
 **Description**
 
-Rounds down a date to the closest interval since epoch, which starts
-at `0001-01-01T00:00:00Z`.
+Rounds down a date to the closest interval since epoch, which starts at `0001-01-01T00:00:00Z`.
 

@@ -239,9 +239,9 @@ public final class IndexPrivilege extends Privilege {
     private static final Map<String, IndexPrivilege> VALUES = combineSortedInOrder(
         sortByAccessLevel(
             Stream.of(
-                DataStream.isFailureStoreFeatureFlagEnabled() ? entry("read_failure_store", READ_FAILURE_STORE) : null,
-                DataStream.isFailureStoreFeatureFlagEnabled() ? entry("manage_failure_store", MANAGE_FAILURE_STORE) : null
-            ).filter(Objects::nonNull).collect(Collectors.toUnmodifiableMap(Map.Entry::getKey, Map.Entry::getValue))
+                entry("read_failure_store", READ_FAILURE_STORE),
+                entry("manage_failure_store", MANAGE_FAILURE_STORE)
+            ).collect(Collectors.toUnmodifiableMap(Map.Entry::getKey, Map.Entry::getValue))
         ),
         sortByAccessLevel(
             Stream.of(

@@ -161,7 +161,7 @@ public class InternalUsers {
                     .privileges(
                         filterNonNull(
                             // needed to rollover failure store
-                            DataStream.isFailureStoreFeatureFlagEnabled() ? "manage_failure_store" : null,
+                            "manage_failure_store",
                             "delete_index",
                             RolloverAction.NAME,
                             ForceMergeAction.NAME + "*",
@@ -184,7 +184,7 @@ public class InternalUsers {
                     .privileges(
                         filterNonNull(
                             // needed to rollover failure store
-                            DataStream.isFailureStoreFeatureFlagEnabled() ? "manage_failure_store" : null,
+                            "manage_failure_store",
                             "delete_index",
                             RolloverAction.NAME,
                             ForceMergeAction.NAME + "*",
@@ -262,7 +262,7 @@ public class InternalUsers {
                     .privileges(
                         filterNonNull(
                             // needed to rollover failure store
-                            DataStream.isFailureStoreFeatureFlagEnabled() ? "manage_failure_store" : null,
+                            "manage_failure_store",
                             LazyRolloverAction.NAME
                         )
                     )

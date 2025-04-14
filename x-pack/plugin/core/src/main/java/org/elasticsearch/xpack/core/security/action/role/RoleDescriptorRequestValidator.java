@@ -55,10 +55,8 @@ public class RoleDescriptorRequestValidator {
                 } catch (IllegalArgumentException ile) {
                     validationException = addValidationError(ile.getMessage(), validationException);
                 }
-                if (DataStream.isFailureStoreFeatureFlagEnabled()) {
-                    for (final String indexName : idp.getIndices()) {
-                        validationException = validateIndexNameExpression(indexName, validationException);
-                    }
+                for (final String indexName : idp.getIndices()) {
+                    validationException = validateIndexNameExpression(indexName, validationException);
                 }
             }
         }
@@ -78,10 +76,8 @@ public class RoleDescriptorRequestValidator {
             } catch (IllegalArgumentException ile) {
                 validationException = addValidationError(ile.getMessage(), validationException);
             }
-            if (DataStream.isFailureStoreFeatureFlagEnabled()) {
-                for (String indexName : ridp.indicesPrivileges().getIndices()) {
-                    validationException = validateIndexNameExpression(indexName, validationException);
-                }
+            for (String indexName : ridp.indicesPrivileges().getIndices()) {
+                validationException = validateIndexNameExpression(indexName, validationException);
             }
         }
         if (roleDescriptor.hasRemoteClusterPermissions()) {

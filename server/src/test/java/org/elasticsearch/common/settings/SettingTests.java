@@ -387,6 +387,28 @@ public class SettingTests extends ESTestCase {
         assertNull(e.getCause());
     }
 
+    public void testFloatSettingWithOtherSettingAsDefault() {
+        float defaultValue = randomFloat();
+        Setting<Float> defaultSetting = Setting.floatSetting("float_val.default", defaultValue);
+        Setting<Float> floatSetting = Setting.floatSetting("float_val", defaultSetting, Float.MIN_VALUE);
+        assertThat(floatSetting.get(Settings.builder().build()), equalTo(defaultValue));
+        float configuredDefaultValue = randomValueOtherThan(defaultValue, ESTestCase::randomFloat);
+        assertThat(
+            floatSetting.get(Settings.builder().put("float_val.default", configuredDefaultValue).build()),
+            equalTo(configuredDefaultValue)
+        );
+        float configuredSettingValue = randomValueOtherThanMany(
+            v -> v != configuredDefaultValue && v != defaultValue,
+            ESTestCase::randomFloat
+        );
+        assertThat(
+            floatSetting.get(
+                Settings.builder().put("float_val.default", configuredDefaultValue).put("float_val", configuredSettingValue).build()
+            ),
+            equalTo(configuredSettingValue)
+        );
+    }
+
     private enum TestEnum {
         ON,
         OFF

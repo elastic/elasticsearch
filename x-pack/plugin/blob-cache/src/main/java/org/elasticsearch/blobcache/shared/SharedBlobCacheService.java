@@ -338,7 +338,7 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
     private final Runnable evictIncrementer;
 
     private final LongSupplier relativeTimeInNanosSupplier;
-    private final ThrottledTaskRunner evictionsRunner;
+    private final ThrottledTaskRunner asyncEvictionsRunner;
 
     public SharedBlobCacheService(
         NodeEnvironment environment,
@@ -399,7 +399,7 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
         this.blobCacheMetrics = blobCacheMetrics;
         this.evictIncrementer = blobCacheMetrics.getEvictedCountNonZeroFrequency()::increment;
         this.relativeTimeInNanosSupplier = relativeTimeInNanosSupplier;
-        this.evictionsRunner = new ThrottledTaskRunner(
+        this.asyncEvictionsRunner = new ThrottledTaskRunner(
             "shared_blob_cache_evictions",
             SHARED_CACHE_CONCURRENT_EVICTIONS_SETTING.get(settings),
             threadPool.generic()
@@ -1633,7 +1633,7 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
 
         @Override
         public void forceEvictAsync(Predicate<KeyType> cacheKeyPredicate) {
-            evictionsRunner.enqueueTask(new ActionListener<>() {
+            asyncEvictionsRunner.enqueueTask(new ActionListener<>() {
                 @Override
                 public void onResponse(Releasable releasable) {
                     try (releasable) {

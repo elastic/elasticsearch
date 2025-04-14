@@ -60,9 +60,7 @@ public class JwtTypeValidatorTests extends ESTestCase {
         final JwtTypeValidator validator = randomFrom(JwtTypeValidator.ID_TOKEN_INSTANCE, JwtTypeValidator.ACCESS_TOKEN_INSTANCE);
         final String type = randomBoolean() ? randomAlphaOfLengthBetween(4, 8) : "AT+JWT";
 
-        final JWSHeader jwsHeader = JWSHeader.parse(
-            Map.of("typ", type, "alg", randomAlphaOfLengthBetween(3, 8))
-        );
+        final JWSHeader jwsHeader = JWSHeader.parse(Map.of("typ", type, "alg", randomAlphaOfLengthBetween(3, 8)));
 
         final IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,

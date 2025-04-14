@@ -440,7 +440,7 @@ public class RestEsqlIT extends RestEsqlTestCase {
             List<Map<String, Object>> operators = (List<Map<String, Object>>) p.get("operators");
             for (Map<String, Object> o : operators) {
                 // The query here is the most important bit - we *do* push to lucene.
-                sig.add(checkOperatorProfile(o, "test.keyword:" + value));
+                sig.add(checkOperatorProfile(o, "#test.keyword:" + value + " -_ignored:test.keyword"));
             }
             String description = p.get("description").toString();
             switch (description) {

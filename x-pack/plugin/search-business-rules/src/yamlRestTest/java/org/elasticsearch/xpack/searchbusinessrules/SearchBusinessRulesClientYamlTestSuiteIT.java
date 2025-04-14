@@ -30,4 +30,4 @@ public class SearchBusinessRulesClientYamlTestSuiteIT extends ESClientYamlSuiteT
     protected String getTestRestCluster() {
         return cluster.getHttpAddresses();
     }
-} 
+}

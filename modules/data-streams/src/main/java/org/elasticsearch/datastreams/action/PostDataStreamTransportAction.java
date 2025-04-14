@@ -166,6 +166,7 @@ public class PostDataStreamTransportAction extends TransportMasterNodeAction<Pos
                         CountDownActionListener settingCountDownListener = new CountDownActionListener(
                             requestSettings.size() + 1,
                             new ActionListener<>() {
+                                // Called once all settings are completed for all indices
                                 @Override
                                 public void onResponse(Void unused) {
                                     ComposableIndexTemplate effectiveIndexTemplate = clusterService.state()
@@ -194,36 +195,24 @@ public class PostDataStreamTransportAction extends TransportMasterNodeAction<Pos
                             }
                         );
                         settingCountDownListener.onResponse(null); // handles the case when there were zero settings
-                        ActionListener<PostDataStreamAction.DataStreamResponse.IndexSettingResult> indexSettingResultListener =
-                            new ActionListener<>() {
-                                // Called each time we have results for all indices for a single setting
-                                @Override
-                                public void onResponse(PostDataStreamAction.DataStreamResponse.IndexSettingResult indexSettingResult) {
-                                    indexSettingResults.add(indexSettingResult);
-                                    settingCountDownListener.onResponse(null);
-                                }
-
-                                @Override
-                                public void onFailure(Exception e) {
-                                    settingCountDownListener.onFailure(e);
-                                }
-                            };
                         for (String setting : requestSettings.keySet()) {
                             if (APPLY_TO_BACKING_INDICES.contains(setting)) {
                                 final List<PostDataStreamAction.DataStreamResponse.IndexSettingError> errors = new ArrayList<>();
                                 CountDownActionListener indexCountDownListener = new CountDownActionListener(
                                     concreteIndices.size() + 1,
                                     new ActionListener<>() {
+                                        // Called when all indices for a single setting are complete
                                         @Override
                                         public void onResponse(Void unused) {
-                                            indexSettingResultListener.onResponse(
+                                            indexSettingResults.add(
                                                 new PostDataStreamAction.DataStreamResponse.IndexSettingResult(setting, true, errors)
                                             );
+                                            settingCountDownListener.onResponse(null);
                                         }
 
                                         @Override
                                         public void onFailure(Exception e) {
-                                            indexSettingResultListener.onFailure(e);
+                                            settingCountDownListener.onFailure(e);
                                         }
                                     }
                                 );
@@ -236,6 +225,7 @@ public class PostDataStreamTransportAction extends TransportMasterNodeAction<Pos
                                         masterNodeTimeout,
                                         ackTimeout,
                                         new ActionListener<>() {
+                                            // Called when a single setting for a single index is complete
                                             @Override
                                             public void onResponse(AcknowledgedResponse response) {
                                                 if (response.isAcknowledged() == false) {
@@ -247,7 +237,6 @@ public class PostDataStreamTransportAction extends TransportMasterNodeAction<Pos
                                                     );
                                                 }
                                                 indexCountDownListener.onResponse(null);
-
                                             }
 
                                             @Override

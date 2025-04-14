@@ -92,12 +92,16 @@ If the entitlement should or could not be granted (e.g. because the offending co
 
 #### Suppress a benign warning
 
-For a benign `NotEntitledException` that is caught, we probably want to ignore the warning.
-Double-check with Core/Infra before embarking on this, because it's a nontrivial amount of work, which goes beyond changes to Elasticsearch and may involve multiple PRs in multiple repos. We want to make sure this is the way to go before spending time on it.
+For a benign `NotEntitledException` that is caught, we probably want to suppress (ignore) the warning.
 
-Suppressing the warning involves adding a setting to the `log4j2.properties` files; you can follow [this PR](https://github.com/elastic/elasticsearch/pull/124883) as an example. Use a consistent naming convention, e.g. `logger.entitlements_<plugin_name>.name`. Avoid using extra dots, use `_` instead.
+Suppressing the warning involves adding two lines to the `log4j2.properties` files: one specifying the logger name,
+and the other specifying the level of `ERROR`, thereby silencing the warning.
+Each component has its own `log4j2.properties` file, but they are bundled together by the build process, so make sure to use a globally unique name for each setting you add.
+The naming convention is `logger.entitlements_<plugin_name>.name`.
+If a plugin needs more than one override, additional suffixes can be added to `<plugin_name>` to distinguish them.
+The `<plugin_name>` portion of the name must contain no dots or other punctuation besides underscores.
 
-Each component has its own `log4j2.properties` file. Place the file in `src/main/config`: the build process will take care of bundling the file.
+You can follow [this PR](https://github.com/elastic/elasticsearch/pull/124883) as an example.
 
 #### Patching a policy via system properties
 

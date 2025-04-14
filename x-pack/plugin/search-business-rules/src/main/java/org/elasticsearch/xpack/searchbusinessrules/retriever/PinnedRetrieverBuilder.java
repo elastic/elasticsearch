@@ -100,14 +100,12 @@ public final class PinnedRetrieverBuilder extends CompoundRetrieverBuilder<Pinne
                 continue;
             }
             if (sort instanceof FieldSortBuilder) {
-                 FieldSortBuilder fieldSort = (FieldSortBuilder) sort;
-                 if (ShardDocSortField.NAME.equals(fieldSort.getFieldName())) {
-                     continue;
-                 }
+                FieldSortBuilder fieldSort = (FieldSortBuilder) sort;
+                if (ShardDocSortField.NAME.equals(fieldSort.getFieldName())) {
+                    continue;
+                }
             }
-            throw new IllegalArgumentException(
-                "Pinned retriever only supports sorting by score. Custom sorting is not allowed."
-            );
+            throw new IllegalArgumentException("Pinned retriever only supports sorting by score. Custom sorting is not allowed.");
         }
     }
 

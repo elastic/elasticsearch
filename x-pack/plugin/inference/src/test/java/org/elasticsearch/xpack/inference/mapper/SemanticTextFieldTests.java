@@ -194,7 +194,8 @@ public class SemanticTextFieldTests extends AbstractXContentTestCase<SemanticTex
         for (String input : inputs) {
             byte[] values = new byte[embeddingLength];
             for (int j = 0; j < values.length; j++) {
-                values[j] = randomByte();
+                // to avoid vectors with zero magnitude
+                values[j] = (byte) Math.max(1, randomByte());
             }
             chunks.add(
                 new EmbeddingResults.Chunk(

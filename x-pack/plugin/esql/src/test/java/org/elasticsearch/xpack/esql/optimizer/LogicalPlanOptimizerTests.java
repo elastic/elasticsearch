@@ -5571,7 +5571,7 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
                 new ReferenceAttribute(EMPTY, "y", KEYWORD)
             ),
             new PushDownCompletion()
-        )};
+        ) };
 
     /**
      * Consider

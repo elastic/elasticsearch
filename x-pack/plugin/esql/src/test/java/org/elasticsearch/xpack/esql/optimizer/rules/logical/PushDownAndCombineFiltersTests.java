@@ -250,16 +250,23 @@ public class PushDownAndCombineFiltersTests extends ESTestCase {
         FieldAttribute b = getFieldAttribute("b");
         EsRelation relation = relation(List.of(a, b));
 
-        GreaterThan conditionA =  greaterThanOf(getFieldAttribute("a"), ONE);
+        GreaterThan conditionA = greaterThanOf(getFieldAttribute("a"), ONE);
         Filter filterA = new Filter(EMPTY, relation, conditionA);
 
         Completion completion = completion(filterA);
 
         LessThan conditionB = lessThanOf(getFieldAttribute("b"), TWO);
-        Match conditionCompletion =  new Match(EMPTY, completion.targetField(), randomLiteral(DataType.TEXT), mock(Expression.class), mock(QueryBuilder.class));
+        Match conditionCompletion = new Match(
+            EMPTY,
+            completion.targetField(),
+            randomLiteral(DataType.TEXT),
+            mock(Expression.class),
+            mock(QueryBuilder.class)
+        );
         Filter filterB = new Filter(EMPTY, completion, new And(EMPTY, conditionB, conditionCompletion));
 
-        LogicalPlan expectedOptimizedPlan = new Filter(EMPTY,
+        LogicalPlan expectedOptimizedPlan = new Filter(
+            EMPTY,
             new Completion(
                 EMPTY,
                 new Filter(EMPTY, relation, new And(EMPTY, conditionA, conditionB)),
@@ -274,9 +281,14 @@ public class PushDownAndCombineFiltersTests extends ESTestCase {
     }
 
     private static Completion completion(LogicalPlan child) {
-        return new Completion(EMPTY, child, randomLiteral(DataType.TEXT), randomLiteral(DataType.TEXT), referenceAttribute(randomIdentifier(), DataType.TEXT));
+        return new Completion(
+            EMPTY,
+            child,
+            randomLiteral(DataType.TEXT),
+            randomLiteral(DataType.TEXT),
+            referenceAttribute(randomIdentifier(), DataType.TEXT)
+        );
     }
-
 
     private static EsRelation relation() {
         return relation(List.of());

@@ -21,13 +21,15 @@ public class IndexReshardingMetadataTests extends ESTestCase {
         var split = metadata.getSplit();
 
         // starting state is as expected
-        assert metadata.shardCountBefore() == numShards;
-        assert metadata.shardCountAfter() == numShards * multiple;
+        assertEquals(numShards, metadata.shardCountBefore());
+        assertEquals(numShards * multiple, metadata.shardCountAfter());
         for (int i = 0; i < numShards; i++) {
-            assert split.getSourceShardState(i) == IndexReshardingState.Split.SourceShardState.SOURCE;
+            assertSame(IndexReshardingState.Split.SourceShardState.SOURCE, split.getSourceShardState(i));
+            assertFalse(split.isTargetShard(i));
         }
         for (int i = numShards; i < numShards * multiple; i++) {
-            assert split.getTargetShardState(i) == IndexReshardingState.Split.TargetShardState.CLONE;
+            assertSame(IndexReshardingState.Split.TargetShardState.CLONE, split.getTargetShardState(i));
+            assertTrue(split.isTargetShard(i));
         }
 
         // advance split state randomly and expect to terminate
@@ -62,10 +64,12 @@ public class IndexReshardingMetadataTests extends ESTestCase {
         }
 
         for (int i = 0; i < numShards; i++) {
-            assert split.getSourceShardState(i) == IndexReshardingState.Split.SourceShardState.DONE;
+            assertSame(IndexReshardingState.Split.SourceShardState.DONE, split.getSourceShardState(i));
+            assertFalse(split.isTargetShard(i));
         }
         for (int i = numShards; i < numShards * multiple; i++) {
-            assert split.getTargetShardState(i) == IndexReshardingState.Split.TargetShardState.DONE;
+            assertSame(IndexReshardingState.Split.TargetShardState.DONE, split.getTargetShardState(i));
+            assertTrue(split.isTargetShard(i));
         }
     }
 }

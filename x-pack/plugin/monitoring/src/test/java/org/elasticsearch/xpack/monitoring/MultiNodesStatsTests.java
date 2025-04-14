@@ -6,7 +6,10 @@
  */
 package org.elasticsearch.xpack.monitoring;
 
+import org.elasticsearch.action.support.IndicesOptions;
+import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.Index;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.aggregations.Aggregation;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
@@ -22,7 +25,6 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoTi
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
-import static org.hamcrest.Matchers.instanceOf;
 
 @ClusterScope(scope = Scope.TEST, numDataNodes = 0, numClientNodes = 0)
 public class MultiNodesStatsTests extends MonitoringIntegTestCase {
@@ -65,10 +67,7 @@ public class MultiNodesStatsTests extends MonitoringIntegTestCase {
         nodes += n;
 
         final int nbNodes = nodes;
-        assertBusy(() -> {
-            assertThat(cluster().size(), equalTo(nbNodes));
-            assertNoTimeout(clusterAdmin().prepareHealth(TEST_REQUEST_TIMEOUT).setWaitForNodes(Integer.toString(nbNodes)).get());
-        });
+        assertNoTimeout(safeGet(clusterAdmin().prepareHealth(TEST_REQUEST_TIMEOUT).setWaitForNodes(Integer.toString(nbNodes)).execute()));
 
         enableMonitoringCollection();
         waitForMonitoringIndices();
@@ -83,11 +82,11 @@ public class MultiNodesStatsTests extends MonitoringIntegTestCase {
                     .addAggregation(AggregationBuilders.terms("nodes_ids").field("node_stats.node_id")),
                 response -> {
                     for (Aggregation aggregation : response.getAggregations()) {
-                        assertThat(aggregation, instanceOf(StringTerms.class));
-                        assertThat(((StringTerms) aggregation).getBuckets().size(), equalTo(nbNodes));
+                        final var stringTerms = asInstanceOf(StringTerms.class, aggregation);
+                        assertThat(stringTerms.getBuckets().size(), equalTo(nbNodes));
 
                         for (String nodeName : internalCluster().getNodeNames()) {
-                            StringTerms.Bucket bucket = ((StringTerms) aggregation).getBucketByKey(getNodeId(nodeName));
+                            StringTerms.Bucket bucket = stringTerms.getBucketByKey(getNodeId(nodeName));
                             // At least 1 doc must exist per node, but it can be more than 1
                             // because the first node may have already collected many node stats documents
                             // whereas the last node just started to collect node stats.
@@ -96,6 +95,26 @@ public class MultiNodesStatsTests extends MonitoringIntegTestCase {
                     }
                 }
             );
+        });
+    }
+
+    private void waitForMonitoringIndices() throws Exception {
+        final var indexNameExpressionResolver = internalCluster().getCurrentMasterNodeInstance(IndexNameExpressionResolver.class);
+        final var indicesOptions = IndicesOptions.builder()
+            .wildcardOptions(IndicesOptions.WildcardOptions.builder().allowEmptyExpressions(true))
+            .build();
+        awaitClusterState(cs -> {
+            final var indices = indexNameExpressionResolver.concreteIndices(cs, indicesOptions, ".monitoring-es-*");
+            if (indices.length == 0) {
+                return false;
+            }
+            for (Index index : indices) {
+                final var indexRoutingTable = cs.routingTable().index(index);
+                if (indexRoutingTable.allPrimaryShardsActive() == false) {
+                    return false;
+                }
+            }
+            return true;
         });
     }
 }

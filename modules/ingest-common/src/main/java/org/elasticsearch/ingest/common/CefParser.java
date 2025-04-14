@@ -118,8 +118,8 @@ final class CefParser {
         entry("agentZoneURI", new ExtensionMapping("agentZoneURI", StringType, null)),
         entry("app", new ExtensionMapping("applicationProtocol", StringType, "network.protocol")),
         entry("cnt", new ExtensionMapping("baseEventCount", IntegerType, null)),
-        entry("in", new ExtensionMapping("bytesIn", IntegerType, "source.bytes")),
-        entry("out", new ExtensionMapping("bytesOut", IntegerType, "destination.bytes")),
+        entry("in", new ExtensionMapping("bytesIn", LongType, "source.bytes")), // LongType from Spec 1.x
+        entry("out", new ExtensionMapping("bytesOut", LongType, "destination.bytes")), // LongType from Spec 1.x
         entry("customerExternalID", new ExtensionMapping("customerExternalID", StringType, "organization.id")),
         entry("customerURI", new ExtensionMapping("customerURI", StringType, "organization.name")),
         entry("dst", new ExtensionMapping("destinationAddress", IPType, "destination.ip")),
@@ -266,7 +266,19 @@ final class CefParser {
         entry("proto", new ExtensionMapping("transportProtocol", StringType, "network.transport")),
         entry("type", new ExtensionMapping("type", StringType, "event.kind")),
         entry("catdt", new ExtensionMapping("categoryDeviceType", StringType, null)),
-        entry("mrt", new ExtensionMapping("managerReceiptTime", TimestampType, "event.ingested"))
+        entry("mrt", new ExtensionMapping("managerReceiptTime", TimestampType, "event.ingested")),
+        // CEF Spec version 1.2
+        entry("agentTranslatedZoneKey", new ExtensionMapping("agentTranslatedZoneKey", LongType, null)),
+        entry("agentZoneKey", new ExtensionMapping("agentZoneKey", LongType, null)),
+        entry("customerKey", new ExtensionMapping("customerKey", LongType, null)),
+        entry("destinationTranslatedZoneKey", new ExtensionMapping("destinationTranslatedZoneKey", LongType, null)),
+        entry("dZoneKey", new ExtensionMapping("destinationZoneKey", LongType, null)),
+        entry("deviceTranslatedZoneKey", new ExtensionMapping("deviceTranslatedZoneKey", LongType, null)),
+        entry("deviceZoneKey", new ExtensionMapping("deviceZoneKey", LongType, null)),
+        entry("sTranslatedZoneKey", new ExtensionMapping("sourceTranslatedZoneKey", LongType, null)),
+        entry("sZoneKey", new ExtensionMapping("sourceZoneKey", LongType, null)),
+        entry("parserVersion", new ExtensionMapping("parserVersion", StringType, null)),
+        entry("parserIdentifier", new ExtensionMapping("parserIdentifier", StringType, null))
     );
 
     private static final String INCOMPLETE_CEF_HEADER = "Incomplete CEF header";

@@ -109,8 +109,8 @@ public class CefProcessorTests extends ESTestCase {
                     )
                 ),
                 entry("observer", Map.of("product", "threatmanager", "vendor", "security", "version", "1.0")),
-                entry("source", Map.of("ip", "10.0.0.192", "port", 1232, "bytes", 4294)),
-                entry("destination", Map.of("ip", "12.121.122.82", "bytes", 4294)),
+                entry("source", Map.of("ip", "10.0.0.192", "port", 1232, "bytes", 4294L)),
+                entry("destination", Map.of("ip", "12.121.122.82", "bytes", 4294L)),
                 entry("event", Map.of("id", "1", "code", "100")),
                 entry("message", message)
             )
@@ -737,7 +737,10 @@ public class CefProcessorTests extends ESTestCase {
             + "sproc=sourceProc sourceServiceName=sourceService "
             + "sourceTranslatedAddress=10.0.0.4 sourceTranslatedPort=8081 sourceTranslatedZoneExternalID=sourceExtId "
             + "sourceTranslatedZoneURI=sourceUri suid=sourceUserId suser=sourceUser spriv=sourcePriv sourceZoneExternalID=sourceZoneExtId "
-            + "sourceZoneURI=sourceZoneUri start=1622547800000 proto=TCP type=1 catdt=catDeviceType mrt=1622547800000";
+            + "sourceZoneURI=sourceZoneUri start=1622547800000 proto=TCP type=1 catdt=catDeviceType mrt=1622547800000 "
+            + "agentTranslatedZoneKey=54854 agentZoneKey=54855 customerKey=54866 destinationTranslatedZoneKey=54867 "
+            + "dZoneKey=54877 deviceTranslatedZoneKey=54898 deviceZoneKey=54899 sTranslatedZoneKey=54998 sZoneKey=546986 "
+            + "parserVersion=1.x.2 parserIdentifier=ABC123";
         Map<String, Object> source = new HashMap<>();
         source.put("message", message);
         document = new IngestDocument("index", "id", 1L, null, null, source);
@@ -759,6 +762,17 @@ public class CefProcessorTests extends ESTestCase {
                         entry(
                             "extensions",
                             Map.ofEntries(
+                                entry("agentTranslatedZoneKey", 54854L),
+                                entry("agentZoneKey", 54855L),
+                                entry("customerKey", 54866L),
+                                entry("destinationTranslatedZoneKey", 54867L),
+                                entry("destinationZoneKey", 54877L),
+                                entry("deviceTranslatedZoneKey", 54898L),
+                                entry("deviceZoneKey", 54899L),
+                                entry("sourceTranslatedZoneKey", 54998L),
+                                entry("sourceZoneKey", 546986L),
+                                entry("parserVersion", "1.x.2"),
+                                entry("parserIdentifier", "ABC123"),
                                 entry("deviceNtDomain", "example.org"),
                                 entry("agentZoneExternalID", "zoneExtId"),
                                 entry("agentTimeZone", "UTC"),
@@ -878,7 +892,7 @@ public class CefProcessorTests extends ESTestCase {
                         entry("registered_domain", "destNtDomain"),
                         entry("process", Map.of("name", "destProc", "pid", 1234)),
                         entry("port", 80),
-                        entry("bytes", 91011),
+                        entry("bytes", 91011L),
                         entry("service", Map.of("name", "destService")),
                         entry("domain", "destHost"),
                         entry("ip", "192.168.0.2"),
@@ -895,7 +909,7 @@ public class CefProcessorTests extends ESTestCase {
                         entry("process", Map.of("name", "sourceProc", "pid", 1234)),
                         entry("port", 443),
                         entry("service", Map.of("name", "sourceService")),
-                        entry("bytes", 5678),
+                        entry("bytes", 5678L),
                         entry("ip", "192.168.0.4"),
                         entry("domain", "sourceDomain"),
                         entry("user", Map.of("name", "sourceUser", "id", "sourceUserId", "group", Map.of("name", "sourcePriv"))),

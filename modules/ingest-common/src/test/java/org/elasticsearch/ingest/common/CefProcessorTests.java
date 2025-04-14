@@ -344,30 +344,8 @@ public class CefProcessorTests extends ESTestCase {
         source.put("message", message);
         document = new IngestDocument("index", "id", 1L, null, null, source);
         CefProcessor processor = new CefProcessor("tag", "description", "message", "cef", false, true, null);
-        processor.execute(document);
-        assertMapsEqual(
-            document.getSource(),
-            Map.ofEntries(
-                entry(
-                    "cef",
-                    Map.ofEntries(
-                        entry("version", "0"),
-                        entry(
-                            "device",
-                            Map.of("vendor", "security", "product", "threatmanager", "version", "1.0", "event_class_id", "100")
-                        ),
-                        entry("name", "trojan successfully stopped"),
-                        entry("severity", "10"),
-                        entry("extensions", Map.of("moo", "this =has = equals="))
-                    )
-                ),
-                entry("event", Map.of("code", "100")),
-                entry("observer", Map.of("product", "threatmanager", "vendor", "security", "version", "1.0")),
-                entry("destination", Map.of("ip", "12.121.122.82")),
-                entry("source", Map.of("port", 1232)),
-                entry("message", message)
-            )
-        );
+        Exception e = expectThrows(IllegalArgumentException.class, () -> processor.execute(document));
+        assertThat(e.getMessage(), equalTo("CEF extensions contain unescaped equals sign"));
     }
 
     public void testEscapesInExtension() {
@@ -408,34 +386,8 @@ public class CefProcessorTests extends ESTestCase {
         source.put("message", message);
         document = new IngestDocument("index", "id", 1L, null, null, source);
         CefProcessor processor = new CefProcessor("tag", "description", "message", "cef", false, true, null);
-        processor.execute(document);
-        assertMapsEqual(
-            document.getSource(),
-            Map.ofEntries(
-                entry(
-                    "cef",
-                    Map.ofEntries(
-                        entry("version", "0"),
-                        entry(
-                            "device",
-                            Map.of("vendor", "FooBar", "product", "Web Gateway", "version", "1.2.3.45.67", "event_class_id", "200")
-                        ),
-                        entry("name", "Success"),
-                        entry("severity", "2"),
-                        entry("extensions", Map.of("deviceCustomString1Label", "Foo Bar", "deviceEventCategory", "Access Log"))
-                    )
-                ),
-                entry("event", Map.of("code", "200")),
-                entry("observer", Map.of("product", "Web Gateway", "vendor", "FooBar", "version", "1.2.3.45.67")),
-                entry("@timestamp", ZonedDateTime.parse("2018-09-07T14:50:39Z")),
-                entry("destination", Map.of("ip", "1.1.1.1", "domain", "foo.example.com")),
-                entry("source", Map.of("ip", "2.2.2.2", "user", Map.of("name", "redacted"))),
-                entry("http", Map.of("request", Map.of("method", "POST"))),
-                entry("url", Map.of("original", "'https://foo.example.com/bar/bingo/1'")),
-                entry("user_agent", Map.of("original", "'Foo-Bar/2018.1.7; =Email:user@example.com; Guid:test='")),
-                entry("message", message)
-            )
-        );
+        Exception e = expectThrows(IllegalArgumentException.class, () -> processor.execute(document));
+        assertThat(e.getMessage(), equalTo("CEF extensions contain unescaped equals sign"));
     }
 
     public void testMultipleMalformedExtensionValues() {
@@ -445,28 +397,8 @@ public class CefProcessorTests extends ESTestCase {
         source.put("message", message);
         document = new IngestDocument("index", "id", 1L, null, null, source);
         CefProcessor processor = new CefProcessor("tag", "description", "message", "cef", false, true, null);
-        processor.execute(document);
-        assertMapsEqual(
-            document.getSource(),
-            Map.ofEntries(
-                entry(
-                    "cef",
-                    Map.ofEntries(
-                        entry("version", "0"),
-                        entry(
-                            "device",
-                            Map.of("vendor", "vendor", "product", "product", "version", "version", "event_class_id", "event_id")
-                        ),
-                        entry("name", "name"),
-                        entry("severity", "Very-High"),
-                        entry("extensions", Map.of("id", "=old_id", "user", "root", "angle", "106.7<=180", "error", "Failed because"))
-                    )
-                ),
-                entry("event", Map.of("code", "event_id")),
-                entry("observer", Map.of("product", "product", "vendor", "vendor", "version", "version")),
-                entry("message", "Hello World")
-            )
-        );
+        Exception e = expectThrows(IllegalArgumentException.class, () -> processor.execute(document));
+        assertThat(e.getMessage(), equalTo("CEF extensions contain unescaped equals sign"));
     }
 
     public void testPaddedMessage() {

@@ -283,6 +283,7 @@ final class CefParser {
 
     private static final String INCOMPLETE_CEF_HEADER = "Incomplete CEF header";
     private static final String INVALID_CEF_FORMAT = "Invalid CEF format";
+    private static final String UNESCAPED_EQUALS_SIGN = "CEF extensions contain unescaped equals sign";
 
     /**
      * List of allowed timestamp formats for CEF spec v27, see: Appendix A: Date Formats
@@ -416,6 +417,9 @@ final class CefParser {
             if (i == allMatches.size() - 1) {
                 value = value.trim();
             }
+            if (hasUnescapedEquals(value)) {
+                throw new IllegalArgumentException(UNESCAPED_EQUALS_SIGN);
+            }
             extensions.put(key, desanitizeExtensionVal(value));
             lastEnd = match.end();
         }
@@ -424,6 +428,32 @@ final class CefParser {
             throw new IllegalArgumentException("Invalid extensions in the CEF event: " + extensionString.substring(lastEnd));
         }
         return extensions;
+    }
+
+    private static boolean hasUnescapedEquals(String value) {
+        if (value == null || value.isEmpty()) {
+            return false; // Empty or null strings have no unescaped equals signs
+        }
+
+        // If there are no equals signs at all, return false
+        if (value.indexOf('=') < 0) {
+            return false;
+        }
+
+        boolean escaped = true;
+        for (int i = 0; i < value.length(); i++) {
+            char c = value.charAt(i);
+
+            if (escaped == false) {
+                escaped = true; // Reset escape flag after processing an escaped character
+            } else if (c == '\\') {
+                escaped = false; // Set escape flag when a backslash is encountered
+            } else if (c == '=') {
+                return true; // Found an unescaped equals sign, so return immediately
+            }
+        }
+        // If we get here without finding an unescaped equals sign, return false
+        return false;
     }
 
     private Object convertValueToType(String value, DataType type) {

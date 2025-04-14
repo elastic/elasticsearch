@@ -23,6 +23,7 @@ import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.OutputStream;
 import java.io.UncheckedIOException;
+import java.nio.file.FileAlreadyExistsException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.HashMap;
@@ -135,7 +136,6 @@ public class ServerProcessBuilder {
      * @throws UserException        If the process failed during bootstrap
      */
     public ServerProcess start() throws UserException {
-        ensureWorkingDirExists();
         return start(ProcessBuilder::start);
     }
 
@@ -143,7 +143,7 @@ public class ServerProcessBuilder {
         Path workingDir = serverArgs.logsDir();
         try {
             Files.createDirectories(workingDir);
-        } catch (FileNotFoundException e) {
+        } catch (FileAlreadyExistsException e) {
             throw new UserException(ExitCodes.CONFIG, "Logs dir [" + workingDir + "] exists but is not a directory", e);
         } catch (IOException e) {
             throw new UserException(ExitCodes.CONFIG, "Unable to create logs dir [" + workingDir + "]", e);
@@ -165,6 +165,8 @@ public class ServerProcessBuilder {
         checkRequiredArgument(processInfo, "processInfo");
         checkRequiredArgument(jvmOptions, "jvmOptions");
         checkRequiredArgument(terminal, "terminal");
+
+        ensureWorkingDirExists();
 
         Process jvmProcess = null;
         ErrorPumpThread errorPump;

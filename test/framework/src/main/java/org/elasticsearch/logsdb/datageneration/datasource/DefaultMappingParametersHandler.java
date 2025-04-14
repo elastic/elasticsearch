@@ -9,6 +9,7 @@
 
 package org.elasticsearch.logsdb.datageneration.datasource;
 
+import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.geo.GeometryTestUtils;
 import org.elasticsearch.geometry.utils.WellKnownText;
 import org.elasticsearch.index.mapper.Mapper;
@@ -49,6 +50,7 @@ public class DefaultMappingParametersHandler implements DataSourceHandler {
             case DATE -> dateMapping(map);
             case GEO_POINT -> geoPointMapping(map);
             case TEXT -> textMapping(request, new HashMap<>());
+            case IP -> ipMapping(map);
         });
     }
 
@@ -203,6 +205,20 @@ public class DefaultMappingParametersHandler implements DataSourceHandler {
 
                 injected.put("fields", Map.of("kwd", keywordMultiFieldMapping));
 
+            }
+
+            return injected;
+        };
+    }
+
+    private Supplier<Map<String, Object>> ipMapping(Map<String, Object> injected) {
+        return () -> {
+            if (ESTestCase.randomDouble() <= 0.2) {
+                injected.put("null_value", NetworkAddress.format(ESTestCase.randomIp(ESTestCase.randomBoolean())));
+            }
+
+            if (ESTestCase.randomBoolean()) {
+                injected.put("ignore_malformed", ESTestCase.randomBoolean());
             }
 
             return injected;

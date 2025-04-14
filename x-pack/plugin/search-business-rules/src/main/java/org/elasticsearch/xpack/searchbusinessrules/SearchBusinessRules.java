@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.searchbusinessrules;
 
+import org.elasticsearch.features.FeatureSpecification;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.xcontent.ParseField;
@@ -27,4 +28,5 @@ public class SearchBusinessRules extends Plugin implements SearchPlugin {
     public List<RetrieverSpec<?>> getRetrievers() {
         return singletonList(new RetrieverSpec<>(new ParseField(PinnedRetrieverBuilder.NAME), PinnedRetrieverBuilder::fromXContent));
     }
+
 }

@@ -16,9 +16,6 @@ dependencies {
   compileOnly project(path: xpackModule('core'))
   testImplementation(testArtifact(project(xpackModule('core'))))
   testImplementation(testArtifact(project(':server')))
-
-  clusterModules project(':modules:mapper-extras')
-  clusterModules project(':modules:lang-painless')
 }
 
 tasks.named("yamlRestTest") {

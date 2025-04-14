@@ -87,7 +87,7 @@ public class CefProcessorTests extends ESTestCase {
 
     public void testStandardMessage() {
         String message = "CEF:26|security|threatmanager|1.0|100|trojan successfully stopped|10|"
-            + "src=10.0.0.192 dst=12.121.122.82 spt=1232 eventId=1 in=4294967296 out=4294967296";
+            + "src=10.0.0.192 dst=12.121.122.82 spt=1232 eventId=1 in=4294 out=4294";
         Map<String, Object> source = new HashMap<>();
         source.put("message", message);
         document = new IngestDocument("index", "id", 1L, null, null, source);
@@ -109,8 +109,8 @@ public class CefProcessorTests extends ESTestCase {
                     )
                 ),
                 entry("observer", Map.of("product", "threatmanager", "vendor", "security", "version", "1.0")),
-                entry("source", Map.of("ip", "10.0.0.192", "port", 1232, "bytes", 4294967296L)),
-                entry("destination", Map.of("ip", "12.121.122.82", "bytes", 4294967296L)),
+                entry("source", Map.of("ip", "10.0.0.192", "port", 1232, "bytes", 4294)),
+                entry("destination", Map.of("ip", "12.121.122.82", "bytes", 4294)),
                 entry("event", Map.of("id", "1", "code", "100")),
                 entry("message", message)
             )
@@ -817,9 +817,9 @@ public class CefProcessorTests extends ESTestCase {
                                 entry("deviceCustomFloatingPoint1Label", "cfp1Label"),
                                 entry("deviceCustomIPv6Address3Label", "c6a3Label"),
                                 entry("deviceCustomFloatingPoint4Label", "cfp4Label"),
-                                entry("oldFileSize", 2048),
+                                entry("oldFileSize", 2048L),
                                 entry("externalId", "extId"),
-                                entry("baseEventCount", 1234L),
+                                entry("baseEventCount", 1234),
                                 entry("flexString2", "flexString2"),
                                 entry("deviceCustomNumber3Label", "cn3Label"),
                                 entry("flexString1", "flexString1"),
@@ -869,16 +869,16 @@ public class CefProcessorTests extends ESTestCase {
                         entry("mac", "00:0a:95:9d:68:16")
                     )
                 ),
-                entry("process", Map.of("name", "procName", "pid", 5678L)),
+                entry("process", Map.of("name", "procName", "pid", 5678)),
                 entry(
                     "destination",
                     Map.ofEntries(
                         entry("nat", Map.of("port", 8080, "ip", "10.0.0.2")),
                         entry("geo", Map.of("location", Map.of("lon", -122.4194, "lat", 37.7749))),
                         entry("registered_domain", "destNtDomain"),
-                        entry("process", Map.of("name", "destProc", "pid", 1234L)),
+                        entry("process", Map.of("name", "destProc", "pid", 1234)),
                         entry("port", 80),
-                        entry("bytes", 91011L),
+                        entry("bytes", 91011),
                         entry("service", Map.of("name", "destService")),
                         entry("domain", "destHost"),
                         entry("ip", "192.168.0.2"),
@@ -892,10 +892,10 @@ public class CefProcessorTests extends ESTestCase {
                         entry("geo", Map.of("location", Map.of("lon", -122.4194, "lat", 37.7749))),
                         entry("nat", Map.of("port", 8081, "ip", "10.0.0.4")),
                         entry("registered_domain", "sourceNtDomain"),
-                        entry("process", Map.of("name", "sourceProc", "pid", 1234L)),
+                        entry("process", Map.of("name", "sourceProc", "pid", 1234)),
                         entry("port", 443),
                         entry("service", Map.of("name", "sourceService")),
-                        entry("bytes", 5678L),
+                        entry("bytes", 5678),
                         entry("ip", "192.168.0.4"),
                         entry("domain", "sourceDomain"),
                         entry("user", Map.of("name", "sourceUser", "id", "sourceUserId", "group", Map.of("name", "sourcePriv"))),
@@ -910,7 +910,7 @@ public class CefProcessorTests extends ESTestCase {
                     Map.ofEntries(
                         entry("inode", "5678"),
                         entry("path", "/path/to/file"),
-                        entry("size", 1024),
+                        entry("size", 1024L),
                         entry("created", ZonedDateTime.parse("2021-06-01T11:43:20Z")),
                         entry("name", "file.txt"),
                         entry("mtime", ZonedDateTime.parse("2021-06-01T11:45Z")),

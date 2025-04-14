@@ -12,11 +12,10 @@ import org.elasticsearch.inference.TaskType;
 
 public class ModelValidatorBuilder {
     public static ModelValidator buildModelValidator(TaskType taskType, boolean isElasticsearchInternalService) {
-        var modelValidator = buildModelValidatorForTaskType(taskType);
         if (isElasticsearchInternalService) {
-            return new ElasticsearchInternalServiceModelValidator(modelValidator);
+            return new ElasticsearchInternalServiceModelValidator(new SimpleServiceIntegrationValidator());
         } else {
-            return modelValidator;
+            return buildModelValidatorForTaskType(taskType);
         }
     }
 

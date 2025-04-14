@@ -40,9 +40,13 @@ public final class TranslatorHandler {
     }
 
     private static Query wrapFunctionQuery(Expression field, Query query) {
+        if (query instanceof SingleValueQuery) {
+            // Already wrapped
+            return query;
+        }
         if (field instanceof FieldAttribute fa) {
             fa = fa.getExactInfo().hasExact() ? fa.exactAttribute() : fa;
-            return new SingleValueQuery(query, fa.name());
+            return new SingleValueQuery(query, fa.name(), false);
         }
         if (field instanceof MetadataAttribute) {
             return query; // MetadataAttributes are always single valued

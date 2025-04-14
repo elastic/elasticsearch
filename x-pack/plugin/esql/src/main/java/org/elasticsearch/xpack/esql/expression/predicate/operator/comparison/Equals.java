@@ -23,6 +23,8 @@ import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.EsqlArithmeticOperation;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.LucenePushdownPredicates;
 import org.elasticsearch.xpack.esql.planner.TranslatorHandler;
+import org.elasticsearch.xpack.esql.querydsl.query.EqualsSyntheticSourceDelegate;
+import org.elasticsearch.xpack.esql.querydsl.query.SingleValueQuery;
 
 import java.time.ZoneId;
 import java.util.Map;
@@ -143,7 +145,8 @@ public class Equals extends EsqlBinaryComparison implements Negatable<EsqlBinary
             if (left().dataType() == DataType.TEXT && left() instanceof FieldAttribute fa) {
                 String value = ((BytesRef) lit.value()).utf8ToString();
                 if (pushdownPredicates.canUseEqualityOnSyntheticSourceDelegate(fa, value)) {
-                    return new EqualsSyntheticSourceDelegate(source(), handler.nameOf(fa), value);
+                    String name = handler.nameOf(fa);
+                    return new SingleValueQuery(new EqualsSyntheticSourceDelegate(source(), name, value), name, true);
                 }
             }
         }

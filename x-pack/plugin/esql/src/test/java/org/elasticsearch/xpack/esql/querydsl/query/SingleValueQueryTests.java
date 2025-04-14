@@ -69,7 +69,7 @@ public class SingleValueQueryTests extends MapperServiceTestCase {
     }
 
     public void testMatchAll() throws IOException {
-        testCase(new SingleValueQuery(new MatchAll(Source.EMPTY), "foo").asBuilder(), this::runCase);
+        testCase(new SingleValueQuery(new MatchAll(Source.EMPTY), "foo", false).asBuilder(), this::runCase);
     }
 
     public void testMatchSome() throws IOException {
@@ -100,14 +100,14 @@ public class SingleValueQueryTests extends MapperServiceTestCase {
 
     public void testNotMatchAll() throws IOException {
         testCase(
-            new SingleValueQuery(new MatchAll(Source.EMPTY), "foo").negate(Source.EMPTY).asBuilder(),
+            new SingleValueQuery(new MatchAll(Source.EMPTY), "foo", false).negate(Source.EMPTY).asBuilder(),
             (fieldValues, count) -> assertThat(count, equalTo(0))
         );
     }
 
     public void testNotMatchNone() throws IOException {
         testCase(
-            new SingleValueQuery(new MatchAll(Source.EMPTY).negate(Source.EMPTY), "foo").negate(Source.EMPTY).asBuilder(),
+            new SingleValueQuery(new MatchAll(Source.EMPTY).negate(Source.EMPTY), "foo", false).negate(Source.EMPTY).asBuilder(),
             this::runCase
         );
     }
@@ -115,7 +115,8 @@ public class SingleValueQueryTests extends MapperServiceTestCase {
     public void testNotMatchSome() throws IOException {
         int max = between(1, 100);
         testCase(
-            new SingleValueQuery(new RangeQuery(Source.EMPTY, "i", null, false, max, false, null), "foo").negate(Source.EMPTY).asBuilder(),
+            new SingleValueQuery(new RangeQuery(Source.EMPTY, "i", null, false, max, false, null), "foo", false).negate(Source.EMPTY)
+                .asBuilder(),
             (fieldValues, count) -> runCase(fieldValues, count, max, 100)
         );
     }
@@ -161,7 +162,7 @@ public class SingleValueQueryTests extends MapperServiceTestCase {
         runCase(fieldValues, count, null, null);
     }
 
-    private void testCase(SingleValueQuery.Builder builder, TestCase testCase) throws IOException {
+    private void testCase(SingleValueQuery.AbstractBuilder builder, TestCase testCase) throws IOException {
         MapperService mapper = createMapperService(mapping(setup::mapping));
         try (Directory d = newDirectory(); RandomIndexWriter iw = new RandomIndexWriter(random(), d)) {
             List<List<Object>> fieldValues = setup.build(iw);

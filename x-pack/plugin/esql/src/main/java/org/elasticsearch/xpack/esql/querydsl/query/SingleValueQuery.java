@@ -20,6 +20,7 @@ import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.Warnings;
 import org.elasticsearch.compute.querydsl.query.SingleValueMatchQuery;
 import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.TextFieldMapper;
 import org.elasticsearch.index.query.AbstractQueryBuilder;
 import org.elasticsearch.index.query.MatchNoneQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
@@ -57,16 +58,28 @@ public class SingleValueQuery extends Query {
 
     private final Query next;
     private final String field;
+    private final boolean useSyntheticSourceDelegate;
 
-    public SingleValueQuery(Query next, String field) {
+    /**
+     * Build.
+     * @param next the query whose documents we should use for single-valued fields
+     * @param field the name of the field whose values to check
+     * @param useSyntheticSourceDelegate Should we check the field's synthetic source delegate (true)
+     *                                   or it's values itself? If the field is a {@code text} field
+     *                                   we often want to use its delegate.
+     */
+    public SingleValueQuery(Query next, String field, boolean useSyntheticSourceDelegate) {
         super(next.source());
         this.next = next;
         this.field = field;
+        this.useSyntheticSourceDelegate = useSyntheticSourceDelegate;
     }
 
     @Override
-    protected Builder asBuilder() {
-        return new Builder(next.toQueryBuilder(), field, next.source());
+    protected AbstractBuilder asBuilder() {
+        return useSyntheticSourceDelegate
+            ? new SyntheticSourceDelegateBuilder(next.toQueryBuilder(), field, next.source())
+            : new Builder(next.toQueryBuilder(), field, next.source());
     }
 
     @Override
@@ -76,7 +89,7 @@ public class SingleValueQuery extends Query {
 
     @Override
     public SingleValueQuery negate(Source source) {
-        return new SingleValueQuery(next.negate(source), field);
+        return new SingleValueQuery(next.negate(source), field, useSyntheticSourceDelegate);
     }
 
     @Override
@@ -85,26 +98,28 @@ public class SingleValueQuery extends Query {
             return false;
         }
         SingleValueQuery other = (SingleValueQuery) o;
-        return Objects.equals(next, other.next) && Objects.equals(field, other.field);
+        return Objects.equals(next, other.next)
+            && Objects.equals(field, other.field)
+            && useSyntheticSourceDelegate == other.useSyntheticSourceDelegate;
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(super.hashCode(), next, field);
+        return Objects.hash(super.hashCode(), next, field, useSyntheticSourceDelegate);
     }
 
-    public static class Builder extends AbstractQueryBuilder<Builder> {
+    public abstract static class AbstractBuilder extends AbstractQueryBuilder<AbstractBuilder> {
         private final QueryBuilder next;
         private final String field;
         private final Source source;
 
-        Builder(QueryBuilder next, String field, Source source) {
+        AbstractBuilder(QueryBuilder next, String field, Source source) {
             this.next = next;
             this.field = field;
             this.source = source;
         }
 
-        Builder(StreamInput in) throws IOException {
+        AbstractBuilder(StreamInput in) throws IOException {
             super(in);
             this.next = in.readNamedWriteable(QueryBuilder.class);
             this.field = in.readString();
@@ -126,7 +141,7 @@ public class SingleValueQuery extends Query {
         }
 
         @Override
-        protected void doWriteTo(StreamOutput out) throws IOException {
+        protected final void doWriteTo(StreamOutput out) throws IOException {
             out.writeNamedWriteable(next);
             out.writeString(field);
             if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)) {
@@ -148,28 +163,11 @@ public class SingleValueQuery extends Query {
             return source;
         }
 
-        @Override
-        public String getWriteableName() {
-            return ENTRY.name;
-        }
+        protected abstract MappedFieldType mappedFieldType(SearchExecutionContext context);
 
         @Override
-        protected void doXContent(XContentBuilder builder, Params params) throws IOException {
-            builder.startObject(ENTRY.name);
-            builder.field("field", field);
-            builder.field("next", next, params);
-            builder.field("source", source.toString());
-            builder.endObject();
-        }
-
-        @Override
-        public TransportVersion getMinimalSupportedVersion() {
-            return TransportVersions.V_8_11_X; // the first version of ESQL
-        }
-
-        @Override
-        protected org.apache.lucene.search.Query doToQuery(SearchExecutionContext context) throws IOException {
-            MappedFieldType ft = context.getFieldType(field);
+        protected final org.apache.lucene.search.Query doToQuery(SearchExecutionContext context) throws IOException {
+            MappedFieldType ft = mappedFieldType(context);
             if (ft == null) {
                 return new MatchNoDocsQuery("missing field [" + field + "]");
             }
@@ -194,8 +192,10 @@ public class SingleValueQuery extends Query {
             return builder.build();
         }
 
+        protected abstract AbstractBuilder rewrite(QueryBuilder next);
+
         @Override
-        protected QueryBuilder doRewrite(QueryRewriteContext queryRewriteContext) throws IOException {
+        protected final QueryBuilder doRewrite(QueryRewriteContext queryRewriteContext) throws IOException {
             QueryBuilder rewritten = next.rewrite(queryRewriteContext);
             if (rewritten instanceof MatchNoneQueryBuilder) {
                 return rewritten;
@@ -203,17 +203,95 @@ public class SingleValueQuery extends Query {
             if (rewritten == next) {
                 return this;
             }
-            return new Builder(rewritten, field, source);
+            return rewrite(rewritten);
         }
 
         @Override
-        protected boolean doEquals(Builder other) {
+        protected final boolean doEquals(AbstractBuilder other) {
             return next.equals(other.next) && field.equals(other.field);
         }
 
         @Override
-        protected int doHashCode() {
+        protected final int doHashCode() {
             return Objects.hash(next, field);
+        }
+    }
+
+    public static class Builder extends AbstractBuilder {
+        Builder(QueryBuilder next, String field, Source source) {
+            super(next, field, source);
+        }
+
+        Builder(StreamInput in) throws IOException {
+            super(in);
+        }
+
+        @Override
+        public String getWriteableName() {
+            return ENTRY.name;
+        }
+
+        @Override
+        protected void doXContent(XContentBuilder builder, Params params) throws IOException {
+            builder.startObject(ENTRY.name);
+            builder.field("field", field());
+            builder.field("next", next(), params);
+            builder.field("source", source().toString());
+            builder.endObject();
+        }
+
+        @Override
+        public TransportVersion getMinimalSupportedVersion() {
+            return TransportVersions.V_8_11_X; // the first version of ESQL
+        }
+
+        @Override
+        protected MappedFieldType mappedFieldType(SearchExecutionContext context) {
+            return context.getFieldType(field());
+        }
+
+        @Override
+        protected AbstractBuilder rewrite(QueryBuilder next) {
+            return new Builder(next, field(), source());
+        }
+    }
+
+    public static class SyntheticSourceDelegateBuilder extends AbstractBuilder {
+        SyntheticSourceDelegateBuilder(QueryBuilder next, String field, Source source) {
+            super(next, field, source);
+        }
+
+        SyntheticSourceDelegateBuilder(StreamInput in) throws IOException {
+            super(in);
+        }
+
+        @Override
+        public String getWriteableName() {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        protected void doXContent(XContentBuilder builder, Params params) throws IOException {
+            builder.startObject(ENTRY.name);
+            builder.field("field", field() + ":synthetic_source_delegate");
+            builder.field("next", next(), params);
+            builder.field("source", source().toString());
+            builder.endObject();
+        }
+
+        @Override
+        public TransportVersion getMinimalSupportedVersion() {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        protected MappedFieldType mappedFieldType(SearchExecutionContext context) {
+            return ((TextFieldMapper.TextFieldType) context.getFieldType(field())).syntheticSourceDelegate();
+        }
+
+        @Override
+        protected AbstractBuilder rewrite(QueryBuilder next) {
+            return new Builder(next, field(), source());
         }
     }
 

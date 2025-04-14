@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.esql.expression.predicate.operator.comparison;
+package org.elasticsearch.xpack.esql.querydsl.query;
 
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.index.mapper.TextFieldMapper;

@@ -74,7 +74,7 @@ public class BundleChangelogsTask extends DefaultTask {
     public void executeTask() throws IOException {
         final String upstreamRemote = gitWrapper.getUpstream();
 
-        String ref = "43827b943938345d348826f5766dd8e986ec7b20";
+        String ref = "9.0-fix-release-notes";
         try {
             checkoutChangelogs(gitWrapper, upstreamRemote, ref);
             Properties props = new Properties();
@@ -101,6 +101,7 @@ public class BundleChangelogsTask extends DefaultTask {
     private static void checkoutChangelogs(GitWrapper gitWrapper, String upstream, String ref) {
         gitWrapper.updateRemote(upstream);
         // TODO check for changes first
+        gitWrapper.runCommand("rm", "-rf", "docs/changelog");
         gitWrapper.runCommand("git", "checkout", ref, "--", "docs/changelog");
     }
 

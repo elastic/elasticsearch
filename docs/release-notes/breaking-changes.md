@@ -37,9 +37,6 @@ will prevent node from starting [#118366](https://github.com/elastic/elasticsear
 Cluster Coordination:
 * Remove unsupported legacy value for `discovery.type` [#112903](https://github.com/elastic/elasticsearch/pull/112903)
 
-Discovery-Plugins:
-* Upgrade `discovery-ec2` to AWS SDK v2 [#122062](https://github.com/elastic/elasticsearch/pull/122062)
-
 EQL:
 * Set allow_partial_search_results=true by default [#120267](https://github.com/elastic/elasticsearch/pull/120267)
 

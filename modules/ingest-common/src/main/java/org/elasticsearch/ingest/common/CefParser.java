@@ -30,6 +30,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
+import java.util.regex.MatchResult;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -402,11 +403,21 @@ final class CefParser {
         Map<String, String> extensions = new HashMap<>();
         Matcher matcher = EXTENSION_NEXT_KEY_VALUE_PATTERN.matcher(extensionString);
         int lastEnd = 0;
+
+        List<MatchResult> allMatches = new ArrayList<>();
         while (matcher.find()) {
-            String key = matcher.group(1);
-            String value = matcher.group(2);
-            extensions.put(key, desanitizeExtensionVal(value.trim()));
-            lastEnd = matcher.end();
+            allMatches.add(matcher.toMatchResult());
+        }
+        for (int i = 0; i < allMatches.size(); i++) {
+            MatchResult match = allMatches.get(i);
+            String key = match.group(1);
+            String value = match.group(2);
+            // Only trim the last value
+            if (i == allMatches.size() - 1) {
+                value = value.trim();
+            }
+            extensions.put(key, desanitizeExtensionVal(value));
+            lastEnd = match.end();
         }
         // If there's any remaining unparsed content, throw an exception
         if (lastEnd < extensionString.length()) {

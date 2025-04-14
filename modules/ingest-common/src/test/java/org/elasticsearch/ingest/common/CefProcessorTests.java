@@ -495,14 +495,14 @@ public class CefProcessorTests extends ESTestCase {
                 entry("event", Map.of("code", "100")),
                 entry("observer", Map.of("product", "threatmanager", "vendor", "security", "version", "1.0")),
                 entry("source", Map.of("ip", "10.0.0.192", "port", 1232)),
-                entry("message", "Trailing space in non-final extensions is  preserved")
+                entry("message", "Trailing space in non-final extensions is  preserved   ")
             )
         );
     }
 
     public void testCrlfMessage() {
         String message = "CEF:0|security|threatmanager|1.0|100|message is padded|10|"
-            + "spt=1232 msg=Trailing space in final extensions is not preserved\t \r\ndpt=1234";
+            + "spt=1232 msg=Trailing space in final extensions is not preserved\t \r\n";
         Map<String, Object> source = new HashMap<>();
         source.put("message", message);
         document = new IngestDocument("index", "id", 1L, null, null, source);
@@ -526,8 +526,7 @@ public class CefProcessorTests extends ESTestCase {
                 entry("event", Map.of("code", "100")),
                 entry("observer", Map.of("product", "threatmanager", "vendor", "security", "version", "1.0")),
                 entry("source", Map.of("port", 1232)),
-                entry("message", "Trailing space in final extensions is not preserved"),
-                entry("destination", Map.of("port", 1234))
+                entry("message", "Trailing space in final extensions is not preserved")
             )
         );
     }
@@ -558,7 +557,7 @@ public class CefProcessorTests extends ESTestCase {
                 entry("event", Map.of("code", "100")),
                 entry("observer", Map.of("product", "threatmanager", "vendor", "security", "version", "1.0")),
                 entry("source", Map.of("port", 1232, "ip", "127.0.0.1")),
-                entry("message", "Tabs\tand\rcontrol\ncharacters are preserved")
+                entry("message", "Tabs\tand\rcontrol\ncharacters are preserved\t")
             )
         );
     }

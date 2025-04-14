@@ -12,10 +12,13 @@ import org.elasticsearch.action.search.TransportSearchAction;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.OriginSettingClient;
+import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.query.IdsQueryBuilder;
 import org.elasticsearch.index.reindex.DeleteByQueryAction;
 import org.elasticsearch.index.reindex.DeleteByQueryRequest;
+import org.elasticsearch.indices.TestIndexNameExpressionResolver;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.test.ESTestCase;
@@ -74,6 +77,8 @@ public class ExpiredModelSnapshotsRemoverTests extends ESTestCase {
     private List<String> capturedJobIds;
     private List<DeleteByQueryRequest> capturedDeleteModelSnapshotRequests;
     private TestListener listener;
+    private ClusterService clusterService;
+    private IndexNameExpressionResolver indexNameExpressionResolver = TestIndexNameExpressionResolver.newInstance();
 
     @Before
     public void setUpTests() {
@@ -83,6 +88,7 @@ public class ExpiredModelSnapshotsRemoverTests extends ESTestCase {
         client = mock(Client.class);
         originSettingClient = MockOriginSettingClient.mockOriginSettingClient(client, ClientHelper.ML_ORIGIN);
         resultsProvider = mock(JobResultsProvider.class);
+        clusterService = mock(ClusterService.class);
 
         listener = new TestListener();
     }
@@ -293,11 +299,10 @@ public class ExpiredModelSnapshotsRemoverTests extends ESTestCase {
         return new ExpiredModelSnapshotsRemover(
             originSettingClient,
             jobIterator,
-            threadPool,
-            new TaskId("test", 0L),
-            resultsProvider,
-            mock(AnomalyDetectionAuditor.class)
-        );
+                new TaskId("test", 0L), new WritableIndexExpander(clusterService, indexNameExpressionResolver),
+                threadPool,
+                resultsProvider,
+                mock(AnomalyDetectionAuditor.class));
     }
 
     private static ModelSnapshot createModelSnapshot(String jobId, String snapshotId, Date date) {

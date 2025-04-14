@@ -11,8 +11,10 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.OriginSettingClient;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.indices.TestIndexNameExpressionResolver;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.tasks.TaskId;
@@ -50,7 +52,12 @@ public class AbstractExpiredJobDataRemoverTests extends ESTestCase {
         private int getRetentionDaysCallCount = 0;
 
         ConcreteExpiredJobDataRemover(OriginSettingClient client, Iterator<Job> jobIterator) {
-            super(client, jobIterator, new TaskId("test", 0L));
+            super(
+                client,
+                jobIterator,
+                new TaskId("test", 0L),
+                new WritableIndexExpander(mock(ClusterService.class), TestIndexNameExpressionResolver.newInstance())
+            );
         }
 
         @Override

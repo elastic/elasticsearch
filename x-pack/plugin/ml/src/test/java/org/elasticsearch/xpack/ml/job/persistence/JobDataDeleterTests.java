@@ -115,7 +115,7 @@ public class JobDataDeleterTests extends ESTestCase {
 
     public void testDeleteAnnotations_EventFiltering() {
         Arrays.asList(false, true).forEach(deleteUserAnnotations -> {
-            JobDataDeleter jobDataDeleter = new JobDataDeleter(client, JOB_ID, deleteUserAnnotations);
+            JobDataDeleter jobDataDeleter = new JobDataDeleter(client, JOB_ID,deleteUserAnnotations);
             jobDataDeleter.deleteAnnotations(
                 null,
                 null,

@@ -11,9 +11,12 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.TransportSearchAction;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.OriginSettingClient;
+import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.index.reindex.BulkByScrollResponse;
 import org.elasticsearch.index.reindex.DeleteByQueryAction;
 import org.elasticsearch.index.reindex.DeleteByQueryRequest;
+import org.elasticsearch.indices.TestIndexNameExpressionResolver;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -51,6 +54,8 @@ public class ExpiredAnnotationsRemoverTests extends ESTestCase {
     private OriginSettingClient originSettingClient;
     private List<DeleteByQueryRequest> capturedDeleteByQueryRequests;
     private ActionListener<Boolean> listener;
+    private ClusterService clusterService;
+    private IndexNameExpressionResolver indexNameExpressionResolver = TestIndexNameExpressionResolver.newInstance();
 
     @Before
     @SuppressWarnings("unchecked")
@@ -60,6 +65,7 @@ public class ExpiredAnnotationsRemoverTests extends ESTestCase {
         client = mock(Client.class);
         originSettingClient = MockOriginSettingClient.mockOriginSettingClient(client, ClientHelper.ML_ORIGIN);
         listener = mock(ActionListener.class);
+        clusterService = mock(ClusterService.class);
         when(listener.delegateFailureAndWrap(any())).thenCallRealMethod();
     }
 
@@ -200,9 +206,8 @@ public class ExpiredAnnotationsRemoverTests extends ESTestCase {
         return new ExpiredAnnotationsRemover(
             originSettingClient,
             jobIterator,
-            new TaskId("test", 0L),
-            mock(AnomalyDetectionAuditor.class),
-            threadPool
-        );
+            new TaskId("test", 0L), new WritableIndexExpander(clusterService, indexNameExpressionResolver),
+                mock(AnomalyDetectionAuditor.class),
+                threadPool);
     }
 }

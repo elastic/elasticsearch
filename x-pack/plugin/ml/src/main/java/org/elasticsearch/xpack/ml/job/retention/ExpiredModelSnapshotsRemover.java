@@ -11,11 +11,16 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.search.SearchRequest;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.ThreadedActionListener;
 import org.elasticsearch.client.internal.OriginSettingClient;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.index.reindex.BulkByScrollResponse;
+import org.elasticsearch.index.reindex.BulkByScrollTask;
+import org.elasticsearch.index.reindex.DeleteByQueryAction;
+import org.elasticsearch.index.reindex.DeleteByQueryRequest;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
@@ -24,11 +29,14 @@ import org.elasticsearch.search.sort.SortBuilder;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.action.util.QueryPage;
 import org.elasticsearch.xpack.core.common.time.TimeUtils;
+import org.elasticsearch.xpack.core.ml.annotations.AnnotationIndex;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndex;
+import org.elasticsearch.xpack.core.ml.job.persistence.ElasticsearchMappings;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.ModelSnapshot;
 import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.job.persistence.JobDataDeleter;
@@ -37,13 +45,19 @@ import org.elasticsearch.xpack.ml.notifications.AnomalyDetectionAuditor;
 import org.elasticsearch.xpack.ml.utils.MlIndicesUtils;
 
 import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Objects;
+import java.util.Set;
 import java.util.concurrent.TimeUnit;
 
 import static java.util.stream.Collectors.toList;
 import static org.elasticsearch.core.Strings.format;
+import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
+import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
+
 
 /**
  * Deletes all model snapshots that have expired the configured retention time
@@ -62,9 +76,9 @@ public class ExpiredModelSnapshotsRemover extends AbstractExpiredJobDataRemover 
     private static final long MS_IN_ONE_DAY = TimeValue.timeValueDays(1).getMillis();
 
     /**
-     *  The max number of snapshots to fetch per job. It is set to 10K, the default for an index as
-     *  we don't change that in our ML indices. It should be more than enough for most cases. If not,
-     *  it will take a few iterations to delete all snapshots, which is OK.
+     * The max number of snapshots to fetch per job. It is set to 10K, the default for an index as
+     * we don't change that in our ML indices. It should be more than enough for most cases. If not,
+     * it will take a few iterations to delete all snapshots, which is OK.
      */
     private static final int MODEL_SNAPSHOT_SEARCH_SIZE = 10000;
 
@@ -75,12 +89,11 @@ public class ExpiredModelSnapshotsRemover extends AbstractExpiredJobDataRemover 
     public ExpiredModelSnapshotsRemover(
         OriginSettingClient client,
         Iterator<Job> jobIterator,
-        ThreadPool threadPool,
-        TaskId parentTaskId,
+        TaskId parentTaskId, WritableIndexExpander writableIndexExpander, ThreadPool threadPool,
         JobResultsProvider jobResultsProvider,
         AnomalyDetectionAuditor auditor
     ) {
-        super(client, jobIterator, parentTaskId);
+        super(client, jobIterator, parentTaskId, writableIndexExpander);
         this.threadPool = Objects.requireNonNull(threadPool);
         this.jobResultsProvider = jobResultsProvider;
         this.auditor = auditor;
@@ -247,8 +260,31 @@ public class ExpiredModelSnapshotsRemover extends AbstractExpiredJobDataRemover 
             listener.onResponse(true);
             return;
         }
-        JobDataDeleter deleter = new JobDataDeleter(client, jobId);
-        deleter.deleteModelSnapshots(modelSnapshots, listener.delegateFailureAndWrap((l, bulkResponse) -> {
+
+        String stateIndexName = AnomalyDetectorsIndex.jobStateIndexPattern();
+
+        List<String> idsToDelete = new ArrayList<>();
+        Set<String> indices = new HashSet<>();
+        indices.add(stateIndexName);
+        indices.add(AnnotationIndex.READ_ALIAS_NAME);
+        for (ModelSnapshot modelSnapshot : modelSnapshots) {
+            idsToDelete.addAll(modelSnapshot.stateDocumentIds());
+            idsToDelete.add(ModelSnapshot.documentId(modelSnapshot));
+            idsToDelete.add(ModelSnapshot.annotationDocumentId(modelSnapshot));
+            indices.add(AnomalyDetectorsIndex.jobResultsAliasedName(modelSnapshot.getJobId()));
+        }
+
+        // Remove read-only indices
+        var indicesToQuery = writableIndexExpander.getWritableIndices(indices);
+
+        DeleteByQueryRequest deleteByQueryRequest = new DeleteByQueryRequest(indicesToQuery.toArray(new String[0])).setRefresh(true)
+            .setIndicesOptions(IndicesOptions.lenientExpandOpen())
+            .setQuery(QueryBuilders.idsQuery().addIds(idsToDelete.toArray(new String[0])));
+
+        // _doc is the most efficient sort order and will also disable scoring
+        deleteByQueryRequest.getSearchRequest().source().sort(ElasticsearchMappings.ES_DOC);
+
+        executeAsyncWithOrigin(client, ML_ORIGIN, DeleteByQueryAction.INSTANCE, deleteByQueryRequest, listener.delegateFailureAndWrap((l, bulkResponse) -> {
             auditor.info(jobId, Messages.getMessage(Messages.JOB_AUDIT_SNAPSHOTS_DELETED, modelSnapshots.size()));
             LOGGER.debug(
                 () -> format(
@@ -259,7 +295,7 @@ public class ExpiredModelSnapshotsRemover extends AbstractExpiredJobDataRemover 
                 )
             );
             l.onResponse(true);
-        }));
+        }
+        ));
     }
-
 }

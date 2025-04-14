@@ -64,12 +64,14 @@ public class ExpiredForecastsRemover implements MlDataRemover {
     private final ThreadPool threadPool;
     private final long cutoffEpochMs;
     private final TaskId parentTaskId;
+    private final WritableIndexExpander writableIndexExpander;
 
-    public ExpiredForecastsRemover(OriginSettingClient client, ThreadPool threadPool, TaskId parentTaskId) {
+    public ExpiredForecastsRemover(OriginSettingClient client, ThreadPool threadPool, TaskId parentTaskId, WritableIndexExpander writableIndexExpander) {
         this.client = Objects.requireNonNull(client);
         this.threadPool = Objects.requireNonNull(threadPool);
         this.cutoffEpochMs = Instant.now(Clock.systemDefaultZone()).toEpochMilli();
         this.parentTaskId = parentTaskId;
+        this.writableIndexExpander = Objects.requireNonNull(writableIndexExpander);
     }
 
     @Override
@@ -125,7 +127,14 @@ public class ExpiredForecastsRemover implements MlDataRemover {
             return;
         }
 
-        DeleteByQueryRequest request = buildDeleteByQuery(forecastsToDelete).setRequestsPerSecond(requestsPerSec)
+        var indicesToQuery = writableIndexExpander.getWritableIndices(RESULTS_INDEX_PATTERN);
+        if (indicesToQuery.isEmpty()) {
+            LOGGER.info("No writable indices found for expired forecasts. No expired forecasts to remove.");
+            listener.onResponse(true);
+            return;
+        }
+
+        DeleteByQueryRequest request = buildDeleteByQuery(forecastsToDelete, indicesToQuery).setRequestsPerSecond(requestsPerSec)
             .setAbortOnVersionConflict(false);
         request.setParentTask(parentTaskId);
         client.execute(DeleteByQueryAction.INSTANCE, request, new ActionListener<>() {
@@ -199,12 +208,12 @@ public class ExpiredForecastsRemover implements MlDataRemover {
         return forecastsToDelete;
     }
 
-    private static DeleteByQueryRequest buildDeleteByQuery(List<JobForecastId> ids) {
+    private static DeleteByQueryRequest buildDeleteByQuery(List<JobForecastId> ids, ArrayList<String> indicesToQuery) {
         DeleteByQueryRequest request = new DeleteByQueryRequest();
         request.setSlices(AbstractBulkByScrollRequest.AUTO_SLICES);
         request.setTimeout(DEFAULT_MAX_DURATION);
 
-        request.indices(RESULTS_INDEX_PATTERN);
+        request.indices(indicesToQuery.toArray(new String[0]));
         BoolQueryBuilder boolQuery = QueryBuilders.boolQuery().minimumShouldMatch(1);
         boolQuery.must(
             QueryBuilders.termsQuery(

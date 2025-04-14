@@ -255,29 +255,26 @@ public class TransportDeleteExpiredDataAction extends HandledTransportAction<
                 originClient,
                 new WrappedBatchedJobsIterator(new SearchAfterJobsIterator(originClient)),
                 parentTaskId,
-                anomalyDetectionAuditor,
-                threadPool,
-                writableIndexExpander
+                writableIndexExpander, anomalyDetectionAuditor,
+                threadPool
             ),
-            new ExpiredForecastsRemover(originClient, threadPool, parentTaskId),
+            new ExpiredForecastsRemover(originClient, threadPool, parentTaskId, writableIndexExpander),
             new ExpiredModelSnapshotsRemover(
                 originClient,
                 new WrappedBatchedJobsIterator(new SearchAfterJobsIterator(originClient)),
+                parentTaskId, writableIndexExpander,
                 threadPool,
-                parentTaskId,
                 jobResultsProvider,
-                anomalyDetectionAuditor
-            ),
+                anomalyDetectionAuditor),
             new UnusedStateRemover(originClient, parentTaskId, writableIndexExpander),
             new EmptyStateIndexRemover(originClient, parentTaskId),
             new UnusedStatsRemover(originClient, parentTaskId, writableIndexExpander),
             new ExpiredAnnotationsRemover(
                 originClient,
                 new WrappedBatchedJobsIterator(new SearchAfterJobsIterator(originClient)),
-                parentTaskId,
+                parentTaskId, writableIndexExpander,
                 anomalyDetectionAuditor,
-                threadPool
-            )
+                threadPool)
         );
     }
 
@@ -287,23 +284,21 @@ public class TransportDeleteExpiredDataAction extends HandledTransportAction<
                 client,
                 new VolatileCursorIterator<>(jobs),
                 parentTaskId,
-                anomalyDetectionAuditor,
-                threadPool,
-                writableIndexExpander
+                writableIndexExpander, anomalyDetectionAuditor,
+                threadPool
             ),
-            new ExpiredForecastsRemover(client, threadPool, parentTaskId),
+            new ExpiredForecastsRemover(client, threadPool, parentTaskId, writableIndexExpander),
             new ExpiredModelSnapshotsRemover(
                 client,
                 new VolatileCursorIterator<>(jobs),
+                parentTaskId, writableIndexExpander,
                 threadPool,
-                parentTaskId,
                 jobResultsProvider,
-                anomalyDetectionAuditor
-            ),
+                anomalyDetectionAuditor),
             new UnusedStateRemover(client, parentTaskId, writableIndexExpander),
             new EmptyStateIndexRemover(client, parentTaskId),
             new UnusedStatsRemover(client, parentTaskId, writableIndexExpander),
-            new ExpiredAnnotationsRemover(client, new VolatileCursorIterator<>(jobs), parentTaskId, anomalyDetectionAuditor, threadPool)
+            new ExpiredAnnotationsRemover(client, new VolatileCursorIterator<>(jobs), parentTaskId, writableIndexExpander, anomalyDetectionAuditor, threadPool)
         );
     }
 

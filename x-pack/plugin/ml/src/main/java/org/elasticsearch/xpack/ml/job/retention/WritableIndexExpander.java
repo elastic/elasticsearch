@@ -13,7 +13,11 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collection;
 import java.util.Objects;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 public class WritableIndexExpander {
 
@@ -32,13 +36,16 @@ public class WritableIndexExpander {
             IndicesOptions.LENIENT_EXPAND_OPEN_HIDDEN,
             indexPattern
         );
-        var indicesToQuery = new ArrayList<String>();
-        for (String concreteIndex : concreteIndices) {
-            var indexSettings = clusterState.metadata().getProject().index(concreteIndex).getSettings();
-            if (IndexMetadata.INDEX_BLOCKS_WRITE_SETTING.get(indexSettings) == false) {
-                indicesToQuery.add(concreteIndex);
-            }
-        }
-        return indicesToQuery;
+        return Arrays.stream(concreteIndices).filter(index -> isIndexReadOnly(index) == false).collect(Collectors.toCollection(ArrayList::new));
+    }
+
+    protected ArrayList<String> getWritableIndices(Collection<String> indices) {
+        return indices.stream()
+            .filter(index -> isIndexReadOnly(index) == false)
+            .collect(Collectors.toCollection(ArrayList::new));
+    }
+
+    private Boolean isIndexReadOnly(String indexName) {
+        return IndexMetadata.INDEX_BLOCKS_WRITE_SETTING.get(clusterService.state().metadata().getProject().index(indexName).getSettings());
     }
 }

@@ -34,7 +34,7 @@ for(bundle in changelogBundles) {
                 print "* ${change.summary} [#${change.pr}](https://github.com/elastic/elasticsearch/pull/${change.pr})"
                 if (change.issues != null && change.issues.empty == false) {
                     print change.issues.size() == 1 ? " (issue: " : " (issues: "
-                    print change.issues.collect { "{es-issue}${it}[#${it}]" }.join(", ")
+                    print change.issues.collect { "[#${it}](https://github.com/elastic/elasticsearch/issues/${it})" }.join(", ")
                     print ")"
                 }
                 print "\n"

@@ -63,15 +63,14 @@ public class CsvTestsDataLoader {
     private static final TestDataset APPS = new TestDataset("apps");
     private static final TestDataset APPS_SHORT = APPS.withIndex("apps_short").withTypeMapping(Map.of("id", "short"));
     private static final TestDataset LANGUAGES = new TestDataset("languages");
-    private static final TestDataset LANGUAGES_LOOKUP = LANGUAGES.withIndex("languages_lookup")
-        .withSetting("languages_lookup-settings.json");
+    private static final TestDataset LANGUAGES_LOOKUP = LANGUAGES.withIndex("languages_lookup").withSetting("lookup-settings.json");
     private static final TestDataset LANGUAGES_LOOKUP_NON_UNIQUE_KEY = LANGUAGES_LOOKUP.withIndex("languages_lookup_non_unique_key")
         .withData("languages_non_unique_key.csv");
     private static final TestDataset LANGUAGES_NESTED_FIELDS = new TestDataset(
         "languages_nested_fields",
         "mapping-languages_nested_fields.json",
         "languages_nested_fields.csv"
-    ).withSetting("languages_lookup-settings.json");
+    ).withSetting("lookup-settings.json");
     private static final TestDataset ALERTS = new TestDataset("alerts");
     private static final TestDataset UL_LOGS = new TestDataset("ul_logs");
     private static final TestDataset SAMPLE_DATA = new TestDataset("sample_data");
@@ -102,11 +101,17 @@ public class CsvTestsDataLoader {
         "partial_mapping_sample_data.csv"
     ).withSetting("source_parameters-settings.json");
     private static final TestDataset CLIENT_IPS = new TestDataset("clientips");
-    private static final TestDataset CLIENT_IPS_LOOKUP = CLIENT_IPS.withIndex("clientips_lookup")
-        .withSetting("clientips_lookup-settings.json");
+    private static final TestDataset CLIENT_IPS_LOOKUP = CLIENT_IPS.withIndex("clientips_lookup").withSetting("lookup-settings.json");
     private static final TestDataset MESSAGE_TYPES = new TestDataset("message_types");
     private static final TestDataset MESSAGE_TYPES_LOOKUP = MESSAGE_TYPES.withIndex("message_types_lookup")
-        .withSetting("message_types_lookup-settings.json");
+        .withSetting("lookup-settings.json");
+    private static final TestDataset FIREWALL_LOGS = new TestDataset("firewall_logs").noData();
+    private static final TestDataset THREAT_LIST = new TestDataset("threat_list").withSetting("lookup-settings.json").noData();
+    private static final TestDataset APP_LOGS = new TestDataset("app_logs").noData();
+    private static final TestDataset SERVICE_OWNERS = new TestDataset("service_owners").withSetting("lookup-settings.json").noData();
+    private static final TestDataset SYSTEM_METRICS = new TestDataset("system_metrics").noData();
+    private static final TestDataset HOST_INVENTORY = new TestDataset("host_inventory").withSetting("lookup-settings.json").noData();
+    private static final TestDataset OWNERSHIPS = new TestDataset("ownerships").withSetting("lookup-settings.json").noData();
     private static final TestDataset CLIENT_CIDR = new TestDataset("client_cidr");
     private static final TestDataset AGES = new TestDataset("ages");
     private static final TestDataset HEIGHTS = new TestDataset("heights");
@@ -161,6 +166,13 @@ public class CsvTestsDataLoader {
         Map.entry(CLIENT_IPS_LOOKUP.indexName, CLIENT_IPS_LOOKUP),
         Map.entry(MESSAGE_TYPES.indexName, MESSAGE_TYPES),
         Map.entry(MESSAGE_TYPES_LOOKUP.indexName, MESSAGE_TYPES_LOOKUP),
+        Map.entry(FIREWALL_LOGS.indexName, FIREWALL_LOGS),
+        Map.entry(THREAT_LIST.indexName, THREAT_LIST),
+        Map.entry(APP_LOGS.indexName, APP_LOGS),
+        Map.entry(SERVICE_OWNERS.indexName, SERVICE_OWNERS),
+        Map.entry(SYSTEM_METRICS.indexName, SYSTEM_METRICS),
+        Map.entry(HOST_INVENTORY.indexName, HOST_INVENTORY),
+        Map.entry(OWNERSHIPS.indexName, OWNERSHIPS),
         Map.entry(CLIENT_CIDR.indexName, CLIENT_CIDR),
         Map.entry(AGES.indexName, AGES),
         Map.entry(HEIGHTS.indexName, HEIGHTS),
@@ -461,11 +473,14 @@ public class CsvTestsDataLoader {
 
     private static void load(RestClient client, TestDataset dataset, Logger logger, IndexCreator indexCreator) throws IOException {
         URL mapping = getResource("/" + dataset.mappingFileName);
-        URL data = getResource("/data/" + dataset.dataFileName);
-
         Settings indexSettings = dataset.readSettingsFile();
         indexCreator.createIndex(client, dataset.indexName, readMappingFile(mapping, dataset.typeMapping), indexSettings);
-        loadCsvData(client, dataset.indexName, data, dataset.allowSubFields, logger);
+
+        // Some examples only test that the query and mappings are valid, and don't need example data. Use .noData() for those
+        if (dataset.dataFileName != null) {
+            URL data = getResource("/data/" + dataset.dataFileName);
+            loadCsvData(client, dataset.indexName, data, dataset.allowSubFields, logger);
+        }
     }
 
     private static String readMappingFile(URL resource, Map<String, String> typeMapping) throws IOException {
@@ -733,6 +748,18 @@ public class CsvTestsDataLoader {
                 indexName,
                 mappingFileName,
                 dataFileName,
+                settingFileName,
+                allowSubFields,
+                typeMapping,
+                requiresInferenceEndpoint
+            );
+        }
+
+        public TestDataset noData() {
+            return new TestDataset(
+                indexName,
+                mappingFileName,
+                null,
                 settingFileName,
                 allowSubFields,
                 typeMapping,

@@ -178,6 +178,33 @@ public class ElasticsearchInternalServiceModelValidatorTests extends ESTestCase 
         );
     }
 
+    public void testValidate_ElandTextEmbeddingAndValidationReturnsInvalidResultsType() {
+        var dimensions = randomIntBetween(1, 10);
+        var mockInferenceServiceResults = mock(InferenceServiceResults.class);
+        when(mockInferenceServiceResults.getWriteableName()).thenReturn(randomAlphaOfLength(10));
+        CustomElandEmbeddingModel customElandEmbeddingModel = createCustomElandEmbeddingModel(true, dimensions);
+
+        doAnswer(ans -> {
+            ActionListener<InferenceServiceResults> responseListener = ans.getArgument(3);
+            responseListener.onResponse(mockInferenceServiceResults);
+            return null;
+        }).when(mockServiceIntegrationValidator).validate(eq(mockInferenceService), any(), eq(TIMEOUT), any());
+
+        underTest.validate(mockInferenceService, customElandEmbeddingModel, TIMEOUT, mockActionListener);
+
+        verify(mockServiceIntegrationValidator).validate(eq(mockInferenceService), any(), eq(TIMEOUT), any());
+        verify(mockActionListener).delegateFailureAndWrap(any());
+        verify(mockActionListener).onFailure(any(ElasticsearchStatusException.class));
+        verify(mockInferenceServiceResults).getWriteableName();
+        verifyNoMoreInteractions(
+            mockServiceIntegrationValidator,
+            mockInferenceService,
+            mockCustomElandEmbeddingModel,
+            mockActionListener,
+            mockInferenceServiceResults
+        );
+    }
+
     public void testValidate_ElandTextEmbeddingModelDimensionsNotSetByUser() {
         var dimensions = randomIntBetween(1, 10);
         var mockInferenceServiceResults = mock(TextEmbeddingResults.class);
@@ -201,6 +228,32 @@ public class ElasticsearchInternalServiceModelValidatorTests extends ESTestCase 
         verify(mockActionListener).delegateFailureAndWrap(any());
         verify(mockActionListener).onResponse(mockUpdatedModel);
         verify(mockInferenceService).updateModelWithEmbeddingDetails(eq(customElandEmbeddingModel), eq(dimensions));
+        verify(mockInferenceServiceResults).getFirstEmbeddingSize();
+        verifyNoMoreInteractions(
+            mockServiceIntegrationValidator,
+            mockInferenceService,
+            mockCustomElandEmbeddingModel,
+            mockActionListener,
+            mockInferenceServiceResults
+        );
+    }
+
+    public void testValidate_ElandTextEmbeddingModelAndEmbeddingSizeRetrievalThrowsException() {
+        var mockInferenceServiceResults = mock(TextEmbeddingResults.class);
+        when(mockInferenceServiceResults.getFirstEmbeddingSize()).thenThrow(ElasticsearchStatusException.class);
+        CustomElandEmbeddingModel customElandEmbeddingModel = createCustomElandEmbeddingModel(false, null);
+
+        doAnswer(ans -> {
+            ActionListener<InferenceServiceResults> responseListener = ans.getArgument(3);
+            responseListener.onResponse(mockInferenceServiceResults);
+            return null;
+        }).when(mockServiceIntegrationValidator).validate(eq(mockInferenceService), any(), eq(TIMEOUT), any());
+
+        underTest.validate(mockInferenceService, customElandEmbeddingModel, TIMEOUT, mockActionListener);
+
+        verify(mockServiceIntegrationValidator).validate(eq(mockInferenceService), any(), eq(TIMEOUT), any());
+        verify(mockActionListener).delegateFailureAndWrap(any());
+        verify(mockActionListener).onFailure(any(ElasticsearchStatusException.class));
         verify(mockInferenceServiceResults).getFirstEmbeddingSize();
         verifyNoMoreInteractions(
             mockServiceIntegrationValidator,

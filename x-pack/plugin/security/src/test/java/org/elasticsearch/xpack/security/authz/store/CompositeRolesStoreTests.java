@@ -1548,7 +1548,6 @@ public class CompositeRolesStoreTests extends ESTestCase {
     }
 
     public void testBuildRoleWithReadFailureStorePrivilegeOnly() {
-        assumeTrue("requires failure store feature", DataStream.isFailureStoreFeatureFlagEnabled());
         String indexPattern = randomAlphanumericOfLength(10);
         boolean allowRestrictedIndices = randomBoolean();
         final Role role = buildRole(
@@ -1566,7 +1565,6 @@ public class CompositeRolesStoreTests extends ESTestCase {
     }
 
     public void testBuildRoleWithReadFailureStorePrivilegeDuplicatesMerged() {
-        assumeTrue("requires failure store feature", DataStream.isFailureStoreFeatureFlagEnabled());
         String indexPattern = randomAlphanumericOfLength(10);
         boolean allowRestrictedIndices = randomBoolean();
         final List<Role> roles = List.of(
@@ -1614,7 +1612,6 @@ public class CompositeRolesStoreTests extends ESTestCase {
     }
 
     public void testBuildRoleWithReadFailureStoreAndReadPrivilegeSplit() {
-        assumeTrue("requires failure store feature", DataStream.isFailureStoreFeatureFlagEnabled());
         String indexPattern = randomAlphanumericOfLength(10);
         boolean allowRestrictedIndices = randomBoolean();
         final Role role = buildRole(
@@ -1636,7 +1633,6 @@ public class CompositeRolesStoreTests extends ESTestCase {
     }
 
     public void testBuildRoleWithReadFailureStoreAndReadPrivilegeAndMultipleIndexPatternsSplit() {
-        assumeTrue("requires failure store feature", DataStream.isFailureStoreFeatureFlagEnabled());
         String indexPattern = randomAlphanumericOfLength(10);
         String otherIndexPattern = randomValueOtherThan(indexPattern, () -> randomAlphanumericOfLength(10));
         boolean allowRestrictedIndices = randomBoolean();
@@ -1694,7 +1690,6 @@ public class CompositeRolesStoreTests extends ESTestCase {
     }
 
     public void testBuildRoleWithReadOnRestrictedAndNonRestrictedIndices() {
-        assumeTrue("requires failure store feature", DataStream.isFailureStoreFeatureFlagEnabled());
         String indexPattern = randomAlphanumericOfLength(10);
         List<Role> roles = List.of(
             buildRole(
@@ -1739,7 +1734,6 @@ public class CompositeRolesStoreTests extends ESTestCase {
     }
 
     public void testBuildRoleWithReadFailureStoreOnRestrictedAndNonRestrictedIndices() {
-        assumeTrue("requires failure store feature", DataStream.isFailureStoreFeatureFlagEnabled());
         String indexPattern = randomAlphanumericOfLength(10);
         List<Role> roles = List.of(
             buildRole(
@@ -1792,7 +1786,6 @@ public class CompositeRolesStoreTests extends ESTestCase {
     }
 
     public void testBuildRoleWithMultipleReadFailureStoreAndReadPrivilegeSplit() {
-        assumeTrue("requires failure store feature", DataStream.isFailureStoreFeatureFlagEnabled());
         String indexPattern = randomAlphanumericOfLength(10);
         boolean allowRestrictedIndices = randomBoolean();
         final List<Role> roles = List.of(
@@ -1844,7 +1837,6 @@ public class CompositeRolesStoreTests extends ESTestCase {
     }
 
     public void testBuildRoleWithAllPrivilegeIsNeverSplit() {
-        assumeTrue("requires failure store feature", DataStream.isFailureStoreFeatureFlagEnabled());
         String indexPattern = randomAlphanumericOfLength(10);
         boolean allowRestrictedIndices = randomBoolean();
         final List<Role> roles = List.of(
@@ -1899,7 +1891,6 @@ public class CompositeRolesStoreTests extends ESTestCase {
     }
 
     public void testBuildRoleWithFailureStorePrivilegeCollatesToRemoveDlsFlsFromAnotherGroup() {
-        assumeTrue("requires failure store feature", DataStream.isFailureStoreFeatureFlagEnabled());
         String indexPattern = randomAlphanumericOfLength(10);
         boolean allowRestrictedIndices = randomBoolean();
         final List<Role> roles = List.of(
@@ -1977,7 +1968,6 @@ public class CompositeRolesStoreTests extends ESTestCase {
     }
 
     public void testBuildRoleWithFailureStorePrivilegeCollatesToKeepDlsFlsFromAnotherGroup() {
-        assumeTrue("requires failure store feature", DataStream.isFailureStoreFeatureFlagEnabled());
         String indexPattern = randomAlphanumericOfLength(10);
         boolean allowRestrictedIndices = randomBoolean();
         final Role role = buildRole(
@@ -2025,18 +2015,12 @@ public class CompositeRolesStoreTests extends ESTestCase {
 
     public void testBuildRoleDoesNotSplitIfAllPrivilegesHaveTheSameSelector() {
         String indexPattern = randomAlphanumericOfLength(10);
-        IndexComponentSelectorPredicate predicate = (DataStream.isFailureStoreFeatureFlagEnabled())
-            ? randomFrom(
-                IndexComponentSelectorPredicate.ALL,
-                IndexComponentSelectorPredicate.DATA,
-                IndexComponentSelectorPredicate.FAILURES,
-                IndexComponentSelectorPredicate.DATA_AND_FAILURES
-            )
-            : randomFrom(
-                IndexComponentSelectorPredicate.ALL,
-                IndexComponentSelectorPredicate.DATA,
-                IndexComponentSelectorPredicate.DATA_AND_FAILURES
-            );
+        IndexComponentSelectorPredicate predicate = randomFrom(
+            IndexComponentSelectorPredicate.ALL,
+            IndexComponentSelectorPredicate.DATA,
+            IndexComponentSelectorPredicate.FAILURES,
+            IndexComponentSelectorPredicate.DATA_AND_FAILURES
+        );
 
         List<String> privilegesWithSelector = IndexPrivilege.names()
             .stream()

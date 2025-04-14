@@ -23,7 +23,6 @@ import static org.hamcrest.Matchers.nullValue;
 public class RoleDescriptorRequestValidatorTests extends ESTestCase {
 
     public void testSelectorsValidation() {
-        assumeTrue("failure store feature flag must be enabled", DataStream.isFailureStoreFeatureFlagEnabled());
         String[] invalidIndexNames = {
             "index::failures",
             ".fs-*::failures",

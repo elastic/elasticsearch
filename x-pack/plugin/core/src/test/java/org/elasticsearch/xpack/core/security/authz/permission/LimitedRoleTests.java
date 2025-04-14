@@ -648,7 +648,6 @@ public class LimitedRoleTests extends ESTestCase {
     }
 
     public void testAllowedActionsMatcherWithSelectors() {
-        assumeTrue("failure store feature must be enabled", DataStream.isFailureStoreFeatureFlagEnabled());
         Role fromRole = Role.builder(EMPTY_RESTRICTED_INDICES, "fromRole")
             .add(IndexPrivilege.READ_FAILURE_STORE, "ind*")
             .add(IndexPrivilege.READ, "ind*")

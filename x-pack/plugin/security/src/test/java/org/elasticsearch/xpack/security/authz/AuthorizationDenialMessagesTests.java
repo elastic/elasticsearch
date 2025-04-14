@@ -238,8 +238,6 @@ public class AuthorizationDenialMessagesTests extends ESTestCase {
     }
 
     public void testActionDeniedWithFailuresAndCorrectActionIncludesFailuresMessage() {
-        assumeTrue("failure store required", DataStream.isFailureStoreFeatureFlagEnabled());
-
         Authentication authentication = AuthenticationTestHelper.builder().build();
 
         final String action = "indices:data/read/" + randomAlphaOfLengthBetween(0, 8);
@@ -262,8 +260,6 @@ public class AuthorizationDenialMessagesTests extends ESTestCase {
     }
 
     public void testActionDeniedWithNonMatchingActionFailuresOmitsFailuresMessage() {
-        assumeTrue("failure store required", DataStream.isFailureStoreFeatureFlagEnabled());
-
         Authentication authentication = AuthenticationTestHelper.builder().build();
 
         // granted only by all, so selector message is omitted
@@ -284,8 +280,6 @@ public class AuthorizationDenialMessagesTests extends ESTestCase {
     }
 
     public void testActionDeniedWithoutFailuresOmitsFailuresMessage() {
-        assumeTrue("failure store required", DataStream.isFailureStoreFeatureFlagEnabled());
-
         Authentication authentication = AuthenticationTestHelper.builder().build();
 
         final String action = "indices:data/read/" + randomAlphaOfLengthBetween(0, 8);
@@ -305,8 +299,6 @@ public class AuthorizationDenialMessagesTests extends ESTestCase {
     }
 
     public void testActionDeniedWithoutIndicesOmitsFailuresMessage() {
-        assumeTrue("failure store required", DataStream.isFailureStoreFeatureFlagEnabled());
-
         Authentication authentication = AuthenticationTestHelper.builder().build();
 
         final String action = "indices:data/read/" + randomAlphaOfLengthBetween(0, 8);

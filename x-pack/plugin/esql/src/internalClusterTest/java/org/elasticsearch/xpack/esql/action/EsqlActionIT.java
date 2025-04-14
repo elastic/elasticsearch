@@ -1027,8 +1027,6 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
     }
 
     public void testDataStreamPatterns() throws Exception {
-        Assume.assumeTrue(DataStream.isFailureStoreFeatureFlagEnabled());
-
         Map<String, Long> testCases = new HashMap<>();
         // Concrete data stream with each selector
         testCases.put("test_ds_patterns_1", 5L);
@@ -1087,8 +1085,6 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
     }
 
     public void testDataStreamInvalidPatterns() throws Exception {
-        Assume.assumeTrue(DataStream.isFailureStoreFeatureFlagEnabled());
-
         Map<String, String> testCases = new HashMap<>();
         // === Errors
         // Only recognized components can be selected

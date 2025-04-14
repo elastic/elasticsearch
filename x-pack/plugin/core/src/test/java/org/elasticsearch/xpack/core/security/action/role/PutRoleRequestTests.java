@@ -50,7 +50,6 @@ public class PutRoleRequestTests extends ESTestCase {
     }
 
     public void testValidationErrorWithFailureStorePrivilegeInRemoteIndices() {
-        assumeTrue("requires failure store feature", DataStream.isFailureStoreFeatureFlagEnabled());
         final PutRoleRequest request = new PutRoleRequest();
         request.name(randomAlphaOfLengthBetween(4, 9));
         request.addRemoteIndex(

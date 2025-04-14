@@ -29,7 +29,7 @@ public class ChangePointOperatorTests extends OperatorTestCase {
     protected SourceOperator simpleInput(BlockFactory blockFactory, int size) {
         // size must be in [25, 1000] for ChangePoint to function correctly
         // and detect the step change.
-        size = Math.clamp(size, 25, 1000);
+        size = Math.min(Math.max(size, 25), 1000);
         List<Long> data = new ArrayList<>(size);
         for (int i = 0; i < size; i++) {
             if (i <= size / 2) {

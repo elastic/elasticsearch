@@ -76,7 +76,6 @@ public class DataNodeRequestSenderIT extends AbstractEsqlIntegTestCase {
                             .shard(0)
                             .primaryShard()
                             .currentNodeId();
-                        // TODO replace this resolution with api call
                         assertAcked(
                             client().admin()
                                 .indices()

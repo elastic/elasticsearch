@@ -184,7 +184,15 @@ final class StackTrace implements ToXContentObject {
 
     public static StackTrace fromSource(Map<String, Object> source) {
         String inputFrameIDs = ObjectPath.eval(PATH_FRAME_IDS, source);
+        if (inputFrameIDs == null) {
+            // If synthetic source is disabled, fallback to dotted field names.
+            inputFrameIDs = (String) source.get("Stacktrace.frame.ids");
+        }
         String inputFrameTypes = ObjectPath.eval(PATH_FRAME_TYPES, source);
+        if (inputFrameTypes == null) {
+            // If synthetic source is disabled, fallback to dotted field names.
+            inputFrameTypes = (String) source.get("Stacktrace.frame.types");
+        }
         int countsFrameIDs = inputFrameIDs.length() / BASE64_FRAME_ID_LENGTH;
 
         String[] fileIDs = new String[countsFrameIDs];

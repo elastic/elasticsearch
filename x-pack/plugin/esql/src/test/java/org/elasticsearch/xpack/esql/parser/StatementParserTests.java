@@ -2346,4 +2346,11 @@ public class StatementParserTests extends AbstractStatementParserTests {
             "line 1:37: mismatched input ':' expecting {<EOF>, '|', 'and', '::', 'or', '+', '-', '*', '/', '%'}"
         );
     }
+
+    public void testUnclosedParenthesis() {
+        String[] queries = { "row ]", "from source | eval x = [1,2,3]]" };
+        for (String q : queries) {
+            expectError(q, "Invalid query");
+        }
+    }
 }

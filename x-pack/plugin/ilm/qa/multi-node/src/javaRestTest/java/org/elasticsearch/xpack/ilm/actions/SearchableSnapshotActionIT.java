@@ -12,7 +12,6 @@ import org.apache.http.entity.StringEntity;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
-import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Template;
 import org.elasticsearch.cluster.routing.allocation.DataTier;
@@ -47,7 +46,6 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
-import static java.util.Collections.singletonMap;
 import static org.elasticsearch.cluster.routing.allocation.decider.ShardsLimitAllocationDecider.INDEX_TOTAL_SHARDS_PER_NODE_SETTING;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.xpack.TimeSeriesRestDriver.createComposableTemplate;
@@ -55,7 +53,6 @@ import static org.elasticsearch.xpack.TimeSeriesRestDriver.createNewSingletonPol
 import static org.elasticsearch.xpack.TimeSeriesRestDriver.createPolicy;
 import static org.elasticsearch.xpack.TimeSeriesRestDriver.createSnapshotRepo;
 import static org.elasticsearch.xpack.TimeSeriesRestDriver.explainIndex;
-import static org.elasticsearch.xpack.TimeSeriesRestDriver.getBackingIndices;
 import static org.elasticsearch.xpack.TimeSeriesRestDriver.getNumberOfPrimarySegments;
 import static org.elasticsearch.xpack.TimeSeriesRestDriver.getStepKeyForIndex;
 import static org.elasticsearch.xpack.TimeSeriesRestDriver.indexDocument;
@@ -102,7 +99,9 @@ public class SearchableSnapshotActionIT extends ESRestTestCase {
         // rolling over the data stream so we can apply the searchable snapshot policy to a backing index that's not the write index
         rolloverMaxOneDocCondition(client(), dataStream);
 
-        String backingIndexName = DataStream.getDefaultBackingIndexName(dataStream, 1L);
+        List<String> backingIndices = getDataStreamBackingIndexNames(dataStream);
+        assertThat(backingIndices.size(), equalTo(2));
+        String backingIndexName = backingIndices.get(0);
         String restoredIndexName = SearchableSnapshotAction.FULL_RESTORED_INDEX_PREFIX + backingIndexName;
         assertTrue(waitUntil(() -> {
             try {
@@ -133,7 +132,8 @@ public class SearchableSnapshotActionIT extends ESRestTestCase {
             indexDocument(client(), dataStream, true);
         }
 
-        String backingIndexName = DataStream.getDefaultBackingIndexName(dataStream, 1L);
+        List<String> backingIndices = getDataStreamBackingIndexNames(dataStream);
+        String backingIndexName = backingIndices.get(0);
         Integer preLifecycleBackingIndexSegments = getNumberOfPrimarySegments(client(), backingIndexName);
         assertThat(preLifecycleBackingIndexSegments, greaterThanOrEqualTo(1));
 
@@ -185,7 +185,7 @@ public class SearchableSnapshotActionIT extends ESRestTestCase {
         Map<String, LifecycleAction> coldActions = Map.of(SearchableSnapshotAction.NAME, new SearchableSnapshotAction(snapshotRepo));
         Map<String, Phase> phases = new HashMap<>();
         phases.put("cold", new Phase("cold", TimeValue.ZERO, coldActions));
-        phases.put("delete", new Phase("delete", TimeValue.timeValueMillis(10000), singletonMap(DeleteAction.NAME, WITH_SNAPSHOT_DELETE)));
+        phases.put("delete", new Phase("delete", TimeValue.timeValueMillis(10000), Map.of(DeleteAction.NAME, WITH_SNAPSHOT_DELETE)));
         LifecyclePolicy lifecyclePolicy = new LifecyclePolicy(policy, phases);
         // PUT policy
         XContentBuilder builder = jsonBuilder();
@@ -207,7 +207,9 @@ public class SearchableSnapshotActionIT extends ESRestTestCase {
         // rolling over the data stream so we can apply the searchable snapshot policy to a backing index that's not the write index
         rolloverMaxOneDocCondition(client(), dataStream);
 
-        String backingIndexName = DataStream.getDefaultBackingIndexName(dataStream, 1L);
+        List<String> backingIndices = getDataStreamBackingIndexNames(dataStream);
+        assertThat(backingIndices.size(), equalTo(2));
+        String backingIndexName = backingIndices.get(0);
         String restoredIndexName = SearchableSnapshotAction.FULL_RESTORED_INDEX_PREFIX + backingIndexName;
 
         // let's wait for ILM to finish
@@ -299,7 +301,7 @@ public class SearchableSnapshotActionIT extends ESRestTestCase {
         // rolling over the data stream so we can apply the searchable snapshot policy to a backing index that's not the write index
         indexDocument(client(), dataStream, true);
 
-        var backingIndices = getBackingIndices(client(), dataStream);
+        var backingIndices = getDataStreamBackingIndexNames(dataStream);
         String restoredIndexName = SearchableSnapshotAction.FULL_RESTORED_INDEX_PREFIX + backingIndices.get(0);
         assertTrue(waitUntil(() -> {
             try {
@@ -377,10 +379,8 @@ public class SearchableSnapshotActionIT extends ESRestTestCase {
         // indexing only one document as we want only one rollover to be triggered
         indexDocument(client(), dataStream, true);
 
-        String searchableSnapMountedIndexName = SearchableSnapshotAction.FULL_RESTORED_INDEX_PREFIX + DataStream.getDefaultBackingIndexName(
-            dataStream,
-            1L
-        );
+        String backingIndexName = getDataStreamBackingIndexNames(dataStream).get(0);
+        String searchableSnapMountedIndexName = SearchableSnapshotAction.FULL_RESTORED_INDEX_PREFIX + backingIndexName;
         assertTrue(waitUntil(() -> {
             try {
                 return indexExists(searchableSnapMountedIndexName);
@@ -455,7 +455,7 @@ public class SearchableSnapshotActionIT extends ESRestTestCase {
             new Phase(
                 "cold",
                 TimeValue.ZERO,
-                singletonMap(SearchableSnapshotAction.NAME, new SearchableSnapshotAction(snapshotRepo, randomBoolean()))
+                Map.of(SearchableSnapshotAction.NAME, new SearchableSnapshotAction(snapshotRepo, randomBoolean()))
             ),
             null
         );
@@ -516,12 +516,12 @@ public class SearchableSnapshotActionIT extends ESRestTestCase {
             new Phase(
                 "cold",
                 TimeValue.ZERO,
-                singletonMap(SearchableSnapshotAction.NAME, new SearchableSnapshotAction(snapshotRepo, randomBoolean()))
+                Map.of(SearchableSnapshotAction.NAME, new SearchableSnapshotAction(snapshotRepo, randomBoolean()))
             ),
             new Phase(
                 "frozen",
                 TimeValue.ZERO,
-                singletonMap(SearchableSnapshotAction.NAME, new SearchableSnapshotAction(snapshotRepo, randomBoolean()))
+                Map.of(SearchableSnapshotAction.NAME, new SearchableSnapshotAction(snapshotRepo, randomBoolean()))
             ),
             null
         );
@@ -586,7 +586,7 @@ public class SearchableSnapshotActionIT extends ESRestTestCase {
             new Phase(
                 "cold",
                 TimeValue.ZERO,
-                singletonMap(SearchableSnapshotAction.NAME, new SearchableSnapshotAction(snapshotRepo, randomBoolean()))
+                Map.of(SearchableSnapshotAction.NAME, new SearchableSnapshotAction(snapshotRepo, randomBoolean()))
             ),
             null,
             null
@@ -600,12 +600,12 @@ public class SearchableSnapshotActionIT extends ESRestTestCase {
             new Phase(
                 "cold",
                 TimeValue.ZERO,
-                singletonMap(SearchableSnapshotAction.NAME, new SearchableSnapshotAction(snapshotRepo, randomBoolean()))
+                Map.of(SearchableSnapshotAction.NAME, new SearchableSnapshotAction(snapshotRepo, randomBoolean()))
             ),
             new Phase(
                 "frozen",
                 TimeValue.ZERO,
-                singletonMap(SearchableSnapshotAction.NAME, new SearchableSnapshotAction(snapshotRepo, randomBoolean()))
+                Map.of(SearchableSnapshotAction.NAME, new SearchableSnapshotAction(snapshotRepo, randomBoolean()))
             ),
             null
         );
@@ -664,14 +664,14 @@ public class SearchableSnapshotActionIT extends ESRestTestCase {
             new Phase(
                 "cold",
                 TimeValue.ZERO,
-                singletonMap(SearchableSnapshotAction.NAME, new SearchableSnapshotAction(snapshotRepo, randomBoolean()))
+                Map.of(SearchableSnapshotAction.NAME, new SearchableSnapshotAction(snapshotRepo, randomBoolean()))
             ),
             new Phase(
                 "frozen",
                 TimeValue.ZERO,
-                singletonMap(SearchableSnapshotAction.NAME, new SearchableSnapshotAction(snapshotRepo, randomBoolean()))
+                Map.of(SearchableSnapshotAction.NAME, new SearchableSnapshotAction(snapshotRepo, randomBoolean()))
             ),
-            new Phase("delete", TimeValue.ZERO, singletonMap(DeleteAction.NAME, WITH_SNAPSHOT_DELETE))
+            new Phase("delete", TimeValue.ZERO, Map.of(DeleteAction.NAME, WITH_SNAPSHOT_DELETE))
         );
         assertBusy(() -> {
             logger.info("--> waiting for [{}] to be deleted...", partiallyMountedIndexName);
@@ -695,7 +695,7 @@ public class SearchableSnapshotActionIT extends ESRestTestCase {
             new Phase(
                 "cold",
                 TimeValue.ZERO,
-                singletonMap(SearchableSnapshotAction.NAME, new SearchableSnapshotAction(snapshotRepo, randomBoolean()))
+                Map.of(SearchableSnapshotAction.NAME, new SearchableSnapshotAction(snapshotRepo, randomBoolean()))
             ),
             null,
             null
@@ -710,12 +710,12 @@ public class SearchableSnapshotActionIT extends ESRestTestCase {
             new Phase(
                 "cold",
                 TimeValue.ZERO,
-                singletonMap(SearchableSnapshotAction.NAME, new SearchableSnapshotAction(snapshotRepo, randomBoolean()))
+                Map.of(SearchableSnapshotAction.NAME, new SearchableSnapshotAction(snapshotRepo, randomBoolean()))
             ),
             new Phase(
                 "frozen",
                 TimeValue.ZERO,
-                singletonMap(SearchableSnapshotAction.NAME, new SearchableSnapshotAction(snapshotRepo, randomBoolean()))
+                Map.of(SearchableSnapshotAction.NAME, new SearchableSnapshotAction(snapshotRepo, randomBoolean()))
             ),
             null
         );
@@ -775,10 +775,10 @@ public class SearchableSnapshotActionIT extends ESRestTestCase {
             new Phase(
                 "cold",
                 TimeValue.ZERO,
-                singletonMap(SearchableSnapshotAction.NAME, new SearchableSnapshotAction(snapshotRepo, randomBoolean()))
+                Map.of(SearchableSnapshotAction.NAME, new SearchableSnapshotAction(snapshotRepo, randomBoolean()))
             ),
             null,
-            new Phase("delete", TimeValue.ZERO, singletonMap(DeleteAction.NAME, WITH_SNAPSHOT_DELETE))
+            new Phase("delete", TimeValue.ZERO, Map.of(DeleteAction.NAME, WITH_SNAPSHOT_DELETE))
         );
         assertBusy(() -> {
             logger.info("--> waiting for [{}] to be deleted...", restoredPartiallyMountedIndexName);
@@ -803,12 +803,12 @@ public class SearchableSnapshotActionIT extends ESRestTestCase {
                 new Phase(
                     "cold",
                     TimeValue.ZERO,
-                    singletonMap(SearchableSnapshotAction.NAME, new SearchableSnapshotAction(snapshotRepo, randomBoolean()))
+                    Map.of(SearchableSnapshotAction.NAME, new SearchableSnapshotAction(snapshotRepo, randomBoolean()))
                 ),
                 new Phase(
                     "frozen",
                     TimeValue.ZERO,
-                    singletonMap(SearchableSnapshotAction.NAME, new SearchableSnapshotAction(secondRepo, randomBoolean()))
+                    Map.of(SearchableSnapshotAction.NAME, new SearchableSnapshotAction(secondRepo, randomBoolean()))
                 ),
                 null
             )
@@ -855,7 +855,7 @@ public class SearchableSnapshotActionIT extends ESRestTestCase {
         // Create the data stream.
         assertOK(client().performRequest(new Request("PUT", "_data_stream/" + dataStream)));
 
-        var backingIndices = getBackingIndices(client(), dataStream);
+        var backingIndices = getDataStreamBackingIndexNames(dataStream);
         String firstGenIndex = backingIndices.get(0);
         Map<String, Object> indexSettings = getIndexSettingsAsMap(firstGenIndex);
         assertThat(indexSettings.get(DataTier.TIER_PREFERENCE), is("data_hot"));
@@ -906,7 +906,9 @@ public class SearchableSnapshotActionIT extends ESRestTestCase {
         // rolling over the data stream so we can apply the searchable snapshot policy to a backing index that's not the write index
         rolloverMaxOneDocCondition(client(), dataStream);
 
-        String backingIndexName = DataStream.getDefaultBackingIndexName(dataStream, 1L);
+        List<String> backingIndices = getDataStreamBackingIndexNames(dataStream);
+        assertThat(backingIndices.size(), equalTo(2));
+        String backingIndexName = backingIndices.get(0);
         String restoredIndexName = SearchableSnapshotAction.FULL_RESTORED_INDEX_PREFIX + backingIndexName;
         assertTrue(waitUntil(() -> {
             try {
@@ -934,12 +936,12 @@ public class SearchableSnapshotActionIT extends ESRestTestCase {
             new Phase(
                 "cold",
                 TimeValue.ZERO,
-                singletonMap(SearchableSnapshotAction.NAME, new SearchableSnapshotAction(snapshotRepo, randomBoolean()))
+                Map.of(SearchableSnapshotAction.NAME, new SearchableSnapshotAction(snapshotRepo, randomBoolean()))
             ),
             new Phase(
                 "frozen",
                 TimeValue.ZERO,
-                singletonMap(SearchableSnapshotAction.NAME, new SearchableSnapshotAction(snapshotRepo, randomBoolean(), totalShardsPerNode))
+                Map.of(SearchableSnapshotAction.NAME, new SearchableSnapshotAction(snapshotRepo, randomBoolean(), totalShardsPerNode))
             ),
             null
         );

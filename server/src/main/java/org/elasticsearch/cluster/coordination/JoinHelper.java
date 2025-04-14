@@ -42,9 +42,9 @@ import org.elasticsearch.monitor.NodeHealthService;
 import org.elasticsearch.monitor.StatusInfo;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.threadpool.ThreadPool.Names;
+import org.elasticsearch.transport.AbstractTransportRequest;
 import org.elasticsearch.transport.ConnectTransportException;
 import org.elasticsearch.transport.TransportException;
-import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportResponseHandler;
 import org.elasticsearch.transport.TransportService;
@@ -200,7 +200,7 @@ public class JoinHelper {
     /**
      * Saves information about a join failure. The failure information may be logged later via either {@link FailedJoinAttempt#logNow}
      * or {@link FailedJoinAttempt#lastFailedJoinAttempt}.
-     *
+     * <p>
      * Package-private for testing.
      */
     static class FailedJoinAttempt {
@@ -212,7 +212,7 @@ public class JoinHelper {
         /**
          * @param destination the master node targeted by the join request.
          * @param joinRequest the join request that was sent to the perceived master node.
-         * @param exception the error response received in reply to the join request attempt.
+         * @param exception   the error response received in reply to the join request attempt.
          */
         FailedJoinAttempt(DiscoveryNode destination, JoinRequest joinRequest, ElasticsearchException exception) {
             this.destination = destination;
@@ -610,7 +610,7 @@ public class JoinHelper {
     static final String PENDING_JOIN_CONNECT_FAILED = "failed to connect";
     static final String PENDING_JOIN_FAILED = "failed";
 
-    static class JoinPingRequest extends TransportRequest {
+    static class JoinPingRequest extends AbstractTransportRequest {
         JoinPingRequest() {}
 
         JoinPingRequest(StreamInput in) throws IOException {

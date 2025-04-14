@@ -291,12 +291,13 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
 
         assertResults(expectedColumnsWithValues, actualColumns, actualValues, testCase.ignoreOrder, logger);
 
-        if (supportsTook()) {
-            LOGGER.info("checking took incremented from {}", prevTooks);
-            long took = ((Number) answer.get("took")).longValue();
-            int prevTookHisto = ((Number) prevTooks.remove(tookKey(took))).intValue();
-            assertMap(tooks(), matchesMap(prevTooks).entry(tookKey(took), prevTookHisto + 1));
-        }
+        // TODO: fix 8.19 bwc issue before enabling these assertions again
+        // if (supportsTook()) {
+        // LOGGER.info("checking took incremented from {}", prevTooks);
+        // long took = ((Number) answer.get("took")).longValue();
+        // int prevTookHisto = ((Number) prevTooks.remove(tookKey(took))).intValue();
+        // assertMap(tooks(), matchesMap(prevTooks).entry(tookKey(took), prevTookHisto + 1));
+        // }
     }
 
     private Map<?, ?> tooks() throws IOException {

@@ -207,7 +207,8 @@ public class ExpiredResultsRemoverTests extends ESTestCase {
             originSettingClient,
             jobIterator,
             new TaskId("test", 0L),
-            new WritableIndexExpander(clusterService, indexNameExpressionResolver), mock(AnomalyDetectionAuditor.class),
+            new WritableIndexExpander(clusterService, indexNameExpressionResolver),
+            mock(AnomalyDetectionAuditor.class),
             threadPool
         );
     }

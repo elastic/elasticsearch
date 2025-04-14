@@ -299,10 +299,12 @@ public class ExpiredModelSnapshotsRemoverTests extends ESTestCase {
         return new ExpiredModelSnapshotsRemover(
             originSettingClient,
             jobIterator,
-                new TaskId("test", 0L), new WritableIndexExpander(clusterService, indexNameExpressionResolver),
-                threadPool,
-                resultsProvider,
-                mock(AnomalyDetectionAuditor.class));
+            new TaskId("test", 0L),
+            new WritableIndexExpander(clusterService, indexNameExpressionResolver),
+            threadPool,
+            resultsProvider,
+            mock(AnomalyDetectionAuditor.class)
+        );
     }
 
     private static ModelSnapshot createModelSnapshot(String jobId, String snapshotId, Date date) {

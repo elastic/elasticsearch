@@ -206,8 +206,10 @@ public class ExpiredAnnotationsRemoverTests extends ESTestCase {
         return new ExpiredAnnotationsRemover(
             originSettingClient,
             jobIterator,
-            new TaskId("test", 0L), new WritableIndexExpander(clusterService, indexNameExpressionResolver),
-                mock(AnomalyDetectionAuditor.class),
-                threadPool);
+            new TaskId("test", 0L),
+            new WritableIndexExpander(clusterService, indexNameExpressionResolver),
+            mock(AnomalyDetectionAuditor.class),
+            threadPool
+        );
     }
 }

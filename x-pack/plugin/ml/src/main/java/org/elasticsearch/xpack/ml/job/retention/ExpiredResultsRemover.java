@@ -72,12 +72,12 @@ public class ExpiredResultsRemover extends AbstractExpiredJobDataRemover {
     private final AnomalyDetectionAuditor auditor;
     private final ThreadPool threadPool;
 
-
     public ExpiredResultsRemover(
         OriginSettingClient client,
         Iterator<Job> jobIterator,
         TaskId parentTaskId,
-        WritableIndexExpander writableIndexExpander, AnomalyDetectionAuditor auditor,
+        WritableIndexExpander writableIndexExpander,
+        AnomalyDetectionAuditor auditor,
         ThreadPool threadPool
     ) {
         super(client, jobIterator, parentTaskId, writableIndexExpander);

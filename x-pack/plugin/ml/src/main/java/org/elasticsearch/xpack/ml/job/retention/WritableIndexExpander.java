@@ -16,7 +16,6 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Objects;
-import java.util.Set;
 import java.util.stream.Collectors;
 
 public class WritableIndexExpander {
@@ -36,13 +35,13 @@ public class WritableIndexExpander {
             IndicesOptions.LENIENT_EXPAND_OPEN_HIDDEN,
             indexPattern
         );
-        return Arrays.stream(concreteIndices).filter(index -> isIndexReadOnly(index) == false).collect(Collectors.toCollection(ArrayList::new));
+        return Arrays.stream(concreteIndices)
+            .filter(index -> isIndexReadOnly(index) == false)
+            .collect(Collectors.toCollection(ArrayList::new));
     }
 
     protected ArrayList<String> getWritableIndices(Collection<String> indices) {
-        return indices.stream()
-            .filter(index -> isIndexReadOnly(index) == false)
-            .collect(Collectors.toCollection(ArrayList::new));
+        return indices.stream().filter(index -> isIndexReadOnly(index) == false).collect(Collectors.toCollection(ArrayList::new));
     }
 
     private Boolean isIndexReadOnly(String indexName) {

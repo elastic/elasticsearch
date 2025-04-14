@@ -66,7 +66,12 @@ public class ExpiredForecastsRemover implements MlDataRemover {
     private final TaskId parentTaskId;
     private final WritableIndexExpander writableIndexExpander;
 
-    public ExpiredForecastsRemover(OriginSettingClient client, ThreadPool threadPool, TaskId parentTaskId, WritableIndexExpander writableIndexExpander) {
+    public ExpiredForecastsRemover(
+        OriginSettingClient client,
+        ThreadPool threadPool,
+        TaskId parentTaskId,
+        WritableIndexExpander writableIndexExpander
+    ) {
         this.client = Objects.requireNonNull(client);
         this.threadPool = Objects.requireNonNull(threadPool);
         this.cutoffEpochMs = Instant.now(Clock.systemDefaultZone()).toEpochMilli();

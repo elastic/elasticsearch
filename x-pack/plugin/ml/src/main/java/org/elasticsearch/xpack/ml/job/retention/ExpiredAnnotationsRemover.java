@@ -60,9 +60,10 @@ public class ExpiredAnnotationsRemover extends AbstractExpiredJobDataRemover {
         OriginSettingClient client,
         Iterator<Job> jobIterator,
         TaskId parentTaskId,
-        WritableIndexExpander writableIndexExpander, AnomalyDetectionAuditor auditor,
+        WritableIndexExpander writableIndexExpander,
+        AnomalyDetectionAuditor auditor,
         ThreadPool threadPool
-        ) {
+    ) {
         super(client, jobIterator, parentTaskId, writableIndexExpander);
         this.auditor = Objects.requireNonNull(auditor);
         this.threadPool = Objects.requireNonNull(threadPool);
@@ -120,7 +121,12 @@ public class ExpiredAnnotationsRemover extends AbstractExpiredJobDataRemover {
         });
     }
 
-    private static DeleteByQueryRequest createDBQRequest(Job job, float requestsPerSec, long cutoffEpochMs, ArrayList<String> indicesToQuery) {
+    private static DeleteByQueryRequest createDBQRequest(
+        Job job,
+        float requestsPerSec,
+        long cutoffEpochMs,
+        ArrayList<String> indicesToQuery
+    ) {
         QueryBuilder query = QueryBuilders.boolQuery()
             .filter(QueryBuilders.termQuery(Job.ID.getPreferredName(), job.getId()))
             .filter(QueryBuilders.rangeQuery(Annotation.TIMESTAMP.getPreferredName()).lt(cutoffEpochMs).format("epoch_millis"))

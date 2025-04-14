@@ -17,8 +17,6 @@ import org.elasticsearch.client.internal.OriginSettingClient;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
-import org.elasticsearch.index.reindex.BulkByScrollResponse;
-import org.elasticsearch.index.reindex.BulkByScrollTask;
 import org.elasticsearch.index.reindex.DeleteByQueryAction;
 import org.elasticsearch.index.reindex.DeleteByQueryRequest;
 import org.elasticsearch.rest.RestStatus;
@@ -29,7 +27,6 @@ import org.elasticsearch.search.sort.SortBuilder;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.action.util.QueryPage;
 import org.elasticsearch.xpack.core.common.time.TimeUtils;
 import org.elasticsearch.xpack.core.ml.annotations.AnnotationIndex;
@@ -39,13 +36,11 @@ import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndex;
 import org.elasticsearch.xpack.core.ml.job.persistence.ElasticsearchMappings;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.ModelSnapshot;
 import org.elasticsearch.xpack.ml.MachineLearning;
-import org.elasticsearch.xpack.ml.job.persistence.JobDataDeleter;
 import org.elasticsearch.xpack.ml.job.persistence.JobResultsProvider;
 import org.elasticsearch.xpack.ml.notifications.AnomalyDetectionAuditor;
 import org.elasticsearch.xpack.ml.utils.MlIndicesUtils;
 
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
@@ -57,7 +52,6 @@ import static java.util.stream.Collectors.toList;
 import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
-
 
 /**
  * Deletes all model snapshots that have expired the configured retention time
@@ -89,7 +83,9 @@ public class ExpiredModelSnapshotsRemover extends AbstractExpiredJobDataRemover 
     public ExpiredModelSnapshotsRemover(
         OriginSettingClient client,
         Iterator<Job> jobIterator,
-        TaskId parentTaskId, WritableIndexExpander writableIndexExpander, ThreadPool threadPool,
+        TaskId parentTaskId,
+        WritableIndexExpander writableIndexExpander,
+        ThreadPool threadPool,
         JobResultsProvider jobResultsProvider,
         AnomalyDetectionAuditor auditor
     ) {
@@ -284,18 +280,23 @@ public class ExpiredModelSnapshotsRemover extends AbstractExpiredJobDataRemover 
         // _doc is the most efficient sort order and will also disable scoring
         deleteByQueryRequest.getSearchRequest().source().sort(ElasticsearchMappings.ES_DOC);
 
-        executeAsyncWithOrigin(client, ML_ORIGIN, DeleteByQueryAction.INSTANCE, deleteByQueryRequest, listener.delegateFailureAndWrap((l, bulkResponse) -> {
-            auditor.info(jobId, Messages.getMessage(Messages.JOB_AUDIT_SNAPSHOTS_DELETED, modelSnapshots.size()));
-            LOGGER.debug(
-                () -> format(
-                    "[%s] deleted model snapshots %s with descriptions %s",
-                    jobId,
-                    modelSnapshots.stream().map(ModelSnapshot::getSnapshotId).collect(toList()),
-                    modelSnapshots.stream().map(ModelSnapshot::getDescription).collect(toList())
-                )
-            );
-            l.onResponse(true);
-        }
-        ));
+        executeAsyncWithOrigin(
+            client,
+            ML_ORIGIN,
+            DeleteByQueryAction.INSTANCE,
+            deleteByQueryRequest,
+            listener.delegateFailureAndWrap((l, bulkResponse) -> {
+                auditor.info(jobId, Messages.getMessage(Messages.JOB_AUDIT_SNAPSHOTS_DELETED, modelSnapshots.size()));
+                LOGGER.debug(
+                    () -> format(
+                        "[%s] deleted model snapshots %s with descriptions %s",
+                        jobId,
+                        modelSnapshots.stream().map(ModelSnapshot::getSnapshotId).collect(toList()),
+                        modelSnapshots.stream().map(ModelSnapshot::getDescription).collect(toList())
+                    )
+                );
+                l.onResponse(true);
+            })
+        );
     }
 }

@@ -1636,9 +1636,9 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
             evictionsRunner.enqueueTask(new ActionListener<>() {
                 @Override
                 public void onResponse(Releasable releasable) {
-  try (releasable) {
-    forceEvict(cacheKeyPredicate);
-  }
+                    try (releasable) {
+                        forceEvict(cacheKeyPredicate);
+                    }
                 }
 
                 @Override

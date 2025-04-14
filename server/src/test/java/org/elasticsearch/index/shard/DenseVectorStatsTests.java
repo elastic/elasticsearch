@@ -110,11 +110,11 @@ public class DenseVectorStatsTests extends AbstractWireSerializingTestCase<Dense
               "dense_vector" : {
                 "value_count" : 5,
                 "off_heap" : {
-                  "total_size_in_bytes" : 27,
-                  "total_veb_size_in_bytes" : 3,
-                  "total_vec_size_in_bytes" : 23,
-                  "total_veq_size_in_bytes" : 0,
-                  "total_vex_size_in_bytes" : 1
+                  "total_size_bytes" : 27,
+                  "total_veb_size_bytes" : 3,
+                  "total_vec_size_bytes" : 23,
+                  "total_veq_size_bytes" : 0,
+                  "total_vex_size_bytes" : 1
                 }
               }
             }""";
@@ -129,19 +129,19 @@ public class DenseVectorStatsTests extends AbstractWireSerializingTestCase<Dense
               "dense_vector" : {
                 "value_count" : 5,
                 "off_heap" : {
-                  "total_size_in_bytes" : 27,
-                  "total_veb_size_in_bytes" : 3,
-                  "total_vec_size_in_bytes" : 23,
-                  "total_veq_size_in_bytes" : 0,
-                  "total_vex_size_in_bytes" : 1,
+                  "total_size_bytes" : 27,
+                  "total_veb_size_bytes" : 3,
+                  "total_vec_size_bytes" : 23,
+                  "total_veq_size_bytes" : 0,
+                  "total_vex_size_bytes" : 1,
                   "fielddata" : {
                     "bar" : {
-                      "veb_size_in_bytes" : 3,
-                      "vec_size_in_bytes" : 14,
-                      "vex_size_in_bytes" : 1
+                      "veb_size_bytes" : 3,
+                      "vec_size_bytes" : 14,
+                      "vex_size_bytes" : 1
                     },
                     "foo" : {
-                      "vec_size_in_bytes" : 9
+                      "vec_size_bytes" : 9
                     }
                   }
                 }
@@ -164,17 +164,72 @@ public class DenseVectorStatsTests extends AbstractWireSerializingTestCase<Dense
                       "dense_vector" : {
                         "value_count" : 11,
                         "off_heap" : {
-                          "total_size_in_bytes" : 0,
-                          "total_veb_size_in_bytes" : 0,
-                          "total_vec_size_in_bytes" : 0,
-                          "total_veq_size_in_bytes" : 0,
-                          "total_vex_size_in_bytes" : 0
+                          "total_size_bytes" : 0,
+                          "total_veb_size_bytes" : 0,
+                          "total_vec_size_bytes" : 0,
+                          "total_veq_size_bytes" : 0,
+                          "total_vex_size_bytes" : 0
                         }
                       }
                     }""";
                 assertThat(Strings.toString(builder), equalTo(expected));
             }
         }
+    }
+
+    public void testXContentHumanReadable() throws IOException {
+        var bar = Map.of("vec", 4194304L, "vex", 100000000L, "veb", 1024L);
+        var baz = Map.of("vec", 2097152L, "vex", 100000000L, "veb", 2048L);
+        var foo = Map.of("vec", 1048576L, "veq", 1099511627776L);
+        var stats = new DenseVectorStats(5678L, Map.of("foo", foo, "bar", bar, "baz", baz));
+
+        var builder = XContentFactory.jsonBuilder().humanReadable(true).prettyPrint();
+        builder.startObject();
+        stats.toXContent(builder, new ToXContent.MapParams(Map.of(INCLUDE_OFF_HEAP, "true", INCLUDE_PER_FIELD_STATS, "true")));
+        builder.endObject();
+        String expected = """
+            {
+              "dense_vector" : {
+                "value_count" : 5678,
+                "off_heap" : {
+                  "total_size" : "1tb",
+                  "total_size_bytes" : 1099718970880,
+                  "total_veb_size" : "3kb",
+                  "total_veb_size_bytes" : 3072,
+                  "total_vec_size" : "7mb",
+                  "total_vec_size_bytes" : 7340032,
+                  "total_veq_size" : "1tb",
+                  "total_veq_size_bytes" : 1099511627776,
+                  "total_vex_size" : "190.7mb",
+                  "total_vex_size_bytes" : 200000000,
+                  "fielddata" : {
+                    "bar" : {
+                      "veb_size" : "1kb",
+                      "veb_size_bytes" : 1024,
+                      "vec_size" : "4mb",
+                      "vec_size_bytes" : 4194304,
+                      "vex_size" : "95.3mb",
+                      "vex_size_bytes" : 100000000
+                    },
+                    "baz" : {
+                      "veb_size" : "2kb",
+                      "veb_size_bytes" : 2048,
+                      "vec_size" : "2mb",
+                      "vec_size_bytes" : 2097152,
+                      "vex_size" : "95.3mb",
+                      "vex_size_bytes" : 100000000
+                    },
+                    "foo" : {
+                      "vec_size" : "1mb",
+                      "vec_size_bytes" : 1048576,
+                      "veq_size" : "1tb",
+                      "veq_size_bytes" : 1099511627776
+                    }
+                  }
+                }
+              }
+            }""";
+        assertThat(Strings.toString(builder), equalTo(expected));
     }
 
     public void testBasicAdd() {

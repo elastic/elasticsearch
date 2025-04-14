@@ -23,6 +23,8 @@ import java.util.Objects;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+import static org.elasticsearch.common.unit.ByteSizeValue.ofBytes;
+
 /**
  * Statistics about indexed dense vector
  */
@@ -129,12 +131,12 @@ public class DenseVectorStats implements Writeable, ToXContentFragment {
 
     private void toXContentWithFields(XContentBuilder builder, Params params) throws IOException {
         var totals = getTotalsByCategory();
-        builder.startObject(Fields.OFF_HEAP_SIZE_BYTES);
-        builder.field(Fields.TOTAL_SIZE_BYTES, totals.values().stream().mapToLong(Long::longValue).sum());
-        builder.field(Fields.TOTAL_VEB_SIZE_BYTES, totals.getOrDefault("veb", 0L));
-        builder.field(Fields.TOTAL_VEC_SIZE_BYTES, totals.getOrDefault("vec", 0L));
-        builder.field(Fields.TOTAL_VEQ_SIZE_BYTES, totals.getOrDefault("veq", 0L));
-        builder.field(Fields.TOTAL_VEX_SIZE_BYTES, totals.getOrDefault("vex", 0L));
+        builder.startObject("off_heap");
+        builder.humanReadableField("total_size_bytes", "total_size", ofBytes(totals.values().stream().mapToLong(Long::longValue).sum()));
+        builder.humanReadableField("total_veb_size_bytes", "total_veb_size", ofBytes(totals.getOrDefault("veb", 0L)));
+        builder.humanReadableField("total_vec_size_bytes", "total_vec_size", ofBytes(totals.getOrDefault("vec", 0L)));
+        builder.humanReadableField("total_veq_size_bytes", "total_veq_size", ofBytes(totals.getOrDefault("veq", 0L)));
+        builder.humanReadableField("total_vex_size_bytes", "total_vex_size", ofBytes(totals.getOrDefault("vex", 0L)));
         if (params.paramAsBoolean(INCLUDE_PER_FIELD_STATS, false) && offHeapStats != null && offHeapStats.size() > 0) {
             toXContentWithPerFieldStats(builder);
         }
@@ -150,7 +152,7 @@ public class DenseVectorStats implements Writeable, ToXContentFragment {
                 for (var eKey : entry.keySet().stream().sorted().toList()) {
                     long value = entry.get(eKey);
                     assert value > 0L;
-                    builder.field(keyToXContentField(eKey), value);
+                    builder.humanReadableField(eKey + "_size_bytes", eKey + "_size", ofBytes(value));
                 }
                 builder.endObject();
             }
@@ -174,19 +176,9 @@ public class DenseVectorStats implements Writeable, ToXContentFragment {
     public static final String INCLUDE_OFF_HEAP = "include_off_heap";
     public static final String INCLUDE_PER_FIELD_STATS = "include_per_field_stats";
 
-    static String keyToXContentField(String raw) {
-        return raw + "_size_in_bytes";
-    }
-
     static final class Fields {
         static final String NAME = "dense_vector";
         static final String VALUE_COUNT = "value_count";
-        static final String OFF_HEAP_SIZE_BYTES = "off_heap";
-        static final String TOTAL_SIZE_BYTES = "total_size_in_bytes";
-        static final String TOTAL_VEB_SIZE_BYTES = "total_veb_size_in_bytes";
-        static final String TOTAL_VEC_SIZE_BYTES = "total_vec_size_in_bytes";
-        static final String TOTAL_VEQ_SIZE_BYTES = "total_veq_size_in_bytes";
-        static final String TOTAL_VEX_SIZE_BYTES = "total_vex_size_in_bytes";
         static final String FIELDS = "fielddata";
     }
 }

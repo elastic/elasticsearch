@@ -1,5 +1,5 @@
 pr: 126704
-summary: Initial changes to support dense vectors off-heap stats
+summary: Add dense vector off-heap stats to Node stats and Index stats APIs
 area: "Vector Search, Search"
 type: enhancement
 issues: []

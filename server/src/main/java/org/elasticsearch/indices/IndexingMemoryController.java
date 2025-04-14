@@ -205,11 +205,16 @@ public class IndexingMemoryController implements IndexingOperationListener, Clos
      */
     private boolean writePendingIndexingBuffers() {
         boolean wrotePendingIndexingBuffer = false;
+        long startTime;
+        long took;
         for (IndexShard shard = pendingWriteIndexingBufferQueue.pollFirst(); shard != null; shard = pendingWriteIndexingBufferQueue
             .pollFirst()) {
             // Remove the shard from the set first, so that multiple threads can run writeIndexingBuffer concurrently on the same shard.
             pendingWriteIndexingBufferSet.remove(shard);
+            startTime = System.nanoTime();
             shard.writeIndexingBuffer();
+            took = System.nanoTime() - startTime;
+            shard.writeIndexBuffersOnIndexThreads(took);
             wrotePendingIndexingBuffer = true;
         }
         return wrotePendingIndexingBuffer;
@@ -258,6 +263,7 @@ public class IndexingMemoryController implements IndexingOperationListener, Clos
         // be reclaimed rapidly. This has the downside of increasing the latency of _bulk requests though. Lucene does the same thing in
         // DocumentsWriter#postUpdate, flushing a segment because the size limit on the RAM buffer was reached happens on the call to
         // IndexWriter#addDocument.
+
         while (writePendingIndexingBuffers()) {
             // If we just wrote segments, then run the checker again if not already running to check if we released enough memory.
             if (statusChecker.tryRun() == false) {

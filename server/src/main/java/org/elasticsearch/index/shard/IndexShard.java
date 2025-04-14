@@ -3235,6 +3235,16 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         internalIndexingStats.noopUpdate();
     }
 
+    /**
+     * Increment relevant stats when indexing buffers are written to disk using indexing threads,
+     * in order to apply back-pressure on indexing.
+     * @param took  time it took to write the index buffers for this shard
+     * @see org.elasticsearch.indices.IndexingMemoryController
+     */
+    public void writeIndexBuffersOnIndexThreads(long took) {
+        internalIndexingStats.writeIndexBuffers(took);
+    }
+
     public void maybeCheckIndex() {
         recoveryState.setStage(RecoveryState.Stage.VERIFY_INDEX);
         if (Booleans.isTrue(checkIndexOnStartup) || "checksum".equals(checkIndexOnStartup)) {

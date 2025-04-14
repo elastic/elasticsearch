@@ -153,6 +153,17 @@ final class InternalIndexingStats implements IndexingOperationListener {
         totalStats.noopUpdates.inc();
     }
 
+    /**
+     * Increment relevant stats when indexing buffers are written to disk using indexing threads,
+     * in order to apply back-pressure on indexing.
+     * @param took   time taken to write buffers
+     * @see org.elasticsearch.indices.IndexingMemoryController
+     */
+    void writeIndexBuffers(long took) {
+        totalStats.indexMetric.inc(took);
+        totalStats.recentIndexMetric.addIncrement(took, relativeTimeInNanosSupplier.getAsLong());
+    }
+
     static class StatsHolder {
         private final MeanMetric indexMetric = new MeanMetric(); // Used for the count and total 'took' time (in ns) of index operations
         private final ExponentiallyWeightedMovingRate recentIndexMetric; // An EWMR of the total 'took' time of index operations (in ns)

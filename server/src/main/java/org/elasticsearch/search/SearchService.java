@@ -30,6 +30,7 @@ import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.action.support.TransportActions;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver.ResolvedExpression;
+import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.CheckedSupplier;
@@ -511,7 +512,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         // to stop searches to restore full availability as fast as possible. A known scenario here is that we lost connection to master
         // or master(s) were restarted.
         assert routing.initializing();
-        if (routing.isRelocationTarget() == false) {
+        if (routing.isRelocationTarget() == false && routing.recoverySource() != RecoverySource.EmptyStoreRecoverySource.INSTANCE) {
             freeAllContextsForShard(routing.shardId());
         }
     }

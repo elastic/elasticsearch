@@ -31,6 +31,7 @@ import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.esql.core.querydsl.query.MatchAll;
 import org.elasticsearch.xpack.esql.core.querydsl.query.RangeQuery;
+import org.elasticsearch.xpack.esql.core.querydsl.query.TermQuery;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 
 import java.io.IOException;
@@ -46,12 +47,14 @@ public class SingleValueQueryTests extends MapperServiceTestCase {
         XContentBuilder mapping(XContentBuilder builder) throws IOException;
 
         List<List<Object>> build(RandomIndexWriter iw) throws IOException;
+
+        boolean useSyntheticSourceDelegate();
     }
 
     @ParametersFactory
     public static List<Object[]> params() {
         List<Object[]> params = new ArrayList<>();
-        for (String fieldType : new String[] { "long", "integer", "short", "byte", "double", "float", "keyword" }) {
+        for (String fieldType : new String[] { "long", "integer", "short", "byte", "double", "float", "keyword", "text" }) {
             for (boolean multivaluedField : new boolean[] { true, false }) {
                 for (boolean allowEmpty : new boolean[] { true, false }) {
                     params.add(new Object[] { new StandardSetup(fieldType, multivaluedField, allowEmpty, 100) });
@@ -69,45 +72,54 @@ public class SingleValueQueryTests extends MapperServiceTestCase {
     }
 
     public void testMatchAll() throws IOException {
-        testCase(new SingleValueQuery(new MatchAll(Source.EMPTY), "foo", false).asBuilder(), this::runCase);
+        testCase(new SingleValueQuery(new MatchAll(Source.EMPTY), "foo", setup.useSyntheticSourceDelegate()).asBuilder(), this::runCase);
     }
 
     public void testMatchSome() throws IOException {
         int max = between(1, 100);
         testCase(
-            new SingleValueQuery.Builder(new RangeQueryBuilder("i").lt(max), "foo", Source.EMPTY),
+            new SingleValueQuery(
+                new RangeQuery(Source.EMPTY, "i", null, false, max, false, randomZone()),
+                "foo",
+                setup.useSyntheticSourceDelegate()
+            ).asBuilder(),
             (fieldValues, count) -> runCase(fieldValues, count, null, max)
         );
     }
 
     public void testSubPhrase() throws IOException {
-        testCase(new SingleValueQuery.Builder(new MatchPhraseQueryBuilder("str", "fox jumped"), "foo", Source.EMPTY), this::runCase);
+        SingleValueQuery.AbstractBuilder builder = setup.useSyntheticSourceDelegate()
+            ? new SingleValueQuery.SyntheticSourceDelegateBuilder(new MatchPhraseQueryBuilder("str", "fox jumped"), "foo", Source.EMPTY)
+            : new SingleValueQuery.Builder(new MatchPhraseQueryBuilder("str", "fox jumped"), "foo", Source.EMPTY);
+        testCase(builder, this::runCase);
     }
 
     public void testMatchNone() throws IOException {
         testCase(
-            new SingleValueQuery.Builder(new MatchNoneQueryBuilder(), "foo", Source.EMPTY),
+            new SingleValueQuery(new MatchAll(Source.EMPTY).negate(Source.EMPTY), "foo", setup.useSyntheticSourceDelegate()).asBuilder(),
             (fieldValues, count) -> assertThat(count, equalTo(0))
         );
     }
 
     public void testRewritesToMatchNone() throws IOException {
         testCase(
-            new SingleValueQuery.Builder(new TermQueryBuilder("missing", 0), "foo", Source.EMPTY),
+            new SingleValueQuery(new TermQuery(Source.EMPTY, "missing", 0), "foo", setup.useSyntheticSourceDelegate()).asBuilder(),
             (fieldValues, count) -> assertThat(count, equalTo(0))
         );
     }
 
     public void testNotMatchAll() throws IOException {
         testCase(
-            new SingleValueQuery(new MatchAll(Source.EMPTY), "foo", false).negate(Source.EMPTY).asBuilder(),
+            new SingleValueQuery(new MatchAll(Source.EMPTY), "foo", setup.useSyntheticSourceDelegate()).negate(Source.EMPTY).asBuilder(),
             (fieldValues, count) -> assertThat(count, equalTo(0))
         );
     }
 
     public void testNotMatchNone() throws IOException {
         testCase(
-            new SingleValueQuery(new MatchAll(Source.EMPTY).negate(Source.EMPTY), "foo", false).negate(Source.EMPTY).asBuilder(),
+            new SingleValueQuery(new MatchAll(Source.EMPTY).negate(Source.EMPTY), "foo", setup.useSyntheticSourceDelegate()).negate(
+                Source.EMPTY
+            ).asBuilder(),
             this::runCase
         );
     }
@@ -115,8 +127,11 @@ public class SingleValueQueryTests extends MapperServiceTestCase {
     public void testNotMatchSome() throws IOException {
         int max = between(1, 100);
         testCase(
-            new SingleValueQuery(new RangeQuery(Source.EMPTY, "i", null, false, max, false, null), "foo", false).negate(Source.EMPTY)
-                .asBuilder(),
+            new SingleValueQuery(
+                new RangeQuery(Source.EMPTY, "i", null, false, max, false, null),
+                "foo",
+                setup.useSyntheticSourceDelegate()
+            ).negate(Source.EMPTY).asBuilder(),
             (fieldValues, count) -> runCase(fieldValues, count, max, 100)
         );
     }
@@ -186,7 +201,13 @@ public class SingleValueQueryTests extends MapperServiceTestCase {
         public XContentBuilder mapping(XContentBuilder builder) throws IOException {
             builder.startObject("i").field("type", "long").endObject();
             builder.startObject("str").field("type", "text").endObject();
-            return builder.startObject("foo").field("type", fieldType).endObject();
+            builder.startObject("foo").field("type", fieldType);
+            if (fieldType.equals("text")) {
+                builder.startObject("fields");
+                builder.startObject("raw").field("type", "keyword").field("ignore_above", 256).endObject();
+                builder.endObject();
+            }
+            return builder.endObject();
         }
 
         @Override
@@ -198,6 +219,11 @@ public class SingleValueQueryTests extends MapperServiceTestCase {
                 iw.addDocument(docFor(i, values));
             }
             return fieldValues;
+        }
+
+        @Override
+        public boolean useSyntheticSourceDelegate() {
+            return fieldType.equals("text");
         }
 
         private List<Object> values(int i) {
@@ -226,7 +252,7 @@ public class SingleValueQueryTests extends MapperServiceTestCase {
                 case "byte" -> randomByte();
                 case "double" -> randomDouble();
                 case "float" -> randomFloat();
-                case "keyword" -> randomAlphaOfLength(5);
+                case "keyword", "text" -> randomAlphaOfLength(5);
                 default -> throw new UnsupportedOperationException();
             };
         }
@@ -251,6 +277,12 @@ public class SingleValueQueryTests extends MapperServiceTestCase {
                 case "keyword" -> {
                     for (Object v : values) {
                         fields.add(new KeywordField("foo", v.toString(), Field.Store.NO));
+                    }
+                }
+                case "text" -> {
+                    for (Object v : values) {
+                        fields.add(new TextField("foo", v.toString(), Field.Store.NO));
+                        fields.add(new KeywordField("foo.raw", v.toString(), Field.Store.NO));
                     }
                 }
                 default -> throw new UnsupportedOperationException();
@@ -279,6 +311,11 @@ public class SingleValueQueryTests extends MapperServiceTestCase {
                 fieldValues.add(List.of());
             }
             return fieldValues;
+        }
+
+        @Override
+        public boolean useSyntheticSourceDelegate() {
+            return randomBoolean();
         }
     }
 }

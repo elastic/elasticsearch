@@ -145,7 +145,6 @@ Some concepts are applicable to both cluster and project scopes, e.g. [persisten
 ### Translog
 
 [Basic write model]:https://www.elastic.co/guide/en/elasticsearch/reference/current/docs-replication.html
-[History retention]:https://www.elastic.co/guide/en/elasticsearch/reference/current/index-modules-history-retention.html
 
 It is important to understand first the [Basic write model] of documents:
 documents are written to Lucene in-memory buffers, then "refreshed" to searchable segments which may not be persisted on disk, and finally "flushed" to a durable Lucene commit on disk.
@@ -158,7 +157,6 @@ The translog ultimately truncates operations once they have been flushed to disk
 Main usages of the translog are:
 
 * During recovery, an index shard can be recovered up to at least the last acknowledged operation by replaying the translog onto the last flushed commit of the shard.
-* During a replica recovery, it may recover some lost operations from the primary's translog if needed before falling back to a complete recovery of Lucene files from the primary.
 * Facilitate real-time (m)GETs of documents without refreshing.
 
 #### Translog Truncation
@@ -168,17 +166,15 @@ Main usages of the translog are:
 Translog files are automatically truncated when they are no longer needed, specifically after all their operations have been persisted by Lucene commits on disk.
 Lucene commits are initiated by flushes (e.g., with the index [Flush API]).
 
-Flushes may also be automatically initiated by Elasticsearch, e.g., if the translog exceeds a configurable size ([`INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING`](https://github.com/elastic/elasticsearch/blob/dd1db5031ee7fdac284753c0c3b096b0e981d71a/server/src/main/java/org/elasticsearch/index/IndexSettings.java#L352)) or age ([`INDEX_TRANSLOG_FLUSH_THRESHOLD_AGE_SETTING`](https://github.com/elastic/elasticsearch/blob/dd1db5031ee7fdac284753c0c3b096b0e981d71a/server/src/main/java/org/elasticsearch/index/IndexSettings.java#L370)),which ultimately truncates the translog as well.
+Flushes may also be automatically initiated by Elasticsearch, e.g., if the translog exceeds a configurable size ([`INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING`](https://github.com/elastic/elasticsearch/blob/dd1db5031ee7fdac284753c0c3b096b0e981d71a/server/src/main/java/org/elasticsearch/index/IndexSettings.java#L352)) or age ([`INDEX_TRANSLOG_FLUSH_THRESHOLD_AGE_SETTING`](https://github.com/elastic/elasticsearch/blob/dd1db5031ee7fdac284753c0c3b096b0e981d71a/server/src/main/java/org/elasticsearch/index/IndexSettings.java#L370)), which ultimately truncates the translog as well.
 
 #### Acknowledging writes
 
 A bulk request will repeateadly call ultimately the Engine methods such as [`index()` or `delete()`](https://github.com/elastic/elasticsearch/blob/591fa87e43a509d3eadfdbbb296cdf08453ea91a/server/src/main/java/org/elasticsearch/index/engine/Engine.java#L546-L564) which adds operations to the Translog.
-Finally, the AfterWrite action of the `[TransportWriteAction](https://github.com/elastic/elasticsearch/blob/main/server/src/main/java/org/elasticsearch/action/support/replication/TransportWriteAction.java)` will call `[indexShard.syncAfterWrite()](https://github.com/elastic/elasticsearch/blob/387eef070c25ed57e4139158e7e7e0ed097c8c98/server/src/main/java/org/elasticsearch/action/support/replication/TransportWriteAction.java#L548)` which will put the last written transloc Location of the bulk request into a `[AsyncIOProcessor](https://github.com/elastic/elasticsearch/blob/main/server/src/main/java/org/elasticsearch/common/util/concurrent/AsyncIOProcessor.java)` that is responsible for gradually fsync'ing the Translog and notifying any waiters.
+Finally, the AfterWrite action of the [`TransportWriteAction`](https://github.com/elastic/elasticsearch/blob/main/server/src/main/java/org/elasticsearch/action/support/replication/TransportWriteAction.java) will call [`indexShard.syncAfterWrite()`](https://github.com/elastic/elasticsearch/blob/387eef070c25ed57e4139158e7e7e0ed097c8c98/server/src/main/java/org/elasticsearch/action/support/replication/TransportWriteAction.java#L548) which will put the last written translog [`Location`](https://github.com/elastic/elasticsearch/blob/693f3bfe30271d77a6b3147e4519b4915cbb395d/server/src/main/java/org/elasticsearch/index/translog/Translog.java#L977) of the bulk request into a [`AsyncIOProcessor`](https://github.com/elastic/elasticsearch/blob/main/server/src/main/java/org/elasticsearch/common/util/concurrent/AsyncIOProcessor.java) that is responsible for gradually fsync'ing the Translog and notifying any waiters.
 Ultimately the bulk request is notified that the translog has fsync'ed passed the requested location, and can continue to acknowledge the bulk request.
 
 #### Translog internals
-
-[History retention]:https://www.elastic.co/guide/en/elasticsearch/reference/current/index-modules-history-retention.html
 
 Each translog is a sequence of files, each identified by a translog generation ID, each containing a sequence of operations, with the last file open for writes.
 The last file has a part which has been fsync'ed to disk, and a part which has been written but not necessarily fsync'ed yet to disk.
@@ -191,7 +187,6 @@ A few more words on terminology and classes used around the translog Java packag
 A [`Location`](https://github.com/elastic/elasticsearch/blob/693f3bfe30271d77a6b3147e4519b4915cbb395d/server/src/main/java/org/elasticsearch/index/translog/Translog.java#L977) of an operation is defined by the translog generation file it is contained in, the offset of the operation in that file, and the number of bytes that encode that operation.
 An [`Operation`](https://github.com/elastic/elasticsearch/blob/693f3bfe30271d77a6b3147e4519b4915cbb395d/server/src/main/java/org/elasticsearch/index/translog/Translog.java#L1087) can be a document indexed, a document deletion, or a no-op operation.
 A [`Snapshot`](https://github.com/elastic/elasticsearch/blob/693f3bfe30271d77a6b3147e4519b4915cbb395d/server/src/main/java/org/elasticsearch/index/translog/Translog.java#L711) iterator can be created to iterate over a range of requested operation sequence numbers read from the translog files.
-A retention lock can be acquired for [History retention] purposes, e.g., for potentially facilitating a replica shard's recovery, which prohibits truncating the translog files.
 The [`sync()`](https://github.com/elastic/elasticsearch/blob/693f3bfe30271d77a6b3147e4519b4915cbb395d/server/src/main/java/org/elasticsearch/index/translog/Translog.java#L813) method is the one that fsync's the current translog generation file to disk, and updates the checkpoint file with the last fsync'ed operation and location.
 The [`rollGeneration()`](https://github.com/elastic/elasticsearch/blob/693f3bfe30271d77a6b3147e4519b4915cbb395d/server/src/main/java/org/elasticsearch/index/translog/Translog.java#L1656) method is the one that rolls the translog, creating a new translog generation, e.g., called during an index flush.
 The [`createEmptyTranslog()`](https://github.com/elastic/elasticsearch/blob/693f3bfe30271d77a6b3147e4519b4915cbb395d/server/src/main/java/org/elasticsearch/index/translog/Translog.java#L1929) method creates a new translog, e.g., for a new empty index shard.

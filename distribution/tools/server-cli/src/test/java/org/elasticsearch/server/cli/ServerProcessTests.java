@@ -20,7 +20,6 @@ import org.elasticsearch.common.settings.KeyStoreWrapper;
 import org.elasticsearch.common.settings.SecureSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.IOUtils;
-import org.elasticsearch.env.Environment;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.AfterClass;
 import org.junit.Before;
@@ -33,7 +32,6 @@ import java.io.PipedOutputStream;
 import java.io.PrintStream;
 import java.io.UncheckedIOException;
 import java.nio.charset.StandardCharsets;
-import java.nio.file.FileAlreadyExistsException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -209,15 +207,7 @@ public class ServerProcessTests extends ESTestCase {
     }
 
     ServerArgs createServerArgs(boolean daemonize, boolean quiet) {
-        return new ServerArgs(
-            daemonize,
-            quiet,
-            null,
-            secrets,
-            nodeSettings.build(),
-            esHomeDir.resolve("config"),
-            logsDir
-        );
+        return new ServerArgs(daemonize, quiet, null, secrets, nodeSettings.build(), esHomeDir.resolve("config"), logsDir);
     }
 
     ServerProcess startProcess(boolean daemonize, boolean quiet) throws Exception {

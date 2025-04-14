@@ -1,0 +1,5 @@
+pr: 126704
+summary: Initial changes to support dense vectors off-heap stats
+area: "Vector Search, Search"
+type: enhancement
+issues: []

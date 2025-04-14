@@ -35,7 +35,7 @@ public class GetDataStreamLifecycleActionTests extends ESTestCase {
     public void testDefaultLifecycleResponseToXContent() throws Exception {
         boolean isInternalDataStream = randomBoolean();
         GetDataStreamLifecycleAction.Response.DataStreamLifecycle dataStreamLifecycle = createDataStreamLifecycle(
-            DataStreamLifecycle.DEFAULT,
+            DataStreamLifecycle.DEFAULT_DATA_LIFECYCLE,
             isInternalDataStream
         );
         GetDataStreamLifecycleAction.Response response = new GetDataStreamLifecycleAction.Response(List.of(dataStreamLifecycle));

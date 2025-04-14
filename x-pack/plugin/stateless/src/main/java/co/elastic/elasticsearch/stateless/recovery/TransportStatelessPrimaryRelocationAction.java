@@ -69,7 +69,7 @@ import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.monitor.jvm.HotThreads;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.TransportRequest;
+import org.elasticsearch.transport.AbstractTransportRequest;
 import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportService;
 
@@ -551,7 +551,7 @@ public class TransportStatelessPrimaryRelocationAction extends TransportAction<
         return true;
     }
 
-    public static class PrimaryContextHandoffRequest extends TransportRequest {
+    public static class PrimaryContextHandoffRequest extends AbstractTransportRequest {
 
         private final long recoveryId;
         private final ShardId shardId;

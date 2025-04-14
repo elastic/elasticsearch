@@ -250,7 +250,7 @@ public class DiskThresholdDeciderIT extends DiskUsageIntegTestCase {
 
         final String indexName = randomIdentifier();
         createIndex(indexName, indexSettings(6, 0).put(INDEX_STORE_STATS_REFRESH_INTERVAL_SETTING.getKey(), "0ms").build());
-        var shardSizes = createReasonableSizedShards(indexName);
+        final var shardSizes = createReasonableSizedShards(indexName);
 
         final CreateSnapshotResponse createSnapshotResponse = clusterAdmin().prepareCreateSnapshot(TEST_REQUEST_TIMEOUT, "repo", "snap")
             .setIndices(indexName)

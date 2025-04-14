@@ -1,7 +1,9 @@
 ---
 navigation_title: "Rank Vectors"
 mapped_pages:
-  - https://www.elastic.co/guide/en/elasticsearch/reference/master/rank-vectors.html
+  - https://www.elastic.co/guide/en/elasticsearch/reference/current/rank-vectors.html
+  # That link will 404 until 8.18 is current
+  # (see https://www.elastic.co/guide/en/elasticsearch/reference/8.18/rank-vectors.html)
 ---
 
 # Rank Vectors [rank-vectors]

@@ -17,7 +17,9 @@ import org.elasticsearch.search.retriever.CompoundRetrieverBuilder;
 import org.elasticsearch.search.retriever.RetrieverBuilder;
 import org.elasticsearch.search.retriever.RetrieverBuilderWrapper;
 import org.elasticsearch.search.retriever.RetrieverParserContext;
+import org.elasticsearch.search.sort.FieldSortBuilder;
 import org.elasticsearch.search.sort.ScoreSortBuilder;
+import org.elasticsearch.search.sort.ShardDocSortField;
 import org.elasticsearch.search.sort.SortBuilder;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
@@ -90,11 +92,22 @@ public final class PinnedRetrieverBuilder extends CompoundRetrieverBuilder<Pinne
 
     private void validateSort(SearchSourceBuilder source) {
         List<SortBuilder<?>> sorts = source.sorts();
-        if (sorts != null && sorts.isEmpty() == false) {
+        if (sorts == null || sorts.isEmpty()) {
             return;
         }
-        if (sorts.stream().anyMatch(sort -> sort instanceof ScoreSortBuilder == false)) {
-            throw new IllegalArgumentException("Pinned retriever only supports sorting by score. Custom sorting is not allowed.");
+        for (SortBuilder<?> sort : sorts) {
+            if (sort instanceof ScoreSortBuilder) {
+                continue;
+            }
+            if (sort instanceof FieldSortBuilder) {
+                 FieldSortBuilder fieldSort = (FieldSortBuilder) sort;
+                 if (ShardDocSortField.NAME.equals(fieldSort.getFieldName())) {
+                     continue;
+                 }
+            }
+            throw new IllegalArgumentException(
+                "Pinned retriever only supports sorting by score. Custom sorting is not allowed."
+            );
         }
     }
 

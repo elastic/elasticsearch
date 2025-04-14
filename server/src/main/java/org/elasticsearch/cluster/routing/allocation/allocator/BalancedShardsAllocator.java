@@ -1156,7 +1156,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
         }
     }
 
-    static class ModelNode implements Iterable<ModelIndex> {
+    public static class ModelNode implements Iterable<ModelIndex> {
         private int numShards = 0;
         private double writeLoad = 0.0;
         private double diskUsageInBytes = 0.0;
@@ -1166,7 +1166,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
         private final RoutingNode routingNode;
         private final Map<ProjectIndex, ModelIndex> indices;
 
-        ModelNode(WriteLoadForecaster writeLoadForecaster, Metadata metadata, ClusterInfo clusterInfo, RoutingNode routingNode) {
+        public ModelNode(WriteLoadForecaster writeLoadForecaster, Metadata metadata, ClusterInfo clusterInfo, RoutingNode routingNode) {
             this.writeLoadForecaster = writeLoadForecaster;
             this.metadata = metadata;
             this.clusterInfo = clusterInfo;
@@ -1299,7 +1299,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
         }
     }
 
-    static final class NodeSorter extends IntroSorter {
+    public static final class NodeSorter extends IntroSorter {
 
         final ModelNode[] modelNodes;
         /* the nodes weights with respect to the current weight function / index */
@@ -1309,7 +1309,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
         private final Balancer balancer;
         private float pivotWeight;
 
-        NodeSorter(ModelNode[] modelNodes, WeightFunction function, Balancer balancer) {
+        public NodeSorter(ModelNode[] modelNodes, WeightFunction function, Balancer balancer) {
             this.function = function;
             this.balancer = balancer;
             this.modelNodes = modelNodes;

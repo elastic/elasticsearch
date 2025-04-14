@@ -586,7 +586,11 @@ final class ES819TSDBDocValuesConsumer extends XDocValuesConsumer {
                     }
                 } finally {
                     if (addressDataOutputName != null) {
-                        org.apache.lucene.util.IOUtils.deleteFilesIgnoringExceptions(dir, addressDataOutputName);
+                        try {
+                            dir.deleteFile(addressDataOutputName);
+                        } catch (final IOException ignored) {
+                            // ignore exception
+                        }
                     }
                 }
             }

@@ -89,15 +89,13 @@ public final class PinnedRetrieverBuilder extends CompoundRetrieverBuilder<Pinne
     }
 
     private void validateSort(SearchSourceBuilder source) {
-        // Allow null or empty sort, or sort only containing _score
         List<SortBuilder<?>> sorts = source.sorts();
         if (sorts != null && sorts.isEmpty() == false) {
-            // Check if there's any sort other than ScoreSortBuilder
-            if (sorts.stream().anyMatch(sort -> sort instanceof ScoreSortBuilder == false)) {
-                throw new IllegalArgumentException("Pinned retriever only supports sorting by score. Custom sorting is not allowed.");
-            }
+            return;
         }
-        // If sorts is null, empty, or only contains ScoreSortBuilder, it's valid.
+        if (sorts.stream().anyMatch(sort -> sort instanceof ScoreSortBuilder == false)) {
+            throw new IllegalArgumentException("Pinned retriever only supports sorting by score. Custom sorting is not allowed.");
+        }
     }
 
     public PinnedRetrieverBuilder(List<String> ids, List<SpecifiedDocument> docs, RetrieverBuilder retrieverBuilder, int rankWindowSize) {

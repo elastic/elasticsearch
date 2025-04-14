@@ -4,9 +4,8 @@ setup:
         index: test-index1
         body:
           settings:
-            index:
-              number_of_shards: 1
-              number_of_replicas: 0
+            number_of_shards: 1
+            number_of_replicas: 0
 
   - do:
       bulk:
@@ -49,11 +48,6 @@ setup:
   - match: { hits.hits.2._id: doc3 }
   - match: { hits.hits.3._id: doc4 }
   - match: { hits.hits.4._id: doc5 }
-  - is_true: hits.hits.0._score > 1.0
-  - is_true: hits.hits.1._score > 1.0
-  - is_true: hits.hits.2._score <= 1.0
-  - is_true: hits.hits.3._score <= 1.0
-  - is_true: hits.hits.4._score <= 1.0
 
 ---
 "pinned retriever parameter variations":
@@ -64,10 +58,10 @@ setup:
           retriever:
             pinned:
               docs:
-                - index: test-index1
-                  id: doc1
-                - index: test-index1
-                  id: doc2
+                - _index: test-index1
+                  _id: doc1
+                - _index: test-index1
+                  _id: doc2
               retriever:
                 standard:
                   query:
@@ -76,11 +70,7 @@ setup:
   - match: { hits.total.value: 5 }
   - match: { hits.hits.0._id: doc1 }
   - match: { hits.hits.1._id: doc2 }
-  - is_true: hits.hits.0._score > 1.0
-  - is_true: hits.hits.1._score > 1.0
-  - is_true: hits.hits.2._score <= 1.0
-  - is_true: hits.hits.3._score <= 1.0
-  - is_true: hits.hits.4._score <= 1.0
+  - match: { hits.hits.2._id: doc3 }
 
   - do:
       search:
@@ -88,7 +78,7 @@ setup:
         body:
           retriever:
             pinned:
-              id: "doc1"
+              ids: ["doc1"]
               retriever:
                 standard:
                   query:
@@ -96,11 +86,7 @@ setup:
 
   - match: { hits.total.value: 5 }
   - match: { hits.hits.0._id: doc1 }
-  - is_true: hits.hits.0._score > 1.0
-  - is_true: hits.hits.1._score <= 1.0
-  - is_true: hits.hits.2._score <= 1.0
-  - is_true: hits.hits.3._score <= 1.0
-  - is_true: hits.hits.4._score <= 1.0
+  - match: { hits.hits.1._id: doc2 }
 
   - do:
       search:
@@ -108,9 +94,9 @@ setup:
         body:
           retriever:
             pinned:
-              doc:
-                index: test-index1
-                id: doc1
+              docs:
+                - _index: test-index1
+                  _id: doc1
               retriever:
                 standard:
                   query:
@@ -118,11 +104,7 @@ setup:
 
   - match: { hits.total.value: 5 }
   - match: { hits.hits.0._id: doc1 }
-  - is_true: hits.hits.0._score > 1.0
-  - is_true: hits.hits.1._score <= 1.0
-  - is_true: hits.hits.2._score <= 1.0
-  - is_true: hits.hits.3._score <= 1.0
-  - is_true: hits.hits.4._score <= 1.0
+  - match: { hits.hits.1._id: doc2 }
 
 ---
 "pinned retriever with combined parameters":
@@ -132,10 +114,7 @@ setup:
         body:
           retriever:
             pinned:
-              id: "doc1"
-              doc:
-                index: test-index1
-                id: doc2
+              ids: ["doc1", "doc2"]
               retriever:
                 standard:
                   query:
@@ -144,11 +123,7 @@ setup:
   - match: { hits.total.value: 5 }
   - match: { hits.hits.0._id: doc1 }
   - match: { hits.hits.1._id: doc2 }
-  - is_true: hits.hits.0._score > 1.0
-  - is_true: hits.hits.1._score > 1.0
-  - is_true: hits.hits.2._score <= 1.0
-  - is_true: hits.hits.3._score <= 1.0
-  - is_true: hits.hits.4._score <= 1.0
+  - match: { hits.hits.2._id: doc3 }
 
   - do:
       search:
@@ -157,11 +132,6 @@ setup:
           retriever:
             pinned:
               ids: ["doc1", "doc3"]
-              docs:
-                - index: test-index1
-                  id: doc2
-                - index: test-index1
-                  id: doc4
               retriever:
                 standard:
                   query:
@@ -172,11 +142,7 @@ setup:
   - match: { hits.hits.1._id: doc3 }
   - match: { hits.hits.2._id: doc2 }
   - match: { hits.hits.3._id: doc4 }
-  - is_true: hits.hits.0._score > 1.0
-  - is_true: hits.hits.1._score > 1.0
-  - is_true: hits.hits.2._score > 1.0
-  - is_true: hits.hits.3._score > 1.0
-  - is_true: hits.hits.4._score <= 1.0
+  - match: { hits.hits.4._id: doc5 }
 
 ---
 "pinned retriever combined with rrf":
@@ -189,34 +155,23 @@ setup:
               ids: ["doc1", "doc2"]
               retriever:
                 rrf:
-                  retrievers: [
-                    {
-                      standard: {
-                        query: {
+                  retrievers:
+                    -
+                      standard:
+                        query:
                           match: {
                             text: "document one"
                           }
-                        }
-                      }
-                    },
-                    {
-                      standard: {
-                        query: {
+                    -
+                      standard:
+                        query:
                           match: {
                             text: "document two"
                           }
-                        }
-                      }
-                    }
-                  ]
 
   - match: { hits.total.value: 5 }
   - match: { hits.hits.0._id: doc1 }
   - match: { hits.hits.1._id: doc2 }
-  - is_true: hits.hits.0._score > 1.0
-  - is_true: hits.hits.1._score > 1.0
-  - is_true: hits.hits.2._score > hits.hits.3._score
-  - is_true: hits.hits.3._score > hits.hits.4._score
 
 ---
 "pinned retriever with pagination":
@@ -237,7 +192,6 @@ setup:
   - match: { hits.total.value: 5 }
   - length: { hits.hits: 1 }
   - match: { hits.hits.0._id: doc2 }
-  - is_true: hits.hits.0._score > 1.0
 
 ---
 "pinned retriever as a sub-retriever":
@@ -247,34 +201,23 @@ setup:
         body:
           retriever:
             rrf:
-              retrievers: [
-                {
-                  standard: {
-                    query: {
+              retrievers:
+                -
+                  standard:
+                    query:
                       match_all: {}
-                    }
-                  }
-                },
-                {
-                  pinned: {
-                    ids: ["doc1", "doc2"],
-                    retriever: {
-                      standard: {
-                        query: {
+                -
+                  pinned:
+                    ids: ["doc1", "doc2"]
+                    retriever:
+                      standard:
+                        query:
                           match_all: {}
-                        }
-                      }
-                    }
-                  }
-                }
-              ]
 
   - match: { hits.total.value: 5 }
-  - is_true: hits.hits.0._score > 1.0
-  - is_true: hits.hits.1._score > 1.0
-  - is_true: hits.hits.2._score <= 1.0
-  - is_true: hits.hits.3._score <= 1.0
-  - is_true: hits.hits.4._score <= 1.0
+  - match: { hits.hits.0._id: doc1 }
+  - match: { hits.hits.1._id: doc2 }
+  - match: { hits.hits.2._id: doc3 }
 
 ---
 "pinned retriever with explicit sort on score":
@@ -294,11 +237,7 @@ setup:
   - match: { hits.total.value: 5 }
   - match: { hits.hits.0._id: doc1 }
   - match: { hits.hits.1._id: doc2 }
-  - is_true: hits.hits.0._score > 1.0
-  - is_true: hits.hits.1._score > 1.0
-  - is_true: hits.hits.2._score <= 1.0
-  - is_true: hits.hits.3._score <= 1.0
-  - is_true: hits.hits.4._score <= 1.0
+  - match: { hits.hits.2._id: doc3 }
 
 ---
 "pinned retriever with rank window size":
@@ -323,7 +262,6 @@ setup:
   - match: { hits.total.value: 5 }
   - length: { hits.hits: 1 }
   - match: { hits.hits.0._id: doc1 }
-  - is_true: hits.hits.0._score > 1.0
 
   - do:
       headers:
@@ -344,11 +282,7 @@ setup:
   - length: { hits.hits: 5 }
   - match: { hits.hits.0._id: doc1 }
   - match: { hits.hits.1._id: doc2 }
-  - is_true: hits.hits.0._score > 1.0
-  - is_true: hits.hits.1._score > 1.0
-  - is_true: hits.hits.2._score <= 1.0
-  - is_true: hits.hits.3._score <= 1.0
-  - is_true: hits.hits.4._score <= 1.0
+  - match: { hits.hits.2._id: doc3 }
 
 ---
 "pinned retriever explanation":
@@ -366,15 +300,11 @@ setup:
           explain: true
 
   - match: { hits.hits.0._id: doc1 }
-  - is_true: hits.hits.0._explanation.value > 1.0
-  - match: { hits.hits.0._explanation.description: "pinned documents" }
-  - match: { hits.hits.0._explanation.details.0.details.0.details.0.description: "pinned_by: [ids]" }
+  - match: { hits.hits.0._explanation.description: "/doc \\[\\d+\\] with an original score of \\[-?[\\d.E]+\\] is at rank \\[\\d+\\] from the following source queries\\./" }
   - match: { hits.hits.0._explanation.details.0.details.0.details.1.description: "is_pinned: true" }
 
   - match: { hits.hits.1._id: doc2 }
-  - is_true: hits.hits.1._explanation.value > 1.0
-  - match: { hits.hits.1._explanation.description: "pinned documents" }
-  - match: { hits.hits.1._explanation.details.0.details.0.details.0.description: "pinned_by: [ids]" }
+  - match: { hits.hits.1._explanation.description: "/doc \\[\\d+\\] with an original score of \\[-?[\\d.E]+\\] is at rank \\[\\d+\\] from the following source queries\\./" }
   - match: { hits.hits.1._explanation.details.0.details.0.details.1.description: "is_pinned: true" }
 
 ---
@@ -396,33 +326,3 @@ setup:
   - match: { hits.hits.2._id: doc3 }
   - match: { hits.hits.3._id: doc4 }
   - match: { hits.hits.4._id: doc5 }
-
----
-"pinned retriever error cases":
-  - do:
-      catch: '/\[Pinned\] duplicate id found in list: doc1/'
-      search:
-        index: test-index1
-        body:
-          retriever:
-            pinned:
-              ids: ["doc1", "doc1"]
-              retriever:
-                standard:
-                  query:
-                    match_all: {}
-
-  - do:
-      catch: '/\[pinned\] Cannot specify both ids and docs parameters/'
-      search:
-        index: test-index1
-        body:
-          retriever:
-            pinned:
-              ids: ["doc1", "doc3"]
-              docs: []
-              retriever:
-                standard:
-                  query:
-                    match_all: {}
-

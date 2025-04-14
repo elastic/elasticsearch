@@ -186,7 +186,7 @@ final class CefParser {
         entry("deviceDnsDomain", new ExtensionMapping("deviceDnsDomain", StringType, "observer.registered_domain")),
         entry("cat", new ExtensionMapping("deviceEventCategory", StringType, null)),
         entry("deviceExternalId", new ExtensionMapping("deviceExternalId", StringType, "observer.name")),
-        entry("deviceFacility", new ExtensionMapping("deviceFacility", IntegerType, "log.syslog.facility.code")),
+        entry("deviceFacility", new ExtensionMapping("deviceFacility", StringType, null)),
         entry("dvchost", new ExtensionMapping("deviceHostName", StringType, "observer.hostname")),
         entry("deviceInboundInterface", new ExtensionMapping("deviceInboundInterface", StringType, "observer.ingress.interface.name")),
         entry("dvcmac", new ExtensionMapping("deviceMacAddress", MACAddressType, "observer.mac")),

@@ -823,6 +823,7 @@ public class CefProcessorTests extends ESTestCase {
                                 entry("flexString2", "flexString2"),
                                 entry("deviceCustomNumber3Label", "cn3Label"),
                                 entry("flexString1", "flexString1"),
+                                entry("deviceFacility", "16"),
                                 entry("deviceCustomString4Label", "cs4Label"),
                                 entry("flexString2Label", "flexString2Label"),
                                 entry("deviceCustomString3", "customString3"),
@@ -842,7 +843,6 @@ public class CefProcessorTests extends ESTestCase {
                     )
                 ),
                 entry("host", Map.of("nat", Map.of("ip", "10.0.0.3"))),
-                entry("log", Map.of("syslog", Map.of("facility", Map.of("code", 16)))),
                 entry(
                     "observer",
                     Map.ofEntries(

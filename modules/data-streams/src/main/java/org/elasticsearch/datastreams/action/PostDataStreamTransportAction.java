@@ -155,111 +155,7 @@ public class PostDataStreamTransportAction extends TransportMasterNodeAction<Pos
                 @Override
                 public void onResponse(AcknowledgedResponse acknowledgedResponse) {
                     if (acknowledgedResponse.isAcknowledged()) {
-                        final List<Index> concreteIndices = clusterService.state()
-                            .projectState(projectResolver.getProjectId())
-                            .metadata()
-                            .dataStreams()
-                            .get(dataStreamName)
-                            .getIndices();
-                        final Settings requestSettings = templateOverrides.template().settings();
-                        final List<PostDataStreamAction.DataStreamResponse.IndexSettingResult> indexSettingResults = new ArrayList<>();
-                        CountDownActionListener settingCountDownListener = new CountDownActionListener(
-                            requestSettings.size() + 1,
-                            new ActionListener<>() {
-                                // Called once all settings are completed for all indices
-                                @Override
-                                public void onResponse(Void unused) {
-                                    ComposableIndexTemplate effectiveIndexTemplate = clusterService.state()
-                                        .projectState(projectResolver.getProjectId())
-                                        .metadata()
-                                        .dataStreams()
-                                        .get(dataStreamName)
-                                        .getEffectiveIndexTemplate(
-                                            clusterService.state().projectState(projectResolver.getProjectId()).metadata()
-                                        );
-                                    listener.onResponse(
-                                        new PostDataStreamAction.DataStreamResponse(
-                                            dataStreamName,
-                                            true,
-                                            null,
-                                            effectiveIndexTemplate,
-                                            indexSettingResults
-                                        )
-                                    );
-                                }
-
-                                @Override
-                                public void onFailure(Exception e) {
-                                    listener.onFailure(e);
-                                }
-                            }
-                        );
-                        settingCountDownListener.onResponse(null); // handles the case when there were zero settings
-                        for (String setting : requestSettings.keySet()) {
-                            if (APPLY_TO_BACKING_INDICES.contains(setting)) {
-                                final List<PostDataStreamAction.DataStreamResponse.IndexSettingError> errors = new ArrayList<>();
-                                CountDownActionListener indexCountDownListener = new CountDownActionListener(
-                                    concreteIndices.size() + 1,
-                                    new ActionListener<>() {
-                                        // Called when all indices for a single setting are complete
-                                        @Override
-                                        public void onResponse(Void unused) {
-                                            indexSettingResults.add(
-                                                new PostDataStreamAction.DataStreamResponse.IndexSettingResult(setting, true, errors)
-                                            );
-                                            settingCountDownListener.onResponse(null);
-                                        }
-
-                                        @Override
-                                        public void onFailure(Exception e) {
-                                            settingCountDownListener.onFailure(e);
-                                        }
-                                    }
-                                );
-                                indexCountDownListener.onResponse(null); // handles the case where there were zero indices
-                                for (Index index : concreteIndices) {
-                                    updateSingleSettingForSingleIndex(
-                                        setting,
-                                        requestSettings.get(setting),
-                                        index,
-                                        masterNodeTimeout,
-                                        ackTimeout,
-                                        new ActionListener<>() {
-                                            // Called when a single setting for a single index is complete
-                                            @Override
-                                            public void onResponse(AcknowledgedResponse response) {
-                                                if (response.isAcknowledged() == false) {
-                                                    errors.add(
-                                                        new PostDataStreamAction.DataStreamResponse.IndexSettingError(
-                                                            index.getName(),
-                                                            "Updating setting not acknowledged for unknown reason"
-                                                        )
-                                                    );
-                                                }
-                                                indexCountDownListener.onResponse(null);
-                                            }
-
-                                            @Override
-                                            public void onFailure(Exception e) {
-                                                errors.add(
-                                                    new PostDataStreamAction.DataStreamResponse.IndexSettingError(
-                                                        index.getName(),
-                                                        e.getMessage()
-                                                    )
-                                                );
-                                                indexCountDownListener.onResponse(null);
-                                            }
-                                        }
-                                    );
-                                }
-                            } else {
-                                // This is not a setting that we will apply to backing indices
-                                indexSettingResults.add(
-                                    new PostDataStreamAction.DataStreamResponse.IndexSettingResult(setting, false, List.of())
-                                );
-                                settingCountDownListener.onResponse(null);
-                            }
-                        }
+                        updateSettingsOnIndices(dataStreamName, templateOverrides, masterNodeTimeout, ackTimeout, listener);
                     } else {
                         listener.onResponse(
                             new PostDataStreamAction.DataStreamResponse(
@@ -281,13 +177,121 @@ public class PostDataStreamTransportAction extends TransportMasterNodeAction<Pos
         );
     }
 
+    private void updateSettingsOnIndices(
+        String dataStreamName,
+        ComposableIndexTemplate templateOverrides,
+        TimeValue masterNodeTimeout,
+        TimeValue ackTimeout,
+        ActionListener<PostDataStreamAction.DataStreamResponse> listener
+    ) {
+        final List<Index> concreteIndices = clusterService.state()
+            .projectState(projectResolver.getProjectId())
+            .metadata()
+            .dataStreams()
+            .get(dataStreamName)
+            .getIndices();
+        final Settings requestSettings = templateOverrides.template().settings();
+        final List<PostDataStreamAction.DataStreamResponse.IndexSettingResult> indexSettingResults = new ArrayList<>();
+        CountDownActionListener settingCountDownListener = new CountDownActionListener(requestSettings.size() + 1, new ActionListener<>() {
+            // Called once all settings are completed for all indices
+            @Override
+            public void onResponse(Void unused) {
+                ComposableIndexTemplate effectiveIndexTemplate = clusterService.state()
+                    .projectState(projectResolver.getProjectId())
+                    .metadata()
+                    .dataStreams()
+                    .get(dataStreamName)
+                    .getEffectiveIndexTemplate(clusterService.state().projectState(projectResolver.getProjectId()).metadata());
+                listener.onResponse(
+                    new PostDataStreamAction.DataStreamResponse(dataStreamName, true, null, effectiveIndexTemplate, indexSettingResults)
+                );
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                listener.onFailure(e);
+            }
+        });
+        settingCountDownListener.onResponse(null); // handles the case when there were zero settings
+        for (String setting : requestSettings.keySet()) {
+            updateSingleSettingOnIndices(
+                setting,
+                requestSettings.get(setting),
+                concreteIndices,
+                masterNodeTimeout,
+                ackTimeout,
+                new ActionListener<PostDataStreamAction.DataStreamResponse.IndexSettingResult>() {
+                    @Override
+                    public void onResponse(PostDataStreamAction.DataStreamResponse.IndexSettingResult indexSettingResult) {
+                        indexSettingResults.add(indexSettingResult);
+                        settingCountDownListener.onResponse(null);
+                    }
+
+                    @Override
+                    public void onFailure(Exception e) {
+                        settingCountDownListener.onFailure(e);
+                    }
+                }
+            );
+        }
+    }
+
+    private void updateSingleSettingOnIndices(
+        String setting,
+        Object settingValue,
+        List<Index> concreteIndices,
+        TimeValue masterNodeTimeout,
+        TimeValue ackTimeout,
+        ActionListener<PostDataStreamAction.DataStreamResponse.IndexSettingResult> listener
+    ) {
+        if (APPLY_TO_BACKING_INDICES.contains(setting)) {
+            final List<PostDataStreamAction.DataStreamResponse.IndexSettingError> errors = new ArrayList<>();
+            CountDownActionListener indexCountDownListener = new CountDownActionListener(
+                concreteIndices.size() + 1,
+                new ActionListener<>() {
+                    // Called when all indices for a single setting are complete
+                    @Override
+                    public void onResponse(Void unused) {
+                        listener.onResponse(new PostDataStreamAction.DataStreamResponse.IndexSettingResult(setting, true, errors));
+                    }
+
+                    @Override
+                    public void onFailure(Exception e) {
+                        listener.onFailure(e);
+                    }
+                }
+            );
+            indexCountDownListener.onResponse(null); // handles the case where there were zero indices
+            for (Index index : concreteIndices) {
+                updateSingleSettingForSingleIndex(setting, settingValue, index, masterNodeTimeout, ackTimeout, new ActionListener<>() {
+                    // Called when a single setting for a single index is complete
+                    @Override
+                    public void onResponse(PostDataStreamAction.DataStreamResponse.IndexSettingError response) {
+                        if (response != null) {
+                            errors.add(response);
+                        }
+                        indexCountDownListener.onResponse(null);
+                    }
+
+                    @Override
+                    public void onFailure(Exception e) {
+                        indexCountDownListener.onFailure(e);
+                    }
+                });
+            }
+        } else {
+            // This is not a setting that we will apply to backing indices
+            listener.onResponse(new PostDataStreamAction.DataStreamResponse.IndexSettingResult(setting, false, List.of()));
+        }
+    }
+
     private void updateSingleSettingForSingleIndex(
         String settingName,
         Object settingValue,
         Index index,
         TimeValue masterNodeTimeout,
         TimeValue ackTimeout,
-        ActionListener<AcknowledgedResponse> listener
+        ActionListener<PostDataStreamAction.DataStreamResponse.IndexSettingError> listener
     ) {
         updateSettingsService.updateSettings(
             new UpdateSettingsClusterStateUpdateRequest(
@@ -299,7 +303,26 @@ public class PostDataStreamTransportAction extends TransportMasterNodeAction<Pos
                 UpdateSettingsClusterStateUpdateRequest.OnStaticSetting.REOPEN_INDICES,
                 index
             ),
-            listener
+            new ActionListener<>() {
+                @Override
+                public void onResponse(AcknowledgedResponse response) {
+                    PostDataStreamAction.DataStreamResponse.IndexSettingError error;
+                    if (response.isAcknowledged() == false) {
+                        error = new PostDataStreamAction.DataStreamResponse.IndexSettingError(
+                            index.getName(),
+                            "Updating setting not acknowledged for unknown reason"
+                        );
+                    } else {
+                        error = null;
+                    }
+                    listener.onResponse(error);
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    listener.onResponse(new PostDataStreamAction.DataStreamResponse.IndexSettingError(index.getName(), e.getMessage()));
+                }
+            }
         );
     }
 

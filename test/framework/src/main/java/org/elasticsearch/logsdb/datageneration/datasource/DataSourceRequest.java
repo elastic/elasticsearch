@@ -120,6 +120,12 @@ public interface DataSourceRequest<TResponse extends DataSourceResponse> {
         }
     }
 
+    record IpGenerator() implements DataSourceRequest<DataSourceResponse.IpGenerator> {
+        public DataSourceResponse.IpGenerator accept(DataSourceHandler handler) {
+            return handler.handle(this);
+        }
+    }
+
     record NullWrapper() implements DataSourceRequest<DataSourceResponse.NullWrapper> {
         public DataSourceResponse.NullWrapper accept(DataSourceHandler handler) {
             return handler.handle(this);

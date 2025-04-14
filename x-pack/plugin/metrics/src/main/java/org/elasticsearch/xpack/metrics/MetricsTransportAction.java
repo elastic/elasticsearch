@@ -226,14 +226,17 @@ public class MetricsTransportAction extends HandledTransportAction<
     ) {
         List<LuceneDocument> documents = new ArrayList<>();
         for (ResourceMetrics resourceMetrics : exportMetricsServiceRequest.getResourceMetricsList()) {
-            int resourceAttributesHash = resourceMetrics.getResource().getAttributesList().hashCode();
+            String resourceAttributesHash = getSimilarityHash(resourceMetrics.getResource().getAttributesList());
             List<IndexableField> resourceAttributes = getAttributeFields(
                 "resource.attributes.",
                 resourceMetrics.getResource().getAttributesList()
             );
             for (ScopeMetrics scopeMetrics : resourceMetrics.getScopeMetricsList()) {
-                int scopeAttributesHash = scopeMetrics.getScope().getAttributesList().hashCode();
-                List<IndexableField> scopeAttributes = getAttributeFields("scope.attributes.", scopeMetrics.getScope().getAttributesList());
+                String scopeAttributesHash = getSimilarityHash(scopeMetrics.getScope().getAttributesList());
+                List<IndexableField> scopeAttributes = getAttributeFields(
+                    "scope.attributes.",
+                    scopeMetrics.getScope().getAttributesList()
+                );
                 for (var metric : scopeMetrics.getMetricsList()) {
                     switch (metric.getDataCase()) {
                         case SUM -> documents.addAll(
@@ -270,11 +273,34 @@ public class MetricsTransportAction extends HandledTransportAction<
         return documents;
     }
 
+    private static String getSimilarityHash(List<KeyValue> attributesList) {
+        StringBuilder hash = new StringBuilder();
+        // hash of all keys
+        int keysHash = 1;
+        for (KeyValue keyValue : attributesList) {
+            keysHash = 31 * keysHash + keyValue.getKey().hashCode();
+        }
+        hash.append(Integer.toHexString(keysHash));
+
+        // hash of individual values
+        for (KeyValue keyValue : attributesList) {
+            hash.append(Integer.toHexString(keyValue.getValue().hashCode()));
+        }
+
+        // hash of all values
+        int valuesHash = 1;
+        for (KeyValue keyValue : attributesList) {
+            valuesHash = 31 * valuesHash + keyValue.getValue().hashCode();
+        }
+        hash.append(Integer.toHexString(valuesHash));
+        return hash.toString();
+    }
+
     private static List<LuceneDocument> createNumberDataPointDocs(
         List<IndexableField> resourceAttributes,
-        int resourceAttributesHash,
+        String resourceAttributesHash,
         List<IndexableField> scopeAttributes,
-        int scopeAttributesHash,
+        String scopeAttributesHash,
         Metric metric,
         List<NumberDataPoint> dataPoints,
         Map<String, TimeSeries> timeSeries,
@@ -324,9 +350,7 @@ public class MetricsTransportAction extends HandledTransportAction<
     private static void addField(List<IndexableField> fields, String fieldName, AnyValue value) {
         switch (value.getValueCase()) {
             case STRING_VALUE -> fields.add(SortedSetDocValuesField.indexedField(fieldName, new BytesRef(value.getStringValue())));
-            case BOOL_VALUE -> fields.add(
-                SortedNumericDocValuesField.indexedField(fieldName, value.getBoolValue() ? 1L : 0L)
-            );
+            case BOOL_VALUE -> fields.add(SortedNumericDocValuesField.indexedField(fieldName, value.getBoolValue() ? 1L : 0L));
             case BYTES_VALUE -> fields.add(
                 SortedSetDocValuesField.indexedField(fieldName, new BytesRef(value.getBytesValue().toByteArray()))
             );
@@ -348,18 +372,14 @@ public class MetricsTransportAction extends HandledTransportAction<
         Metric metric,
         @Nullable AggregationTemporality temporality,
         List<IndexableField> resourceAttributes,
-        int resourceAttributesHash,
+        String resourceAttributesHash,
         List<IndexableField> scopeAttributes,
-        int scopeAttributesHash,
+        String scopeAttributesHash,
         NumberDataPoint dp
     ) {
-        String tsid = ""
-                      + resourceAttributesHash
-                      + scopeAttributesHash
-                      + metric.getName()
-                      + metric.getUnit()
-                      + metric.getDataCase()
-                      + dp.getAttributesList().hashCode();
+        String metricDescriptor = metric.getName() + metric.getDataCase() + metric.getUnit();
+        String dpAttributesHash = getSimilarityHash(dp.getAttributesList());
+        String tsid = metricDescriptor + dpAttributesHash + scopeAttributesHash + resourceAttributesHash;
         if (temporality != null) {
             tsid += temporality.getNumber();
         }

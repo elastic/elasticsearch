@@ -209,7 +209,7 @@ final class ES819TSDBDocValuesConsumer extends DocValuesConsumer {
             meta.writeByte(IndexedDISI.DEFAULT_DENSE_RANK_POWER);
         }
 
-        return new long[] { numDocsWithValue, numValues };
+        return new long[]{numDocsWithValue, numValues};
     }
 
     @Override

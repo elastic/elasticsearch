@@ -23,6 +23,7 @@ import org.elasticsearch.rest.action.RestResponseListener;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.List;
+import java.util.Optional;
 
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 

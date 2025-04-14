@@ -37,19 +37,29 @@ public class DataNodeRequestSenderIT extends AbstractEsqlIntegTestCase {
     public void testRetryOnShardMovement() {
         internalCluster().ensureAtLeastNumDataNodes(2);
 
-        var index = randomIdentifier();
-
         assertAcked(
             client().admin()
                 .indices()
-                .prepareCreate(index)
+                .prepareCreate("index-1")
                 .setSettings(
                     Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1).put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
                 )
         );
-        client().prepareBulk(index)
+        assertAcked(
+            client().admin()
+                .indices()
+                .prepareCreate("index-2")
+                .setSettings(
+                    Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1).put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+                )
+        );
+        client().prepareBulk("index-1")
             .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
-            .add(new IndexRequest().source("key", "value"))
+            .add(new IndexRequest().source("key", "value-1"))
+            .get();
+        client().prepareBulk("index-2")
+            .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
+            .add(new IndexRequest().source("key", "value-2"))
             .get();
 
         var shouldMove = new AtomicBoolean(true);
@@ -62,17 +72,18 @@ public class DataNodeRequestSenderIT extends AbstractEsqlIntegTestCase {
                     if (shouldMove.compareAndSet(true, false)) {
                         var currentShardNodeId = clusterService().state()
                             .routingTable()
-                            .index(index)
+                            .index("index-1")
                             .shard(0)
                             .primaryShard()
                             .currentNodeId();
+                        // TODO replace this resolution with api call
                         assertAcked(
                             client().admin()
                                 .indices()
-                                .prepareUpdateSettings(index)
+                                .prepareUpdateSettings("index-1")
                                 .setSettings(Settings.builder().put("index.routing.allocation.exclude._id", currentShardNodeId))
                         );
-                        ensureGreen(index);
+                        ensureGreen("index-1");
                     }
                     // execute data node request
                     handler.messageReceived(request, channel, task);
@@ -80,8 +91,8 @@ public class DataNodeRequestSenderIT extends AbstractEsqlIntegTestCase {
             );
         }
 
-        try (EsqlQueryResponse resp = run("FROM " + randomFrom(index, index + "*"))) {
-            assertThat(getValuesList(resp), hasSize(1));
+        try (EsqlQueryResponse resp = run("FROM " + randomFrom("index-1,index-2", "index-*"))) {
+            assertThat(getValuesList(resp), hasSize(2));
         }
     }
 }

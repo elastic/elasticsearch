@@ -25,6 +25,7 @@ import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.compute.test.ComputeTestCase;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.index.shard.ShardNotFoundException;
 import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.TaskId;
@@ -50,6 +51,7 @@ import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
@@ -61,6 +63,7 @@ import static org.elasticsearch.cluster.node.DiscoveryNodeRole.DATA_WARM_NODE_RO
 import static org.elasticsearch.core.TimeValue.timeValueNanos;
 import static org.elasticsearch.xpack.esql.plugin.DataNodeRequestSender.NodeRequest;
 import static org.hamcrest.Matchers.anyOf;
+import static org.hamcrest.Matchers.arrayContaining;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
@@ -423,6 +426,55 @@ public class DataNodeRequestSenderTests extends ComputeTestCase {
         assertThat(take(sent, 1), anyOf(contains(nodeRequest(node2, shard2)), contains(nodeRequest(warmNode2, shard2))));
     }
 
+    public void testRetryMovedShard() {
+        var attempt = new AtomicInteger(0);
+        var response = safeGet(
+            sendRequests(
+                randomBoolean(),
+                -1,
+                (indices, predicate, listener) -> runWithDelay(() -> listener.onResponse(switch (attempt.incrementAndGet()) {
+                    case 1 -> new DataNodeRequestSender.TargetShards(Map.of(shard1, targetShard(shard1, node1)), 1, 0);
+                    case 2 -> new DataNodeRequestSender.TargetShards(Map.of(shard1, targetShard(shard1, node2)), 1, 0);
+                    default -> new DataNodeRequestSender.TargetShards(Map.of(shard1, targetShard(shard1, node3)), 1, 0);
+                })),
+                (node, shardIds, aliasFilters, listener) -> runWithDelay(
+                    () -> listener.onResponse(
+                        Objects.equals(node, node3)
+                            ? new DataNodeComputeResponse(List.of(), Map.of())
+                            : new DataNodeComputeResponse(List.of(), Map.of(shard1, new ShardNotFoundException(shard1)))
+                    )
+                )
+            )
+        );
+        assertThat(response.totalShards, equalTo(1));
+        assertThat(response.successfulShards, equalTo(1));
+        assertThat(response.skippedShards, equalTo(0));
+        assertThat(response.failedShards, equalTo(0));
+        assertThat(attempt.get(), equalTo(3));
+    }
+
+    public void testDoesNotRetryMovedShardIndefinitely() {
+        var attempt = new AtomicInteger(0);
+        var attemptIndices = new AtomicReference<String[]>();
+        var response = safeGet(sendRequests(randomBoolean(), -1, (indices, predicate, listener) -> {
+            attempt.incrementAndGet();
+            attemptIndices.set(indices);
+            runWithDelay(
+                () -> listener.onResponse(new DataNodeRequestSender.TargetShards(Map.of(shard1, targetShard(shard1, node1)), 1, 0))
+            );
+        },
+            (node, shardIds, aliasFilters, listener) -> runWithDelay(
+                () -> listener.onResponse(new DataNodeComputeResponse(List.of(), Map.of(shard1, new ShardNotFoundException(shard1))))
+            )
+        ));
+        assertThat(response.totalShards, equalTo(1));
+        assertThat(response.successfulShards, equalTo(0));
+        assertThat(response.skippedShards, equalTo(0));
+        assertThat(response.failedShards, equalTo(1));
+        assertThat(attempt.get(), equalTo(10));
+        assertThat("Must retry only affected indices", attemptIndices.get(), arrayContaining(shard1.getIndexName()));
+    }
+
     static DataNodeRequestSender.TargetShard targetShard(ShardId shardId, DiscoveryNode... nodes) {
         return new DataNodeRequestSender.TargetShard(shardId, new ArrayList<>(Arrays.asList(nodes)), null);
     }
@@ -459,16 +511,17 @@ public class DataNodeRequestSenderTests extends ComputeTestCase {
         List<DataNodeRequestSender.TargetShard> shards,
         Sender sender
     ) {
-        return sendRequests(
-            allowPartialResults,
-            concurrentRequests,
-            () -> new DataNodeRequestSender.TargetShards(
-                shards.stream().collect(Collectors.toMap(DataNodeRequestSender.TargetShard::shardId, Function.identity())),
-                shards.size(),
-                0
-            ),
-            sender
-        );
+        return sendRequests(allowPartialResults, concurrentRequests, (indices, predicate, listener) -> {
+            runWithDelay(
+                () -> listener.onResponse(
+                    new DataNodeRequestSender.TargetShards(
+                        shards.stream().collect(Collectors.toMap(DataNodeRequestSender.TargetShard::shardId, Function.identity())),
+                        shards.size(),
+                        0
+                    )
+                )
+            );
+        }, sender);
     }
 
     PlainActionFuture<ComputeResponse> sendRequests(boolean allowPartialResults, int concurrentRequests, Resolver resolver, Sender sender) {
@@ -499,7 +552,7 @@ public class DataNodeRequestSenderTests extends ComputeTestCase {
         ) {
             @Override
             void searchShards(String[] indices, Predicate<ShardId> predicate, ActionListener<TargetShards> listener) {
-                runWithDelay(() -> listener.onResponse(resolver.resolve()));
+                resolver.resolve(indices, predicate, listener);
             }
 
             @Override
@@ -516,7 +569,7 @@ public class DataNodeRequestSenderTests extends ComputeTestCase {
     }
 
     interface Resolver {
-        DataNodeRequestSender.TargetShards resolve();
+        void resolve(String[] indices, Predicate<ShardId> predicate, ActionListener<DataNodeRequestSender.TargetShards> listener);
     }
 
     interface Sender {

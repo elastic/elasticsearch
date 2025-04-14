@@ -26,7 +26,6 @@ import org.elasticsearch.cluster.metadata.MetadataIndexTemplateService;
 import org.elasticsearch.cluster.metadata.MetadataMappingService;
 import org.elasticsearch.cluster.metadata.NodesShutdownMetadata;
 import org.elasticsearch.cluster.metadata.RepositoriesMetadata;
-import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.routing.DelayedAllocationService;
 import org.elasticsearch.cluster.routing.ShardRouting;
@@ -44,7 +43,6 @@ import org.elasticsearch.cluster.routing.allocation.allocator.DesiredBalanceShar
 import org.elasticsearch.cluster.routing.allocation.allocator.DesiredBalanceShardsAllocator.DesiredBalanceReconcilerAction;
 import org.elasticsearch.cluster.routing.allocation.allocator.GlobalBalancingWeightsFactory;
 import org.elasticsearch.cluster.routing.allocation.allocator.ShardsAllocator;
-import org.elasticsearch.cluster.routing.allocation.allocator.StatelessBalancingWeightsFactory;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
 import org.elasticsearch.cluster.routing.allocation.decider.AwarenessAllocationDecider;
@@ -150,11 +148,11 @@ public class ClusterModule extends AbstractModule {
         this.deciderList = createAllocationDeciders(settings, clusterService.getClusterSettings(), clusterPlugins);
         this.allocationDeciders = new AllocationDeciders(deciderList);
         final BalancerSettings balancerSettings = new BalancerSettings(clusterService.getClusterSettings());
-        // I'm aware that the following is an anti-pattern and will implement as an SPI provider or plugin
-        // if we decide to go ahead with this.
-        final BalancingWeightsFactory balancingWeightsFactory = DiscoveryNode.isStateless(settings)
-            ? new StatelessBalancingWeightsFactory(balancerSettings, clusterService.getClusterSettings())
-            : new GlobalBalancingWeightsFactory(balancerSettings);
+        final BalancingWeightsFactory balancingWeightsFactory = getBalancingWeightsFactory(
+            clusterPlugins,
+            balancerSettings,
+            clusterService.getClusterSettings()
+        );
         var nodeAllocationStatsAndWeightsCalculator = new NodeAllocationStatsAndWeightsCalculator(
             writeLoadForecaster,
             balancingWeightsFactory
@@ -213,6 +211,22 @@ public class ClusterModule extends AbstractModule {
             };
             case 1 -> strategies.get(0);
             default -> throw new IllegalArgumentException("multiple plugins define shard role strategies, which is not permitted");
+        };
+    }
+
+    static BalancingWeightsFactory getBalancingWeightsFactory(
+        List<ClusterPlugin> clusterPlugins,
+        BalancerSettings balancerSettings,
+        ClusterSettings clusterSettings
+    ) {
+        final var strategies = clusterPlugins.stream()
+            .map(pl -> pl.getBalancingWeightsFactory(balancerSettings, clusterSettings))
+            .filter(Objects::nonNull)
+            .toList();
+        return switch (strategies.size()) {
+            case 0 -> new GlobalBalancingWeightsFactory(balancerSettings);
+            case 1 -> strategies.getFirst();
+            default -> throw new IllegalArgumentException("multiple plugins define balancing weights factories, which is not permitted");
         };
     }
 

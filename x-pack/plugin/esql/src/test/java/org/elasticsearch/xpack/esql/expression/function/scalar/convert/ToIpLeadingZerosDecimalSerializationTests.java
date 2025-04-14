@@ -11,9 +11,9 @@ import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.expression.AbstractUnaryScalarSerializationTests;
 
-public class ToIPSerializationTests extends AbstractUnaryScalarSerializationTests<ToIP> {
+public class ToIpLeadingZerosDecimalSerializationTests extends AbstractUnaryScalarSerializationTests<ToIpLeadingZerosDecimal> {
     @Override
-    protected ToIP create(Source source, Expression child) {
-        return new ToIP(source, child);
+    protected ToIpLeadingZerosDecimal create(Source source, Expression child) {
+        return new ToIpLeadingZerosDecimal(source, child);
     }
 }

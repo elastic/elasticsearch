@@ -1,0 +1,43 @@
+[[release-notes-8.17.4]]
+== {es} version 8.17.4
+
+Also see <<breaking-changes-8.17,Breaking changes in 8.17>>.
+
+[[bug-8.17.4]]
+[float]
+=== Bug fixes
+
+ES|QL::
+* Catch parsing exception {es-pull}124958[#124958] (issue: {es-issue}119025[#119025])
+* Fix early termination in `LuceneSourceOperator` {es-pull}123197[#123197]
+
+Indices APIs::
+* Avoid hoarding cluster state references during rollover {es-pull}124107[#124107] (issue: {es-issue}123893[#123893])
+* [8.17] Avoid hoarding cluster state references during rollover {es-pull}124267[#124267]
+
+Infra/Core::
+* Prevent rare starvation bug when using scaling `EsThreadPoolExecutor` with empty core pool size. {es-pull}124732[#124732] (issue: {es-issue}124667[#124667])
+
+Machine Learning::
+* Migrate `model_version` to `model_id` when parsing persistent elser inference endpoints {es-pull}124769[#124769] (issue: {es-issue}124675[#124675])
+
+Search::
+* Do not let `ShardBulkInferenceActionFilter` unwrap / rewrap ESExceptions {es-pull}123890[#123890]
+* Don't generate stacktrace in `TaskCancelledException` {es-pull}125002[#125002]
+* Fix concurrency issue in `ScriptSortBuilder` {es-pull}123757[#123757]
+* Revert fail-fast disconnect strategy for `_resolve/cluster` {es-pull}124241[#124241]
+
+[[upgrade-8.17.4]]
+[float]
+=== Upgrades
+
+Security::
+* Bump nimbus-jose-jwt to 10.0.2 {es-pull}124544[#124544]
+
+[discrete]
+[[known-issues-8.17.4]]
+=== Known issues
+
+{esql}::
+
+* Some valid queries using an `ENRICH` command can fail when a match field is used that is absent from some indices or shards, either with a 500 status code due to `NullPointerException` or `ClassCastException` or with a 400 status code and `IllegalArgumentException`. This is fixed in {es-pull}126187[#126187].

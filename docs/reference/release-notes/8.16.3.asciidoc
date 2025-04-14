@@ -42,8 +42,8 @@ Authorization::
 * Improve handling of nested fields in index reader wrappers {es-pull}118757[#118757]
 
 Packaging::
-* In this release we've introduced an image based on the hardened link:https://github.com/wolfi-dev/[Wolfi] 
-image to provide secure containers to our self-managed customers, help with compliance regulations, 
+* In this release we've introduced an image based on the hardened link:https://github.com/wolfi-dev/[Wolfi]
+image to provide secure containers to our self-managed customers, help with compliance regulations,
 and improve our supply chain security posture. {es-pull}118684[#118684]
 
 [[upgrade-8.16.3]]
@@ -53,4 +53,10 @@ and improve our supply chain security posture. {es-pull}118684[#118684]
 Security::
 * Upgrade Bouncy Castle FIPS dependencies {es-pull}112989[#112989]
 
+[discrete]
+[[known-issues-8.16.3]]
+=== Known issues
 
+{esql}::
+
+* Some valid queries using an `ENRICH` command can fail when a match field is used that is absent from some indices or shards, either with a 500 status code due to `NullPointerException` or `ClassCastException` or with a 400 status code and `IllegalArgumentException`. This is fixed in {es-pull}126187[#126187].

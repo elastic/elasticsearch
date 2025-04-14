@@ -328,7 +328,8 @@ public class InferencePlugin extends Plugin
             services.clusterService(),
             serviceRegistry,
             modelRegistry.get(),
-            getLicenseState()
+            getLicenseState(),
+            services.indexingPressure()
         );
         shardBulkInferenceActionFilter.set(actionFilter);
 

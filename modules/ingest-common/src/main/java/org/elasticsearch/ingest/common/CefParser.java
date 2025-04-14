@@ -406,10 +406,6 @@ final class CefParser {
         while (matcher.find()) {
             String key = matcher.group(1);
             String value = matcher.group(2);
-            // Convert extension field name to strict legal field_reference
-            if (key.endsWith("]")) {
-                key = convertArrayLikeKey(key);
-            }
             extensions.put(key, desanitizeExtensionVal(value.trim()));
             lastEnd = matcher.end();
         }
@@ -515,14 +511,6 @@ final class CefParser {
 
     private static void removeEmptyValues(Map<String, String> map) {
         map.values().removeIf(Strings::isEmpty);
-    }
-
-    private static String convertArrayLikeKey(String key) {
-        Matcher matcher = EXTENSION_KEY_ARRAY_CAPTURE.matcher(key);
-        if (matcher.matches()) {
-            return "[" + matcher.group(1) + "]" + matcher.group(2);
-        }
-        return key;
     }
 
     private static String desanitizeExtensionVal(String value) {

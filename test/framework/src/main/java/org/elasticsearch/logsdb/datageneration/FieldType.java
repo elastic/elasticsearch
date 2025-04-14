@@ -19,6 +19,7 @@ import org.elasticsearch.logsdb.datageneration.fields.leaf.FloatFieldDataGenerat
 import org.elasticsearch.logsdb.datageneration.fields.leaf.GeoPointFieldDataGenerator;
 import org.elasticsearch.logsdb.datageneration.fields.leaf.HalfFloatFieldDataGenerator;
 import org.elasticsearch.logsdb.datageneration.fields.leaf.IntegerFieldDataGenerator;
+import org.elasticsearch.logsdb.datageneration.fields.leaf.IpFieldDataGenerator;
 import org.elasticsearch.logsdb.datageneration.fields.leaf.KeywordFieldDataGenerator;
 import org.elasticsearch.logsdb.datageneration.fields.leaf.LongFieldDataGenerator;
 import org.elasticsearch.logsdb.datageneration.fields.leaf.ScaledFloatFieldDataGenerator;
@@ -44,7 +45,8 @@ public enum FieldType {
     BOOLEAN("boolean"),
     DATE("date"),
     GEO_POINT("geo_point"),
-    TEXT("text");
+    TEXT("text"),
+    IP("ip");
 
     private final String name;
 
@@ -69,6 +71,7 @@ public enum FieldType {
             case DATE -> new DateFieldDataGenerator(dataSource);
             case GEO_POINT -> new GeoPointFieldDataGenerator(dataSource);
             case TEXT -> new TextFieldDataGenerator(dataSource);
+            case IP -> new IpFieldDataGenerator(dataSource);
         };
     }
 
@@ -89,6 +92,7 @@ public enum FieldType {
             case "date" -> FieldType.DATE;
             case "geo_point" -> FieldType.GEO_POINT;
             case "text" -> FieldType.TEXT;
+            case "ip" -> FieldType.IP;
             default -> null;
         };
     }

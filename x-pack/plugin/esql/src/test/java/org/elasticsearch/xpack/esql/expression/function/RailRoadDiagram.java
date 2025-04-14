@@ -113,37 +113,44 @@ public class RailRoadDiagram {
     }
 
     /**
-     * Generate a railroad diagram for binary operator. The output would look like
-     * {@code lhs + rhs}.
+     * Generate a railroad diagram for an infix operator like the binary operators, search operator or cast operator.
+     * Example output would look like:
+     * <dl>
+     *     <dt>Addition (binary operator)</dt>
+     *     <dd>{@code lhs + rhs}</dd>
+     *     <dt>Search</dt>
+     *     <dd>{@code field : query}</dd>
+     *     <dt>Cast</dt>
+     *     <dd>{@code field :: type}</dd>
+     * </dl>
      */
-    static String binaryOperator(String operator) throws IOException {
+    static String infixOperator(String lhs, String operator, String rhs) throws IOException {
         List<Expression> expressions = new ArrayList<>();
-        expressions.add(new Literal("lhs"));
+        expressions.add(new Literal(lhs));
         expressions.add(new Syntax(operator));
-        expressions.add(new Literal("rhs"));
+        expressions.add(new Literal(rhs));
         return toSvg(new Sequence(expressions.toArray(Expression[]::new)));
     }
 
     /**
-     * Generate a railroad diagram for a search operator. The output would look like
-     * {@code field : value}.
+     * Generate a railroad diagram for prefix operators like the unary operators.
+     * For example, for negation the output would look like {@code -v}.
      */
-    static String searchOperator(String operator) throws IOException {
+    static String prefixOperator(String operator, String suffix) throws IOException {
         List<Expression> expressions = new ArrayList<>();
-        expressions.add(new Literal("field"));
         expressions.add(new Syntax(operator));
-        expressions.add(new Literal("query"));
+        expressions.add(new Literal(suffix));
         return toSvg(new Sequence(expressions.toArray(Expression[]::new)));
     }
 
     /**
-     * Generate a railroad diagram for unary operator. The output would look like
-     * {@code -v}.
+     * Generate a railroad diagram for suffix operators like the NULL predicates.
+     * For example, for null checks the output would look like {@code field IS NOT NULL}.
      */
-    static String unaryOperator(String operator) throws IOException {
+    static String suffixOperator(String prefix, String operator) throws IOException {
         List<Expression> expressions = new ArrayList<>();
+        expressions.add(new Literal(prefix));
         expressions.add(new Syntax(operator));
-        expressions.add(new Literal("v"));
         return toSvg(new Sequence(expressions.toArray(Expression[]::new)));
     }
 

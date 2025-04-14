@@ -9,6 +9,7 @@
 
 package org.elasticsearch.search;
 
+import org.elasticsearch.action.search.OnlinePrewarmingService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.core.TimeValue;
@@ -95,7 +96,8 @@ public class MockSearchService extends SearchService {
             fetchPhase,
             circuitBreakerService,
             executorSelector,
-            tracer
+            tracer,
+            OnlinePrewarmingService.NOOP
         );
     }
 

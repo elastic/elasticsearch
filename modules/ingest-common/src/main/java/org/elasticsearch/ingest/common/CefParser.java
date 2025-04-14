@@ -236,7 +236,7 @@ final class CefParser {
         entry("oldFileSize", new ExtensionMapping("oldFileSize", IntegerType, null)),
         entry("oldFileType", new ExtensionMapping("oldFileType", StringType, null)),
         entry("rawEvent", new ExtensionMapping("rawEvent", StringType, "event.original")),
-        entry("reason", new ExtensionMapping("Reason", StringType, "event.reason")),
+        entry("reason", new ExtensionMapping("reason", StringType, "event.reason")),
         entry("requestClientApplication", new ExtensionMapping("requestClientApplication", StringType, "user_agent.original")),
         entry("requestContext", new ExtensionMapping("requestContext", StringType, "http.request.referrer")),
         entry("requestCookies", new ExtensionMapping("requestCookies", StringType, null)),

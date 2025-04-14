@@ -41,10 +41,10 @@ import org.elasticsearch.cluster.routing.allocation.allocator.BalancedShardsAllo
 import org.elasticsearch.cluster.routing.allocation.allocator.BalancerSettings;
 import org.elasticsearch.cluster.routing.allocation.allocator.DesiredBalanceShardsAllocator;
 import org.elasticsearch.cluster.routing.allocation.allocator.DesiredBalanceShardsAllocator.DesiredBalanceReconcilerAction;
-import org.elasticsearch.cluster.routing.allocation.allocator.GlobalPartitionedClusterFactory;
-import org.elasticsearch.cluster.routing.allocation.allocator.PartitionedClusterFactory;
+import org.elasticsearch.cluster.routing.allocation.allocator.GlobalBalancingWeightsFactory;
+import org.elasticsearch.cluster.routing.allocation.allocator.BalancingWeightsFactory;
 import org.elasticsearch.cluster.routing.allocation.allocator.ShardsAllocator;
-import org.elasticsearch.cluster.routing.allocation.allocator.TieredPartitionedClusterFactory;
+import org.elasticsearch.cluster.routing.allocation.allocator.TieredBalancingWeightsFactory;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
 import org.elasticsearch.cluster.routing.allocation.decider.AwarenessAllocationDecider;
@@ -152,18 +152,18 @@ public class ClusterModule extends AbstractModule {
         final BalancerSettings balancerSettings = new BalancerSettings(clusterService.getClusterSettings());
         // I'm aware that the following is an anti-pattern and will implement as an SPI provider or plugin
         // if we decide to go ahead with this.
-        final PartitionedClusterFactory partitionedClusterFactory = DiscoveryNode.isStateless(settings)
-            ? new TieredPartitionedClusterFactory(balancerSettings, clusterService.getClusterSettings())
-            : new GlobalPartitionedClusterFactory(balancerSettings);
+        final BalancingWeightsFactory balancingWeightsFactory = DiscoveryNode.isStateless(settings)
+            ? new TieredBalancingWeightsFactory(balancerSettings, clusterService.getClusterSettings())
+            : new GlobalBalancingWeightsFactory(balancerSettings);
         var nodeAllocationStatsAndWeightsCalculator = new NodeAllocationStatsAndWeightsCalculator(
             writeLoadForecaster,
-            partitionedClusterFactory
+            balancingWeightsFactory
         );
         this.shardsAllocator = createShardsAllocator(
             settings,
             clusterService.getClusterSettings(),
             balancerSettings,
-            partitionedClusterFactory,
+            balancingWeightsFactory,
             threadPool,
             clusterPlugins,
             clusterService,
@@ -452,7 +452,7 @@ public class ClusterModule extends AbstractModule {
         Settings settings,
         ClusterSettings clusterSettings,
         BalancerSettings balancerSettings,
-        PartitionedClusterFactory partitionedClusterFactory,
+        BalancingWeightsFactory balancingWeightsFactory,
         ThreadPool threadPool,
         List<ClusterPlugin> clusterPlugins,
         ClusterService clusterService,
@@ -464,13 +464,13 @@ public class ClusterModule extends AbstractModule {
         Map<String, Supplier<ShardsAllocator>> allocators = new HashMap<>();
         allocators.put(
             BALANCED_ALLOCATOR,
-            () -> new BalancedShardsAllocator(balancerSettings, writeLoadForecaster, partitionedClusterFactory)
+            () -> new BalancedShardsAllocator(balancerSettings, writeLoadForecaster, balancingWeightsFactory)
         );
         allocators.put(
             DESIRED_BALANCE_ALLOCATOR,
             () -> new DesiredBalanceShardsAllocator(
                 clusterSettings,
-                new BalancedShardsAllocator(balancerSettings, writeLoadForecaster, partitionedClusterFactory),
+                new BalancedShardsAllocator(balancerSettings, writeLoadForecaster, balancingWeightsFactory),
                 threadPool,
                 clusterService,
                 reconciler,

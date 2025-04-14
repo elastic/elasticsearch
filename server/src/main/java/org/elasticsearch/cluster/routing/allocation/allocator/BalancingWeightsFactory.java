@@ -9,17 +9,13 @@
 
 package org.elasticsearch.cluster.routing.allocation.allocator;
 
-import org.elasticsearch.cluster.routing.RoutingNode;
-import org.elasticsearch.cluster.routing.ShardRouting;
+/**
+ * A balancing weights factory must be able to divide all shards and nodes into mutually
+ * disjoint partitions. Allocation balancing will then be conducted sequentially for each partition.
+ * <p>
+ * If you can't partition your shards and nodes in this way, use {@link GlobalBalancingWeightsFactory}
+ */
+public interface BalancingWeightsFactory {
 
-public interface PartitionedCluster {
-
-    WeightFunction weightFunctionForShard(ShardRouting shard);
-
-    WeightFunction weightFunctionForNode(RoutingNode node);
-
-    PartitionedNodeSorter createPartitionedNodeSorter(
-        BalancedShardsAllocator.ModelNode[] modelNodes,
-        BalancedShardsAllocator.Balancer balancer
-    );
+    BalancingWeights create();
 }

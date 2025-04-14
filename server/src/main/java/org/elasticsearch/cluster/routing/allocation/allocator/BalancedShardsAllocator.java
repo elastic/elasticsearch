@@ -116,7 +116,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
 
     private final BalancerSettings balancerSettings;
     private final WriteLoadForecaster writeLoadForecaster;
-    private final PartitionedClusterFactory partitionedClusterFactory;
+    private final BalancingWeightsFactory balancingWeightsFactory;
 
     public BalancedShardsAllocator() {
         this(Settings.EMPTY);
@@ -135,18 +135,18 @@ public class BalancedShardsAllocator implements ShardsAllocator {
     }
 
     public BalancedShardsAllocator(BalancerSettings balancerSettings, WriteLoadForecaster writeLoadForecaster) {
-        this(balancerSettings, writeLoadForecaster, new GlobalPartitionedClusterFactory(balancerSettings));
+        this(balancerSettings, writeLoadForecaster, new GlobalBalancingWeightsFactory(balancerSettings));
     }
 
     @Inject
     public BalancedShardsAllocator(
         BalancerSettings balancerSettings,
         WriteLoadForecaster writeLoadForecaster,
-        PartitionedClusterFactory partitionedClusterFactory
+        BalancingWeightsFactory balancingWeightsFactory
     ) {
         this.balancerSettings = balancerSettings;
         this.writeLoadForecaster = writeLoadForecaster;
-        this.partitionedClusterFactory = partitionedClusterFactory;
+        this.balancingWeightsFactory = balancingWeightsFactory;
     }
 
     @Override
@@ -162,21 +162,21 @@ public class BalancedShardsAllocator implements ShardsAllocator {
             failAllocationOfNewPrimaries(allocation);
             return;
         }
-        final PartitionedCluster partitionedCluster = partitionedClusterFactory.create();
-        final Balancer balancer = new Balancer(writeLoadForecaster, allocation, balancerSettings.getThreshold(), partitionedCluster);
+        final BalancingWeights balancingWeights = balancingWeightsFactory.create();
+        final Balancer balancer = new Balancer(writeLoadForecaster, allocation, balancerSettings.getThreshold(), balancingWeights);
         balancer.allocateUnassigned();
         balancer.moveShards();
         balancer.balance();
 
         // Node weights are calculated after each internal balancing round and saved to the RoutingNodes copy.
-        collectAndRecordNodeWeightStats(balancer, partitionedCluster, allocation);
+        collectAndRecordNodeWeightStats(balancer, balancingWeights, allocation);
     }
 
-    private void collectAndRecordNodeWeightStats(Balancer balancer, PartitionedCluster partitionedCluster, RoutingAllocation allocation) {
+    private void collectAndRecordNodeWeightStats(Balancer balancer, BalancingWeights balancingWeights, RoutingAllocation allocation) {
         Map<DiscoveryNode, DesiredBalanceMetrics.NodeWeightStats> nodeLevelWeights = new HashMap<>();
         for (var entry : balancer.nodes.entrySet()) {
             var node = entry.getValue();
-            var weightFunction = partitionedCluster.weightFunctionForNode(node.routingNode);
+            var weightFunction = balancingWeights.weightFunctionForNode(node.routingNode);
             var nodeWeight = weightFunction.calculateNodeWeight(
                 node.numShards(),
                 balancer.avgShardsPerNode(),
@@ -199,7 +199,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
             writeLoadForecaster,
             allocation,
             balancerSettings.getThreshold(),
-            partitionedClusterFactory.create()
+            balancingWeightsFactory.create()
         );
         AllocateUnassignedDecision allocateUnassignedDecision = AllocateUnassignedDecision.NOT_TAKEN;
         MoveDecision moveDecision = MoveDecision.NOT_TAKEN;
@@ -257,14 +257,14 @@ public class BalancedShardsAllocator implements ShardsAllocator {
         private final double avgWriteLoadPerNode;
         private final double avgDiskUsageInBytesPerNode;
         private final Map<String, ModelNode> nodes;
-        private final PartitionedCluster partitionedCluster;
+        private final BalancingWeights balancingWeights;
         private final PartitionedNodeSorter partitionedNodeSorter;
 
         private Balancer(
             WriteLoadForecaster writeLoadForecaster,
             RoutingAllocation allocation,
             float threshold,
-            PartitionedCluster partitionedCluster
+            BalancingWeights balancingWeights
         ) {
             this.writeLoadForecaster = writeLoadForecaster;
             this.allocation = allocation;
@@ -275,8 +275,8 @@ public class BalancedShardsAllocator implements ShardsAllocator {
             avgWriteLoadPerNode = WeightFunction.avgWriteLoadPerNode(writeLoadForecaster, metadata, routingNodes);
             avgDiskUsageInBytesPerNode = WeightFunction.avgDiskUsageInBytesPerNode(allocation.clusterInfo(), metadata, routingNodes);
             nodes = Collections.unmodifiableMap(buildModelFromAssigned());
-            this.partitionedCluster = partitionedCluster;
-            this.partitionedNodeSorter = partitionedCluster.createPartitionedNodeSorter(nodesArray(), this);
+            this.balancingWeights = balancingWeights;
+            this.partitionedNodeSorter = balancingWeights.createPartitionedNodeSorter(nodesArray(), this);
         }
 
         private static long getShardDiskUsageInBytes(ShardRouting shardRouting, IndexMetadata indexMetadata, ClusterInfo clusterInfo) {
@@ -1010,7 +1010,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
          * is of type {@link Type#NO}, then the assigned node will be null.
          */
         private AllocateUnassignedDecision decideAllocateUnassigned(final ProjectIndex index, final ShardRouting shard) {
-            WeightFunction weightFunction = partitionedCluster.weightFunctionForShard(shard);
+            WeightFunction weightFunction = balancingWeights.weightFunctionForShard(shard);
             index.assertMatch(shard);
             if (shard.assignedToNode()) {
                 // we only make decisions for unassigned shards here

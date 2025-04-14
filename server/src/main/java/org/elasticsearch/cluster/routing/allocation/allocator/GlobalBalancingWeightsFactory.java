@@ -15,24 +15,24 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import java.util.Collection;
 import java.util.List;
 
-public class GlobalPartitionedClusterFactory implements PartitionedClusterFactory {
+public class GlobalBalancingWeightsFactory implements BalancingWeightsFactory {
 
     private final BalancerSettings balancerSettings;
 
-    public GlobalPartitionedClusterFactory(BalancerSettings balancerSettings) {
+    public GlobalBalancingWeightsFactory(BalancerSettings balancerSettings) {
         this.balancerSettings = balancerSettings;
     }
 
     @Override
-    public PartitionedCluster create() {
-        return new GlobalPartitionedCluster();
+    public BalancingWeights create() {
+        return new GlobalBalancingWeights();
     }
 
-    private class GlobalPartitionedCluster implements PartitionedCluster {
+    private class GlobalBalancingWeights implements BalancingWeights {
 
         private final WeightFunction weightFunction;
 
-        GlobalPartitionedCluster() {
+        GlobalBalancingWeights() {
             this.weightFunction = new WeightFunction(
                 balancerSettings.getShardBalanceFactor(),
                 balancerSettings.getIndexBalanceFactor(),

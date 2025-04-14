@@ -24,7 +24,7 @@ import java.util.stream.Stream;
 import static org.elasticsearch.cluster.routing.allocation.allocator.BalancedShardsAllocator.SHARD_BALANCE_FACTOR_SETTING;
 import static org.elasticsearch.cluster.routing.allocation.allocator.BalancedShardsAllocator.WRITE_LOAD_BALANCE_FACTOR_SETTING;
 
-public class TieredPartitionedClusterFactory implements PartitionedClusterFactory {
+public class TieredBalancingWeightsFactory implements BalancingWeightsFactory {
 
     public static final Setting<Float> INDEXING_TIER_SHARD_BALANCE_FACTOR_SETTING = Setting.floatSetting(
         "cluster.routing.allocation.balance.shard.indexing",
@@ -55,7 +55,7 @@ public class TieredPartitionedClusterFactory implements PartitionedClusterFactor
     private volatile float searchTierShardBalanceFactor;
     private volatile float indexingTierWriteLoadBalanceFactor;
 
-    public TieredPartitionedClusterFactory(BalancerSettings balancerSettings, ClusterSettings clusterSettings) {
+    public TieredBalancingWeightsFactory(BalancerSettings balancerSettings, ClusterSettings clusterSettings) {
         this.balancerSettings = balancerSettings;
         clusterSettings.initializeAndWatch(
             INDEXING_TIER_SHARD_BALANCE_FACTOR_SETTING,
@@ -69,16 +69,16 @@ public class TieredPartitionedClusterFactory implements PartitionedClusterFactor
     }
 
     @Override
-    public PartitionedCluster create() {
-        return new TieredPartitionedCluster();
+    public BalancingWeights create() {
+        return new TieredBalancingWeights();
     }
 
-    private class TieredPartitionedCluster implements PartitionedCluster {
+    private class TieredBalancingWeights implements BalancingWeights {
 
         private final WeightFunction searchWeightFunction;
         private final WeightFunction indexingWeightFunction;
 
-        private TieredPartitionedCluster() {
+        private TieredBalancingWeights() {
             this.searchWeightFunction = new WeightFunction(
                 searchTierShardBalanceFactor,
                 balancerSettings.getIndexBalanceFactor(),

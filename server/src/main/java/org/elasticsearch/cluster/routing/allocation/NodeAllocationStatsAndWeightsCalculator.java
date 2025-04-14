@@ -16,8 +16,8 @@ import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.RoutingNodes;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.allocator.DesiredBalance;
-import org.elasticsearch.cluster.routing.allocation.allocator.PartitionedCluster;
-import org.elasticsearch.cluster.routing.allocation.allocator.PartitionedClusterFactory;
+import org.elasticsearch.cluster.routing.allocation.allocator.BalancingWeights;
+import org.elasticsearch.cluster.routing.allocation.allocator.BalancingWeightsFactory;
 import org.elasticsearch.cluster.routing.allocation.allocator.WeightFunction;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.core.Nullable;
@@ -29,7 +29,7 @@ import java.util.Map;
  */
 public class NodeAllocationStatsAndWeightsCalculator {
     private final WriteLoadForecaster writeLoadForecaster;
-    private final PartitionedClusterFactory partitionedClusterFactory;
+    private final BalancingWeightsFactory balancingWeightsFactory;
 
     /**
      * Node shard allocation stats and the total node weight.
@@ -45,10 +45,10 @@ public class NodeAllocationStatsAndWeightsCalculator {
 
     public NodeAllocationStatsAndWeightsCalculator(
         WriteLoadForecaster writeLoadForecaster,
-        PartitionedClusterFactory partitionedClusterFactory
+        BalancingWeightsFactory balancingWeightsFactory
     ) {
         this.writeLoadForecaster = writeLoadForecaster;
-        this.partitionedClusterFactory = partitionedClusterFactory;
+        this.balancingWeightsFactory = balancingWeightsFactory;
     }
 
     /**
@@ -64,14 +64,14 @@ public class NodeAllocationStatsAndWeightsCalculator {
             // must not use licensed features when just starting up
             writeLoadForecaster.refreshLicense();
         }
-        final PartitionedCluster partitionedCluster = partitionedClusterFactory.create();
+        final BalancingWeights balancingWeights = balancingWeightsFactory.create();
         var avgShardsPerNode = WeightFunction.avgShardPerNode(metadata, routingNodes);
         var avgWriteLoadPerNode = WeightFunction.avgWriteLoadPerNode(writeLoadForecaster, metadata, routingNodes);
         var avgDiskUsageInBytesPerNode = WeightFunction.avgDiskUsageInBytesPerNode(clusterInfo, metadata, routingNodes);
 
         var nodeAllocationStatsAndWeights = Maps.<String, NodeAllocationStatsAndWeight>newMapWithExpectedSize(routingNodes.size());
         for (RoutingNode node : routingNodes) {
-            WeightFunction weightFunction = partitionedCluster.weightFunctionForNode(node);
+            WeightFunction weightFunction = balancingWeights.weightFunctionForNode(node);
             int shards = 0;
             int undesiredShards = 0;
             double forecastedWriteLoad = 0.0;

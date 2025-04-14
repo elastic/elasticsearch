@@ -27,6 +27,7 @@ import co.elastic.elasticsearch.stateless.cache.StatelessSharedBlobCacheService;
 import co.elastic.elasticsearch.stateless.cluster.coordination.StatelessClusterConsistencyService;
 import co.elastic.elasticsearch.stateless.engine.IndexEngine;
 import co.elastic.elasticsearch.stateless.engine.PrimaryTermAndGeneration;
+import co.elastic.elasticsearch.stateless.engine.SearchEngine;
 import co.elastic.elasticsearch.stateless.engine.translog.TranslogReplicator;
 import co.elastic.elasticsearch.stateless.lucene.BlobCacheIndexInput;
 import co.elastic.elasticsearch.stateless.lucene.BlobStoreCacheDirectory;
@@ -48,6 +49,7 @@ import org.elasticsearch.action.search.OpenPointInTimeRequest;
 import org.elasticsearch.action.search.TransportOpenPointInTimeAction;
 import org.elasticsearch.action.support.ChannelActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.action.shard.ShardStateAction;
 import org.elasticsearch.cluster.block.ClusterBlockException;
@@ -91,10 +93,8 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashSet;
 import java.util.Locale;
-import java.util.Map;
 import java.util.Queue;
 import java.util.Set;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.LinkedBlockingQueue;
@@ -1383,27 +1383,22 @@ public class StatelessFileDeletionIT extends AbstractStatelessIntegTestCase {
         var commitService = internalCluster().getInstance(StatelessCommitService.class, indexNode);
         var shardCommitsContainer = getShardCommitsContainerForCurrentPrimaryTerm(indexName, indexNode, 0);
 
-        Map<PrimaryTermAndGeneration, PlainActionFuture<Void>> pendingUploadListeners = new ConcurrentHashMap<>();
-        MockTransportService.getInstance(firstSearchNode)
-            .addRequestHandlingBehavior(TransportNewCommitNotificationAction.NAME + "[u]", (handler, request, channel, task) -> {
-                handler.messageReceived(request, channel, task);
-                var newCommitNotificationRequest = (NewCommitNotificationRequest) request;
-                if (newCommitNotificationRequest.isUploaded()) {
-                    var latestUploadedBCC = newCommitNotificationRequest.getLatestUploadedBatchedCompoundCommitTermAndGen();
-                    pendingUploadListeners.computeIfAbsent(latestUploadedBCC, unused -> new PlainActionFuture<>()).onResponse(null);
-                }
-            });
-
+        var searchEngine = getShardEngine(findSearchShard(indexName), SearchEngine.class);
         for (int i = 0; i < 10; i++) {
             indexDocsAndFlush(indexName);
 
             // We have to wait until the search shard has received the new commit notification
             // for the upload to ensure that we get open the PIT against the uploaded commit.
-            // IndexShard.waitForPrimaryTermAndGeneration won't do the trick because it'll trigger
-            // as soon as the VBCC notification is received
             var latestUploadedBCC = commitService.getLatestUploadedBcc(shardId);
             assertThat(latestUploadedBCC, is(notNullValue()));
-            pendingUploadListeners.computeIfAbsent(latestUploadedBCC.primaryTermAndGeneration(), unused -> new PlainActionFuture<>()).get();
+            var latestUploadedBCCPTG = latestUploadedBCC.primaryTermAndGeneration();
+            var uploadedBCCRefreshedListener = new SubscribableListener<Long>();
+            searchEngine.addPrimaryTermAndGenerationListener(
+                latestUploadedBCCPTG.primaryTerm(),
+                latestUploadedBCCPTG.generation(),
+                uploadedBCCRefreshedListener
+            );
+            safeAwait(uploadedBCCRefreshedListener);
 
             // Open a PIT against each commit so we have to retain all of them
             var openPITResponse = client(firstSearchNode).execute(

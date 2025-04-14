@@ -245,6 +245,9 @@ public class PushDownAndCombineFiltersTests extends ESTestCase {
         assertEquals(expected, new PushDownAndCombineFilters().apply(fb));
     }
 
+
+    // from ... | where a > 1 | COMPLETION "some prompt" WITH reranker AS completion | where b < 2 and match(completion, some text)
+    // => ... | where a > 1 AND b < 2| COMPLETION "some prompt" WITH reranker AS completion | match(completion, some text)
     public void testPushDownFilterPastCompletion() {
         FieldAttribute a = getFieldAttribute("a");
         FieldAttribute b = getFieldAttribute("b");

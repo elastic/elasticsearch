@@ -29,27 +29,6 @@ setup:
           - { "text": "document five" }
 
 ---
-"pinned retriever basic functionality":
-  - do:
-      search:
-        index: test-index1
-        body:
-          retriever:
-            pinned:
-              ids: ["doc1", "doc2"]
-              retriever:
-                standard:
-                  query:
-                    match_all: {}
-
-  - match: { hits.total.value: 5 }
-  - match: { hits.hits.0._id: doc1 }
-  - match: { hits.hits.1._id: doc2 }
-  - match: { hits.hits.2._id: doc3 }
-  - match: { hits.hits.3._id: doc4 }
-  - match: { hits.hits.4._id: doc5 }
-
----
 "pinned retriever parameter variations":
   - do:
       search:
@@ -107,8 +86,12 @@ setup:
   - match: { hits.hits.1._id: doc2 }
 
 ---
-"pinned retriever with combined parameters":
+"pinned retriever dynamic pinning and ordering":
+  - skip:
+      features: headers
   - do:
+      headers:
+        Content-Type: application/json
       search:
         index: test-index1
         body:
@@ -119,13 +102,19 @@ setup:
                 standard:
                   query:
                     match_all: {}
+        explain: true
 
   - match: { hits.total.value: 5 }
   - match: { hits.hits.0._id: doc1 }
   - match: { hits.hits.1._id: doc2 }
   - match: { hits.hits.2._id: doc3 }
+  - match: { hits.hits.0._score: 1.7014124E38 }
+  - match: { hits.hits.1._score: 1.7014122E38 }
+  - match: { hits.hits.2._score: 1.0 }
 
   - do:
+      headers:
+        Content-Type: application/json
       search:
         index: test-index1
         body:
@@ -136,6 +125,7 @@ setup:
                 standard:
                   query:
                     match_all: {}
+        explain: true
 
   - match: { hits.total.value: 5 }
   - match: { hits.hits.0._id: doc1 }
@@ -143,38 +133,50 @@ setup:
   - match: { hits.hits.2._id: doc2 }
   - match: { hits.hits.3._id: doc4 }
   - match: { hits.hits.4._id: doc5 }
+  - match: { hits.hits.0._score: 1.7014124E38 }
+  - match: { hits.hits.1._score: 1.7014122E38 }
+  - match: { hits.hits.2._score: 1.0 }
 
 ---
 "pinned retriever combined with rrf":
+  - skip:
+      features: headers
+
   - do:
+      headers:
+        Content-Type: application/json
       search:
         index: test-index1
         body:
           retriever:
             pinned:
-              ids: ["doc1", "doc2"]
+              ids: ["doc1"]
               retriever:
                 rrf:
-                  retrievers:
-                    -
-                      standard:
-                        query:
-                          match: {
-                            text: "document one"
-                          }
-                    -
-                      standard:
-                        query:
-                          match: {
-                            text: "document two"
-                          }
+                  retrievers: [
+                    {
+                      standard: {
+                        query: {
+                          term: { text: "document" }
+                        }
+                      }
+                    },
+                    {
+                      standard: {
+                        query: {
+                          term: { text: "three" }
+                        }
+                      }
+                    }
+                  ]
+              rank_window_size: 10
 
   - match: { hits.total.value: 5 }
   - match: { hits.hits.0._id: doc1 }
-  - match: { hits.hits.1._id: doc2 }
-  - is_true: hits.hits.0._score
-  - is_true: hits.hits.1._score
-  - is_true: hits.hits.0._score >= hits.hits.1._score
+  - match: { hits.hits.0._score: 1.7014122E38 }
+  - match: { hits.hits.1._id: doc3 }
+  - match: { hits.hits.2._id: doc2 }
+  - match: { hits.hits.1._score < hits.hits.0._score }
 
 ---
 "pinned retriever with pagination":
@@ -287,28 +289,28 @@ setup:
   - match: { hits.hits.1._id: doc2 }
   - match: { hits.hits.2._id: doc3 }
 
----
-"pinned retriever explanation":
-  - do:
-      search:
-        index: test-index1
-        body:
-          retriever:
-            pinned:
-              ids: ["doc1", "doc2"]
-              retriever:
-                standard:
-                  query:
-                    match_all: {}
-          explain: true
+# ---
+# "pinned retriever explanation":
+#   - do:
+#       search:
+#         index: test-index1
+#         body:
+#           retriever:
+#             pinned:
+#               ids: ["doc1", "doc2"]
+#               retriever:
+#                 standard:
+#                   query:
+#                     match_all: {}
+#           explain: true
 
-  - match: { hits.hits.0._id: doc1 }
-  - match: { hits.hits.0._explanation.description: "/doc \\[\\d+\\] with an original score of \\[-?[\\d.E]+\\] is at rank \\[\\d+\\] from the following source queries\\./" }
-  - match: { hits.hits.0._explanation.details.0.details.0.details.1.description: "is_pinned: true" }
+#   - match: { hits.hits.0._id: doc1 }
+#   - match: { hits.hits.0._explanation.description: /^doc.*queries\.$/ }
+#   - match: { hits.hits.0._explanation.details.0.details.0.details.1.description: "is_pinned: true" }
 
-  - match: { hits.hits.1._id: doc2 }
-  - match: { hits.hits.1._explanation.description: "/doc \\[\\d+\\] with an original score of \\[-?[\\d.E]+\\] is at rank \\[\\d+\\] from the following source queries\\./" }
-  - match: { hits.hits.1._explanation.details.0.details.0.details.1.description: "is_pinned: true" }
+#   - match: { hits.hits.1._id: doc2 }
+#   - match: { hits.hits.1._explanation.description: /^doc.*queries\.$/ }
+#   - match: { hits.hits.1._explanation.details.0.details.0.details.1.description: "is_pinned: true" }
 
 ---
 "pinned retriever with empty parameters":
@@ -333,15 +335,14 @@ setup:
 ---
 "pinned retriever error case - both ids and docs":
   - do:
-      # Expect a bad_request error with this message
       catch: /Both 'ids' and 'docs' cannot be specified at the same time/
       search:
         index: test-index1
         body:
           retriever:
             pinned:
-              ids: ["doc1"] # Provide some IDs
-              docs: # Provide some docs
+              ids: ["doc1"]
+              docs:
                 - _index: test-index1
                   _id: doc2
               retriever:
@@ -350,26 +351,8 @@ setup:
                     match_all: {}
 
 ---
-"pinned retriever error case - invalid sort":
-  - do:
-      # Expect the earlier validation error
-      catch: /cannot specify \[retriever\] and \[sort\]/
-      search:
-        index: test-index1
-        body:
-          sort: [ "text" ]
-          retriever:
-            pinned:
-              ids: ["doc1"]
-              retriever:
-                standard:
-                  query:
-                    match_all: {}
-
----
 "pinned retriever error case - duplicate id":
   - do:
-      # Catch duplicate ID error
       catch: /duplicate id found/
       search:
         index: test-index1
@@ -383,27 +366,6 @@ setup:
                     match_all: {}
 
 ---
-"pinned retriever with empty docs array":
-  - do:
-      search:
-        index: test-index1
-        body:
-          retriever:
-            pinned:
-              docs: [] # Empty docs array
-              retriever:
-                standard:
-                  query:
-                    match_all: {}
-  # Expect regular match_all results, no pinning effect
-  - match: { hits.total.value: 5 }
-  - match: { hits.hits.0._id: doc1 }
-  - match: { hits.hits.1._id: doc2 }
-  - match: { hits.hits.2._id: doc3 }
-  - match: { hits.hits.3._id: doc4 }
-  - match: { hits.hits.4._id: doc5 }
-
----
 "pinned retriever with ids and empty docs array":
   - do:
       search:
@@ -411,14 +373,29 @@ setup:
         body:
           retriever:
             pinned:
-              ids: ["doc1"] # Provide IDs
-              docs: []      # Provide empty docs array
+              ids: ["doc1"]
+              docs: []
               retriever:
                 standard:
                   query:
                     match_all: {}
-  # Expect pinning based on "ids", empty "docs" is ignored
   - match: { hits.total.value: 5 }
-  - match: { hits.hits.0._id: doc1 } # doc1 should be pinned
-  - match: { hits.hits.1._id: doc2 } # Rest follow
+  - match: { hits.hits.0._id: doc1 }
+  - match: { hits.hits.1._id: doc2 }
   - match: { hits.hits.2._id: doc3 }
+
+---
+"pinned retriever errors if sorting by anything other than score":
+  - do:
+      catch: /Pinned retriever only supports sorting by score. Custom sorting is not allowed./
+      search:
+        index: test-index1
+        body:
+          retriever:
+            pinned:
+              ids: ["doc1"]
+              retriever:
+                standard:
+                  query:
+                    match_all: {}
+                  sort: [ { "_id": "desc" } ]

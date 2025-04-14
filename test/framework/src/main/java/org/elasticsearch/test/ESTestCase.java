@@ -2529,8 +2529,7 @@ public abstract class ESTestCase extends LuceneTestCase {
      *
      * @return The value with which the {@code future} was completed.
      */
-    // NB private because tests should be designed not to need to wait for longer than SAFE_AWAIT_TIMEOUT.
-    private static <T> T safeGet(Future<T> future, TimeValue timeout) {
+    public static <T> T safeGet(Future<T> future, TimeValue timeout) {
         try {
             return future.get(timeout.millis(), TimeUnit.MILLISECONDS);
         } catch (InterruptedException e) {

@@ -33,7 +33,6 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.mapper.DocumentMapper;
@@ -1066,8 +1065,8 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
 
     private static DenseVectorFieldMapper.IndexOptions defaultDenseVectorIndexOptions() {
         // These are the default index options for dense_vector fields, and used for semantic_text fields incompatible with BBQ.
-        int m = XContentMapValues.nodeIntegerValue(Lucene99HnswVectorsFormat.DEFAULT_MAX_CONN);
-        int efConstruction = XContentMapValues.nodeIntegerValue(Lucene99HnswVectorsFormat.DEFAULT_BEAM_WIDTH);
+        int m = Lucene99HnswVectorsFormat.DEFAULT_MAX_CONN;
+        int efConstruction = Lucene99HnswVectorsFormat.DEFAULT_BEAM_WIDTH;
         return new DenseVectorFieldMapper.Int8HnswIndexOptions(m, efConstruction, null, null);
     }
 

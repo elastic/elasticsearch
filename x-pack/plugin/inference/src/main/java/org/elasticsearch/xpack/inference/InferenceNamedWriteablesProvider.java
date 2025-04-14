@@ -92,6 +92,8 @@ import org.elasticsearch.xpack.inference.services.openai.completion.OpenAiChatCo
 import org.elasticsearch.xpack.inference.services.openai.completion.OpenAiChatCompletionTaskSettings;
 import org.elasticsearch.xpack.inference.services.openai.embeddings.OpenAiEmbeddingsServiceSettings;
 import org.elasticsearch.xpack.inference.services.openai.embeddings.OpenAiEmbeddingsTaskSettings;
+import org.elasticsearch.xpack.inference.services.sagemaker.model.SageMakerModel;
+import org.elasticsearch.xpack.inference.services.sagemaker.schema.SageMakerSchemas;
 import org.elasticsearch.xpack.inference.services.settings.DefaultSecretSettings;
 import org.elasticsearch.xpack.inference.services.voyageai.VoyageAIServiceSettings;
 import org.elasticsearch.xpack.inference.services.voyageai.embeddings.VoyageAIEmbeddingsServiceSettings;
@@ -157,6 +159,8 @@ public class InferenceNamedWriteablesProvider {
 
         namedWriteables.addAll(StreamingTaskManager.namedWriteables());
         namedWriteables.addAll(DeepSeekChatCompletionModel.namedWriteables());
+        namedWriteables.addAll(SageMakerModel.namedWriteables());
+        namedWriteables.addAll(SageMakerSchemas.namedWriteables());
 
         return namedWriteables;
     }

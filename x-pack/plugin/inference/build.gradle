@@ -60,6 +60,7 @@ dependencies {
 
   /* AWS SDK v2 */
   implementation ("software.amazon.awssdk:bedrockruntime:${versions.awsv2sdk}")
+  implementation ("software.amazon.awssdk:sagemakerruntime:${versions.awsv2sdk}")
   api "software.amazon.awssdk:protocol-core:${versions.awsv2sdk}"
   api "software.amazon.awssdk:aws-json-protocol:${versions.awsv2sdk}"
   api "software.amazon.awssdk:third-party-jackson-core:${versions.awsv2sdk}"

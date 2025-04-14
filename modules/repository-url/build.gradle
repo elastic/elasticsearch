@@ -31,7 +31,7 @@ dependencies {
   api "commons-codec:commons-codec:${versions.commonscodec}"
   api "org.apache.logging.log4j:log4j-1.2-api:${versions.log4j}"
   yamlRestTestImplementation project(':test:fixtures:url-fixture')
-  internalClusterTestImplementation project(':test:fixtures:url-fixture')
+  yamlRestTestImplementation project(':modules:repository-url')
 }
 
 tasks.named("thirdPartyAudit").configure {

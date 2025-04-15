@@ -38,9 +38,11 @@ import co.elastic.elasticsearch.stateless.autoscaling.indexing.IngestLoadSampler
 import co.elastic.elasticsearch.stateless.autoscaling.indexing.IngestMetricsService;
 import co.elastic.elasticsearch.stateless.autoscaling.indexing.TransportPublishNodeIngestLoadMetric;
 import co.elastic.elasticsearch.stateless.autoscaling.memory.HeapMemoryUsagePublisher;
+import co.elastic.elasticsearch.stateless.autoscaling.memory.IndexingOperationsMemoryRequirementsSampler;
 import co.elastic.elasticsearch.stateless.autoscaling.memory.MemoryMetricsService;
 import co.elastic.elasticsearch.stateless.autoscaling.memory.ShardsMappingSizeCollector;
 import co.elastic.elasticsearch.stateless.autoscaling.memory.TransportPublishHeapMemoryMetrics;
+import co.elastic.elasticsearch.stateless.autoscaling.memory.TransportPublishIndexingOperationsHeapMemoryRequirements;
 import co.elastic.elasticsearch.stateless.autoscaling.search.ReplicasUpdaterService;
 import co.elastic.elasticsearch.stateless.autoscaling.search.SearchMetricsService;
 import co.elastic.elasticsearch.stateless.autoscaling.search.SearchShardSizeCollector;
@@ -398,6 +400,10 @@ public class Stateless extends Plugin
             new ActionHandler(GetAllShardSizesAction.INSTANCE, GetAllShardSizesAction.TransportGetAllShardSizes.class),
             new ActionHandler(GetShardSizeAction.INSTANCE, GetShardSizeAction.TransportGetShardSize.class),
             new ActionHandler(TransportPublishSearchLoads.INSTANCE, TransportPublishSearchLoads.class),
+            new ActionHandler(
+                TransportPublishIndexingOperationsHeapMemoryRequirements.INSTANCE,
+                TransportPublishIndexingOperationsHeapMemoryRequirements.class
+            ),
 
             new ActionHandler(CLEAR_BLOB_CACHE_ACTION, TransportClearBlobCacheAction.class),
             new ActionHandler(GET_BLOB_STORE_STATS_ACTION, TransportGetBlobStoreStatsAction.class),
@@ -621,6 +627,16 @@ public class Stateless extends Plugin
             );
             clusterService.addListener(ingestLoadSampler);
             components.add(ingestLoadSampler);
+            var indexingPressureMonitor = services.indexingPressure();
+            var indexingMemoryRequirementsSampler = new IndexingOperationsMemoryRequirementsSampler(
+                settings,
+                threadPool,
+                client,
+                () -> clusterService.state().getMinTransportVersion(),
+                indexingPressureMonitor.getMaxAllowedOperationSizeInBytes()
+            );
+            indexingPressureMonitor.addListener(indexingMemoryRequirementsSampler);
+            components.add(indexingMemoryRequirementsSampler);
         }
         var ingestMetricService = new IngestMetricsService(
             clusterService.getClusterSettings(),
@@ -983,6 +999,8 @@ public class Stateless extends Plugin
             MemoryMetricsService.STALE_METRICS_CHECK_DURATION_SETTING,
             MemoryMetricsService.STALE_METRICS_CHECK_INTERVAL_SETTING,
             MemoryMetricsService.FIXED_SHARD_MEMORY_OVERHEAD_SETTING,
+            MemoryMetricsService.INDEXING_OPERATIONS_MEMORY_REQUIREMENTS_ENABLED_SETTING,
+            MemoryMetricsService.INDEXING_OPERATIONS_MEMORY_REQUIREMENTS_VALIDITY_SETTING,
             IngestLoadSampler.MAX_TIME_BETWEEN_METRIC_PUBLICATIONS_SETTING,
             IngestLoadSampler.MIN_SENSITIVITY_RATIO_FOR_PUBLICATION_SETTING,
             IngestMetricsService.ACCURATE_LOAD_WINDOW,
@@ -1042,7 +1060,8 @@ public class Stateless extends Plugin
             HollowShardsService.SETTING_HOLLOW_INGESTION_TTL,
             USE_INDEX_REFRESH_BLOCK_SETTING,
             RemoveRefreshClusterBlockService.EXPIRE_AFTER_SETTING,
-            SplitTargetService.RESHARD_SPLIT_SEARCH_SHARDS_ONLINE_TIMEOUT
+            SplitTargetService.RESHARD_SPLIT_SEARCH_SHARDS_ONLINE_TIMEOUT,
+            IndexingOperationsMemoryRequirementsSampler.SAMPLE_VALIDITY_SETTING
         );
     }
 

@@ -94,7 +94,7 @@ public class SearchMetricsServiceTests extends ESTestCase {
         super.setUp();
         currentRelativeTimeInNanos = new AtomicLong(1L);
         memoryMetricsService = mock(MemoryMetricsService.class);
-        when(memoryMetricsService.getMemoryMetrics()).thenReturn(FIXED_MEMORY_METRICS);
+        when(memoryMetricsService.getSearchTierMemoryMetrics()).thenReturn(FIXED_MEMORY_METRICS);
         service = new SearchMetricsService(
             createClusterSettings(),
             currentRelativeTimeInNanos::get,

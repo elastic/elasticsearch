@@ -1693,7 +1693,7 @@ public class IndexResolverFieldNamesTests extends ESTestCase {
             | eval langague_name = null
             | enrich languages_policy on languages
             | rename language_name as languages
-            | eval languages = length(language_name)
+            | eval languages = length(languages)
             | enrich languages_policy on languages
             | keep emp_no, language_name""", Set.of("emp_no", "language_name", "languages", "language_name.*", "languages.*", "emp_no.*"));
     }
@@ -1704,7 +1704,7 @@ public class IndexResolverFieldNamesTests extends ESTestCase {
             | eval langague_name = null
             | enrich languages_policy on languages
             | rename language_name as languages
-            | eval languages = length(language_name)
+            | eval languages = length(languages)
             | enrich languages_policy on languages
             | lookup join message_types_lookup on language_name
             | keep emp_no, language_name""", Set.of("emp_no", "language_name", "languages", "language_name.*", "languages.*", "emp_no.*"));

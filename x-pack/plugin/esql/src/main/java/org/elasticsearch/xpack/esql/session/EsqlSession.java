@@ -671,8 +671,17 @@ public class EsqlSession {
                 }
             }
 
-            // If there are joins, enriches etc. in the middle, these could override some of these fields.
-            // We don't know at this stage, so we have to keep all of them.
+            // If the current node in the tree is of type JOIN (lookup join, inlinestats) or ENRICH or other type of
+            // command that we may add in the future which can override already defined Aliases with EVAL
+            // (for example
+            //
+            // from test
+            // | eval ip = 123
+            // | enrich ips_policy ON hostname
+            // | rename ip AS my_ip
+            //
+            // and ips_policy enriches the results with the same name ip field),
+            // these aliases should be kept in the list of fields.
             if (canRemoveAliases[0] && couldOverrideAliases(p)) {
                 canRemoveAliases[0] = false;
             }

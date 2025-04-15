@@ -5,34 +5,46 @@
 geohashStringToLong
 required_capability: spatial_grid
 
+// tag::geohash_to_long[]
 ROW geohash = "u3bu"
 | EVAL geohashLong = ST_GEOHASH_TO_LONG(geohash)
+// end::geohash_to_long[]
 ;
 
+// tag::geohash_to_long-result[]
 geohash:keyword | geohashLong:long
 u3bu            | 13686180
+// end::geohash_to_long-result[]
 ;
 
 geohashLongToString
 required_capability: spatial_grid
 
+// tag::geohash_to_string[]
 ROW geohash = TO_LONG(13686180)
 | EVAL geohashString = ST_GEOHASH_TO_STRING(geohash)
+// end::geohash_to_string[]
 ;
 
+// tag::geohash_to_string-result[]
 geohash:long | geohashString:keyword
 13686180     | u3bu
+// end::geohash_to_string-result[]
 ;
 
 geohashStringToGeoShape
 required_capability: spatial_grid
 
+// tag::geohash_to_geoshape[]
 ROW geohash = "u3bu"
 | EVAL boundary = ST_GEOHASH_TO_GEOSHAPE(geohash)
+// end::geohash_to_geoshape[]
 ;
 
+// tag::geohash_to_geoshape-result[]
 geohash:keyword | boundary:geo_shape
 u3bu            | BBOX (12.3046875, 12.65625, 55.72265625, 55.546875)
+// end::geohash_to_geoshape-result[]
 ;
 
 geohashLongToGeoShape
@@ -127,9 +139,9 @@ geohash:long | geohashString:keyword | abbrev:keyword | name:text  | location:ge
 ;
 
 gridGeohashStatsBy
-// tag::st_geohash-grid[]
 required_capability: spatial_grid
 
+// tag::st_geohash-grid[]
 FROM airports
 | EVAL geohash = ST_GEOHASH(location, 1)
 | STATS
@@ -292,14 +304,46 @@ count:long | centroid:geo_point
 geotileStringToLong
 required_capability: spatial_grid
 
+// tag::geotile_to_long[]
 ROW geotile = "4/8/5"
 | EVAL geotileLong = ST_GEOTILE_TO_LONG(geotile)
-| EVAL geotileString = ST_GEOTILE_TO_STRING(geotileLong)
-| EVAL boundary = ST_GEOTILE_TO_GEOSHAPE(geotile)
+// end::geotile_to_long[]
 ;
 
-geotile:keyword | geotileLong:long    | geotileString:keyword | boundary:geo_shape
-4/8/5           | 1152921508901814277 | 4/8/5                 | BBOX (0.0, 22.5, 55.77657301866769, 40.979898069620134)
+// tag::geotile_to_long-result[]
+geotile:keyword | geotileLong:long
+4/8/5           | 1152921508901814277
+// end::geotile_to_long-result[]
+;
+
+geotileLongToString
+required_capability: spatial_grid
+
+// tag::geotile_to_string[]
+ROW geotile = 1152921508901814277
+| EVAL geotileString = ST_GEOTILE_TO_STRING(geotile)
+// end::geotile_to_string[]
+;
+
+// tag::geotile_to_string-result[]
+geotile:long        | geotileString:keyword
+1152921508901814277 | 4/8/5
+// end::geotile_to_string-result[]
+;
+
+geotileStringToGeoshape
+required_capability: spatial_grid
+
+// tag::geotile_to_geoshape[]
+ROW geotile = "4/8/5"
+| EVAL boundary = ST_GEOTILE_TO_GEOSHAPE(geotile)
+// end::geotile_to_geoshape[]
+;
+
+// tag::geotile_to_geoshape-result[]
+geotile:keyword | boundary:geo_shape
+4/8/5           | BBOX (0.0, 22.5, 55.77657301866769, 40.979898069620134)
+// end::geotile_to_geoshape-result[]
 ;
 
 geotileLiteral
@@ -383,9 +427,9 @@ geotile:long        | geotileString:keyword | abbrev:keyword | name:text  | loca
 ;
 
 gridGeotileStatsBy
-// tag::st_geotile-grid[]
 required_capability: spatial_grid
 
+// tag::st_geotile-grid[]
 FROM airports
 | EVAL geotile = ST_GEOTILE(location, 2)
 | STATS
@@ -524,14 +568,46 @@ count:long | centroid:geo_point
 geohexStringToLong
 required_capability: spatial_grid
 
+// tag::geohex_to_long[]
 ROW geohex = "841f059ffffffff"
 | EVAL geohexLong = ST_GEOHEX_TO_LONG(geohex)
-| EVAL geohexString = ST_GEOHEX_TO_STRING(geohexLong)
-| EVAL boundary = ST_GEOHEX_TO_GEOSHAPE(geohex)
+// end::geohex_to_long[]
 ;
 
-geohex:keyword  | geohexLong:long    | geohexString:keyword | boundary:geo_shape
-841f059ffffffff | 595020895127339007 | 841f059ffffffff      | POLYGON ((12.353546327258265 55.80335405461356, 12.2434612967008 55.60502874054935, 12.51733872608954 55.470800201545316, 12.901880149865134 55.53443156197633, 13.014270156228921 55.73262985778208, 12.739822958959069 55.8673267391136, 12.353546327258265 55.80335405461356))
+// tag::geohex_to_long-result[]
+geohex:keyword  | geohexLong:long
+841f059ffffffff | 595020895127339007
+// end::geohex_to_long-result[]
+;
+
+geohexLongToString
+required_capability: spatial_grid
+
+// tag::geohex_to_string[]
+ROW geohex = 595020895127339007
+| EVAL geohexString = ST_GEOHEX_TO_STRING(geohex)
+// end::geohex_to_string[]
+;
+
+// tag::geohex_to_string-result[]
+geohex:long        | geohexString:keyword
+595020895127339007 | 841f059ffffffff
+// end::geohex_to_string-result[]
+;
+
+geohexStringToGeoshape
+required_capability: spatial_grid
+
+// tag::geohex_to_geoshape[]
+ROW geohex = "841f059ffffffff"
+| EVAL boundary = ST_GEOHEX_TO_GEOSHAPE(geohex)
+// end::geohex_to_geoshape[]
+;
+
+// tag::geohex_to_geoshape-result[]
+geohex:keyword  | boundary:geo_shape
+841f059ffffffff | POLYGON ((12.353546327258265 55.80335405461356, 12.2434612967008 55.60502874054935, 12.51733872608954 55.470800201545316, 12.901880149865134 55.53443156197633, 13.014270156228921 55.73262985778208, 12.739822958959069 55.8673267391136, 12.353546327258265 55.80335405461356))
+// end::geohex_to_geoshape-result[]
 ;
 
 geohexLiteral
@@ -615,9 +691,9 @@ geohex:long        | geohexString:keyword | abbrev:keyword | name:text  | locati
 ;
 
 gridGeohexStatsBy
-// tag::st_geohex-grid[]
 required_capability: spatial_grid
 
+// tag::st_geohex-grid[]
 FROM airports
 | EVAL geohex = ST_GEOHEX(location, 1)
 | STATS

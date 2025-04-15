@@ -40,18 +40,15 @@ import static org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes.GEO;
 public class StGeohex extends SpatialGridFunction implements EvaluatorMapper {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "StGeohex", StGeohex::new);
 
-    @FunctionInfo(
-        returnType = "long",
-        description = """
-            Calculates the `geohex`, the H3 cell-id, of the supplied geo_point at the specified precision.
-            The result is long encoded. Use ST_GEOHEX_TO_STRING to convert the result to a string.
-            Or use ST_GEOHEX_TO_GEOSHAPE to convert either the long or string geohex to a POLYGON geo_shape.""",
-        examples = @Example(file = "spatial-grid", tag = "st_geohex-grid")
-    )
+    @FunctionInfo(returnType = "long", description = """
+        Calculates the `geohex`, the H3 cell-id, of the supplied geo_point at the specified precision.
+        The result is long encoded. Use [ST_GEOHEX_TO_STRING](#esql-st_geohex_to_string) to convert the result to a string.
+        Or use [ST_GEOHEX_TO_GEOSHAPE](#esql-st_geohex_to_geoshape) to convert either the long or string `geohex` to a
+        POLYGON geo_shape.""", examples = @Example(file = "spatial-grid", tag = "st_geohex-grid"))
     public StGeohex(
         Source source,
         @Param(
-            name = "point",
+            name = "geometry",
             type = { "geo_point" },
             description = "Expression of type `geo_point`. If `null`, the function returns `null`."
         ) Expression field,

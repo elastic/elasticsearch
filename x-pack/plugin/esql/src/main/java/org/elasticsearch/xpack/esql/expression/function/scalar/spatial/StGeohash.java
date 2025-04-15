@@ -45,18 +45,15 @@ public class StGeohash extends SpatialGridFunction implements EvaluatorMapper {
         StGeohash::new
     );
 
-    @FunctionInfo(
-        returnType = "long",
-        description = """
-            Calculates the `geohash` of the supplied geo_point at the specified precision.
-            The result is long encoded. Use ST_GEOHASH_TO_STRING to convert the result to a string.
-            Or use ST_GEOHASH_TO_GEOSHAPE to convert either the long or string geohash to a BBOX geo_shape.""",
-        examples = @Example(file = "spatial-grid", tag = "st_geohash-grid")
-    )
+    @FunctionInfo(returnType = "long", description = """
+        Calculates the `geohash` of the supplied geo_point at the specified precision.
+        The result is long encoded. Use [ST_GEOHASH_TO_STRING](#esql-st_geohash_to_string) to convert the result to a string.
+        Or use [ST_GEOHASH_TO_GEOSHAPE](#esql-st_geohash_to_geoshape) to convert either the long or string `geohash` to a
+        POLYGON geo_shape.""", examples = @Example(file = "spatial-grid", tag = "st_geohash-grid"))
     public StGeohash(
         Source source,
         @Param(
-            name = "point",
+            name = "geometry",
             type = { "geo_point" },
             description = "Expression of type `geo_point`. If `null`, the function returns `null`."
         ) Expression field,

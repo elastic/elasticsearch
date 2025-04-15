@@ -48,3 +48,38 @@ mapped_pages:
 :::{include} ../_snippets/functions/layout/st_ymin.md
 :::
 
+:::{include} ../_snippets/functions/layout/st_geotile.md
+:::
+
+:::{include} ../_snippets/functions/layout/st_geohex.md
+:::
+
+:::{include} ../_snippets/functions/layout/st_geohash.md
+:::
+
+:::{include} ../_snippets/functions/layout/st_geotile_to_string.md
+:::
+
+:::{include} ../_snippets/functions/layout/st_geohex_to_string.md
+:::
+
+:::{include} ../_snippets/functions/layout/st_geohash_to_string.md
+:::
+
+:::{include} ../_snippets/functions/layout/st_geotile_to_long.md
+:::
+
+:::{include} ../_snippets/functions/layout/st_geohex_to_long.md
+:::
+
+:::{include} ../_snippets/functions/layout/st_geohash_to_long.md
+:::
+
+:::{include} ../_snippets/functions/layout/st_geotile_to_geoshape.md
+:::
+
+:::{include} ../_snippets/functions/layout/st_geohex_to_geoshape.md
+:::
+
+:::{include} ../_snippets/functions/layout/st_geohash_to_geoshape.md
+:::

@@ -45,18 +45,15 @@ public class StGeotile extends SpatialGridFunction implements EvaluatorMapper {
         StGeotile::new
     );
 
-    @FunctionInfo(
-        returnType = "long",
-        description = """
-            Calculates the `geotile` of the supplied geo_point at the specified precision.
-            The result is long encoded. Use ST_GEOTILE_TO_STRING to convert the result to a string.
-            Or use ST_GEOTILE_TO_GEOSHAPE to convert either the long or string geotile to a BBOX geo_shape.""",
-        examples = @Example(file = "spatial-grid", tag = "st_geotile-grid")
-    )
+    @FunctionInfo(returnType = "long", description = """
+        Calculates the `geotile` of the supplied geo_point at the specified precision.
+        The result is long encoded. Use [ST_GEOTILE_TO_STRING](#esql-st_geotile_to_string) to convert the result to a string.
+        Or use [ST_GEOTILE_TO_GEOSHAPE](#esql-st_geotile_to_geoshape) to convert either the long or string `geotile` to a
+        POLYGON geo_shape.""", examples = @Example(file = "spatial-grid", tag = "st_geotile-grid"))
     public StGeotile(
         Source source,
         @Param(
-            name = "point",
+            name = "geometry",
             type = { "geo_point" },
             description = "Expression of type `geo_point`. If `null`, the function returns `null`."
         ) Expression field,

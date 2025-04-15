@@ -232,7 +232,7 @@ public class RequestExecutorService implements RequestExecutor {
 
     private void scheduleNextHandleTasks(TimeValue timeToWait) {
         if (shutdown.get()) {
-            logger.debug("Shutdown requested while scheduling next task, cleaning up");
+            logger.debug("Shutdown requested while scheduling next handle task call, cleaning up");
             cleanup();
             return;
         }
@@ -268,7 +268,6 @@ public class RequestExecutorService implements RequestExecutor {
             logger.warn("Encountered an error while handling tasks", e);
             cleanup();
         }
-        // sleeper.sleep(timeToWait);
     }
 
     private void notifyRequestsOfShutdown() {

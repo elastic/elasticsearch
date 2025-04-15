@@ -149,7 +149,7 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
         if (useLegacyFormat == false
             && indexVersion.before(IndexVersions.INFERENCE_METADATA_FIELDS)
             && indexVersion.between(IndexVersions.INFERENCE_METADATA_FIELDS_BACKPORT, IndexVersions.UPGRADE_TO_LUCENE_10_0_0) == false) {
-            throw new IllegalArgumentException("Index version does not support new semantic text format");
+            throw new IllegalArgumentException("Index version " + indexVersion + " does not support new semantic text format");
         }
     }
 
@@ -1149,7 +1149,7 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
             b.endObject();
         }),
             useLegacyFormat,
-            IndexVersions.UPGRADE_TO_LUCENE_10_0_0,
+            IndexVersions.INFERENCE_METADATA_FIELDS,
             IndexVersionUtils.getPreviousVersion(IndexVersions.SEMANTIC_TEXT_DEFAULTS_TO_BBQ)
         );
         assertSemanticTextField(mapperService, "field", true, null, SemanticTextFieldMapper.defaultSemanticDenseIndexOptions());

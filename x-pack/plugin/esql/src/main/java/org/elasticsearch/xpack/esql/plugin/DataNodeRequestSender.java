@@ -30,7 +30,6 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.tasks.CancellableTask;
-import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.transport.TransportException;
 import org.elasticsearch.transport.TransportRequestOptions;
@@ -104,7 +103,6 @@ abstract class DataNodeRequestSender {
     }
 
     final void startComputeOnDataNodes(
-        String clusterAlias,
         Set<String> concreteIndices,
         OriginalIndices originalIndices,
         QueryBuilder requestFilter,
@@ -112,7 +110,7 @@ abstract class DataNodeRequestSender {
         ActionListener<ComputeResponse> listener
     ) {
         final long startTimeInNanos = System.nanoTime();
-        searchShards(rootTask, clusterAlias, requestFilter, concreteIndices, originalIndices, ActionListener.wrap(targetShards -> {
+        searchShards(requestFilter, concreteIndices, originalIndices, ActionListener.wrap(targetShards -> {
             try (var computeListener = new ComputeListener(transportService.getThreadPool(), runOnTaskFailure, listener.map(profiles -> {
                 return new ComputeResponse(
                     profiles,
@@ -321,7 +319,7 @@ abstract class DataNodeRequestSender {
     }
 
     /**
-     * Result from {@link #searchShards(Task, String, QueryBuilder, Set, OriginalIndices, ActionListener)} where can_match is performed to
+     * Result from {@link #searchShards(QueryBuilder, Set, OriginalIndices, ActionListener)} where can_match is performed to
      * determine what shards can be skipped and which target nodes are needed for running the ES|QL query
      *
      * @param shards        List of target shards to perform the ES|QL query on
@@ -412,8 +410,6 @@ abstract class DataNodeRequestSender {
      * to a situation where the column structure (i.e., matched data types) differs depending on the query.
      */
     void searchShards(
-        Task parentTask,
-        String clusterAlias,
         QueryBuilder filter,
         Set<String> concreteIndices,
         OriginalIndices originalIndices,
@@ -459,7 +455,7 @@ abstract class DataNodeRequestSender {
             transportService.getLocalNode(),
             EsqlSearchShardsAction.TYPE.name(),
             searchShardsRequest,
-            parentTask,
+            rootTask,
             TransportRequestOptions.EMPTY,
             new ActionListenerResponseHandler<>(searchShardsListener, SearchShardsResponse::new, esqlExecutor)
         );

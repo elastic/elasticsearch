@@ -843,7 +843,7 @@ public class EsqlCapabilities {
         /**
          * Support change point detection "CHANGE_POINT".
          */
-        CHANGE_POINT(Build.current().isSnapshot()),
+        CHANGE_POINT,
 
         /**
          * Fix for https://github.com/elastic/elasticsearch/issues/120817
@@ -879,6 +879,11 @@ public class EsqlCapabilities {
         RERANK(Build.current().isSnapshot()),
 
         /**
+         * Support for COMPLETION command
+         */
+        COMPLETION(Build.current().isSnapshot()),
+
+        /**
          * Allow mixed numeric types in conditional functions - case, greatest and least
          */
         MIXED_NUMERIC_TYPES_IN_CASE_GREATEST_LEAST,
@@ -898,6 +903,11 @@ public class EsqlCapabilities {
          * Full text functions can be scored when being part of a disjunction
          */
         FULL_TEXT_FUNCTIONS_DISJUNCTIONS_SCORE,
+
+        /**
+         * Support for multi-match function.
+         */
+        MULTI_MATCH_FUNCTION(Build.current().isSnapshot()),
 
         /**
          * Do {@code TO_LOWER} and {@code TO_UPPER} process all field values?
@@ -947,7 +957,61 @@ public class EsqlCapabilities {
         /**
          * Supercedes {@link Cap#MAKE_NUMBER_OF_CHANNELS_CONSISTENT_WITH_LAYOUT}.
          */
-        FIX_REPLACE_MISSING_FIELD_WITH_NULL_DUPLICATE_NAME_ID_IN_LAYOUT;
+        FIX_REPLACE_MISSING_FIELD_WITH_NULL_DUPLICATE_NAME_ID_IN_LAYOUT,
+
+        /**
+         * Support for filter in converted null.
+         * See <a href="https://github.com/elastic/elasticsearch/issues/125832"> ESQL: Fix `NULL` handling in `IN` clause #125832 </a>
+         */
+        FILTER_IN_CONVERTED_NULL,
+
+        /**
+         * When creating constant null blocks in {@link org.elasticsearch.compute.lucene.ValuesSourceReaderOperator}, we also handed off
+         * the ownership of that block - but didn't account for the fact that the caller might close it, leading to double releases
+         * in some union type queries. C.f. https://github.com/elastic/elasticsearch/issues/125850
+         */
+        FIX_DOUBLY_RELEASED_NULL_BLOCKS_IN_VALUESOURCEREADER,
+
+        /**
+         * Listing queries and getting information on a specific query.
+         */
+        QUERY_MONITORING,
+
+        /**
+         * Support max_over_time aggregation that gets evaluated per time-series
+         */
+        MAX_OVER_TIME(Build.current().isSnapshot()),
+
+        /**
+         * Support STATS/EVAL/DISSECT in Fork branches
+         */
+        FORK_V2(Build.current().isSnapshot()),
+
+        /**
+         * Support for the {@code leading_zeros} named parameter.
+         */
+        TO_IP_LEADING_ZEROS,
+
+        /**
+         * Does the usage information for ESQL contain a histogram of {@code took} values?
+         */
+        USAGE_CONTAINS_TOOK,
+
+        /**
+         * Support avg_over_time aggregation that gets evaluated per time-series
+         */
+        AVG_OVER_TIME(Build.current().isSnapshot()),
+
+        /**
+         * Support loading of ip fields if they are not indexed.
+         */
+        LOADING_NON_INDEXED_IP_FIELDS,
+
+        /**
+         * During resolution (pre-analysis) we have to consider that joins or enriches can override EVALuated values
+         * https://github.com/elastic/elasticsearch/issues/126419
+         */
+        FIX_JOIN_MASKING_EVAL;
 
         private final boolean enabled;
 

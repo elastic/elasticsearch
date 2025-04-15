@@ -7,6 +7,8 @@
 
 package org.elasticsearch.xpack.inference.mapper;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.lucene.index.FieldInfos;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.DocIdSetIterator;
@@ -18,6 +20,7 @@ import org.apache.lucene.search.Weight;
 import org.apache.lucene.search.join.BitSetProducer;
 import org.apache.lucene.search.join.ScoreMode;
 import org.apache.lucene.util.BitSet;
+import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.cluster.metadata.InferenceFieldMetadata;
 import org.elasticsearch.cluster.metadata.SemanticTextIndexOptions;
 import org.elasticsearch.common.Strings;
@@ -91,6 +94,7 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.function.BiConsumer;
 import java.util.function.Function;
+import java.util.function.Supplier;
 
 import static org.elasticsearch.inference.TaskType.SPARSE_EMBEDDING;
 import static org.elasticsearch.inference.TaskType.TEXT_EMBEDDING;
@@ -115,6 +119,7 @@ import static org.elasticsearch.xpack.inference.services.elasticsearch.Elasticse
  * A {@link FieldMapper} for semantic text fields.
  */
 public class SemanticTextFieldMapper extends FieldMapper implements InferenceFieldMapper {
+    private static final Logger logger = LogManager.getLogger(SemanticTextFieldMapper.class);
     public static final NodeFeature SEMANTIC_TEXT_IN_OBJECT_FIELD_FIX = new NodeFeature("semantic_text.in_object_field_fix");
     public static final NodeFeature SEMANTIC_TEXT_SINGLE_FIELD_UPDATE_FIX = new NodeFeature("semantic_text.single_field_update_fix");
     public static final NodeFeature SEMANTIC_TEXT_DELETE_FIX = new NodeFeature("semantic_text.delete_fix");
@@ -131,10 +136,12 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
     public static final String CONTENT_TYPE = "semantic_text";
     public static final String DEFAULT_ELSER_2_INFERENCE_ID = DEFAULT_ELSER_ID;
 
-    public static final TypeParser PARSER = new TypeParser(
-        (n, c) -> new Builder(n, c::bitSetProducer, c.getIndexSettings()),
-        List.of(validateParserContext(CONTENT_TYPE))
-    );
+    public static final TypeParser parser(Supplier<ModelRegistry> modelRegistry) {
+        return new TypeParser(
+            (n, c) -> new Builder(n, c::bitSetProducer, c.getIndexSettings(), modelRegistry.get()),
+            List.of(validateParserContext(CONTENT_TYPE))
+        );
+    }
 
     public static BiConsumer<String, MappingParserContext> validateParserContext(String type) {
         return (n, c) -> {
@@ -145,13 +152,8 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
         };
     }
 
-    private static ModelRegistry modelRegistry;
-
-    public static void setModelRegistry(ModelRegistry registry) {
-        modelRegistry = registry;
-    }
-
     public static class Builder extends FieldMapper.Builder {
+        private final ModelRegistry modelRegistry;
         private final boolean useLegacyFormat;
 
         private final Parameter<String> inferenceId = Parameter.stringParam(
@@ -219,14 +221,21 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
             Builder builder = new Builder(
                 mapper.leafName(),
                 mapper.fieldType().getChunksField().bitsetProducer(),
-                mapper.fieldType().getChunksField().indexSettings()
+                mapper.fieldType().getChunksField().indexSettings(),
+                mapper.modelRegistry
             );
             builder.init(mapper);
             return builder;
         }
 
-        public Builder(String name, Function<Query, BitSetProducer> bitSetProducer, IndexSettings indexSettings) {
+        public Builder(
+            String name,
+            Function<Query, BitSetProducer> bitSetProducer,
+            IndexSettings indexSettings,
+            ModelRegistry modelRegistry
+        ) {
             super(name);
+            this.modelRegistry = modelRegistry;
             this.useLegacyFormat = InferenceMetadataFieldsMapper.isEnabled(indexSettings.getSettings()) == false;
             this.inferenceFieldBuilder = c -> createInferenceField(
                 c,
@@ -285,8 +294,30 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
             if (useLegacyFormat && multiFieldsBuilder.hasMultiFields()) {
                 throw new IllegalArgumentException(CONTENT_TYPE + " field [" + leafName() + "] does not support multi-fields");
             }
+
+            if (modelSettings.get() == null) {
+                try {
+                    var resolvedModelSettings = modelRegistry.getMinimalServiceSettings(inferenceId.get());
+                    if (resolvedModelSettings != null) {
+                        modelSettings.setValue(resolvedModelSettings);
+                    }
+                } catch (ResourceNotFoundException exc) {
+                    // We allow the inference ID to be unregistered at this point.
+                    // This will delay the creation of sub-fields, so indexing and querying for this field won't work
+                    // until the corresponding inference endpoint is created.
+                }
+            }
+
             if (modelSettings.get() != null) {
                 validateServiceSettings(modelSettings.get());
+            } else {
+                logger.warn(
+                    "The field [{}] references an unknown inference ID [{}]. "
+                        + "Indexing and querying this field will not work correctly until the corresponding "
+                        + "inference endpoint is created.",
+                    leafName(),
+                    inferenceId.get()
+                );
             }
             if (indexOptions.get() != null) {
                 validateIndexOptions(indexOptions.get(), inferenceId.getValue(), modelSettings.get());
@@ -312,7 +343,8 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
                     useLegacyFormat,
                     meta.getValue()
                 ),
-                builderParams(this, context)
+                builderParams(this, context),
+                modelRegistry
             );
         }
 
@@ -373,9 +405,17 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
         }
     }
 
-    private SemanticTextFieldMapper(String simpleName, MappedFieldType mappedFieldType, BuilderParams builderParams) {
+    private final ModelRegistry modelRegistry;
+
+    private SemanticTextFieldMapper(
+        String simpleName,
+        MappedFieldType mappedFieldType,
+        BuilderParams builderParams,
+        ModelRegistry modelRegistry
+    ) {
         super(simpleName, mappedFieldType, builderParams);
         ensureMultiFields(builderParams.multiFields().iterator());
+        this.modelRegistry = modelRegistry;
     }
 
     private void ensureMultiFields(Iterator<FieldMapper> mappers) {

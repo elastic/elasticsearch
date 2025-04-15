@@ -7,8 +7,6 @@
 
 package org.elasticsearch.xpack.logsdb;
 
-import org.elasticsearch.action.ActionRequest;
-import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
@@ -93,10 +91,10 @@ public class LogsDBPlugin extends Plugin implements ActionPlugin {
     }
 
     @Override
-    public List<ActionPlugin.ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {
-        List<ActionPlugin.ActionHandler<? extends ActionRequest, ? extends ActionResponse>> actions = new ArrayList<>();
-        actions.add(new ActionPlugin.ActionHandler<>(XPackUsageFeatureAction.LOGSDB, LogsDBUsageTransportAction.class));
-        actions.add(new ActionPlugin.ActionHandler<>(XPackInfoFeatureAction.LOGSDB, LogsDBInfoTransportAction.class));
+    public List<ActionPlugin.ActionHandler> getActions() {
+        List<ActionPlugin.ActionHandler> actions = new ArrayList<>();
+        actions.add(new ActionPlugin.ActionHandler(XPackUsageFeatureAction.LOGSDB, LogsDBUsageTransportAction.class));
+        actions.add(new ActionPlugin.ActionHandler(XPackInfoFeatureAction.LOGSDB, LogsDBInfoTransportAction.class));
         return actions;
     }
 

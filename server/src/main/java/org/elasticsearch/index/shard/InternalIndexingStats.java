@@ -22,6 +22,7 @@ import org.elasticsearch.index.engine.VersionConflictEngineException;
 
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.concurrent.atomic.LongAdder;
 import java.util.function.LongSupplier;
 
 import static org.elasticsearch.core.TimeValue.timeValueNanos;
@@ -51,6 +52,7 @@ final class InternalIndexingStats implements IndexingOperationListener {
         boolean isThrottled,
         long currentThrottleInMillis,
         long indexingTimeBeforeShardStartedInNanos,
+        long indexingLoadBeforeShardStartedInNanos,
         long timeSinceShardStartedInNanos,
         long currentTimeInNanos,
         double recentIndexingLoadAtShardStarted
@@ -59,6 +61,7 @@ final class InternalIndexingStats implements IndexingOperationListener {
             isThrottled,
             currentThrottleInMillis,
             indexingTimeBeforeShardStartedInNanos,
+            indexingLoadBeforeShardStartedInNanos,
             timeSinceShardStartedInNanos,
             currentTimeInNanos,
             recentIndexingLoadAtShardStarted
@@ -68,6 +71,10 @@ final class InternalIndexingStats implements IndexingOperationListener {
 
     long totalIndexingTimeInNanos() {
         return totalStats.indexMetric.sum();
+    }
+
+    long totalIndexingLoadInNanos() {
+        return totalStats.indexMetric.sum() + totalStats.writeIndexingBufferTime.sum();
     }
 
     /**
@@ -160,7 +167,7 @@ final class InternalIndexingStats implements IndexingOperationListener {
      * @see org.elasticsearch.indices.IndexingMemoryController
      */
     void writeIndexBuffers(long took) {
-        totalStats.indexMetric.inc(took);
+        totalStats.writeIndexingBufferTime.add(took);
         totalStats.recentIndexMetric.addIncrement(took, relativeTimeInNanosSupplier.getAsLong());
     }
 
@@ -174,6 +181,7 @@ final class InternalIndexingStats implements IndexingOperationListener {
         private final CounterMetric indexFailedDueToVersionConflicts = new CounterMetric();
         private final CounterMetric deleteCurrent = new CounterMetric();
         private final CounterMetric noopUpdates = new CounterMetric();
+        private final LongAdder writeIndexingBufferTime = new LongAdder();
 
         StatsHolder(long startTimeInNanos, TimeValue recentWriteLoadHalfLife) {
             double lambdaInInverseNanos = Math.log(2.0) / recentWriteLoadHalfLife.nanos();
@@ -190,12 +198,15 @@ final class InternalIndexingStats implements IndexingOperationListener {
             boolean isThrottled,
             long currentThrottleMillis,
             long indexingTimeBeforeShardStartedInNanos,
+            long indexingLoadBeforeShardStartedInNanos,
             long timeSinceShardStartedInNanos,
             long currentTimeInNanos,
             double recentIndexingLoadAtShardStarted
         ) {
             final long totalIndexingTimeInNanos = indexMetric.sum();
             final long totalIndexingTimeSinceShardStartedInNanos = totalIndexingTimeInNanos - indexingTimeBeforeShardStartedInNanos;
+            final long totalIndexingLoadInNanos = totalIndexingTimeInNanos + writeIndexingBufferTime.sum();
+            final long totalIndexingLoadSinceShardStartedInNanos = totalIndexingLoadInNanos - indexingLoadBeforeShardStartedInNanos;
             final double recentIndexingLoadSinceShardStarted = recentIndexMetric.calculateRateSince(
                 currentTimeInNanos,
                 recentIndexMetric.getRate(currentTimeInNanos),
@@ -229,6 +240,7 @@ final class InternalIndexingStats implements IndexingOperationListener {
                 isThrottled,
                 TimeUnit.MILLISECONDS.toMillis(currentThrottleMillis),
                 totalIndexingTimeSinceShardStartedInNanos,
+                totalIndexingLoadSinceShardStartedInNanos,
                 timeSinceShardStartedInNanos,
                 recentIndexingLoadSinceShardStarted,
                 peakIndexingLoad

@@ -1,5 +1,0 @@
-pr: 120084
-summary: Improve how reindex data stream index action handles api blocks
-area: Data streams
-type: enhancement
-issues: []

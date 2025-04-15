@@ -421,9 +421,6 @@ tests:
 - class: org.elasticsearch.packaging.test.DebPreservationTests
   method: test40RestartOnUpgrade
   issue: https://github.com/elastic/elasticsearch/issues/125821
-- class: org.elasticsearch.xpack.downsample.DataStreamLifecycleDownsampleDisruptionIT
-  method: testDataStreamLifecycleDownsampleRollingRestart
-  issue: https://github.com/elastic/elasticsearch/issues/123769
 - class: org.elasticsearch.repositories.blobstore.testkit.analyze.GCSRepositoryAnalysisRestIT
   method: testRepositoryAnalysis
   issue: https://github.com/elastic/elasticsearch/issues/125668
@@ -454,3 +451,9 @@ tests:
 - class: org.elasticsearch.action.RejectionActionIT
   method: testSimulatedSearchRejectionLoad
   issue: https://github.com/elastic/elasticsearch/issues/125901
+- class: org.elasticsearch.search.SearchServiceSingleNodeTests
+  method: testBeforeShardLockDuringShardCreate
+  issue: https://github.com/elastic/elasticsearch/issues/126812
+- class: org.elasticsearch.search.SearchServiceSingleNodeTests
+  method: testLookUpSearchContext
+  issue: https://github.com/elastic/elasticsearch/issues/126813

@@ -299,7 +299,7 @@ public class RestEsqlIT extends RestEsqlTestCase {
         Map<String, Object> result = runEsql(builder);
         assertResultMap(
             result,
-            getResultMatcher(result).entry("profile", matchesMap().entry("drivers", instanceOf(List.class))),
+            getResultMatcher(result).entry("profile", getProfileMatcher()),
             matchesList().item(matchesMap().entry("name", "AVG(value)").entry("type", "double")),
             equalTo(List.of(List.of(499.5d)))
         );
@@ -621,7 +621,7 @@ public class RestEsqlIT extends RestEsqlTestCase {
         }
         assertResultMap(
             result,
-            getResultMatcher(result).entry("profile", matchesMap().entry("drivers", instanceOf(List.class))),
+            getResultMatcher(result).entry("profile", getProfileMatcher()),
             matchesList().item(matchesMap().entry("name", "@timestamp").entry("type", "date"))
                 .item(matchesMap().entry("name", "test").entry("type", "text"))
                 .item(matchesMap().entry("name", "test.keyword").entry("type", "keyword"))
@@ -724,7 +724,7 @@ public class RestEsqlIT extends RestEsqlTestCase {
         }
         assertResultMap(
             result,
-            getResultMatcher(result).entry("profile", matchesMap().entry("drivers", instanceOf(List.class))),
+            getResultMatcher(result).entry("profile", getProfileMatcher()),
             matchesList().item(matchesMap().entry("name", "AVG(value)").entry("type", "double"))
                 .item(matchesMap().entry("name", "MAX(value)").entry("type", "long"))
                 .item(matchesMap().entry("name", "MIN(value)").entry("type", "long"))

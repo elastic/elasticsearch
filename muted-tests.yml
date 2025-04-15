@@ -411,6 +411,8 @@ tests:
 - class: org.elasticsearch.simdvec.VectorScorerFactoryTests
   method: testRandomScorerMax
   issue: https://github.com/elastic/elasticsearch/issues/126797
+- class: org.elasticsearch.search.SearchServiceSingleNodeTests
+  issue: https://github.com/elastic/elasticsearch/issues/126800
 
 # Examples:
 #

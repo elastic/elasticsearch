@@ -1,0 +1,17 @@
+pr: 126843
+summary: Upgrade `repository-s3` to AWS SDK v2
+area: Snapshot/Restore
+type: "breaking, upgrade"
+issues:
+ - 120993
+highlight:
+  title: Upgrade `repository-s3` to AWS SDK v2
+  body: "Closes #120993"
+  notable: true
+breaking:
+  title: Upgrade `repository-s3` to AWS SDK v2
+  area: Snapshot/Restore
+  details: Please describe the details of this change for the release notes. You can
+    use asciidoc.
+  impact: Please describe the impact of this change to users
+  notable: false

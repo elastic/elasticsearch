@@ -37,6 +37,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.stream.Stream;
 
 import static org.elasticsearch.cluster.metadata.DataStreamLifecycle.RetentionSource.DATA_STREAM_CONFIGURATION;
+import static org.elasticsearch.cluster.metadata.DataStreamLifecycle.RetentionSource.DEFAULT_FAILURES_RETENTION;
 import static org.elasticsearch.cluster.metadata.DataStreamLifecycle.RetentionSource.DEFAULT_GLOBAL_RETENTION;
 import static org.elasticsearch.cluster.metadata.DataStreamLifecycle.RetentionSource.MAX_GLOBAL_RETENTION;
 import static org.hamcrest.Matchers.containsString;
@@ -324,79 +325,144 @@ public class DataStreamLifecycleTests extends AbstractWireSerializingTestCase<Da
     public void testEffectiveRetention() {
         // No retention in the data stream lifecycle
         {
-            DataStreamLifecycle noRetentionLifecycle = DataStreamLifecycle.dataLifecycleBuilder()
+            DataStreamLifecycle noDataRetentionLifecycle = DataStreamLifecycle.dataLifecycleBuilder()
                 .downsampling(randomDownsampling())
                 .build();
+            DataStreamLifecycle noFailuresRetentionLifecycle = DataStreamLifecycle.failuresLifecycleBuilder().build();
             TimeValue maxRetention = TimeValue.timeValueDays(randomIntBetween(50, 100));
             TimeValue defaultRetention = TimeValue.timeValueDays(randomIntBetween(1, 50));
-            Tuple<TimeValue, DataStreamLifecycle.RetentionSource> effectiveDataRetentionWithSource = noRetentionLifecycle
+            TimeValue failuresDefaultRetention = TimeValue.timeValueDays(randomIntBetween(1, 100));
+
+            // No global retention
+            // Data lifecycle
+            Tuple<TimeValue, DataStreamLifecycle.RetentionSource> effectiveDataRetentionWithSource = noDataRetentionLifecycle
                 .getEffectiveDataRetentionWithSource(null, randomBoolean());
             assertThat(effectiveDataRetentionWithSource.v1(), nullValue());
             assertThat(effectiveDataRetentionWithSource.v2(), equalTo(DATA_STREAM_CONFIGURATION));
+            // Failures lifecycle
+            Tuple<TimeValue, DataStreamLifecycle.RetentionSource> effectiveFailuresRetentionWithSource = noFailuresRetentionLifecycle
+                .getEffectiveDataRetentionWithSource(null, randomBoolean());
+            assertThat(effectiveFailuresRetentionWithSource.v1(), nullValue());
+            assertThat(effectiveFailuresRetentionWithSource.v2(), equalTo(DATA_STREAM_CONFIGURATION));
 
-            effectiveDataRetentionWithSource = noRetentionLifecycle.getEffectiveDataRetentionWithSource(
-                new DataStreamGlobalRetention(null, maxRetention),
-                false
-            );
+            // Only max retention
+            DataStreamGlobalRetention onlyMaxRetention = new DataStreamGlobalRetention(null, maxRetention, null);
+            // Data lifecycle
+            effectiveDataRetentionWithSource = noDataRetentionLifecycle.getEffectiveDataRetentionWithSource(onlyMaxRetention, false);
             assertThat(effectiveDataRetentionWithSource.v1(), equalTo(maxRetention));
             assertThat(effectiveDataRetentionWithSource.v2(), equalTo(MAX_GLOBAL_RETENTION));
+            // Failures lifecycle
+            effectiveFailuresRetentionWithSource = noFailuresRetentionLifecycle.getEffectiveDataRetentionWithSource(
+                onlyMaxRetention,
+                false
+            );
+            assertThat(effectiveFailuresRetentionWithSource.v1(), equalTo(maxRetention));
+            assertThat(effectiveFailuresRetentionWithSource.v2(), equalTo(MAX_GLOBAL_RETENTION));
 
-            effectiveDataRetentionWithSource = noRetentionLifecycle.getEffectiveDataRetentionWithSource(
-                new DataStreamGlobalRetention(defaultRetention, null),
+            // Default configuration with data lifecycle
+            effectiveDataRetentionWithSource = noDataRetentionLifecycle.getEffectiveDataRetentionWithSource(
+                new DataStreamGlobalRetention(defaultRetention, null, randomBoolean() ? null : failuresDefaultRetention),
                 false
             );
             assertThat(effectiveDataRetentionWithSource.v1(), equalTo(defaultRetention));
             assertThat(effectiveDataRetentionWithSource.v2(), equalTo(DEFAULT_GLOBAL_RETENTION));
 
-            effectiveDataRetentionWithSource = noRetentionLifecycle.getEffectiveDataRetentionWithSource(
-                new DataStreamGlobalRetention(defaultRetention, maxRetention),
+            // Default configuration with failures lifecycle
+            effectiveFailuresRetentionWithSource = noFailuresRetentionLifecycle.getEffectiveDataRetentionWithSource(
+                new DataStreamGlobalRetention(defaultRetention, null, null),
+                false
+            );
+            assertThat(effectiveFailuresRetentionWithSource.v1(), equalTo(defaultRetention));
+            assertThat(effectiveFailuresRetentionWithSource.v2(), equalTo(DEFAULT_GLOBAL_RETENTION));
+
+            // Complete global retention with data lifecycle
+            effectiveDataRetentionWithSource = noDataRetentionLifecycle.getEffectiveDataRetentionWithSource(
+                new DataStreamGlobalRetention(defaultRetention, maxRetention, randomBoolean() ? null : failuresDefaultRetention),
                 false
             );
             assertThat(effectiveDataRetentionWithSource.v1(), equalTo(defaultRetention));
             assertThat(effectiveDataRetentionWithSource.v2(), equalTo(DEFAULT_GLOBAL_RETENTION));
+
+            // Complete global retention with failures lifecycle
+            effectiveFailuresRetentionWithSource = noFailuresRetentionLifecycle.getEffectiveDataRetentionWithSource(
+                new DataStreamGlobalRetention(defaultRetention, maxRetention, failuresDefaultRetention),
+                false
+            );
+            assertThat(effectiveFailuresRetentionWithSource.v1(), equalTo(failuresDefaultRetention));
+            assertThat(effectiveFailuresRetentionWithSource.v2(), equalTo(DEFAULT_FAILURES_RETENTION));
         }
 
         // With retention in the data stream lifecycle
         {
             TimeValue dataStreamRetention = TimeValue.timeValueDays(randomIntBetween(5, 100));
-            DataStreamLifecycle lifecycleRetention = DataStreamLifecycle.dataLifecycleBuilder()
+            DataStreamLifecycle dataLifecycleRetention = DataStreamLifecycle.dataLifecycleBuilder()
                 .dataRetention(dataStreamRetention)
                 .downsampling(randomDownsampling())
                 .build();
+            DataStreamLifecycle failuresLifecycleRetention = DataStreamLifecycle.failuresLifecycleBuilder()
+                .dataRetention(dataStreamRetention)
+                .build();
             TimeValue defaultRetention = TimeValue.timeValueDays(randomIntBetween(1, (int) dataStreamRetention.getDays() - 1));
 
-            Tuple<TimeValue, DataStreamLifecycle.RetentionSource> effectiveDataRetentionWithSource = lifecycleRetention
+            // No global retention
+            Tuple<TimeValue, DataStreamLifecycle.RetentionSource> effectiveDataRetentionWithSource = dataLifecycleRetention
                 .getEffectiveDataRetentionWithSource(null, randomBoolean());
             assertThat(effectiveDataRetentionWithSource.v1(), equalTo(dataStreamRetention));
             assertThat(effectiveDataRetentionWithSource.v2(), equalTo(DATA_STREAM_CONFIGURATION));
+            Tuple<TimeValue, DataStreamLifecycle.RetentionSource> effectiveFailuresRetentionWithSource = failuresLifecycleRetention
+                .getEffectiveDataRetentionWithSource(null, randomBoolean());
+            assertThat(effectiveFailuresRetentionWithSource.v1(), equalTo(dataStreamRetention));
+            assertThat(effectiveFailuresRetentionWithSource.v2(), equalTo(DATA_STREAM_CONFIGURATION));
 
-            effectiveDataRetentionWithSource = lifecycleRetention.getEffectiveDataRetentionWithSource(
-                new DataStreamGlobalRetention(defaultRetention, null),
+            // only default & data lifecycle
+            effectiveDataRetentionWithSource = dataLifecycleRetention.getEffectiveDataRetentionWithSource(
+                new DataStreamGlobalRetention(defaultRetention, null, null),
                 false
             );
             assertThat(effectiveDataRetentionWithSource.v1(), equalTo(dataStreamRetention));
             assertThat(effectiveDataRetentionWithSource.v2(), equalTo(DATA_STREAM_CONFIGURATION));
 
+            // only failures default & failures lifecycle
+            effectiveFailuresRetentionWithSource = failuresLifecycleRetention.getEffectiveDataRetentionWithSource(
+                new DataStreamGlobalRetention(defaultRetention, null, randomTimeValue(1, 10, TimeUnit.DAYS)),
+                false
+            );
+            assertThat(effectiveFailuresRetentionWithSource.v1(), equalTo(dataStreamRetention));
+            assertThat(effectiveFailuresRetentionWithSource.v2(), equalTo(DATA_STREAM_CONFIGURATION));
+
             TimeValue maxGlobalRetention = randomBoolean() ? dataStreamRetention : TimeValue.timeValueDays(dataStreamRetention.days() + 1);
-            effectiveDataRetentionWithSource = lifecycleRetention.getEffectiveDataRetentionWithSource(
-                new DataStreamGlobalRetention(defaultRetention, maxGlobalRetention),
+            effectiveDataRetentionWithSource = dataLifecycleRetention.getEffectiveDataRetentionWithSource(
+                new DataStreamGlobalRetention(defaultRetention, maxGlobalRetention, null),
                 false
             );
             assertThat(effectiveDataRetentionWithSource.v1(), equalTo(dataStreamRetention));
             assertThat(effectiveDataRetentionWithSource.v2(), equalTo(DATA_STREAM_CONFIGURATION));
 
             TimeValue maxRetentionLessThanDataStream = TimeValue.timeValueDays(dataStreamRetention.days() - 1);
-            effectiveDataRetentionWithSource = lifecycleRetention.getEffectiveDataRetentionWithSource(
+            effectiveDataRetentionWithSource = dataLifecycleRetention.getEffectiveDataRetentionWithSource(
                 new DataStreamGlobalRetention(
                     randomBoolean()
                         ? null
                         : TimeValue.timeValueDays(randomIntBetween(1, (int) (maxRetentionLessThanDataStream.days() - 1))),
-                    maxRetentionLessThanDataStream
+                    maxRetentionLessThanDataStream,
+                    null
                 ),
                 false
             );
             assertThat(effectiveDataRetentionWithSource.v1(), equalTo(maxRetentionLessThanDataStream));
             assertThat(effectiveDataRetentionWithSource.v2(), equalTo(MAX_GLOBAL_RETENTION));
+            effectiveFailuresRetentionWithSource = failuresLifecycleRetention.getEffectiveDataRetentionWithSource(
+                new DataStreamGlobalRetention(
+                    randomBoolean()
+                        ? null
+                        : TimeValue.timeValueDays(randomIntBetween(1, (int) (maxRetentionLessThanDataStream.days() - 1))),
+                    maxRetentionLessThanDataStream,
+                    randomTimeValue(1, 10, TimeUnit.DAYS)
+                ),
+                false
+            );
+            assertThat(effectiveFailuresRetentionWithSource.v1(), equalTo(maxRetentionLessThanDataStream));
+            assertThat(effectiveFailuresRetentionWithSource.v2(), equalTo(MAX_GLOBAL_RETENTION));
         }
 
         // Global retention does not apply to internal data streams
@@ -406,12 +472,16 @@ public class DataStreamLifecycleTests extends AbstractWireSerializingTestCase<Da
             TimeValue dataStreamRetention = dataStreamWithRetention ? TimeValue.timeValueDays(365) : null;
             DataStreamGlobalRetention globalRetention = new DataStreamGlobalRetention(
                 TimeValue.timeValueDays(7),
-                TimeValue.timeValueDays(90)
+                TimeValue.timeValueDays(90),
+                TimeValue.timeValueDays(20)
             );
-            DataStreamLifecycle lifecycle = DataStreamLifecycle.dataLifecycleBuilder().dataRetention(dataStreamRetention).build();
+            DataStreamLifecycle dataLifecycle = DataStreamLifecycle.dataLifecycleBuilder().dataRetention(dataStreamRetention).build();
+            DataStreamLifecycle failuresLifecycle = DataStreamLifecycle.failuresLifecycleBuilder()
+                .dataRetention(dataStreamRetention)
+                .build();
 
             // Verify that global retention should have kicked in
-            var effectiveDataRetentionWithSource = lifecycle.getEffectiveDataRetentionWithSource(globalRetention, false);
+            var effectiveDataRetentionWithSource = dataLifecycle.getEffectiveDataRetentionWithSource(globalRetention, false);
             if (dataStreamWithRetention) {
                 assertThat(effectiveDataRetentionWithSource.v1(), equalTo(globalRetention.maxRetention()));
                 assertThat(effectiveDataRetentionWithSource.v2(), equalTo(MAX_GLOBAL_RETENTION));
@@ -420,15 +490,32 @@ public class DataStreamLifecycleTests extends AbstractWireSerializingTestCase<Da
                 assertThat(effectiveDataRetentionWithSource.v2(), equalTo(DEFAULT_GLOBAL_RETENTION));
             }
 
+            // Verify that global retention should have kicked in
+            var effectiveFailuresRetentionWithSource = failuresLifecycle.getEffectiveDataRetentionWithSource(globalRetention, false);
+            if (dataStreamWithRetention) {
+                assertThat(effectiveFailuresRetentionWithSource.v1(), equalTo(globalRetention.maxRetention()));
+                assertThat(effectiveFailuresRetentionWithSource.v2(), equalTo(MAX_GLOBAL_RETENTION));
+            } else {
+                assertThat(effectiveFailuresRetentionWithSource.v1(), equalTo(globalRetention.failuresDefaultRetention()));
+                assertThat(effectiveFailuresRetentionWithSource.v2(), equalTo(DEFAULT_FAILURES_RETENTION));
+            }
+
             // Now verify that internal data streams do not use global retention
             // Verify that global retention should have kicked in
-            effectiveDataRetentionWithSource = lifecycle.getEffectiveDataRetentionWithSource(globalRetention, true);
+            effectiveDataRetentionWithSource = dataLifecycle.getEffectiveDataRetentionWithSource(globalRetention, true);
             if (dataStreamWithRetention) {
                 assertThat(effectiveDataRetentionWithSource.v1(), equalTo(dataStreamRetention));
             } else {
                 assertThat(effectiveDataRetentionWithSource.v1(), nullValue());
             }
             assertThat(effectiveDataRetentionWithSource.v2(), equalTo(DATA_STREAM_CONFIGURATION));
+            effectiveFailuresRetentionWithSource = failuresLifecycle.getEffectiveDataRetentionWithSource(globalRetention, true);
+            if (dataStreamWithRetention) {
+                assertThat(effectiveFailuresRetentionWithSource.v1(), equalTo(dataStreamRetention));
+            } else {
+                assertThat(effectiveFailuresRetentionWithSource.v1(), nullValue());
+            }
+            assertThat(effectiveFailuresRetentionWithSource.v2(), equalTo(DATA_STREAM_CONFIGURATION));
         }
     }
 

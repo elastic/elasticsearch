@@ -200,6 +200,7 @@ public class ExplainIndexDataStreamLifecycleTests extends AbstractWireSerializin
         TimeValue configuredRetention = TimeValue.timeValueDays(100);
         TimeValue globalDefaultRetention = TimeValue.timeValueDays(10);
         TimeValue globalMaxRetention = TimeValue.timeValueDays(50);
+        TimeValue failuresDefaultRetention = TimeValue.timeValueDays(20);
         DataStreamLifecycle dataStreamLifecycle = DataStreamLifecycle.createDataLifecycle(true, configuredRetention, null);
         {
             boolean isSystemDataStream = true;
@@ -208,7 +209,12 @@ public class ExplainIndexDataStreamLifecycleTests extends AbstractWireSerializin
                 dataStreamLifecycle,
                 isSystemDataStream
             );
-            Map<String, Object> resultMap = getXContentMap(explainIndexDataStreamLifecycle, globalDefaultRetention, globalMaxRetention);
+            Map<String, Object> resultMap = getXContentMap(
+                explainIndexDataStreamLifecycle,
+                globalDefaultRetention,
+                globalMaxRetention,
+                failuresDefaultRetention
+            );
             Map<String, Object> lifecycleResult = (Map<String, Object>) resultMap.get("lifecycle");
             assertThat(lifecycleResult.get("data_retention"), equalTo(configuredRetention.getStringRep()));
             assertThat(lifecycleResult.get("effective_retention"), equalTo(configuredRetention.getStringRep()));
@@ -221,7 +227,12 @@ public class ExplainIndexDataStreamLifecycleTests extends AbstractWireSerializin
                 dataStreamLifecycle,
                 isSystemDataStream
             );
-            Map<String, Object> resultMap = getXContentMap(explainIndexDataStreamLifecycle, globalDefaultRetention, globalMaxRetention);
+            Map<String, Object> resultMap = getXContentMap(
+                explainIndexDataStreamLifecycle,
+                globalDefaultRetention,
+                globalMaxRetention,
+                failuresDefaultRetention
+            );
             Map<String, Object> lifecycleResult = (Map<String, Object>) resultMap.get("lifecycle");
             assertThat(lifecycleResult.get("data_retention"), equalTo(configuredRetention.getStringRep()));
             assertThat(lifecycleResult.get("effective_retention"), equalTo(globalMaxRetention.getStringRep()));
@@ -235,12 +246,17 @@ public class ExplainIndexDataStreamLifecycleTests extends AbstractWireSerializin
     private Map<String, Object> getXContentMap(
         ExplainIndexDataStreamLifecycle explainIndexDataStreamLifecycle,
         TimeValue globalDefaultRetention,
-        TimeValue globalMaxRetention
+        TimeValue globalMaxRetention,
+        TimeValue failuresDefaultRetention
     ) throws IOException {
         try (XContentBuilder builder = XContentBuilder.builder(XContentType.JSON.xContent())) {
             ToXContent.Params params = new ToXContent.MapParams(DataStreamLifecycle.INCLUDE_EFFECTIVE_RETENTION_PARAMS);
             RolloverConfiguration rolloverConfiguration = null;
-            DataStreamGlobalRetention globalRetention = new DataStreamGlobalRetention(globalDefaultRetention, globalMaxRetention);
+            DataStreamGlobalRetention globalRetention = new DataStreamGlobalRetention(
+                globalDefaultRetention,
+                globalMaxRetention,
+                failuresDefaultRetention
+            );
             explainIndexDataStreamLifecycle.toXContent(builder, params, rolloverConfiguration, globalRetention);
             String serialized = Strings.toString(builder);
             return XContentHelper.convertToMap(XContentType.JSON.xContent(), serialized, randomBoolean());

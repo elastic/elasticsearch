@@ -410,7 +410,8 @@ public final class DataStreamTestHelper {
         boolean withDefault = randomBoolean();
         return new DataStreamGlobalRetention(
             withDefault ? TimeValue.timeValueDays(randomIntBetween(1, 30)) : null,
-            withDefault == false || randomBoolean() ? TimeValue.timeValueDays(randomIntBetween(31, 100)) : null
+            withDefault == false || randomBoolean() ? TimeValue.timeValueDays(randomIntBetween(31, 100)) : null,
+            TimeValue.timeValueDays(randomIntBetween(1, 30))
         );
     }
 

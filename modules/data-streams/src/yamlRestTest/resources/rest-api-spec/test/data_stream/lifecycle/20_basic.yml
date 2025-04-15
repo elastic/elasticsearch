@@ -63,7 +63,7 @@ teardown:
       capabilities:
         - method: GET
           path: /_data_stream/{index}/_lifecycle
-          capabilities: [ 'data_stream_global_retention' ]
+          capabilities: [ 'data_stream_global_retention', 'failure_store_global_retention' ]
   - do:
       indices.get_data_lifecycle:
         name: "data-stream-with-lifecycle"
@@ -72,17 +72,19 @@ teardown:
   - match: { data_streams.0.lifecycle.data_retention: '10d' }
   - match: { data_streams.0.lifecycle.effective_retention: '10d' }
   - match: { data_streams.0.lifecycle.enabled: true}
-  - match: { global_retention: {} }
+  - is_false: global_retention.default_retention
+  - is_false: global_retention.max_retention
+  - match: { global_retention.failures_default_retention: '20d'}
 
 ---
 "Get data stream with default lifecycle configuration":
   - requires:
-      reason: "Global retention was exposed in 8.16+"
+      reason: "Failures default was added to global retention in 8.19+"
       test_runner_features: [ capabilities ]
       capabilities:
         - method: GET
           path: /_data_stream/{index}/_lifecycle
-          capabilities: [ 'data_stream_global_retention' ]
+          capabilities: [ 'failure_store_global_retention' ]
   - do:
       indices.get_data_lifecycle:
         name: "simple-data-stream1"
@@ -90,7 +92,9 @@ teardown:
   - match: { data_streams.0.name: simple-data-stream1 }
   - match: { data_streams.0.lifecycle.enabled: true}
   - is_false: data_streams.0.lifecycle.effective_retention
-  - match: { global_retention: {} }
+  - is_false: global_retention.default_retention
+  - is_false: global_retention.max_retention
+  - is_true: global_retention.failures_default_retention
 
 ---
 "Get data stream with global retention":
@@ -107,6 +111,7 @@ teardown:
           persistent:
             data_streams.lifecycle.retention.default: "7d"
             data_streams.lifecycle.retention.max: "9d"
+            data_streams.lifecycle.retention.failures_default: "10d"
   - do:
       indices.get_data_lifecycle:
         name: "simple-data-stream1"
@@ -116,6 +121,7 @@ teardown:
   - match: { data_streams.0.lifecycle.effective_retention: '7d'}
   - match: { global_retention.default_retention: '7d' }
   - match: { global_retention.max_retention: '9d' }
+  - match: { global_retention.failures_default_retention: '10d' }
 
   - do:
       indices.get_data_lifecycle:
@@ -127,6 +133,7 @@ teardown:
   - match: { data_streams.0.lifecycle.enabled: true }
   - match: { global_retention.default_retention: '7d' }
   - match: { global_retention.max_retention: '9d' }
+  - match: { global_retention.failures_default_retention: '10d' }
 
 ---
 "Put data stream lifecycle":

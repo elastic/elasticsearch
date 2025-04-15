@@ -70,7 +70,8 @@ public class DataStreamLifecycleWithRetentionWarningsTests extends ESTestCase {
             .build();
         DataStreamGlobalRetention globalRetention = new DataStreamGlobalRetention(
             TimeValue.timeValueDays(2),
-            TimeValue.timeValueDays(dataStreamRetention.days() + randomIntBetween(1, 5))
+            TimeValue.timeValueDays(dataStreamRetention.days() + randomIntBetween(1, 5)),
+            null
         );
         lifecycleWithRetention.addWarningHeaderIfDataRetentionNotEffective(globalRetention, false);
         responseHeaders = threadContext.getResponseHeaders();
@@ -84,7 +85,8 @@ public class DataStreamLifecycleWithRetentionWarningsTests extends ESTestCase {
         DataStreamLifecycle noRetentionLifecycle = DataStreamLifecycle.dataLifecycleBuilder().downsampling(randomDownsampling()).build();
         DataStreamGlobalRetention globalRetention = new DataStreamGlobalRetention(
             randomTimeValue(2, 10, TimeUnit.DAYS),
-            randomBoolean() ? null : TimeValue.timeValueDays(20)
+            randomBoolean() ? null : TimeValue.timeValueDays(20),
+            null
         );
         noRetentionLifecycle.addWarningHeaderIfDataRetentionNotEffective(globalRetention, false);
         Map<String, List<String>> responseHeaders = threadContext.getResponseHeaders();
@@ -107,7 +109,7 @@ public class DataStreamLifecycleWithRetentionWarningsTests extends ESTestCase {
             .dataRetention(randomBoolean() ? null : TimeValue.timeValueDays(maxRetention.days() + 1))
             .downsampling(randomDownsampling())
             .build();
-        DataStreamGlobalRetention globalRetention = new DataStreamGlobalRetention(null, maxRetention);
+        DataStreamGlobalRetention globalRetention = new DataStreamGlobalRetention(null, maxRetention, null);
         lifecycle.addWarningHeaderIfDataRetentionNotEffective(globalRetention, false);
         Map<String, List<String>> responseHeaders = threadContext.getResponseHeaders();
         assertThat(responseHeaders.size(), is(1));
@@ -177,7 +179,7 @@ public class DataStreamLifecycleWithRetentionWarningsTests extends ESTestCase {
                 .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate())
                 .indexPatterns(List.of(randomAlphaOfLength(10)))
                 .build(),
-            new DataStreamGlobalRetention(defaultRetention, null)
+            new DataStreamGlobalRetention(defaultRetention, null, null)
         );
         Map<String, List<String>> responseHeaders = threadContext.getResponseHeaders();
         assertThat(responseHeaders.size(), is(1));
@@ -203,7 +205,7 @@ public class DataStreamLifecycleWithRetentionWarningsTests extends ESTestCase {
                 .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate())
                 .indexPatterns(List.of("." + randomAlphaOfLength(10)))
                 .build(),
-            new DataStreamGlobalRetention(defaultRetention, null)
+            new DataStreamGlobalRetention(defaultRetention, null, null)
         );
         Map<String, List<String>> responseHeaders = threadContext.getResponseHeaders();
         assertThat(responseHeaders.size(), is(0));
@@ -238,7 +240,7 @@ public class DataStreamLifecycleWithRetentionWarningsTests extends ESTestCase {
                 .indexPatterns(List.of(randomAlphaOfLength(10)))
                 .componentTemplates(List.of("component-template"))
                 .build(),
-            new DataStreamGlobalRetention(defaultRetention, null)
+            new DataStreamGlobalRetention(defaultRetention, null, null)
         );
         Map<String, List<String>> responseHeaders = threadContext.getResponseHeaders();
         assertThat(responseHeaders.size(), is(0));

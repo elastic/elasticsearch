@@ -92,6 +92,7 @@ public class DataStreamLifecycleFeatureSetUsage extends XPackFeatureUsage {
         public static final LifecycleStats INITIAL = new LifecycleStats(0, true, RetentionStats.NO_DATA, RetentionStats.NO_DATA, Map.of());
         public static final String DEFAULT_RETENTION_FIELD_NAME = "default";
         public static final String MAX_RETENTION_FIELD_NAME = "max";
+        public static final String FAILURES_DEFAULT_RETENTION_FIELD_NAME = "failures_default";
         final long dataStreamsWithLifecyclesCount;
         final boolean defaultRolloverUsed;
         final RetentionStats dataRetentionStats;
@@ -263,6 +264,15 @@ public class DataStreamLifecycleFeatureSetUsage extends XPackFeatureUsage {
             long dataStreamsWithDefaultRetention,
             long dataStreamsWithMaxRetention
         ) {
+            return getGlobalRetentionStats(globalRetention, dataStreamsWithDefaultRetention, dataStreamsWithMaxRetention, null);
+        }
+
+        public static Map<String, GlobalRetentionStats> getGlobalRetentionStats(
+            DataStreamGlobalRetention globalRetention,
+            long dataStreamsWithDefaultRetention,
+            long dataStreamsWithMaxRetention,
+            Long failureStoreWithDefaultRetention
+        ) {
             if (globalRetention == null) {
                 return Map.of();
             }
@@ -277,6 +287,12 @@ public class DataStreamLifecycleFeatureSetUsage extends XPackFeatureUsage {
                 globalRetentionStats.put(
                     LifecycleStats.MAX_RETENTION_FIELD_NAME,
                     new GlobalRetentionStats(dataStreamsWithMaxRetention, globalRetention.maxRetention())
+                );
+            }
+            if (globalRetention.failuresDefaultRetention() != null && failureStoreWithDefaultRetention != null) {
+                globalRetentionStats.put(
+                    LifecycleStats.FAILURES_DEFAULT_RETENTION_FIELD_NAME,
+                    new GlobalRetentionStats(failureStoreWithDefaultRetention, globalRetention.failuresDefaultRetention())
                 );
             }
             return globalRetentionStats;

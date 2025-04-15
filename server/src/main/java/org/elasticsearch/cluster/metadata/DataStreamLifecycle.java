@@ -93,6 +93,7 @@ public class DataStreamLifecycle implements SimpleDiffable<DataStreamLifecycle>,
     );
 
     public static final DataStreamLifecycle DEFAULT_DATA_LIFECYCLE = DataStreamLifecycle.createDataLifecycle(null, null, null);
+    public static final DataStreamLifecycle DEFAULT_FAILURE_LIFECYCLE = DataStreamLifecycle.createFailuresLifecycle(null, null);
 
     public static final String DATA_STREAM_LIFECYCLE_ORIGIN = "data_stream_lifecycle";
 
@@ -231,6 +232,9 @@ public class DataStreamLifecycle implements SimpleDiffable<DataStreamLifecycle>,
             return Tuple.tuple(dataRetention(), RetentionSource.DATA_STREAM_CONFIGURATION);
         }
         if (dataRetention() == null) {
+            if (targetsFailureStore() && globalRetention.failuresDefaultRetention() != null) {
+                return Tuple.tuple(globalRetention.failuresDefaultRetention(), RetentionSource.DEFAULT_FAILURES_RETENTION);
+            }
             return globalRetention.defaultRetention() != null
                 ? Tuple.tuple(globalRetention.defaultRetention(), RetentionSource.DEFAULT_GLOBAL_RETENTION)
                 : Tuple.tuple(globalRetention.maxRetention(), RetentionSource.MAX_GLOBAL_RETENTION);
@@ -509,7 +513,8 @@ public class DataStreamLifecycle implements SimpleDiffable<DataStreamLifecycle>,
     public enum RetentionSource {
         DATA_STREAM_CONFIGURATION,
         DEFAULT_GLOBAL_RETENTION,
-        MAX_GLOBAL_RETENTION;
+        MAX_GLOBAL_RETENTION,
+        DEFAULT_FAILURES_RETENTION;
 
         public String displayName() {
             return this.toString().toLowerCase(Locale.ROOT);

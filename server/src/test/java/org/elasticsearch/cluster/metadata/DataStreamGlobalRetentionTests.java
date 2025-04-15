@@ -29,29 +29,32 @@ public class DataStreamGlobalRetentionTests extends AbstractWireSerializingTestC
     protected DataStreamGlobalRetention mutateInstance(DataStreamGlobalRetention instance) {
         var defaultRetention = instance.defaultRetention();
         var maxRetention = instance.maxRetention();
-        switch (randomInt(1)) {
-            case 0 -> {
-                defaultRetention = randomValueOtherThan(
-                    defaultRetention,
-                    () -> randomBoolean() ? null : TimeValue.timeValueDays(randomIntBetween(1, 1000))
-                );
-            }
-            case 1 -> {
-                maxRetention = randomValueOtherThan(
-                    maxRetention,
-                    () -> randomBoolean() ? null : TimeValue.timeValueDays(randomIntBetween(1001, 2000))
-                );
-            }
+        var failuresDefaultRetention = instance.failuresDefaultRetention();
+        switch (randomInt(2)) {
+            case 0 -> defaultRetention = randomValueOtherThan(
+                defaultRetention,
+                () -> randomBoolean() ? null : TimeValue.timeValueDays(randomIntBetween(1, 1000))
+            );
+            case 1 -> maxRetention = randomValueOtherThan(
+                maxRetention,
+                () -> randomBoolean() ? null : TimeValue.timeValueDays(randomIntBetween(1001, 2000))
+            );
+            case 2 -> failuresDefaultRetention = randomValueOtherThan(
+                failuresDefaultRetention,
+                () -> randomBoolean() ? null : TimeValue.timeValueDays(randomIntBetween(1, 2000))
+            );
         }
-        return new DataStreamGlobalRetention(defaultRetention, maxRetention);
+        return new DataStreamGlobalRetention(defaultRetention, maxRetention, failuresDefaultRetention);
     }
 
     public static DataStreamGlobalRetention randomGlobalRetention() {
         boolean withDefault = randomBoolean();
         boolean withMax = randomBoolean();
+        boolean withFailuresDefault = randomBoolean();
         return new DataStreamGlobalRetention(
             withDefault == false ? null : TimeValue.timeValueDays(randomIntBetween(1, 1000)),
-            withMax == false ? null : TimeValue.timeValueDays(randomIntBetween(1000, 2000))
+            withMax == false ? null : TimeValue.timeValueDays(randomIntBetween(1000, 2000)),
+            withFailuresDefault == false ? null : TimeValue.timeValueDays(randomIntBetween(1, 2000))
         );
     }
 
@@ -60,10 +63,12 @@ public class DataStreamGlobalRetentionTests extends AbstractWireSerializingTestC
             IllegalArgumentException.class,
             () -> new DataStreamGlobalRetention(
                 TimeValue.timeValueDays(randomIntBetween(1001, 2000)),
-                TimeValue.timeValueDays(randomIntBetween(1, 1000))
+                TimeValue.timeValueDays(randomIntBetween(1, 1000)),
+                TimeValue.timeValueDays(randomIntBetween(1, 2000))
             )
         );
-        expectThrows(IllegalArgumentException.class, () -> new DataStreamGlobalRetention(TimeValue.ZERO, null));
-        expectThrows(IllegalArgumentException.class, () -> new DataStreamGlobalRetention(null, TimeValue.ZERO));
+        expectThrows(IllegalArgumentException.class, () -> new DataStreamGlobalRetention(TimeValue.ZERO, null, null));
+        expectThrows(IllegalArgumentException.class, () -> new DataStreamGlobalRetention(null, TimeValue.ZERO, null));
+        expectThrows(IllegalArgumentException.class, () -> new DataStreamGlobalRetention(null, null, TimeValue.ZERO));
     }
 }

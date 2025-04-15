@@ -553,7 +553,7 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
         }
         // If there are failure indices we always provide the default lifecycle as a default
         return Boolean.TRUE.equals(effectivelyEnabledFailureStore) || getFailureIndices().isEmpty() == false
-            ? DataStreamLifecycle.DEFAULT_DATA_LIFECYCLE
+            ? DataStreamLifecycle.DEFAULT_FAILURE_LIFECYCLE
             : null;
     }
 

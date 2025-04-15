@@ -354,6 +354,7 @@ public class TransportGetDataStreamsActionTests extends ESTestCase {
         assertThat(response.getGlobalRetention(), nullValue());
         DataStreamGlobalRetention globalRetention = new DataStreamGlobalRetention(
             TimeValue.timeValueDays(randomIntBetween(1, 5)),
+            TimeValue.timeValueDays(randomIntBetween(5, 10)),
             TimeValue.timeValueDays(randomIntBetween(5, 10))
         );
         DataStreamGlobalRetentionSettings withGlobalRetentionSettings = DataStreamGlobalRetentionSettings.create(
@@ -364,6 +365,10 @@ public class TransportGetDataStreamsActionTests extends ESTestCase {
                         globalRetention.defaultRetention()
                     )
                     .put(DataStreamGlobalRetentionSettings.DATA_STREAMS_MAX_RETENTION_SETTING.getKey(), globalRetention.maxRetention())
+                    .put(
+                        DataStreamGlobalRetentionSettings.FAILURE_STORE_DEFAULT_RETENTION_SETTING.getKey(),
+                        globalRetention.failuresDefaultRetention()
+                    )
                     .build()
             )
         );

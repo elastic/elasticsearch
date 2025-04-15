@@ -67,7 +67,12 @@ public class GetDataStreamLifecycleActionTests extends ESTestCase {
     public void testGlobalRetentionToXContent() {
         TimeValue globalDefaultRetention = TimeValue.timeValueDays(10);
         TimeValue globalMaxRetention = TimeValue.timeValueDays(50);
-        DataStreamGlobalRetention globalRetention = new DataStreamGlobalRetention(globalDefaultRetention, globalMaxRetention);
+        TimeValue failuresDefaultRetention = TimeValue.timeValueDays(20);
+        DataStreamGlobalRetention globalRetention = new DataStreamGlobalRetention(
+            globalDefaultRetention,
+            globalMaxRetention,
+            failuresDefaultRetention
+        );
         GetDataStreamLifecycleAction.Response response = new GetDataStreamLifecycleAction.Response(List.of(), null, globalRetention);
         try (XContentBuilder builder = XContentBuilder.builder(XContentType.JSON.xContent())) {
             builder.humanReadable(true);
@@ -95,7 +100,12 @@ public class GetDataStreamLifecycleActionTests extends ESTestCase {
         TimeValue configuredRetention = TimeValue.timeValueDays(100);
         TimeValue globalDefaultRetention = TimeValue.timeValueDays(10);
         TimeValue globalMaxRetention = TimeValue.timeValueDays(50);
-        DataStreamGlobalRetention globalRetention = new DataStreamGlobalRetention(globalDefaultRetention, globalMaxRetention);
+        TimeValue failuresDefaultRetention = TimeValue.timeValueDays(20);
+        DataStreamGlobalRetention globalRetention = new DataStreamGlobalRetention(
+            globalDefaultRetention,
+            globalMaxRetention,
+            failuresDefaultRetention
+        );
         DataStreamLifecycle lifecycle = DataStreamLifecycle.createDataLifecycle(true, configuredRetention, null);
         {
             boolean isInternalDataStream = true;

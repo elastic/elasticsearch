@@ -66,6 +66,7 @@ public class DataStreamUsageTransportAction extends XPackUsageFeatureTransportAc
         LongSummaryStatistics effectiveRetentionStats = new LongSummaryStatistics();
         long affectedByDefaultRetentionCounter = 0;
         long affectedByMaxRetentionCounter = 0;
+        long affectedByFailuresDefaultRetentionCounter = 0;
         DataStreamGlobalRetention globalRetention = globalRetentionSettings.get();
         for (DataStream ds : dataStreams.values()) {
             backingIndicesCounter += ds.getIndices().size();
@@ -111,6 +112,9 @@ public class DataStreamUsageTransportAction extends XPackUsageFeatureTransportAc
                         if (effectiveDataRetentionWithSource.v2().equals(DataStreamLifecycle.RetentionSource.MAX_GLOBAL_RETENTION)) {
                             affectedByMaxRetentionCounter++;
                         }
+                        if (effectiveDataRetentionWithSource.v2().equals(DataStreamLifecycle.RetentionSource.DEFAULT_FAILURES_RETENTION)) {
+                            affectedByFailuresDefaultRetentionCounter++;
+                        }
                     }
                 }
             }
@@ -128,7 +132,8 @@ public class DataStreamUsageTransportAction extends XPackUsageFeatureTransportAc
             DataStreamLifecycleFeatureSetUsage.GlobalRetentionStats.getGlobalRetentionStats(
                 globalRetention,
                 affectedByDefaultRetentionCounter,
-                affectedByMaxRetentionCounter
+                affectedByMaxRetentionCounter,
+                affectedByFailuresDefaultRetentionCounter
             )
         );
         final DataStreamFeatureSetUsage usage = new DataStreamFeatureSetUsage(stats);

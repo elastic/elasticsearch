@@ -1003,7 +1003,7 @@ public class EsqlCapabilities {
         LOADING_NON_INDEXED_IP_FIELDS,
 
         /**
-         * During resolution (pre-analysis) we have to consider that joins can override EVALuated values
+         * During resolution (pre-analysis) we have to consider that joins or enriches can override EVALuated values
          * https://github.com/elastic/elasticsearch/issues/126419
          */
         FIX_JOIN_MASKING_EVAL;

@@ -692,7 +692,7 @@ public class EsqlSession {
                 AttributeSet planRefs = p.references();
                 Set<String> fieldNames = planRefs.names();
                 p.forEachExpressionDown(Alias.class, alias -> {
-                    // do not remove the UnresolvedAttribute that has the same name as its alias, ie "rename id = id"
+                    // do not remove the UnresolvedAttribute that has the same name as its alias, ie "rename id AS id"
                     // or the UnresolvedAttributes that are used in Functions that have aliases "STATS id = MAX(id)"
                     if (fieldNames.contains(alias.name())) {
                         return;

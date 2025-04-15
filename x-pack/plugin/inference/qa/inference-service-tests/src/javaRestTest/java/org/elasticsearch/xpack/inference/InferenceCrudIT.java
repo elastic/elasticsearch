@@ -47,6 +47,9 @@ public class InferenceCrudIT extends InferenceBaseRestTest {
 
     @SuppressWarnings("unchecked")
     public void testCRUD() throws IOException {
+        for (int i = 0; i < 6; i++) {
+            putModel("r_model_" + i, mockRerankServiceModelConfig(), TaskType.RERANK);
+        }
         for (int i = 0; i < 5; i++) {
             putModel("se_model_" + i, mockSparseServiceModelConfig(), TaskType.SPARSE_EMBEDDING);
         }
@@ -55,8 +58,15 @@ public class InferenceCrudIT extends InferenceBaseRestTest {
         }
 
         var getAllModels = getAllModels();
-        int numModels = 12;
+        int numModels = 18;
         assertThat(getAllModels, hasSize(numModels));
+
+        var getRerankModels = getModels("_all", TaskType.RERANK);
+        int numRerankModels = 6;
+        assertThat(getRerankModels, hasSize(numRerankModels));
+        for (var rerankModel : getRerankModels) {
+            assertEquals("rerank", rerankModel.get("task_type"));
+        }
 
         var getSparseModels = getModels("_all", TaskType.SPARSE_EMBEDDING);
         int numSparseModels = 6;
@@ -93,6 +103,9 @@ public class InferenceCrudIT extends InferenceBaseRestTest {
             assertEquals("se_model_1", singleModel.get(0).get("inference_id"));
             assertNotEquals(oldApiKey, newApiKey);
             assertEquals(updatedEndpoint, singleModel.get(0));
+        }
+        for (int i = 0; i < 6; i++) {
+            deleteModel("r_model_" + i, TaskType.RERANK);
         }
         for (int i = 0; i < 5; i++) {
             deleteModel("se_model_" + i, TaskType.SPARSE_EMBEDDING);

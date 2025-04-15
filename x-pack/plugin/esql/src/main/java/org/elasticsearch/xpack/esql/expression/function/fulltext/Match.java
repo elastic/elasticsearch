@@ -154,7 +154,7 @@ public class Match extends FullTextFunction implements OptionalArgument, PostAna
             Match can use <<esql-function-named-params,function named parameters>> to specify additional options for the match query.
             All <<match-field-params,match query parameters>> are supported.
 
-            For a simplified syntax, you can use the <<esql-search-operators,match operator>> `:` operator instead of `MATCH`.
+            For a simplified syntax, you can use the <<esql-match-operator,match operator>> `:` operator instead of `MATCH`.
 
             `MATCH` returns true if the provided query matches the row.""",
         examples = {

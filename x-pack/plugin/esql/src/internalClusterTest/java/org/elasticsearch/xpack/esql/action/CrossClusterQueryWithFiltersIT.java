@@ -106,7 +106,7 @@ public class CrossClusterQueryWithFiltersIT extends AbstractCrossClusterTestCase
         try (EsqlQueryResponse resp = runQuery("from logs-1,cluster-a:logs-2", randomBoolean(), filter)) {
             List<List<Object>> values = getValuesList(resp);
             assertThat(values, hasSize(docsTest1));
-//            assertThat(resp.columns().stream().map(ColumnInfoImpl::name).toList(), hasItems("@timestamp", "tag-local", "tag-cluster-a"));
+            // assertThat(resp.columns().stream().map(ColumnInfoImpl::name).toList(), hasItems("@timestamp", "tag-local", "tag-cluster-a"));
 
             EsqlExecutionInfo executionInfo = resp.getExecutionInfo();
             assertNotNull(executionInfo);

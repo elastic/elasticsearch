@@ -88,8 +88,14 @@ public final class PinnedRetrieverBuilder extends CompoundRetrieverBuilder<Pinne
     private final List<SpecifiedDocument> docs;
 
     private void validateIdsAndDocs(List<String> ids, List<SpecifiedDocument> docs) {
-        if ((ids != null && ids.isEmpty() == false) && (docs != null && docs.isEmpty() == false)) {
+        boolean hasIds = ids != null && ids.isEmpty() == false;
+        boolean hasDocs = docs != null && docs.isEmpty() == false;
+
+        if (hasIds && hasDocs) {
             throw new IllegalArgumentException("Both 'ids' and 'docs' cannot be specified at the same time");
+        }
+        if (hasIds == false && hasDocs == false) {
+            throw new IllegalArgumentException("Either 'ids' or 'docs' must be provided and non-empty for pinned retriever");
         }
     }
 

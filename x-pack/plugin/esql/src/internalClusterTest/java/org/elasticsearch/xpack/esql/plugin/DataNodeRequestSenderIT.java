@@ -21,10 +21,12 @@ import org.elasticsearch.xpack.esql.action.EsqlQueryResponse;
 
 import java.util.Collection;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.LongAdder;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.getValuesList;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasSize;
 
 public class DataNodeRequestSenderIT extends AbstractEsqlIntegTestCase {
@@ -32,6 +34,66 @@ public class DataNodeRequestSenderIT extends AbstractEsqlIntegTestCase {
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         return CollectionUtils.appendToCopy(super.nodePlugins(), MockTransportService.TestPlugin.class);
+    }
+
+    public void testSearchWhileRelocating() throws InterruptedException {
+        internalCluster().ensureAtLeastNumDataNodes(3);
+        var primaries = randomIntBetween(1, 10);
+        var replicas = randomIntBetween(0, 1);
+
+        indicesAdmin().prepareCreate("index-1").setSettings(indexSettings(primaries, replicas)).get();
+
+        var docs = randomIntBetween(10, 100);
+        var bulk = client().prepareBulk("index-1").setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
+        for (int i = 0; i < docs; i++) {
+            bulk.add(new IndexRequest().source("key", "value-1"));
+        }
+        bulk.get();
+
+        // start background searches
+        var stopped = new AtomicBoolean(false);
+        var queries = new LongAdder();
+        var threads = new Thread[randomIntBetween(1, 5)];
+        for (int i = 0; i < threads.length; i++) {
+            threads[i] = new Thread(() -> {
+                while (stopped.get() == false) {
+                    try (EsqlQueryResponse resp = run("FROM index-1")) {
+                        assertThat(getValuesList(resp), hasSize(docs));
+                    }
+                    queries.increment();
+                }
+            });
+        }
+        for (Thread thread : threads) {
+            thread.start();
+        }
+
+        // start shard movements
+        var rounds = randomIntBetween(1, 10);
+        var names = internalCluster().getNodeNames();
+        for (int i = 0; i < rounds; i++) {
+            for (String name : names) {
+                client().admin()
+                    .cluster()
+                    .prepareUpdateSettings(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT)
+                    .setPersistentSettings(Settings.builder().put("cluster.routing.allocation.exclude._name", name))
+                    .get();
+                ensureGreen("index-1");
+                Thread.yield();
+            }
+        }
+
+        stopped.set(true);
+        for (Thread thread : threads) {
+            thread.join(10_000);
+        }
+
+        client().admin()
+            .cluster()
+            .prepareUpdateSettings(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT)
+            .setPersistentSettings(Settings.builder().putNull("cluster.routing.allocation.exclude._name"))
+            .get();
+        assertThat(queries.sum(), greaterThan((long) threads.length));
     }
 
     public void testRetryOnShardMovement() {

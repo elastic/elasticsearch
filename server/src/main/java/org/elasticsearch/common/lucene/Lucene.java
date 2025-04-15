@@ -384,7 +384,9 @@ public class Lucene {
      * by shard for sorting purposes.
      */
     public static void writeTopDocsIncludingShardIndex(StreamOutput out, TopDocs topDocs) throws IOException {
-        if (topDocs instanceof TopFieldGroups topFieldGroups) {
+        if (topDocs == null) {
+            out.writeByte((byte) -1);
+        } else if (topDocs instanceof TopFieldGroups topFieldGroups) {
             out.writeByte((byte) 2);
             writeTotalHits(out, topDocs.totalHits);
             out.writeString(topFieldGroups.field);
@@ -424,7 +426,9 @@ public class Lucene {
      */
     public static TopDocs readTopDocsIncludingShardIndex(StreamInput in) throws IOException {
         byte type = in.readByte();
-        if (type == 0) {
+        if (type == -1) {
+            return null;
+        } else if (type == 0) {
             TotalHits totalHits = readTotalHits(in);
 
             final int scoreDocCount = in.readVInt();

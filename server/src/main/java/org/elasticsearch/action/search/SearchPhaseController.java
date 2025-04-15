@@ -60,6 +60,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.concurrent.Executor;
 import java.util.function.BiFunction;
 import java.util.function.Consumer;
@@ -140,40 +141,29 @@ public final class SearchPhaseController {
     }
 
     static TopDocs mergeTopDocs(List<TopDocs> results, int topN, int from) {
-        if (results.isEmpty()) {
+        List<TopDocs> topDocsList = results.stream().filter(Objects::nonNull).toList();
+        if (topDocsList.isEmpty()) {
             return null;
         }
-        final TopDocs topDocs = results.getFirst();
-        final TopDocs mergedTopDocs;
-        final int numShards = results.size();
+        final TopDocs topDocs = topDocsList.getFirst();
+        final int numShards = topDocsList.size();
         if (numShards == 1 && from == 0) { // only one shard and no pagination we can just return the topDocs as we got them.
             return topDocs;
-        } else if (topDocs instanceof TopFieldGroups firstTopDocs) {
+        }
+        final TopDocs mergedTopDocs;
+        if (topDocs instanceof TopFieldGroups firstTopDocs) {
             final Sort sort = new Sort(firstTopDocs.fields);
-            assert results.stream().noneMatch(topDoc -> topDoc == Lucene.EMPTY_TOP_DOCS);
-            final TopFieldGroups[] shardTopDocs = results.toArray(TopFieldGroups[]::new);
+            TopFieldGroups[] shardTopDocs = topDocsList.toArray(TopFieldGroups[]::new);
             mergedTopDocs = TopFieldGroups.merge(sort, from, topN, shardTopDocs, false);
         } else if (topDocs instanceof TopFieldDocs firstTopDocs) {
-            final Sort sort = checkSameSortTypes(results, firstTopDocs.fields);
-            final TopFieldDocs[] shardTopDocs = removeEmptyResults(results).toArray(TopFieldDocs[]::new);
+            TopFieldDocs[] shardTopDocs = topDocsList.toArray(TopFieldDocs[]::new);
+            final Sort sort = checkSameSortTypes(topDocsList, firstTopDocs.fields);
             mergedTopDocs = TopDocs.merge(sort, from, topN, shardTopDocs);
         } else {
-            final TopDocs[] shardTopDocs = results.toArray(new TopDocs[numShards]);
+            final TopDocs[] shardTopDocs = topDocsList.toArray(new TopDocs[numShards]);
             mergedTopDocs = TopDocs.merge(from, topN, shardTopDocs);
         }
         return mergedTopDocs;
-    }
-
-    private static <T extends TopDocs> List<T> removeEmptyResults(List<T> results) {
-        List<T> nonEmptyResults = new ArrayList<>();
-        for (T result : results) {
-            if (result.totalHits.value() > 0 || result.totalHits.relation() != Relation.EQUAL_TO) {
-                nonEmptyResults.add(result);
-            } else {
-                assert result.scoreDocs.length == 0;
-            }
-        }
-        return nonEmptyResults;
     }
 
     private static Sort checkSameSortTypes(Collection<TopDocs> results, SortField[] firstSortFields) {

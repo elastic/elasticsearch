@@ -388,24 +388,30 @@ public class SettingTests extends ESTestCase {
     }
 
     public void testFloatSettingWithOtherSettingAsDefault() {
-        float defaultValue = randomFloat();
-        Setting<Float> defaultSetting = Setting.floatSetting("float_val.default", defaultValue);
-        Setting<Float> floatSetting = Setting.floatSetting("float_val", defaultSetting, Float.MIN_VALUE);
-        assertThat(floatSetting.get(Settings.builder().build()), equalTo(defaultValue));
-        float configuredDefaultValue = randomValueOtherThan(defaultValue, ESTestCase::randomFloat);
+        float defaultFallbackValue = randomFloat();
+        Setting<Float> fallbackSetting = Setting.floatSetting("fallback_setting", defaultFallbackValue);
+        Setting<Float> floatSetting = Setting.floatSetting("float_setting", fallbackSetting, Float.MIN_VALUE);
+
+        // Neither float_setting nor fallback_setting specified
+        assertThat(floatSetting.get(Settings.builder().build()), equalTo(defaultFallbackValue));
+
+        // Only fallback_setting specified
+        float explicitFallbackValue = randomValueOtherThan(defaultFallbackValue, ESTestCase::randomFloat);
         assertThat(
-            floatSetting.get(Settings.builder().put("float_val.default", configuredDefaultValue).build()),
-            equalTo(configuredDefaultValue)
+            floatSetting.get(Settings.builder().put("fallback_setting", explicitFallbackValue).build()),
+            equalTo(explicitFallbackValue)
         );
-        float configuredSettingValue = randomValueOtherThanMany(
-            v -> v != configuredDefaultValue && v != defaultValue,
+
+        // Both float_setting and fallback_setting specified
+        float explicitFloatValue = randomValueOtherThanMany(
+            v -> v != explicitFallbackValue && v != defaultFallbackValue,
             ESTestCase::randomFloat
         );
         assertThat(
             floatSetting.get(
-                Settings.builder().put("float_val.default", configuredDefaultValue).put("float_val", configuredSettingValue).build()
+                Settings.builder().put("fallback_setting", explicitFallbackValue).put("float_setting", explicitFloatValue).build()
             ),
-            equalTo(configuredSettingValue)
+            equalTo(explicitFloatValue)
         );
     }
 

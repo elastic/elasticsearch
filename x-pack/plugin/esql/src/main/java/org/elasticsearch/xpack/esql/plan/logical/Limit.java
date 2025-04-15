@@ -18,7 +18,7 @@ import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import java.io.IOException;
 import java.util.Objects;
 
-public class Limit extends UnaryPlan implements TelemetryAware, SampleBreaking {
+public class Limit extends UnaryPlan implements TelemetryAware {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(LogicalPlan.class, "Limit", Limit::new);
 
     private final Expression limit;

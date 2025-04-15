@@ -12,9 +12,9 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.HasSampleCorrection;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Mul;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
+import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Sample;
-import org.elasticsearch.xpack.esql.plan.logical.SampleBreaking;
 import org.elasticsearch.xpack.esql.rule.Rule;
 
 import java.util.ArrayList;
@@ -36,7 +36,9 @@ public class ApplySampleCorrections extends Rule<LogicalPlan, LogicalPlan> {
                         : e
                 );
             }
-            if (plan instanceof SampleBreaking) {
+            // Operations that map many to many rows break/reset sampling.
+            // Therefore, the sample probabilities are cleared.
+            if (plan instanceof Aggregate || plan instanceof Limit) {
                 sampleProbabilities.clear();
             }
             return plan;

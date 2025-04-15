@@ -1,0 +1,6 @@
+pr: 126858
+summary: Refactor inference request executor to leverage scheduled execution
+area: Machine Learning
+type: bug
+issues:
+ - 126853

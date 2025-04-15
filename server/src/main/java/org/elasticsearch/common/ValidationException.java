@@ -54,7 +54,7 @@ public class ValidationException extends IllegalArgumentException {
     }
 
     public final void throwIfValidationErrorsExist() {
-        if(validationErrors().isEmpty() == false) {
+        if (validationErrors().isEmpty() == false) {
             throw this;
         }
     }

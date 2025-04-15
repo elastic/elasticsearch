@@ -1005,7 +1005,12 @@ public class EsqlCapabilities {
         /**
          * Support loading of ip fields if they are not indexed.
          */
-        LOADING_NON_INDEXED_IP_FIELDS;
+        LOADING_NON_INDEXED_IP_FIELDS,
+
+        /**
+         * Support for the SAMPLE command
+         */
+        SAMPLE(Build.current().isSnapshot());
 
         private final boolean enabled;
 

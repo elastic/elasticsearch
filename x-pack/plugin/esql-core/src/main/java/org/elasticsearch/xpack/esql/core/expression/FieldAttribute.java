@@ -20,6 +20,7 @@ import org.elasticsearch.xpack.esql.core.util.PlanStreamInput;
 import org.elasticsearch.xpack.esql.core.util.PlanStreamOutput;
 
 import java.io.IOException;
+import java.util.List;
 import java.util.Objects;
 
 import static org.elasticsearch.xpack.esql.core.util.PlanStreamInput.readCachedStringWithVersionCheck;
@@ -241,5 +242,15 @@ public class FieldAttribute extends TypedAttribute {
 
     public EsField field() {
         return field;
+    }
+
+    /**
+     * If this field is unsupported this contains the underlying ES types. If there
+     * is a type conflict this will have many elements, some or all of which may
+     * be actually supported types.
+     */
+    @Nullable
+    public List<String> originalTypes() {
+        return null;
     }
 }

@@ -43,6 +43,7 @@ import org.elasticsearch.xpack.esql.action.EsqlQueryRequest;
 import org.elasticsearch.xpack.esql.action.EsqlQueryResponse;
 import org.elasticsearch.xpack.esql.action.EsqlQueryTask;
 import org.elasticsearch.xpack.esql.core.async.AsyncTaskManagementService;
+import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.enrich.AbstractLookupService;
 import org.elasticsearch.xpack.esql.enrich.EnrichLookupService;
@@ -321,12 +322,12 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
     private EsqlQueryResponse toResponse(Task task, EsqlQueryRequest request, Configuration configuration, Result result) {
         List<ColumnInfoImpl> columns = result.schema().stream().map(c -> {
             List<String> originalTypes;
-            if (c.originalTypes() == null) {
-                originalTypes = null;
-            } else {
+            if (c instanceof FieldAttribute fa && (originalTypes = fa.originalTypes()) != null) {
                 // Sort the original types so they are easier to test against and prettier.
-                originalTypes = new ArrayList<>(c.originalTypes());
+                originalTypes = new ArrayList<>(originalTypes);
                 Collections.sort(originalTypes);
+            } else {
+                originalTypes = null;
             }
             return new ColumnInfoImpl(c.name(), c.dataType().outputType(), originalTypes);
         }).toList();

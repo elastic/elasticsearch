@@ -134,14 +134,4 @@ public abstract class Attribute extends NamedExpression {
     }
 
     protected abstract String label();
-
-    /**
-     * If this field is unsupported this contains the underlying ES types. If there
-     * is a type conflict this will have many elements, some or all of which may
-     * be actually supported types.
-     */
-    @Nullable
-    public List<String> originalTypes() {
-        return null;
-    }
 }

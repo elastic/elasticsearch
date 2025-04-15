@@ -22,12 +22,14 @@ import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.mapper.InferenceMetadataFieldsMapper;
 import org.elasticsearch.index.mapper.MapperService;
@@ -46,6 +48,9 @@ import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.AbstractQueryTestCase;
+import org.elasticsearch.test.ClusterServiceUtils;
+import org.elasticsearch.test.client.NoOpClient;
+import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.json.JsonXContent;
@@ -60,6 +65,8 @@ import org.elasticsearch.xpack.core.ml.search.SparseVectorQueryWrapper;
 import org.elasticsearch.xpack.core.ml.search.WeightedToken;
 import org.elasticsearch.xpack.inference.InferencePlugin;
 import org.elasticsearch.xpack.inference.mapper.SemanticTextField;
+import org.elasticsearch.xpack.inference.registry.ModelRegistry;
+import org.junit.AfterClass;
 import org.junit.Before;
 import org.junit.BeforeClass;
 
@@ -70,6 +77,7 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Supplier;
 
 import static org.apache.lucene.search.BooleanClause.Occur.FILTER;
 import static org.apache.lucene.search.BooleanClause.Occur.MUST;
@@ -118,6 +126,24 @@ public class SemanticQueryBuilderTests extends AbstractQueryTestCase<SemanticQue
         useSearchInferenceId = randomBoolean();
     }
 
+    @BeforeClass
+    public static void startModelRegistry() {
+        threadPool = new TestThreadPool(SemanticQueryBuilderTests.class.getName());
+        var clusterService = ClusterServiceUtils.createClusterService(threadPool);
+        modelRegistry = new ModelRegistry(clusterService, new NoOpClient(threadPool));
+        modelRegistry.clusterChanged(new ClusterChangedEvent("init", clusterService.state(), clusterService.state()) {
+            @Override
+            public boolean localNodeMaster() {
+                return false;
+            }
+        });
+    }
+
+    @AfterClass
+    public static void stopModelRegistry() {
+        IOUtils.closeWhileHandlingException(threadPool);
+    }
+
     @Override
     @Before
     public void setUp() throws Exception {
@@ -127,7 +153,7 @@ public class SemanticQueryBuilderTests extends AbstractQueryTestCase<SemanticQue
 
     @Override
     protected Collection<Class<? extends Plugin>> getPlugins() {
-        return List.of(XPackClientPlugin.class, InferencePlugin.class, FakeMlPlugin.class);
+        return List.of(XPackClientPlugin.class, InferencePluginWithModelRegistry.class, FakeMlPlugin.class);
     }
 
     @Override
@@ -392,6 +418,20 @@ public class SemanticQueryBuilderTests extends AbstractQueryTestCase<SemanticQue
         @Override
         public List<NamedWriteableRegistry.Entry> getNamedWriteables() {
             return new MlInferenceNamedXContentProvider().getNamedWriteables();
+        }
+    }
+
+    private static TestThreadPool threadPool;
+    private static ModelRegistry modelRegistry;
+
+    public static class InferencePluginWithModelRegistry extends InferencePlugin {
+        public InferencePluginWithModelRegistry(Settings settings) {
+            super(settings);
+        }
+
+        @Override
+        protected Supplier<ModelRegistry> getModelRegistry() {
+            return () -> modelRegistry;
         }
     }
 }

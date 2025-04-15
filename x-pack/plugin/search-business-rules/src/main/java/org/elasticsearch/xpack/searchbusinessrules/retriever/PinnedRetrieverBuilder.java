@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.searchbusinessrules.retriever;
 
 import org.apache.lucene.search.ScoreDoc;
 import org.elasticsearch.common.ParsingException;
+import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
@@ -48,6 +49,8 @@ public final class PinnedRetrieverBuilder extends CompoundRetrieverBuilder<Pinne
     public static final ParseField IDS_FIELD = new ParseField("ids");
     public static final ParseField DOCS_FIELD = new ParseField("docs");
     public static final ParseField RETRIEVER_FIELD = new ParseField("retriever");
+
+    public static final NodeFeature PINNED_RETRIEVER_FEATURE = new NodeFeature(NAME);
 
     @SuppressWarnings("unchecked")
     public static final ConstructingObjectParser<PinnedRetrieverBuilder, RetrieverParserContext> PARSER = new ConstructingObjectParser<>(

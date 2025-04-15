@@ -12,9 +12,9 @@ import org.elasticsearch.features.NodeFeature;
 
 import java.util.Set;
 
-public class SearchBusinessRulesFeatures implements FeatureSpecification {
+import static org.elasticsearch.xpack.searchbusinessrules.retriever.PinnedRetrieverBuilder.PINNED_RETRIEVER_FEATURE;
 
-    public static final NodeFeature PINNED_RETRIEVER_FEATURE = new NodeFeature("pinned_retriever");
+public class SearchBusinessRulesFeatures implements FeatureSpecification {
 
     @Override
     public Set<NodeFeature> getFeatures() {

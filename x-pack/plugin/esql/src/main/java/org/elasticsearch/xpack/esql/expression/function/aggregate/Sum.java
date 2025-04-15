@@ -79,6 +79,9 @@ public class Sum extends NumericAggregate implements SurrogateExpression, HasSam
 
     private Sum(StreamInput in) throws IOException {
         super(in);
+        // isSampleCorrected is only used during query optimization to mark
+        // whether this function has been processed. Hence there's no need to
+        // serialize it.
         this.isSampleCorrected = false;
     }
 

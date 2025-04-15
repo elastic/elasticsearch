@@ -41,6 +41,14 @@ public class SampleOperator implements Operator {
     }
 
     private final Deque<Page> outputPages;
+
+    /**
+     * At any time this iterator will point to be next document that still
+     * needs to be sampled. If this document is on the current page, it's
+     * added to the output and the iterator is advanced. It the document is
+     * not on the current page, the current page is finished and the index
+     * is used for the next page.
+     */
     private final RandomSamplingQuery.RandomSamplingIterator randomSamplingIterator;
     private boolean finished;
 
@@ -55,6 +63,7 @@ public class SampleOperator implements Operator {
         outputPages = new LinkedList<>();
         SplittableRandom random = new SplittableRandom(seed);
         randomSamplingIterator = new RandomSamplingQuery.RandomSamplingIterator(Integer.MAX_VALUE, probability, random::nextInt);
+        // Initialize the iterator to the next document that needs to be sampled.
         randomSamplingIterator.nextDoc();
     }
 

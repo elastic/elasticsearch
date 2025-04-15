@@ -75,12 +75,18 @@ public class RestSampleTestCase extends ESRestTestCase {
         }
     };
 
+    /**
+     * This tests sampling in the Lucene query.
+     */
     public void testSample_withFrom() throws IOException {
         createTestIndex();
         test("FROM sample-test-index | SAMPLE 0.5 | LIMIT 1000");
         deleteTestIndex();
     }
 
+    /**
+     * This tests sampling in the ES|QL operator.
+     */
     public void testSample_withRow() throws IOException {
         List<Integer> numbers = IntStream.range(0, 999).boxed().toList();
         test("ROW value = " + numbers + " | MV_EXPAND value | SAMPLE 0.5 | LIMIT 1000");

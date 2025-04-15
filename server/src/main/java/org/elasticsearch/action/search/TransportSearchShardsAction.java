@@ -131,11 +131,8 @@ public class TransportSearchShardsAction extends HandledTransportAction<SearchSh
             listener.delegateFailureAndWrap((delegate, searchRequest) -> {
                 Index[] concreteIndices = resolvedIndices.getConcreteLocalIndices();
                 final Set<ResolvedExpression> indicesAndAliases = indexNameExpressionResolver.resolveExpressions(
-
                     project.metadata(),
-
                     searchRequest.indices()
-
                 );
                 final Map<String, AliasFilter> aliasFilters = transportSearchAction.buildIndexAliasFilters(
                     project,

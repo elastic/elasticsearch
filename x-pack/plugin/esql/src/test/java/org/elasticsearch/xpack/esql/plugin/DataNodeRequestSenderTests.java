@@ -44,6 +44,7 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -53,9 +54,7 @@ import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
-import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.cluster.node.DiscoveryNodeRole.DATA_COLD_NODE_ROLE;
@@ -65,7 +64,6 @@ import static org.elasticsearch.cluster.node.DiscoveryNodeRole.DATA_WARM_NODE_RO
 import static org.elasticsearch.core.TimeValue.timeValueNanos;
 import static org.elasticsearch.xpack.esql.plugin.DataNodeRequestSender.NodeRequest;
 import static org.hamcrest.Matchers.anyOf;
-import static org.hamcrest.Matchers.arrayContaining;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
@@ -434,14 +432,15 @@ public class DataNodeRequestSenderTests extends ComputeTestCase {
             sendRequests(
                 randomBoolean(),
                 -1,
-                (indices, predicate, listener) -> runWithDelay(() -> listener.onResponse(switch (attempt.incrementAndGet()) {
-                    case 1 -> new TargetShards(Map.of(shard1, targetShard(shard1, node1)), 1, 0);
-                    case 2 -> new TargetShards(Map.of(shard1, targetShard(shard1, node2)), 1, 0);
-                    default -> new TargetShards(Map.of(shard1, targetShard(shard1, node3)), 1, 0);
+                List.of(targetShard(shard1, node1)),
+                (shardIds, listener) -> runWithDelay(() -> listener.onResponse(switch (attempt.incrementAndGet()) {
+                    case 1 -> Map.of(shard1, List.of(node2));
+                    case 2 -> Map.of(shard1, List.of(node3));
+                    default -> Map.of(shard1, List.of(node4));
                 })),
                 (node, shardIds, aliasFilters, listener) -> runWithDelay(
                     () -> listener.onResponse(
-                        Objects.equals(node, node3)
+                        Objects.equals(node, node4)
                             ? new DataNodeComputeResponse(List.of(), Map.of())
                             : new DataNodeComputeResponse(List.of(), Map.of(shard1, new ShardNotFoundException(shard1)))
                     )
@@ -457,10 +456,10 @@ public class DataNodeRequestSenderTests extends ComputeTestCase {
 
     public void testDoesNotRetryMovedShardIndefinitely() {
         var attempt = new AtomicInteger(0);
-        var response = safeGet(sendRequests(true, -1, (indices, predicate, listener) -> {
-            attempt.incrementAndGet();
-            runWithDelay(() -> listener.onResponse(new TargetShards(Map.of(shard1, targetShard(shard1, node1)), 1, 0)));
-        },
+        var response = safeGet(sendRequests(true, -1, List.of(targetShard(shard1, node1)), (shardIds, listener) -> runWithDelay(() -> {
+            logger.info("Attempt {}", attempt.incrementAndGet());
+            listener.onResponse(Map.of(shard1, List.of(node2)));
+        }),
             (node, shardIds, aliasFilters, listener) -> runWithDelay(
                 () -> listener.onResponse(new DataNodeComputeResponse(List.of(), Map.of(shard1, new ShardNotFoundException(shard1))))
             )
@@ -472,31 +471,38 @@ public class DataNodeRequestSenderTests extends ComputeTestCase {
         assertThat(attempt.get(), equalTo(10));
     }
 
-    public void testRetryOnlyIndicesWithMovedShards() {
+    public void testRetryOnlyMovedShards() {
         var attempt = new AtomicInteger(0);
-        var attemptIndices = new AtomicReference<String[]>();
-        var response = safeGet(sendRequests(randomBoolean(), -1, (indices, predicate, listener) -> runWithDelay(() -> {
-            attemptIndices.set(indices);
-            listener.onResponse(
-                attempt.incrementAndGet() == 1
-                    ? new TargetShards(Map.of(shard1, targetShard(shard1, node1), shard2, targetShard(shard2, node2)), 1, 0)
-                    : new TargetShards(Map.of(shard2, targetShard(shard2, node3)), 1, 0)
-            );
-        }),
-            (node, shardIds, aliasFilters, listener) -> runWithDelay(
-                () -> listener.onResponse(
-                    Objects.equals(node, node2)
-                        ? new DataNodeComputeResponse(List.of(), Map.of(shard2, new ShardNotFoundException(shard2)))
-                        : new DataNodeComputeResponse(List.of(), Map.of())
-                )
+        var resolvedShards = Collections.synchronizedSet(new HashSet<>());
+        var response = safeGet(
+            sendRequests(
+                randomBoolean(),
+                -1,
+                List.of(targetShard(shard1, node1, node3), targetShard(shard2, node2)),
+                (shardIds, listener) -> runWithDelay(() -> {
+                    attempt.incrementAndGet();
+                    resolvedShards.addAll(shardIds);
+                    listener.onResponse(Map.of(shard2, List.of(node4)));
+                }),
+                (node, shardIds, aliasFilters, listener) -> runWithDelay(() -> {
+                    if (Objects.equals(node, node1)) {
+                        // search is going to be retried from replica on node3 without shard resolution
+                        listener.onResponse(new DataNodeComputeResponse(List.of(), Map.of(shard1, new ShardNotFoundException(shard1))));
+                    } else if (Objects.equals(node, node2)) {
+                        // search is going to be retried after resolving new shard node since there are no replicas
+                        listener.onResponse(new DataNodeComputeResponse(List.of(), Map.of(shard2, new ShardNotFoundException(shard2))));
+                    } else {
+                        listener.onResponse(new DataNodeComputeResponse(List.of(), Map.of()));
+                    }
+                })
             )
-        ));
-        assertThat(response.totalShards, equalTo(1));
-        assertThat(response.successfulShards, equalTo(1));
+        );
+        assertThat(response.totalShards, equalTo(2));
+        assertThat(response.successfulShards, equalTo(2));
         assertThat(response.skippedShards, equalTo(0));
         assertThat(response.failedShards, equalTo(0));
-        assertThat(attempt.get(), equalTo(2));
-        assertThat("Must retry only affected indices", attemptIndices.get(), arrayContaining(shard2.getIndexName()));
+        assertThat(attempt.get(), equalTo(1));
+        assertThat("Must retry only affected shards", resolvedShards, contains(shard2));
     }
 
     static DataNodeRequestSender.TargetShard targetShard(ShardId shardId, DiscoveryNode... nodes) {
@@ -535,20 +541,18 @@ public class DataNodeRequestSenderTests extends ComputeTestCase {
         List<DataNodeRequestSender.TargetShard> shards,
         Sender sender
     ) {
-        return sendRequests(allowPartialResults, concurrentRequests, (indices, predicate, listener) -> {
-            runWithDelay(
-                () -> listener.onResponse(
-                    new TargetShards(
-                        shards.stream().collect(Collectors.toMap(DataNodeRequestSender.TargetShard::shardId, Function.identity())),
-                        shards.size(),
-                        0
-                    )
-                )
-            );
+        return sendRequests(allowPartialResults, concurrentRequests, shards, (shardIds, listener) -> {
+            throw new AssertionError("No shard resolution is expected here");
         }, sender);
     }
 
-    PlainActionFuture<ComputeResponse> sendRequests(boolean allowPartialResults, int concurrentRequests, Resolver resolver, Sender sender) {
+    PlainActionFuture<ComputeResponse> sendRequests(
+        boolean allowPartialResults,
+        int concurrentRequests,
+        List<DataNodeRequestSender.TargetShard> shards,
+        Resolver resolver,
+        Sender sender
+    ) {
         PlainActionFuture<ComputeResponse> future = new PlainActionFuture<>();
         TransportService transportService = MockTransportService.createNewService(
             Settings.EMPTY,
@@ -575,8 +579,21 @@ public class DataNodeRequestSenderTests extends ComputeTestCase {
             concurrentRequests
         ) {
             @Override
-            void searchShards(String[] indices, Predicate<ShardId> predicate, ActionListener<TargetShards> listener) {
-                resolver.resolve(indices, predicate, listener);
+            void searchShards(Set<String> concreteIndices, ActionListener<TargetShards> listener) {
+                runWithDelay(
+                    () -> listener.onResponse(
+                        new TargetShards(
+                            shards.stream().collect(Collectors.toMap(TargetShard::shardId, Function.identity())),
+                            shards.size(),
+                            0
+                        )
+                    )
+                );
+            }
+
+            @Override
+            void resolveShards(Set<ShardId> shardIds, ActionListener<Map<ShardId, List<DiscoveryNode>>> listener) {
+                resolver.resolve(shardIds, listener);
             }
 
             @Override
@@ -593,7 +610,7 @@ public class DataNodeRequestSenderTests extends ComputeTestCase {
     }
 
     interface Resolver {
-        void resolve(String[] indices, Predicate<ShardId> predicate, ActionListener<TargetShards> listener);
+        void resolve(Set<ShardId> shardIds, ActionListener<Map<ShardId, List<DiscoveryNode>>> listener);
     }
 
     interface Sender {

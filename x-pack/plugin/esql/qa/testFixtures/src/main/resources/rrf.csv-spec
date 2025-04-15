@@ -120,6 +120,7 @@ FROM semantic_text METADATA _id, _score, _index
        ( WHERE semantic_text_field:"something else" | SORT _score DESC | LIMIT 2)
 | RRF
 | EVAL _score = round(_score, 4)
+| EVAL _fork = mv_sort(_fork)
 | KEEP _fork, _score, _id, semantic_text_field
 ;
 

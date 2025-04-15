@@ -33,7 +33,7 @@ public class InferenceRunner {
         return client.threadPool().getThreadContext();
     }
 
-    public void resolveInferenceIds(List<InferencePlan> plans, ActionListener<InferenceResolution> listener) {
+    public void resolveInferenceIds(List<InferencePlan<?>> plans, ActionListener<InferenceResolution> listener) {
         resolveInferenceIds(plans.stream().map(InferenceRunner::planInferenceId).collect(Collectors.toSet()), listener);
 
     }
@@ -68,7 +68,7 @@ public class InferenceRunner {
         }
     }
 
-    private static String planInferenceId(InferencePlan plan) {
+    private static String planInferenceId(InferencePlan<?> plan) {
         return plan.inferenceId().fold(FoldContext.small()).toString();
     }
 

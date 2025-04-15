@@ -43,7 +43,7 @@ public class ApplySampleCorrections extends Rule<LogicalPlan, LogicalPlan> {
         });
     }
 
-    private Expression getSampleProbability(List<Expression> sampleProbabilities, Source source) {
+    private static Expression getSampleProbability(List<Expression> sampleProbabilities, Source source) {
         Expression result = null;
         for (Expression probability : sampleProbabilities) {
             result = result == null ? probability : new Mul(source, result, probability);

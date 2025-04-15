@@ -11,6 +11,7 @@ package org.elasticsearch.entitlement.initialization;
 
 import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.PathUtils;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.internal.provider.ProviderLocator;
 import org.elasticsearch.entitlement.bootstrap.EntitlementBootstrap;
 import org.elasticsearch.entitlement.bridge.EntitlementChecker;
@@ -56,6 +57,7 @@ import java.nio.file.WatchService;
 import java.nio.file.attribute.FileAttribute;
 import java.nio.file.spi.FileSystemProvider;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -317,6 +319,16 @@ public class EntitlementInitialization {
                 )
             )
         );
+
+        validateFilesEntitlements(
+            pluginPolicies,
+            pathLookup,
+            bootstrapArgs.configDir(),
+            bootstrapArgs.pluginsDir(),
+            bootstrapArgs.modulesDir(),
+            bootstrapArgs.libDir()
+        );
+
         return new PolicyManager(
             serverPolicy,
             agentEntitlements,
@@ -328,6 +340,62 @@ public class EntitlementInitialization {
             pathLookup,
             bootstrapArgs.suppressFailureLogClasses()
         );
+    }
+
+    private static Set<Path> pathSet(Path... paths) {
+        return Arrays.stream(paths).map(x -> x.toAbsolutePath().normalize()).collect(Collectors.toUnmodifiableSet());
+    }
+
+    // package visible for tests
+    static void validateFilesEntitlements(
+        Map<String, Policy> pluginPolicies,
+        PathLookup pathLookup,
+        Path configDir,
+        Path pluginsDir,
+        Path modulesDir,
+        Path libDir
+    ) {
+        var pluginReadAccessForbidden = pathSet(pluginsDir, modulesDir, libDir);
+        var pluginWriteAccessForbidden = pathSet(configDir);
+        for (var pluginPolicy : pluginPolicies.entrySet()) {
+            List<Path> readPaths = getFileDataStream(pluginPolicy.getValue()).flatMap(x -> x.resolvePaths(pathLookup)).toList();
+            List<Path> writePaths = getFileDataStream(pluginPolicy.getValue()).filter(x -> x.mode().equals(READ_WRITE))
+                .flatMap(x -> x.resolvePaths(pathLookup))
+                .toList();
+            validateLayerFilesEntitlements(pluginPolicy.getKey(), readPaths, pluginReadAccessForbidden, READ);
+            validateLayerFilesEntitlements(pluginPolicy.getKey(), writePaths, pluginWriteAccessForbidden, READ_WRITE);
+        }
+    }
+
+    private static Stream<FileData> getFileDataStream(Policy policy) {
+        return getFileDataStream(policy.scopes().stream().flatMap(x -> x.entitlements().stream()));
+    }
+
+    private static Stream<FileData> getFileDataStream(Stream<Entitlement> entitlements) {
+        return entitlements.filter(x -> x instanceof FilesEntitlement).flatMap(x -> ((FilesEntitlement) x).filesData().stream());
+    }
+
+    private static void validateLayerFilesEntitlements(
+        String layerName,
+        List<Path> paths,
+        Set<Path> forbiddenPaths,
+        FilesEntitlement.Mode mode
+    ) {
+        for (var path : paths) {
+            for (Path forbiddenPath : forbiddenPaths) {
+                if (path.startsWith(forbiddenPath)) {
+                    throw new IllegalArgumentException(
+                        Strings.format(
+                            "policy for [%s] cannot contain a file entitlement for [%s]. Any path under [%s] is forbidden for mode [%s].",
+                            layerName,
+                            path,
+                            forbiddenPath,
+                            mode
+                        )
+                    );
+                }
+            }
+        }
     }
 
     private static Path getUserHome() {

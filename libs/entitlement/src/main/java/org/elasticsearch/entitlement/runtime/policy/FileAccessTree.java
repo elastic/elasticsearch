@@ -203,7 +203,7 @@ public final class FileAccessTree {
         return prunedReadPaths;
     }
 
-    public static FileAccessTree of(
+    static FileAccessTree of(
         String componentName,
         String moduleName,
         FilesEntitlement filesEntitlement,

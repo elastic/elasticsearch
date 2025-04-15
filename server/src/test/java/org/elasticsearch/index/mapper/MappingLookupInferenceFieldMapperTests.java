@@ -108,7 +108,8 @@ public class MappingLookupInferenceFieldMapperTests extends MapperServiceTestCas
                 INFERENCE_ID,
                 SEARCH_INFERENCE_ID,
                 sourcePaths.toArray(new String[0]),
-                InferenceFieldMetadataTests.generateRandomChunkingSettings()
+                InferenceFieldMetadataTests.generateRandomChunkingSettings(),
+                InferenceFieldMetadataTests.randomSemanticTextIndexOptions()
             );
         }
 

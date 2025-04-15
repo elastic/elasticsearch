@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.inference.mapper;
 
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
+import org.elasticsearch.cluster.metadata.SemanticTextIndexOptions;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
@@ -43,6 +44,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 
+import static org.elasticsearch.cluster.metadata.InferenceFieldMetadataTests.randomSemanticTextIndexOptions;
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextFieldTests.generateRandomChunkingSettings;
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextFieldTests.randomChunkedInferenceEmbeddingByte;
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextFieldTests.randomChunkedInferenceEmbeddingFloat;
@@ -54,6 +56,7 @@ public class SemanticInferenceMetadataFieldsRecoveryTests extends EngineTestCase
     private final Model model1;
     private final Model model2;
     private final ChunkingSettings chunkingSettings;
+    private final SemanticTextIndexOptions indexOptions;
     private final boolean useSynthetic;
     private final boolean useIncludesExcludes;
 
@@ -61,6 +64,7 @@ public class SemanticInferenceMetadataFieldsRecoveryTests extends EngineTestCase
         this.model1 = TestModel.createRandomInstance(TaskType.TEXT_EMBEDDING, List.of(SimilarityMeasure.DOT_PRODUCT));
         this.model2 = TestModel.createRandomInstance(TaskType.SPARSE_EMBEDDING);
         this.chunkingSettings = generateRandomChunkingSettings();
+        this.indexOptions = randomSemanticTextIndexOptions();
         this.useSynthetic = useSynthetic;
         this.useIncludesExcludes = useIncludesExcludes;
     }
@@ -251,8 +255,8 @@ public class SemanticInferenceMetadataFieldsRecoveryTests extends EngineTestCase
             false,
             builder,
             List.of(
-                randomSemanticText(false, "semantic_2", model2, chunkingSettings, randomInputs(), XContentType.JSON),
-                randomSemanticText(false, "semantic_1", model1, chunkingSettings, randomInputs(), XContentType.JSON)
+                randomSemanticText(false, "semantic_2", model2, chunkingSettings, indexOptions, randomInputs(), XContentType.JSON),
+                randomSemanticText(false, "semantic_1", model1, chunkingSettings, indexOptions, randomInputs(), XContentType.JSON)
             )
         );
         builder.endObject();
@@ -264,6 +268,7 @@ public class SemanticInferenceMetadataFieldsRecoveryTests extends EngineTestCase
         String fieldName,
         Model model,
         ChunkingSettings chunkingSettings,
+        SemanticTextIndexOptions indexOptions,
         List<String> inputs,
         XContentType contentType
     ) throws IOException {
@@ -280,6 +285,7 @@ public class SemanticInferenceMetadataFieldsRecoveryTests extends EngineTestCase
             fieldName,
             model,
             chunkingSettings,
+            indexOptions,
             inputs,
             results,
             contentType

@@ -26,6 +26,7 @@ import org.apache.lucene.search.join.ScoreMode;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.SemanticTextIndexOptions;
 import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.CheckedBiFunction;
 import org.elasticsearch.common.Strings;
@@ -91,6 +92,7 @@ import java.util.Set;
 import java.util.function.BiConsumer;
 import java.util.function.Supplier;
 
+import static org.elasticsearch.cluster.metadata.InferenceFieldMetadataTests.randomSemanticTextIndexOptions;
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextField.CHUNKED_EMBEDDINGS_FIELD;
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextField.CHUNKS_FIELD;
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextField.INDEX_OPTIONS_FIELD;
@@ -620,7 +622,7 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
                 b.field(INDEX_OPTIONS_FIELD, expectedIndexOptions);
                 b.endObject();
             }), useLegacyFormat);
-            assertSemanticTextField(mapperService, fieldName, false, expectedIndexOptions);
+            assertSemanticTextField(mapperService, fieldName, false, null);
 
             // Verify we can successfully create a document without throwing
             DocumentMapper documentMapper = mapperService.documentMapper();
@@ -629,7 +631,17 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
                     b -> addSemanticTextInferenceResults(
                         useLegacyFormat,
                         b,
-                        List.of(randomSemanticText(useLegacyFormat, fieldName, model, List.of("puggles", "chiweenies"), XContentType.JSON))
+                        List.of(
+                            randomSemanticText(
+                                useLegacyFormat,
+                                fieldName,
+                                model,
+                                null,
+                                null,
+                                List.of("puggles", "chiweenies"),
+                                XContentType.JSON
+                            )
+                        )
                     )
                 )
             );
@@ -783,6 +795,7 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
             Model model1 = TestModel.createRandomInstance(TaskType.SPARSE_EMBEDDING);
             Model model2 = TestModel.createRandomInstance(TaskType.SPARSE_EMBEDDING);
             ChunkingSettings chunkingSettings = null; // Some chunking settings configs can produce different Lucene docs counts
+            SemanticTextIndexOptions indexOptions = randomSemanticTextIndexOptions();
             XContentBuilder mapping = mapping(b -> {
                 addSemanticTextMapping(
                     b,
@@ -828,10 +841,19 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
                                 fieldName1,
                                 model1,
                                 chunkingSettings,
+                                indexOptions,
                                 List.of("a b", "c"),
                                 XContentType.JSON
                             ),
-                            randomSemanticText(useLegacyFormat, fieldName2, model2, chunkingSettings, List.of("d e f"), XContentType.JSON)
+                            randomSemanticText(
+                                useLegacyFormat,
+                                fieldName2,
+                                model2,
+                                chunkingSettings,
+                                indexOptions,
+                                List.of("d e f"),
+                                XContentType.JSON
+                            )
                         )
                     )
                 )
@@ -1024,6 +1046,7 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
     public void testSettingAndUpdatingChunkingSettings() throws IOException {
         Model model = TestModel.createRandomInstance(TaskType.SPARSE_EMBEDDING);
         final ChunkingSettings chunkingSettings = generateRandomChunkingSettings(false);
+        final SemanticTextIndexOptions indexOptions = null;
         String fieldName = "field";
 
         SemanticTextField randomSemanticText = randomSemanticText(
@@ -1031,6 +1054,7 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
             fieldName,
             model,
             chunkingSettings,
+            indexOptions,
             List.of("a"),
             XContentType.JSON
         );
@@ -1050,11 +1074,13 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
         // Create inference results where model settings are set to null and chunks are provided
         Model model = TestModel.createRandomInstance(TaskType.SPARSE_EMBEDDING);
         ChunkingSettings chunkingSettings = generateRandomChunkingSettings(false);
+        SemanticTextIndexOptions indexOptions = randomSemanticTextIndexOptions();
         SemanticTextField randomSemanticText = randomSemanticText(
             useLegacyFormat,
             "field",
             model,
             chunkingSettings,
+            indexOptions,
             List.of("a"),
             XContentType.JSON
         );
@@ -1066,6 +1092,7 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
                 randomSemanticText.inference().inferenceId(),
                 null,
                 randomSemanticText.inference().chunkingSettings(),
+                randomSemanticText.inference().indexOptions(),
                 randomSemanticText.inference().chunks()
             ),
             randomSemanticText.contentType()
@@ -1111,7 +1138,13 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
             useLegacyFormat,
             fieldName,
             List.of(),
-            new SemanticTextField.InferenceResult(inferenceId, modelSettings, generateRandomChunkingSettings(), Map.of()),
+            new SemanticTextField.InferenceResult(
+                inferenceId,
+                modelSettings,
+                generateRandomChunkingSettings(),
+                randomSemanticTextIndexOptions(),
+                Map.of()
+            ),
             XContentType.JSON
         );
         XContentBuilder builder = JsonXContent.contentBuilder().startObject();

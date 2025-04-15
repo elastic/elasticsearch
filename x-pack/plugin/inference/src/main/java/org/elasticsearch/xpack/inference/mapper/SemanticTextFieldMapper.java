@@ -484,7 +484,12 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
             context.path().setWithinLeafObject(true);
             return SemanticTextField.parse(
                 context.parser(),
-                new SemanticTextField.ParserContext(fieldType().useLegacyFormat, fullPath(), context.parser().contentType())
+                new SemanticTextField.ParserContext(
+                    fieldType().useLegacyFormat,
+                    fullPath(),
+                    context.indexSettings().getIndexVersionCreated(),
+                    context.parser().contentType()
+                )
             );
         } finally {
             context.path().setWithinLeafObject(isWithinLeaf);

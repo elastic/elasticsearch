@@ -11,7 +11,10 @@ package org.elasticsearch.cluster.metadata;
 
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.test.AbstractXContentTestCase;
+import org.elasticsearch.test.index.IndexVersionUtils;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
@@ -19,6 +22,8 @@ import java.util.Map;
 import java.util.function.Predicate;
 
 import static org.elasticsearch.cluster.metadata.InferenceFieldMetadata.CHUNKING_SETTINGS_FIELD;
+import static org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.parseIndexOptions;
+import static org.elasticsearch.index.mapper.vectors.DenseVectorFieldTypeTests.randomIndexOptionsAll;
 import static org.hamcrest.Matchers.equalTo;
 
 public class InferenceFieldMetadataTests extends AbstractXContentTestCase<InferenceFieldMetadata> {
@@ -68,7 +73,8 @@ public class InferenceFieldMetadataTests extends AbstractXContentTestCase<Infere
         String searchInferenceId = randomIdentifier();
         String[] inputFields = generateRandomStringArray(5, 10, false, false);
         Map<String, Object> chunkingSettings = generateRandomChunkingSettings();
-        return new InferenceFieldMetadata(name, inferenceId, searchInferenceId, inputFields, chunkingSettings);
+        SemanticTextIndexOptions indexOptions = randomSemanticTextIndexOptions();
+        return new InferenceFieldMetadata(name, inferenceId, searchInferenceId, inputFields, chunkingSettings, indexOptions);
     }
 
     public static Map<String, Object> generateRandomChunkingSettings() {
@@ -76,6 +82,12 @@ public class InferenceFieldMetadataTests extends AbstractXContentTestCase<Infere
             return null; // Defaults to model chunking settings
         }
         return randomBoolean() ? generateRandomWordBoundaryChunkingSettings() : generateRandomSentenceBoundaryChunkingSettings();
+    }
+
+    public static SemanticTextIndexOptions randomSemanticTextIndexOptions() {
+        return randomBoolean()
+            ? null
+            : new SemanticTextIndexOptions(SemanticTextIndexOptions.SupportedIndexOptions.DENSE_VECTOR, randomIndexOptionsAll());
     }
 
     private static Map<String, Object> generateRandomWordBoundaryChunkingSettings() {
@@ -96,16 +108,19 @@ public class InferenceFieldMetadataTests extends AbstractXContentTestCase<Infere
     public void testNullCtorArgsThrowException() {
         assertThrows(
             NullPointerException.class,
-            () -> new InferenceFieldMetadata(null, "inferenceId", "searchInferenceId", new String[0], Map.of())
+            () -> new InferenceFieldMetadata(null, "inferenceId", "searchInferenceId", new String[0], Map.of(), null)
         );
         assertThrows(
             NullPointerException.class,
-            () -> new InferenceFieldMetadata("name", null, "searchInferenceId", new String[0], Map.of())
+            () -> new InferenceFieldMetadata("name", null, "searchInferenceId", new String[0], Map.of(), null)
         );
-        assertThrows(NullPointerException.class, () -> new InferenceFieldMetadata("name", "inferenceId", null, new String[0], Map.of()));
         assertThrows(
             NullPointerException.class,
-            () -> new InferenceFieldMetadata("name", "inferenceId", "searchInferenceId", null, Map.of())
+            () -> new InferenceFieldMetadata("name", "inferenceId", null, new String[0], Map.of(), null)
+        );
+        assertThrows(
+            NullPointerException.class,
+            () -> new InferenceFieldMetadata("name", "inferenceId", "searchInferenceId", null, Map.of(), null)
         );
     }
 }

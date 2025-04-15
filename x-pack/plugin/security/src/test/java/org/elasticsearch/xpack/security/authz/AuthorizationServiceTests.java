@@ -132,6 +132,7 @@ import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.threadpool.ThreadPool.Names;
+import org.elasticsearch.transport.AbstractTransportRequest;
 import org.elasticsearch.transport.EmptyRequest;
 import org.elasticsearch.transport.TransportActionProxy;
 import org.elasticsearch.transport.TransportRequest;
@@ -154,7 +155,6 @@ import org.elasticsearch.xpack.core.security.authc.DefaultAuthenticationFailureH
 import org.elasticsearch.xpack.core.security.authc.Subject;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine.AuthorizationInfo;
-import org.elasticsearch.xpack.core.security.authz.AuthorizationServiceField;
 import org.elasticsearch.xpack.core.security.authz.IndicesAndAliasesResolverField;
 import org.elasticsearch.xpack.core.security.authz.ResolvedIndices;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
@@ -189,7 +189,6 @@ import org.elasticsearch.xpack.sql.action.SqlQueryAction;
 import org.elasticsearch.xpack.sql.action.SqlQueryRequest;
 import org.junit.Before;
 import org.mockito.ArgumentMatcher;
-import org.mockito.ArgumentMatchers;
 import org.mockito.Mockito;
 
 import java.io.IOException;
@@ -1163,9 +1162,7 @@ public class AuthorizationServiceTests extends ESTestCase {
                 IndicesOptions.fromOptions(true, true, true, false)
             );
             final ActionListener<Void> listener = ActionTestUtils.assertNoFailureListener(ignore -> {
-                final IndicesAccessControl indicesAccessControl = threadContext.getTransient(
-                    AuthorizationServiceField.INDICES_PERMISSIONS_KEY
-                );
+                final IndicesAccessControl indicesAccessControl = threadContext.getTransient(INDICES_PERMISSIONS_KEY);
                 assertNotNull(indicesAccessControl);
                 final IndicesAccessControl.IndexAccessControl indexAccessControl = indicesAccessControl.getIndexPermissions(
                     IndicesAndAliasesResolverField.NO_INDEX_PLACEHOLDER
@@ -1233,16 +1230,16 @@ public class AuthorizationServiceTests extends ESTestCase {
         );
         this.setFakeOriginatingAction = false;
         authorize(authentication, TransportSearchAction.TYPE.name(), searchRequest, true, () -> {
-            verify(rolesStore).getRoles(Mockito.same(authentication), Mockito.any());
-            IndicesAccessControl iac = threadContext.getTransient(AuthorizationServiceField.INDICES_PERMISSIONS_KEY);
+            verify(rolesStore).getRoles(Mockito.same(authentication), any());
+            IndicesAccessControl iac = threadContext.getTransient(INDICES_PERMISSIONS_KEY);
             // Successful search action authorization should set a parent authorization header.
             assertThat(securityContext.getParentAuthorization().action(), equalTo(TransportSearchAction.TYPE.name()));
             // Within the action handler, execute a child action (the query phase of search)
             authorize(authentication, SearchTransportService.QUERY_ACTION_NAME, shardRequest, false, () -> {
                 // This child action triggers a second interaction with the role store (which is cached)
-                verify(rolesStore, times(2)).getRoles(Mockito.same(authentication), Mockito.any());
+                verify(rolesStore, times(2)).getRoles(Mockito.same(authentication), any());
                 // But it does not create a new IndicesAccessControl
-                assertThat(threadContext.getTransient(AuthorizationServiceField.INDICES_PERMISSIONS_KEY), sameInstance(iac));
+                assertThat(threadContext.getTransient(INDICES_PERMISSIONS_KEY), sameInstance(iac));
                 // The parent authorization header should only be present for direct child actions
                 // and not be carried over for a child of a child actions.
                 // Meaning, only query phase action should be pre-authorized in this case and potential sub-actions should not.
@@ -1298,16 +1295,16 @@ public class AuthorizationServiceTests extends ESTestCase {
         );
         this.setFakeOriginatingAction = false;
         authorize(authentication, TransportSearchAction.TYPE.name(), searchRequest, true, () -> {
-            verify(rolesStore).getRoles(Mockito.same(authentication), Mockito.any());
-            IndicesAccessControl iac = threadContext.getTransient(AuthorizationServiceField.INDICES_PERMISSIONS_KEY);
+            verify(rolesStore).getRoles(Mockito.same(authentication), any());
+            IndicesAccessControl iac = threadContext.getTransient(INDICES_PERMISSIONS_KEY);
             // Successful search action authorization should set a parent authorization header.
             assertThat(securityContext.getParentAuthorization().action(), equalTo(TransportSearchAction.TYPE.name()));
             // Within the action handler, execute a child action (the query phase of search)
             authorize(authentication, SearchTransportService.QUERY_ACTION_NAME, shardRequest, false, () -> {
                 // This child action triggers a second interaction with the role store (which is cached)
-                verify(rolesStore, times(2)).getRoles(Mockito.same(authentication), Mockito.any());
+                verify(rolesStore, times(2)).getRoles(Mockito.same(authentication), any());
                 // But it does not create a new IndicesAccessControl
-                assertThat(threadContext.getTransient(AuthorizationServiceField.INDICES_PERMISSIONS_KEY), sameInstance(iac));
+                assertThat(threadContext.getTransient(INDICES_PERMISSIONS_KEY), sameInstance(iac));
                 // The parent authorization header should only be present for direct child actions
                 // and not be carried over for a child of a child actions.
                 // Meaning, only query phase action should be pre-authorized in this case and potential sub-actions should not.
@@ -2200,7 +2197,7 @@ public class AuthorizationServiceTests extends ESTestCase {
         final SearchRequest searchRequest = new SearchRequest("_all");
         authorize(authentication, TransportSearchAction.TYPE.name(), searchRequest);
         assertEquals(2, searchRequest.indices().length);
-        assertEquals(IndicesAndAliasesResolverField.NO_INDICES_OR_ALIASES_LIST, Arrays.asList(searchRequest.indices()));
+        assertEquals(IndicesAndAliasesResolverField.NO_INDICES_OR_ALIASES_LIST, asList(searchRequest.indices()));
     }
 
     public void testMonitoringOperationsAgainstSecurityIndexRequireAllowRestricted() {
@@ -2333,7 +2330,7 @@ public class AuthorizationServiceTests extends ESTestCase {
         for (final Tuple<String, TransportRequest> requestTuple : requests) {
             final String action = requestTuple.v1();
             final TransportRequest request = requestTuple.v2();
-            try (ThreadContext.StoredContext ignore = threadContext.newStoredContext()) {
+            try (StoredContext ignore = threadContext.newStoredContext()) {
                 final Authentication authentication = createAuthentication(superuser);
                 authorize(authentication, action, request);
                 verify(auditTrail).accessGranted(
@@ -2411,7 +2408,7 @@ public class AuthorizationServiceTests extends ESTestCase {
         for (final Tuple<String, TransportRequest> requestTuple : requests) {
             final String action = requestTuple.v1();
             final TransportRequest request = requestTuple.v2();
-            try (ThreadContext.StoredContext ignore = threadContext.newStoredContext()) {
+            try (StoredContext ignore = threadContext.newStoredContext()) {
                 final Authentication authentication = createAuthentication(superuser);
                 assertThrowsAuthorizationException(
                     "authentication=[" + authentication + "], action=[" + action + "], request=[" + request + "]",
@@ -2577,7 +2574,7 @@ public class AuthorizationServiceTests extends ESTestCase {
         );
         AuditUtil.getOrGenerateRequestId(threadContext);
         mockEmptyMetadata();
-        try (ThreadContext.StoredContext ignore = threadContext.newStoredContext()) {
+        try (StoredContext ignore = threadContext.newStoredContext()) {
             authorize(createAuthentication(userAllowed), action, request);
         }
         assertThrowsAuthorizationException(() -> authorize(createAuthentication(userDenied), action, request), action, "userDenied");
@@ -2756,7 +2753,7 @@ public class AuthorizationServiceTests extends ESTestCase {
         mockEmptyMetadata();
         final Authentication authentication;
         final String requestId;
-        try (ThreadContext.StoredContext ignore = threadContext.stashContext()) {
+        try (StoredContext ignore = threadContext.stashContext()) {
             authentication = createAuthentication(new User("user", "good-role"));
             requestId = AuditUtil.getOrGenerateRequestId(threadContext);
             authorize(authentication, action, request);
@@ -2777,9 +2774,7 @@ public class AuthorizationServiceTests extends ESTestCase {
             case UPDATE -> TransportUpdateAction.NAME;
             case DELETE -> TransportDeleteAction.NAME;
         }),
-            argThat(
-                indicesArrays -> indicesArrays.length == allIndexNames.size() && allIndexNames.containsAll(Arrays.asList(indicesArrays))
-            ),
+            argThat(indicesArrays -> indicesArrays.length == allIndexNames.size() && allIndexNames.containsAll(asList(indicesArrays))),
             eq(BulkItemRequest.class.getSimpleName()),
             eq(request.remoteAddress()),
             authzInfoRoles(new String[] { goodRole.getName() })
@@ -2792,7 +2787,7 @@ public class AuthorizationServiceTests extends ESTestCase {
 
         final Authentication badAuthentication;
         final String badRequestId;
-        try (ThreadContext.StoredContext ignore = threadContext.stashContext()) {
+        try (StoredContext ignore = threadContext.stashContext()) {
             badAuthentication = createAuthentication(new User("bad-user", "bad-role"));
             badRequestId = AuditUtil.getOrGenerateRequestId(threadContext);
             // the bulk shard request is authorized, but the bulk items are not
@@ -2817,9 +2812,7 @@ public class AuthorizationServiceTests extends ESTestCase {
                 case UPDATE -> TransportUpdateAction.NAME;
                 case DELETE -> TransportDeleteAction.NAME;
             }),
-            argThat(
-                indicesArrays -> indicesArrays.length == allIndexNames.size() && allIndexNames.containsAll(Arrays.asList(indicesArrays))
-            ),
+            argThat(indicesArrays -> indicesArrays.length == allIndexNames.size() && allIndexNames.containsAll(asList(indicesArrays))),
             eq(BulkItemRequest.class.getSimpleName()),
             eq(request.remoteAddress()),
             authzInfoRoles(new String[] { badRole.getName() })
@@ -2886,7 +2879,7 @@ public class AuthorizationServiceTests extends ESTestCase {
         mockEmptyMetadata();
         final Authentication authentication;
         final String requestId;
-        try (ThreadContext.StoredContext ignore = threadContext.stashContext()) {
+        try (StoredContext ignore = threadContext.stashContext()) {
             authentication = createAuthentication(new User("user", "all-role"));
             requestId = AuditUtil.getOrGenerateRequestId(threadContext);
             authorize(authentication, action, request);
@@ -2921,7 +2914,7 @@ public class AuthorizationServiceTests extends ESTestCase {
         // use the "index" role
         final Authentication indexAuthentication;
         final String indexRequestId;
-        try (ThreadContext.StoredContext ignore = threadContext.stashContext()) {
+        try (StoredContext ignore = threadContext.stashContext()) {
             indexAuthentication = createAuthentication(new User("index-user", "index-role"));
             indexRequestId = AuditUtil.getOrGenerateRequestId(threadContext);
             authorize(indexAuthentication, action, request);
@@ -3142,7 +3135,7 @@ public class AuthorizationServiceTests extends ESTestCase {
         };
     }
 
-    private static class MockCompositeIndicesRequest extends TransportRequest implements CompositeIndicesRequest {}
+    private static class MockCompositeIndicesRequest extends AbstractTransportRequest implements CompositeIndicesRequest {}
 
     private Authentication createAuthentication(User user) {
         return createAuthentication(user, null);
@@ -3471,7 +3464,7 @@ public class AuthorizationServiceTests extends ESTestCase {
                 RequestInfo requestInfo,
                 AuthorizationInfo authorizationInfo,
                 Map<String, IndexAbstraction> indicesLookup,
-                ActionListener<AuthorizationEngine.AuthorizedIndices> listener
+                ActionListener<AuthorizedIndices> listener
             ) {
                 throw new UnsupportedOperationException("not implemented");
             }
@@ -3523,7 +3516,7 @@ public class AuthorizationServiceTests extends ESTestCase {
             projectResolver
         );
         Authentication authentication;
-        try (ThreadContext.StoredContext ignore = threadContext.stashContext()) {
+        try (StoredContext ignore = threadContext.stashContext()) {
             authentication = createAuthentication(new User("test user", "a_all"));
             assertEquals(engine, authorizationService.getAuthorizationEngine(authentication));
             when(licenseState.isAllowed(Security.AUTHORIZATION_ENGINE_FEATURE)).thenReturn(false);
@@ -3531,7 +3524,7 @@ public class AuthorizationServiceTests extends ESTestCase {
         }
 
         when(licenseState.isAllowed(Security.AUTHORIZATION_ENGINE_FEATURE)).thenReturn(true);
-        try (ThreadContext.StoredContext ignore = threadContext.stashContext()) {
+        try (StoredContext ignore = threadContext.stashContext()) {
             authentication = createAuthentication(new User("runas", "runas_role"), new User("runner", "runner_role"));
             assertEquals(engine, authorizationService.getAuthorizationEngine(authentication));
             assertEquals(engine, authorizationService.getRunAsAuthorizationEngine(authentication));
@@ -3541,7 +3534,7 @@ public class AuthorizationServiceTests extends ESTestCase {
         }
 
         when(licenseState.isAllowed(Security.AUTHORIZATION_ENGINE_FEATURE)).thenReturn(true);
-        try (ThreadContext.StoredContext ignore = threadContext.stashContext()) {
+        try (StoredContext ignore = threadContext.stashContext()) {
             authentication = createAuthentication(new User("runas", "runas_role"), new ElasticUser(true));
             assertEquals(engine, authorizationService.getAuthorizationEngine(authentication));
             assertNotEquals(engine, authorizationService.getRunAsAuthorizationEngine(authentication));
@@ -3552,7 +3545,7 @@ public class AuthorizationServiceTests extends ESTestCase {
         }
 
         when(licenseState.isAllowed(Security.AUTHORIZATION_ENGINE_FEATURE)).thenReturn(true);
-        try (ThreadContext.StoredContext ignore = threadContext.stashContext()) {
+        try (StoredContext ignore = threadContext.stashContext()) {
             authentication = createAuthentication(new User("elastic", "superuser"), new User("runner", "runner_role"));
             assertNotEquals(engine, authorizationService.getAuthorizationEngine(authentication));
             assertThat(authorizationService.getAuthorizationEngine(authentication), instanceOf(RBACEngine.class));
@@ -3563,7 +3556,7 @@ public class AuthorizationServiceTests extends ESTestCase {
         }
 
         when(licenseState.isAllowed(Security.AUTHORIZATION_ENGINE_FEATURE)).thenReturn(true);
-        try (ThreadContext.StoredContext ignore = threadContext.stashContext()) {
+        try (StoredContext ignore = threadContext.stashContext()) {
             authentication = createAuthentication(new User("kibana", "kibana_system"), new ElasticUser(true));
             assertNotEquals(engine, authorizationService.getAuthorizationEngine(authentication));
             assertThat(authorizationService.getAuthorizationEngine(authentication), instanceOf(RBACEngine.class));
@@ -3575,7 +3568,7 @@ public class AuthorizationServiceTests extends ESTestCase {
         }
 
         when(licenseState.isAllowed(Security.AUTHORIZATION_ENGINE_FEATURE)).thenReturn(true);
-        try (ThreadContext.StoredContext ignore = threadContext.stashContext()) {
+        try (StoredContext ignore = threadContext.stashContext()) {
             authentication = createAuthentication(
                 randomFrom(InternalUsers.XPACK_USER, InternalUsers.XPACK_SECURITY_USER, new ElasticUser(true), new KibanaUser(true))
             );
@@ -3683,7 +3676,7 @@ public class AuthorizationServiceTests extends ESTestCase {
     }
 
     static AuthorizationInfo authzInfoRoles(String[] expectedRoles) {
-        return ArgumentMatchers.argThat(new RBACAuthorizationInfoRoleMatcher(expectedRoles));
+        return argThat(new RBACAuthorizationInfoRoleMatcher(expectedRoles));
     }
 
     private static class TestSearchPhaseResult extends SearchPhaseResult {

@@ -14,6 +14,7 @@ import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.parser.ParsingException;
 import org.junit.Before;
 
+import java.util.Arrays;
 import java.util.Iterator;
 import java.util.List;
 import java.util.function.Predicate;
@@ -350,32 +351,6 @@ public class ForkIT extends AbstractEsqlIntegTestCase {
         }
     }
 
-    public void testRrf() {
-        assumeTrue("requires RRF capability", EsqlCapabilities.Cap.RRF.isEnabled());
-
-        var query = """
-            FROM test METADATA _score, _id, _index
-            | WHERE id > 2
-            | FORK
-               ( WHERE content:"fox" | SORT _score, _id DESC )
-               ( WHERE content:"dog" | SORT _score, _id DESC )
-            | RRF
-            | EVAL _score = round(_score, 4)
-            | KEEP id, content, _score, _fork
-            """;
-        try (var resp = run(query)) {
-            assertColumnNames(resp.columns(), List.of("id", "content", "_score", "_fork"));
-            assertColumnTypes(resp.columns(), List.of("integer", "keyword", "double", "keyword"));
-            assertThat(getValuesList(resp.values()).size(), equalTo(3));
-            Iterable<Iterable<Object>> expectedValues = List.of(
-                List.of(6, "The quick brown fox jumps over the lazy dog", 0.0325, List.of("fork1", "fork2")),
-                List.of(4, "The dog is brown but this document is very very long", 0.0164, "fork2"),
-                List.of(3, "This dog is really brown", 0.0159, "fork2")
-            );
-            assertValues(resp.values(), expectedValues);
-        }
-    }
-
     public void testThreeSubQueries() {
         var query = """
             FROM test
@@ -527,6 +502,75 @@ public class ForkIT extends AbstractEsqlIntegTestCase {
         }
     }
 
+    public void testWithEvalSimple() {
+        var query = """
+                FROM test
+                | WHERE content:"cat"
+                | FORK ( EVAL a = 1 )
+                       ( EVAL a = 2 )
+                | KEEP a, _fork, id, content
+            """;
+
+        try (var resp = run(query)) {
+            assertColumnNames(resp.columns(), List.of("a", "_fork", "id", "content"));
+
+            Iterable<Iterable<Object>> expectedValues = List.of(
+                List.of(1, "fork1", 5, "There is also a white cat"),
+                List.of(2, "fork2", 5, "There is also a white cat")
+            );
+            assertValues(resp.values(), expectedValues);
+        }
+    }
+
+    public void testWithEvalDifferentOutputs() {
+        var query = """
+                FROM test
+                | WHERE id == 2
+                | FORK ( EVAL a = 1 )
+                       ( EVAL b = 2 )
+                | KEEP a, b, _fork
+                | SORT _fork, a
+            """;
+        try (var resp = run(query)) {
+            assertColumnNames(resp.columns(), List.of("a", "b", "_fork"));
+            Iterable<Iterable<Object>> expectedValues = List.of(
+                Arrays.stream(new Object[] { 1, null, "fork1" }).toList(),
+                Arrays.stream(new Object[] { null, 2, "fork2" }).toList()
+            );
+            assertValues(resp.values(), expectedValues);
+        }
+    }
+
+    public void testWithStatsSimple() {
+        var query = """
+                FROM test
+                | FORK (STATS x=COUNT(*), y=MV_SORT(VALUES(id)))
+                       (WHERE id == 2)
+                | KEEP _fork, x, y, id
+                | SORT _fork, id
+            """;
+        try (var resp = run(query)) {
+            assertColumnNames(resp.columns(), List.of("_fork", "x", "y", "id"));
+            Iterable<Iterable<Object>> expectedValues = List.of(
+                Arrays.stream(new Object[] { "fork1", 6L, List.of(1, 2, 3, 4, 5, 6), null }).toList(),
+                Arrays.stream(new Object[] { "fork2", null, null, 2 }).toList()
+            );
+            assertValues(resp.values(), expectedValues);
+        }
+    }
+
+    public void testWithEvalWithConflictingTypes() {
+        var query = """
+                FROM test
+                | FORK ( EVAL a = 1 )
+                       ( EVAL a = "aaaa" )
+                | KEEP a, _fork
+            """;
+
+        var e = expectThrows(VerificationException.class, () -> run(query));
+        assertTrue(e.getMessage().contains("Column [a] has conflicting data types"));
+    }
+
     public void testSubqueryWithUnknownField() {
         var query = """
             FROM test
@@ -589,6 +633,19 @@ public class ForkIT extends AbstractEsqlIntegTestCase {
             """;
         e = expectThrows(VerificationException.class, () -> run(queryTwo));
         assertTrue(e.getMessage().contains("Unknown column [bar]"));
+    }
+
+    public void testSubqueryWithUnknownFieldInEval() {
+        var query = """
+            FROM test
+            | FORK
+               ( EVAL x = baz + 1)
+               ( WHERE content:"cat" )
+            | KEEP _fork, id, content
+            | SORT _fork, id
+            """;
+        var e = expectThrows(VerificationException.class, () -> run(query));
+        assertTrue(e.getMessage().contains("Unknown column [baz]"));
     }
 
     public void testOneSubQuery() {

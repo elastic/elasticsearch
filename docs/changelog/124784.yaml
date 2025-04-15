@@ -1,6 +1,0 @@
-pr: 124784
-summary: Merge template mappings properly during validation
-area: Mapping
-type: bug
-issues:
- - 123372

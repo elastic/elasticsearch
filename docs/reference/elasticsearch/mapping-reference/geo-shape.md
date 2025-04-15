@@ -19,9 +19,9 @@ Documents using this type can be used:
 
 * to aggregate documents by geographic grids:
 
-    * either [`geo_hash`](/reference/data-analysis/aggregations/search-aggregations-bucket-geohashgrid-aggregation.md)
-    * or [`geo_tile`](/reference/data-analysis/aggregations/search-aggregations-bucket-geotilegrid-aggregation.md)
-    * or [`geo_hex`](/reference/data-analysis/aggregations/search-aggregations-bucket-geohexgrid-aggregation.md)
+    * either [`geo_hash`](/reference/aggregations/search-aggregations-bucket-geohashgrid-aggregation.md)
+    * or [`geo_tile`](/reference/aggregations/search-aggregations-bucket-geotilegrid-aggregation.md)
+    * or [`geo_hex`](/reference/aggregations/search-aggregations-bucket-geohexgrid-aggregation.md)
 
 
 
@@ -359,7 +359,7 @@ POST /example/_doc
 
 #### Circle [_circle]
 
-Neither GeoJSON nor WKT supports a point-radius circle type. Instead, use a [circle ingest processor](/reference/ingestion-tools/enrich-processor/ingest-circle-processor.md) to approximate the circle as a [`polygon`](#geo-polygon).
+Neither GeoJSON nor WKT supports a point-radius circle type. Instead, use a [circle ingest processor](/reference/enrich-processor/ingest-circle-processor.md) to approximate the circle as a [`polygon`](#geo-polygon).
 
 
 ### Sorting and Retrieving index Shapes [_sorting_and_retrieving_index_shapes]

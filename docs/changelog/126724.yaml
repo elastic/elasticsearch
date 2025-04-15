@@ -1,0 +1,5 @@
+pr: 126724
+summary: Fix painless return type cast for list shortcut
+area: Infra/Scripting
+type: bug
+issues: []

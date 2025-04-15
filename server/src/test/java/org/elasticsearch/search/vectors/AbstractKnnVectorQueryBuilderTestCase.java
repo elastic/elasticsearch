@@ -166,7 +166,7 @@ abstract class AbstractKnnVectorQueryBuilderTestCase extends AbstractQueryTestCa
             return null;
         }
 
-        return new RescoreVectorBuilder(randomFloatBetween(1.0f, 10.0f, false));
+        return new RescoreVectorBuilder(randomBoolean() ? 0f : randomFloatBetween(1.0f, 10.0f, false));
     }
 
     @Override
@@ -181,9 +181,13 @@ abstract class AbstractKnnVectorQueryBuilderTestCase extends AbstractQueryTestCa
             k = context.requestSize() == null || context.requestSize() < 0 ? DEFAULT_SIZE : context.requestSize();
         }
         if (queryBuilder.rescoreVectorBuilder() != null && isQuantizedElementType()) {
-            RescoreKnnVectorQuery rescoreQuery = (RescoreKnnVectorQuery) query;
-            assertEquals(k.intValue(), (rescoreQuery.k()));
-            query = rescoreQuery.innerQuery();
+            if (queryBuilder.rescoreVectorBuilder().oversample() > 0) {
+                RescoreKnnVectorQuery rescoreQuery = (RescoreKnnVectorQuery) query;
+                assertEquals(k.intValue(), (rescoreQuery.k()));
+                query = rescoreQuery.innerQuery();
+            } else {
+                assertFalse(query instanceof RescoreKnnVectorQuery);
+            }
         }
         switch (elementType()) {
             case FLOAT -> assertTrue(query instanceof ESKnnFloatVectorQuery);

@@ -46,6 +46,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
@@ -627,8 +628,8 @@ public class ModelRegistry implements ClusterStateListener {
         storeModel(model, true, listener, timeout);
     }
 
-    private void storeModel(Model model, boolean addToClusterState, ActionListener<Boolean> listener, TimeValue timeout) {
-        ActionListener<BulkResponse> bulkResponseActionListener = getStoreIndexListener(model, addToClusterState, listener, timeout);
+    private void storeModel(Model model, boolean updateClusterState, ActionListener<Boolean> listener, TimeValue timeout) {
+        ActionListener<BulkResponse> bulkResponseActionListener = getStoreIndexListener(model, updateClusterState, listener, timeout);
 
         IndexRequest configRequest = createIndexRequest(
             Model.documentId(model.getConfigurations().getInferenceEntityId()),
@@ -653,7 +654,7 @@ public class ModelRegistry implements ClusterStateListener {
 
     private ActionListener<BulkResponse> getStoreIndexListener(
         Model model,
-        boolean addToClusterState,
+        boolean updateClusterState,
         ActionListener<Boolean> listener,
         TimeValue timeout
     ) {
@@ -680,7 +681,7 @@ public class ModelRegistry implements ClusterStateListener {
             BulkItemResponse.Failure failure = getFirstBulkFailure(bulkItemResponses);
 
             if (failure == null) {
-                if (addToClusterState) {
+                if (updateClusterState) {
                     var storeListener = getStoreMetadataListener(inferenceEntityId, listener);
                     try {
                         var projectId = clusterService.state().projectState().projectId();
@@ -728,6 +729,10 @@ public class ModelRegistry implements ClusterStateListener {
 
             @Override
             public void onFailure(Exception exc) {
+                logger.warn(
+                    format("Failed to add inference endpoint [%s] minimal service settings to cluster state", inferenceEntityId),
+                    exc
+                );
                 deleteModel(inferenceEntityId, ActionListener.running(() -> {
                     listener.onFailure(
                         new ElasticsearchStatusException(
@@ -777,7 +782,8 @@ public class ModelRegistry implements ClusterStateListener {
         }
 
         defaultConfigIds.keySet().removeAll(inferenceEntityIds);
-        deleteModels(inferenceEntityIds, listener);
+        // default models are not stored in the cluster state.
+        deleteModels(inferenceEntityIds, false, listener);
     }
 
     public void deleteModel(String inferenceEntityId, ActionListener<Boolean> listener) {
@@ -785,6 +791,10 @@ public class ModelRegistry implements ClusterStateListener {
     }
 
     public void deleteModels(Set<String> inferenceEntityIds, ActionListener<Boolean> listener) {
+        deleteModels(inferenceEntityIds, true, listener);
+    }
+
+    private void deleteModels(Set<String> inferenceEntityIds, boolean updateClusterState, ActionListener<Boolean> listener) {
         var lockedInferenceIds = new HashSet<>(inferenceEntityIds);
         lockedInferenceIds.retainAll(preventDeletionLock);
 
@@ -803,16 +813,25 @@ public class ModelRegistry implements ClusterStateListener {
         }
 
         var request = createDeleteRequest(inferenceEntityIds);
-        client.execute(DeleteByQueryAction.INSTANCE, request, getDeleteModelClusterStateListener(inferenceEntityIds, listener));
+        client.execute(
+            DeleteByQueryAction.INSTANCE,
+            request,
+            getDeleteModelClusterStateListener(inferenceEntityIds, updateClusterState, listener)
+        );
     }
 
     private ActionListener<BulkByScrollResponse> getDeleteModelClusterStateListener(
         Set<String> inferenceEntityIds,
+        boolean updateClusterState,
         ActionListener<Boolean> listener
     ) {
         return new ActionListener<>() {
             @Override
             public void onResponse(BulkByScrollResponse bulkByScrollResponse) {
+                if (updateClusterState == false) {
+                    listener.onResponse(Boolean.TRUE);
+                    return;
+                }
                 var clusterStateListener = new ActionListener<AcknowledgedResponse>() {
                     @Override
                     public void onResponse(AcknowledgedResponse acknowledgedResponse) {
@@ -917,6 +936,11 @@ public class ModelRegistry implements ClusterStateListener {
     @Override
     public void clusterChanged(ClusterChangedEvent event) {
         if (event.localNodeMaster() == false) {
+            return;
+        }
+
+        // wait for the cluster state to be recovered
+        if (event.state().blocks().hasGlobalBlock(GatewayService.STATE_NOT_RECOVERED_BLOCK)) {
             return;
         }
 

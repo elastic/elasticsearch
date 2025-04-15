@@ -36,7 +36,7 @@ bucket_key = Math.floor(value / interval) * interval
 ```
 
 ::::{note}
-The histogram in SQL does **NOT** return empty buckets for missing intervals as the traditional [histogram](/reference/data-analysis/aggregations/search-aggregations-bucket-histogram-aggregation.md) and  [date histogram](/reference/data-analysis/aggregations/search-aggregations-bucket-datehistogram-aggregation.md). Such behavior does not fit conceptually in SQL which treats all missing values as `null`; as such the histogram places all missing values in the `null` group.
+The histogram in SQL does **NOT** return empty buckets for missing intervals as the traditional [histogram](/reference/aggregations/search-aggregations-bucket-histogram-aggregation.md) and  [date histogram](/reference/aggregations/search-aggregations-bucket-datehistogram-aggregation.md). Such behavior does not fit conceptually in SQL which treats all missing values as `null`; as such the histogram places all missing values in the `null` group.
 ::::
 
 
@@ -134,7 +134,7 @@ When the histogram in SQL is applied on **DATE** type instead of **DATETIME**, t
 
 
 ::::{important}
-All intervals specified for a date/time HISTOGRAM will use a [fixed interval](/reference/data-analysis/aggregations/search-aggregations-bucket-datehistogram-aggregation.md) in their `date_histogram` aggregation definition, with the notable exceptions of `INTERVAL '1' YEAR`, `INTERVAL '1' MONTH` and `INTERVAL '1' DAY`  where a calendar interval is used. The choice for a calendar interval was made for having a more intuitive result for YEAR, MONTH and DAY groupings. In the case of YEAR, for example, the calendar intervals consider a one year bucket as the one starting on January 1st that specific year, whereas a fixed interval one-year-bucket considers one year as a number of milliseconds (for example, `31536000000ms` corresponding to 365 days, 24 hours per day, 60 minutes per hour etc.). With fixed intervals, the day of February 5th, 2019 for example, belongs to a bucket that starts on December 20th, 2018 and {{es}} (and implicitly Elasticsearch SQL) would have returned the year 2018 for a date that’s actually in 2019. With calendar interval this behavior is more intuitive, having the day of February 5th, 2019 actually belonging to the 2019 year bucket.
+All intervals specified for a date/time HISTOGRAM will use a [fixed interval](/reference/aggregations/search-aggregations-bucket-datehistogram-aggregation.md) in their `date_histogram` aggregation definition, with the notable exceptions of `INTERVAL '1' YEAR`, `INTERVAL '1' MONTH` and `INTERVAL '1' DAY`  where a calendar interval is used. The choice for a calendar interval was made for having a more intuitive result for YEAR, MONTH and DAY groupings. In the case of YEAR, for example, the calendar intervals consider a one year bucket as the one starting on January 1st that specific year, whereas a fixed interval one-year-bucket considers one year as a number of milliseconds (for example, `31536000000ms` corresponding to 365 days, 24 hours per day, 60 minutes per hour etc.). With fixed intervals, the day of February 5th, 2019 for example, belongs to a bucket that starts on December 20th, 2018 and {{es}} (and implicitly Elasticsearch SQL) would have returned the year 2018 for a date that’s actually in 2019. With calendar interval this behavior is more intuitive, having the day of February 5th, 2019 actually belonging to the 2019 year bucket.
 ::::
 
 

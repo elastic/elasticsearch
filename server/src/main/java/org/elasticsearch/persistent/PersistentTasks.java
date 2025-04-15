@@ -16,7 +16,6 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.io.stream.VersionedNamedWriteable;
 import org.elasticsearch.common.xcontent.ChunkedToXContentHelper;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Tuple;
@@ -102,7 +101,7 @@ public interface PersistentTasks {
     default void doWriteTo(StreamOutput out) throws IOException {
         out.writeLong(getLastAllocationId());
         Map<String, PersistentTask<?>> filteredTasks = tasks().stream()
-            .filter(t -> VersionedNamedWriteable.shouldSerialize(out, t.getParams()))
+            .filter(t -> t.getParams().supportsVersion(out.getTransportVersion()))
             .collect(Collectors.toMap(PersistentTask::getId, Function.identity()));
         out.writeMap(filteredTasks, StreamOutput::writeWriteable);
     }

@@ -42,6 +42,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.LongSupplier;
 
 public class MemoryMetricsService implements ClusterStateListener {
@@ -54,6 +55,21 @@ public class MemoryMetricsService implements ClusterStateListener {
     public static final Setting<TimeValue> STALE_METRICS_CHECK_INTERVAL_SETTING = Setting.timeSetting(
         "serverless.autoscaling.memory_metrics.indices_mapping_size.stale_metrics_check.interval",
         TimeValue.timeValueMinutes(5),
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
+    static final TimeValue DEFAULT_INDEXING_OPERATIONS_MEMORY_REQUIREMENTS_VALIDITY = TimeValue.timeValueMinutes(2);
+    public static final Setting<TimeValue> INDEXING_OPERATIONS_MEMORY_REQUIREMENTS_VALIDITY_SETTING = Setting.timeSetting(
+        "serverless.autoscaling.memory_metrics.indexing_operations_memory_requirements.validity",
+        // Ensure that we give enough time to the controller to react to memory requirements for rejected operations
+        // but at the same time avoid scaling up for too long due to a single operation that was rejected.
+        DEFAULT_INDEXING_OPERATIONS_MEMORY_REQUIREMENTS_VALIDITY,
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
+    public static final Setting<Boolean> INDEXING_OPERATIONS_MEMORY_REQUIREMENTS_ENABLED_SETTING = Setting.boolSetting(
+        "serverless.autoscaling.memory_metrics.indexing_operations_memory_requirements.enabled",
+        true,
         Setting.Property.NodeScope,
         Setting.Property.Dynamic
     );
@@ -101,10 +117,14 @@ public class MemoryMetricsService implements ClusterStateListener {
     private volatile boolean initialized = false;
     private final Map<ShardId, ShardMemoryMetrics> shardMemoryMetrics = new ConcurrentHashMap<>();
     private volatile int totalIndices;
+    private final AtomicReference<IndexingOperationsMemoryRequirements> indexingOperationsHeapMemoryRequirementsRef =
+        new AtomicReference<>();
 
     private final LongSupplier relativeTimeInNanosSupplier;
     private final ProjectType projectType;
     private volatile TimeValue staleMetricsCheckDuration;
+    private volatile boolean indexingOperationsMemoryMetricsEnabled;
+    private volatile TimeValue indexingOperationsMemoryMetricsValidityDuration;
 
     private volatile long lastStaleMetricsCheckTimeNs = Long.MIN_VALUE;
     private volatile TimeValue staleMetricsCheckInterval;
@@ -113,17 +133,29 @@ public class MemoryMetricsService implements ClusterStateListener {
     public MemoryMetricsService(LongSupplier relativeTimeInNanosSupplier, ClusterSettings clusterSettings, ProjectType projectType) {
         this.relativeTimeInNanosSupplier = relativeTimeInNanosSupplier;
         this.projectType = projectType;
+        clusterSettings.initializeAndWatch(
+            INDEXING_OPERATIONS_MEMORY_REQUIREMENTS_ENABLED_SETTING,
+            value -> indexingOperationsMemoryMetricsEnabled = value
+        );
+        clusterSettings.initializeAndWatch(
+            INDEXING_OPERATIONS_MEMORY_REQUIREMENTS_VALIDITY_SETTING,
+            value -> indexingOperationsMemoryMetricsValidityDuration = value
+        );
         clusterSettings.initializeAndWatch(STALE_METRICS_CHECK_DURATION_SETTING, value -> staleMetricsCheckDuration = value);
         clusterSettings.initializeAndWatch(STALE_METRICS_CHECK_INTERVAL_SETTING, value -> staleMetricsCheckInterval = value);
         clusterSettings.initializeAndWatch(FIXED_SHARD_MEMORY_OVERHEAD_SETTING, value -> fixedShardMemoryOverhead = value);
     }
 
-    public MemoryMetrics getMemoryMetrics() {
+    public MemoryMetrics getSearchTierMemoryMetrics() {
+        return getMemoryMetrics(getNodeBaseHeapEstimateInBytes());
+    }
 
-        final long nodeMemoryInBytes = Math.min(
-            HeapToSystemMemory.dataNode(INDEX_MEMORY_OVERHEAD * totalIndices + WORKLOAD_MEMORY_OVERHEAD, projectType),
-            MAX_NODE_MEMORY
-        );
+    public MemoryMetrics getIndexingTierMemoryMetrics() {
+        return getMemoryMetrics(getNodeBaseHeapEstimateInBytes() + minimumRequiredHeapForAcceptingLargeIndexingOps());
+    }
+
+    private MemoryMetrics getMemoryMetrics(long nodeHeapEstimateInBytes) {
+        final long nodeMemoryInBytes = Math.min(HeapToSystemMemory.dataNode(nodeHeapEstimateInBytes, projectType), MAX_NODE_MEMORY);
 
         // Note that the autoscaling controller adds the node memory multiplied by the number of search nodes to the following tier memory
         // calculation (tierMemoryInBytes) to come up with the actual minimum total tier size.
@@ -142,6 +174,23 @@ public class MemoryMetricsService implements ClusterStateListener {
         final var estimateMemoryUsage = estimateTierMemoryUsage();
         final long tierMemoryInBytes = HeapToSystemMemory.tier(estimateMemoryUsage.totalBytes, projectType);
         return new MemoryMetrics(nodeMemoryInBytes, tierMemoryInBytes, estimateMemoryUsage.metricQuality);
+    }
+
+    private long getNodeBaseHeapEstimateInBytes() {
+        return INDEX_MEMORY_OVERHEAD * totalIndices + WORKLOAD_MEMORY_OVERHEAD;
+    }
+
+    private long minimumRequiredHeapForAcceptingLargeIndexingOps() {
+        if (indexingOperationsMemoryMetricsEnabled == false) {
+            return 0;
+        }
+        var indexingHeapMemoryRequirements = indexingOperationsHeapMemoryRequirementsRef.get();
+        if (indexingHeapMemoryRequirements == null || indexingHeapMemoryRequirements.validUntil() < relativeTimeInNanos()) {
+            // Try to clear the memory once the results are stale
+            indexingOperationsHeapMemoryRequirementsRef.compareAndSet(indexingHeapMemoryRequirements, null);
+            return 0;
+        }
+        return indexingHeapMemoryRequirements.minimumRequiredHeapInBytes();
     }
 
     // Estimate of total mapping size of all known indices and IndexShard instances
@@ -238,6 +287,22 @@ public class MemoryMetricsService implements ClusterStateListener {
                 "Failed to fully apply " + heapMemoryUsage + " due to missed shards: " + missedUpdates
             );
         }
+    }
+
+    void updateIndexingOperationsHeapMemoryRequirements(long indexingHeapMemoryRequirements) {
+        long nowInNanos = relativeTimeInNanosSupplier.getAsLong();
+        indexingOperationsHeapMemoryRequirementsRef.accumulateAndGet(
+            new IndexingOperationsMemoryRequirements(
+                indexingHeapMemoryRequirements,
+                nowInNanos + indexingOperationsMemoryMetricsValidityDuration.nanos()
+            ),
+            (existing, proposed) -> {
+                if (existing == null || existing.validUntil() < nowInNanos) {
+                    return proposed;
+                }
+                return existing.compareTo(proposed) >= 0 ? existing : proposed;
+            }
+        );
     }
 
     /**

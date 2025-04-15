@@ -59,6 +59,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
@@ -70,6 +71,7 @@ import static co.elastic.elasticsearch.stateless.autoscaling.memory.MemoryMetric
 import static co.elastic.elasticsearch.stateless.autoscaling.memory.MemoryMetricsService.FIXED_SHARD_MEMORY_OVERHEAD_DEFAULT;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThan;
 
 public class MemoryMetricsServiceTests extends ESTestCase {
@@ -81,7 +83,9 @@ public class MemoryMetricsServiceTests extends ESTestCase {
             ClusterSettings.BUILT_IN_CLUSTER_SETTINGS,
             MemoryMetricsService.STALE_METRICS_CHECK_DURATION_SETTING,
             MemoryMetricsService.STALE_METRICS_CHECK_INTERVAL_SETTING,
-            MemoryMetricsService.FIXED_SHARD_MEMORY_OVERHEAD_SETTING
+            MemoryMetricsService.FIXED_SHARD_MEMORY_OVERHEAD_SETTING,
+            MemoryMetricsService.INDEXING_OPERATIONS_MEMORY_REQUIREMENTS_VALIDITY_SETTING,
+            MemoryMetricsService.INDEXING_OPERATIONS_MEMORY_REQUIREMENTS_ENABLED_SETTING
         )
     );
 
@@ -396,7 +400,7 @@ public class MemoryMetricsServiceTests extends ESTestCase {
                 new MemoryMetricsService.ShardMemoryMetrics(size, numSegments, numFields, 0L, MetricQuality.EXACT, node, 0)
             );
 
-        MemoryMetrics memoryMetrics = service.getMemoryMetrics();
+        MemoryMetrics memoryMetrics = service.getSearchTierMemoryMetrics();
         assertThat(
             memoryMetrics.nodeMemoryInBytes(),
             equalTo((MemoryMetricsService.INDEX_MEMORY_OVERHEAD + MemoryMetricsService.WORKLOAD_MEMORY_OVERHEAD) * 2)
@@ -428,7 +432,7 @@ public class MemoryMetricsServiceTests extends ESTestCase {
                 );
         }
 
-        MemoryMetrics memoryMetrics = service.getMemoryMetrics();
+        MemoryMetrics memoryMetrics = service.getSearchTierMemoryMetrics();
         assertThat(memoryMetrics.totalMemoryInBytes(), greaterThan(ByteSizeUnit.GB.toBytes(2)));
         assertThat(memoryMetrics.totalMemoryInBytes(), lessThan(ByteSizeUnit.GB.toBytes(4)));
         // show that one 4GB node is not enough, but 1.5 node would be.
@@ -605,6 +609,49 @@ public class MemoryMetricsServiceTests extends ESTestCase {
             safeGet(metricUpdaterFuture);
             safeGet(applierFuture);
         }
+    }
+
+    public void testIndexingMemoryRequirements() {
+        var fakeClock = new AtomicLong();
+        var projectType = randomFrom(ProjectType.values());
+        service = new MemoryMetricsService(fakeClock::get, CLUSTER_SETTINGS, projectType);
+        final var indexingTierMemoryMetricsBeforeIndexRequirements = service.getIndexingTierMemoryMetrics();
+
+        assertThat(indexingTierMemoryMetricsBeforeIndexRequirements, is(equalTo(service.getSearchTierMemoryMetrics())));
+
+        long requiredBytesForIndexingOperations = ByteSizeValue.ofMb(512).getBytes();
+        service.updateIndexingOperationsHeapMemoryRequirements(requiredBytesForIndexingOperations);
+        var indexingMemoryMetrics = service.getIndexingTierMemoryMetrics();
+        var searchMemoryMetrics = service.getSearchTierMemoryMetrics();
+        long extraMemoryNeededForIndexingOperations = HeapToSystemMemory.tier(requiredBytesForIndexingOperations, projectType);
+        assertThat(
+            indexingMemoryMetrics.nodeMemoryInBytes(),
+            is(equalTo(indexingTierMemoryMetricsBeforeIndexRequirements.nodeMemoryInBytes() + extraMemoryNeededForIndexingOperations))
+        );
+        assertThat(indexingMemoryMetrics.nodeMemoryInBytes(), is(greaterThan(searchMemoryMetrics.nodeMemoryInBytes())));
+
+        // The new requirement is below the previous one, so the service will keep reporting the largest one until it expires
+        fakeClock.incrementAndGet();
+        service.updateIndexingOperationsHeapMemoryRequirements(ByteSizeValue.ofMb(256).getBytes());
+
+        assertThat(service.getIndexingTierMemoryMetrics().nodeMemoryInBytes(), is(equalTo(indexingMemoryMetrics.nodeMemoryInBytes())));
+
+        // Once the previous memory requirement expires, the system stops requesting for the extra memory
+        fakeClock.addAndGet(MemoryMetricsService.DEFAULT_INDEXING_OPERATIONS_MEMORY_REQUIREMENTS_VALIDITY.nanos());
+        assertThat(
+            service.getIndexingTierMemoryMetrics().nodeMemoryInBytes(),
+            is(equalTo(indexingTierMemoryMetricsBeforeIndexRequirements.nodeMemoryInBytes()))
+        );
+
+        // If the previous requirement was expired, the service should accept the new requirement and report it back
+        fakeClock.incrementAndGet();
+        long newIndexingHeapMemoryRequirements = ByteSizeValue.ofMb(256).getBytes();
+        service.updateIndexingOperationsHeapMemoryRequirements(newIndexingHeapMemoryRequirements);
+        long newExtraMemoryNeededForIndexingOperations = HeapToSystemMemory.tier(newIndexingHeapMemoryRequirements, projectType);
+        assertThat(
+            service.getIndexingTierMemoryMetrics().nodeMemoryInBytes(),
+            is(equalTo(indexingTierMemoryMetricsBeforeIndexRequirements.nodeMemoryInBytes() + newExtraMemoryNeededForIndexingOperations))
+        );
     }
 
     private void clusterStateApplier(

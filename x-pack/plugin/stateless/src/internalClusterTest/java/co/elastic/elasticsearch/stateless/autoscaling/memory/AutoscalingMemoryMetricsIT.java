@@ -44,10 +44,12 @@ import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.IndexingPressure;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.AutoscalingMissedIndicesUpdateException;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
+import org.elasticsearch.monitor.jvm.JvmInfo;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.telemetry.TestTelemetryPlugin;
 import org.elasticsearch.test.ESTestCase;
@@ -83,6 +85,8 @@ import static co.elastic.elasticsearch.stateless.autoscaling.memory.MemoryMetric
 import static co.elastic.elasticsearch.stateless.autoscaling.memory.MemoryMetricsService.ADAPTIVE_SHARD_MEMORY_OVERHEAD;
 import static co.elastic.elasticsearch.stateless.autoscaling.memory.MemoryMetricsService.FIXED_SHARD_MEMORY_OVERHEAD_DEFAULT;
 import static co.elastic.elasticsearch.stateless.autoscaling.memory.MemoryMetricsService.FIXED_SHARD_MEMORY_OVERHEAD_SETTING;
+import static co.elastic.elasticsearch.stateless.autoscaling.memory.MemoryMetricsService.INDEXING_OPERATIONS_MEMORY_REQUIREMENTS_ENABLED_SETTING;
+import static co.elastic.elasticsearch.stateless.autoscaling.memory.MemoryMetricsService.INDEXING_OPERATIONS_MEMORY_REQUIREMENTS_VALIDITY_SETTING;
 import static co.elastic.elasticsearch.stateless.autoscaling.memory.ShardsMappingSizeCollector.PUBLISHING_FREQUENCY_SETTING;
 import static co.elastic.elasticsearch.stateless.autoscaling.memory.ShardsMappingSizeCollector.RETRY_INITIAL_DELAY_SETTING;
 import static co.elastic.elasticsearch.stateless.commits.HollowShardsService.SETTING_HOLLOW_INGESTION_TTL;
@@ -95,6 +99,7 @@ import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 
@@ -929,7 +934,7 @@ public class AutoscalingMemoryMetricsIT extends AbstractStatelessIntegTestCase {
         // defaults to the fixed method
         {
             var fixedEstimate = mappingSizeInBytes + totalShards * FIXED_SHARD_MEMORY_OVERHEAD_DEFAULT.getBytes();
-            var totalMemoryInBytes = memoryMetricService.getMemoryMetrics().totalMemoryInBytes();
+            var totalMemoryInBytes = memoryMetricService.getSearchTierMemoryMetrics().totalMemoryInBytes();
             assertThat(totalMemoryInBytes, equalTo(HeapToSystemMemory.tier(fixedEstimate, projectType)));
         }
         // switch to the adaptive method
@@ -943,7 +948,7 @@ public class AutoscalingMemoryMetricsIT extends AbstractStatelessIntegTestCase {
             long adaptiveEstimate = totalShards * ADAPTIVE_SHARD_MEMORY_OVERHEAD.getBytes() + totalSegments
                 * ADAPTIVE_SEGMENT_MEMORY_OVERHEAD.getBytes() + totalSegmentFields * ADAPTIVE_FIELD_MEMORY_OVERHEAD.getBytes();
             long extraForAdaptive = adaptiveEstimate * ADAPTIVE_EXTRA_OVERHEAD_PERCENT / 100;
-            var totalMemoryInBytes = memoryMetricService.getMemoryMetrics().totalMemoryInBytes();
+            var totalMemoryInBytes = memoryMetricService.getSearchTierMemoryMetrics().totalMemoryInBytes();
             assertThat(
                 totalMemoryInBytes,
                 equalTo(HeapToSystemMemory.tier(mappingSizeInBytes + adaptiveEstimate + extraForAdaptive, projectType))
@@ -959,7 +964,7 @@ public class AutoscalingMemoryMetricsIT extends AbstractStatelessIntegTestCase {
             );
             assertBusy(() -> assertThat(memoryMetricService.fixedShardMemoryOverhead, equalTo(newShardFixedMemoryOverhead)));
             long newFixedEstimate = mappingSizeInBytes + totalShards * newShardFixedMemoryOverhead.getBytes();
-            var totalMemoryInBytes = memoryMetricService.getMemoryMetrics().totalMemoryInBytes();
+            var totalMemoryInBytes = memoryMetricService.getSearchTierMemoryMetrics().totalMemoryInBytes();
             assertThat(totalMemoryInBytes, equalTo(HeapToSystemMemory.tier(newFixedEstimate, projectType)));
         }
         // remove the setting also switch back to the fixed method
@@ -971,7 +976,7 @@ public class AutoscalingMemoryMetricsIT extends AbstractStatelessIntegTestCase {
             );
             assertBusy(() -> assertThat(memoryMetricService.fixedShardMemoryOverhead, equalTo(FIXED_SHARD_MEMORY_OVERHEAD_DEFAULT)));
             long fixedEstimate = mappingSizeInBytes + totalShards * FIXED_SHARD_MEMORY_OVERHEAD_DEFAULT.getBytes();
-            var totalMemoryInBytes = memoryMetricService.getMemoryMetrics().totalMemoryInBytes();
+            var totalMemoryInBytes = memoryMetricService.getSearchTierMemoryMetrics().totalMemoryInBytes();
             assertThat(totalMemoryInBytes, equalTo(HeapToSystemMemory.tier(fixedEstimate, projectType)));
         }
     }
@@ -1251,6 +1256,70 @@ public class AutoscalingMemoryMetricsIT extends AbstractStatelessIntegTestCase {
         allowSendingMetrics.countDown();
         safeAwait(acceptedResponseSeen);
         assertEquals(0, retryResponsesSeen.get());
+    }
+
+    public void testIndexingOperationsMemoryRequirementsAreTakenIntoAccount() throws Exception {
+        var projectType = randomFrom(ProjectType.values());
+        var indexingOperationMemoryMetricsEnabled = randomBoolean();
+        var nodeSettings = Settings.builder()
+            .put(INDEXING_OPERATIONS_MEMORY_REQUIREMENTS_VALIDITY_SETTING.getKey(), TimeValue.timeValueSeconds(2))
+            .put(INDEXING_OPERATIONS_MEMORY_REQUIREMENTS_ENABLED_SETTING.getKey(), indexingOperationMemoryMetricsEnabled)
+            .put(ServerlessSharedSettings.PROJECT_TYPE.getKey(), projectType)
+            .put(IndexingPressure.MAX_OPERATION_SIZE.getKey(), "1%")
+            .build();
+
+        startMasterAndIndexNode(nodeSettings);
+        createIndex(INDEX_NAME, indexSettings(1, 0).build());
+        ensureGreen(INDEX_NAME);
+
+        var currentHeapSize = JvmInfo.jvmInfo().getMem().getHeapMax().getBytes();
+        var currentNodeSize = HeapToSystemMemory.tier(currentHeapSize * 2, projectType);
+        var maxOperationSize = (int) (currentHeapSize * 0.01);
+
+        assertBusy(() -> {
+            final var memoryMetrics = getMemoryMetrics();
+            assertThat(memoryMetrics.nodeMemoryInBytes(), greaterThan(0L));
+            assertThat(memoryMetrics.nodeMemoryInBytes(), lessThanOrEqualTo(currentNodeSize));
+            assertThat(memoryMetrics.totalMemoryInBytes(), greaterThan(0L));
+            assertThat(memoryMetrics.quality(), equalTo(MetricQuality.EXACT));
+        });
+
+        var requestedNodeMemoryBytesBeforeRejection = getMemoryMetrics().nodeMemoryInBytes();
+
+        var operationBeyondMaxSize = randomBoolean();
+
+        var bulkRequest = client().prepareBulk()
+            .add(
+                client().prepareIndex(INDEX_NAME)
+                    .setSource("field", randomUnicodeOfLength(operationBeyondMaxSize ? maxOperationSize + 1 : randomIntBetween(10, 20)))
+            );
+        var bulkResponse = bulkRequest.get();
+        if (operationBeyondMaxSize) {
+            assertThat(bulkResponse.hasFailures(), is(true));
+        } else {
+            assertNoFailures(bulkResponse);
+        }
+
+        assertBusy(() -> {
+            final var memoryMetrics = getMemoryMetrics();
+            assertThat(memoryMetrics.nodeMemoryInBytes(), greaterThan(0L));
+            assertThat(
+                memoryMetrics.nodeMemoryInBytes(),
+                operationBeyondMaxSize && indexingOperationMemoryMetricsEnabled
+                    ? greaterThan(currentNodeSize)
+                    : lessThanOrEqualTo(currentNodeSize)
+            );
+            assertThat(memoryMetrics.totalMemoryInBytes(), greaterThan(0L));
+            assertThat(memoryMetrics.quality(), equalTo(MetricQuality.EXACT));
+        });
+
+        assertBusy(() -> {
+            final var memoryMetrics = getMemoryMetrics();
+            assertThat(memoryMetrics.nodeMemoryInBytes(), greaterThan(0L));
+            assertThat(memoryMetrics.nodeMemoryInBytes(), equalTo(requestedNodeMemoryBytesBeforeRejection));
+            assertThat(memoryMetrics.totalMemoryInBytes(), greaterThan(0L));
+            assertThat(memoryMetrics.quality(), equalTo(MetricQuality.EXACT));
+        });
     }
 
     private String getSourceNodeId(PublishHeapMemoryMetricsRequest request) {

@@ -10,6 +10,7 @@
 package org.elasticsearch.cluster.routing.allocation.allocator;
 
 import org.elasticsearch.common.settings.ClusterSettings;
+import org.elasticsearch.common.settings.Settings;
 
 import static org.elasticsearch.cluster.routing.allocation.allocator.BalancedShardsAllocator.DISK_USAGE_BALANCE_FACTOR_SETTING;
 import static org.elasticsearch.cluster.routing.allocation.allocator.BalancedShardsAllocator.INDEX_BALANCE_FACTOR_SETTING;
@@ -25,6 +26,10 @@ public class BalancerSettings {
     private volatile float writeLoadBalanceFactor;
     private volatile float diskUsageBalanceFactor;
     private volatile float threshold;
+
+    public BalancerSettings(Settings settings) {
+        this(ClusterSettings.createBuiltInClusterSettings(settings));
+    }
 
     public BalancerSettings(ClusterSettings clusterSettings) {
         clusterSettings.initializeAndWatch(SHARD_BALANCE_FACTOR_SETTING, value -> this.shardBalanceFactor = value);

@@ -11,6 +11,7 @@ package org.elasticsearch.datastreams.options.rest;
 import org.elasticsearch.action.datastreams.PutDataStreamOptionsAction;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.internal.node.NodeClient;
+import org.elasticsearch.cluster.metadata.DataStreamFailureStore;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
@@ -21,6 +22,7 @@ import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Set;
 
 import static org.elasticsearch.rest.RestRequest.Method.PUT;
 import static org.elasticsearch.rest.RestUtils.getAckTimeout;
@@ -28,6 +30,8 @@ import static org.elasticsearch.rest.RestUtils.getMasterNodeTimeout;
 
 @ServerlessScope(Scope.PUBLIC)
 public class RestPutDataStreamOptionsAction extends BaseRestHandler {
+
+    public static final Set<String> CAPABILITIES = Set.of(DataStreamFailureStore.FAILURES_LIFECYCLE_API_CAPABILITY);
 
     @Override
     public String getName() {
@@ -54,5 +58,10 @@ public class RestPutDataStreamOptionsAction extends BaseRestHandler {
             putOptionsRequest.indicesOptions(IndicesOptions.fromRequest(request, putOptionsRequest.indicesOptions()));
             return channel -> client.execute(PutDataStreamOptionsAction.INSTANCE, putOptionsRequest, new RestToXContentListener<>(channel));
         }
+    }
+
+    @Override
+    public Set<String> supportedCapabilities() {
+        return CAPABILITIES;
     }
 }

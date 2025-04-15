@@ -49,7 +49,7 @@ teardown:
       reason: "Data stream failures lifecycle was added in 8.19+"
       test_runner_features: [ capabilities, allowed_warnings ]
       capabilities:
-        - method: POST
+        - method: PUT
           path: /_data_stream/{target}/_options
           capabilities: [ 'failures_lifecycle' ]
 

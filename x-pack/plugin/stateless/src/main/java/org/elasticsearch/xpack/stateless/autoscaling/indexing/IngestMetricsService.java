@@ -311,7 +311,10 @@ public class IngestMetricsService implements ClusterStateListener {
         lastNodeIngestLoadSnapshotsRef.set(
             new RawAndAdjustedNodeIngestLoadSnapshots(ingestLoads, adjustedIngestLoads == ingestLoads ? null : adjustedIngestLoads)
         );
-        final IndexTierMetrics indexTierMetrics = new IndexTierMetrics(adjustedIngestLoads, memoryMetricsService.getMemoryMetrics());
+        final IndexTierMetrics indexTierMetrics = new IndexTierMetrics(
+            adjustedIngestLoads,
+            memoryMetricsService.getIndexingTierMemoryMetrics()
+        );
         logger.debug("Returning index tier metrics: {}", indexTierMetrics);
         return indexTierMetrics;
     }

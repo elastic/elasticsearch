@@ -94,7 +94,7 @@ public class ReplicasUpdaterServiceTests extends ESTestCase {
         super.setUp();
         AtomicLong currentRelativeTimeInNanos = new AtomicLong(1L);
         MemoryMetricsService memoryMetricsService = mock(MemoryMetricsService.class);
-        when(memoryMetricsService.getMemoryMetrics()).thenReturn(new MemoryMetrics(4096, 8192, MetricQuality.EXACT));
+        when(memoryMetricsService.getSearchTierMemoryMetrics()).thenReturn(new MemoryMetrics(4096, 8192, MetricQuality.EXACT));
         ClusterSettings clusterSettings = createClusterSettings();
         searchMetricsService = spy(
             new SearchMetricsService(

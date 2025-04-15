@@ -213,32 +213,32 @@ public class PolicyManagerTests extends ESTestCase {
             Set.of()
         );
 
-        // Tests do not run modular, so we cannot use a server class.
-        // But we know that in production code the server module and its classes are in the boot layer.
-        // So we use a random module in the boot layer, and a random class from that module (not java.base -- it is
-        // loaded too early) to mimic a class that would be in the server module.
-        var mockServerClass = ModuleLayer.boot().findLoader("jdk.httpserver").loadClass("com.sun.net.httpserver.HttpServer");
+        // Any class will do, since our resolver is hardcoded to use SERVER_COMPONENT_NAME.
+        // Let's pick one with a known module name.
+        String httpserverModuleName = "jdk.httpserver";
+        var mockServerClass = ModuleLayer.boot().findLoader(httpserverModuleName).loadClass("com.sun.net.httpserver.HttpServer");
         var mockServerSourcePath = PolicyManager.getComponentPathFromClass(mockServerClass);
         var requestingModule = mockServerClass.getModule();
 
         assertEquals(
             "No policy for this module in server",
-            policyManager.defaultEntitlements(SERVER_COMPONENT_NAME, mockServerSourcePath, requestingModule.getName()),
+            policyManager.defaultEntitlements(SERVER_COMPONENT_NAME, mockServerSourcePath, httpserverModuleName),
             policyManager.getEntitlements(mockServerClass)
         );
 
         assertEquals(
             Map.of(
                 requestingModule,
-                policyManager.defaultEntitlements(SERVER_COMPONENT_NAME, mockServerSourcePath, requestingModule.getName())
+                policyManager.defaultEntitlements(SERVER_COMPONENT_NAME, mockServerSourcePath, httpserverModuleName)
             ),
             policyManager.moduleEntitlementsMap
         );
     }
 
     public void testGetEntitlementsReturnsEntitlementsForServerModule() throws ClassNotFoundException {
+        String httpserverModuleName = "jdk.httpserver";
         var policyManager = new PolicyManager(
-            createTestServerPolicy("jdk.httpserver"),
+            createTestServerPolicy(httpserverModuleName),
             List.of(),
             Map.of(),
             c -> new ScopeInfo(SERVER_COMPONENT_NAME, moduleName(c)),
@@ -248,11 +248,9 @@ public class PolicyManagerTests extends ESTestCase {
             Set.of()
         );
 
-        // Tests do not run modular, so we cannot use a server class.
-        // But we know that in production code the server module and its classes are in the boot layer.
-        // So we use a random module in the boot layer, and a random class from that module (not java.base -- it is
-        // loaded too early) to mimic a class that would be in the server module.
-        var mockServerClass = ModuleLayer.boot().findLoader("jdk.httpserver").loadClass("com.sun.net.httpserver.HttpServer");
+        // Any class will do, since our resolver is hardcoded to use SERVER_COMPONENT_NAME.
+        // Let's pick one with a known module name.
+        var mockServerClass = ModuleLayer.boot().findLoader(httpserverModuleName).loadClass("com.sun.net.httpserver.HttpServer");
 
         var entitlements = policyManager.getEntitlements(mockServerClass);
         assertThat(entitlements.hasEntitlement(CreateClassLoaderEntitlement.class), is(true));

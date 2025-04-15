@@ -47,6 +47,18 @@ public class ScopeResolverTests extends ESTestCase {
         implements
             PluginsLoader.PluginLayer {}
 
+    public void testBootLayer() throws ClassNotFoundException {
+        ScopeResolver scopeResolver = ScopeResolver.create(Stream.empty(), TEST_AGENTS_PACKAGE_NAME);
+
+        // Tests do not run modular, so we cannot use a server class.
+        // But we know that in production code the server module and its classes are in the boot layer.
+        // So we use an arbitrary module in the boot layer, and an arbitrary class from that module (not java.base -- it is
+        // loaded too early) to mimic a class that would be in the server module.
+        var mockServerClass = ModuleLayer.boot().findLoader("jdk.httpserver").loadClass("com.sun.net.httpserver.HttpServer");
+
+        assertEquals(new ScopeInfo(SERVER_COMPONENT_NAME, "jdk.httpserver"), scopeResolver.resolveClassToScope(mockServerClass));
+    }
+
     public void testResolveModularPlugin() throws IOException, ClassNotFoundException {
         String moduleName = "modular.plugin";
         String pluginName = "modular-plugin";

@@ -433,7 +433,7 @@ public class ServerProcessTests extends ESTestCase {
     public void testLogsDirCreateParents() throws Exception {
         Path testDir = createTempDir();
         logsDir = testDir.resolve("subdir/logs");
-        processValidator = pb -> assertThat(pb.directory().toString(), equalTo(logsDir.toString()));
+        processValidator = pb -> assertThat(String.valueOf(pb.directory()), equalTo(logsDir.toString()));
         runForeground();
     }
 

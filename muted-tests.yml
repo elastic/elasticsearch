@@ -454,3 +454,6 @@ tests:
 - class: org.elasticsearch.action.RejectionActionIT
   method: testSimulatedSearchRejectionLoad
   issue: https://github.com/elastic/elasticsearch/issues/125901
+- class: org.elasticsearch.search.SearchServiceSingleNodeTests
+  method: testBeforeShardLockDuringShardCreate
+  issue: https://github.com/elastic/elasticsearch/issues/126812

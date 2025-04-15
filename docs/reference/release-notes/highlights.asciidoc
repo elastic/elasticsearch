@@ -41,13 +41,6 @@ Late-interaction models are powerful rerankers. While their size and overall cos
 
 {es-pull}118804[#118804]
 
-[discrete]
-[[8_x_add_new_experimental_rank_vectors_mapping_for_late_interaction_second_order_ranking]]
-=== [8.x] Add new experimental `rank_vectors` mapping for late-interaction second order ranking
-Backports the following commits to 8.x:  - Add new experimental
-rank_vectors mapping for late-interaction second order ranking (#118804)
-
-{es-pull}119601[#119601]
 
 [discrete]
 [[enable_lookup_join_in_non_snapshot_builds]]

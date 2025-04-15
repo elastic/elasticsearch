@@ -259,7 +259,7 @@ public class TransportGetDataStreamsAction extends TransportLocalProjectMetadata
             } else {
                 indexTemplate = MetadataIndexTemplateService.findV2Template(state.metadata(), dataStream.getName(), false);
                 if (indexTemplate != null) {
-                    Settings settings = MetadataIndexTemplateService.resolveSettings(state.metadata(), indexTemplate);
+                    Settings settings = dataStream.getEffectiveSettings(state.metadata());
                     ilmPolicyName = settings.get(IndexMetadata.LIFECYCLE_NAME);
                     if (indexMode == null && state.metadata().templatesV2().get(indexTemplate) != null) {
                         indexMode = resolveMode(
@@ -267,7 +267,7 @@ public class TransportGetDataStreamsAction extends TransportLocalProjectMetadata
                             indexSettingProviders,
                             dataStream,
                             settings,
-                            state.metadata().templatesV2().get(indexTemplate)
+                            dataStream.getEffectiveIndexTemplate(state.metadata())
                         );
                     }
                     indexTemplatePreferIlmValue = PREFER_ILM_SETTING.get(settings);

@@ -240,15 +240,6 @@ tests:
 - class: org.elasticsearch.smoketest.MlWithSecurityIT
   method: test {yaml=ml/3rd_party_deployment/Test start and stop multiple deployments}
   issue: https://github.com/elastic/elasticsearch/issues/124315
-- class: org.elasticsearch.xpack.inference.mapper.SemanticInferenceMetadataFieldsRecoveryTests
-  method: testSnapshotRecovery {p0=false p1=true}
-  issue: https://github.com/elastic/elasticsearch/issues/124383
-- class: org.elasticsearch.xpack.inference.mapper.SemanticInferenceMetadataFieldsRecoveryTests
-  method: testSnapshotRecovery {p0=true p1=false}
-  issue: https://github.com/elastic/elasticsearch/issues/124384
-- class: org.elasticsearch.xpack.inference.mapper.SemanticInferenceMetadataFieldsRecoveryTests
-  method: testSnapshotRecovery {p0=false p1=false}
-  issue: https://github.com/elastic/elasticsearch/issues/124385
 - class: org.elasticsearch.env.NodeEnvironmentTests
   method: testIndexCompatibilityChecks
   issue: https://github.com/elastic/elasticsearch/issues/124388

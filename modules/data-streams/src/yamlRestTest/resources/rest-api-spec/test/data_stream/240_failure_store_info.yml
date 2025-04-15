@@ -163,6 +163,7 @@ teardown:
         name: "fs-data-stream"
         body:
           failure_store:
+            enabled: true
             lifecycle:
               enabled: false
 

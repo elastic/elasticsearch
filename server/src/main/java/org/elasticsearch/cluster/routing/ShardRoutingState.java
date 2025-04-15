@@ -10,25 +10,25 @@
 package org.elasticsearch.cluster.routing;
 
 /**
- * Represents the current state of a {@link ShardRouting} as defined by the
- * cluster.
+ * Tracks the current assignment status of a particular shard copy ({@link ShardRouting}).
  */
 public enum ShardRoutingState {
     /**
-     * The shard is not assigned to any node.
+     * The shard is not assigned to any node; any data which it contains is unavailable in the cluster.
      */
     UNASSIGNED((byte) 1),
     /**
-     * The shard is initializing (probably recovering from either a peer shard
-     * or gateway).
+     * The shard is assigned to a node and the recovery process has begun. The shard data is not yet available on the node initializing the
+     * shard.
      */
     INITIALIZING((byte) 2),
     /**
-     * The shard is started.
+     * The shard is assigned to a specific data node and ready to accept indexing and search requests.
      */
     STARTED((byte) 3),
     /**
-     * The shard is in the process being relocated.
+     * The shard is being reassigned away from one node to another node. This is the state of the shard on a source node when the shard is
+     * being moved away to a target node. The target node will be initializing the shard and running recovery ({@link #INITIALIZING}).
      */
     RELOCATING((byte) 4);
 

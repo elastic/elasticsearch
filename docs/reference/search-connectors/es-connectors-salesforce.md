@@ -496,7 +496,9 @@ See [content extraction](/reference/search-connectors/es-connectors-content-extr
 
     Refer to [connector known issues](/release-notes/known-issues.md) for a list of known issues for all connectors.
 
-
+* **Only first 500 nested entities are ingested**
++
+Some of the entities that Salesforce connector fetches are nested - they are ingested along the parent objects using a `JOIN` query. Examples of such entities are `EmailMessages`, `CaseComments` and `FeedComments`. When Salesforce connector fetches these entities it sets a limit to fetch only first 500 entities per parent object. The only possible workaround for it now is to fork the Connectors repository and modify the code in Salesforce connector to increase these limits.
 
 ### Security [es-connectors-salesforce-client-security]
 

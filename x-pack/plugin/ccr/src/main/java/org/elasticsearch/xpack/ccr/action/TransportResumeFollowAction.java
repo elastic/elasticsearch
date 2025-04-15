@@ -38,6 +38,7 @@ import org.elasticsearch.index.SearchSlowLog;
 import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
 import org.elasticsearch.index.engine.EngineConfig;
 import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesRequestCache;
 import org.elasticsearch.indices.IndicesService;
@@ -529,7 +530,8 @@ public class TransportResumeFollowAction extends AcknowledgedTransportMasterNode
         EngineConfig.INDEX_CODEC_SETTING,
         DataTier.TIER_PREFERENCE_SETTING,
         IndexSettings.BLOOM_FILTER_ID_FIELD_ENABLED_SETTING,
-        MetadataIndexStateService.VERIFIED_READ_ONLY_SETTING
+        MetadataIndexStateService.VERIFIED_READ_ONLY_SETTING,
+        DenseVectorFieldMapper.HNSW_FILTER_HEURISTIC
     );
 
     public static Settings filter(Settings originalSettings) {

@@ -242,15 +242,15 @@ FROM airports
 | EVAL geohashString = ST_GEOHASH_TO_STRING(geohash)
 | EVAL cellBoundary = ST_GEOHASH_TO_GEOSHAPE(geohash)
 | KEEP count, centroid, geohashString, cellBoundary
-| SORT count DESC
+| SORT count DESC, geohashString ASC
 ;
 
 count:long | centroid:geo_point                            | geohashString:keyword | cellBoundary:geo_shape
 19         | POINT (6.360728044651057 47.94084087577894)   | u0                    | POLYGON((0.0 45.0, 11.25 45.0, 11.25 50.625, 0.0 50.625, 0.0 45.0))
 17         | POINT (-3.5034258844440473 53.25306422789307) | gc                    | POLYGON((-11.25 50.625, 0.0 50.625, 0.0 56.25, -11.25 56.25, -11.25 50.625))
 8          | POINT (6.351574736181647 51.8981519783847)    | u1                    | POLYGON((0.0 50.625, 11.25 50.625, 11.25 56.25, 0.0 56.25, 0.0 50.625))
-3          | POINT (7.318722177296877 59.788265260867774)  | u4                    | POLYGON((0.0 56.25, 11.25 56.25, 11.25 61.875, 0.0 61.875, 0.0 56.25))
 3          | POINT (-2.7510103583335876 58.79020635969937) | gf                    | POLYGON((-11.25 56.25, 0.0 56.25, 0.0 61.875, -11.25 61.875, -11.25 56.25))
+3          | POINT (7.318722177296877 59.788265260867774)  | u4                    | POLYGON((0.0 56.25, 11.25 56.25, 11.25 61.875, 0.0 61.875, 0.0 56.25))
 ;
 
 gridGeohashInStatsBy

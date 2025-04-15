@@ -1,0 +1,5 @@
+pr: 126852
+summary: "[Entitlements] Validation checks on paths"
+area: Infra/Entitlements
+type: enhancement
+issues: []

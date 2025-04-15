@@ -11,13 +11,11 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.compute.ann.ConvertEvaluator;
-import org.elasticsearch.geometry.Rectangle;
 import org.elasticsearch.geometry.utils.Geohash;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
-import org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes;
 import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
 import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
@@ -31,6 +29,7 @@ import java.util.Map;
 import static org.elasticsearch.xpack.esql.core.type.DataType.GEO_SHAPE;
 import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
 import static org.elasticsearch.xpack.esql.core.type.DataType.LONG;
+import static org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StGeotileToGeoShape.fromRectangle;
 
 public class StGeohashToGeoShape extends AbstractConvertFunction implements EvaluatorMapper {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
@@ -93,13 +92,11 @@ public class StGeohashToGeoShape extends AbstractConvertFunction implements Eval
 
     @ConvertEvaluator(extraName = "FromString")
     static BytesRef fromString(BytesRef gridId) {
-        Rectangle bbox = Geohash.toBoundingBox(gridId.utf8ToString());
-        return SpatialCoordinateTypes.GEO.asWkb(bbox);
+        return fromRectangle(Geohash.toBoundingBox(gridId.utf8ToString()));
     }
 
     @ConvertEvaluator(extraName = "FromLong")
     static BytesRef fromLong(long gridId) {
-        Rectangle bbox = Geohash.toBoundingBox(Geohash.stringEncode(gridId));
-        return SpatialCoordinateTypes.GEO.asWkb(bbox);
+        return fromRectangle(Geohash.toBoundingBox(Geohash.stringEncode(gridId)));
     }
 }

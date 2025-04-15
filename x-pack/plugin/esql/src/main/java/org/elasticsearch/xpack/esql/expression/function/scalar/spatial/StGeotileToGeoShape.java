@@ -11,6 +11,8 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.compute.ann.ConvertEvaluator;
+import org.elasticsearch.geometry.LinearRing;
+import org.elasticsearch.geometry.Polygon;
 import org.elasticsearch.geometry.Rectangle;
 import org.elasticsearch.search.aggregations.bucket.geogrid.GeoTileUtils;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
@@ -93,13 +95,19 @@ public class StGeotileToGeoShape extends AbstractConvertFunction implements Eval
 
     @ConvertEvaluator(extraName = "FromString")
     static BytesRef fromString(BytesRef gridId) {
-        Rectangle bbox = GeoTileUtils.toBoundingBox(gridId.utf8ToString());
-        return SpatialCoordinateTypes.GEO.asWkb(bbox);
+        return fromRectangle(GeoTileUtils.toBoundingBox(gridId.utf8ToString()));
     }
 
     @ConvertEvaluator(extraName = "FromLong")
     static BytesRef fromLong(long gridId) {
-        Rectangle bbox = GeoTileUtils.toBoundingBox(gridId);
-        return SpatialCoordinateTypes.GEO.asWkb(bbox);
+        return fromRectangle(GeoTileUtils.toBoundingBox(gridId));
+    }
+
+    static BytesRef fromRectangle(Rectangle bbox) {
+        double[] x = new double[] { bbox.getMinX(), bbox.getMaxX(), bbox.getMaxX(), bbox.getMinX(), bbox.getMinX() };
+        double[] y = new double[] { bbox.getMinY(), bbox.getMinY(), bbox.getMaxY(), bbox.getMaxY(), bbox.getMinY() };
+        LinearRing ring = new LinearRing(x, y);
+        Polygon polygon = new Polygon(ring);
+        return SpatialCoordinateTypes.GEO.asWkb(polygon);
     }
 }

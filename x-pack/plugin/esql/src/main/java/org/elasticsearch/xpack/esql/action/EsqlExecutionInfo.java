@@ -129,6 +129,10 @@ public class EsqlExecutionInfo implements ChunkedToXContentObject, Writeable {
 
         this.skipUnavailablePredicate = Predicates.always();
         this.relativeStart = null;
+        if (in.getTransportVersion().onOrAfter(TransportVersions.ESQL_QUERY_PLANNING_DURATION)) {
+            this.overallTimeSpan = in.readOptional(TimeSpan::readFrom);
+            this.planningTimeSpan = in.readOptional(TimeSpan::readFrom);
+        }
     }
 
     @Override
@@ -144,6 +148,10 @@ public class EsqlExecutionInfo implements ChunkedToXContentObject, Writeable {
         }
         if (out.getTransportVersion().onOrAfter(TransportVersions.ESQL_RESPONSE_PARTIAL)) {
             out.writeBoolean(isPartial);
+        }
+        if (out.getTransportVersion().onOrAfter(TransportVersions.ESQL_QUERY_PLANNING_DURATION)) {
+            out.writeOptionalWriteable(overallTimeSpan);
+            out.writeOptionalWriteable(planningTimeSpan);
         }
     }
 

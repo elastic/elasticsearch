@@ -23,7 +23,7 @@ import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.search.rank.RankDocShardInfo;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
-import org.elasticsearch.transport.TransportRequest;
+import org.elasticsearch.transport.AbstractTransportRequest;
 
 import java.io.IOException;
 import java.util.List;
@@ -33,7 +33,7 @@ import java.util.Map;
  * Shard level fetch base request. Holds all the info needed to execute a fetch.
  * Used with search scroll as the original request doesn't hold indices.
  */
-public class ShardFetchRequest extends TransportRequest {
+public class ShardFetchRequest extends AbstractTransportRequest {
 
     private final ShardSearchContextId contextId;
 

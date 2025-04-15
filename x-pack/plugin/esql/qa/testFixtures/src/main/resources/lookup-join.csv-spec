@@ -489,21 +489,46 @@ language_code:integer | language_name:keyword | country:text
 filterOnLeftSide
 required_capability: join_lookup_v12
 
+// tag::filterOnLeftSide[]
 FROM employees
 | EVAL language_code = languages
+| WHERE emp_no >= 10091 AND emp_no < 10094
 | LOOKUP JOIN languages_lookup ON language_code
+// end::filterOnLeftSide[]
 | SORT emp_no
 | KEEP emp_no, language_code, language_name
-| WHERE emp_no >= 10091 AND emp_no < 10094
 ;
 
+// tag::filterOnLeftSide-result[]
 emp_no:integer | language_code:integer | language_name:keyword
 10091          | 3                     | Spanish
 10092          | 1                     | English
 10093          | 3                     | Spanish
+// end::filterOnLeftSide-result[]
 ;
 
 filterOnRightSide
+required_capability: join_lookup_v12
+
+// tag::filterOnRightSide[]
+FROM employees
+| EVAL language_code = languages
+| LOOKUP JOIN languages_lookup ON language_code
+| WHERE emp_no >= 10091 AND emp_no < 10094
+// end::filterOnRightSide[]
+| SORT emp_no
+| KEEP emp_no, language_code, language_name
+;
+
+// tag::filterOnRightSide-result[]
+emp_no:integer | language_code:integer | language_name:keyword
+10091          | 3                     | Spanish
+10092          | 1                     | English
+10093          | 3                     | Spanish
+// end::filterOnRightSide-result[]
+;
+
+filterOnRightSideMessages
 required_capability: join_lookup_v12
 
 FROM sample_data

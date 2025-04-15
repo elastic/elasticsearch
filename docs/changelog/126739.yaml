@@ -1,0 +1,5 @@
+pr: 126739
+summary: Add pruning index options to sparse vector field
+area: Inference
+type: enhancement
+issues: []

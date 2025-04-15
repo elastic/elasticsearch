@@ -36,7 +36,7 @@ import static org.elasticsearch.xpack.inference.services.custom.CustomServiceSet
 
 public class CustomRequest implements Request {
     /**
-     * This regex pattern matches on the string "${<any characters>}"
+     * This regex pattern matches on the string {@code "${<any characters>}"}
      */
     private static final Pattern VARIABLE_PLACEHOLDER_PATTERN = Pattern.compile("\\$\\{.*?\\}");
 
@@ -71,7 +71,7 @@ public class CustomRequest implements Request {
             builder.value(value);
             return Strings.toString(builder);
         } catch (IOException e) {
-            throw new IllegalStateException(Strings.format("Failed to serialize custom request value as json, field: %s"), e);
+            throw new IllegalStateException(Strings.format("Failed to serialize custom request value as json, field: %s", field), e);
         }
     }
 

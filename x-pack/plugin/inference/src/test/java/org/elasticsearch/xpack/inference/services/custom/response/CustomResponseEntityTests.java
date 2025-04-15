@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.inference.external.response.custom;
+package org.elasticsearch.xpack.inference.services.custom.response;
 
 import org.apache.http.HttpResponse;
 import org.elasticsearch.inference.InferenceServiceResults;
@@ -17,17 +17,13 @@ import org.elasticsearch.xpack.core.inference.results.SparseEmbeddingResults;
 import org.elasticsearch.xpack.core.inference.results.TextEmbeddingFloatResults;
 import org.elasticsearch.xpack.core.ml.search.WeightedToken;
 import org.elasticsearch.xpack.inference.external.http.HttpResult;
-import org.elasticsearch.xpack.inference.external.request.custom.CustomRequestTests;
 import org.elasticsearch.xpack.inference.services.custom.CustomModelTests;
-import org.elasticsearch.xpack.inference.services.custom.CustomServiceSettings;
-import org.elasticsearch.xpack.inference.services.custom.response.CustomResponseEntity;
+import org.elasticsearch.xpack.inference.services.custom.request.CustomRequestTests;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
@@ -98,31 +94,13 @@ public class CustomResponseEntityTests extends ESTestCase {
             }
             """;
 
-        Map<String, Object> jsonParserMap = new HashMap<>(
-            Map.of(
-                CustomServiceSettings.SPARSE_EMBEDDING_RESULT,
-                new HashMap<>(
-                    Map.of(
-                        CustomServiceSettings.SPARSE_RESULT_PATH,
-                        "$.result.sparse_embeddings[*]",
-                        CustomServiceSettings.SPARSE_RESULT_VALUE,
-                        new HashMap<>(
-                            Map.of(
-                                CustomServiceSettings.SPARSE_EMBEDDING_PARSER_TOKEN,
-                                "$.embedding[*].tokenId",
-                                CustomServiceSettings.SPARSE_EMBEDDING_PARSER_WEIGHT,
-                                "$.embedding[*].weight"
-                            )
-                        )
-                    )
-                )
-            )
-        );
-
         var request = CustomRequestTests.createRequest(
             null,
             List.of("abc"),
-            CustomModelTests.getTestModel(TaskType.SPARSE_EMBEDDING, jsonParserMap)
+            CustomModelTests.getTestModel(
+                TaskType.SPARSE_EMBEDDING,
+                new SparseEmbeddingResponseParser("$.result.sparse_embeddings[*]", "$.embedding[*].tokenId", "$.embedding[*].weight")
+            )
         );
 
         InferenceServiceResults results = CustomResponseEntity.fromResponse(
@@ -167,16 +145,14 @@ public class CustomResponseEntityTests extends ESTestCase {
             }
             """;
 
-        Map<String, Object> jsonParserMap = new HashMap<>(
-            Map.of(
-                CustomServiceSettings.RERANK_PARSER_INDEX,
-                "$.result.scores[*].index",
-                CustomServiceSettings.RERANK_PARSER_SCORE,
-                "$.result.scores[*].score"
+        var request = CustomRequestTests.createRequest(
+            null,
+            List.of("abc"),
+            CustomModelTests.getTestModel(
+                TaskType.RERANK,
+                new RerankResponseParser("$.result.scores[*].score", "$.result.scores[*].index", null)
             )
         );
-
-        var request = CustomRequestTests.createRequest(null, List.of("abc"), CustomModelTests.getTestModel(TaskType.RERANK, jsonParserMap));
 
         InferenceServiceResults results = CustomResponseEntity.fromResponse(
             request,
@@ -209,12 +185,10 @@ public class CustomResponseEntityTests extends ESTestCase {
             }
             """;
 
-        Map<String, Object> jsonParserMap = new HashMap<>(Map.of(CustomServiceSettings.COMPLETION_PARSER_RESULT, "$.result.text"));
-
         var request = CustomRequestTests.createRequest(
             null,
             List.of("abc"),
-            CustomModelTests.getTestModel(TaskType.COMPLETION, jsonParserMap)
+            CustomModelTests.getTestModel(TaskType.COMPLETION, new CompletionResponseParser("$.result.text"))
         );
 
         InferenceServiceResults results = CustomResponseEntity.fromResponse(

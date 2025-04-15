@@ -235,4 +235,8 @@ public final class Utils {
             assertThat(actualParser.mapOrdered(), equalTo(expectedParser.mapOrdered()));
         }
     }
+
+    public static <K, V> Map<K, V> modifiableMap(Map<K, V> aMap) {
+        return new HashMap<>(aMap);
+    }
 }

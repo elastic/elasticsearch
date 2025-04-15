@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.inference.services.custom.response;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.inference.external.http.HttpResult;
@@ -46,10 +47,14 @@ public class RerankResponseParser implements ResponseParser {
         return new RerankResponseParser(relevanceScore, rerankIndex, documentText);
     }
 
-    public RerankResponseParser(String relevanceScorePath, String rerankIndexPath, String documentTextPath) {
+    public RerankResponseParser(String relevanceScorePath) {
+        this(relevanceScorePath, null, null);
+    }
+
+    public RerankResponseParser(String relevanceScorePath, @Nullable String rerankIndexPath, @Nullable String documentTextPath) {
         this.relevanceScorePath = Objects.requireNonNull(relevanceScorePath);
-        this.rerankIndexPath = Objects.requireNonNull(rerankIndexPath);
-        this.documentTextPath = Objects.requireNonNull(documentTextPath);
+        this.rerankIndexPath = rerankIndexPath;
+        this.documentTextPath = documentTextPath;
     }
 
     public RerankResponseParser(StreamInput in) throws IOException {

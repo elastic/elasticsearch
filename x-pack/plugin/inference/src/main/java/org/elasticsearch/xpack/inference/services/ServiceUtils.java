@@ -480,7 +480,7 @@ public final class ServiceUtils {
     }
 
     /**
-     * Validates that each value in the map is a {@link String} and returns a new map of Map<String, String>.
+     * Validates that each value in the map is a {@link String} and returns a new map of {@code Map<String, String>}.
      */
     public static Map<String, String> validateMapStringValues(
         Map<String, ?> map,

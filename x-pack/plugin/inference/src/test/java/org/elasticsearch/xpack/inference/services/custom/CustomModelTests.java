@@ -7,18 +7,18 @@
 
 package org.elasticsearch.xpack.inference.services.custom;
 
-import io.netty.handler.codec.http.HttpMethod;
-
 import org.apache.http.HttpHeaders;
-import org.elasticsearch.common.ValidationException;
+import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.inference.services.custom.response.ErrorResponseParser;
+import org.elasticsearch.xpack.inference.services.custom.response.ResponseParser;
+import org.elasticsearch.xpack.inference.services.custom.response.TextEmbeddingResponseParser;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 import org.hamcrest.MatcherAssert;
 
-import java.util.HashMap;
 import java.util.Map;
 
 import static org.hamcrest.Matchers.is;
@@ -28,7 +28,7 @@ public class CustomModelTests extends ESTestCase {
     public static String taskSettingsValue = "test_taskSettings_value";
 
     public static String secretSettingsKey = "test_secret_key";
-    public static String secretSettingsValue = "test_secret_value";
+    public static SecureString secretSettingsValue = new SecureString("test_secret_value".toCharArray());
     public static String url = "http://www.abc.com";
     public static String path = "/endpoint";
 
@@ -66,44 +66,30 @@ public class CustomModelTests extends ESTestCase {
     }
 
     public static CustomModel getTestModel() {
-        TaskType taskType = TaskType.TEXT_EMBEDDING;
-        Map<String, Object> jsonParserMap = new HashMap<>(
-            Map.of(CustomServiceSettings.TEXT_EMBEDDING_PARSER_EMBEDDINGS, "$.result.embeddings[*].embedding")
-        );
-        return getTestModel(taskType, jsonParserMap);
+        return getTestModel(TaskType.TEXT_EMBEDDING, new TextEmbeddingResponseParser("$.result.embeddings[*].embedding"));
     }
 
-    public static CustomModel getTestModel(TaskType taskType, Map<String, Object> jsonParserMap) {
-        // service settings
+    public static CustomModel getTestModel(TaskType taskType, ResponseParser responseParser) {
         Integer dims = 1536;
         Integer maxInputTokens = 512;
-        String description = "test fromMap";
-        String version = "v1";
-        String serviceType = taskType.toString();
-        String method = HttpMethod.POST.name();
-        String queryString = "?query=${" + taskSettingsKey + "}";
-        Map<String, Object> headers = Map.of(HttpHeaders.AUTHORIZATION, "${" + secretSettingsKey + "}");
+        Map<String, String> headers = Map.of(HttpHeaders.AUTHORIZATION, "${" + secretSettingsKey + "}");
         String requestContentString = "\"input\":\"${input}\"";
 
-        ResponseJsonParser responseJsonParser = new ResponseJsonParser(taskType, jsonParserMap, new ValidationException());
 
         CustomServiceSettings serviceSettings = new CustomServiceSettings(
             SimilarityMeasure.DOT_PRODUCT,
             dims,
             maxInputTokens,
             url,
-            path,
-            method,
-            queryString,
             headers,
-            null,
             requestContentString,
-            responseJsonParser,
-            new RateLimitSettings(10_000)
+            responseParser,
+            new RateLimitSettings(10_000),
+            new ErrorResponseParser("$.error.message")
         );
 
         // task settings
-        CustomTaskSettings taskSettings = new CustomTaskSettings(Map.of(taskSettingsKey, taskSettingsValue), false);
+        CustomTaskSettings taskSettings = new CustomTaskSettings(Map.of(taskSettingsKey, taskSettingsValue));
 
         // secret settings
         CustomSecretSettings secretSettings = new CustomSecretSettings(Map.of(secretSettingsKey, secretSettingsValue));

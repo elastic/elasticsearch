@@ -20,6 +20,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import static org.elasticsearch.xpack.inference.Utils.modifiableMap;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.convertToUri;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.createUri;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalEnum;
@@ -918,9 +919,5 @@ public class ServiceUtilsTests extends ESTestCase {
 
         ServiceUtils.validateInputTypeIsUnspecifiedOrInternal(InputType.CLUSTERING, validationException);
         assertThat(validationException.validationErrors().size(), is(4));
-    }
-
-    private static <K, V> Map<K, V> modifiableMap(Map<K, V> aMap) {
-        return new HashMap<>(aMap);
     }
 }

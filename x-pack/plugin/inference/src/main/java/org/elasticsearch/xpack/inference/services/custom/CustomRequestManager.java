@@ -92,6 +92,7 @@ public class CustomRequestManager extends BaseRequestManager {
             var request = new CustomRequest(query, input, model);
             execute(new ExecutableInferenceRequest(requestSender, logger, request, handler, hasRequestCompletedFunction, listener));
         } catch (Exception e) {
+            // Intentionally not logging this exception because it could contain sensitive information from the CustomRequest construction
             listener.onFailure(
                 new ElasticsearchStatusException("Failed to construct the custom service request", RestStatus.BAD_REQUEST, e)
             );

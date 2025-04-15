@@ -66,7 +66,7 @@ public class CustomTaskSettings implements TaskSettings {
     private final Map<String, Object> parameters;
 
     public CustomTaskSettings(StreamInput in) throws IOException {
-        parameters = in.readBoolean() ? in.readGenericMap() : null;
+        parameters = in.readGenericMap();
     }
 
     public CustomTaskSettings(Map<String, Object> parameters) {

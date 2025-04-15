@@ -45,7 +45,7 @@ public class CustomSecretSettings implements SecretSettings {
             throw validationException;
         }
 
-        return new CustomSecretSettings(Objects.requireNonNullElse(secureStringMap, new HashMap<>()));
+        return new CustomSecretSettings(secureStringMap);
     }
 
     private final Map<String, SecureString> secretParameters;
@@ -56,7 +56,7 @@ public class CustomSecretSettings implements SecretSettings {
     }
 
     public CustomSecretSettings(@Nullable Map<String, SecureString> secretParameters) {
-        this.secretParameters = Objects.requireNonNullElse(secretParameters, new HashMap<>());
+        this.secretParameters = Objects.requireNonNullElse(secretParameters, Map.of());
     }
 
     public CustomSecretSettings(StreamInput in) throws IOException {
@@ -71,7 +71,13 @@ public class CustomSecretSettings implements SecretSettings {
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
         if (secretParameters.isEmpty() == false) {
-            builder.field(SECRET_PARAMETERS, secretParameters);
+            builder.startObject(SECRET_PARAMETERS);
+            {
+                for (var entry : secretParameters.entrySet()) {
+                    builder.field(entry.getKey(), entry.getValue().toString());
+                }
+            }
+            builder.endObject();
         }
         builder.endObject();
         return builder;

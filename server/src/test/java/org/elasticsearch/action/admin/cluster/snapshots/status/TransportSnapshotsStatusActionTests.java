@@ -48,10 +48,8 @@ public class TransportSnapshotsStatusActionTests extends ESTestCase {
     private RepositoriesService repositoriesService;
     private TransportSnapshotsStatusAction action;
 
-    @Override
     @Before
-    public void setUp() throws Exception {
-        super.setUp();
+    public void initializeComponents() throws Exception {
         threadPool = new TestThreadPool(TransportSnapshotsStatusActionTests.class.getName());
         clusterService = ClusterServiceUtils.createClusterService(threadPool);
         transportService = new CapturingTransport().createTransportService(
@@ -82,10 +80,8 @@ public class TransportSnapshotsStatusActionTests extends ESTestCase {
         );
     }
 
-    @Override
     @After
-    public void tearDown() throws Exception {
-        super.tearDown();
+    public void shutdownComponents() throws Exception {
         threadPool.shutdown();
         repositoriesService.close();
         transportService.close();
@@ -103,18 +99,23 @@ public class TransportSnapshotsStatusActionTests extends ESTestCase {
     private void runBasicBuildResponseTest(boolean shouldCancelTask) {
         final var expectedSnapshot = new Snapshot(ProjectId.DEFAULT, "test-repo", new SnapshotId("snapshot", "uuid"));
         final var expectedState = SnapshotsInProgress.State.STARTED;
+        final var indexName = "test-index-name";
+        final var indexUuid = "test-index-uuid";
         final var currentSnapshotEntries = List.of(
             SnapshotsInProgress.Entry.snapshot(
                 expectedSnapshot,
                 randomBoolean(),
                 randomBoolean(),
                 SnapshotsInProgress.State.STARTED,
-                Map.of("index", new IndexId("index", "uuid")),
+                Map.of(indexName, new IndexId(indexName, indexUuid)),
                 List.of(),
                 List.of(),
                 randomNonNegativeLong(),
                 randomNonNegativeLong(),
-                Map.of(new ShardId("index", "uuid", 0), new SnapshotsInProgress.ShardSnapshotStatus("node", new ShardGeneration("gen"))),
+                Map.of(
+                    new ShardId(indexName, indexUuid, 0),
+                    new SnapshotsInProgress.ShardSnapshotStatus("node", new ShardGeneration("gen"))
+                ),
                 null,
                 Map.of(),
                 IndexVersion.current()
@@ -132,7 +133,7 @@ public class TransportSnapshotsStatusActionTests extends ESTestCase {
             assertNotNull(rsp);
             final var snapshotStatuses = rsp.getSnapshots();
             assertNotNull(snapshotStatuses);
-            assertEquals(1, snapshotStatuses.size());
+            assertEquals("expected a single snapshot status instead of " + snapshotStatuses, 1, snapshotStatuses.size());
             final var snapshotStatus = snapshotStatuses.getFirst();
             assertNotNull(snapshotStatus.getSnapshot());
             assertEquals(expectedSnapshot, snapshotStatus.getSnapshot());
@@ -142,8 +143,15 @@ public class TransportSnapshotsStatusActionTests extends ESTestCase {
             assertEquals(1, snapshotStatusShards.size());
             final var snapshotStatusIndices = snapshotStatus.getIndices();
             assertNotNull(snapshotStatusIndices);
-            assertEquals(1, snapshotStatusIndices.size());
-            assertTrue(snapshotStatusIndices.containsKey("index"));
+            assertEquals(
+                "expected a single entry in snapshotStatusIndices instead of " + snapshotStatusIndices,
+                1,
+                snapshotStatusIndices.size()
+            );
+            assertTrue(
+                "no entry for indexName [" + indexName + "] found in snapshotStatusIndices keyset " + snapshotStatusIndices.keySet(),
+                snapshotStatusIndices.containsKey(indexName)
+            );
             assertNotNull(snapshotStatus.getShardsStats());
         };
 
@@ -151,7 +159,11 @@ public class TransportSnapshotsStatusActionTests extends ESTestCase {
             @Override
             public void onResponse(SnapshotsStatusResponse rsp) {
                 if (shouldCancelTask) {
-                    fail("expected detection of task cancellation");
+                    fail(
+                        "expected detection of task cancellation and onFailure() instead of onResponse("
+                            + (rsp == null ? "null" : rsp.getSnapshots())
+                            + ")"
+                    );
                 } else {
                     verifyResponse.accept(rsp);
                 }
@@ -162,7 +174,7 @@ public class TransportSnapshotsStatusActionTests extends ESTestCase {
                 if (shouldCancelTask) {
                     assertTrue(e instanceof TaskCancelledException);
                 } else {
-                    fail("expected normal response when task is not cancelled");
+                    fail("expected onResponse() instead of onFailure(" + e + ")");
                 }
             }
         };

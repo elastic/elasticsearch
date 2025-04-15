@@ -121,6 +121,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
          */
         FANOUT {
             static final KnnSearchStrategy FANOUT_STRATEGY = new KnnSearchStrategy.Hnsw(0);
+
             @Override
             public KnnSearchStrategy getKnnSearchStrategy() {
                 return FANOUT_STRATEGY;
@@ -131,6 +132,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
          */
         ACORN {
             static final KnnSearchStrategy ACORN_STRATEGY = new KnnSearchStrategy.Hnsw(50);
+
             @Override
             public KnnSearchStrategy getKnnSearchStrategy() {
                 return ACORN_STRATEGY;

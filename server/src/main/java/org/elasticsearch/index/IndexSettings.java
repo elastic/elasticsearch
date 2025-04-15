@@ -820,15 +820,6 @@ public final class IndexSettings {
         Property.ServerlessPublic
     );
 
-    public static final Setting<Integer> DENSE_VECTOR_ADV_FILTER_SEARCH_SETTING = Setting.intSetting(
-        "index.dense_vector.advanced_filter_search_threshold",
-        50,
-        0,
-        100,
-        Property.IndexScope,
-        Property.Dynamic
-    );
-
     private static String getIgnoreAboveDefaultValue(final Settings settings) {
         if (IndexSettings.MODE.get(settings) == IndexMode.LOGSDB
             && IndexMetadata.SETTING_INDEX_VERSION_CREATED.get(settings).onOrAfter(IndexVersions.ENABLE_IGNORE_ABOVE_LOGSDB)) {

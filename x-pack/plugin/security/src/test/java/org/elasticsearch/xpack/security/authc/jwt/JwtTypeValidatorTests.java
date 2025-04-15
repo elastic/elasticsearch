@@ -45,7 +45,8 @@ public class JwtTypeValidatorTests extends ESTestCase {
                 // typ is allowed to be missing
                 Map.of("alg", algorithm),
                 Map.of("typ", "JWT", "alg", algorithm),
-                Map.of("typ", "at+jwt", "alg", algorithm)
+                Map.of("typ", "at+jwt", "alg", algorithm),
+                Map.of("typ", "AT+JWT", "alg", algorithm)
             )
         );
 
@@ -58,9 +59,10 @@ public class JwtTypeValidatorTests extends ESTestCase {
 
     public void testInvalidType() throws ParseException {
         final JwtTypeValidator validator = randomFrom(JwtTypeValidator.ID_TOKEN_INSTANCE, JwtTypeValidator.ACCESS_TOKEN_INSTANCE);
-        final String type = randomBoolean() ? randomAlphaOfLengthBetween(4, 8) : "AT+JWT";
 
-        final JWSHeader jwsHeader = JWSHeader.parse(Map.of("typ", type, "alg", randomAlphaOfLengthBetween(3, 8)));
+        final JWSHeader jwsHeader = JWSHeader.parse(
+            Map.of("typ", randomAlphaOfLengthBetween(4, 8), "alg", randomAlphaOfLengthBetween(3, 8))
+        );
 
         final IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,

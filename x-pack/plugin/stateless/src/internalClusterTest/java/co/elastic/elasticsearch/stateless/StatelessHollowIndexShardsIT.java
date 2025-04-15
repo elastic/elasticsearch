@@ -37,6 +37,7 @@ import org.elasticsearch.action.admin.cluster.reroute.ClusterRerouteResponse;
 import org.elasticsearch.action.admin.cluster.reroute.TransportClusterRerouteAction;
 import org.elasticsearch.action.admin.indices.recovery.RecoveryRequest;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
+import org.elasticsearch.action.admin.indices.settings.get.GetSettingsRequest;
 import org.elasticsearch.action.admin.indices.template.put.TransportPutComposableIndexTemplateAction;
 import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkRequest;
@@ -377,65 +378,16 @@ public class StatelessHollowIndexShardsIT extends AbstractStatelessIntegTestCase
         assertThat(cause.getMessage(), containsString("cannot ingest"));
     }
 
-    public void testRecoverHollowShard() throws Exception {
-        startMasterOnlyNode();
-        final var indexNodeSettings = Settings.builder()
-            .put(disableIndexingDiskAndMemoryControllersNodeSettings())
-            .put(SETTING_HOLLOW_INGESTION_TTL.getKey(), TimeValue.timeValueMillis(1))
-            .build();
-        String indexNodeA = startIndexNode(indexNodeSettings);
-        final var statelessCommitServiceA = internalCluster().getInstance(StatelessCommitService.class, indexNodeA);
-        final var hollowShardsServiceA = internalCluster().getInstance(HollowShardsService.class, indexNodeA);
+    private record HollowShardsInfo(
+        int numberOfShards,
+        Index index,
+        String indexName,
+        String indexNodeA,
+        String indexNodeB,
+        Settings indexNodeSettings
+    ) {}
 
-        var indexName = randomIdentifier();
-        int numberOfShards = randomIntBetween(1, 5);
-        createIndex(indexName, indexSettings(numberOfShards, 0).build());
-        ensureGreen(indexName);
-        var index = resolveIndex(indexName);
-
-        indexDocs(indexName, randomIntBetween(16, 64));
-        flush(indexName);
-
-        List<Integer> shardIds = IntStream.range(0, numberOfShards).boxed().toList();
-        for (var shardId : shardIds) {
-            var indexShard = findIndexShard(index, shardId);
-            var indexEngine = (IndexEngine) indexShard.getEngineOrNull();
-            assertFalse(indexEngine.isLastCommitHollow());
-            assertFalse(statelessCommitServiceA.getLatestUploadedBcc(indexShard.shardId()).lastCompoundCommit().hollow());
-            assertBusy(() -> assertThat(hollowShardsServiceA.isHollowableIndexShard(indexShard), equalTo(true)));
-        }
-
-        String indexNodeB = startIndexNode(indexNodeSettings);
-        logger.info("--> relocating {} hollowable shards from {} to {}", numberOfShards, indexNodeA, indexNodeB);
-        updateIndexSettings(Settings.builder().put("index.routing.allocation.exclude._name", indexNodeA), indexName);
-        assertBusy(() -> assertThat(internalCluster().nodesInclude(indexName), not(hasItem(indexNodeA))));
-        ensureGreen(indexName);
-        logger.info("--> relocated");
-
-        for (var shardId : shardIds) {
-            var indexShard = findIndexShard(index, shardId);
-            var engine = indexShard.getEngineOrNull();
-            assertThat(engine, instanceOf(HollowIndexEngine.class));
-            internalCluster().getInstance(HollowShardsService.class, indexNodeB).ensureHollowShard(indexShard.shardId(), true);
-        }
-
-        logger.info("--> stopping node A");
-        internalCluster().stopNode(indexNodeA);
-        ensureGreen(indexName);
-
-        logger.info("--> restarting node B");
-        internalCluster().restartNode(indexNodeB);
-        ensureGreen(indexName);
-
-        for (int i = 0; i < numberOfShards; i++) {
-            final var indexShard = findIndexShard(index, i);
-            final var engine = indexShard.getEngineOrNull();
-            assertThat(engine, instanceOf(HollowIndexEngine.class));
-            internalCluster().getInstance(HollowShardsService.class, indexNodeB).ensureHollowShard(indexShard.shardId(), true);
-        }
-    }
-
-    public void testRecoverHollowShardsAsIndexShardsWithDisabledHollowing() throws Exception {
+    private HollowShardsInfo startNodesAndAndHollowShards() throws Exception {
         startMasterOnlyNode();
         var indexNodeSettings = Settings.builder()
             .put(disableIndexingDiskAndMemoryControllersNodeSettings())
@@ -451,39 +403,94 @@ public class StatelessHollowIndexShardsIT extends AbstractStatelessIntegTestCase
 
         indexDocs(indexName, randomIntBetween(16, 64));
         flush(indexName);
+        var statelessCommitServiceA = internalCluster().getInstance(StatelessCommitService.class, indexNodeA);
+        var hollowShardsServiceA = internalCluster().getInstance(HollowShardsService.class, indexNodeA);
         for (int i = 0; i < numberOfShards; i++) {
             var indexShard = findIndexShard(index, i);
             var indexEngine = (IndexEngine) indexShard.getEngineOrNull();
             assertFalse(indexEngine.isLastCommitHollow());
+            assertFalse(statelessCommitServiceA.getLatestUploadedBcc(indexShard.shardId()).lastCompoundCommit().hollow());
+            assertBusy(() -> assertThat(hollowShardsServiceA.isHollowableIndexShard(indexShard), equalTo(true)));
         }
 
         String indexNodeB = startIndexNode(indexNodeSettings);
         updateIndexSettings(Settings.builder().put("index.routing.allocation.exclude._name", indexNodeA), indexName);
         assertBusy(() -> assertThat(internalCluster().nodesInclude(indexName), not(hasItem(indexNodeA))));
         ensureGreen(indexName);
+
+        var hollowShardsServiceB = internalCluster().getInstance(HollowShardsService.class, indexNodeB);
         for (int i = 0; i < numberOfShards; i++) {
             var indexShard = findIndexShard(index, i);
             assertThat(indexShard.getEngineOrNull(), instanceOf(HollowIndexEngine.class));
+            hollowShardsServiceB.ensureHollowShard(indexShard.shardId(), true);
         }
         assertThat(
             getTotalLongUpDownCounterValue(HollowShardsMetrics.HOLLOW_SHARDS_TOTAL, getTelemetryPlugin(indexNodeB)),
             equalTo((long) numberOfShards)
         );
+        return new HollowShardsInfo(numberOfShards, index, indexName, indexNodeA, indexNodeB, indexNodeSettings);
+    }
+
+    public void testRecoverHollowShard() throws Exception {
+        var clusterInfo = startNodesAndAndHollowShards();
+
+        logger.info("--> stopping node A");
+        internalCluster().stopNode(clusterInfo.indexNodeA);
+        ensureGreen(clusterInfo.indexName);
+
+        logger.info("--> restarting node B");
+        internalCluster().restartNode(clusterInfo.indexNodeB);
+        ensureGreen(clusterInfo.indexName);
+
+        for (int i = 0; i < clusterInfo.numberOfShards; i++) {
+            final var indexShard = findIndexShard(clusterInfo.index, i);
+            final var engine = indexShard.getEngineOrNull();
+            assertThat(engine, instanceOf(HollowIndexEngine.class));
+            internalCluster().getInstance(HollowShardsService.class, clusterInfo.indexNodeB).ensureHollowShard(indexShard.shardId(), true);
+        }
+    }
+
+    public void testRecoverHollowShardsAsIndexShardsWithDisabledHollowing() throws Exception {
+        var clusterInfo = startNodesAndAndHollowShards();
 
         // If we restart the node with the hollow shard feature flag disabled, shards should be initialized with an index engine
-        internalCluster().stopNode(indexNodeB);
+        internalCluster().stopNode(clusterInfo.indexNodeB);
         ensureStableCluster(2);
         String indexNodeC = startIndexNode(
-            Settings.builder().put(indexNodeSettings).put(STATELESS_HOLLOW_INDEX_SHARDS_ENABLED.getKey(), false).build()
+            Settings.builder().put(clusterInfo.indexNodeSettings).put(STATELESS_HOLLOW_INDEX_SHARDS_ENABLED.getKey(), false).build()
         );
-        ensureGreen(indexName);
+        ensureGreen(clusterInfo.indexName);
         var hollowShardsServiceC = internalCluster().getInstance(HollowShardsService.class, indexNodeC);
-        for (int i = 0; i < numberOfShards; i++) {
-            var indexShard = findIndexShard(index, i);
+        for (int i = 0; i < clusterInfo.numberOfShards(); i++) {
+            var indexShard = findIndexShard(clusterInfo.index, i);
             assertThat(indexShard.getEngineOrNull(), instanceOf(IndexEngine.class));
             hollowShardsServiceC.ensureHollowShard(indexShard.shardId(), false);
         }
         assertThat(getTotalLongUpDownCounterValue(HollowShardsMetrics.HOLLOW_SHARDS_TOTAL, getTelemetryPlugin(indexNodeC)), equalTo(0L));
+    }
+
+    public void testIndexSettingsUpdateDoesNotUnhollow() throws Exception {
+        var clusterInfo = startNodesAndAndHollowShards();
+
+        var refreshInterval = randomTimeValue(5, 10, TimeUnit.SECONDS);
+        updateIndexSettings(
+            Settings.builder().put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), refreshInterval),
+            clusterInfo.indexName
+        );
+        ensureGreen(clusterInfo.indexName);
+        var indexSettings = safeGet(indicesAdmin().getSettings(new GetSettingsRequest(TEST_REQUEST_TIMEOUT).indices(clusterInfo.indexName)))
+            .getIndexToSettings()
+            .get(clusterInfo.indexName);
+        assertThat(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.get(indexSettings), equalTo(refreshInterval));
+
+        // If we updated an index setting, we shouldn't unhollow shards
+        for (int i = 0; i < clusterInfo.numberOfShards(); i++) {
+            assertThat(findIndexShard(clusterInfo.index(), i).getEngineOrNull(), instanceOf(HollowIndexEngine.class));
+        }
+        assertThat(
+            getTotalLongUpDownCounterValue(HollowShardsMetrics.HOLLOW_SHARDS_TOTAL, getTelemetryPlugin(clusterInfo.indexNodeB())),
+            equalTo((long) clusterInfo.numberOfShards())
+        );
     }
 
     public void testRelocateHollowableShards() throws Exception {
@@ -546,7 +553,7 @@ public class StatelessHollowIndexShardsIT extends AbstractStatelessIntegTestCase
         assertThat(getLastLongGaugeValue(HollowShardsMetrics.HOLLOWABLE_SHARDS_TOTAL, telemetryPluginA), equalTo(0L));
     }
 
-    public void testRelocateHollowShards() throws Exception {
+    public void testRelocatestartNodesAndHollowShards() throws Exception {
         startMasterOnlyNode();
         final var indexNodeSettings = Settings.builder()
             .put(disableIndexingDiskAndMemoryControllersNodeSettings())
@@ -780,7 +787,7 @@ public class StatelessHollowIndexShardsIT extends AbstractStatelessIntegTestCase
         assertHitCount(client().prepareSearch(indexName).setSize(0).setTrackTotalHits(true), numDocs * 4);
     }
 
-    public void testFlushesOnHollowShards() throws Exception {
+    public void testFlushesOnstartNodesAndHollowShards() throws Exception {
         startMasterOnlyNode();
         final var indexNodes = startIndexNodes(
             2,
@@ -859,7 +866,7 @@ public class StatelessHollowIndexShardsIT extends AbstractStatelessIntegTestCase
         assertThat(relocatedEngine.getLastCommittedSegmentInfos().files(true), equalTo(hollowCommitFiles));
     }
 
-    public void testRefreshesOnHollowShards() throws Exception {
+    public void testRefreshesOnstartNodesAndHollowShards() throws Exception {
         startMasterOnlyNode();
         final var indexNodes = startIndexNodes(
             2,
@@ -1397,6 +1404,20 @@ public class StatelessHollowIndexShardsIT extends AbstractStatelessIntegTestCase
             }
             logger.info("exiting");
         }, "ForceMerge"));
+
+        threads.add(new Thread(() -> {
+            while (stopThreads.get() == false) {
+                safeSleep(randomLongBetween(1000, 2000));
+                var refreshInterval = randomTimeValue(5, 10, TimeUnit.SECONDS);
+                logger.info("Updating refresh interval on the index {} to {}", indexName, refreshInterval);
+                updateIndexSettings(
+                    Settings.builder().put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), refreshInterval),
+                    indexName
+                );
+                ensureGreen(indexName);
+            }
+            logger.info("exiting");
+        }, "IndexSettingsUpdate"));
 
         int numReadingThreads = randomIntBetween(2, 4);
         for (int i = 0; i < numReadingThreads; i++) {

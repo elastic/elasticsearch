@@ -96,7 +96,11 @@ public class PutInferenceModelAction extends ActionType<PutInferenceModelAction.
             taskType.writeTo(out);
             out.writeBytesReference(content);
             XContentHelper.writeTo(out, contentType);
-            out.writeTimeValue(timeout);
+
+            if (out.getTransportVersion().onOrAfter(TransportVersions.INFERENCE_ADD_TIMEOUT_PUT_ENDPOINT)
+                || out.getTransportVersion().isPatchFrom(TransportVersions.INFERENCE_ADD_TIMEOUT_PUT_ENDPOINT_8_19)) {
+                out.writeTimeValue(timeout);
+            }
         }
 
         @Override

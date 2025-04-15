@@ -62,6 +62,7 @@ interface FieldSpecificMatcher {
                 put("shape", new ExactMatcher("shape", actualMappings, actualSettings, expectedMappings, expectedSettings));
                 put("geo_point", new GeoPointMatcher(actualMappings, actualSettings, expectedMappings, expectedSettings));
                 put("text", new TextMatcher(actualMappings, actualSettings, expectedMappings, expectedSettings));
+                put("ip", new IpMatcher(actualMappings, actualSettings, expectedMappings, expectedSettings));
             }
         };
     }
@@ -663,6 +664,30 @@ interface FieldSpecificMatcher {
             }
 
             return values.stream().filter(Objects::nonNull).collect(Collectors.toSet());
+        }
+    }
+
+    class IpMatcher extends GenericMappingAwareMatcher {
+        IpMatcher(
+            XContentBuilder actualMappings,
+            Settings.Builder actualSettings,
+            XContentBuilder expectedMappings,
+            Settings.Builder expectedSettings
+        ) {
+            super("ip", actualMappings, actualSettings, expectedMappings, expectedSettings);
+        }
+
+        @Override
+        Object convert(Object value, Object nullValue) {
+            if (value == null) {
+                if (nullValue != null) {
+                    return nullValue;
+                }
+                return null;
+            }
+
+            // We should be always able to convert an IP back to original string.
+            return value;
         }
     }
 

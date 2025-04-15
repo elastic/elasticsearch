@@ -56,7 +56,7 @@ public class PlanWritables {
     public static List<NamedWriteableRegistry.Entry> getNamedWriteables() {
         List<NamedWriteableRegistry.Entry> entries = new ArrayList<>();
         entries.addAll(logical());
-        entries.addAll(phsyical());
+        entries.addAll(physical());
         return entries;
     }
 
@@ -83,7 +83,7 @@ public class PlanWritables {
         );
     }
 
-    public static List<NamedWriteableRegistry.Entry> phsyical() {
+    public static List<NamedWriteableRegistry.Entry> physical() {
         return List.of(
             AggregateExec.ENTRY,
             DissectExec.ENTRY,

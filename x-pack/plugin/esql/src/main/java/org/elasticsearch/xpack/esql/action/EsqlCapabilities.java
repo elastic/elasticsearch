@@ -712,6 +712,11 @@ public class EsqlCapabilities {
         AGGREGATE_METRIC_DOUBLE_PARTIAL_SUBMETRICS(AGGREGATE_METRIC_DOUBLE_FEATURE_FLAG),
 
         /**
+         * Support change point detection "CHANGE_POINT".
+         */
+        CHANGE_POINT,
+
+        /**
          * Fix for https://github.com/elastic/elasticsearch/issues/120817
          * and https://github.com/elastic/elasticsearch/issues/120803
          * Support for queries that have multiple SORTs that cannot become TopN

@@ -69,6 +69,7 @@ public class KnnSearchIT extends ESIntegTestCase {
         SearchResponse firstResponse = client.search(searchRequest).actionGet();
         assertThat(firstResponse.getScrollId(), notNullValue());
         assertThat(firstResponse.getHits().getHits().length, equalTo(k));
+        firstResponse.decRef();
 
         while (true) {
             SearchScrollRequest scrollRequest = new SearchScrollRequest(firstResponse.getScrollId());
@@ -80,6 +81,7 @@ public class KnnSearchIT extends ESIntegTestCase {
             assertThat(scrollResponse.getHits().getHits().length, equalTo(1));
             assertThat(scrollResponse.getScrollId(), notNullValue());
             assertThat(scrollResponse.getHits().getTotalHits().value(), equalTo((long) k));
+            scrollResponse.decRef();
         }
 
         client.prepareClearScroll().addScrollId(firstResponse.getScrollId()).get();

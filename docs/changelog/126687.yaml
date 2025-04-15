@@ -1,0 +1,6 @@
+pr: 126687
+summary: Permit at+jwt typ header value in jwt access tokens
+area: Authentication
+type: enhancement
+issues:
+ - 119370

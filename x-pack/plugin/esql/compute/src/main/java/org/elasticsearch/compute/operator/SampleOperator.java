@@ -19,9 +19,9 @@ import org.elasticsearch.search.aggregations.bucket.sampler.random.RandomSamplin
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
+import java.util.ArrayDeque;
 import java.util.Arrays;
 import java.util.Deque;
-import java.util.LinkedList;
 import java.util.Objects;
 import java.util.SplittableRandom;
 
@@ -60,7 +60,7 @@ public class SampleOperator implements Operator {
 
     private SampleOperator(double probability, int seed) {
         finished = false;
-        outputPages = new LinkedList<>();
+        outputPages = new ArrayDeque<>();
         SplittableRandom random = new SplittableRandom(seed);
         randomSamplingIterator = new RandomSamplingQuery.RandomSamplingIterator(Integer.MAX_VALUE, probability, random::nextInt);
         // Initialize the iterator to the next document that needs to be sampled.

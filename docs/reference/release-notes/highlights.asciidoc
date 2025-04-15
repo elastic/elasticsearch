@@ -63,4 +63,3 @@ LOOKUP JOIN combines data from your {esql} queries with matching records from a 
 
 // end::notable-highlights[]
 
-

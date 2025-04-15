@@ -116,13 +116,9 @@ public class SemanticInferenceMetadataFieldsMapperTests extends MapperServiceTes
     static IndexVersion getRandomCompatibleIndexVersion(boolean useLegacyFormat) {
         if (useLegacyFormat) {
             if (randomBoolean()) {
-                return IndexVersionUtils.randomVersionBetween(
-                    random(),
-                    IndexVersions.UPGRADE_TO_LUCENE_10_0_0,
-                    IndexVersionUtils.getPreviousVersion(IndexVersions.INFERENCE_METADATA_FIELDS)
-                );
+                return IndexVersionUtils.randomVersionBetween(random(), IndexVersions.UPGRADE_TO_LUCENE_10_0_0, IndexVersion.current());
             }
-            return IndexVersionUtils.randomPreviousCompatibleVersion(random(), IndexVersions.INFERENCE_METADATA_FIELDS_BACKPORT);
+            return IndexVersionUtils.randomPreviousCompatibleVersion(random(), IndexVersions.UPGRADE_TO_LUCENE_10_0_0);
         } else {
             if (randomBoolean()) {
                 return IndexVersionUtils.randomVersionBetween(random(), IndexVersions.INFERENCE_METADATA_FIELDS, IndexVersion.current());

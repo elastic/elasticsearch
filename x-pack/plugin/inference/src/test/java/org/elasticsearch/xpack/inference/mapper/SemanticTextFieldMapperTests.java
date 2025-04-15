@@ -35,6 +35,7 @@ import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.DocumentParsingException;
 import org.elasticsearch.index.mapper.FieldMapper;
@@ -64,6 +65,7 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.LeafNestedDocuments;
 import org.elasticsearch.search.NestedDocuments;
 import org.elasticsearch.search.SearchHit;
+import org.elasticsearch.test.index.IndexVersionUtils;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.json.JsonXContent;
@@ -117,14 +119,38 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
     }
 
     private MapperService createMapperService(XContentBuilder mappings, boolean useLegacyFormat) throws IOException {
+        IndexVersion indexVersion = SemanticInferenceMetadataFieldsMapperTests.getRandomCompatibleIndexVersion(useLegacyFormat);
+        return createMapperService(mappings, useLegacyFormat, indexVersion, indexVersion);
+    }
+
+    private MapperService createMapperService(XContentBuilder mappings, boolean useLegacyFormat, IndexVersion minIndexVersion)
+        throws IOException {
+        return createMapperService(mappings, useLegacyFormat, minIndexVersion, IndexVersion.current());
+    }
+
+    private MapperService createMapperService(
+        XContentBuilder mappings,
+        boolean useLegacyFormat,
+        IndexVersion minIndexVersion,
+        IndexVersion maxIndexVersion
+    ) throws IOException {
+        validateIndexVersion(minIndexVersion, useLegacyFormat);
         var settings = Settings.builder()
             .put(
                 IndexMetadata.SETTING_INDEX_VERSION_CREATED.getKey(),
-                SemanticInferenceMetadataFieldsMapperTests.getRandomCompatibleIndexVersion(useLegacyFormat)
+                IndexVersionUtils.randomVersionBetween(random(), minIndexVersion, maxIndexVersion)
             )
             .put(InferenceMetadataFieldsMapper.USE_LEGACY_SEMANTIC_TEXT_FORMAT.getKey(), useLegacyFormat)
             .build();
         return createMapperService(settings, mappings);
+    }
+
+    private static void validateIndexVersion(IndexVersion indexVersion, boolean useLegacyFormat) {
+        if (useLegacyFormat == false
+            && indexVersion.before(IndexVersions.INFERENCE_METADATA_FIELDS)
+            && indexVersion.between(IndexVersions.INFERENCE_METADATA_FIELDS_BACKPORT, IndexVersions.UPGRADE_TO_LUCENE_10_0_0) == false) {
+            throw new IllegalArgumentException("Index version does not support new semantic text format");
+        }
     }
 
     @Override
@@ -1082,7 +1108,7 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
             b.field("similarity", "cosine");
             b.field("element_type", "float");
             b.endObject();
-        }), useLegacyFormat);
+        }), useLegacyFormat, IndexVersions.SEMANTIC_TEXT_DEFAULTS_TO_BBQ);
         assertSemanticTextField(mapperService, "field", true, null, SemanticTextFieldMapper.defaultSemanticDenseIndexOptions());
 
         // Element types that are incompatible with BBQ will continue to use dense_vector defaults
@@ -1095,7 +1121,7 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
             b.field("similarity", "cosine");
             b.field("element_type", "byte");
             b.endObject();
-        }), useLegacyFormat);
+        }), useLegacyFormat, IndexVersions.SEMANTIC_TEXT_DEFAULTS_TO_BBQ);
         assertSemanticTextField(mapperService, "field", true, null, null);
 
         // A dim count of 10 is too small to support BBQ, so we continue to use dense_vector defaults
@@ -1108,8 +1134,25 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
             b.field("similarity", "cosine");
             b.field("element_type", "float");
             b.endObject();
-        }), useLegacyFormat);
+        }), useLegacyFormat, IndexVersions.SEMANTIC_TEXT_DEFAULTS_TO_BBQ);
         assertSemanticTextField(mapperService, "field", true, null, defaultDenseVectorIndexOptions());
+
+        // Previous index versions do not set BBQ index options
+        mapperService = createMapperService(fieldMapping(b -> {
+            b.field("type", "semantic_text");
+            b.field("inference_id", "another_inference_id");
+            b.startObject("model_settings");
+            b.field("task_type", "text_embedding");
+            b.field("dimensions", 100);
+            b.field("similarity", "cosine");
+            b.field("element_type", "float");
+            b.endObject();
+        }),
+            useLegacyFormat,
+            IndexVersions.UPGRADE_TO_LUCENE_10_0_0,
+            IndexVersionUtils.getPreviousVersion(IndexVersions.SEMANTIC_TEXT_DEFAULTS_TO_BBQ)
+        );
+        assertSemanticTextField(mapperService, "field", true, null, SemanticTextFieldMapper.defaultSemanticDenseIndexOptions());
 
     }
 

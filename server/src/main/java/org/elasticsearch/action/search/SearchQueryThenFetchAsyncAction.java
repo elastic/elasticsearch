@@ -55,12 +55,12 @@ import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.BytesTransportResponse;
+import org.elasticsearch.transport.AbstractTransportRequest;
 import org.elasticsearch.transport.SendRequestTransportException;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportActionProxy;
 import org.elasticsearch.transport.TransportChannel;
 import org.elasticsearch.transport.TransportException;
-import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportResponse;
 import org.elasticsearch.transport.TransportResponseHandler;
 import org.elasticsearch.transport.TransportService;
@@ -206,7 +206,7 @@ public class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<S
     /**
      * Request for starting the query phase for multiple shards.
      */
-    public static final class NodeQueryRequest extends TransportRequest implements IndicesRequest {
+    public static final class NodeQueryRequest extends AbstractTransportRequest implements IndicesRequest {
         private final List<ShardToQuery> shards;
         private final SearchRequest searchRequest;
         private final Map<String, AliasFilter> aliasFilters;
@@ -288,7 +288,7 @@ public class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<S
      * Check if, based on already collected results, a shard search can be updated with a lower search threshold than is current set.
      * When the query executes via batched execution, data nodes this take into account the results of queries run against shards local
      * to the datanode. On the coordinating node results received from all data nodes are taken into account.
-     *
+     * <p>
      * See {@link BottomSortValuesCollector} for details.
      */
     private static ShardSearchRequest tryRewriteWithUpdatedSortValue(

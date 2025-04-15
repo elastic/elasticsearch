@@ -15,6 +15,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.util.LazyInitializable;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.inference.ChunkInferenceInput;
 import org.elasticsearch.inference.ChunkedInference;
 import org.elasticsearch.inference.ChunkingSettings;
 import org.elasticsearch.inference.InferenceServiceConfiguration;
@@ -112,7 +113,7 @@ public class HuggingFaceElserService extends HuggingFaceBaseService {
 
     private static List<ChunkedInference> translateToChunkedResults(EmbeddingsInput inputs, InferenceServiceResults inferenceResults) {
         if (inferenceResults instanceof TextEmbeddingFloatResults textEmbeddingResults) {
-            validateInputSizeAgainstEmbeddings(inputs.getInputs(), textEmbeddingResults.embeddings().size());
+            validateInputSizeAgainstEmbeddings(ChunkInferenceInput.inputs(inputs.getInputs()), textEmbeddingResults.embeddings().size());
 
             var results = new ArrayList<ChunkedInference>(inputs.getInputs().size());
 
@@ -122,7 +123,7 @@ public class HuggingFaceElserService extends HuggingFaceBaseService {
                         List.of(
                             new EmbeddingResults.Chunk(
                                 textEmbeddingResults.embeddings().get(i),
-                                new ChunkedInference.TextOffset(0, inputs.getInputs().get(i).length())
+                                new ChunkedInference.TextOffset(0, inputs.getInputs().get(i).input().length())
                             )
                         )
                     )
@@ -130,7 +131,7 @@ public class HuggingFaceElserService extends HuggingFaceBaseService {
             }
             return results;
         } else if (inferenceResults instanceof SparseEmbeddingResults sparseEmbeddingResults) {
-            var inputsAsList = EmbeddingsInput.of(inputs).getInputs();
+            var inputsAsList = ChunkInferenceInput.inputs(EmbeddingsInput.of(inputs).getInputs());
             return ChunkedInferenceEmbedding.listOf(inputsAsList, sparseEmbeddingResults);
         } else if (inferenceResults instanceof ErrorInferenceResults error) {
             return List.of(new ChunkedInferenceError(error.getException()));

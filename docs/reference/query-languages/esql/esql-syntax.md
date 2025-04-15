@@ -97,7 +97,7 @@ The integer numeric literals are implicitly converted to the `integer`, `long` o
 
 The floating point literals are implicitly converted the `double` type.
 
-To obtain constant values of different types, use one of the numeric [conversion functions](/reference/query-languages/esql/esql-functions-operators.md#esql-type-conversion-functions).
+To obtain constant values of different types, use one of the numeric [conversion functions](/reference/query-languages/esql/functions-operators/type-conversion-functions.md).
 
 
 ### Comments [esql-comments]
@@ -140,7 +140,7 @@ Timespan literals are not whitespace sensitive. These expressions are all valid:
 
 ### Function named parameters [esql-function-named-params]
 
-Some functions like [match](/reference/query-languages/esql/esql-functions-operators.md#esql-match) use named parameters to provide additional options.
+Some functions like [match](/reference/query-languages/esql/functions-operators/search-functions.md#esql-match) use named parameters to provide additional options.
 
 Named parameters allow specifying name value pairs, using the following syntax:
 
@@ -148,7 +148,7 @@ Named parameters allow specifying name value pairs, using the following syntax:
 
 Valid value types are strings, numbers and booleans.
 
-An example using [match](/reference/query-languages/esql/esql-functions-operators.md#esql-match):
+An example using [match](/reference/query-languages/esql/functions-operators/search-functions.md#esql-match):
 
 ```console
 POST /_query

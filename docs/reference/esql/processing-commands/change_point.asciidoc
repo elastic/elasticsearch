@@ -4,7 +4,7 @@
 
 [NOTE]
 ====
-The `CHANGE_POINT` command requires a [platinum license](https://www.elastic.co/subscriptions).
+The `CHANGE_POINT` command requires a https://www.elastic.co/subscriptions[platinum license].
 ====
 
 preview::[]

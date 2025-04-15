@@ -137,14 +137,14 @@ abstract class AbstractRemoteClusterSecurityFailureStoreRestIT extends AbstractR
         }
     }
 
-    protected Response performRequestWithRemoteSearchUser(final Request request) throws IOException {
+    protected static Response performRequestWithRemoteSearchUser(final Request request) throws IOException {
         request.setOptions(
             RequestOptions.DEFAULT.toBuilder().addHeader("Authorization", headerFromRandomAuthMethod(REMOTE_SEARCH_USER, PASS))
         );
         return client().performRequest(request);
     }
 
-    protected Response performRequestWithUser(final String user, final Request request) throws IOException {
+    protected static Response performRequestWithUser(final String user, final Request request) throws IOException {
         request.setOptions(RequestOptions.DEFAULT.toBuilder().addHeader("Authorization", headerFromRandomAuthMethod(user, PASS)));
         return client().performRequest(request);
     }
@@ -170,7 +170,7 @@ abstract class AbstractRemoteClusterSecurityFailureStoreRestIT extends AbstractR
     }
 
     protected static void assertSelectorsNotSupported(ResponseException exception) {
-        assertThat(exception.getResponse().getStatusLine().getStatusCode(), equalTo(403));
+        assertThat(exception.getResponse().getStatusLine().getStatusCode(), equalTo(400));
         assertThat(exception.getMessage(), containsString("Selectors are not yet supported on remote cluster patterns"));
     }
 

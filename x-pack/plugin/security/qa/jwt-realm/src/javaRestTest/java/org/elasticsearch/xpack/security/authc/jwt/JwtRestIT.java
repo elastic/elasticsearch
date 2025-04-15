@@ -456,13 +456,13 @@ public class JwtRestIT extends ESRestTestCase {
 
             {
                 // This is the correct HMAC passphrase (from build.gradle)
-                final SignedJWT jwt = signHmacJwt(claimsSet, HMAC_PASSPHRASE);
+                final SignedJWT jwt = signHmacJwt(claimsSet, HMAC_PASSPHRASE, false);
                 final TestSecurityClient client = getSecurityClient(jwt, Optional.of(VALID_SHARED_SECRET));
                 assertThat(client.authenticate(), hasEntry(User.Fields.USERNAME.getPreferredName(), username));
             }
             {
                 // This is not the correct HMAC passphrase
-                final SignedJWT invalidJwt = signHmacJwt(claimsSet, "invalid-HMAC-passphrase-" + randomAlphaOfLength(12));
+                final SignedJWT invalidJwt = signHmacJwt(claimsSet, "invalid-HMAC-passphrase-" + randomAlphaOfLength(12), false);
                 final TestSecurityClient client = getSecurityClient(invalidJwt, Optional.of(VALID_SHARED_SECRET));
                 // This fails because the HMAC is wrong
                 final ResponseException exception = expectThrows(ResponseException.class, client::authenticate);
@@ -487,7 +487,7 @@ public class JwtRestIT extends ESRestTestCase {
                 data.put("token_use", randomValueOtherThan("access", () -> randomAlphaOfLengthBetween(3, 10)));
             }
             final JWTClaimsSet claimsSet = buildJwt(data, Instant.now(), false, false);
-            final SignedJWT jwt = signHmacJwt(claimsSet, "test-HMAC/secret passphrase-value");
+            final SignedJWT jwt = signHmacJwt(claimsSet, "test-HMAC/secret passphrase-value", false);
             final TestSecurityClient client = getSecurityClient(jwt, Optional.of(VALID_SHARED_SECRET));
             final ResponseException exception = expectThrows(ResponseException.class, client::authenticate);
             assertThat(exception.getResponse(), hasStatusCode(RestStatus.UNAUTHORIZED));
@@ -747,18 +747,18 @@ public class JwtRestIT extends ESRestTestCase {
 
     private SignedJWT signJwtForRealm1(JWTClaimsSet claimsSet) throws IOException, JOSEException, ParseException {
         final RSASSASigner signer = loadRsaSigner();
-        return signJWT(signer, "RS256", claimsSet);
+        return signJWT(signer, "RS256", claimsSet, false);
     }
 
-    private SignedJWT signJwtForRealm2(JWTClaimsSet claimsSet) throws JOSEException, ParseException {
+    private SignedJWT signJwtForRealm2(JWTClaimsSet claimsSet) throws JOSEException {
         // Input string is configured in build.gradle
-        return signHmacJwt(claimsSet, "test-HMAC/secret passphrase-value");
+        return signHmacJwt(claimsSet, "test-HMAC/secret passphrase-value", true);
     }
 
     private SignedJWT signJwtForRealm3(JWTClaimsSet claimsSet) throws JOSEException, ParseException, IOException {
         final int bitSize = randomFrom(384, 512);
         final MACSigner signer = loadHmacSigner("test-hmac-" + bitSize);
-        return signJWT(signer, "HS" + bitSize, claimsSet);
+        return signJWT(signer, "HS" + bitSize, claimsSet, false);
     }
 
     private RSASSASigner loadRsaSigner() throws IOException, ParseException, JOSEException {
@@ -781,10 +781,10 @@ public class JwtRestIT extends ESRestTestCase {
         }
     }
 
-    private SignedJWT signHmacJwt(JWTClaimsSet claimsSet, String hmacPassphrase) throws JOSEException {
+    private SignedJWT signHmacJwt(JWTClaimsSet claimsSet, String hmacPassphrase, boolean allowAtJwtType) throws JOSEException {
         final OctetSequenceKey hmac = JwkValidateUtil.buildHmacKeyFromString(hmacPassphrase);
         final JWSSigner signer = new MACSigner(hmac);
-        return signJWT(signer, "HS256", claimsSet);
+        return signJWT(signer, "HS256", claimsSet, allowAtJwtType);
     }
 
     // JWT construction
@@ -822,10 +822,14 @@ public class JwtRestIT extends ESRestTestCase {
         return builder.build();
     }
 
-    static SignedJWT signJWT(JWSSigner signer, String algorithm, JWTClaimsSet claimsSet) throws JOSEException {
+    static SignedJWT signJWT(JWSSigner signer, String algorithm, JWTClaimsSet claimsSet, boolean allowAtJwtType) throws JOSEException {
         final JWSHeader.Builder builder = new JWSHeader.Builder(JWSAlgorithm.parse(algorithm));
         if (randomBoolean()) {
-            builder.type(JOSEObjectType.JWT);
+            if (allowAtJwtType && randomBoolean()) {
+                builder.type(new JOSEObjectType("at+jwt"));
+            } else {
+                builder.type(JOSEObjectType.JWT);
+            }
         }
         final JWSHeader jwtHeader = builder.build();
         final SignedJWT jwt = new SignedJWT(jwtHeader, claimsSet);

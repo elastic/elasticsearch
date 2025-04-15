@@ -221,6 +221,7 @@ public class TransportVersions {
     public static final TransportVersion AMAZON_BEDROCK_TASK_SETTINGS = def(9_049_0_00);
     public static final TransportVersion ESQL_REPORT_SHARD_PARTITIONING = def(9_050_0_00);
     public static final TransportVersion ESQL_QUERY_PLANNING_DURATION = def(9_051_0_00);
+    public static final TransportVersion BATCHED_QUERY_EXECUTION_DELAYABLE_WRITABLE = def(9_052_0_00);
 
     /*
      * STOP! READ THIS FIRST! No, really,

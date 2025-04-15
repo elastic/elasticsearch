@@ -76,6 +76,7 @@ FROM books METADATA _id, _index, _score
        ( WHERE author:"Ursula K. Le Guin" AND title:"short stories" | SORT _score, _id DESC | LIMIT 3)
 | RRF
 | STATS count_fork=COUNT(*) BY _fork
+| SORT _fork
 ;
 
 count_fork:long | _fork:keyword

@@ -49,6 +49,7 @@ import java.util.function.LongSupplier;
 
 import static org.hamcrest.Matchers.either;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 
 public class DriverTests extends ESTestCase {
     /**
@@ -90,13 +91,13 @@ public class DriverTests extends ESTestCase {
         assertThat(driver.status().status(), equalTo(DriverStatus.Status.DONE));
         assertThat(driver.status().started(), equalTo(startEpoch));
         long sumRunningTime = tickTime * (nowSupplier.callCount - 1);
-        assertThat(driver.status().cpuNanos(), equalTo(sumRunningTime));
-        assertThat(driver.status().iterations(), equalTo((long) inPages.size()));
+        assertThat(driver.status().cpuNanos(), greaterThanOrEqualTo(sumRunningTime)); // GTE to work around not having #123290
+        assertThat(driver.status().iterations(), greaterThanOrEqualTo((long) inPages.size()));// GTE to work around not having #123290
 
         logger.info("profile {}", driver.profile());
-        assertThat(driver.profile().tookNanos(), equalTo(waitTime + sumRunningTime));
-        assertThat(driver.profile().cpuNanos(), equalTo(sumRunningTime));
-        assertThat(driver.profile().iterations(), equalTo((long) inPages.size()));
+        assertThat(driver.profile().tookNanos(), greaterThanOrEqualTo(waitTime + sumRunningTime));
+        assertThat(driver.profile().cpuNanos(), greaterThanOrEqualTo(sumRunningTime));
+        assertThat(driver.profile().iterations(), greaterThanOrEqualTo((long) inPages.size()));
     }
 
     /**

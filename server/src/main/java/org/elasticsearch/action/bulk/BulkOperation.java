@@ -69,6 +69,7 @@ import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
+import java.util.function.Function;
 import java.util.function.LongSupplier;
 
 import static org.elasticsearch.action.bulk.TransportBulkAction.LAZY_ROLLOVER_ORIGIN;
@@ -103,6 +104,7 @@ final class BulkOperation extends ActionRunnable<BulkResponse> {
     private final Map<ShardId, Exception> shortCircuitShardFailures = ConcurrentCollections.newConcurrentMap();
     private final FailureStoreMetrics failureStoreMetrics;
     private final DataStreamFailureStoreSettings dataStreamFailureStoreSettings;
+    private final Function<ClusterState, Boolean> failureStoreFeatureEnabled;
 
     BulkOperation(
         Task task,
@@ -118,7 +120,8 @@ final class BulkOperation extends ActionRunnable<BulkResponse> {
         long startTimeNanos,
         ActionListener<BulkResponse> listener,
         FailureStoreMetrics failureStoreMetrics,
-        DataStreamFailureStoreSettings dataStreamFailureStoreSettings
+        DataStreamFailureStoreSettings dataStreamFailureStoreSettings,
+        Function<ClusterState, Boolean> failureStoreFeatureEnabled
     ) {
         this(
             task,
@@ -136,7 +139,8 @@ final class BulkOperation extends ActionRunnable<BulkResponse> {
             new ClusterStateObserver(clusterService, bulkRequest.timeout(), logger, threadPool.getThreadContext()),
             new FailureStoreDocumentConverter(),
             failureStoreMetrics,
-            dataStreamFailureStoreSettings
+            dataStreamFailureStoreSettings,
+            failureStoreFeatureEnabled
         );
     }
 
@@ -156,7 +160,8 @@ final class BulkOperation extends ActionRunnable<BulkResponse> {
         ClusterStateObserver observer,
         FailureStoreDocumentConverter failureStoreDocumentConverter,
         FailureStoreMetrics failureStoreMetrics,
-        DataStreamFailureStoreSettings dataStreamFailureStoreSettings
+        DataStreamFailureStoreSettings dataStreamFailureStoreSettings,
+        Function<ClusterState, Boolean> failureStoreFeatureEnabled
     ) {
         super(listener);
         this.task = task;
@@ -177,6 +182,7 @@ final class BulkOperation extends ActionRunnable<BulkResponse> {
         this.shortCircuitShardFailures.putAll(bulkRequest.incrementalState().shardLevelFailures());
         this.failureStoreMetrics = failureStoreMetrics;
         this.dataStreamFailureStoreSettings = dataStreamFailureStoreSettings;
+        this.failureStoreFeatureEnabled = failureStoreFeatureEnabled;
     }
 
     @Override
@@ -556,7 +562,7 @@ final class BulkOperation extends ActionRunnable<BulkResponse> {
         DataStream failureStoreCandidate = getRedirectTargetCandidate(docWriteRequest, projectMetadata);
         // If the candidate is not null, the BulkItemRequest targets a data stream, but we'll still have to check if
         // it has the failure store enabled.
-        if (failureStoreCandidate != null) {
+        if (failureStoreCandidate != null && failureStoreFeatureEnabled.apply(clusterService.state())) {
             // Do not redirect documents to a failure store that were already headed to one.
             var isFailureStoreRequest = isFailureStoreRequest(docWriteRequest);
             if (isFailureStoreRequest == false

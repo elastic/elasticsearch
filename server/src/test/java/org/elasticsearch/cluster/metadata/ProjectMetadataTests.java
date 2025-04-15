@@ -18,7 +18,6 @@ import org.elasticsearch.ingest.IngestMetadata;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.test.AbstractChunkedSerializingTestCase;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.upgrades.FeatureMigrationResults;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentType;
 
@@ -30,6 +29,9 @@ import static org.elasticsearch.cluster.metadata.MetadataTests.checkChunkSize;
 import static org.elasticsearch.cluster.metadata.MetadataTests.count;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertToXContentEquivalent;
 import static org.elasticsearch.xcontent.ToXContent.EMPTY_PARAMS;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.sameInstance;
 
 public class ProjectMetadataTests extends ESTestCase {
 
@@ -363,14 +365,14 @@ public class ProjectMetadataTests extends ESTestCase {
                     params,
                     4 + dataStreamMetadata.dataStreams().size() + dataStreamMetadata.getDataStreamAliases().size()
                 );
-            } else if (custom instanceof FeatureMigrationResults featureMigrationResults) {
-                chunkCount += checkChunkSize(custom, params, 2 + featureMigrationResults.getFeatureStatuses().size());
             } else if (custom instanceof IndexGraveyard indexGraveyard) {
                 chunkCount += checkChunkSize(custom, params, 2 + indexGraveyard.getTombstones().size());
             } else if (custom instanceof IngestMetadata ingestMetadata) {
                 chunkCount += checkChunkSize(custom, params, 2 + ingestMetadata.getPipelines().size());
             } else if (custom instanceof PersistentTasksCustomMetadata persistentTasksCustomMetadata) {
                 chunkCount += checkChunkSize(custom, params, 3 + persistentTasksCustomMetadata.tasks().size());
+            } else if (custom instanceof RepositoriesMetadata repositoriesMetadata) {
+                chunkCount += checkChunkSize(custom, params, repositoriesMetadata.repositories().size());
             } else {
                 // could be anything, we have to just try it
                 chunkCount += count(custom.toXContentChunked(params));
@@ -383,6 +385,23 @@ public class ProjectMetadataTests extends ESTestCase {
         }
 
         return Math.toIntExact(chunkCount);
+    }
+
+    public void testCopyAndUpdate() {
+        var initialIndexUUID = randomUUID();
+        final String indexName = randomAlphaOfLengthBetween(4, 12);
+        final ProjectMetadata before = ProjectMetadata.builder(randomProjectIdOrDefault())
+            .put(IndexMetadata.builder(indexName).settings(indexSettings(IndexVersion.current(), initialIndexUUID, 1, 1)))
+            .build();
+
+        var alteredIndexUUID = randomUUID();
+        assertThat(alteredIndexUUID, not(equalTo(initialIndexUUID)));
+        final ProjectMetadata after = before.copyAndUpdate(
+            builder -> builder.put(IndexMetadata.builder(indexName).settings(indexSettings(IndexVersion.current(), alteredIndexUUID, 1, 1)))
+        );
+
+        assertThat(after, not(sameInstance(before)));
+        assertThat(after.index(indexName).getIndexUUID(), equalTo(alteredIndexUUID));
     }
 
 }

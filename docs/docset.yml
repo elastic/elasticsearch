@@ -22,6 +22,7 @@ cross_links:
   - go-elasticsearch
   - kibana
   - logstash
+  - logstash-docs-md
 toc:
   - toc: reference
   - toc: release-notes
@@ -39,6 +40,8 @@ subs:
   ece:   "Elastic Cloud Enterprise"
   eck:   "Elastic Cloud on Kubernetes"
   ech:   "Elastic Cloud Hosted"
+  es-apis: https://www.elastic.co/docs/api/doc/elasticsearch/
+  es-serverless-apis: https://www.elastic.co/docs/api/doc/elasticsearch-serverless/
   es-issue:   "https://github.com/elastic/elasticsearch/issues/"
   serverless-full:   "Elastic Cloud Serverless"
   serverless-short:   "Serverless"

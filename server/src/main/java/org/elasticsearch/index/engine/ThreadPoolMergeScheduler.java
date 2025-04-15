@@ -449,6 +449,10 @@ public class ThreadPoolMergeScheduler extends MergeScheduler implements Elastics
             return onGoingMerge.getMerge().getStoreMergeInfo().estimatedMergeBytes();
         }
 
+        long estimatedRemainingMergeSize() {
+            return Math.max(0L, estimatedMergeSize() - rateLimiter.getTotalBytesWritten());
+        }
+
         @Override
         public String toString() {
             return name + (onGoingMerge.getMerge().isAborted() ? " (aborted)" : "");

@@ -77,6 +77,7 @@ import org.elasticsearch.xpack.esql.plan.logical.RegexExtract;
 import org.elasticsearch.xpack.esql.plan.logical.Rename;
 import org.elasticsearch.xpack.esql.plan.logical.TopN;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
+import org.elasticsearch.xpack.esql.plan.logical.inference.Completion;
 import org.elasticsearch.xpack.esql.plan.logical.inference.InferencePlan;
 import org.elasticsearch.xpack.esql.plan.logical.join.InlineJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.JoinTypes;
@@ -626,9 +627,6 @@ public class EsqlSession {
         boolean[] canRemoveAliases = new boolean[] { true };
 
         parsed.forEachDown(p -> {// go over each plan top-down
-            if (couldOverrideAliases(p)) {
-                canRemoveAliases[0] = false;
-            }
             if (p instanceof RegexExtract re) { // for Grok and Dissect
                 // remove other down-the-tree references to the extracted fields
                 for (Attribute extracted : re.extractedFields()) {
@@ -673,23 +671,26 @@ public class EsqlSession {
                 }
             }
 
-            // remove any already discovered UnresolvedAttributes that are in fact aliases defined later down in the tree
-            // for example "from test | eval x = salary | stats max = max(x) by gender"
-            // remove the UnresolvedAttribute "x", since that is an Alias defined in "eval"
-            AttributeSet planRefs = p.references();
-            Set<String> fieldNames = planRefs.names();
-            p.forEachExpressionDown(Alias.class, alias -> {
-                // If there are joins/enriches in the middle, these could override some of these fields.
-                // We don't know at this stage, so we have to keep all of them.
-                if (canRemoveAliases[0]) {
+            // If there are joins, enriches etc. in the middle, these could override some of these fields.
+            // We don't know at this stage, so we have to keep all of them.
+            if (canRemoveAliases[0] && couldOverrideAliases(p)) {
+                canRemoveAliases[0] = false;
+            }
+            if (canRemoveAliases[0]) {
+                // remove any already discovered UnresolvedAttributes that are in fact aliases defined later down in the tree
+                // for example "from test | eval x = salary | stats max = max(x) by gender"
+                // remove the UnresolvedAttribute "x", since that is an Alias defined in "eval"
+                AttributeSet planRefs = p.references();
+                Set<String> fieldNames = planRefs.names();
+                p.forEachExpressionDown(Alias.class, alias -> {
                     // do not remove the UnresolvedAttribute that has the same name as its alias, ie "rename id = id"
                     // or the UnresolvedAttributes that are used in Functions that have aliases "STATS id = MAX(id)"
                     if (fieldNames.contains(alias.name())) {
                         return;
                     }
                     referencesBuilder.removeIf(attr -> matchByName(attr, alias.name(), keepCommandRefsBuilder.contains(attr)));
-                }
-            });
+                });
+            }
         });
 
         // Add JOIN ON column references afterward to avoid Alias removal
@@ -724,6 +725,7 @@ public class EsqlSession {
      */
     private static boolean couldOverrideAliases(LogicalPlan p) {
         return (p instanceof Aggregate
+            || p instanceof Completion
             || p instanceof Drop
             || p instanceof Eval
             || p instanceof Filter

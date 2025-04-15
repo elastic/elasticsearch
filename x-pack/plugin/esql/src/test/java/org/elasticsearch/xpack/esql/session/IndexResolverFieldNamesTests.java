@@ -1662,6 +1662,54 @@ public class IndexResolverFieldNamesTests extends ESTestCase {
         );
     }
 
+    public void testJoinMaskingKeep() {
+        assertFieldNames(
+            """
+                from languag*
+                | eval type = null
+                | rename language_name as message
+                | lookup join message_types_lookup on message
+                | rename type as message
+                | lookup join message_types_lookup on message
+                | keep `language.name`""",
+            Set.of("language.name", "type", "language_name", "message", "language_name.*", "message.*", "type.*", "language.name.*")
+        );
+    }
+
+    public void testJoinMaskingKeep2() {
+        assertFieldNames("""
+            from languag*
+            | eval type = "foo"
+            | rename type as message
+            | lookup join message_types_lookup on message
+            | rename type as message
+            | lookup join message_types_lookup on message
+            | keep `language.name`""", Set.of("language.name", "type", "message", "message.*", "type.*", "language.name.*"));
+    }
+
+    public void testEnrichMaskingEvalOn() {
+        assertFieldNames("""
+            from employees
+            | eval langague_name = null
+            | enrich languages_policy on languages
+            | rename language_name as languages
+            | eval languages = length(language_name)
+            | enrich languages_policy on languages
+            | keep emp_no, language_name""", Set.of("emp_no", "language_name", "languages", "language_name.*", "languages.*", "emp_no.*"));
+    }
+
+    public void testEnrichAndJoinMaskingEvalWh() {
+        assertFieldNames("""
+            from employees
+            | eval langague_name = null
+            | enrich languages_policy on languages
+            | rename language_name as languages
+            | eval languages = length(language_name)
+            | enrich languages_policy on languages
+            | lookup join message_types_lookup on language_name
+            | keep emp_no, language_name""", Set.of("emp_no", "language_name", "languages", "language_name.*", "languages.*", "emp_no.*"));
+    }
+
     private Set<String> fieldNames(String query, Set<String> enrichPolicyMatchFields) {
         var preAnalysisResult = new EsqlSession.PreAnalysisResult(null);
         return EsqlSession.fieldNames(parser.createStatement(query), enrichPolicyMatchFields, preAnalysisResult).fieldNames();

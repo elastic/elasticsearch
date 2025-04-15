@@ -28,7 +28,6 @@ import org.elasticsearch.action.downsample.DownsampleAction;
 import org.elasticsearch.action.index.TransportIndexAction;
 import org.elasticsearch.action.search.TransportSearchAction;
 import org.elasticsearch.action.search.TransportSearchScrollAction;
-import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.index.reindex.ReindexAction;
 import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.core.ilm.action.ILMActions;

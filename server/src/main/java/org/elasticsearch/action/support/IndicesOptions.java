@@ -10,7 +10,6 @@ package org.elasticsearch.action.support;
 
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.TransportVersions;
-import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.logging.DeprecationCategory;

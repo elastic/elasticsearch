@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.core.security.action.role;
 
-import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor.IndicesPrivileges;

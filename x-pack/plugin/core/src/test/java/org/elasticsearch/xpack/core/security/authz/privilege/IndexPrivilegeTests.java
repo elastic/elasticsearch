@@ -13,7 +13,6 @@ import org.elasticsearch.action.delete.TransportDeleteAction;
 import org.elasticsearch.action.index.TransportIndexAction;
 import org.elasticsearch.action.search.TransportSearchAction;
 import org.elasticsearch.action.update.TransportUpdateAction;
-import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.common.util.iterable.Iterables;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.rollup.action.GetRollupIndexCapsAction;

@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.security.authz;
 
 import org.elasticsearch.action.search.SearchRequest;
-import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.test.ESTestCase;

@@ -17,7 +17,6 @@ import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.update.UpdateResponse;
-import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.Assertions;
@@ -218,7 +217,6 @@ final class BulkRequestModifier implements Iterator<DocWriteRequest<?>> {
      * @param e the failure encountered.
      */
     public void markItemForFailureStore(int slot, String targetIndexName, Exception e) {
-        // PRTODO: We could check for cluster feature here instead
         // We get the index write request to find the source of the failed document
         IndexRequest indexRequest = TransportBulkAction.getIndexWriteRequest(bulkRequest.requests().get(slot));
         if (indexRequest == null) {

@@ -7,8 +7,6 @@
 
 package org.elasticsearch.xpack.security.operator;
 
-import org.elasticsearch.cluster.metadata.DataStream;
-
 import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;

@@ -60,7 +60,6 @@ import org.elasticsearch.test.client.NoOpNodeClient;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.junit.After;
-import org.junit.Assume;
 import org.junit.Before;
 
 import java.io.IOException;

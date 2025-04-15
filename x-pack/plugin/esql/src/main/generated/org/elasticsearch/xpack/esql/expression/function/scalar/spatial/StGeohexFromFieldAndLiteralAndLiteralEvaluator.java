@@ -15,7 +15,6 @@ import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.compute.operator.Warnings;
 import org.elasticsearch.core.Releasables;
-import org.elasticsearch.geometry.Rectangle;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 
 /**
@@ -27,20 +26,17 @@ public final class StGeohexFromFieldAndLiteralAndLiteralEvaluator implements Eva
 
   private final EvalOperator.ExpressionEvaluator in;
 
-  private final int precision;
-
-  private final Rectangle bounds;
+  private final GeoHexBoundedPredicate bounds;
 
   private final DriverContext driverContext;
 
   private Warnings warnings;
 
   public StGeohexFromFieldAndLiteralAndLiteralEvaluator(Source source,
-      EvalOperator.ExpressionEvaluator in, int precision, Rectangle bounds,
+      EvalOperator.ExpressionEvaluator in, GeoHexBoundedPredicate bounds,
       DriverContext driverContext) {
     this.source = source;
     this.in = in;
-    this.precision = precision;
     this.bounds = bounds;
     this.driverContext = driverContext;
   }
@@ -64,7 +60,7 @@ public final class StGeohexFromFieldAndLiteralAndLiteralEvaluator implements Eva
           continue position;
         }
         try {
-          StGeohex.fromFieldAndLiteralAndLiteral(result, p, inBlock, this.precision, this.bounds);
+          StGeohex.fromFieldAndLiteralAndLiteral(result, p, inBlock, this.bounds);
         } catch (IllegalArgumentException e) {
           warnings().registerException(e);
           result.appendNull();
@@ -76,7 +72,7 @@ public final class StGeohexFromFieldAndLiteralAndLiteralEvaluator implements Eva
 
   @Override
   public String toString() {
-    return "StGeohexFromFieldAndLiteralAndLiteralEvaluator[" + "in=" + in + ", precision=" + precision + ", bounds=" + bounds + "]";
+    return "StGeohexFromFieldAndLiteralAndLiteralEvaluator[" + "in=" + in + ", bounds=" + bounds + "]";
   }
 
   @Override
@@ -101,26 +97,23 @@ public final class StGeohexFromFieldAndLiteralAndLiteralEvaluator implements Eva
 
     private final EvalOperator.ExpressionEvaluator.Factory in;
 
-    private final int precision;
+    private final GeoHexBoundedPredicate bounds;
 
-    private final Rectangle bounds;
-
-    public Factory(Source source, EvalOperator.ExpressionEvaluator.Factory in, int precision,
-        Rectangle bounds) {
+    public Factory(Source source, EvalOperator.ExpressionEvaluator.Factory in,
+        GeoHexBoundedPredicate bounds) {
       this.source = source;
       this.in = in;
-      this.precision = precision;
       this.bounds = bounds;
     }
 
     @Override
     public StGeohexFromFieldAndLiteralAndLiteralEvaluator get(DriverContext context) {
-      return new StGeohexFromFieldAndLiteralAndLiteralEvaluator(source, in.get(context), precision, bounds, context);
+      return new StGeohexFromFieldAndLiteralAndLiteralEvaluator(source, in.get(context), bounds, context);
     }
 
     @Override
     public String toString() {
-      return "StGeohexFromFieldAndLiteralAndLiteralEvaluator[" + "in=" + in + ", precision=" + precision + ", bounds=" + bounds + "]";
+      return "StGeohexFromFieldAndLiteralAndLiteralEvaluator[" + "in=" + in + ", bounds=" + bounds + "]";
     }
   }
 }

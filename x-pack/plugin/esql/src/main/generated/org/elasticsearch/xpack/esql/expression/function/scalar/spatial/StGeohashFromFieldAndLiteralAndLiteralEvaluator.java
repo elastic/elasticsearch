@@ -15,7 +15,7 @@ import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.compute.operator.Warnings;
 import org.elasticsearch.core.Releasables;
-import org.elasticsearch.geometry.Rectangle;
+import org.elasticsearch.search.aggregations.bucket.geogrid.GeoHashBoundedPredicate;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 
 /**
@@ -27,20 +27,17 @@ public final class StGeohashFromFieldAndLiteralAndLiteralEvaluator implements Ev
 
   private final EvalOperator.ExpressionEvaluator in;
 
-  private final int precision;
-
-  private final Rectangle bounds;
+  private final GeoHashBoundedPredicate bounds;
 
   private final DriverContext driverContext;
 
   private Warnings warnings;
 
   public StGeohashFromFieldAndLiteralAndLiteralEvaluator(Source source,
-      EvalOperator.ExpressionEvaluator in, int precision, Rectangle bounds,
+      EvalOperator.ExpressionEvaluator in, GeoHashBoundedPredicate bounds,
       DriverContext driverContext) {
     this.source = source;
     this.in = in;
-    this.precision = precision;
     this.bounds = bounds;
     this.driverContext = driverContext;
   }
@@ -64,7 +61,7 @@ public final class StGeohashFromFieldAndLiteralAndLiteralEvaluator implements Ev
           continue position;
         }
         try {
-          StGeohash.fromFieldAndLiteralAndLiteral(result, p, inBlock, this.precision, this.bounds);
+          StGeohash.fromFieldAndLiteralAndLiteral(result, p, inBlock, this.bounds);
         } catch (IllegalArgumentException e) {
           warnings().registerException(e);
           result.appendNull();
@@ -76,7 +73,7 @@ public final class StGeohashFromFieldAndLiteralAndLiteralEvaluator implements Ev
 
   @Override
   public String toString() {
-    return "StGeohashFromFieldAndLiteralAndLiteralEvaluator[" + "in=" + in + ", precision=" + precision + ", bounds=" + bounds + "]";
+    return "StGeohashFromFieldAndLiteralAndLiteralEvaluator[" + "in=" + in + ", bounds=" + bounds + "]";
   }
 
   @Override
@@ -101,26 +98,23 @@ public final class StGeohashFromFieldAndLiteralAndLiteralEvaluator implements Ev
 
     private final EvalOperator.ExpressionEvaluator.Factory in;
 
-    private final int precision;
+    private final GeoHashBoundedPredicate bounds;
 
-    private final Rectangle bounds;
-
-    public Factory(Source source, EvalOperator.ExpressionEvaluator.Factory in, int precision,
-        Rectangle bounds) {
+    public Factory(Source source, EvalOperator.ExpressionEvaluator.Factory in,
+        GeoHashBoundedPredicate bounds) {
       this.source = source;
       this.in = in;
-      this.precision = precision;
       this.bounds = bounds;
     }
 
     @Override
     public StGeohashFromFieldAndLiteralAndLiteralEvaluator get(DriverContext context) {
-      return new StGeohashFromFieldAndLiteralAndLiteralEvaluator(source, in.get(context), precision, bounds, context);
+      return new StGeohashFromFieldAndLiteralAndLiteralEvaluator(source, in.get(context), bounds, context);
     }
 
     @Override
     public String toString() {
-      return "StGeohashFromFieldAndLiteralAndLiteralEvaluator[" + "in=" + in + ", precision=" + precision + ", bounds=" + bounds + "]";
+      return "StGeohashFromFieldAndLiteralAndLiteralEvaluator[" + "in=" + in + ", bounds=" + bounds + "]";
     }
   }
 }

@@ -68,7 +68,7 @@ public class StGeotile extends SpatialGridFunction implements EvaluatorMapper {
         @Param(
             name = "bounds",
             type = { "geo_shape", "geo_point" },
-            description = "Bounds to filter the grid tiles, either a geo_shape BBOX or an array",
+            description = "Bounds to filter the grid tiles, either a geo_shape BBOX or an array of two points",
             optional = true
         ) Expression bounds
     ) {
@@ -297,7 +297,8 @@ public class StGeotile extends SpatialGridFunction implements EvaluatorMapper {
         if (bounds.validTile(x, y, bounds.precision())) {
             return GeoTileUtils.longEncodeTiles(bounds.precision(), x, y);
         }
-        return -1;
+        // TODO: Are we sure negative numbers are not valid
+        return -1L;
     }
 
     private static void fromWKB(LongBlock.Builder results, int position, BytesRefBlock wkbBlock, GeoTileBoundedPredicate bounds) {

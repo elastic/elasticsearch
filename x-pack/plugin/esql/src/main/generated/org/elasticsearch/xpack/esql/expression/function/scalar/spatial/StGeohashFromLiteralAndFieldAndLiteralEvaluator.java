@@ -8,6 +8,7 @@ import java.lang.IllegalArgumentException;
 import java.lang.Override;
 import java.lang.String;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.geo.GeoBoundingBox;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.IntVector;
@@ -17,7 +18,6 @@ import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.compute.operator.Warnings;
 import org.elasticsearch.core.Releasables;
-import org.elasticsearch.geometry.Rectangle;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 
 /**
@@ -31,18 +31,19 @@ public final class StGeohashFromLiteralAndFieldAndLiteralEvaluator implements Ev
 
   private final EvalOperator.ExpressionEvaluator precision;
 
-  private final Rectangle bounds;
+  private final GeoBoundingBox bbox;
 
   private final DriverContext driverContext;
 
   private Warnings warnings;
 
   public StGeohashFromLiteralAndFieldAndLiteralEvaluator(Source source, BytesRef in,
-      EvalOperator.ExpressionEvaluator precision, Rectangle bounds, DriverContext driverContext) {
+      EvalOperator.ExpressionEvaluator precision, GeoBoundingBox bbox,
+      DriverContext driverContext) {
     this.source = source;
     this.in = in;
     this.precision = precision;
-    this.bounds = bounds;
+    this.bbox = bbox;
     this.driverContext = driverContext;
   }
 
@@ -72,7 +73,7 @@ public final class StGeohashFromLiteralAndFieldAndLiteralEvaluator implements Ev
           continue position;
         }
         try {
-          result.appendLong(StGeohash.fromLiteralAndFieldAndLiteral(this.in, precisionBlock.getInt(precisionBlock.getFirstValueIndex(p)), this.bounds));
+          result.appendLong(StGeohash.fromLiteralAndFieldAndLiteral(this.in, precisionBlock.getInt(precisionBlock.getFirstValueIndex(p)), this.bbox));
         } catch (IllegalArgumentException e) {
           warnings().registerException(e);
           result.appendNull();
@@ -86,7 +87,7 @@ public final class StGeohashFromLiteralAndFieldAndLiteralEvaluator implements Ev
     try(LongBlock.Builder result = driverContext.blockFactory().newLongBlockBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
         try {
-          result.appendLong(StGeohash.fromLiteralAndFieldAndLiteral(this.in, precisionVector.getInt(p), this.bounds));
+          result.appendLong(StGeohash.fromLiteralAndFieldAndLiteral(this.in, precisionVector.getInt(p), this.bbox));
         } catch (IllegalArgumentException e) {
           warnings().registerException(e);
           result.appendNull();
@@ -98,7 +99,7 @@ public final class StGeohashFromLiteralAndFieldAndLiteralEvaluator implements Ev
 
   @Override
   public String toString() {
-    return "StGeohashFromLiteralAndFieldAndLiteralEvaluator[" + "in=" + in + ", precision=" + precision + ", bounds=" + bounds + "]";
+    return "StGeohashFromLiteralAndFieldAndLiteralEvaluator[" + "in=" + in + ", precision=" + precision + ", bbox=" + bbox + "]";
   }
 
   @Override
@@ -125,24 +126,24 @@ public final class StGeohashFromLiteralAndFieldAndLiteralEvaluator implements Ev
 
     private final EvalOperator.ExpressionEvaluator.Factory precision;
 
-    private final Rectangle bounds;
+    private final GeoBoundingBox bbox;
 
     public Factory(Source source, BytesRef in, EvalOperator.ExpressionEvaluator.Factory precision,
-        Rectangle bounds) {
+        GeoBoundingBox bbox) {
       this.source = source;
       this.in = in;
       this.precision = precision;
-      this.bounds = bounds;
+      this.bbox = bbox;
     }
 
     @Override
     public StGeohashFromLiteralAndFieldAndLiteralEvaluator get(DriverContext context) {
-      return new StGeohashFromLiteralAndFieldAndLiteralEvaluator(source, in, precision.get(context), bounds, context);
+      return new StGeohashFromLiteralAndFieldAndLiteralEvaluator(source, in, precision.get(context), bbox, context);
     }
 
     @Override
     public String toString() {
-      return "StGeohashFromLiteralAndFieldAndLiteralEvaluator[" + "in=" + in + ", precision=" + precision + ", bounds=" + bounds + "]";
+      return "StGeohashFromLiteralAndFieldAndLiteralEvaluator[" + "in=" + in + ", precision=" + precision + ", bbox=" + bbox + "]";
     }
   }
 }

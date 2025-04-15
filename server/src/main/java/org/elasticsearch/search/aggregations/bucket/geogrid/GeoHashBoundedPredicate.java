@@ -18,11 +18,13 @@ import org.elasticsearch.geometry.utils.Geohash;
  */
 public class GeoHashBoundedPredicate {
 
+    private final int precision;
     private final boolean crossesDateline;
     private final long maxHashes;
     private final GeoBoundingBox bbox;
 
     public GeoHashBoundedPredicate(int precision, GeoBoundingBox bbox) {
+        this.precision = precision;
         this.crossesDateline = bbox.right() < bbox.left();
         this.bbox = bbox;
         final long hashesY = (long) Math.ceil(((bbox.top() - bbox.bottom()) / Geohash.latHeightInDegrees(precision)) + 1);
@@ -68,5 +70,9 @@ public class GeoHashBoundedPredicate {
      */
     public long getMaxHashes() {
         return maxHashes;
+    }
+
+    public int precision() {
+        return precision;
     }
 }

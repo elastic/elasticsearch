@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.expression.function.scalar.spatial;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.geo.GeoBoundingBox;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.compute.ann.Evaluator;
@@ -16,7 +17,6 @@ import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.geometry.Point;
-import org.elasticsearch.geometry.Rectangle;
 import org.elasticsearch.h3.H3;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
@@ -109,9 +109,9 @@ public class StGeohex extends SpatialGridFunction implements EvaluatorMapper {
     public EvalOperator.ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
         if (bounds != null) {
             if (bounds.foldable() == false) {
-                throw new IllegalArgumentException("bounds must foldable");
+                throw new IllegalArgumentException("bounds must be foldable");
             }
-            Rectangle bbox = asRectangle((BytesRef) bounds.fold(toEvaluator.foldCtx()));
+            GeoBoundingBox bbox = asGeoBoundingBox((BytesRef) bounds.fold(toEvaluator.foldCtx()));
             if (spatialField().foldable()) {
                 // Assume right is not foldable, since that would be dealt with in isFoldable() and fold()
                 var point = (BytesRef) spatialField.fold(toEvaluator.foldCtx());
@@ -119,19 +119,14 @@ public class StGeohex extends SpatialGridFunction implements EvaluatorMapper {
             } else if (parameter().foldable()) {
                 // Assume left is not foldable, since that would be dealt with in isFoldable() and fold()
                 int precision = (int) parameter.fold(toEvaluator.foldCtx());
+                GeoHexBoundedPredicate bounds = new GeoHexBoundedPredicate(precision, bbox);
                 return spatialDocsValues
                     ? new StGeohexFromFieldDocValuesAndLiteralAndLiteralEvaluator.Factory(
                         source(),
                         toEvaluator.apply(spatialField()),
-                        precision,
-                        bbox
+                        bounds
                     )
-                    : new StGeohexFromFieldAndLiteralAndLiteralEvaluator.Factory(
-                        source(),
-                        toEvaluator.apply(spatialField),
-                        precision,
-                        bbox
-                    );
+                    : new StGeohexFromFieldAndLiteralAndLiteralEvaluator.Factory(source(), toEvaluator.apply(spatialField), bounds);
             } else {
                 // Both arguments come from index fields
                 return spatialDocsValues
@@ -156,6 +151,7 @@ public class StGeohex extends SpatialGridFunction implements EvaluatorMapper {
             } else if (parameter().foldable()) {
                 // Assume left is not foldable, since that would be dealt with in isFoldable() and fold()
                 int precision = (int) parameter.fold(toEvaluator.foldCtx());
+                // TODO: Use GeoHexBoundedPredicate
                 return spatialDocsValues
                     ? new StGeohexFromFieldDocValuesAndLiteralEvaluator.Factory(source(), toEvaluator.apply(spatialField()), precision)
                     : new StGeohexFromFieldAndLiteralEvaluator.Factory(source(), toEvaluator.apply(spatialField), precision);
@@ -180,6 +176,7 @@ public class StGeohex extends SpatialGridFunction implements EvaluatorMapper {
     public Object fold(FoldContext ctx) {
         var point = (BytesRef) spatialField().fold(ctx);
         int precision = (int) parameter().fold(ctx);
+        // TODO: Use GeoHexBoundedPredicate
         return calculateGeohex(GEO.wkbAsPoint(point), precision);
     }
 
@@ -213,14 +210,8 @@ public class StGeohex extends SpatialGridFunction implements EvaluatorMapper {
     }
 
     @Evaluator(extraName = "FromFieldAndLiteralAndLiteral", warnExceptions = { IllegalArgumentException.class })
-    static void fromFieldAndLiteralAndLiteral(
-        LongBlock.Builder results,
-        int p,
-        BytesRefBlock in,
-        @Fixed int precision,
-        @Fixed Rectangle bounds
-    ) {
-        fromWKB(results, p, in, precision, bounds);
+    static void fromFieldAndLiteralAndLiteral(LongBlock.Builder results, int p, BytesRefBlock in, @Fixed GeoHexBoundedPredicate bounds) {
+        fromWKB(results, p, in, bounds);
     }
 
     @Evaluator(extraName = "FromFieldDocValuesAndLiteralAndLiteral", warnExceptions = { IllegalArgumentException.class })
@@ -228,15 +219,15 @@ public class StGeohex extends SpatialGridFunction implements EvaluatorMapper {
         LongBlock.Builder results,
         int p,
         LongBlock encoded,
-        @Fixed int precision,
-        @Fixed Rectangle bounds
+        @Fixed GeoHexBoundedPredicate bounds
     ) {
-        fromEncodedLong(results, p, encoded, precision, bounds);
+        fromEncodedLong(results, p, encoded, bounds);
     }
 
     @Evaluator(extraName = "FromFieldAndFieldAndLiteral", warnExceptions = { IllegalArgumentException.class })
-    static void fromFieldAndFieldAndLiteral(LongBlock.Builder results, int p, BytesRefBlock in, int precision, @Fixed Rectangle bounds) {
-        fromWKB(results, p, in, precision, bounds);
+    static void fromFieldAndFieldAndLiteral(LongBlock.Builder results, int p, BytesRefBlock in, int precision, @Fixed GeoBoundingBox bbox) {
+        GeoHexBoundedPredicate bounds = new GeoHexBoundedPredicate(precision, bbox);
+        fromWKB(results, p, in, bounds);
     }
 
     @Evaluator(extraName = "FromFieldDocValuesAndFieldAndLiteral", warnExceptions = { IllegalArgumentException.class })
@@ -245,14 +236,16 @@ public class StGeohex extends SpatialGridFunction implements EvaluatorMapper {
         int p,
         LongBlock encoded,
         int precision,
-        @Fixed Rectangle bounds
+        @Fixed GeoBoundingBox bbox
     ) {
-        fromEncodedLong(results, p, encoded, precision, bounds);
+        GeoHexBoundedPredicate bounds = new GeoHexBoundedPredicate(precision, bbox);
+        fromEncodedLong(results, p, encoded, bounds);
     }
 
     @Evaluator(extraName = "FromLiteralAndFieldAndLiteral", warnExceptions = { IllegalArgumentException.class })
-    static long fromLiteralAndFieldAndLiteral(@Fixed BytesRef in, int precision, @Fixed Rectangle bounds) {
-        return calculateGeohex(GEO.wkbAsPoint(in), precision, bounds);
+    static long fromLiteralAndFieldAndLiteral(@Fixed BytesRef in, int precision, @Fixed GeoBoundingBox bbox) {
+        GeoHexBoundedPredicate bounds = new GeoHexBoundedPredicate(precision, bbox);
+        return calculateGeohex(GEO.wkbAsPoint(in), bounds);
     }
 
     private static void fromWKB(LongBlock.Builder results, int position, BytesRefBlock wkbBlock, int precision) {
@@ -292,15 +285,17 @@ public class StGeohex extends SpatialGridFunction implements EvaluatorMapper {
         }
     }
 
-    protected static long calculateGeohex(Point point, int precision, Rectangle bounds) {
+    protected static long calculateGeohex(Point point, GeoHexBoundedPredicate bounds) {
         // For points, filtering the point is as good as filtering the tile
-        if (inBounds(point, bounds)) {
-            return H3.geoToH3(point.getLat(), point.getLon(), precision);
+        long geohex = H3.geoToH3(point.getLat(), point.getLon(), bounds.precision());
+        if (bounds.validHex(geohex)) {
+            return geohex;
         }
+        // TODO: Are we sure negative numbers are not valid
         return -1L;
     }
 
-    private static void fromWKB(LongBlock.Builder results, int position, BytesRefBlock wkbBlock, int precision, Rectangle bounds) {
+    private static void fromWKB(LongBlock.Builder results, int position, BytesRefBlock wkbBlock, GeoHexBoundedPredicate bounds) {
         int valueCount = wkbBlock.getValueCount(position);
         if (valueCount < 1) {
             results.appendNull();
@@ -308,7 +303,7 @@ public class StGeohex extends SpatialGridFunction implements EvaluatorMapper {
             final BytesRef scratch = new BytesRef();
             final int firstValueIndex = wkbBlock.getFirstValueIndex(position);
             if (valueCount == 1) {
-                long grid = calculateGeohex(GEO.wkbAsPoint(wkbBlock.getBytesRef(firstValueIndex, scratch)), precision, bounds);
+                long grid = calculateGeohex(GEO.wkbAsPoint(wkbBlock.getBytesRef(firstValueIndex, scratch)), bounds);
                 if (grid < 0) {
                     results.appendNull();
                 } else {
@@ -317,7 +312,7 @@ public class StGeohex extends SpatialGridFunction implements EvaluatorMapper {
             } else {
                 var gridIds = new ArrayList<Long>(valueCount);
                 for (int i = 0; i < valueCount; i++) {
-                    var grid = calculateGeohex(GEO.wkbAsPoint(wkbBlock.getBytesRef(firstValueIndex + i, scratch)), precision, bounds);
+                    var grid = calculateGeohex(GEO.wkbAsPoint(wkbBlock.getBytesRef(firstValueIndex + i, scratch)), bounds);
                     if (grid >= 0) {
                         gridIds.add(grid);
                     }
@@ -327,14 +322,14 @@ public class StGeohex extends SpatialGridFunction implements EvaluatorMapper {
         }
     }
 
-    private static void fromEncodedLong(LongBlock.Builder results, int position, LongBlock encoded, int precision, Rectangle bounds) {
+    private static void fromEncodedLong(LongBlock.Builder results, int position, LongBlock encoded, GeoHexBoundedPredicate bounds) {
         int valueCount = encoded.getValueCount(position);
         if (valueCount < 1) {
             results.appendNull();
         } else {
             final int firstValueIndex = encoded.getFirstValueIndex(position);
             if (valueCount == 1) {
-                long grid = calculateGeohex(GEO.longAsPoint(encoded.getLong(firstValueIndex)), precision, bounds);
+                long grid = calculateGeohex(GEO.longAsPoint(encoded.getLong(firstValueIndex)), bounds);
                 if (grid < 0) {
                     results.appendNull();
                 } else {
@@ -343,7 +338,7 @@ public class StGeohex extends SpatialGridFunction implements EvaluatorMapper {
             } else {
                 var gridIds = new ArrayList<Long>(valueCount);
                 for (int i = 0; i < valueCount; i++) {
-                    var grid = calculateGeohex(GEO.longAsPoint(encoded.getLong(firstValueIndex + i)), precision, bounds);
+                    var grid = calculateGeohex(GEO.longAsPoint(encoded.getLong(firstValueIndex + i)), bounds);
                     if (grid >= 0) {
                         gridIds.add(grid);
                     }

@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.expression.function.scalar.spatial;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.geo.GeoBoundingBox;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.compute.ann.Evaluator;
@@ -16,8 +17,8 @@ import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.geometry.Point;
-import org.elasticsearch.geometry.Rectangle;
 import org.elasticsearch.geometry.utils.Geohash;
+import org.elasticsearch.search.aggregations.bucket.geogrid.GeoHashBoundedPredicate;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
@@ -113,9 +114,9 @@ public class StGeohash extends SpatialGridFunction implements EvaluatorMapper {
     public EvalOperator.ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
         if (bounds != null) {
             if (bounds.foldable() == false) {
-                throw new IllegalArgumentException("bounds must foldable");
+                throw new IllegalArgumentException("bounds must be foldable");
             }
-            Rectangle bbox = asRectangle((BytesRef) bounds.fold(toEvaluator.foldCtx()));
+            GeoBoundingBox bbox = asGeoBoundingBox((BytesRef) bounds.fold(toEvaluator.foldCtx()));
             if (spatialField().foldable()) {
                 // Assume right is not foldable, since that would be dealt with in isFoldable() and fold()
                 var point = (BytesRef) spatialField.fold(toEvaluator.foldCtx());
@@ -123,19 +124,14 @@ public class StGeohash extends SpatialGridFunction implements EvaluatorMapper {
             } else if (parameter().foldable()) {
                 // Assume left is not foldable, since that would be dealt with in isFoldable() and fold()
                 int precision = (int) parameter.fold(toEvaluator.foldCtx());
+                GeoHashBoundedPredicate bounds = new GeoHashBoundedPredicate(precision, bbox);
                 return spatialDocsValues
                     ? new StGeohashFromFieldDocValuesAndLiteralAndLiteralEvaluator.Factory(
                         source(),
                         toEvaluator.apply(spatialField()),
-                        precision,
-                        bbox
+                        bounds
                     )
-                    : new StGeohashFromFieldAndLiteralAndLiteralEvaluator.Factory(
-                        source(),
-                        toEvaluator.apply(spatialField),
-                        precision,
-                        bbox
-                    );
+                    : new StGeohashFromFieldAndLiteralAndLiteralEvaluator.Factory(source(), toEvaluator.apply(spatialField), bounds);
             } else {
                 // Both arguments come from index fields
                 return spatialDocsValues
@@ -184,6 +180,7 @@ public class StGeohash extends SpatialGridFunction implements EvaluatorMapper {
     public Object fold(FoldContext ctx) {
         var point = (BytesRef) spatialField().fold(ctx);
         int precision = (int) parameter().fold(ctx);
+        // TODO: Use GeoHashBoundedPredicate
         return calculateGeohash(GEO.wkbAsPoint(point), precision);
     }
 
@@ -217,14 +214,8 @@ public class StGeohash extends SpatialGridFunction implements EvaluatorMapper {
     }
 
     @Evaluator(extraName = "FromFieldAndLiteralAndLiteral", warnExceptions = { IllegalArgumentException.class })
-    static void fromFieldAndLiteralAndLiteral(
-        LongBlock.Builder results,
-        int p,
-        BytesRefBlock in,
-        @Fixed int precision,
-        @Fixed Rectangle bounds
-    ) {
-        fromWKB(results, p, in, precision, bounds);
+    static void fromFieldAndLiteralAndLiteral(LongBlock.Builder results, int p, BytesRefBlock in, @Fixed GeoHashBoundedPredicate bounds) {
+        fromWKB(results, p, in, bounds);
     }
 
     @Evaluator(extraName = "FromFieldDocValuesAndLiteralAndLiteral", warnExceptions = { IllegalArgumentException.class })
@@ -232,15 +223,15 @@ public class StGeohash extends SpatialGridFunction implements EvaluatorMapper {
         LongBlock.Builder results,
         int p,
         LongBlock encoded,
-        @Fixed int precision,
-        @Fixed Rectangle bounds
+        @Fixed GeoHashBoundedPredicate bounds
     ) {
-        fromEncodedLong(results, p, encoded, precision, bounds);
+        fromEncodedLong(results, p, encoded, bounds);
     }
 
     @Evaluator(extraName = "FromFieldAndFieldAndLiteral", warnExceptions = { IllegalArgumentException.class })
-    static void fromFieldAndFieldAndLiteral(LongBlock.Builder results, int p, BytesRefBlock in, int precision, @Fixed Rectangle bounds) {
-        fromWKB(results, p, in, precision, bounds);
+    static void fromFieldAndFieldAndLiteral(LongBlock.Builder results, int p, BytesRefBlock in, int precision, @Fixed GeoBoundingBox bbox) {
+        GeoHashBoundedPredicate bounds = new GeoHashBoundedPredicate(precision, bbox);
+        fromWKB(results, p, in, bounds);
     }
 
     @Evaluator(extraName = "FromFieldDocValuesAndFieldAndLiteral", warnExceptions = { IllegalArgumentException.class })
@@ -249,14 +240,16 @@ public class StGeohash extends SpatialGridFunction implements EvaluatorMapper {
         int p,
         LongBlock encoded,
         int precision,
-        @Fixed Rectangle bounds
+        @Fixed GeoBoundingBox bbox
     ) {
-        fromEncodedLong(results, p, encoded, precision, bounds);
+        GeoHashBoundedPredicate bounds = new GeoHashBoundedPredicate(precision, bbox);
+        fromEncodedLong(results, p, encoded, bounds);
     }
 
     @Evaluator(extraName = "FromLiteralAndFieldAndLiteral", warnExceptions = { IllegalArgumentException.class })
-    static long fromLiteralAndFieldAndLiteral(@Fixed BytesRef in, int precision, @Fixed Rectangle bounds) {
-        return calculateGeohash(GEO.wkbAsPoint(in), precision, bounds);
+    static long fromLiteralAndFieldAndLiteral(@Fixed BytesRef in, int precision, @Fixed GeoBoundingBox bbox) {
+        GeoHashBoundedPredicate bounds = new GeoHashBoundedPredicate(precision, bbox);
+        return calculateGeohash(GEO.wkbAsPoint(in), bounds);
     }
 
     private static void fromWKB(LongBlock.Builder results, int position, BytesRefBlock wkbBlock, int precision) {
@@ -296,16 +289,16 @@ public class StGeohash extends SpatialGridFunction implements EvaluatorMapper {
         }
     }
 
-    protected static long calculateGeohash(Point point, int precision, Rectangle bounds) {
-        // For points, filtering the point is as good as filtering the tile
-        if (inBounds(point, bounds)) {
-            return Geohash.longEncode(point.getX(), point.getY(), precision);
+    protected static long calculateGeohash(Point point, GeoHashBoundedPredicate bounds) {
+        String geohash = Geohash.stringEncode(point.getX(), point.getY(), bounds.precision());
+        if (bounds.validHash(geohash)) {
+            return Geohash.longEncode(geohash);
         }
-        // TODO: When we move to GeohashBoundsPredicate we can hopefullly improve this condition
+        // TODO: Are negative values allowed in geohash long encoding?
         return -1;
     }
 
-    private static void fromWKB(LongBlock.Builder results, int position, BytesRefBlock wkbBlock, int precision, Rectangle bounds) {
+    private static void fromWKB(LongBlock.Builder results, int position, BytesRefBlock wkbBlock, GeoHashBoundedPredicate bounds) {
         int valueCount = wkbBlock.getValueCount(position);
         if (valueCount < 1) {
             results.appendNull();
@@ -313,7 +306,7 @@ public class StGeohash extends SpatialGridFunction implements EvaluatorMapper {
             final BytesRef scratch = new BytesRef();
             final int firstValueIndex = wkbBlock.getFirstValueIndex(position);
             if (valueCount == 1) {
-                long grid = calculateGeohash(GEO.wkbAsPoint(wkbBlock.getBytesRef(firstValueIndex, scratch)), precision, bounds);
+                long grid = calculateGeohash(GEO.wkbAsPoint(wkbBlock.getBytesRef(firstValueIndex, scratch)), bounds);
                 if (grid < 0) {
                     results.appendNull();
                 } else {
@@ -322,7 +315,7 @@ public class StGeohash extends SpatialGridFunction implements EvaluatorMapper {
             } else {
                 var gridIds = new ArrayList<Long>(valueCount);
                 for (int i = 0; i < valueCount; i++) {
-                    var grid = calculateGeohash(GEO.wkbAsPoint(wkbBlock.getBytesRef(firstValueIndex + i, scratch)), precision, bounds);
+                    var grid = calculateGeohash(GEO.wkbAsPoint(wkbBlock.getBytesRef(firstValueIndex + i, scratch)), bounds);
                     if (grid >= 0) {
                         gridIds.add(grid);
                     }
@@ -332,14 +325,14 @@ public class StGeohash extends SpatialGridFunction implements EvaluatorMapper {
         }
     }
 
-    private static void fromEncodedLong(LongBlock.Builder results, int position, LongBlock encoded, int precision, Rectangle bounds) {
+    private static void fromEncodedLong(LongBlock.Builder results, int position, LongBlock encoded, GeoHashBoundedPredicate bounds) {
         int valueCount = encoded.getValueCount(position);
         if (valueCount < 1) {
             results.appendNull();
         } else {
             final int firstValueIndex = encoded.getFirstValueIndex(position);
             if (valueCount == 1) {
-                long grid = calculateGeohash(GEO.longAsPoint(encoded.getLong(firstValueIndex)), precision, bounds);
+                long grid = calculateGeohash(GEO.longAsPoint(encoded.getLong(firstValueIndex)), bounds);
                 if (grid < 0) {
                     results.appendNull();
                 } else {
@@ -348,7 +341,7 @@ public class StGeohash extends SpatialGridFunction implements EvaluatorMapper {
             } else {
                 var gridIds = new ArrayList<Long>(valueCount);
                 for (int i = 0; i < valueCount; i++) {
-                    var grid = calculateGeohash(GEO.longAsPoint(encoded.getLong(firstValueIndex + i)), precision, bounds);
+                    var grid = calculateGeohash(GEO.longAsPoint(encoded.getLong(firstValueIndex + i)), bounds);
                     if (grid >= 0) {
                         gridIds.add(grid);
                     }

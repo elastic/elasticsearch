@@ -14,7 +14,6 @@ import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.compute.operator.Warnings;
 import org.elasticsearch.core.Releasables;
-import org.elasticsearch.geometry.Rectangle;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 
 /**
@@ -26,20 +25,17 @@ public final class StGeohexFromFieldDocValuesAndLiteralAndLiteralEvaluator imple
 
   private final EvalOperator.ExpressionEvaluator encoded;
 
-  private final int precision;
-
-  private final Rectangle bounds;
+  private final GeoHexBoundedPredicate bounds;
 
   private final DriverContext driverContext;
 
   private Warnings warnings;
 
   public StGeohexFromFieldDocValuesAndLiteralAndLiteralEvaluator(Source source,
-      EvalOperator.ExpressionEvaluator encoded, int precision, Rectangle bounds,
+      EvalOperator.ExpressionEvaluator encoded, GeoHexBoundedPredicate bounds,
       DriverContext driverContext) {
     this.source = source;
     this.encoded = encoded;
-    this.precision = precision;
     this.bounds = bounds;
     this.driverContext = driverContext;
   }
@@ -63,7 +59,7 @@ public final class StGeohexFromFieldDocValuesAndLiteralAndLiteralEvaluator imple
           continue position;
         }
         try {
-          StGeohex.fromFieldDocValuesAndLiteralAndLiteral(result, p, encodedBlock, this.precision, this.bounds);
+          StGeohex.fromFieldDocValuesAndLiteralAndLiteral(result, p, encodedBlock, this.bounds);
         } catch (IllegalArgumentException e) {
           warnings().registerException(e);
           result.appendNull();
@@ -75,7 +71,7 @@ public final class StGeohexFromFieldDocValuesAndLiteralAndLiteralEvaluator imple
 
   @Override
   public String toString() {
-    return "StGeohexFromFieldDocValuesAndLiteralAndLiteralEvaluator[" + "encoded=" + encoded + ", precision=" + precision + ", bounds=" + bounds + "]";
+    return "StGeohexFromFieldDocValuesAndLiteralAndLiteralEvaluator[" + "encoded=" + encoded + ", bounds=" + bounds + "]";
   }
 
   @Override
@@ -100,26 +96,23 @@ public final class StGeohexFromFieldDocValuesAndLiteralAndLiteralEvaluator imple
 
     private final EvalOperator.ExpressionEvaluator.Factory encoded;
 
-    private final int precision;
+    private final GeoHexBoundedPredicate bounds;
 
-    private final Rectangle bounds;
-
-    public Factory(Source source, EvalOperator.ExpressionEvaluator.Factory encoded, int precision,
-        Rectangle bounds) {
+    public Factory(Source source, EvalOperator.ExpressionEvaluator.Factory encoded,
+        GeoHexBoundedPredicate bounds) {
       this.source = source;
       this.encoded = encoded;
-      this.precision = precision;
       this.bounds = bounds;
     }
 
     @Override
     public StGeohexFromFieldDocValuesAndLiteralAndLiteralEvaluator get(DriverContext context) {
-      return new StGeohexFromFieldDocValuesAndLiteralAndLiteralEvaluator(source, encoded.get(context), precision, bounds, context);
+      return new StGeohexFromFieldDocValuesAndLiteralAndLiteralEvaluator(source, encoded.get(context), bounds, context);
     }
 
     @Override
     public String toString() {
-      return "StGeohexFromFieldDocValuesAndLiteralAndLiteralEvaluator[" + "encoded=" + encoded + ", precision=" + precision + ", bounds=" + bounds + "]";
+      return "StGeohexFromFieldDocValuesAndLiteralAndLiteralEvaluator[" + "encoded=" + encoded + ", bounds=" + bounds + "]";
     }
   }
 }

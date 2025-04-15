@@ -17,6 +17,7 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.RunOnce;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.lucene.DataPartitioning;
 import org.elasticsearch.compute.operator.Driver;
 import org.elasticsearch.compute.operator.DriverProfile;
 import org.elasticsearch.compute.operator.DriverTaskRunner;
@@ -39,9 +40,9 @@ import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.AbstractTransportRequest;
 import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.transport.TransportException;
-import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.esql.action.EsqlExecutionInfo;
 import org.elasticsearch.xpack.esql.action.EsqlQueryAction;
@@ -74,10 +75,10 @@ import static org.elasticsearch.xpack.esql.plugin.EsqlPlugin.ESQL_WORKER_THREAD_
 /**
  * Once query is parsed and validated it is scheduled for execution by {@code org.elasticsearch.xpack.esql.plugin.ComputeService#execute}
  * This method is responsible for splitting physical plan into coordinator and data node plans.
- *
+ * <p>
  * Coordinator plan is immediately executed locally (using {@code org.elasticsearch.xpack.esql.plugin.ComputeService#runCompute})
  * and is prepared to collect and merge pages from data nodes into the final query result.
- *
+ * <p>
  * Data node plan is passed to {@code org.elasticsearch.xpack.esql.plugin.DataNodeComputeHandler#startComputeOnDataNodes}
  * that is responsible for
  * <ul>
@@ -133,6 +134,8 @@ public class ComputeService {
     private final ClusterComputeHandler clusterComputeHandler;
     private final ExchangeService exchangeService;
 
+    private volatile DataPartitioning defaultDataPartitioning;
+
     @SuppressWarnings("this-escape")
     public ComputeService(
         TransportActionServices transportActionServices,
@@ -161,6 +164,7 @@ public class ComputeService {
             esqlExecutor,
             dataNodeComputeHandler
         );
+        clusterService.getClusterSettings().initializeAndWatch(EsqlPlugin.DEFAULT_DATA_PARTITIONING, v -> this.defaultDataPartitioning = v);
     }
 
     public void execute(
@@ -429,7 +433,12 @@ public class ComputeService {
                 enrichLookupService,
                 lookupFromIndexService,
                 inferenceRunner,
-                new EsPhysicalOperationProviders(context.foldCtx(), contexts, searchService.getIndicesService().getAnalysis()),
+                new EsPhysicalOperationProviders(
+                    context.foldCtx(),
+                    contexts,
+                    searchService.getIndicesService().getAnalysis(),
+                    defaultDataPartitioning
+                ),
                 contexts
             );
 
@@ -501,7 +510,7 @@ public class ComputeService {
         }
     }
 
-    private static class ComputeGroupTaskRequest extends TransportRequest {
+    private static class ComputeGroupTaskRequest extends AbstractTransportRequest {
         private final Supplier<String> parentDescription;
 
         ComputeGroupTaskRequest(TaskId parentTask, Supplier<String> description) {

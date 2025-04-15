@@ -37,9 +37,9 @@ FROM employees
 // end::keepWildcard[]
 | LIMIT 0;
 
-// tag::keep-wildcard-result[]
+// tag::keepWildcard-result[]
 height:double | height.float:double | height.half_float:double | height.scaled_float:double | hire_date:date
-// end::keep-wildcard-result[]
+// end::keepWildcard-result[]
 ;
 
 docsKeepDoubleWildcard
@@ -49,9 +49,9 @@ FROM employees
 // end::keepDoubleWildcard[]
 | LIMIT 0;
 
-// tag::keep-double-wildcard-result[]
+// tag::keepDoubleWildcard-result[]
 height:double | height.float:double | height.half_float:double | height.scaled_float:double |       hire_date:date | avg_worked_seconds:long | birth_date:date | emp_no:integer | first_name:keyword | gender:keyword | is_rehired:boolean | job_positions:keyword | languages:integer | languages.byte:integer | languages.long:long | languages.short:integer | last_name:keyword | salary:integer | salary_change:double | salary_change.int:integer |salary_change.keyword:keyword |salary_change.long:long |still_hired:boolean
-// end::keep-double-wildcard-result[]
+// end::keepDoubleWildcard-result[]
 ;
 
 docsKeepCompleteName#[skip:-8.12.99, reason:duplicate precedence rules added in 8.13]
@@ -61,9 +61,9 @@ FROM employees
 // end::keepCompleteName[]
 | LIMIT 0;
 
-// tag::keep-complete-name-result[]
+// tag::keepCompleteName-result[]
 first_name:keyword | last_name:keyword
-// end::keep-complete-name-result[]
+// end::keepCompleteName-result[]
 ;
 
 docsKeepWildcardPrecedence#[skip:-8.12.99, reason:duplicate precedence rules added in 8.13]
@@ -73,9 +73,9 @@ FROM employees
 // end::keepWildcardPrecedence[]
 | LIMIT 0;
 
-// tag::keep-wildcard-precedence-result[]
+// tag::keepWildcardPrecedence-result[]
 last_name:keyword | first_name:keyword
-// end::keep-wildcard-precedence-result[]
+// end::keepWildcardPrecedence-result[]
 ;
 
 docsKeepWildcardLowest#[skip:-8.12.99, reason:duplicate precedence rules added in 8.13]
@@ -85,9 +85,9 @@ FROM employees
 // end::keepWildcardLowest[]
 | LIMIT 0;
 
-// tag::keep-wildcard-lowest-result[]
+// tag::keepWildcardLowest-result[]
 avg_worked_seconds:long|birth_date:date|emp_no:integer|gender:keyword|height:double|height.float:double|height.half_float:double|height.scaled_float:double|hire_date:date|is_rehired:boolean|job_positions:keyword|languages:integer|languages.byte:integer|languages.long:long|languages.short:integer|last_name:keyword|salary:integer|salary_change:double|salary_change.int:integer|salary_change.keyword:keyword|salary_change.long:long|still_hired:boolean|first_name:keyword
-// end::keep-wildcard-lowest-result[]
+// end::keepWildcardLowest-result[]
 ;
 
 docsRename
@@ -107,6 +107,18 @@ FROM employees
 | KEEP first_name, last_name
 | RENAME first_name AS fn, last_name AS ln
 // end::renameMultipleColumns[]
+| LIMIT 0;
+
+fn:keyword | ln:keyword
+;
+
+docsRenameMultipleColumnsDifferentCommands
+// tag::renameMultipleColumnsDifferentCommands[]
+FROM employees
+| KEEP first_name, last_name
+| RENAME first_name AS fn
+| RENAME last_name AS ln
+// end::renameMultipleColumnsDifferentCommands[]
 | LIMIT 0;
 
 fn:keyword | ln:keyword

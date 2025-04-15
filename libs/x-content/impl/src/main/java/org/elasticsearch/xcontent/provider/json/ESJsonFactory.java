@@ -9,13 +9,15 @@
 
 package org.elasticsearch.xcontent.provider.json;
 
+import com.fasterxml.jackson.core.JsonEncoding;
 import com.fasterxml.jackson.core.JsonFactory;
 import com.fasterxml.jackson.core.JsonFactoryBuilder;
 import com.fasterxml.jackson.core.JsonParser;
 import com.fasterxml.jackson.core.io.IOContext;
+import com.fasterxml.jackson.core.json.ByteSourceJsonBootstrapper;
+import com.fasterxml.jackson.core.sym.ByteQuadsCanonicalizer;
 
 import java.io.IOException;
-import java.io.InputStream;
 
 public class ESJsonFactory extends JsonFactory {
     ESJsonFactory(JsonFactoryBuilder b) {
@@ -23,32 +25,45 @@ public class ESJsonFactory extends JsonFactory {
     }
 
     @Override
-    protected JsonParser _createParser(InputStream in, IOContext ctxt) throws IOException {
-        try {
-            return new ESByteSourceJsonBootstrapper(ctxt, in).constructParser(
-                _parserFeatures,
-                _objectCodec,
-                _byteSymbolCanonicalizer,
-                _rootCharSymbols,
-                _factoryFeatures
-            );
-        } catch (IOException | RuntimeException e) {
-            // 10-Jun-2022, tatu: For [core#763] may need to close InputStream here
-            if (ctxt.isResourceManaged()) {
-                try {
-                    in.close();
-                } catch (Exception e2) {
-                    e.addSuppressed(e2);
+    protected JsonParser _createParser(byte[] data, int offset, int len, IOContext ctxt) throws IOException {
+
+        if (len > 0
+            && Feature.CHARSET_DETECTION.enabledIn(_factoryFeatures)
+            && Feature.CANONICALIZE_FIELD_NAMES.enabledIn(_factoryFeatures)) {
+            var bootstrap = new ByteSourceJsonBootstrapper(ctxt, data, offset, len);
+            var encoding = bootstrap.detectEncoding();
+            if (encoding == JsonEncoding.UTF8) {
+                boolean invalidBom = false;
+                int ptr = offset;
+                if ((data[ptr] & 0xFF) == 0xEF) {
+                    if (len < 3) {
+                        invalidBom = true;
+                    } else if ((data[ptr + 1] & 0xFF) != 0xBB) {
+                        invalidBom = true;
+                    } else if ((data[ptr + 2] & 0xFF) != 0xBF) {
+                        invalidBom = true;
+                    } else {
+                        ptr += 3;
+                    }
+                }
+                if (invalidBom == false) {
+                    ByteQuadsCanonicalizer can = _byteSymbolCanonicalizer.makeChild(_factoryFeatures);
+                    return new ESUTF8StreamJsonParser(
+                        ctxt,
+                        _parserFeatures,
+                        null,
+                        _objectCodec,
+                        can,
+                        data,
+                        ptr,
+                        offset + len,
+                        ptr - offset,
+                        false
+                    );
                 }
             }
-            ctxt.close();
-            throw e;
         }
-    }
-
-    @Override
-    protected JsonParser _createParser(byte[] data, int offset, int len, IOContext ctxt) throws IOException {
-        return new ESByteSourceJsonBootstrapper(ctxt, data, offset, len).constructParser(
+        return new ByteSourceJsonBootstrapper(ctxt, data, offset, len).constructParser(
             _parserFeatures,
             _objectCodec,
             _byteSymbolCanonicalizer,

@@ -36,8 +36,8 @@ import org.elasticsearch.discovery.MasterNotDiscoveredException;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.tasks.Task;
+import org.elasticsearch.transport.AbstractTransportRequest;
 import org.elasticsearch.transport.TransportChannel;
-import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportRequestHandler;
 import org.elasticsearch.transport.TransportResponse;
 import org.elasticsearch.transport.TransportService;
@@ -251,7 +251,7 @@ public class LocalAllocateDangledIndices {
         clusterService.submitUnbatchedStateUpdateTask(source, task);
     }
 
-    public static class AllocateDangledRequest extends TransportRequest {
+    public static class AllocateDangledRequest extends AbstractTransportRequest {
 
         DiscoveryNode fromNode;
         IndexMetadata[] indices;

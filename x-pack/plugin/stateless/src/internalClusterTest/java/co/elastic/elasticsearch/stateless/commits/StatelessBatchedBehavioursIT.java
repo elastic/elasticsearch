@@ -24,6 +24,7 @@ import co.elastic.elasticsearch.stateless.StatelessMockRepositoryStrategy;
 import co.elastic.elasticsearch.stateless.TestStateless;
 import co.elastic.elasticsearch.stateless.action.NewCommitNotificationRequest;
 import co.elastic.elasticsearch.stateless.action.TransportNewCommitNotificationAction;
+import co.elastic.elasticsearch.stateless.engine.HollowIndexEngine;
 import co.elastic.elasticsearch.stateless.engine.IndexEngine;
 import co.elastic.elasticsearch.stateless.objectstore.ObjectStoreService;
 
@@ -176,9 +177,15 @@ public class StatelessBatchedBehavioursIT extends AbstractStatelessIntegTestCase
         safeAwait(afterRelocatedBarrier);
         logger.info("--> old primary relocated, starting post relocation flush");
         try {
+            final var engine = indexShard.getEngineOrNull();
+            assert engine instanceof IndexEngine || engine instanceof HollowIndexEngine : engine;
             for (int i = 0; i < 2; i++) {
-                final var e = expectThrows(UnavailableShardsException.class, () -> indexEngine.flush(true, true));
-                assertThat(e.getMessage(), containsString("shard relocated"));
+                if (engine instanceof HollowIndexEngine) {
+                    engine.flush(true, true);
+                } else {
+                    final var e = expectThrows(UnavailableShardsException.class, () -> engine.flush(true, true));
+                    assertThat(e.getMessage(), containsString("shard relocated"));
+                }
             }
         } finally {
             safeAwait(afterRelocatedBarrier);

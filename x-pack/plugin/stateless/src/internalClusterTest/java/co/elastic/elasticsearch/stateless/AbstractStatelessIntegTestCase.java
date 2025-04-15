@@ -20,6 +20,7 @@ package co.elastic.elasticsearch.stateless;
 import co.elastic.elasticsearch.stateless.cache.SharedBlobCacheWarmingService;
 import co.elastic.elasticsearch.stateless.cache.StatelessSharedBlobCacheService;
 import co.elastic.elasticsearch.stateless.cluster.coordination.StatelessElectionStrategy;
+import co.elastic.elasticsearch.stateless.commits.HollowShardsService;
 import co.elastic.elasticsearch.stateless.commits.StatelessCommitService;
 import co.elastic.elasticsearch.stateless.commits.StatelessCompoundCommit;
 import co.elastic.elasticsearch.stateless.commits.VirtualBatchedCompoundCommit;
@@ -126,6 +127,19 @@ import static org.hamcrest.Matchers.notNullValue;
 
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0, numClientNodes = 0)
 public abstract class AbstractStatelessIntegTestCase extends ESIntegTestCase {
+
+    public static final boolean STATELESS_HOLLOW_ENABLED = Boolean.parseBoolean(
+        System.getProperty("es.test.stateless.hollow.enabled", "false")
+    );
+
+    public static final TimeValue STATELESS_HOLLOW_DS_NON_WRITE_TTL = TimeValue.timeValueMillis(
+        Long.parseLong(System.getProperty("es.test.stateless.hollow.ds_non_write_ttl_ms", "100"))
+    );
+
+    public static final TimeValue STATELESS_HOLLOW_TTL = TimeValue.timeValueMillis(
+        Long.parseLong(System.getProperty("es.test.stateless.hollow.ttl_ms", "100"))
+    );
+
     private int uploadMaxCommits;
 
     @Before
@@ -319,6 +333,11 @@ public abstract class AbstractStatelessIntegTestCase extends ESIntegTestCase {
             builder.put(ObjectStoreService.BASE_PATH_SETTING.getKey(), "base_path");
         }
         builder.put(StatelessCommitService.STATELESS_UPLOAD_MAX_AMOUNT_COMMITS.getKey(), getUploadMaxCommits());
+        if (STATELESS_HOLLOW_ENABLED) {
+            builder.put(HollowShardsService.STATELESS_HOLLOW_INDEX_SHARDS_ENABLED.getKey(), true);
+            builder.put(HollowShardsService.SETTING_HOLLOW_INGESTION_DS_NON_WRITE_TTL.getKey(), STATELESS_HOLLOW_DS_NON_WRITE_TTL);
+            builder.put(HollowShardsService.SETTING_HOLLOW_INGESTION_TTL.getKey(), STATELESS_HOLLOW_TTL);
+        }
         return builder;
     }
 

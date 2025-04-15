@@ -128,7 +128,7 @@ dependencies {
   testImplementation('org.apache.directory.api:api-ldap-extras-codec-api:1.0.0')
   testImplementation('commons-pool:commons-pool:1.6')
   testImplementation('commons-collections:commons-collections:3.2.2')
-  testImplementation('org.apache.mina:mina-core:2.0.17')
+  testImplementation("org.apache.mina:mina-core:${versions.apache_mina}")
   testImplementation('org.apache.directory.api:api-util:1.0.1')
   testImplementation('org.apache.directory.api:api-i18n:1.0.1')
   testImplementation('org.apache.directory.api:api-ldap-model:1.0.1')

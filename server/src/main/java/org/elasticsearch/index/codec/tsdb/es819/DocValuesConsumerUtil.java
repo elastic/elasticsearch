@@ -12,6 +12,7 @@ package org.elasticsearch.index.codec.tsdb.es819;
 import org.apache.lucene.codecs.DocValuesProducer;
 import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.MergeState;
+import org.elasticsearch.index.codec.FilterDocValuesProducer;
 import org.elasticsearch.index.codec.perfield.XPerFieldDocValuesFormat;
 
 /**
@@ -40,6 +41,10 @@ class DocValuesConsumerUtil {
 
         for (int i = 0; i < mergeState.docValuesProducers.length; i++) {
             DocValuesProducer docValuesProducer = mergeState.docValuesProducers[i];
+            if (docValuesProducer instanceof FilterDocValuesProducer filterDocValuesProducer) {
+                docValuesProducer = filterDocValuesProducer.getIn();
+            }
+
             if (docValuesProducer instanceof XPerFieldDocValuesFormat.FieldsReader perFieldReader) {
                 var wrapped = perFieldReader.getDocValuesProducer(fieldInfo);
                 if (wrapped instanceof ES819TSDBDocValuesProducer tsdbDocValuesProducer) {

@@ -266,9 +266,6 @@ public class EsqlQueryResponse extends org.elasticsearch.xpack.core.esql.action.
             )
             : ResponseXContentUtils.allColumns(columns, "columns");
         Iterator<? extends ToXContent> valuesIt = ResponseXContentUtils.columnValues(this.columns, this.pages, columnar, nullColumns);
-        Iterator<ToXContent> profileRender = profile != null
-            ? ChunkedToXContentHelper.field("profile", profile, params)
-            : Collections.emptyIterator();
         Iterator<ToXContent> executionInfoRender = executionInfo != null && executionInfo.hasMetadataToReport()
             ? ChunkedToXContentHelper.field("_clusters", executionInfo, params)
             : Collections.emptyIterator();
@@ -280,9 +277,22 @@ public class EsqlQueryResponse extends org.elasticsearch.xpack.core.esql.action.
             columnHeadings,
             ChunkedToXContentHelper.array("values", valuesIt),
             executionInfoRender,
-            profileRender,
+            profileRenderer(params),
             ChunkedToXContentHelper.endObject()
         );
+    }
+
+    private Iterator<ToXContent> profileRenderer(ToXContent.Params params) {
+        if (profile == null) {
+            return Collections.emptyIterator();
+        }
+        return Iterators.concat(ChunkedToXContentHelper.startObject("profile"), ChunkedToXContentHelper.chunk((b, p) -> {
+            if (executionInfo != null) {
+                b.field("query", executionInfo.overallTimeSpan());
+                b.field("planning", executionInfo.planningTimeSpan());
+            }
+            return b;
+        }), ChunkedToXContentHelper.array("drivers", profile.drivers.iterator(), params), ChunkedToXContentHelper.endObject());
     }
 
     public boolean[] nullColumns() {
@@ -300,11 +310,6 @@ public class EsqlQueryResponse extends org.elasticsearch.xpack.core.esql.action.
             }
         }
         return true;
-    }
-
-    @Override
-    public boolean isFragment() {
-        return false;
     }
 
     @Override
@@ -391,7 +396,7 @@ public class EsqlQueryResponse extends org.elasticsearch.xpack.core.esql.action.
         return esqlResponse;
     }
 
-    public static class Profile implements Writeable, ChunkedToXContentObject {
+    public static class Profile implements Writeable {
         private final List<DriverProfile> drivers;
 
         public Profile(List<DriverProfile> drivers) {
@@ -422,15 +427,6 @@ public class EsqlQueryResponse extends org.elasticsearch.xpack.core.esql.action.
         @Override
         public int hashCode() {
             return Objects.hash(drivers);
-        }
-
-        @Override
-        public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params params) {
-            return Iterators.concat(
-                ChunkedToXContentHelper.startObject(),
-                ChunkedToXContentHelper.array("drivers", drivers.iterator(), params),
-                ChunkedToXContentHelper.endObject()
-            );
         }
 
         List<DriverProfile> drivers() {

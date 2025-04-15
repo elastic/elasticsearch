@@ -39,9 +39,9 @@ import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.AbstractTransportRequest;
 import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.transport.TransportException;
-import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.esql.action.EsqlExecutionInfo;
 import org.elasticsearch.xpack.esql.action.EsqlQueryAction;
@@ -74,10 +74,10 @@ import static org.elasticsearch.xpack.esql.plugin.EsqlPlugin.ESQL_WORKER_THREAD_
 /**
  * Once query is parsed and validated it is scheduled for execution by {@code org.elasticsearch.xpack.esql.plugin.ComputeService#execute}
  * This method is responsible for splitting physical plan into coordinator and data node plans.
- *
+ * <p>
  * Coordinator plan is immediately executed locally (using {@code org.elasticsearch.xpack.esql.plugin.ComputeService#runCompute})
  * and is prepared to collect and merge pages from data nodes into the final query result.
- *
+ * <p>
  * Data node plan is passed to {@code org.elasticsearch.xpack.esql.plugin.DataNodeComputeHandler#startComputeOnDataNodes}
  * that is responsible for
  * <ul>
@@ -509,7 +509,7 @@ public class ComputeService {
         }
     }
 
-    private static class ComputeGroupTaskRequest extends TransportRequest {
+    private static class ComputeGroupTaskRequest extends AbstractTransportRequest {
         private final Supplier<String> parentDescription;
 
         ComputeGroupTaskRequest(TaskId parentTask, Supplier<String> description) {

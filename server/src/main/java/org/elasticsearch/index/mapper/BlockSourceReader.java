@@ -302,6 +302,46 @@ public abstract class BlockSourceReader implements BlockLoader.RowStrideReader {
     }
 
     /**
+     * Load {@code float}s from {@code _source}.
+     */
+    public static class FloatsBlockLoader extends SourceBlockLoader {
+        public FloatsBlockLoader(ValueFetcher fetcher, LeafIteratorLookup lookup) {
+            super(fetcher, lookup);
+        }
+
+        @Override
+        public Builder builder(BlockFactory factory, int expectedCount) {
+            return factory.floats(expectedCount);
+        }
+
+        @Override
+        public RowStrideReader rowStrideReader(LeafReaderContext context, DocIdSetIterator iter) {
+            return new Floats(fetcher, iter);
+        }
+
+        @Override
+        protected String name() {
+            return "Floats";
+        }
+    }
+
+    private static class Floats extends BlockSourceReader {
+        Floats(ValueFetcher fetcher, DocIdSetIterator iter) {
+            super(fetcher, iter);
+        }
+
+        @Override
+        protected void append(BlockLoader.Builder builder, Object v) {
+            ((BlockLoader.FloatBuilder) builder).appendFloat(((Number) v).floatValue());
+        }
+
+        @Override
+        public String toString() {
+            return "BlockSourceReader.Floats";
+        }
+    }
+
+    /**
      * Load {@code int}s from {@code _source}.
      */
     public static class IntsBlockLoader extends SourceBlockLoader {

@@ -76,6 +76,23 @@ public class TestBlock implements BlockLoader.Block {
             }
 
             @Override
+            public BlockLoader.FloatBuilder floatsFromDocValues(int expectedCount) {
+                return floats(expectedCount);
+            }
+
+            @Override
+            public BlockLoader.FloatBuilder floats(int expectedCount) {
+                class FloatsBuilder extends TestBlock.Builder implements BlockLoader.FloatBuilder {
+                    @Override
+                    public BlockLoader.FloatBuilder appendFloat(float value) {
+                        add(value);
+                        return this;
+                    }
+                }
+                return new FloatsBuilder();
+            }
+
+            @Override
             public BlockLoader.IntBuilder intsFromDocValues(int expectedCount) {
                 return ints(expectedCount);
             }

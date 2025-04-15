@@ -655,6 +655,16 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingOperator {
         }
 
         @Override
+        public BlockLoader.FloatBuilder floatsFromDocValues(int expectedCount) {
+            return factory.newFloatBlockBuilder(expectedCount).mvOrdering(Block.MvOrdering.SORTED_ASCENDING);
+        }
+
+        @Override
+        public BlockLoader.FloatBuilder floats(int expectedCount) {
+            return factory.newFloatBlockBuilder(expectedCount);
+        }
+
+        @Override
         public BlockLoader.IntBuilder intsFromDocValues(int expectedCount) {
             return factory.newIntBlockBuilder(expectedCount).mvOrdering(Block.MvOrdering.SORTED_ASCENDING);
         }

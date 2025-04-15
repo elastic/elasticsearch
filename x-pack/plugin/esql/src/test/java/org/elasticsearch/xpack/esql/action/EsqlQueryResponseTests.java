@@ -25,6 +25,7 @@ import org.elasticsearch.compute.data.BlockUtils;
 import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.DoubleBlock;
+import org.elasticsearch.compute.data.FloatBlock;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
@@ -241,13 +242,13 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
                     }
                 }
                 case DENSE_VECTOR -> {
-                    BlockLoader.DoubleBuilder doubleBuilder = (BlockLoader.DoubleBuilder) builder;
+                    BlockLoader.FloatBuilder floatBuilder = (BlockLoader.FloatBuilder) builder;
                     int dims = randomIntBetween(32, 64) * 2; // min 64 dims, always even
-                    doubleBuilder.beginPositionEntry();
+                    floatBuilder.beginPositionEntry();
                     for (int i = 0; i < dims; i++) {
-                        doubleBuilder.appendDouble(randomDouble());
+                        floatBuilder.appendFloat(randomFloat());
                     }
-                    doubleBuilder.endPositionEntry();
+                    floatBuilder.endPositionEntry();
                 }
                 // default -> throw new UnsupportedOperationException("unsupported data type [" + c + "]");
             }
@@ -994,14 +995,18 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
                         aggBuilder.count().appendInt(((Number) value).intValue());
                     }
                     case DENSE_VECTOR -> {
-                        DoubleBlock.Builder doubleBuilder = (DoubleBlock.Builder) builder;
-                        @SuppressWarnings("unchecked")
-                        List<Double> vector = (List<Double>) value;
-                        doubleBuilder.beginPositionEntry();
-                        for (Double v : vector) {
-                            doubleBuilder.appendDouble(v);
+                        FloatBlock.Builder floatBuilder = (FloatBlock.Builder) builder;
+                        List<?> vector = (List<?>) value;
+                        floatBuilder.beginPositionEntry();
+                        for (Object v : vector) {
+                            switch (v) {
+                                // XContentParser may retrieve Double values - we convert them to Float if needed
+                                case Double d -> floatBuilder.appendFloat(d.floatValue());
+                                case Float f -> floatBuilder.appendFloat(f);
+                                default -> fail("Unexpected dense_vector value type: " + v.getClass());
+                            }
                         }
-                        doubleBuilder.endPositionEntry();
+                        floatBuilder.endPositionEntry();
                     }
                 }
             }

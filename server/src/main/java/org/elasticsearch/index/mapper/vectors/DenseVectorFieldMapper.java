@@ -2338,7 +2338,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
             }
 
             BlockSourceReader.LeafIteratorLookup lookup = BlockSourceReader.lookupMatchingAll();
-            return new BlockSourceReader.DoublesBlockLoader(sourceValueFetcher(blContext.sourcePaths(name())), lookup);
+            return new BlockSourceReader.FloatsBlockLoader(sourceValueFetcher(blContext.sourcePaths(name())), lookup);
         }
 
         private SourceValueFetcher sourceValueFetcher(Set<String> sourcePaths) {

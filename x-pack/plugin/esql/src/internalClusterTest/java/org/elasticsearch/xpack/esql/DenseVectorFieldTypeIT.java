@@ -92,11 +92,11 @@ public class DenseVectorFieldTypeIT extends AbstractEsqlIntegTestCase {
             indexedVectors.forEach((id, vector) -> {
                 var values = valuesList.get(id);
                 assertEquals(id, values.get(0));
-                List<Double> vectors = (List<Double>) values.get(1);
+                List<Float> vectors = (List<Float>) values.get(1);
                 assertNotNull(vectors);
                 assertEquals(vector.size(), vectors.size());
                 for (int i = 0; i < vector.size(); i++) {
-                    assertEquals(vector.get(i), vectors.get(i).floatValue(), 0F);
+                    assertEquals(vector.get(i), vectors.get(i), 0F);
                 }
             });
         }
@@ -116,12 +116,12 @@ public class DenseVectorFieldTypeIT extends AbstractEsqlIntegTestCase {
                 ;
                 assertEquals(2, value.size());
                 Integer id = (Integer) value.get(0);
-                List<Double> vector = (List<Double>) value.get(1);
+                List<Float> vector = (List<Float>) value.get(1);
                 assertNotNull(vector);
                 List<Float> expectedVector = indexedVectors.get(id);
                 assertNotNull(expectedVector);
                 for (int i = 0; i < vector.size(); i++) {
-                    assertEquals(expectedVector.get(i), vector.get(i).floatValue(), 0F);
+                    assertEquals(expectedVector.get(i), vector.get(i), 0F);
                 }
             });
         }

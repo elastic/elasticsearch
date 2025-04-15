@@ -243,6 +243,7 @@ public final class BlockUtils {
             case BYTES_REF -> blockFactory.newConstantBytesRefBlockWith(toBytesRef(val), size);
             case DOUBLE -> blockFactory.newConstantDoubleBlockWith((double) val, size);
             case BOOLEAN -> blockFactory.newConstantBooleanBlockWith((boolean) val, size);
+            case FLOAT -> blockFactory.newConstantFloatBlockWith((float) val, size);
             case COMPOSITE -> {
                 if (val instanceof AggregateMetricDoubleLiteral aggregateMetricDoubleLiteral) {
                     yield blockFactory.newConstantAggregateMetricDoubleBlock(aggregateMetricDoubleLiteral, size);

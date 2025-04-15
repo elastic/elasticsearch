@@ -486,7 +486,7 @@ public final class CsvTestUtils {
             x -> x == null ? null : stringToAggregateMetricDoubleLiteral(x),
             AggregateMetricDoubleBlockBuilder.AggregateMetricDoubleLiteral.class
         ),
-        DENSE_VECTOR(Double::parseDouble, Double.class),
+        DENSE_VECTOR(Float::parseFloat, Float.class),
         UNSUPPORTED(Type::convertUnsupported, Void.class);
 
         private static Void convertUnsupported(String s) {

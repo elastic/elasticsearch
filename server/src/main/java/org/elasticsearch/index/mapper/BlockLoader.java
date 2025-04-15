@@ -374,6 +374,17 @@ public interface BlockLoader {
         DoubleBuilder doubles(int expectedCount);
 
         /**
+         * Build a builder to load floats as loaded from doc values.
+         * Doc values load floats in sorted order.
+         */
+        FloatBuilder floatsFromDocValues(int expectedCount);
+
+        /**
+         * Build a builder to load floats without any loading constraints.
+         */
+        FloatBuilder floats(int expectedCount);
+
+        /**
          * Build a builder to load ints as loaded from doc values.
          * Doc values load ints in sorted order.
          */

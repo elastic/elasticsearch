@@ -517,7 +517,7 @@ public abstract class BlockDocValuesReader implements BlockLoader.AllReader {
 
         @Override
         public Builder builder(BlockFactory factory, int expectedCount) {
-            return factory.doubles(expectedCount);
+            return factory.floats(expectedCount);
         }
 
         @Override
@@ -542,7 +542,7 @@ public abstract class BlockDocValuesReader implements BlockLoader.AllReader {
         @Override
         public BlockLoader.Block read(BlockFactory factory, Docs docs) throws IOException {
             // Doubles from doc values ensures that the values are in order
-            try (BlockLoader.DoubleBuilder builder = factory.doublesFromDocValues(docs.count())) {
+            try (BlockLoader.FloatBuilder builder = factory.floatsFromDocValues(docs.count())) {
                 for (int i = 0; i < docs.count(); i++) {
                     int doc = docs.get(i);
                     if (doc < iterator.docID()) {
@@ -556,15 +556,15 @@ public abstract class BlockDocValuesReader implements BlockLoader.AllReader {
 
         @Override
         public void read(int docId, BlockLoader.StoredFields storedFields, Builder builder) throws IOException {
-            read(docId, (DoubleBuilder) builder);
+            read(docId, (BlockLoader.FloatBuilder) builder);
         }
 
-        private void read(int doc, DoubleBuilder builder) throws IOException {
+        private void read(int doc, BlockLoader.FloatBuilder builder) throws IOException {
             if (iterator.advance(doc) == doc) {
                 builder.beginPositionEntry();
                 float[] floats = floatVectorValues.vectorValue(iterator.index());
                 for (float aFloat : floats) {
-                    builder.appendDouble(aFloat);
+                    builder.appendFloat(aFloat);
                 }
                 builder.endPositionEntry();
             } else {
@@ -844,7 +844,7 @@ public abstract class BlockDocValuesReader implements BlockLoader.AllReader {
 
         @Override
         public Builder builder(BlockFactory factory, int expectedCount) {
-            return factory.doubles(expectedCount);
+            return factory.floats(expectedCount);
         }
 
         @Override
@@ -872,7 +872,7 @@ public abstract class BlockDocValuesReader implements BlockLoader.AllReader {
 
         @Override
         public BlockLoader.Block read(BlockFactory factory, Docs docs) throws IOException {
-            try (BlockLoader.DoubleBuilder builder = factory.doubles(docs.count())) {
+            try (BlockLoader.FloatBuilder builder = factory.floats(docs.count())) {
                 for (int i = 0; i < docs.count(); i++) {
                     int doc = docs.get(i);
                     if (doc < docID) {
@@ -886,10 +886,10 @@ public abstract class BlockDocValuesReader implements BlockLoader.AllReader {
 
         @Override
         public void read(int docId, BlockLoader.StoredFields storedFields, Builder builder) throws IOException {
-            read(docId, (DoubleBuilder) builder);
+            read(docId, (BlockLoader.FloatBuilder) builder);
         }
 
-        private void read(int doc, DoubleBuilder builder) throws IOException {
+        private void read(int doc, BlockLoader.FloatBuilder builder) throws IOException {
             this.docID = doc;
             if (false == docValues.advanceExact(doc)) {
                 builder.appendNull();
@@ -901,7 +901,7 @@ public abstract class BlockDocValuesReader implements BlockLoader.AllReader {
 
             builder.beginPositionEntry();
             for (float value : scratch) {
-                builder.appendDouble(value);
+                builder.appendFloat(value);
             }
             builder.endPositionEntry();
         }

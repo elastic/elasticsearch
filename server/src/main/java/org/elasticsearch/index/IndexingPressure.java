@@ -157,9 +157,13 @@ public class IndexingPressure {
     }
 
     public Coordinating markCoordinatingOperationStarted(int operations, long bytes, boolean forceExecution) {
-        Coordinating coordinating = new Coordinating(forceExecution);
+        Coordinating coordinating = createCoordinatingOperation(forceExecution);
         coordinating.increment(operations, bytes);
         return coordinating;
+    }
+
+    public Coordinating createCoordinatingOperation(boolean forceExecution) {
+        return new Coordinating(forceExecution);
     }
 
     public class Incremental implements Releasable {
@@ -254,7 +258,7 @@ public class IndexingPressure {
             this.forceExecution = forceExecution;
         }
 
-        private void increment(int operations, long bytes) {
+        public void increment(int operations, long bytes) {
             assert closed.get() == false;
             long combinedBytes = currentCombinedCoordinatingAndPrimaryBytes.addAndGet(bytes);
             long replicaWriteBytes = currentReplicaBytes.get();

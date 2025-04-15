@@ -202,7 +202,7 @@ public class PolicyManagerTests extends ESTestCase {
         assertThat(entitlements.hasEntitlement(CreateClassLoaderEntitlement.class), is(true));
     }
 
-    public void testGetEntitlementsThrowsOnMissingPolicyForServer() throws ClassNotFoundException {
+    public void testGetEntitlementsReturnsDefaultOnMissingPolicyForServer() throws ClassNotFoundException {
         var policyManager = new PolicyManager(
             createTestServerPolicy("example"),
             List.of(),

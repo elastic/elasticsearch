@@ -58,6 +58,8 @@ restResources {
     }
 }
 
+val hollowTtlMs = buildParams.random.nextInt(0, 1)
+
 tasks {
     test {
         exclude("**/S3RegisterCASLinearizabilityTests.class")
@@ -73,6 +75,38 @@ tasks {
         // warnings about failing to change access for FileDescriptor.fd
         // that org.elasticsearch.preallocate does
         jvmArgs("--add-opens=java.base/java.io=ALL-UNNAMED")
+    }
+
+    /**
+     * Same as internalClusterTest but with hollow shards enabled
+     * TODO: ES-11519 Remove it by merging into internalClusterTest once hollow shards have been deployed to production
+     */
+    val internalClusterTestWithHollow = register<Test>("internalClusterTestWithHollow") {
+        val sourceSet = sourceSets.getByName(InternalClusterTestPlugin.SOURCE_SET_NAME)
+        setTestClassesDirs(sourceSet.getOutput().getClassesDirs())
+        setClasspath(sourceSet.getRuntimeClasspath())
+        jvmArgs("--add-opens=java.base/java.io=ALL-UNNAMED")
+        systemProperty("es.test.stateless.hollow.enabled", "true")
+        systemProperty("es.test.stateless.hollow.ds_non_write_ttl_ms", hollowTtlMs)
+        systemProperty("es.test.stateless.hollow.ttl_ms", hollowTtlMs)
+
+        filter {
+            // Following test needs unhollow shards as it force merges directly the shard without a client to unhollow
+            excludeTestsMatching("*.StatelessIT.testBackgroundMergeCommitAfterRelocationHasStartedDoesNotSendANewCommitNotification")
+            // Following test assumes a single BCC uploaded, but a hollow shard force flushes a second BCC and results
+            // in two writes on the cache instead of 1.
+            excludeTestsMatching("*.IndexingShardRelocationIT.testRelocatingIndexShardFetchesFirstRegionOnly")
+            // Following test pauses relocation and tries to force merge (which needs to unhollow), thus deadlocking
+            excludeTestsMatching("*.CorruptionWhileRelocatingIT.testMergeWhileRelocationCausesCorruption")
+            // Following test asserts successive generation numbers and does not count potential hollow flushes
+            excludeTestsMatching("*.GenerationalDocValuesIT.testSearchShardGenerationFilesRetention")
+            // Following test asserts generation numbers and does not count potential hollow flushes
+            excludeTestsMatching("*.IndexingShardRecoveryIT.testPeerRecovery")
+        }
+    }
+
+    check {
+        dependsOn(internalClusterTestWithHollow)
     }
 
     yamlRestTest {

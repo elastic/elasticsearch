@@ -280,11 +280,7 @@ public class TransportStatelessPrimaryRelocationAction extends TransportAction<
             final long beforeAcquiringPermits = threadPool.relativeTimeInMillis();
             indexShard.relocated(request.targetNode().getId(), request.targetAllocationId(), (primaryContext, handoffResultListener) -> {
                 threadDumpListener.onResponse(null);
-                final Engine engine = ensureIndexOrHollowEngine(
-                    indexShard.getEngineOrNull(),
-                    indexShard.state(),
-                    indexShard.routingEntry()
-                );
+                Engine engine = ensureIndexOrHollowEngine(indexShard.getEngineOrNull(), indexShard.state(), indexShard.routingEntry());
                 logShardStats("obtained primary context", indexShard, engine);
                 logger.debug("[{}] obtained primary context: [{}]", request.shardId(), primaryContext);
                 final var acquirePermitsDuration = getTimeSince(beforeAcquiringPermits);
@@ -309,6 +305,8 @@ public class TransportStatelessPrimaryRelocationAction extends TransportAction<
                         hollowShardsService.addHollowShard(indexShard, "hollowing");
                         hollowShardsMetrics.hollowSuccessCounter().increment();
                         hollowShardsMetrics.hollowTimeMs().record(threadPool.relativeTimeInMillisSupplier().getAsLong() - startTime);
+                        engine = indexShard.getEngineOrNull();
+                        assert engine instanceof HollowIndexEngine : engine;
                     } else {
                         indexEngine.flush(false, true, ActionListener.noop());
                     }

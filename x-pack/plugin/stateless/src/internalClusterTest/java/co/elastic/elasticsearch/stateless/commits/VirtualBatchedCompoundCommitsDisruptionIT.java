@@ -19,7 +19,6 @@ package co.elastic.elasticsearch.stateless.commits;
 import co.elastic.elasticsearch.stateless.AbstractStatelessIntegTestCase;
 import co.elastic.elasticsearch.stateless.action.NewCommitNotificationRequest;
 import co.elastic.elasticsearch.stateless.action.TransportNewCommitNotificationAction;
-import co.elastic.elasticsearch.stateless.engine.IndexEngine;
 import co.elastic.elasticsearch.stateless.engine.SearchEngine;
 
 import org.elasticsearch.cluster.coordination.Coordinator;
@@ -76,7 +75,7 @@ public class VirtualBatchedCompoundCommitsDisruptionIT extends AbstractStateless
         ensureGreen(indexName);
         indexDocsAndRefresh(indexName, 10);
 
-        long initialIndexGeneration = getShardEngine(findIndexShard(indexName), IndexEngine.class).getCurrentGeneration();
+        long initialIndexGeneration = findIndexShard(indexName).commitStats().getGeneration();
         var searchClusterService = internalCluster().getInstance(ClusterService.class, searchNode);
         long searchClusterStateVersion = searchClusterService.state().version();
 
@@ -98,11 +97,11 @@ public class VirtualBatchedCompoundCommitsDisruptionIT extends AbstractStateless
         logger.info("--> relocated primary");
 
         var indexShard = findIndexShard(indexName);
-        long indexGenerationAfterRelocation = getShardEngine(indexShard, IndexEngine.class).getCurrentGeneration();
+        long indexGenerationAfterRelocation = indexShard.commitStats().getGeneration();
 
         // search node knows about indexNodeB, and the notification is for an uploaded BCC, so it processes it during relocation
         assertBusy(() -> {
-            long searchGeneration = searchGeneration(indexName);
+            long searchGeneration = findSearchShard(indexName).commitStats().getGeneration();
             assertThat(searchGeneration, greaterThan(initialIndexGeneration));
             assertThat(searchGeneration, equalTo(indexGenerationAfterRelocation));
         });
@@ -112,11 +111,11 @@ public class VirtualBatchedCompoundCommitsDisruptionIT extends AbstractStateless
         var statelessCommitService = internalCluster().getInstance(StatelessCommitService.class, indexNodeB);
         assertNotNull(statelessCommitService.getCurrentVirtualBcc(indexShard.shardId()));
         logger.info("--> produced VBCC");
-        long indexGenerationAfterVBCC = getShardEngine(indexShard, IndexEngine.class).getCurrentGeneration();
+        long indexGenerationAfterVBCC = indexShard.commitStats().getGeneration();
 
         // search node knows about indexNodeB, so even if the notification is for a non-uploaded VBCC, it processes it
         assertBusy(() -> {
-            long searchGeneration = searchGeneration(indexName);
+            long searchGeneration = findSearchShard(indexName).commitStats().getGeneration();
             assertThat(searchGeneration, greaterThan(indexGenerationAfterRelocation));
             assertThat(searchGeneration, equalTo(indexGenerationAfterVBCC));
         });
@@ -125,10 +124,6 @@ public class VirtualBatchedCompoundCommitsDisruptionIT extends AbstractStateless
         assertEquals(searchClusterStateVersion, searchClusterStateVersionAfterRelocation);
 
         searchDisruption.stopDisrupting();
-    }
-
-    private static long searchGeneration(String indexName) {
-        return getShardEngine(findSearchShard(indexName), SearchEngine.class).getLastCommittedSegmentInfos().getGeneration();
     }
 
     /**
@@ -146,7 +141,7 @@ public class VirtualBatchedCompoundCommitsDisruptionIT extends AbstractStateless
         indexDocsAndRefresh(indexName, 10);
 
         var searchEngine = asInstanceOf(SearchEngine.class, findSearchShard(indexName).getEngineOrNull());
-        long initialIndexGeneration = getShardEngine(findIndexShard(indexName), IndexEngine.class).getCurrentGeneration();
+        long initialIndexGeneration = findIndexShard(indexName).commitStats().getGeneration();
         var searchClusterService = internalCluster().getInstance(ClusterService.class, searchNode);
         long initialSearchClusterStateVersion = searchClusterService.state().version();
 
@@ -165,13 +160,13 @@ public class VirtualBatchedCompoundCommitsDisruptionIT extends AbstractStateless
 
         // The search node can process the commit notification of the relocation since it is for an uploaded BCC
         assertBusy(() -> {
-            long searchGeneration = searchGeneration(indexName);
+            long searchGeneration = findSearchShard(indexName).commitStats().getGeneration();
             assertThat(searchGeneration, greaterThan(initialIndexGeneration));
         });
         logger.info("--> search shard is on relocated generation");
 
         var indexShard = findIndexShard(indexName);
-        long indexGenerationAfterRelocation = getShardEngine(indexShard, IndexEngine.class).getCurrentGeneration();
+        long indexGenerationAfterRelocation = indexShard.commitStats().getGeneration();
 
         // Capture new commit notification for the upcoming non-uploaded VBCC
         CountDownLatch receivedNonUploadedCommitNotification = new CountDownLatch(1);

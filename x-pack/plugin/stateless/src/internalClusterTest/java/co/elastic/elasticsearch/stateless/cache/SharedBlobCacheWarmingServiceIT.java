@@ -217,7 +217,7 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractStatelessIntegTestC
 
         // wait for INDEXING_EARLY and INDEXING to be completed before blokcing access to the latest BCC.
         final var waitForWarmingsCompleted = new CountDownLatch(1);
-        final long generationToBlock = getShardEngine(findIndexShard(indexName), IndexEngine.class).getCurrentGeneration();
+        final long generationToBlock = findIndexShard(indexName).commitStats().getGeneration();
         try (var refs = new RefCountingListener(ActionListener.runAfter(ActionListener.running(() -> {
             logger.info("--> fail object store repository after warming");
             var mockRepository = getObjectStoreMockRepository(getObjectStoreService(indexNodeB));
@@ -883,7 +883,7 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractStatelessIntegTestC
     }
 
     private void failObjectStoreAndFetchFromIndexingNodeAfterPrewarming(String indexName, String node, Type type) {
-        final long generationToBlock = getShardEngine(findIndexShard(indexName), IndexEngine.class).getCurrentGeneration();
+        final long generationToBlock = findIndexShard(indexName).commitStats().getGeneration();
         final var mockRepository = getObjectStoreMockRepository(getObjectStoreService(node));
         final var transportService = MockTransportService.getInstance(node);
         runOnWarmingComplete(node, type, ActionListener.running(() -> {

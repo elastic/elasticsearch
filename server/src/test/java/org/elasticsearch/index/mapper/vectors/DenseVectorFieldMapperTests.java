@@ -2264,7 +2264,7 @@ public class DenseVectorFieldMapperTests extends MapperTestCase {
 
     @Override
     protected Matcher<?> blockItemMatcher(Object expected) {
-        return closeTo((double) expected, 0.000001);
+        return equalTo(((Double) expected).floatValue());
     }
 
     private static class DenseVectorSyntheticSourceSupport implements SyntheticSourceSupport {

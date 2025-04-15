@@ -195,7 +195,9 @@ unsupported:
   - match: { values.0.2: null }
   - match: { values.0.3: "2015-01-01T12:10:30.123456789Z" }
   - match: { values.0.4: null }
-  - match: { values.0.5: [0.5, 10.0, 6.0] }
+  - match: { values.0.5.0: 0.5 }
+  - match: { values.0.5.1: 10.0 }
+  - match: { values.0.5.2: 6.0 }
   - match: { values.0.6: null }
   - match: { values.0.7: null }
   - match: { values.0.8: "POINT (10.0 12.0)" }

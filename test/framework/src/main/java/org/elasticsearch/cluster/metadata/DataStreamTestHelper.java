@@ -617,7 +617,7 @@ public final class DataStreamTestHelper {
         builder.put(dataStreamBuilder.build());
     }
 
-    private static IndexMetadata createIndexMetadata(String name, boolean hidden, Settings settings, int replicas) {
+    public static IndexMetadata createIndexMetadata(String name, boolean hidden, Settings settings, int replicas) {
         Settings.Builder b = Settings.builder()
             .put(settings)
             .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())

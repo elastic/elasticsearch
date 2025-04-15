@@ -114,7 +114,9 @@ public final class PinnedRetrieverBuilder extends CompoundRetrieverBuilder<Pinne
                     continue;
                 }
             }
-            throw new IllegalArgumentException("Pinned retriever only supports sorting by score. Custom sorting is not allowed.");
+            throw new IllegalArgumentException(
+                "[" + NAME + "] retriever only supports sorting by score, invalid sort criterion: " + sort.toString()
+            );
         }
     }
 
@@ -164,11 +166,8 @@ public final class PinnedRetrieverBuilder extends CompoundRetrieverBuilder<Pinne
         }
         if (docs.isEmpty() == false) {
             return new PinnedQueryBuilder(baseQuery, docs.toArray(new SpecifiedDocument[0]));
-        } else if (ids.isEmpty() == false) {
-            return new PinnedQueryBuilder(baseQuery, ids.toArray(new String[0]));
-        } else {
-            return baseQuery;
         }
+        return new PinnedQueryBuilder(baseQuery, ids.toArray(new String[0]));
     }
 
     @Override

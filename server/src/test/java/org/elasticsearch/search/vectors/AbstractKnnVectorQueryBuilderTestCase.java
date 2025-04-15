@@ -208,8 +208,22 @@ abstract class AbstractKnnVectorQueryBuilderTestCase extends AbstractQueryTestCa
         }
 
         Query knnVectorQueryBuilt = switch (elementType()) {
-            case BYTE, BIT -> new ESKnnByteVectorQuery(VECTOR_FIELD, queryBuilder.queryVector().asByteVector(), k, numCands, filterQuery);
-            case FLOAT -> new ESKnnFloatVectorQuery(VECTOR_FIELD, queryBuilder.queryVector().asFloatVector(), k, numCands, filterQuery);
+            case BYTE, BIT -> new ESKnnByteVectorQuery(
+                VECTOR_FIELD,
+                queryBuilder.queryVector().asByteVector(),
+                k,
+                numCands,
+                filterQuery,
+                DenseVectorFieldMapper.FilterHeuristic.ACORN.getKnnSearchStrategy()
+            );
+            case FLOAT -> new ESKnnFloatVectorQuery(
+                VECTOR_FIELD,
+                queryBuilder.queryVector().asFloatVector(),
+                k,
+                numCands,
+                filterQuery,
+                DenseVectorFieldMapper.FilterHeuristic.ACORN.getKnnSearchStrategy()
+            );
         };
         if (query instanceof VectorSimilarityQuery vectorSimilarityQuery) {
             query = vectorSimilarityQuery.getInnerKnnQuery();

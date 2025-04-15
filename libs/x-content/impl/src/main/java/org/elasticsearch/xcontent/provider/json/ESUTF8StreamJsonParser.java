@@ -16,7 +16,7 @@ import com.fasterxml.jackson.core.io.IOContext;
 import com.fasterxml.jackson.core.json.UTF8StreamJsonParser;
 import com.fasterxml.jackson.core.sym.ByteQuadsCanonicalizer;
 
-import org.elasticsearch.xcontent.ESBytesRef;
+import org.elasticsearch.xcontent.XBytesRef;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -44,17 +44,17 @@ public class ESUTF8StreamJsonParser extends UTF8StreamJsonParser {
      * This is only a best-effort attempt; if there is some reason the bytes cannot be retrieved, this method will return null.
      * Currently, this is only implemented for ascii-only strings that do not contain escaped characters.
      */
-    public ESBytesRef getValueAsByteRef() throws IOException {
+    public XBytesRef getValueAsByteRef() throws IOException {
         if (_currToken == JsonToken.VALUE_STRING && _tokenIncomplete) {
             if (stringEnd > 0) {
-                return new ESBytesRef(_inputBuffer, _inputPtr, stringEnd - 1);
+                return new XBytesRef(_inputBuffer, _inputPtr, stringEnd - 1);
             }
             return _finishAndReturnByteRef();
         }
         return null;
     }
 
-    protected ESBytesRef _finishAndReturnByteRef() throws IOException {
+    protected XBytesRef _finishAndReturnByteRef() throws IOException {
         int ptr = _inputPtr;
         if (ptr >= _inputEnd) {
             _loadMoreGuaranteed();
@@ -70,7 +70,7 @@ public class ESUTF8StreamJsonParser extends UTF8StreamJsonParser {
             if (codes[c] != 0) {
                 if (c == INT_QUOTE) {
                     stringEnd = ptr + 1;
-                    return new ESBytesRef(inputBuffer, startPtr, ptr);
+                    return new XBytesRef(inputBuffer, startPtr, ptr);
                 }
                 return null;
             }

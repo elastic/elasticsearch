@@ -101,7 +101,7 @@ public abstract class FilterXContentParser implements XContentParser {
     }
 
     @Override
-    public ESBytesRef textRefOrNull() throws IOException {
+    public XBytesRef textRefOrNull() throws IOException {
         return delegate().textRefOrNull();
     }
 

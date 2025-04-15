@@ -15,7 +15,6 @@ import com.fasterxml.jackson.core.JsonFactoryBuilder;
 public class ESJsonFactoryBuilder extends JsonFactoryBuilder {
     @Override
     public JsonFactory build() {
-        // 28-Dec-2017, tatu: No special settings beyond base class ones, so:
         return new ESJsonFactory(this);
     }
 }

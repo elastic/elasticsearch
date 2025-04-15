@@ -9,4 +9,4 @@
 
 package org.elasticsearch.xcontent;
 
-public record ESBytesRef(byte[] bytes, int start, int end) {}
+public record XBytesRef(byte[] bytes, int start, int end) {}

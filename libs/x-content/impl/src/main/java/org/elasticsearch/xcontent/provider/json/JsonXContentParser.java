@@ -18,7 +18,7 @@ import com.fasterxml.jackson.core.exc.InputCoercionException;
 import com.fasterxml.jackson.core.io.JsonEOFException;
 
 import org.elasticsearch.core.IOUtils;
-import org.elasticsearch.xcontent.ESBytesRef;
+import org.elasticsearch.xcontent.XBytesRef;
 import org.elasticsearch.xcontent.XContentEOFException;
 import org.elasticsearch.xcontent.XContentLocation;
 import org.elasticsearch.xcontent.XContentParseException;
@@ -117,7 +117,7 @@ public class JsonXContentParser extends AbstractXContentParser {
     }
 
     @Override
-    public ESBytesRef textRefOrNull() throws IOException {
+    public XBytesRef textRefOrNull() throws IOException {
         if (currentToken().isValue() == false) {
             return null;
         }

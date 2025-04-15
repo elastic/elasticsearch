@@ -26,7 +26,6 @@ public class ESJsonFactory extends JsonFactory {
 
     @Override
     protected JsonParser _createParser(byte[] data, int offset, int len, IOContext ctxt) throws IOException {
-
         if (len > 0
             && Feature.CHARSET_DETECTION.enabledIn(_factoryFeatures)
             && Feature.CANONICALIZE_FIELD_NAMES.enabledIn(_factoryFeatures)) {
@@ -35,6 +34,7 @@ public class ESJsonFactory extends JsonFactory {
             if (encoding == JsonEncoding.UTF8) {
                 boolean invalidBom = false;
                 int ptr = offset;
+                // Skip over the BOM if present
                 if ((data[ptr] & 0xFF) == 0xEF) {
                     if (len < 3) {
                         invalidBom = true;

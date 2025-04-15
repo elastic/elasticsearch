@@ -422,7 +422,12 @@ public class RestEsqlIT extends RestEsqlTestCase {
         Map<String, Object> result = runEsql(builder);
         assertResultMap(
             result,
-            getResultMatcher(result).entry("profile", matchesMap().entry("drivers", instanceOf(List.class))),
+            getResultMatcher(result).entry(
+                "profile",
+                matchesMap().entry("drivers", instanceOf(List.class))
+                    .entry("planning", matchesMap().extraOk())
+                    .entry("query", matchesMap().extraOk())
+            ),
             matchesList().item(matchesMap().entry("name", "@timestamp").entry("type", "date"))
                 .item(matchesMap().entry("name", "test").entry("type", "text"))
                 .item(matchesMap().entry("name", "test.keyword").entry("type", "keyword"))
@@ -474,7 +479,12 @@ public class RestEsqlIT extends RestEsqlTestCase {
         Map<String, Object> result = runEsql(builder);
         assertResultMap(
             result,
-            getResultMatcher(result).entry("profile", matchesMap().entry("drivers", instanceOf(List.class))),
+            getResultMatcher(result).entry(
+                "profile",
+                matchesMap().entry("drivers", instanceOf(List.class))
+                    .entry("planning", matchesMap().extraOk())
+                    .entry("query", matchesMap().extraOk())
+            ),
             matchesList().item(matchesMap().entry("name", "@timestamp").entry("type", "date"))
                 .item(matchesMap().entry("name", "test").entry("type", "text"))
                 .item(matchesMap().entry("name", "test.keyword").entry("type", "keyword"))

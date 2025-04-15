@@ -1,7 +1,7 @@
 setup:
   - requires:
       test_runner_features: [ capabilities, allowed_warnings ]
-      reason: "Data stream failures lifecycle config in templates was added in 9.1+"
+      reason: "Exposing failures lifecycle config in templates was added in 9.1+"
       capabilities:
         - method: GET
           path: /_data_stream/{target}
@@ -128,6 +128,68 @@ teardown:
   - match: { data_streams.0.failure_store.lifecycle.enabled: true }
   - length: { data_streams.0.failure_store.indices: 1 }
   - match: { data_streams.0.failure_store.indices.0.index_name: '/\.fs-fs-data-stream-(\d{4}\.\d{2}\.\d{2}-)?000002/' }
+  - is_false: data_streams.0.failure_store.indices.0.prefer_ilm
+  - match: { data_streams.0.failure_store.indices.0.managed_by: 'Data stream lifecycle' }
+
+---
+"Get failure store info from disabled failure store":
+  - do:
+      indices.create_data_stream:
+        name: no-fs-data-stream
+  - is_true: acknowledged
+
+  - do:
+      indices.get_data_stream:
+        name: "no-fs-data-stream"
+  - match: { data_streams.0.name: no-fs-data-stream }
+  - match: { data_streams.0.timestamp_field.name: '@timestamp' }
+  - match: { data_streams.0.generation: 1 }
+  - length: { data_streams.0.indices: 1 }
+  - match: { data_streams.0.indices.0.index_name: '/\.ds-no-fs-data-stream-(\d{4}\.\d{2}\.\d{2}-)?000001/' }
+  - match: { data_streams.0.template: 'my-template3' }
+  - match: { data_streams.0.failure_store.enabled: false }
+  - is_false: data_streams.0.failure_store.lifecycle
+  - match: { data_streams.0.failure_store.indices: [] }
+
+---
+"Get failure store info from explicitly enabled failure store and disabled lifecycle":
+  - do:
+      indices.create_data_stream:
+        name: fs-data-stream
+  - is_true: acknowledged
+
+  - do:
+      indices.put_data_lifecycle:
+        name: "fs-data-stream"
+        body:
+          enabled: false
+
+  - is_true: acknowledged
+
+  # Initialize failure store
+  - do:
+      index:
+        index: fs-data-stream
+        refresh: true
+        body:
+          '@timestamp': '2020-12-12'
+          count: 'invalid value'
+
+  - do:
+      indices.get_data_stream:
+        name: "fs-data-stream"
+  - match: { data_streams.0.name: fs-data-stream }
+  - match: { data_streams.0.timestamp_field.name: '@timestamp' }
+  - match: { data_streams.0.generation: 2 }
+  - length: { data_streams.0.indices: 1 }
+  - match: { data_streams.0.indices.0.index_name: '/\.ds-fs-data-stream-(\d{4}\.\d{2}\.\d{2}-)?000001/' }
+  - match: { data_streams.0.template: 'my-template1' }
+  - match: { data_streams.0.failure_store.enabled: true }
+  - match: { data_streams.0.failure_store.lifecycle.enabled: false }
+  - length: { data_streams.0.failure_store.indices: 1 }
+  - match: { data_streams.0.failure_store.indices.0.index_name: '/\.fs-fs-data-stream-(\d{4}\.\d{2}\.\d{2}-)?000002/' }
+  - is_false: data_streams.0.failure_store.indices.0.prefer_ilm
+  - match: { data_streams.0.failure_store.indices.0.managed_by: 'Unmanaged' }
 
 ---
 "Get failure store info from cluster setting enabled failure store":
@@ -171,23 +233,3 @@ teardown:
   - match: { data_streams.0.failure_store.lifecycle.enabled: true }
   - length: { data_streams.0.failure_store.indices: 1 }
   - match: { data_streams.0.failure_store.indices.0.index_name: '/\.fs-fs-default-data-stream-(\d{4}\.\d{2}\.\d{2}-)?000002/' }
-
----
-"Get failure store info from disabled failure store":
-  - do:
-      indices.create_data_stream:
-        name: no-fs-data-stream
-  - is_true: acknowledged
-
-  - do:
-      indices.get_data_stream:
-        name: "no-fs-data-stream"
-  - match: { data_streams.0.name: no-fs-data-stream }
-  - match: { data_streams.0.timestamp_field.name: '@timestamp' }
-  - match: { data_streams.0.generation: 1 }
-  - length: { data_streams.0.indices: 1 }
-  - match: { data_streams.0.indices.0.index_name: '/\.ds-no-fs-data-stream-(\d{4}\.\d{2}\.\d{2}-)?000001/' }
-  - match: { data_streams.0.template: 'my-template3' }
-  - match: { data_streams.0.failure_store.enabled: false }
-  - is_false: data_streams.0.failure_store.lifecycle
-  - match: { data_streams.0.failure_store.indices: [] }

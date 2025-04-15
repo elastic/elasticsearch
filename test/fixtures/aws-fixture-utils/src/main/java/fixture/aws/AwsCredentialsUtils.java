@@ -26,6 +26,7 @@ public enum AwsCredentialsUtils {
     /**
      * Region supplier which matches any region.
      */
+    // TODO NOMERGE: replace with DynamicRegionSupplier.
     public static final Supplier<String> ANY_REGION = () -> "*";
 
     /**
@@ -72,7 +73,7 @@ public enum AwsCredentialsUtils {
         }
 
         if (region.equals("*")) {
-            // skip region validation; TODO eliminate this when region is fixed in all tests
+            // skip region validation; TODO NOMERGE eliminate this when region is fixed in all tests
             return authorizationHeader.contains("/" + serviceName + "/aws4_request, ");
         }
 

@@ -1,0 +1,6 @@
+pr: 126593
+summary: Fix `S3RepositoryAnalysisRestIT`
+area: Snapshot/Restore
+type: bug
+issues:
+ - 126576

@@ -1690,7 +1690,7 @@ public class IndexResolverFieldNamesTests extends ESTestCase {
     public void testEnrichMaskingEvalOn() {
         assertFieldNames("""
             from employees
-            | eval langague_name = null
+            | eval language_name = null
             | enrich languages_policy on languages
             | rename language_name as languages
             | eval languages = length(languages)
@@ -1701,7 +1701,7 @@ public class IndexResolverFieldNamesTests extends ESTestCase {
     public void testEnrichAndJoinMaskingEvalWh() {
         assertFieldNames("""
             from employees
-            | eval langague_name = null
+            | eval language_name = null
             | enrich languages_policy on languages
             | rename language_name as languages
             | eval languages = length(languages)

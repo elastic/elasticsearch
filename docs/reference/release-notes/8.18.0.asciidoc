@@ -54,8 +54,8 @@ ES|QL::
 * Avoid over collecting in Limit or Lucene Operator {es-pull}123296[#123296]
 * Correct line and column numbers of missing named parameters {es-pull}120852[#120852]
 * Drop null columns in text formats {es-pull}117643[#117643] (issue: {es-issue}116848[#116848])
-* ESQL - date nanos range bug? {es-pull}125345[#125345] (issue: {es-issue}125439[#125439])
-* Esql - Fix lucene push down behavior when a range contains nanos and millis {es-pull}125595[#125595]
+* {esql} - date nanos range bug? {es-pull}125345[#125345] (issue: {es-issue}125439[#125439])
+* {esql} - Fix lucene push down behavior when a range contains nanos and millis {es-pull}125595[#125595]
 * Fix ROUND() with unsigned longs throwing in some edge cases {es-pull}119536[#119536]
 * Fix TopN row size estimate {es-pull}119476[#119476] (issue: {es-issue}106956[#106956])
 * Fix `AbstractShapeGeometryFieldMapperTests` {es-pull}119265[#119265] (issue: {es-issue}119201[#119201])
@@ -63,7 +63,7 @@ ES|QL::
 * Fix a bug in TOP {es-pull}121552[#121552]
 * Fix async stop sometimes not properly collecting result {es-pull}121843[#121843] (issue: {es-issue}121249[#121249])
 * Fix attribute set equals {es-pull}118823[#118823]
-* Fix double lookup failure on ESQL {es-pull}115616[#115616] (issue: {es-issue}111398[#111398])
+* Fix double lookup failure on {esql} {es-pull}115616[#115616] (issue: {es-issue}111398[#111398])
 * Fix queries with document level security on lookup indexes {es-pull}120617[#120617] (issue: {es-issue}120509[#120509])
 * Fix usage of already released null block in `ValueSourceReaderOperator` {es-pull}126411[#126411] (issue: {es-issue}125850[#125850])
 * Fix writing for LOOKUP status {es-pull}119296[#119296] (issue: {es-issue}119086[#119086])
@@ -80,14 +80,14 @@ Health::
 * Do not recommend increasing `max_shards_per_node` {es-pull}120458[#120458]
 
 ILM+SLM::
-* [8.x] Add missing timeouts to rest-api-spec SLM APIs {es-pull}119447[#119447]
+* Add missing timeouts to rest-api-spec SLM APIs {es-pull}119447[#119447]
 
 Indices APIs::
 * Fix NPE in rolling over unknown target and return 404 {es-pull}125352[#125352]
 * Include hidden indices in `DeprecationInfoAction` {es-pull}118035[#118035] (issue: {es-issue}118020[#118020])
 * Preventing `ConcurrentModificationException` when updating settings for more than one index {es-pull}126077[#126077]
 * Updates the deprecation info API to not warn about system indices and data streams {es-pull}122951[#122951]
-* [8.18] Avoid hoarding cluster state references during rollover {es-pull}124266[#124266]
+* Avoid hoarding cluster state references during rollover {es-pull}124266[#124266]
 
 Inference::
 * [Inference API] Put back legacy EIS URL setting {es-pull}121207[#121207]
@@ -150,8 +150,8 @@ Search::
 * Re-enable parallel collection for field sorted top hits {es-pull}125916[#125916]
 * Skip fetching _inference_fields field in legacy semantic_text format {es-pull}121720[#121720]
 * Support indices created in ESv6 and updated in ESV7 using different LuceneCodecs as archive in current version. {es-pull}125389[#125389]
-* [8.x] Test/107515 `RestoreTemplateWithMatchOnlyTextMapperIT` {es-pull}120898[#120898]
-* [8.x] fix/SearchStatesIt_failures {es-pull}117729[#117729]
+* Test/107515 `RestoreTemplateWithMatchOnlyTextMapperIT` {es-pull}120898[#120898]
+* Fix/SearchStatesIt_failures {es-pull}117729[#117729]
 * `CrossClusterIT` `testCancel` failure {es-pull}117750[#117750] (issue: {es-issue}108061[#108061])
 
 Snapshot/Restore::
@@ -161,6 +161,7 @@ Snapshot/Restore::
 
 Suggesters::
 * Return an empty suggestion when suggest phase times out {es-pull}122575[#122575] (issue: {es-issue}122548[#122548])
+
 
 TLS::
 * Set `keyUsage` for generated HTTP certificates and self-signed CA {es-pull}126376[#126376] (issue: {es-issue}117769[#117769])
@@ -223,7 +224,7 @@ Data streams::
 * Reindex data stream indices on different nodes {es-pull}125171[#125171]
 * Report Deprecated Indices That Are Flagged To Ignore Migration Reindex As A Warning {es-pull}120629[#120629]
 * Retry ILM async action after reindexing data stream {es-pull}124149[#124149]
-* [8.x] Update data stream deprecations warnings to new format and filter sea… {es-pull}119097[#119097]
+* Update data stream deprecations warnings to new format and filter sea… {es-pull}119097[#119097]
 
 Distributed::
 * Metrics for incremental bulk splits {es-pull}116765[#116765]
@@ -248,23 +249,23 @@ ES|QL::
 * Backport scoring support in ES|QL to 8.x branch {es-pull}117747[#117747]
 * Check for early termination in Driver {es-pull}118188[#118188]
 * Do not serialize `EsIndex` in plan {es-pull}119580[#119580]
-* ESQL - Remove restrictions for disjunctions in full text functions {es-pull}118544[#118544]
-* ESQL - enabling scoring with METADATA `_score` {es-pull}113120[#113120]
-* ESQL Add esql hash function {es-pull}117989[#117989]
-* ESQL Support IN operator for Date nanos {es-pull}119772[#119772] (issue: {es-issue}118578[#118578])
-* ESQL: CATEGORIZE as a `BlockHash` {es-pull}114317[#114317]
-* ESQL: Enterprise license enforcement for CCS {es-pull}118102[#118102]
+* {esql} - Remove restrictions for disjunctions in full text functions {es-pull}118544[#118544]
+* {esql} - enabling scoring with METADATA `_score` {es-pull}113120[#113120]
+* {esql} Add {esql} hash function {es-pull}117989[#117989]
+* {esql} Support IN operator for Date nanos {es-pull}119772[#119772] (issue: {es-issue}118578[#118578])
+* {esql}: CATEGORIZE as a `BlockHash` {es-pull}114317[#114317]
+* {esql}: Enterprise license enforcement for CCS {es-pull}118102[#118102]
 * ES|QL: Partial result on demand for async queries {es-pull}118122[#118122]
 * Enable KQL function as a tech preview {es-pull}119730[#119730]
 * Enable LOOKUP JOIN in non-snapshot builds {es-pull}121193[#121193] (issue: {es-issue}121185[#121185])
 * Enable node-level reduction by default {es-pull}119621[#119621]
 * Enable physical plan verification {es-pull}118114[#118114]
-* Esql - Support date nanos in date extract function {es-pull}120727[#120727] (issue: {es-issue}110000[#110000])
-* Esql - support date nanos in date format function {es-pull}120143[#120143] (issue: {es-issue}109994[#109994])
-* Esql Support date nanos on date diff function {es-pull}120645[#120645] (issue: {es-issue}109999[#109999])
-* Esql bucket function for date nanos {es-pull}118474[#118474] (issue: {es-issue}118031[#118031])
-* Esql compare nanos and millis {es-pull}118027[#118027] (issue: {es-issue}116281[#116281])
-* Esql implicit casting for date nanos {es-pull}118697[#118697] (issue: {es-issue}118476[#118476])
+* {esql} - Support date nanos in date extract function {es-pull}120727[#120727] (issue: {es-issue}110000[#110000])
+* {esql} - support date nanos in date format function {es-pull}120143[#120143] (issue: {es-issue}109994[#109994])
+* {esql} Support date nanos on date diff function {es-pull}120645[#120645] (issue: {es-issue}109999[#109999])
+* {esql} bucket function for date nanos {es-pull}118474[#118474] (issue: {es-issue}118031[#118031])
+* {esql} compare nanos and millis {es-pull}118027[#118027] (issue: {es-issue}116281[#116281])
+* {esql} implicit casting for date nanos {es-pull}118697[#118697] (issue: {es-issue}118476[#118476])
 * Extend `TranslationAware` to all pushable expressions {es-pull}120192[#120192]
 * Hash functions {es-pull}118938[#118938]
 * Implement a `MetricsAware` interface {es-pull}121074[#121074]
@@ -303,9 +304,9 @@ Indices APIs::
 * introduce new categories for deprecated resources in deprecation API {es-pull}120505[#120505]
 
 Inference::
-* [8.18][Inference API] Rename `model_id` prop to model in EIS sparse inference request body {es-pull}122398[#122398]
-* [8.x] Add version prefix to Inference Service API path {es-pull}117696[#117696]
-* [8.x] Update sparse text embeddings API route for Inference Service {es-pull}118369[#118369]
+* [Inference API] Rename `model_id` prop to model in EIS sparse inference request body {es-pull}122398[#122398]
+* Add version prefix to Inference Service API path {es-pull}117696[#117696]
+* Update sparse text embeddings API route for Inference Service {es-pull}118369[#118369]
 * [Elastic Inference Service] Add ElasticInferenceService Unified ChatCompletions Integration {es-pull}118871[#118871]
 
 Infra/CLI::
@@ -399,9 +400,9 @@ CRUD::
 * Metrics for indexing failures due to version conflicts {es-pull}119067[#119067]
 
 ES|QL::
-* ESQL - Add Match function options {es-pull}120360[#120360]
-* ESQL - Allow full text functions disjunctions for non-full text functions {es-pull}120291[#120291]
-* ESQL: Enable async get to support formatting {es-pull}111104[#111104] (issue: {es-issue}110926[#110926])
+* {esql} - Add Match function options {es-pull}120360[#120360]
+* {esql} - Allow full text functions disjunctions for non-full text functions {es-pull}120291[#120291]
+* {esql}: Enable async get to support formatting {es-pull}111104[#111104] (issue: {es-issue}110926[#110926])
 * Expand type compatibility for match function and operator {es-pull}117555[#117555]
 * ST_EXTENT aggregation {es-pull}117451[#117451] (issue: {es-issue}104659[#104659])
 * Support ST_ENVELOPE and related (ST_XMIN, ST_XMAX, ST_YMIN, ST_YMAX) functions {es-pull}116964[#116964] (issue: {es-issue}104875[#104875])
@@ -431,7 +432,7 @@ Vector Search::
 * Add new experimental `rank_vectors` mapping for late-interaction second order ranking {es-pull}118804[#118804]
 * KNN vector rescoring for quantized vectors {es-pull}116663[#116663]
 * Mark bbq indices as GA and add rolling upgrade integration tests {es-pull}121105[#121105]
-* [8.x] Add new experimental `rank_vectors` mapping for late-interaction second order ranking {es-pull}119601[#119601]
+* Add new experimental `rank_vectors` mapping for late-interaction second order ranking {es-pull}119601[#119601]
 
 [[upgrade-8.18.0]]
 [float]
@@ -457,5 +458,4 @@ Search::
 
 Watcher::
 * Script for migrating `.watches` and `.triggered_watches` indices {es-pull}120371[#120371]
-
 

@@ -221,8 +221,8 @@ public class DataStreamLifecycleTemplateTests extends AbstractWireSerializingTes
             () -> new DataStreamLifecycle.Template(
                 DataStreamLifecycle.LifecycleType.FAILURES,
                 randomBoolean(),
-                randomRetention(),
-                randomDownsampling()
+                randomBoolean() ? null : DataStreamLifecycleTests.randomPositiveTimeValue(),
+                DataStreamLifecycleTests.randomDownsampling()
             )
         );
         assertThat(

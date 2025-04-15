@@ -235,8 +235,7 @@ public class HollowShardsService extends AbstractLifecycleComponent {
      */
     public void removeHollowShard(IndexShard indexShard, String reason) {
         final var shardId = indexShard.shardId();
-        var existingBlocker = hollowShards.remove(shardId);
-        if (existingBlocker != null) {
+        removeHollowShard(shardId, reason, () -> {
             // A hollow shard blocks ingestion, thus it cannot have new non-persisted operations.
             assert indexShard.state() == IndexShardState.CLOSED
                 || indexShard.getLocalCheckpoint() == indexShard.getEngineOrNull().getMaxSeqNo()
@@ -249,6 +248,13 @@ public class HollowShardsService extends AbstractLifecycleComponent {
                     + " and max seq no "
                     + indexShard.getEngineOrNull().getMaxSeqNo()
                     + ")";
+        });
+    }
+
+    private void removeHollowShard(ShardId shardId, String reason, Runnable onRemove) {
+        var existingBlocker = hollowShards.remove(shardId);
+        if (existingBlocker != null) {
+            onRemove.run();
             logger.info("{} removed hollow shard due to {}", shardId, reason);
             existingBlocker.listener.onResponse(null);
             metrics.decrementHollowShardCount();
@@ -364,10 +370,14 @@ public class HollowShardsService extends AbstractLifecycleComponent {
                 }
 
                 private void failedUnhollowing(ShardId shardId, Exception e) {
+                    // An unhollowing may fail with legitimate reasons, e.g., if there is an index deletion or shard closure.
+                    // It may take a bit of time until the shard is completely closed and the ingestion blocker is removed.
+                    // If unhollowing fails for other reasons, we fail the shard as a last resort to release the ingestion blocker.
                     logger.debug("unhollowing failed on shard " + shardId, e);
                     var indexShard = indicesService.getShardOrNull(shardId);
                     if (indexShard == null || indexShard.state() == IndexShardState.CLOSED) {
-                        assert isHollowShard(shardId) == false : shardId + " has been closed but has ingestion blocker still installed";
+                        logger.warn("removing ingestion blocker after unhollowing failure of closed " + shardId, e);
+                        removeHollowShard(shardId, "unhollowing failure", () -> {});
                     } else {
                         assert indexShard.isRelocatedPrimary() == false : "relocation should not be possible during unhollowing";
                         // As a last resort, fail the shard to ultimately uninstall the ingestion blocker.

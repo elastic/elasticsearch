@@ -78,6 +78,7 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.MergePolicyConfig;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.EngineConfig;
+import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.node.PluginComponentBinding;
@@ -103,6 +104,7 @@ import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.LongStream;
 import java.util.stream.StreamSupport;
@@ -881,7 +883,7 @@ public class GenerationalDocValuesIT extends AbstractStatelessIntegTestCase {
 
         final var indexName = createIndex(1, 0);
         var indexingShard = findIndexShard(resolveIndex(indexName), 0);
-        var indexEngine = asInstanceOf(IndexEngine.class, indexingShard.getEngineOrNull());
+        Function<IndexShard, Long> getShardGeneration = shard -> shard.commitStats().getGeneration();
         var indexDirectory = IndexDirectory.unwrapDirectory(indexingShard.store().directory());
 
         // create docs in segment core _0
@@ -893,7 +895,7 @@ public class GenerationalDocValuesIT extends AbstractStatelessIntegTestCase {
         );
         flush(indexName);
 
-        assertThat(indexEngine.getCurrentGeneration(), equalTo(4L));
+        assertThat(getShardGeneration.apply(indexingShard), equalTo(4L));
         assertBusyFilesLocations(
             indexDirectory,
             Map.ofEntries(
@@ -918,7 +920,7 @@ public class GenerationalDocValuesIT extends AbstractStatelessIntegTestCase {
         );
         flush(indexName);
 
-        assertThat(indexEngine.getCurrentGeneration(), equalTo(5L));
+        assertThat(getShardGeneration.apply(indexingShard), equalTo(5L));
         assertBusyFilesLocations(
             indexDirectory,
             Map.ofEntries(
@@ -971,7 +973,7 @@ public class GenerationalDocValuesIT extends AbstractStatelessIntegTestCase {
         long docsAfterSegment_2 = docsAfterSegment_1 - deletedDocs;
         assertThat(indexingShard.docStats().getCount(), equalTo(docsAfterSegment_2));
 
-        assertThat(indexEngine.getCurrentGeneration(), equalTo(6L));
+        assertThat(getShardGeneration.apply(indexingShard), equalTo(6L));
         assertBusyFilesLocations(indexDirectory, filesLocations);
 
         // .dvm and .fnm are also opened but then fully read once and closed.
@@ -1031,7 +1033,7 @@ public class GenerationalDocValuesIT extends AbstractStatelessIntegTestCase {
             entry("_0_1_Lucene90_0.dvm", 6L)
         );
 
-        assertThat(indexEngine.getCurrentGeneration(), equalTo(7L));
+        assertThat(getShardGeneration.apply(indexingShard), equalTo(7L));
         assertBusyFilesLocations(indexDirectory, filesLocations);
 
         assertBusyOpenedGenerationalFiles(indexDirectory.getBlobStoreCacheDirectory(), Map.of("_0_1_Lucene90_0.dvd", 6L));
@@ -1096,7 +1098,7 @@ public class GenerationalDocValuesIT extends AbstractStatelessIntegTestCase {
             entry("_0_1_Lucene90_0.dvm", 6L)
         );
 
-        assertThat(indexEngine.getCurrentGeneration(), equalTo(8L));
+        assertThat(getShardGeneration.apply(indexingShard), equalTo(8L));
         assertBusyFilesLocations(indexDirectory, filesLocations);
 
         assertBusyOpenedGenerationalFiles(indexDirectory.getBlobStoreCacheDirectory(), Map.of("_0_1_Lucene90_0.dvd", 6L));
@@ -1146,7 +1148,6 @@ public class GenerationalDocValuesIT extends AbstractStatelessIntegTestCase {
         internalCluster().stopNode(indexNode);
 
         indexingShard = findIndexShard(resolveIndex(indexName), 0, newIndexNode);
-        indexEngine = asInstanceOf(IndexEngine.class, indexingShard.getEngineOrNull());
         indexDirectory = IndexDirectory.unwrapDirectory(indexingShard.store().directory());
 
         filesLocations = Map.ofEntries(
@@ -1164,7 +1165,7 @@ public class GenerationalDocValuesIT extends AbstractStatelessIntegTestCase {
             entry("_0_1_Lucene90_0.dvm", 8L)
         );
 
-        assertThat(indexEngine.getCurrentGeneration(), equalTo(9L));
+        assertThat(getShardGeneration.apply(indexingShard), equalTo(9L));
         assertBusyFilesLocations(indexDirectory, filesLocations);
 
         // the new indexing shard opens the generational files on the generation 8L (flush before relocation)
@@ -1229,7 +1230,7 @@ public class GenerationalDocValuesIT extends AbstractStatelessIntegTestCase {
             entry("_5.si", 10L)
         );
 
-        assertThat(indexEngine.getCurrentGeneration(), equalTo(10L));
+        assertThat(getShardGeneration.apply(indexingShard), equalTo(10L));
         assertBusyFilesLocations(indexDirectory, filesLocations);
 
         assertBusyOpenedGenerationalFiles(indexDirectory.getBlobStoreCacheDirectory(), Map.of());

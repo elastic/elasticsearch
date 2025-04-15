@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.esql.plan.logical.inference;
+package org.elasticsearch.xpack.esql.plan.physical.inference;
 
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
@@ -13,21 +13,20 @@ import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.ReferenceAttributeTests;
-import org.elasticsearch.xpack.esql.plan.logical.AbstractLogicalPlanSerializationTests;
-import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.esql.plan.physical.AbstractPhysicalPlanSerializationTests;
+import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 
 import java.io.IOException;
 
-public class CompletionSerializationTests extends AbstractLogicalPlanSerializationTests<Completion> {
-
+public class CompletionExecSerializationTests extends AbstractPhysicalPlanSerializationTests<CompletionExec> {
     @Override
-    protected Completion createTestInstance() {
-        return new Completion(randomSource(), randomChild(0), randomInferenceId(), randomPrompt(), randomAttribute());
+    protected CompletionExec createTestInstance() {
+        return new CompletionExec(randomSource(), randomChild(0), randomInferenceId(), randomPrompt(), randomAttribute());
     }
 
     @Override
-    protected Completion mutateInstance(Completion instance) throws IOException {
-        LogicalPlan child = instance.child();
+    protected CompletionExec mutateInstance(CompletionExec instance) throws IOException {
+        PhysicalPlan child = instance.child();
         Expression inferenceId = instance.inferenceId();
         Expression prompt = instance.prompt();
         Attribute targetField = instance.targetField();
@@ -38,7 +37,7 @@ public class CompletionSerializationTests extends AbstractLogicalPlanSerializati
             case 2 -> prompt = randomValueOtherThan(prompt, this::randomPrompt);
             case 3 -> targetField = randomValueOtherThan(targetField, this::randomAttribute);
         }
-        return new Completion(instance.source(), child, inferenceId, prompt, targetField);
+        return new CompletionExec(instance.source(), child, inferenceId, prompt, targetField);
     }
 
     private Literal randomInferenceId() {

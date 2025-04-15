@@ -123,7 +123,8 @@ The following parameters are accepted by `wildcard` fields:
 <<ignore-above,`ignore_above`>>::
 
     Do not index any string longer than this value. Defaults to `2147483647`
-    so that all values would be accepted.
+    in standard indices so that all values would be accepted, and `8191` in
+    logsdb indices to protect against Lucene's term byte-length limit of `32766`.
 
 [discrete]
 ==== Limitations

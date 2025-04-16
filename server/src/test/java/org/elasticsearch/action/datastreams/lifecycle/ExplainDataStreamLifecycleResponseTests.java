@@ -314,7 +314,8 @@ public class ExplainDataStreamLifecycleResponseTests extends AbstractWireSeriali
             randomBoolean()
                 ? new DataStreamGlobalRetention(
                     TimeValue.timeValueDays(randomIntBetween(1, 10)),
-                    TimeValue.timeValueDays(randomIntBetween(10, 20))
+                    TimeValue.timeValueDays(randomIntBetween(10, 20)),
+                    TimeValue.timeValueDays(randomIntBetween(1, 20))
                 )
                 : null
         );

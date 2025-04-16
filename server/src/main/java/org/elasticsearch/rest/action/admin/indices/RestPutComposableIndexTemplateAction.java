@@ -13,6 +13,7 @@ import org.elasticsearch.action.admin.indices.template.put.TransportPutComposabl
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.DataStream;
+import org.elasticsearch.cluster.metadata.DataStreamFailureStore;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.Scope;
@@ -31,7 +32,10 @@ import static org.elasticsearch.rest.action.admin.indices.RestPutComponentTempla
 @ServerlessScope(Scope.PUBLIC)
 public class RestPutComposableIndexTemplateAction extends BaseRestHandler {
 
-    private static final Set<String> capabilities = Set.of(SUPPORTS_FAILURE_STORE);
+    private static final Set<String> capabilities = Set.of(
+        SUPPORTS_FAILURE_STORE,
+        DataStreamFailureStore.FAILURES_LIFECYCLE_API_CAPABILITY
+    );
 
     @Override
     public List<Route> routes() {

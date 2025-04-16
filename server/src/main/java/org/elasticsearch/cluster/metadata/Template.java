@@ -61,7 +61,9 @@ public class Template implements SimpleDiffable<Template>, ToXContentObject {
             a[4] == null ? ResettableValue.undefined() : (ResettableValue<DataStreamOptions.Template>) a[4]
         )
     );
-    public static final DataStreamLifecycle.Template DISABLED_LIFECYCLE = DataStreamLifecycle.builder().enabled(false).buildTemplate();
+    public static final DataStreamLifecycle.Template DISABLED_LIFECYCLE = DataStreamLifecycle.dataLifecycleBuilder()
+        .enabled(false)
+        .buildTemplate();
 
     static {
         PARSER.declareObject(ConstructingObjectParser.optionalConstructorArg(), (p, c) -> Settings.fromXContent(p), SETTINGS);
@@ -91,7 +93,7 @@ public class Template implements SimpleDiffable<Template>, ToXContentObject {
         }, ALIASES);
         PARSER.declareObject(
             ConstructingObjectParser.optionalConstructorArg(),
-            (p, c) -> DataStreamLifecycle.Template.fromXContent(p),
+            (p, c) -> DataStreamLifecycle.Template.dataLifecycleTemplatefromXContent(p),
             LIFECYCLE
         );
         PARSER.declareObjectOrNull(

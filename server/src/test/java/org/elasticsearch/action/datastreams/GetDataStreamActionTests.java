@@ -36,12 +36,18 @@ public class GetDataStreamActionTests extends ESTestCase {
         TimeValue configuredRetention = TimeValue.timeValueDays(100);
         TimeValue globalDefaultRetention = TimeValue.timeValueDays(10);
         TimeValue globalMaxRetention = TimeValue.timeValueDays(50);
+        TimeValue failuresDefaultRetention = TimeValue.timeValueDays(20);
 
         {
             // Since this is a system data stream, we expect the global retention to be ignored
             boolean isSystem = true;
             GetDataStreamAction.Response.DataStreamInfo dataStreamInfo = newDataStreamInfo(isSystem, configuredRetention);
-            Map<String, Object> resultMap = getXContentMap(dataStreamInfo, globalDefaultRetention, globalMaxRetention);
+            Map<String, Object> resultMap = getXContentMap(
+                dataStreamInfo,
+                globalDefaultRetention,
+                globalMaxRetention,
+                failuresDefaultRetention
+            );
             assertThat(resultMap.get("hidden"), equalTo(true));
             assertThat(resultMap.get("system"), equalTo(true));
             Map<String, Object> lifecycleResult = (Map<String, Object>) resultMap.get("lifecycle");
@@ -53,7 +59,12 @@ public class GetDataStreamActionTests extends ESTestCase {
             // Since this is not a system data stream, we expect the global retention to override the configured retention
             boolean isSystem = false;
             GetDataStreamAction.Response.DataStreamInfo dataStreamInfo = newDataStreamInfo(isSystem, configuredRetention);
-            Map<String, Object> resultMap = getXContentMap(dataStreamInfo, globalDefaultRetention, globalMaxRetention);
+            Map<String, Object> resultMap = getXContentMap(
+                dataStreamInfo,
+                globalDefaultRetention,
+                globalMaxRetention,
+                failuresDefaultRetention
+            );
             assertThat(resultMap.get("hidden"), equalTo(false));
             assertThat(resultMap.get("system"), equalTo(false));
             Map<String, Object> lifecycleResult = (Map<String, Object>) resultMap.get("lifecycle");
@@ -69,12 +80,17 @@ public class GetDataStreamActionTests extends ESTestCase {
     private Map<String, Object> getXContentMap(
         GetDataStreamAction.Response.DataStreamInfo dataStreamInfo,
         TimeValue globalDefaultRetention,
-        TimeValue globalMaxRetention
+        TimeValue globalMaxRetention,
+        TimeValue failuresDefaultRetention
     ) throws IOException {
         try (XContentBuilder builder = XContentBuilder.builder(XContentType.JSON.xContent())) {
             ToXContent.Params params = new ToXContent.MapParams(DataStreamLifecycle.INCLUDE_EFFECTIVE_RETENTION_PARAMS);
             RolloverConfiguration rolloverConfiguration = null;
-            DataStreamGlobalRetention globalRetention = new DataStreamGlobalRetention(globalDefaultRetention, globalMaxRetention);
+            DataStreamGlobalRetention globalRetention = new DataStreamGlobalRetention(
+                globalDefaultRetention,
+                globalMaxRetention,
+                failuresDefaultRetention
+            );
             dataStreamInfo.toXContent(builder, params, rolloverConfiguration, globalRetention);
             String serialized = Strings.toString(builder);
             return XContentHelper.convertToMap(XContentType.JSON.xContent(), serialized, randomBoolean());
@@ -99,7 +115,7 @@ public class GetDataStreamActionTests extends ESTestCase {
 
     private static DataStream newDataStreamInstance(boolean isSystem, TimeValue retention) {
         List<Index> indices = List.of(new Index(randomAlphaOfLength(10), randomAlphaOfLength(10)));
-        DataStreamLifecycle lifecycle = new DataStreamLifecycle(true, retention, null);
+        DataStreamLifecycle lifecycle = DataStreamLifecycle.createDataLifecycle(true, retention, null);
         return DataStream.builder(randomAlphaOfLength(50), indices)
             .setGeneration(randomLongBetween(1, 1000))
             .setMetadata(Map.of())

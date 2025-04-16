@@ -363,7 +363,7 @@ public final class DataStreamTestHelper {
             timeProvider,
             randomBoolean(),
             randomBoolean() ? IndexMode.STANDARD : null, // IndexMode.TIME_SERIES triggers validation that many unit tests doesn't pass
-            randomBoolean() ? DataStreamLifecycle.builder().dataRetention(randomPositiveTimeValue()).build() : null,
+            randomBoolean() ? DataStreamLifecycle.dataLifecycleBuilder().dataRetention(randomPositiveTimeValue()).build() : null,
             failureStore ? DataStreamOptions.FAILURE_STORE_ENABLED : DataStreamOptions.EMPTY,
             DataStream.DataStreamIndices.backingIndicesBuilder(indices)
                 .setRolloverOnWrite(replicated == false && randomBoolean())
@@ -410,7 +410,8 @@ public final class DataStreamTestHelper {
         boolean withDefault = randomBoolean();
         return new DataStreamGlobalRetention(
             withDefault ? TimeValue.timeValueDays(randomIntBetween(1, 30)) : null,
-            withDefault == false || randomBoolean() ? TimeValue.timeValueDays(randomIntBetween(31, 100)) : null
+            withDefault == false || randomBoolean() ? TimeValue.timeValueDays(randomIntBetween(31, 100)) : null,
+            TimeValue.timeValueDays(randomIntBetween(1, 30))
         );
     }
 
@@ -827,12 +828,10 @@ public final class DataStreamTestHelper {
         return indicesService;
     }
 
-    public static DataStreamOptions.Template createDataStreamOptionsTemplate(Boolean failureStore) {
-        if (failureStore == null) {
+    public static DataStreamOptions.Template createDataStreamOptionsTemplate(Boolean failureStoreEnabled) {
+        if (failureStoreEnabled == null) {
             return DataStreamOptions.Template.EMPTY;
         }
-        return new DataStreamOptions.Template(
-            ResettableValue.create(new DataStreamFailureStore.Template(ResettableValue.create(failureStore)))
-        );
+        return new DataStreamOptions.Template(new DataStreamFailureStore.Template(failureStoreEnabled, null));
     }
 }

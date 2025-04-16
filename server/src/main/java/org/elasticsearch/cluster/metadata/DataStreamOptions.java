@@ -37,8 +37,8 @@ public record DataStreamOptions(@Nullable DataStreamFailureStore failureStore)
         ToXContentObject {
 
     public static final ParseField FAILURE_STORE_FIELD = new ParseField(FAILURE_STORE);
-    public static final DataStreamOptions FAILURE_STORE_ENABLED = new DataStreamOptions(new DataStreamFailureStore(true));
-    public static final DataStreamOptions FAILURE_STORE_DISABLED = new DataStreamOptions(new DataStreamFailureStore(false));
+    public static final DataStreamOptions FAILURE_STORE_ENABLED = new DataStreamOptions(new DataStreamFailureStore(true, null));
+    public static final DataStreamOptions FAILURE_STORE_DISABLED = new DataStreamOptions(new DataStreamFailureStore(false, null));
     public static final DataStreamOptions EMPTY = new DataStreamOptions(null);
 
     public static final ConstructingObjectParser<DataStreamOptions, Void> PARSER = new ConstructingObjectParser<>(
@@ -182,7 +182,7 @@ public record DataStreamOptions(@Nullable DataStreamFailureStore failureStore)
         }
 
         /**
-         * Updates this builder with the values of the provided template. This is not a replacement necessarily, the
+         * Composes this builder with the values of the provided template. This is not a replacement necessarily, the
          * inner values will be merged.
          */
         public Builder composeTemplate(DataStreamOptions.Template options) {
@@ -190,7 +190,7 @@ public record DataStreamOptions(@Nullable DataStreamFailureStore failureStore)
         }
 
         /**
-         * Updates the current failure store configuration with the provided value. This is not a replacement necessarily, if both
+         * Composes the current failure store configuration with the provided value. This is not a replacement necessarily, if both
          * instance contain data the configurations are merged.
          */
         public Builder failureStore(ResettableValue<DataStreamFailureStore.Template> newFailureStore) {

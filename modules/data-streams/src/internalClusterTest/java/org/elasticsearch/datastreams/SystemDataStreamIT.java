@@ -411,7 +411,7 @@ public class SystemDataStreamIT extends ESIntegTestCase {
                                         "type": "long"
                                       }
                                     }
-                                }""")).dataStreamOptions(new DataStreamOptions.Template(new DataStreamFailureStore.Template(true))))
+                                }""")).dataStreamOptions(new DataStreamOptions.Template(new DataStreamFailureStore.Template(true, null))))
                             .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate())
                             .build(),
                         Map.of(),

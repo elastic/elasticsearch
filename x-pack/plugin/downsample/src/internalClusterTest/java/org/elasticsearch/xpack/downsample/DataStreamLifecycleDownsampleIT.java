@@ -54,7 +54,7 @@ public class DataStreamLifecycleDownsampleIT extends ESIntegTestCase {
     public void testDownsampling() throws Exception {
         String dataStreamName = "metrics-foo";
 
-        DataStreamLifecycle.Template lifecycle = DataStreamLifecycle.builder()
+        DataStreamLifecycle.Template lifecycle = DataStreamLifecycle.dataLifecycleBuilder()
             .downsampling(
                 List.of(
                     new DataStreamLifecycle.DownsamplingRound(
@@ -127,7 +127,7 @@ public class DataStreamLifecycleDownsampleIT extends ESIntegTestCase {
     public void testDownsamplingOnlyExecutesTheLastMatchingRound() throws Exception {
         String dataStreamName = "metrics-bar";
 
-        DataStreamLifecycle.Template lifecycle = DataStreamLifecycle.builder()
+        DataStreamLifecycle.Template lifecycle = DataStreamLifecycle.dataLifecycleBuilder()
             .downsampling(
                 List.of(
                     new DataStreamLifecycle.DownsamplingRound(
@@ -195,7 +195,7 @@ public class DataStreamLifecycleDownsampleIT extends ESIntegTestCase {
         // we expect the earlier round to be ignored
         String dataStreamName = "metrics-baz";
 
-        DataStreamLifecycle.Template lifecycle = DataStreamLifecycle.builder()
+        DataStreamLifecycle.Template lifecycle = DataStreamLifecycle.dataLifecycleBuilder()
             .downsampling(
                 List.of(
                     new DataStreamLifecycle.DownsamplingRound(
@@ -259,7 +259,7 @@ public class DataStreamLifecycleDownsampleIT extends ESIntegTestCase {
         // update the lifecycle so that it only has one round, for the same `after` parameter as before, but a different interval
         // the different interval should yield a different downsample index name so we expect the data stream lifecycle to get the previous
         // `10s` interval downsample index, downsample it to `30s` and replace it in the data stream instead of the `10s` one.
-        DataStreamLifecycle updatedLifecycle = DataStreamLifecycle.builder()
+        DataStreamLifecycle updatedLifecycle = DataStreamLifecycle.dataLifecycleBuilder()
             .downsampling(
                 List.of(
                     new DataStreamLifecycle.DownsamplingRound(

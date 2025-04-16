@@ -54,7 +54,7 @@ public class DataStreamLifecycleUsageTransportActionIT extends ESIntegTestCase {
      */
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return List.of(TestDateLifecycleUsagePlugin.class);
+        return List.of(TestDataLifecycleUsagePlugin.class);
     }
 
     @After
@@ -133,7 +133,7 @@ public class DataStreamLifecycleUsageTransportActionIT extends ESIntegTestCase {
                 boolean systemDataStream = rarely();
                 if (hasLifecycle) {
                     if (randomBoolean()) {
-                        lifecycle = new DataStreamLifecycle(null, null, null);
+                        lifecycle = DataStreamLifecycle.DEFAULT_DATA_LIFECYCLE;
                         dataStreamsWithLifecycleCount.incrementAndGet();
                         if (useDefaultRetention && systemDataStream == false) {
                             dataStreamsWithDefaultRetentionCount.incrementAndGet();
@@ -155,7 +155,7 @@ public class DataStreamLifecycleUsageTransportActionIT extends ESIntegTestCase {
                             }
                             atLeastOne = true;
                         }
-                        lifecycle = DataStreamLifecycle.builder()
+                        lifecycle = DataStreamLifecycle.dataLifecycleBuilder()
                             .dataRetention(TimeValue.timeValueMillis(retentionMillis))
                             .enabled(isEnabled)
                             .build();
@@ -285,7 +285,7 @@ public class DataStreamLifecycleUsageTransportActionIT extends ESIntegTestCase {
     /*
      * This plugin exposes the DataLifecycleUsageTransportAction.
      */
-    public static final class TestDateLifecycleUsagePlugin extends XPackClientPlugin {
+    public static final class TestDataLifecycleUsagePlugin extends XPackClientPlugin {
         @Override
         public List<ActionHandler> getActions() {
             List<ActionHandler> actions = new ArrayList<>();

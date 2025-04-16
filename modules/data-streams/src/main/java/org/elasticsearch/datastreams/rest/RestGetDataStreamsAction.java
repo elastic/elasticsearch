@@ -11,6 +11,8 @@ package org.elasticsearch.datastreams.rest;
 import org.elasticsearch.action.datastreams.GetDataStreamAction;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.internal.node.NodeClient;
+import org.elasticsearch.cluster.metadata.DataStream;
+import org.elasticsearch.cluster.metadata.DataStreamFailureStore;
 import org.elasticsearch.cluster.metadata.DataStreamLifecycle;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.util.set.Sets;
@@ -23,7 +25,10 @@ import org.elasticsearch.rest.action.RestCancellableNodeClient;
 import org.elasticsearch.rest.action.RestToXContentListener;
 
 import java.util.List;
+import java.util.Objects;
 import java.util.Set;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 
@@ -45,6 +50,10 @@ public class RestGetDataStreamsAction extends BaseRestHandler {
             )
         )
     );
+    private static final Set<String> CAPABILITIES = Stream.of(
+        DataStreamLifecycle.EFFECTIVE_RETENTION_REST_API_CAPABILITY,
+        DataStream.isFailureStoreFeatureFlagEnabled() ? DataStreamFailureStore.FAILURES_LIFECYCLE_API_CAPABILITY : null
+    ).filter(Objects::nonNull).collect(Collectors.toSet());
 
     @Override
     public String getName() {
@@ -79,7 +88,7 @@ public class RestGetDataStreamsAction extends BaseRestHandler {
 
     @Override
     public Set<String> supportedCapabilities() {
-        return Set.of(DataStreamLifecycle.EFFECTIVE_RETENTION_REST_API_CAPABILITY);
+        return CAPABILITIES;
     }
 
     @Override

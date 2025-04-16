@@ -1984,7 +1984,7 @@ public class StatelessCommitServiceTests extends ESTestCase {
         }
     }
 
-    public void testRegisterCommitForUnpromotableRecoveryAcquriesARefForAllBlobs() throws Exception {
+    public void testRegisterCommitForUnpromotableRecoveryAcquiresARefForAllBlobs() throws Exception {
         Set<StaleCompoundCommit> deletedBCCs = ConcurrentCollections.newConcurrentSet();
         var fakeSearchNode = new FakeSearchNode(threadPool);
         var stateRef = new AtomicReference<ClusterState>();

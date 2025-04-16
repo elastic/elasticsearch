@@ -35,7 +35,7 @@ The `LOOKUP JOIN` command adds new columns to a table, with data from {{es}} ind
 :::
 
 `<lookup_index>`
-: The name of the lookup index. This must be a specific index name - wildcards, aliases, and remote cluster references are not supported.  Indexes used for lookups must be configured with the [`lookup` index mode](https://claude.ai/reference/elasticsearch/index-settings/index-modules.md#index-mode-setting).
+: The name of the lookup index. This must be a specific index name - wildcards, aliases, and remote cluster references are not supported.  Indices used for lookups must be configured with the [`lookup` index mode](https://claude.ai/reference/elasticsearch/index-settings/index-modules.md#index-mode-setting).
 
 `<field_name>`
 : The field to join on. This field must exist in both your current query results and in the lookup index. If the field contains multi-valued entries, those entries will not match anything (the added fields will contain `null` for those rows).
@@ -108,7 +108,7 @@ FROM employees
 To use `LOOKUP JOIN`, the following requirements must be met:
 
 
-*  Indexes used for lookups must be configured with the [`lookup` index mode](https://claude.ai/reference/elasticsearch/index-settings/index-modules.md#index-mode-setting)
+*  Indices used for lookups must be configured with the [`lookup` index mode](https://claude.ai/reference/elasticsearch/index-settings/index-modules.md#index-mode-setting)
 * **Compatible data types**: The join key and join field in the lookup index must have compatible data types. This means:
   * The data types must either be identical or be internally represented as the same type in {{esql}}
   * Numeric types follow these compatibility rules:

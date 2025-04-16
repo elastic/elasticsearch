@@ -1,5 +1,0 @@
-pr: 119798
-summary: "Add a `PostAnalysisAware,` distribute verification"
-area: ES|QL
-type: enhancement
-issues: []

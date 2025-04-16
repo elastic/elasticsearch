@@ -1,5 +1,0 @@
-pr: 117214
-summary: Returning ignored fields in the simulate ingest API
-area: Ingest Node
-type: enhancement
-issues: []

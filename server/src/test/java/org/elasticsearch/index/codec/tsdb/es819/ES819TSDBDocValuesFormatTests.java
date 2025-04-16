@@ -212,7 +212,7 @@ public class ES819TSDBDocValuesFormatTests extends ES87TSDBDocValuesFormatTests 
 
                     assertEquals(i, timestampDV.nextDoc());
                     long actualTimestamp = timestampDV.longValue();
-                    assertEquals(actualTimestamp - i, actualTimestamp);
+                    assertTrue(actualTimestamp == timestamp || actualTimestamp == timestamp - 1);
 
                     if (counterOneDV.advanceExact(i)) {
                         long counterOneValue = counterOneDV.longValue();

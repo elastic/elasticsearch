@@ -1,7 +1,7 @@
 ---
 navigation_title: "Correlate data with LOOKUP JOIN"
 mapped_pages:
- - https://www.elastic.co/guide/en/elasticsearch/reference/current/esql-enrich-data.html
+ - https://www.elastic.co/guide/en/elasticsearch/reference/8.18/_lookup_join.html
 ---
 
 # LOOKUP JOIN [esql-lookup-join-reference]

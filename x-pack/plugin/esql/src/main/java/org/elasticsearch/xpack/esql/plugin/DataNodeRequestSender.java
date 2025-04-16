@@ -262,9 +262,7 @@ abstract class DataNodeRequestSender {
                 if (pendingRetries.isEmpty() == false && remainingTargetShardSearchAttempts.getAndDecrement() > 0) {
                     ongoingTargetShardResolutionAttempts.incrementAndGet();
                     resolveShards(pendingRetries, computeListener.acquireAvoid().delegateFailure((l, resolutions) -> {
-                        for (var entry : resolutions.entrySet()) {
-                            targetShards.shards.get(entry.getKey()).remainingNodes.addAll(entry.getValue());
-                        }
+                        addRemainingNodes(targetShards, resolutions);
                         ongoingTargetShardResolutionAttempts.decrementAndGet();
                         trySendingRequestsForPendingShards(targetShards, computeListener);
                         l.onResponse(null);
@@ -355,6 +353,17 @@ abstract class DataNodeRequestSender {
                     isTaskCanceledException || e instanceof NoShardAvailableActionException ? current.failure : e
                 );
         });
+    }
+
+    private void addRemainingNodes(TargetShards targetShards, Map<ShardId, List<DiscoveryNode>> resolutions) {
+        sendingLock.lock();
+        try {
+            for (var entry : resolutions.entrySet()) {
+                targetShards.shards.get(entry.getKey()).remainingNodes.addAll(entry.getValue());
+            }
+        } finally {
+            sendingLock.unlock();
+        }
     }
 
     /**
@@ -467,7 +476,7 @@ abstract class DataNodeRequestSender {
                     skippedShards++;
                     continue;
                 }
-                List<DiscoveryNode> allocatedNodes = Collections.synchronizedList(new ArrayList<>(group.allocatedNodes().size()));
+                List<DiscoveryNode> allocatedNodes = new ArrayList<>(group.allocatedNodes().size());
                 for (String n : group.allocatedNodes()) {
                     allocatedNodes.add(nodes.get(n));
                 }

@@ -199,7 +199,10 @@ public class PinnedRetrieverBuilderTests extends AbstractXContentTestCase<Pinned
         assertThat(
             e.getMessage(),
             equalTo(
-                "[" + PinnedRetrieverBuilder.NAME + "] retriever only supports sorting by score, invalid sort criterion: {\n  \"field1\" : {\n    \"order\" : \"asc\"\n  }\n}"
+                "["
+                    + PinnedRetrieverBuilder.NAME
+                    + "] retriever only supports sorting by score, "
+                    + "invalid sort criterion: {\n  \"field1\" : {\n    \"order\" : \"asc\"\n  }\n}"
             )
         );
 
@@ -211,7 +214,10 @@ public class PinnedRetrieverBuilderTests extends AbstractXContentTestCase<Pinned
         assertThat(
             e.getMessage(),
             equalTo(
-                "[" + PinnedRetrieverBuilder.NAME + "] retriever only supports sorting by score, invalid sort criterion: {\n  \"field1\" : {\n    \"order\" : \"asc\"\n  }\n}"
+                "["
+                    + PinnedRetrieverBuilder.NAME
+                    + "] retriever only supports sorting by score, "
+                    + "invalid sort criterion: {\n  \"field1\" : {\n    \"order\" : \"asc\"\n  }\n}"
             )
         );
     }

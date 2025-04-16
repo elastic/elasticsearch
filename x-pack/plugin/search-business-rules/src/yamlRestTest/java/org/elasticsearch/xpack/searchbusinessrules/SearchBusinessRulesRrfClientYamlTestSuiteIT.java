@@ -14,22 +14,27 @@ import org.elasticsearch.test.rest.yaml.ClientYamlTestCandidate;
 import org.elasticsearch.test.rest.yaml.ESClientYamlSuiteTestCase;
 import org.junit.ClassRule;
 
-public class SearchBusinessRulesClientYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
+/**
+ * Test suite for running YAML tests specific to Pinned Retriever + RRF combination,
+ * requiring a trial license.
+ */
+public class SearchBusinessRulesRrfClientYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
 
     @ClassRule
     public static ElasticsearchCluster cluster = ElasticsearchCluster.local()
         .distribution(DistributionType.DEFAULT)
-        .setting("xpack.license.self_generated.type", "basic")
+        // RRF requires trial or platinum license
+        .setting("xpack.license.self_generated.type", "trial")
         .setting("xpack.security.enabled", "false")
         .build();
 
-    public SearchBusinessRulesClientYamlTestSuiteIT(final ClientYamlTestCandidate testCandidate) {
+    public SearchBusinessRulesRrfClientYamlTestSuiteIT(final ClientYamlTestCandidate testCandidate) {
         super(testCandidate);
     }
 
     @ParametersFactory
     public static Iterable<Object[]> parameters() throws Exception {
-        return ESClientYamlSuiteTestCase.createParameters(new String[] { "search-business-rules/10_pinned_retriever_basic" });
+        return ESClientYamlSuiteTestCase.createParameters(new String[] { "search-business-rules/11_pinned_retriever_rrf" });
     }
 
     @Override

@@ -24,6 +24,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Insist;
 import org.elasticsearch.xpack.esql.plan.logical.Keep;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.esql.plan.logical.Lookup;
 import org.elasticsearch.xpack.esql.plan.logical.MvExpand;
 import org.elasticsearch.xpack.esql.plan.logical.OrderBy;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
@@ -59,6 +60,7 @@ public enum FeatureMetric {
     KEEP(Keep.class::isInstance),
     RENAME(Rename.class::isInstance),
     LOOKUP_JOIN(LookupJoin.class::isInstance),
+    LOOKUP(Lookup.class::isInstance),
     CHANGE_POINT(ChangePoint.class::isInstance),
     INLINESTATS(InlineStats.class::isInstance),
     RERANK(Rerank.class::isInstance),

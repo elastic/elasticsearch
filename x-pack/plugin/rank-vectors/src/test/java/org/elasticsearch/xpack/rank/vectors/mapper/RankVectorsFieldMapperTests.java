@@ -383,19 +383,10 @@ public class RankVectorsFieldMapperTests extends MapperTestCase {
             switch (denseVectorFieldType.getElementType()) {
                 case BYTE -> assumeFalse("byte element type testing not currently added", false);
                 case FLOAT -> {
-                    List<float[]> fetchedFloatsList = new ArrayList<>();
-                    for (var f : fromNative) {
-                        float[] fetchedFloats = new float[denseVectorFieldType.getVectorDimensions()];
-                        assert f instanceof List;
-                        List<?> vector = (List<?>) f;
-                        int i = 0;
-                        for (Object v : vector) {
-                            assert v instanceof Number;
-                            fetchedFloats[i++] = ((Number) v).floatValue();
-                        }
-                        fetchedFloatsList.add(fetchedFloats);
+                    float[][] fetchedFloats = new float[fromNative.size()][];
+                    for (int i = 0; i < fromNative.size(); i++) {
+                        fetchedFloats[i] = (float[]) fromNative.get(i);
                     }
-                    float[][] fetchedFloats = fetchedFloatsList.toArray(new float[0][]);
                     assertThat("fetching " + value, fetchedFloats, equalTo(value));
                 }
             }

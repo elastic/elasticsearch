@@ -163,12 +163,7 @@ public class PinnedRetrieverBuilderTests extends AbstractXContentTestCase<Pinned
         assertThat(e.getMessage(), equalTo("Both 'ids' and 'docs' cannot be specified at the same time"));
 
         e = expectThrows(IllegalArgumentException.class, () -> {
-            new PinnedRetrieverBuilder(
-                List.of(),
-                List.of(),
-                new TestRetrieverBuilder("test"),
-                DEFAULT_RANK_WINDOW_SIZE
-            );
+            new PinnedRetrieverBuilder(List.of(), List.of(), new TestRetrieverBuilder("test"), DEFAULT_RANK_WINDOW_SIZE);
         });
         assertThat(e.getMessage(), equalTo("Either 'ids' or 'docs' must be provided and non-empty for pinned retriever"));
     }
@@ -195,7 +190,9 @@ public class PinnedRetrieverBuilderTests extends AbstractXContentTestCase<Pinned
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> builder.finalizeSourceBuilder(customSortSource));
         assertThat(
             e.getMessage(),
-            equalTo("[pinned] retriever only supports sorting by score, invalid sort criterion: {\n  \"field1\" : {\n    \"order\" : \"asc\"\n  }\n}")
+            equalTo(
+                "[pinned] retriever only supports sorting by score, invalid sort criterion: {\n  \"field1\" : {\n    \"order\" : \"asc\"\n  }\n}"
+            )
         );
 
         SearchSourceBuilder multipleSortsSource = new SearchSourceBuilder();
@@ -204,7 +201,9 @@ public class PinnedRetrieverBuilderTests extends AbstractXContentTestCase<Pinned
         e = expectThrows(IllegalArgumentException.class, () -> builder.finalizeSourceBuilder(multipleSortsSource));
         assertThat(
             e.getMessage(),
-            equalTo("[pinned] retriever only supports sorting by score, invalid sort criterion: {\n  \"field1\" : {\n    \"order\" : \"asc\"\n  }\n}")
+            equalTo(
+                "[pinned] retriever only supports sorting by score, invalid sort criterion: {\n  \"field1\" : {\n    \"order\" : \"asc\"\n  }\n}"
+            )
         );
     }
 }

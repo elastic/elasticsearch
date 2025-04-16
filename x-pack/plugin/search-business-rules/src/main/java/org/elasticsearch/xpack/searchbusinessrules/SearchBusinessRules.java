@@ -22,10 +22,6 @@ public class SearchBusinessRules extends Plugin implements SearchPlugin {
 
     @Override
     public List<QuerySpec<?>> getQueries() {
-        // Assuming PinnedQueryBuilder exists and has NAME, constructor, and fromXContent
-        // If PinnedQueryBuilder was removed or changed, this needs adjustment.
-        // return singletonList(new QuerySpec<>(PinnedQueryBuilder.NAME, PinnedQueryBuilder::new, PinnedQueryBuilder::fromXContent));
-        // For now, return empty list if PinnedQueryBuilder is not ready/defined
         return List.of();
     }
 

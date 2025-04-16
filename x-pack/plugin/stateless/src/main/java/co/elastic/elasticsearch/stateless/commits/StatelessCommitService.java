@@ -2431,10 +2431,14 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
                             + " gen <= "
                             + previousGenerationUploaded;
                     assert latest.primaryTermAndGeneration().primaryTerm() == allocationPrimaryTerm
-                        || latest.primaryTermAndGeneration().equals(new PrimaryTermAndGeneration(recoveredPrimaryTerm, recoveredGeneration))
+                        || latest.lastCompoundCommit()
+                            .primaryTermAndGeneration()
+                            .equals(new PrimaryTermAndGeneration(recoveredPrimaryTerm, recoveredGeneration))
                         : latest.lastCompoundCommit().shardId()
-                            + " unexpected "
+                            + " unexpected BCC "
                             + latest.primaryTermAndGeneration()
+                            + " with last CC "
+                            + latest.lastCompoundCommit().primaryTermAndGeneration()
                             + " vs "
                             + allocationPrimaryTerm
                             + " or "

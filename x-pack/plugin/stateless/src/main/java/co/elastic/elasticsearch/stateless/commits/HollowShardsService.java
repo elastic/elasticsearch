@@ -203,7 +203,9 @@ public class HollowShardsService extends AbstractLifecycleComponent {
     protected void doStop() {}
 
     @Override
-    protected void doClose() throws IOException {}
+    protected void doClose() throws IOException {
+        assert hollowShards.isEmpty() : "no ingestion blocker should be installed at this point";
+    }
 
     /**
      * Adds a hollow shard and installs an ingestion blocker for a hollow shard to block any ingestion.

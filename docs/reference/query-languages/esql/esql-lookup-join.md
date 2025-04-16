@@ -107,7 +107,6 @@ FROM employees
 
 To use `LOOKUP JOIN`, the following requirements must be met:
 
-
 * Indices used for lookups must be configured with the [`lookup` index mode](/reference/elasticsearch/index-settings/index-modules.md#index-mode-setting)
 * **Compatible data types**: The join key and join field in the lookup index must have compatible data types. This means:
   * The data types must either be identical or be internally represented as the same type in {{esql}}

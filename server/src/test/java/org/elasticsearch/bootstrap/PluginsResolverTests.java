@@ -51,10 +51,8 @@ public class PluginsResolverTests extends ESTestCase {
         var loader = layer.findLoader(moduleName);
 
         PluginBundle bundle = createMockBundle(pluginName, moduleName, "p.A");
-        PluginsLoader mockPluginsLoader = mock(PluginsLoader.class);
 
-        when(mockPluginsLoader.pluginLayers()).thenReturn(Stream.of(new TestPluginLayer(bundle, loader, layer)));
-        PluginsResolver pluginsResolver = PluginsResolver.create(mockPluginsLoader);
+        PluginsResolver pluginsResolver = PluginsResolver.create(Stream.of(new TestPluginLayer(bundle, loader, layer)));
 
         var testClass = loader.loadClass("p.A");
         var resolvedPluginName = pluginsResolver.resolveClassToPluginName(testClass);
@@ -79,12 +77,10 @@ public class PluginsResolverTests extends ESTestCase {
 
         PluginBundle bundle1 = createMockBundle("plugin1", "module.one", "p.A");
         PluginBundle bundle2 = createMockBundle("plugin2", "module.two", "q.B");
-        PluginsLoader mockPluginsLoader = mock(PluginsLoader.class);
 
-        when(mockPluginsLoader.pluginLayers()).thenReturn(
+        PluginsResolver pluginsResolver = PluginsResolver.create(
             Stream.of(new TestPluginLayer(bundle1, loader1, layer1), new TestPluginLayer(bundle2, loader2, layer2))
         );
-        PluginsResolver pluginsResolver = PluginsResolver.create(mockPluginsLoader);
 
         var testClass1 = loader1.loadClass("p.A");
         var testClass2 = loader2.loadClass("q.B");
@@ -116,10 +112,7 @@ public class PluginsResolverTests extends ESTestCase {
         var loader = layer.findLoader("module.two");
 
         PluginBundle bundle = createMockBundle("plugin2", "module.two", "q.B");
-        PluginsLoader mockPluginsLoader = mock(PluginsLoader.class);
-
-        when(mockPluginsLoader.pluginLayers()).thenReturn(Stream.of(new TestPluginLayer(bundle, loader, layer)));
-        PluginsResolver pluginsResolver = PluginsResolver.create(mockPluginsLoader);
+        PluginsResolver pluginsResolver = PluginsResolver.create(Stream.of(new TestPluginLayer(bundle, loader, layer)));
 
         var testClass1 = loader.loadClass("p.A");
         var testClass2 = loader.loadClass("q.B");
@@ -140,15 +133,13 @@ public class PluginsResolverTests extends ESTestCase {
 
             PluginBundle bundle1 = createMockBundle("plugin1", null, "p.A");
             PluginBundle bundle2 = createMockBundle("plugin2", null, "q.B");
-            PluginsLoader mockPluginsLoader = mock(PluginsLoader.class);
 
-            when(mockPluginsLoader.pluginLayers()).thenReturn(
+            PluginsResolver pluginsResolver = PluginsResolver.create(
                 Stream.of(
                     new TestPluginLayer(bundle1, loader1, ModuleLayer.boot()),
                     new TestPluginLayer(bundle2, loader2, ModuleLayer.boot())
                 )
             );
-            PluginsResolver pluginsResolver = PluginsResolver.create(mockPluginsLoader);
 
             var testClass1 = loader1.loadClass("p.A");
             var testClass2 = loader2.loadClass("q.B");
@@ -169,10 +160,8 @@ public class PluginsResolverTests extends ESTestCase {
 
         try (var loader = createClassLoader(jar)) {
             PluginBundle bundle = createMockBundle(pluginName, null, "p.A");
-            PluginsLoader mockPluginsLoader = mock(PluginsLoader.class);
 
-            when(mockPluginsLoader.pluginLayers()).thenReturn(Stream.of(new TestPluginLayer(bundle, loader, ModuleLayer.boot())));
-            PluginsResolver pluginsResolver = PluginsResolver.create(mockPluginsLoader);
+            PluginsResolver pluginsResolver = PluginsResolver.create(Stream.of(new TestPluginLayer(bundle, loader, ModuleLayer.boot())));
 
             var testClass = loader.loadClass("p.A");
             var resolvedPluginName = pluginsResolver.resolveClassToPluginName(testClass);

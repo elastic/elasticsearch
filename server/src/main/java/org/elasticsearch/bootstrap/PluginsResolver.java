@@ -13,6 +13,7 @@ import org.elasticsearch.plugins.PluginsLoader;
 
 import java.util.HashMap;
 import java.util.Map;
+import java.util.stream.Stream;
 
 class PluginsResolver {
     private final Map<Module, String> pluginNameByModule;
@@ -21,10 +22,10 @@ class PluginsResolver {
         this.pluginNameByModule = pluginNameByModule;
     }
 
-    public static PluginsResolver create(PluginsLoader pluginsLoader) {
+    public static PluginsResolver create(Stream<PluginsLoader.PluginLayer> pluginLayers) {
         Map<Module, String> pluginNameByModule = new HashMap<>();
 
-        pluginsLoader.pluginLayers().forEach(pluginLayer -> {
+        pluginLayers.forEach(pluginLayer -> {
             var pluginName = pluginLayer.pluginBundle().pluginDescriptor().getName();
             if (pluginLayer.pluginModuleLayer() != null && pluginLayer.pluginModuleLayer() != ModuleLayer.boot()) {
                 // This plugin is a Java Module

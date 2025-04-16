@@ -2047,22 +2047,12 @@ public class FailureStoreSecurityRestIT extends ESRestTestCase {
             }""", "role");
 
         {
-            expectThrows(
-                () -> performRequest("user", new Request("POST", Strings.format("/%s/_field_caps?fields=name", "test1::failures"))),
-                403
+            expectThrows(() -> performRequest("user", new Request("POST", "/test1::failures/_field_caps?fields=name")), 403);
+            assertFieldCapsResponseContainsIndexAndFields(
+                performRequest("user", new Request("POST", Strings.format("/%s/_field_caps?fields=name", "test1"))),
+                dataIndexName,
+                Set.of("name")
             );
-            Response fieldCapsResponse = performRequest(
-                "user",
-                new Request("POST", Strings.format("/%s/_field_caps?fields=name", "test1"))
-            );
-            assertOK(fieldCapsResponse);
-            ObjectPath objectPath = ObjectPath.createFromResponse(fieldCapsResponse);
-
-            List<String> indices = objectPath.evaluate("indices");
-            assertThat(indices, containsInAnyOrder(dataIndexName));
-
-            Map<String, Object> fields = objectPath.evaluate("fields");
-            assertThat(fields.keySet(), containsInAnyOrder("name"));
         }
 
         upsertRole("""
@@ -2077,21 +2067,11 @@ public class FailureStoreSecurityRestIT extends ESRestTestCase {
             }""", "role");
 
         {
-            expectThrows(() -> performRequest("user", new Request("POST", Strings.format("/%s/_field_caps?fields=name", "test1"))), 403);
-            Response fieldCapsResponse = performRequest(
-                "user",
-                new Request("POST", Strings.format("/%s/_field_caps?fields=error.*", "test1::failures"))
-            );
-            assertOK(fieldCapsResponse);
-            ObjectPath objectPath = ObjectPath.createFromResponse(fieldCapsResponse);
-
-            List<String> indices = objectPath.evaluate("indices");
-            assertThat(indices, containsInAnyOrder(failureIndexName));
-
-            Map<String, Object> fields = objectPath.evaluate("fields");
-            assertThat(
-                fields.keySet(),
-                containsInAnyOrder(
+            expectThrows(() -> performRequest("user", new Request("POST", "/test1/_field_caps?fields=name")), 403);
+            assertFieldCapsResponseContainsIndexAndFields(
+                performRequest("user", new Request("POST", "/test1::failures/_field_caps?fields=error.*")),
+                failureIndexName,
+                Set.of(
                     "error.message",
                     "error.pipeline_trace",
                     "error.processor_type",
@@ -2103,6 +2083,97 @@ public class FailureStoreSecurityRestIT extends ESRestTestCase {
                 )
             );
         }
+
+        upsertRole("""
+            {
+              "cluster": ["all"],
+              "indices": [
+                {
+                  "names": ["test*"],
+                  "privileges": ["read_failure_store"],
+                  "field_security": {
+                      "grant": ["error*"],
+                      "except": ["error.message"]
+                  }
+                }
+              ]
+            }""", "role");
+        {
+            expectThrows(() -> performRequest("user", new Request("POST", "/test1/_field_caps?fields=name")), 403);
+            assertFieldCapsResponseContainsIndexAndFields(
+                performRequest("user", new Request("POST", "/test1::failures/_field_caps?fields=error.*")),
+                failureIndexName,
+                Set.of(
+                    "error.pipeline_trace",
+                    "error.processor_type",
+                    "error.type",
+                    "error.processor_tag",
+                    "error.pipeline",
+                    "error.stack_trace",
+                    "error"
+                )
+            );
+        }
+
+        upsertRole("""
+            {
+              "cluster": ["all"],
+              "indices": [
+                {
+                  "names": ["test*"],
+                  "privileges": ["read_failure_store", "read"],
+                  "field_security": {
+                      "grant": ["error*", "name"],
+                      "except": ["error.type"]
+                  }
+                }
+              ]
+            }""", "role");
+        {
+            assertFieldCapsResponseContainsIndexAndFields(
+                performRequest("user", new Request("POST", "/test1/_field_caps?fields=name,age,email")),
+                dataIndexName,
+                Set.of("name")
+            );
+            assertFieldCapsResponseContainsIndexAndFields(
+                performRequest("user", new Request("POST", "/test1::failures/_field_caps?fields=error.*")),
+                failureIndexName,
+                Set.of(
+                    "error.pipeline_trace",
+                    "error.processor_type",
+                    "error.message",
+                    "error.processor_tag",
+                    "error.pipeline",
+                    "error.stack_trace",
+                    "error"
+                )
+            );
+        }
+
+        upsertRole("""
+            {
+              "cluster": ["all"],
+              "indices": [
+                {
+                  "names": ["other*"],
+                  "privileges": ["read_failure_store", "read"]
+                }
+              ]
+            }""", "role");
+        expectThrows(() -> performRequest("user", new Request("POST", "/test1/_field_caps?fields=name")), 403);
+        expectThrows(() -> performRequest("user", new Request("POST", "/test1::failures/_field_caps?fields=name")), 403);
+    }
+
+    private void assertFieldCapsResponseContainsIndexAndFields(Response fieldCapsResponse, String indexName, Set<String> expectedFields)
+        throws IOException {
+        assertOK(fieldCapsResponse);
+        ObjectPath objectPath = ObjectPath.createFromResponse(fieldCapsResponse);
+
+        List<String> indices = objectPath.evaluate("indices");
+        assertThat(indices, containsInAnyOrder(indexName));
+
+        Map<String, Object> fields = objectPath.evaluate("fields");
+        assertThat(fields.keySet(), containsInAnyOrder(expectedFields.toArray()));
     }
 
     public void testPit() throws Exception {

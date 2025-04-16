@@ -24,7 +24,6 @@ import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.searchbusinessrules.SpecifiedDocument;
 
-
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;

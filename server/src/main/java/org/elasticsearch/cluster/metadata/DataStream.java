@@ -31,6 +31,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.time.DateFormatters;
 import org.elasticsearch.common.util.FeatureFlag;
@@ -57,6 +58,7 @@ import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -67,6 +69,7 @@ import java.util.function.LongSupplier;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.cluster.metadata.MetadataCreateDataStreamService.lookupTemplateForDataStream;
 import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
 import static org.elasticsearch.index.IndexSettings.LIFECYCLE_ORIGINATION_DATE;
 import static org.elasticsearch.index.IndexSettings.PREFER_ILM_SETTING;
@@ -118,6 +121,7 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
     private final long generation;
     @Nullable
     private final Map<String, Object> metadata;
+    private final Settings settings;
     private final boolean hidden;
     private final boolean replicated;
     private final boolean system;
@@ -137,6 +141,7 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
         List<Index> indices,
         long generation,
         Map<String, Object> metadata,
+        Settings settings,
         boolean hidden,
         boolean replicated,
         boolean system,
@@ -152,6 +157,7 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
             name,
             generation,
             metadata,
+            settings,
             hidden,
             replicated,
             system,
@@ -169,6 +175,7 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
         String name,
         long generation,
         Map<String, Object> metadata,
+        Settings settings,
         boolean hidden,
         boolean replicated,
         boolean system,
@@ -183,6 +190,7 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
         this.name = name;
         this.generation = generation;
         this.metadata = metadata;
+        this.settings = Objects.requireNonNull(settings);
         assert system == false || hidden; // system indices must be hidden
         this.hidden = hidden;
         this.replicated = replicated;
@@ -235,10 +243,17 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
             // is still behind a feature flag in previous version we use the default value instead of explicitly disabling it.
             dataStreamOptions = failureStoreEnabled ? DataStreamOptions.FAILURE_STORE_ENABLED : null;
         }
+        final Settings settings;
+        if (in.getTransportVersion().onOrAfter(TransportVersions.SETTINGS_IN_DATA_STREAMS)) {
+            settings = Settings.readSettingsFromStream(in);
+        } else {
+            settings = Settings.EMPTY;
+        }
         return new DataStream(
             name,
             generation,
             metadata,
+            settings,
             hidden,
             replicated,
             system,
@@ -327,6 +342,52 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
 
     public boolean rolloverOnWrite() {
         return backingIndices.rolloverOnWrite;
+    }
+
+    public ComposableIndexTemplate getEffectiveIndexTemplate(ProjectMetadata projectMetadata) {
+        return mergeSettingsIntoTemplate(lookupTemplateForDataStream(name, projectMetadata), settings);
+    }
+
+    public static ComposableIndexTemplate getEffectiveIndexTemplate(
+        String dataStreamName,
+        ProjectMetadata projectMetadata,
+        Settings settingsOverrides
+    ) {
+        return mergeSettingsIntoTemplate(lookupTemplateForDataStream(dataStreamName, projectMetadata), settingsOverrides);
+    }
+
+    public Settings getEffectiveSettings(ProjectMetadata projectMetadata) {
+        ComposableIndexTemplate template = getMatchingIndexTemplate(projectMetadata);
+        return mergeSettings(template.template() == null ? Settings.EMPTY : template.template().settings(), settings);
+    }
+
+    private ComposableIndexTemplate getMatchingIndexTemplate(ProjectMetadata projectMetadata) {
+        return lookupTemplateForDataStream(name, projectMetadata);
+    }
+
+    public static ComposableIndexTemplate mergeSettingsIntoTemplate(ComposableIndexTemplate template, Settings settings) {
+        if (Settings.EMPTY.equals(settings)) {
+            return template;
+        }
+        ComposableIndexTemplate.Builder mergedIndexTemplateBuilder = template.toBuilder();
+        assert template.template() != null : "Template is unexpectedly null";
+        Template.Builder mergedTemplateBuilder = Template.builder(template.template());
+        mergedTemplateBuilder.settings(mergeSettings(template.template().settings(), settings));
+        mergedIndexTemplateBuilder.template(mergedTemplateBuilder);
+        return mergedIndexTemplateBuilder.build();
+    }
+
+    private static Settings mergeSettings(Settings originalSettings, Settings newSettings) {
+        if (Settings.EMPTY.equals(newSettings)) {
+            return Objects.requireNonNullElse(originalSettings, Settings.EMPTY);
+        }
+        Settings.Builder settingsBuilder = Settings.builder().put(originalSettings).put(newSettings);
+        for (String settingName : new HashSet<>(settingsBuilder.keys())) {
+            if (settingsBuilder.get(settingName) == null) {
+                settingsBuilder.remove(settingName);
+            }
+        }
+        return settingsBuilder.build();
     }
 
     /**
@@ -438,6 +499,10 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
     @Nullable
     public Map<String, Object> getMetadata() {
         return metadata;
+    }
+
+    public Settings getSettings() {
+        return settings;
     }
 
     @Override
@@ -1268,6 +1333,9 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
         if (out.getTransportVersion().onOrAfter(DataStream.ADD_DATA_STREAM_OPTIONS_VERSION)) {
             out.writeOptionalWriteable(dataStreamOptions.isEmpty() ? null : dataStreamOptions);
         }
+        if (out.getTransportVersion().onOrAfter(TransportVersions.SETTINGS_IN_DATA_STREAMS)) {
+            settings.writeTo(out);
+        }
     }
 
     public static final ParseField NAME_FIELD = new ParseField("name");
@@ -1288,26 +1356,28 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
     public static final ParseField FAILURE_ROLLOVER_ON_WRITE_FIELD = new ParseField("failure_rollover_on_write");
     public static final ParseField FAILURE_AUTO_SHARDING_FIELD = new ParseField("failure_auto_sharding");
     public static final ParseField DATA_STREAM_OPTIONS_FIELD = new ParseField("options");
+    public static final ParseField SETTINGS_FIELD = new ParseField("settings");
 
     @SuppressWarnings("unchecked")
     private static final ConstructingObjectParser<DataStream, Void> PARSER = new ConstructingObjectParser<>("data_stream", args -> {
         // Fields behind a feature flag need to be parsed last otherwise the parser will fail when the feature flag is disabled.
         // Until the feature flag is removed we keep them separately to be mindful of this.
-        boolean failureStoreEnabled = DataStream.isFailureStoreFeatureFlagEnabled() && args[12] != null && (boolean) args[12];
+        boolean failureStoreEnabled = DataStream.isFailureStoreFeatureFlagEnabled() && args[13] != null && (boolean) args[13];
         DataStreamIndices failureIndices = DataStream.isFailureStoreFeatureFlagEnabled()
             ? new DataStreamIndices(
                 FAILURE_STORE_PREFIX,
-                args[13] != null ? (List<Index>) args[13] : List.of(),
-                args[14] != null && (boolean) args[14],
-                (DataStreamAutoShardingEvent) args[15]
+                args[14] != null ? (List<Index>) args[14] : List.of(),
+                args[15] != null && (boolean) args[15],
+                (DataStreamAutoShardingEvent) args[16]
             )
             : new DataStreamIndices(FAILURE_STORE_PREFIX, List.of(), false, null);
         // We cannot distinguish if failure store was explicitly disabled or not. Given that failure store
         // is still behind a feature flag in previous version we use the default value instead of explicitly disabling it.
         DataStreamOptions dataStreamOptions = DataStreamOptions.EMPTY;
+
         if (DataStream.isFailureStoreFeatureFlagEnabled()) {
-            if (args[16] != null) {
-                dataStreamOptions = (DataStreamOptions) args[16];
+            if (args[17] != null) {
+                dataStreamOptions = (DataStreamOptions) args[17];
             } else if (failureStoreEnabled) {
                 dataStreamOptions = DataStreamOptions.FAILURE_STORE_ENABLED;
             }
@@ -1316,6 +1386,7 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
             (String) args[0],
             (Long) args[2],
             (Map<String, Object>) args[3],
+            args[12] == null ? Settings.EMPTY : (Settings) args[12],
             args[4] != null && (boolean) args[4],
             args[5] != null && (boolean) args[5],
             args[6] != null && (boolean) args[6],
@@ -1359,6 +1430,7 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
             (p, c) -> DataStreamAutoShardingEvent.fromXContent(p),
             AUTO_SHARDING_FIELD
         );
+        PARSER.declareObject(ConstructingObjectParser.optionalConstructorArg(), (p, c) -> Settings.fromXContent(p), SETTINGS_FIELD);
         // The fields behind the feature flag should always be last.
         if (DataStream.isFailureStoreFeatureFlagEnabled()) {
             // Should be removed after backport
@@ -1415,6 +1487,9 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
         builder.field(REPLICATED_FIELD.getPreferredName(), replicated);
         builder.field(SYSTEM_FIELD.getPreferredName(), system);
         builder.field(ALLOW_CUSTOM_ROUTING.getPreferredName(), allowCustomRouting);
+        builder.startObject(SETTINGS_FIELD.getPreferredName());
+        this.settings.toXContent(builder, params);
+        builder.endObject();
         if (DataStream.isFailureStoreFeatureFlagEnabled()) {
             if (failureIndices.indices.isEmpty() == false) {
                 builder.xContentList(FAILURE_INDICES_FIELD.getPreferredName(), failureIndices.indices);
@@ -1455,6 +1530,7 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
         return name.equals(that.name)
             && generation == that.generation
             && Objects.equals(metadata, that.metadata)
+            && Objects.equals(settings, that.settings)
             && hidden == that.hidden
             && system == that.system
             && replicated == that.replicated
@@ -1472,6 +1548,7 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
             name,
             generation,
             metadata,
+            settings,
             hidden,
             system,
             replicated,
@@ -1784,6 +1861,7 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
         private long generation = 1;
         @Nullable
         private Map<String, Object> metadata = null;
+        private Settings settings = Settings.EMPTY;
         private boolean hidden = false;
         private boolean replicated = false;
         private boolean system = false;
@@ -1811,6 +1889,7 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
             name = dataStream.name;
             generation = dataStream.generation;
             metadata = dataStream.metadata;
+            settings = dataStream.settings;
             hidden = dataStream.hidden;
             replicated = dataStream.replicated;
             system = dataStream.system;
@@ -1839,6 +1918,11 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
 
         public Builder setMetadata(Map<String, Object> metadata) {
             this.metadata = metadata;
+            return this;
+        }
+
+        public Builder setSettings(Settings settings) {
+            this.settings = settings;
             return this;
         }
 
@@ -1902,6 +1986,7 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
                 name,
                 generation,
                 metadata,
+                settings,
                 hidden,
                 replicated,
                 system,

@@ -200,9 +200,14 @@ public class AggregateMetricDoubleBlockBuilder extends AbstractBlockBuilder impl
         }
 
         @Override
-        public TransportVersion getMinimalSupportedVersion() {
-            return TransportVersions.ESQL_AGGREGATE_METRIC_DOUBLE_LITERAL;
+        public boolean supportsVersion(TransportVersion version) {
+            return version.onOrAfter(TransportVersions.ESQL_AGGREGATE_METRIC_DOUBLE_LITERAL);
         }
 
+        @Override
+        public TransportVersion getMinimalSupportedVersion() {
+            assert false : "must not be called when overriding supportsVersion";
+            throw new UnsupportedOperationException("must not be called when overriding supportsVersion");
+        }
     }
 }

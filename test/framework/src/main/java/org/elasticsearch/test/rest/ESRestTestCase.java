@@ -151,6 +151,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.everyItem;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.in;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.notNullValue;
 
 /**
@@ -2665,6 +2666,12 @@ public abstract class ESRestTestCase extends ESTestCase {
         return request;
     }
 
+    protected static MapMatcher getProfileMatcher() {
+        return matchesMap().entry("query", instanceOf(Map.class))
+            .entry("planning", instanceOf(Map.class))
+            .entry("drivers", instanceOf(List.class));
+    }
+
     protected static MapMatcher getResultMatcher(boolean includeMetadata, boolean includePartial) {
         MapMatcher mapMatcher = matchesMap();
         if (includeMetadata) {
@@ -2838,5 +2845,22 @@ public abstract class ESRestTestCase extends ESTestCase {
         );
         final var response = responseAsMap(adminClient().performRequest(request));
         assertThat("Security index should not contain any non-reserved roles", (Collection<?>) response.get("roles"), empty());
+    }
+
+    public static final String FIPS_KEYSTORE_PASSWORD = "keystore-password";
+
+    /**
+     * @return a REST {@link Request} which will reload the keystore in the test cluster.
+     */
+    protected final Request createReloadSecureSettingsRequest() {
+        try {
+            return newXContentRequest(
+                HttpMethod.POST,
+                "/_nodes/reload_secure_settings",
+                (b, p) -> inFipsJvm() ? b.field("secure_settings_password", FIPS_KEYSTORE_PASSWORD) : b
+            );
+        } catch (IOException e) {
+            throw new AssertionError("impossible", e);
+        }
     }
 }

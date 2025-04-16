@@ -12,7 +12,6 @@ import org.elasticsearch.compute.data.CompositeBlock;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.Page;
-import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.core.Releasables;
 
 import java.util.List;
@@ -95,7 +94,7 @@ public class ToPartialGroupingAggregatorFunction implements GroupingAggregatorFu
     }
 
     @Override
-    public void evaluateFinal(Block[] blocks, int offset, IntVector selected, DriverContext driverContext) {
+    public void evaluateFinal(Block[] blocks, int offset, IntVector selected, GroupingAggregatorEvaluationContext evaluationContext) {
         evaluateIntermediate(blocks, offset, selected);
     }
 

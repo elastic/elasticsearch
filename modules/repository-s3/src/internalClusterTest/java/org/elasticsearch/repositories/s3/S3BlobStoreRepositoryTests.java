@@ -71,6 +71,7 @@ import org.elasticsearch.xcontent.XContentFactory;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.EnumSet;
@@ -622,6 +623,12 @@ public class S3BlobStoreRepositoryTests extends ESMockAPIBasedRepositoryIntegTes
                                 }
 
                                 @Override
+                                long getMaxCopySizeBeforeMultipart() {
+                                    // on my laptop 10K exercises this better but larger values should be fine for nightlies
+                                    return ByteSizeUnit.MB.toBytes(1L);
+                                }
+
+                                @Override
                                 void ensureMultiPartUploadSize(long blobSize) {}
                             };
                         }
@@ -688,7 +695,7 @@ public class S3BlobStoreRepositoryTests extends ESMockAPIBasedRepositoryIntegTes
         private final Map<S3BlobStore.StatsKey, AtomicLong> metricsCount = ConcurrentCollections.newConcurrentMap();
 
         S3StatsCollectorHttpHandler(final HttpHandler delegate) {
-            super(delegate);
+            super(delegate, Arrays.stream(S3BlobStore.Operation.values()).map(S3BlobStore.Operation::getKey).toArray(String[]::new));
         }
 
         private S3HttpHandler.S3Request parseRequest(HttpExchange exchange) {
@@ -736,9 +743,17 @@ public class S3BlobStoreRepositoryTests extends ESMockAPIBasedRepositoryIntegTes
                     k -> new AtomicLong()
                 ).incrementAndGet();
             } else if (request.isPutObjectRequest()) {
-                trackRequest("PutObject");
-                metricsCount.computeIfAbsent(new S3BlobStore.StatsKey(S3BlobStore.Operation.PUT_OBJECT, purpose), k -> new AtomicLong())
-                    .incrementAndGet();
+                if (exchange.getRequestHeaders().containsKey(S3BlobStore.CUSTOM_QUERY_PARAMETER_COPY_SOURCE)) {
+                    trackRequest("CopyObject");
+                    metricsCount.computeIfAbsent(
+                        new S3BlobStore.StatsKey(S3BlobStore.Operation.COPY_OBJECT, purpose),
+                        k -> new AtomicLong()
+                    ).incrementAndGet();
+                } else {
+                    trackRequest("PutObject");
+                    metricsCount.computeIfAbsent(new S3BlobStore.StatsKey(S3BlobStore.Operation.PUT_OBJECT, purpose), k -> new AtomicLong())
+                        .incrementAndGet();
+                }
             } else if (request.isMultiObjectDeleteRequest()) {
                 trackRequest("DeleteObjects");
                 metricsCount.computeIfAbsent(new S3BlobStore.StatsKey(S3BlobStore.Operation.DELETE_OBJECTS, purpose), k -> new AtomicLong())

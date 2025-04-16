@@ -487,7 +487,7 @@ public class ThreadPoolTests extends ESTestCase {
         }
     }
 
-    public void testDetailedUtilizationMetric() {
+    public void testDetailedUtilizationMetric() throws Exception {
         final RecordingMeterRegistry meterRegistry = new RecordingMeterRegistry();
         final BuiltInExecutorBuilders builtInExecutorBuilders = new DefaultBuiltInExecutorBuilders();
 
@@ -500,7 +500,10 @@ public class ThreadPoolTests extends ESTestCase {
             // write thread pool is tracked
             final String threadPoolName = ThreadPool.Names.WRITE;
             final ThreadPool.Info threadPoolInfo = threadPool.info(threadPoolName);
-            assert threadPool.executor(threadPoolName) instanceof TaskExecutionTimeTrackingEsThreadPoolExecutor;
+            final TaskExecutionTimeTrackingEsThreadPoolExecutor executor = asInstanceOf(
+                TaskExecutionTimeTrackingEsThreadPoolExecutor.class,
+                threadPool.executor(threadPoolName)
+            );
 
             final long beforePreviousCollectNanos = System.nanoTime();
             meterRegistry.getRecorder().collect();
@@ -517,7 +520,7 @@ public class ThreadPoolTests extends ESTestCase {
             final AtomicLong minimumDurationNanos = new AtomicLong(Long.MAX_VALUE);
             final long beforeStartNanos = System.nanoTime();
             final CyclicBarrier barrier = new CyclicBarrier(2);
-            Future<?> future = threadPool.executor(threadPoolName).submit(() -> {
+            Future<?> future = executor.submit(() -> {
                 long innerStartTimeNanos = System.nanoTime();
                 safeSleep(100);
                 safeAwait(barrier);
@@ -526,6 +529,9 @@ public class ThreadPoolTests extends ESTestCase {
             safeAwait(barrier);
             safeGet(future);
             final long maxDurationNanos = System.nanoTime() - beforeStartNanos;
+
+            // Wait for TaskExecutionTimeTrackingEsThreadPoolExecutor#afterExecute to run
+            assertBusy(() -> assertThat(executor.getTotalTaskExecutionTime(), greaterThan(0L)));
 
             final long beforeMetricsCollectedNanos = System.nanoTime();
             meterRegistry.getRecorder().collect();

@@ -14,7 +14,6 @@ import org.elasticsearch.action.synonyms.SynonymUpdateResponse;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
-import org.elasticsearch.rest.RestUtils;
 import org.elasticsearch.rest.Scope;
 import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestToXContentListener;
@@ -23,7 +22,6 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Set;
 
-import static org.elasticsearch.action.synonyms.PutSynonymRuleAction.DEFAULT_TIMEOUT;
 import static org.elasticsearch.rest.RestRequest.Method.PUT;
 
 @ServerlessScope(Scope.PUBLIC)
@@ -43,7 +41,7 @@ public class RestPutSynonymsAction extends BaseRestHandler {
     protected RestChannelConsumer prepareRequest(RestRequest restRequest, NodeClient client) throws IOException {
         PutSynonymsAction.Request request = new PutSynonymsAction.Request(
             restRequest.param("synonymsSet"),
-            restRequest.paramAsTime(RestUtils.REST_TIMEOUT_PARAM, DEFAULT_TIMEOUT),
+            restRequest.paramAsBoolean("refresh", true),
             restRequest.content(),
             restRequest.getXContentType()
         );
@@ -56,6 +54,6 @@ public class RestPutSynonymsAction extends BaseRestHandler {
 
     @Override
     public Set<String> supportedCapabilities() {
-        return SynonymPutCapabilities.CAPABILITIES;
+        return SynonymCapabilities.CAPABILITIES;
     }
 }

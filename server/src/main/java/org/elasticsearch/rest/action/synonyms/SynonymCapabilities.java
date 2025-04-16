@@ -14,15 +14,13 @@ import java.util.Set;
 /**
  * A {@link Set} of "capabilities" supported by the {@link RestPutSynonymsAction} and {@link RestPutSynonymRuleAction}.
  */
-public final class SynonymPutCapabilities {
+public final class SynonymCapabilities {
 
-    private SynonymPutCapabilities() {
+    private SynonymCapabilities() {
         throw new UnsupportedOperationException("This is a utility class and cannot be instantiated");
     }
 
-    private static final String PUT_SYNONYMS_TIMEOUT = "put_synonyms_timeout";
+    private static final String SYNONYMS_REFRESH_PARAM = "synonyms_refresh_param";
 
-    public static final Set<String> CAPABILITIES = Set.of(
-        PUT_SYNONYMS_TIMEOUT
-    );
+    public static final Set<String> CAPABILITIES = Set.of(SYNONYMS_REFRESH_PARAM);
 }

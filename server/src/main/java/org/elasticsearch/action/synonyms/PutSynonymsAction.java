@@ -19,7 +19,6 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.synonyms.SynonymRule;
 import org.elasticsearch.synonyms.SynonymsManagementAPIService;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
@@ -33,8 +32,6 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
 
-import static org.elasticsearch.action.synonyms.PutSynonymRuleAction.DEFAULT_TIMEOUT;
-
 public class PutSynonymsAction extends ActionType<SynonymUpdateResponse> {
 
     public static final PutSynonymsAction INSTANCE = new PutSynonymsAction();
@@ -47,7 +44,7 @@ public class PutSynonymsAction extends ActionType<SynonymUpdateResponse> {
     public static class Request extends ActionRequest {
         private final String synonymsSetId;
         private final SynonymRule[] synonymRules;
-        private final TimeValue timeout;
+        private final boolean refresh;
 
         public static final ParseField SYNONYMS_SET_FIELD = new ParseField(SynonymsManagementAPIService.SYNONYMS_SET_FIELD);
         private static final ConstructingObjectParser<SynonymRule[], Void> PARSER = new ConstructingObjectParser<>("synonyms_set", args -> {
@@ -64,16 +61,16 @@ public class PutSynonymsAction extends ActionType<SynonymUpdateResponse> {
             super(in);
             this.synonymsSetId = in.readString();
             this.synonymRules = in.readArray(SynonymRule::new, SynonymRule[]::new);
-            if (in.getTransportVersion().onOrAfter(TransportVersions.SYNONYMS_UPDATE_TIMEOUT)) {
-                this.timeout = in.readTimeValue();
+            if (in.getTransportVersion().onOrAfter(TransportVersions.SYNONYMS_REFRESH_PARAM)) {
+                this.refresh = in.readBoolean();
             } else {
-                this.timeout = DEFAULT_TIMEOUT;
+                this.refresh = false;
             }
         }
 
-        public Request(String synonymsSetId, TimeValue timeout, BytesReference content, XContentType contentType) throws IOException {
+        public Request(String synonymsSetId, boolean refresh, BytesReference content, XContentType contentType) throws IOException {
             this.synonymsSetId = synonymsSetId;
-            this.timeout = timeout;
+            this.refresh = refresh;
             try (XContentParser parser = XContentHelper.createParser(XContentParserConfiguration.EMPTY, content, contentType)) {
                 this.synonymRules = PARSER.apply(parser, null);
             } catch (Exception e) {
@@ -81,10 +78,10 @@ public class PutSynonymsAction extends ActionType<SynonymUpdateResponse> {
             }
         }
 
-        Request(String synonymsSetId, SynonymRule[] synonymRules, TimeValue timeout) {
+        Request(String synonymsSetId, SynonymRule[] synonymRules, boolean refresh) {
             this.synonymsSetId = synonymsSetId;
             this.synonymRules = synonymRules;
-            this.timeout = timeout;
+            this.refresh = refresh;
         }
 
         @Override
@@ -107,8 +104,8 @@ public class PutSynonymsAction extends ActionType<SynonymUpdateResponse> {
             super.writeTo(out);
             out.writeString(synonymsSetId);
             out.writeArray(synonymRules);
-            if (out.getTransportVersion().onOrAfter(TransportVersions.SYNONYMS_UPDATE_TIMEOUT)) {
-                out.writeTimeValue(timeout);
+            if (out.getTransportVersion().onOrAfter(TransportVersions.SYNONYMS_REFRESH_PARAM)) {
+                out.writeBoolean(refresh);
             }
         }
 
@@ -116,8 +113,8 @@ public class PutSynonymsAction extends ActionType<SynonymUpdateResponse> {
             return synonymsSetId;
         }
 
-        public TimeValue timeout() {
-            return timeout;
+        public boolean refresh() {
+            return refresh;
         }
 
         public SynonymRule[] synonymRules() {
@@ -129,14 +126,14 @@ public class PutSynonymsAction extends ActionType<SynonymUpdateResponse> {
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
             Request request = (Request) o;
-            return Objects.equals(timeout, request.timeout)
+            return Objects.equals(refresh, request.refresh)
                 && Objects.equals(synonymsSetId, request.synonymsSetId)
                 && Arrays.equals(synonymRules, request.synonymRules);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(synonymsSetId, Arrays.hashCode(synonymRules), timeout);
+            return Objects.hash(synonymsSetId, Arrays.hashCode(synonymRules), refresh);
         }
     }
 }

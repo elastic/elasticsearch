@@ -95,6 +95,7 @@ public class SynonymsManagementAPIService {
     private static final String SYNONYM_RULE_ID_FIELD = SynonymRule.ID_FIELD.getPreferredName();
     private static final String SYNONYM_SETS_AGG_NAME = "synonym_sets_aggr";
     private static final int SYNONYMS_INDEX_MAPPINGS_VERSION = 1;
+    public static final int INDEX_SEARCHABLE_TIMEOUT_SECONDS = 30;
     private final int maxSynonymsSets;
 
     // Package private for testing
@@ -309,7 +310,7 @@ public class SynonymsManagementAPIService {
     public void putSynonymsSet(
         String synonymSetId,
         SynonymRule[] synonymsSet,
-        TimeValue timeout,
+        boolean refresh,
         ActionListener<SynonymsReloadResult> listener
     ) {
         if (synonymsSet.length > maxSynonymsSets) {
@@ -353,13 +354,7 @@ public class SynonymsManagementAPIService {
                         ? UpdateSynonymsResultStatus.CREATED
                         : UpdateSynonymsResultStatus.UPDATED;
 
-                    ensureSynonymsSearchableAndReloadAnalyzers(
-                        synonymSetId,
-                        false,
-                        bulkInsertResponseListener,
-                        updateSynonymsResultStatus,
-                        timeout
-                    );
+                    maybeReloadAnalyzers(synonymSetId, refresh, false, updateSynonymsResultStatus, bulkInsertResponseListener);
                 })
             );
         }));
@@ -385,7 +380,7 @@ public class SynonymsManagementAPIService {
     public void putSynonymRule(
         String synonymsSetId,
         SynonymRule synonymRule,
-        TimeValue timeout,
+        boolean refresh,
         ActionListener<SynonymsReloadResult> listener
     ) {
         checkSynonymSetExists(synonymsSetId, listener.delegateFailureAndWrap((l1, obj) -> {
@@ -409,7 +404,7 @@ public class SynonymsManagementAPIService {
                             new IllegalArgumentException("The number of synonym rules in a synonyms set cannot exceed " + maxSynonymsSets)
                         );
                     } else {
-                        indexSynonymRule(synonymsSetId, synonymRule, timeout, searchListener);
+                        indexSynonymRule(synonymsSetId, synonymRule, refresh, searchListener);
                     }
                 }));
         }));
@@ -418,7 +413,7 @@ public class SynonymsManagementAPIService {
     private void indexSynonymRule(
         String synonymsSetId,
         SynonymRule synonymRule,
-        TimeValue timeout,
+        boolean refresh,
         ActionListener<SynonymsReloadResult> listener
     ) throws IOException {
         IndexRequest indexRequest = createSynonymRuleIndexRequest(synonymsSetId, synonymRule).setRefreshPolicy(
@@ -429,7 +424,7 @@ public class SynonymsManagementAPIService {
                 ? UpdateSynonymsResultStatus.CREATED
                 : UpdateSynonymsResultStatus.UPDATED;
 
-            ensureSynonymsSearchableAndReloadAnalyzers(synonymsSetId, false, l2, updateStatus, timeout);
+            maybeReloadAnalyzers(synonymsSetId, refresh, false, updateStatus, l2);
         }));
     }
 
@@ -449,7 +444,12 @@ public class SynonymsManagementAPIService {
         );
     }
 
-    public void deleteSynonymRule(String synonymsSetId, String synonymRuleId, ActionListener<SynonymsReloadResult> listener) {
+    public void deleteSynonymRule(
+        String synonymsSetId,
+        String synonymRuleId,
+        boolean refresh,
+        ActionListener<SynonymsReloadResult> listener
+    ) {
         client.prepareDelete(SYNONYMS_ALIAS_NAME, internalSynonymRuleId(synonymsSetId, synonymRuleId))
             .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
             .execute(new DelegatingIndexNotFoundActionListener<>(synonymsSetId, listener, (l, deleteResponse) -> {
@@ -468,7 +468,7 @@ public class SynonymsManagementAPIService {
                     return;
                 }
 
-                reloadAnalyzers(synonymsSetId, false, listener, UpdateSynonymsResultStatus.DELETED);
+                maybeReloadAnalyzers(synonymsSetId, refresh, false, UpdateSynonymsResultStatus.DELETED, listener);
             }));
     }
 
@@ -526,7 +526,7 @@ public class SynonymsManagementAPIService {
     public void deleteSynonymsSet(String synonymSetId, ActionListener<AcknowledgedResponse> listener) {
 
         // Previews reloading the resource to understand its usage on indices
-        reloadAnalyzers(synonymSetId, true, listener.delegateFailure((reloadListener, reloadResult) -> {
+        maybeReloadAnalyzers(synonymSetId, true, true, null, listener.delegateFailure((reloadListener, reloadResult) -> {
             Map<String, ReloadAnalyzersResponse.ReloadDetails> reloadDetails = reloadResult.reloadAnalyzersResponse.getReloadDetails();
             if (reloadDetails.isEmpty() == false) {
                 Set<String> indices = reloadDetails.entrySet()
@@ -563,61 +563,57 @@ public class SynonymsManagementAPIService {
 
                 deleteObjectsListener.onResponse(AcknowledgedResponse.of(true));
             }));
-        }), null);
+        }));
     }
 
-    private <T> void ensureSynonymsSearchableAndReloadAnalyzers(
+    private <T> void maybeReloadAnalyzers(
         String synonymSetId,
+        boolean refresh,
         boolean preview,
-        ActionListener<SynonymsReloadResult> listener,
         UpdateSynonymsResultStatus synonymsOperationResult,
-        TimeValue timeout
+        ActionListener<SynonymsReloadResult> listener
     ) {
-        // Ensure synonyms index is searchable if timeout is present
-        if (TimeValue.MINUS_ONE.equals(timeout) == false) {
-            checkSynonymsIndexHealth(timeout, listener.delegateFailure((l, response) -> {
-                if (response.isTimedOut()) {
-                    l.onFailure(
-                        new IndexCreationException(
-                            "synonyms index ["
-                                + SYNONYMS_ALIAS_NAME
-                                + "] is not searchable. "
-                                + response.getActiveShardsPercent()
-                                + "% shards are active",
-                            null
-                        )
-                    );
-                    return;
-                }
 
-                reloadAnalyzers(synonymSetId, preview, l, synonymsOperationResult);
-            }));
-        } else {
-            reloadAnalyzers(synonymSetId, preview, listener, synonymsOperationResult);
+        if (refresh == false) {
+            // If not refreshing, we don't need to reload analyzers
+            listener.onResponse(new SynonymsReloadResult(synonymsOperationResult, null));
+            return;
         }
+
+        // Check synonyms index is searchable before reloading, to ensure analyzers are able to load the changed information
+        checkSynonymsIndexHealth(listener.delegateFailure((l, response) -> {
+            if (response.isTimedOut()) {
+                l.onFailure(
+                    new IndexCreationException(
+                        "synonyms index ["
+                            + SYNONYMS_ALIAS_NAME
+                            + "] is not searchable. "
+                            + response.getActiveShardsPercent()
+                            + "% shards are active",
+                        null
+                    )
+                );
+                return;
+            }
+
+            // auto-reload all reloadable analyzers (currently only those that use updateable synonym or keyword_marker filters)
+            ReloadAnalyzersRequest reloadAnalyzersRequest = new ReloadAnalyzersRequest(synonymSetId, preview, "*");
+            client.execute(
+                TransportReloadAnalyzersAction.TYPE,
+                reloadAnalyzersRequest,
+                listener.safeMap(reloadResponse -> new SynonymsReloadResult(synonymsOperationResult, reloadResponse))
+            );
+        }));
     }
 
     // Allows checking failures in tests
-    void checkSynonymsIndexHealth(TimeValue timeout, ActionListener<ClusterHealthResponse> listener) {
-        ClusterHealthRequest healthRequest = new ClusterHealthRequest(timeout, SYNONYMS_ALIAS_NAME).waitForGreenStatus();
+    void checkSynonymsIndexHealth(ActionListener<ClusterHealthResponse> listener) {
+        ClusterHealthRequest healthRequest = new ClusterHealthRequest(
+            TimeValue.timeValueSeconds(INDEX_SEARCHABLE_TIMEOUT_SECONDS),
+            SYNONYMS_ALIAS_NAME
+        ).waitForGreenStatus();
 
         client.execute(TransportClusterHealthAction.TYPE, healthRequest, listener);
-    }
-
-    private <T> void reloadAnalyzers(
-        String synonymSetId,
-        boolean preview,
-        ActionListener<SynonymsReloadResult> listener,
-        UpdateSynonymsResultStatus synonymsOperationResult
-    ) {
-
-        // auto-reload all reloadable analyzers (currently only those that use updateable synonym or keyword_marker filters)
-        ReloadAnalyzersRequest reloadAnalyzersRequest = new ReloadAnalyzersRequest(synonymSetId, preview, "*");
-        client.execute(
-            TransportReloadAnalyzersAction.TYPE,
-            reloadAnalyzersRequest,
-            listener.safeMap(reloadResponse -> new SynonymsReloadResult(synonymsOperationResult, reloadResponse))
-        );
     }
 
     // Retrieves the internal synonym rule ID to store it in the index. As the same synonym rule ID

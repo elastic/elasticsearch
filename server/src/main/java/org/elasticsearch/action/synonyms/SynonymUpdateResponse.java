@@ -9,6 +9,7 @@
 
 package org.elasticsearch.action.synonyms;
 
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.admin.indices.analyze.ReloadAnalyzersResponse;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -30,7 +31,11 @@ public class SynonymUpdateResponse extends ActionResponse implements ToXContentO
 
     public SynonymUpdateResponse(StreamInput in) throws IOException {
         this.updateStatus = in.readEnum(UpdateSynonymsResultStatus.class);
-        this.reloadAnalyzersResponse = new ReloadAnalyzersResponse(in);
+        if (in.getTransportVersion().onOrAfter(TransportVersions.SYNONYMS_REFRESH_PARAM)) {
+            this.reloadAnalyzersResponse = in.readOptionalWriteable(ReloadAnalyzersResponse::new);
+        } else {
+            this.reloadAnalyzersResponse = new ReloadAnalyzersResponse(in);
+        }
     }
 
     public SynonymUpdateResponse(SynonymsReloadResult synonymsReloadResult) {
@@ -38,7 +43,6 @@ public class SynonymUpdateResponse extends ActionResponse implements ToXContentO
         UpdateSynonymsResultStatus updateStatus = synonymsReloadResult.synonymsOperationResult();
         Objects.requireNonNull(updateStatus, "Update status must not be null");
         ReloadAnalyzersResponse reloadResponse = synonymsReloadResult.reloadAnalyzersResponse();
-        Objects.requireNonNull(reloadResponse, "Reload analyzers response must not be null");
 
         this.updateStatus = updateStatus;
         this.reloadAnalyzersResponse = reloadResponse;
@@ -49,8 +53,10 @@ public class SynonymUpdateResponse extends ActionResponse implements ToXContentO
         builder.startObject();
         {
             builder.field("result", updateStatus.name().toLowerCase(Locale.ENGLISH));
-            builder.field("reload_analyzers_details");
-            reloadAnalyzersResponse.toXContent(builder, params);
+            if (reloadAnalyzersResponse != null) {
+                builder.field("reload_analyzers_details");
+                reloadAnalyzersResponse.toXContent(builder, params);
+            }
         }
         builder.endObject();
 

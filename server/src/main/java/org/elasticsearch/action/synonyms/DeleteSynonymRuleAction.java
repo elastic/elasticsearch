@@ -9,6 +9,7 @@
 
 package org.elasticsearch.action.synonyms;
 
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionType;
@@ -31,18 +32,24 @@ public class DeleteSynonymRuleAction extends ActionType<SynonymUpdateResponse> {
 
     public static class Request extends ActionRequest {
         private final String synonymsSetId;
-
         private final String synonymRuleId;
+        private final boolean refresh;
 
         public Request(StreamInput in) throws IOException {
             super(in);
             this.synonymsSetId = in.readString();
             this.synonymRuleId = in.readString();
+            if (in.getTransportVersion().onOrAfter(TransportVersions.SYNONYMS_REFRESH_PARAM)) {
+                this.refresh = in.readBoolean();
+            } else {
+                this.refresh = true;
+            }
         }
 
-        public Request(String synonymsSetId, String synonymRuleId) {
+        public Request(String synonymsSetId, String synonymRuleId, boolean refresh) {
             this.synonymsSetId = synonymsSetId;
             this.synonymRuleId = synonymRuleId;
+            this.refresh = refresh;
         }
 
         @Override
@@ -63,6 +70,9 @@ public class DeleteSynonymRuleAction extends ActionType<SynonymUpdateResponse> {
             super.writeTo(out);
             out.writeString(synonymsSetId);
             out.writeString(synonymRuleId);
+            if (out.getTransportVersion().onOrAfter(TransportVersions.SYNONYMS_REFRESH_PARAM)) {
+                out.writeBoolean(refresh);
+            }
         }
 
         public String synonymsSetId() {
@@ -71,6 +81,10 @@ public class DeleteSynonymRuleAction extends ActionType<SynonymUpdateResponse> {
 
         public String synonymRuleId() {
             return synonymRuleId;
+        }
+
+        public boolean refresh() {
+            return refresh;
         }
 
         @Override

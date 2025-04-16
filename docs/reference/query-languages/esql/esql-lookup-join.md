@@ -124,7 +124,7 @@ For a complete list of supported data types and their internal representations, 
 
 The following are the current limitations with `LOOKUP JOIN`
 
-* Indices in [`lookup` mode](/reference/elasticsearch/index-settings/index-modules.md#index-mode-setting) mode are always single-sharded.
+* Indices in [`lookup` mode](/reference/elasticsearch/index-settings/index-modules.md#index-mode-setting) are always single-sharded.
 * Cross cluster search is unsupported initially. Both source and lookup indices must be local.
 * Currently, only matching on equality is supported.
 * `LOOKUP JOIN` can only use a single match field and a single index. Wildcards, aliases, datemath, and datastreams are not supported.

@@ -2159,6 +2159,155 @@ public class FailureStoreSecurityRestIT extends ESRestTestCase {
         expectThrowsWithApiKey(apiKey, new Search("test1"), 403);
     }
 
+    public void testFieldCapabilities() throws Exception {
+        setupDataStream();
+
+        final Tuple<String, String> backingIndices = getSingleDataAndFailureIndices("test1");
+        final String dataIndexName = backingIndices.v1();
+        final String failureIndexName = backingIndices.v2();
+
+        createUser("user", PASSWORD, "role");
+        upsertRole("""
+            {
+              "cluster": ["all"],
+              "indices": [
+                {
+                  "names": ["test*"],
+                  "privileges": ["read"]
+                }
+              ]
+            }""", "role");
+
+        {
+            expectThrows(() -> performRequest("user", new Request("POST", "/test1::failures/_field_caps?fields=name")), 403);
+            assertFieldCapsResponseContainsIndexAndFields(
+                performRequest("user", new Request("POST", Strings.format("/%s/_field_caps?fields=name", "test1"))),
+                dataIndexName,
+                Set.of("name")
+            );
+        }
+
+        upsertRole("""
+            {
+              "cluster": ["all"],
+              "indices": [
+                {
+                  "names": ["test*"],
+                  "privileges": ["read_failure_store"]
+                }
+              ]
+            }""", "role");
+
+        {
+            expectThrows(() -> performRequest("user", new Request("POST", "/test1/_field_caps?fields=name")), 403);
+            assertFieldCapsResponseContainsIndexAndFields(
+                performRequest("user", new Request("POST", "/test1::failures/_field_caps?fields=error.*")),
+                failureIndexName,
+                Set.of(
+                    "error.message",
+                    "error.pipeline_trace",
+                    "error.processor_type",
+                    "error.type",
+                    "error.processor_tag",
+                    "error.pipeline",
+                    "error.stack_trace",
+                    "error"
+                )
+            );
+        }
+
+        upsertRole("""
+            {
+              "cluster": ["all"],
+              "indices": [
+                {
+                  "names": ["test*"],
+                  "privileges": ["read_failure_store"],
+                  "field_security": {
+                      "grant": ["error*"],
+                      "except": ["error.message"]
+                  }
+                }
+              ]
+            }""", "role");
+        {
+            expectThrows(() -> performRequest("user", new Request("POST", "/test1/_field_caps?fields=name")), 403);
+            assertFieldCapsResponseContainsIndexAndFields(
+                performRequest("user", new Request("POST", "/test1::failures/_field_caps?fields=error.*")),
+                failureIndexName,
+                Set.of(
+                    "error.pipeline_trace",
+                    "error.processor_type",
+                    "error.type",
+                    "error.processor_tag",
+                    "error.pipeline",
+                    "error.stack_trace",
+                    "error"
+                )
+            );
+        }
+
+        upsertRole("""
+            {
+              "cluster": ["all"],
+              "indices": [
+                {
+                  "names": ["test*"],
+                  "privileges": ["read_failure_store", "read"],
+                  "field_security": {
+                      "grant": ["error*", "name"],
+                      "except": ["error.type"]
+                  }
+                }
+              ]
+            }""", "role");
+        {
+            assertFieldCapsResponseContainsIndexAndFields(
+                performRequest("user", new Request("POST", "/test1/_field_caps?fields=name,age,email")),
+                dataIndexName,
+                Set.of("name")
+            );
+            assertFieldCapsResponseContainsIndexAndFields(
+                performRequest("user", new Request("POST", "/test1::failures/_field_caps?fields=error.*")),
+                failureIndexName,
+                Set.of(
+                    "error.pipeline_trace",
+                    "error.processor_type",
+                    "error.message",
+                    "error.processor_tag",
+                    "error.pipeline",
+                    "error.stack_trace",
+                    "error"
+                )
+            );
+        }
+
+        upsertRole("""
+            {
+              "cluster": ["all"],
+              "indices": [
+                {
+                  "names": ["other*"],
+                  "privileges": ["read_failure_store", "read"]
+                }
+              ]
+            }""", "role");
+        expectThrows(() -> performRequest("user", new Request("POST", "/test1/_field_caps?fields=name")), 403);
+        expectThrows(() -> performRequest("user", new Request("POST", "/test1::failures/_field_caps?fields=name")), 403);
+    }
+
+    private void assertFieldCapsResponseContainsIndexAndFields(Response fieldCapsResponse, String indexName, Set<String> expectedFields)
+        throws IOException {
+        assertOK(fieldCapsResponse);
+        ObjectPath objectPath = ObjectPath.createFromResponse(fieldCapsResponse);
+
+        List<String> indices = objectPath.evaluate("indices");
+        assertThat(indices, containsInAnyOrder(indexName));
+
+        Map<String, Object> fields = objectPath.evaluate("fields");
+        assertThat(fields.keySet(), containsInAnyOrder(expectedFields.toArray()));
+    }
+
     public void testPit() throws Exception {
         List<String> docIds = setupDataStream();
         String dataDocId = "1";

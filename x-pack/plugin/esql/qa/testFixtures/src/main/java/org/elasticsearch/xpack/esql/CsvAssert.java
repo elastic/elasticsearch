@@ -296,6 +296,7 @@ public final class CsvAssert {
             width[c] = header(headers.get(c), types.get(c)).length();
         }
         for (int r = 0; r < rows; r++) {
+            assertThat("Mismatched header size and values", headers.size() == values.get(r).size());
             for (int c = 0; c < headers.size(); c++) {
                 printableValues[r][c] = String.valueOf(valueTransformer.apply(types.get(c), values.get(r).get(c)));
                 width[c] = Math.max(width[c], printableValues[r][c].length());

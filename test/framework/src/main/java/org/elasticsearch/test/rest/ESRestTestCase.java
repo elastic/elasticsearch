@@ -1638,6 +1638,10 @@ public abstract class ESRestTestCase extends ESTestCase {
             String token = basicAuthHeaderValue(username, new SecureString(password.toCharArray()));
             builder.put(ThreadContext.PREFIX + ".Authorization", token);
         }
+        if (System.getProperty("tests.rest.project.id") != null) {
+            final var projectId = System.getProperty("tests.rest.project.id");
+            builder.put(ThreadContext.PREFIX + ".X-Elastic-Project-Id", projectId);
+        }
         return builder.build();
     }
 

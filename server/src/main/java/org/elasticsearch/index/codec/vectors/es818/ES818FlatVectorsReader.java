@@ -54,6 +54,8 @@ import static org.apache.lucene.codecs.lucene99.Lucene99HnswVectorsReader.readVe
 @SuppressForbidden(reason = "Copied from lucene")
 public class ES818FlatVectorsReader extends FlatVectorsReader {
 
+    private static final boolean USE_DIRECT_IO = Boolean.parseBoolean(System.getProperty("vector.rescoring.directio", "true"));
+
     private static final long SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(ES818FlatVectorsReader.class);
 
     private final IntObjectHashMap<FieldEntry> fields = new IntObjectHashMap<>();
@@ -120,9 +122,11 @@ public class ES818FlatVectorsReader extends FlatVectorsReader {
     ) throws IOException {
         String fileName = IndexFileNames.segmentFileName(state.segmentInfo.name, state.segmentSuffix, fileExtension);
         // use direct IO for accessing raw vector data for searches
-        IndexInput in = context.context() == IOContext.Context.DEFAULT && state.directory instanceof DirectIOIndexInputSupplier did
-            ? did.openInputDirect(fileName, context)
-            : state.directory.openInput(fileName, context);
+        IndexInput in = USE_DIRECT_IO
+            && context.context() == IOContext.Context.DEFAULT
+            && state.directory instanceof DirectIOIndexInputSupplier did
+                ? did.openInputDirect(fileName, context)
+                : state.directory.openInput(fileName, context);
         boolean success = false;
         try {
             int versionVectorData = CodecUtil.checkIndexHeader(

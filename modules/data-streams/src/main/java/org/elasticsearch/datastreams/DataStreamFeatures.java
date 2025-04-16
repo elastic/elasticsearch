@@ -20,6 +20,8 @@ import java.util.Set;
  */
 public class DataStreamFeatures implements FeatureSpecification {
 
+    public static final NodeFeature DATA_STREAM_FAILURE_STORE_TSDB_FIX = new NodeFeature("data_stream.failure_store.tsdb_fix");
+
     public static final NodeFeature DOWNSAMPLE_AGGREGATE_DEFAULT_METRIC_FIX = new NodeFeature(
         "data_stream.downsample.default_aggregate_metric_fix"
     );
@@ -31,6 +33,6 @@ public class DataStreamFeatures implements FeatureSpecification {
 
     @Override
     public Set<NodeFeature> getTestFeatures() {
-        return Set.of(DOWNSAMPLE_AGGREGATE_DEFAULT_METRIC_FIX);
+        return Set.of(DATA_STREAM_FAILURE_STORE_TSDB_FIX, DOWNSAMPLE_AGGREGATE_DEFAULT_METRIC_FIX);
     }
 }

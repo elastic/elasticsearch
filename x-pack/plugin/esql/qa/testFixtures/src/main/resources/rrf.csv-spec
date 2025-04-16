@@ -76,6 +76,7 @@ FROM books METADATA _id, _index, _score
        ( WHERE author:"Ursula K. Le Guin" AND title:"short stories" | SORT _score, _id DESC | LIMIT 3)
 | RRF
 | STATS count_fork=COUNT(*) BY _fork
+| SORT _fork
 ;
 
 count_fork:long | _fork:keyword
@@ -108,4 +109,23 @@ _score:double | author:keyword                    | title:keyword        | _fork
 0.0161        | [Beverlie Manson, Keith Faulkner] | Rainbow's End: A Mag | fork1
 0.0161        | Ursula K. Le Guin                 | The Word For World i | fork2
 0.0159        | Ursula K. Le Guin                 | The Dispossessed     | fork2
+;
+
+rrfWithSemanticSearch
+required_capability: rrf
+required_capability: semantic_text_field_caps
+required_capability: metadata_score
+
+FROM semantic_text METADATA _id, _score, _index
+| FORK ( WHERE semantic_text_field:"something" | SORT _score DESC | LIMIT 2)
+       ( WHERE semantic_text_field:"something else" | SORT _score DESC | LIMIT 2)
+| RRF
+| EVAL _score = round(_score, 4)
+| EVAL _fork = mv_sort(_fork)
+| KEEP _fork, _score, _id, semantic_text_field
+;
+
+_fork:keyword  | _score:double | _id:keyword | semantic_text_field:keyword
+[fork1, fork2] | 0.0328        | 2           | all we have to decide is what to do with the time that is given to us
+[fork1, fork2] | 0.0323        | 3           | be excellent to each other
 ;

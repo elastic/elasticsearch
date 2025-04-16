@@ -68,6 +68,7 @@ import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
 
 import static org.elasticsearch.entitlement.runtime.policy.Platform.LINUX;
+import static org.elasticsearch.entitlement.runtime.policy.entitlements.FilesEntitlement.BaseDir.CONFIG;
 import static org.elasticsearch.entitlement.runtime.policy.entitlements.FilesEntitlement.BaseDir.DATA;
 import static org.elasticsearch.entitlement.runtime.policy.entitlements.FilesEntitlement.BaseDir.SHARED_REPO;
 import static org.elasticsearch.entitlement.runtime.policy.entitlements.FilesEntitlement.Mode.READ;
@@ -182,7 +183,8 @@ public class EntitlementInitialization {
             FileData.ofPath(bootstrapArgs.libDir(), READ),
             FileData.ofRelativePath(Path.of(""), DATA, READ_WRITE),
             FileData.ofRelativePath(Path.of(""), SHARED_REPO, READ_WRITE),
-
+            // exclusive settings file
+            FileData.ofRelativePath(Path.of("operator/settings.json"), CONFIG, READ_WRITE).withExclusive(true),
             // OS release on Linux
             FileData.ofPath(Path.of("/etc/os-release"), READ).withPlatform(LINUX),
             FileData.ofPath(Path.of("/etc/system-release"), READ).withPlatform(LINUX),
@@ -228,7 +230,6 @@ public class EntitlementInitialization {
                     new ReadStoreAttributesEntitlement(),
                     new CreateClassLoaderEntitlement(),
                     new InboundNetworkEntitlement(),
-                    new OutboundNetworkEntitlement(),
                     new LoadNativeLibrariesEntitlement(),
                     new ManageThreadsEntitlement(),
                     new FilesEntitlement(serverModuleFileDatas)
@@ -236,7 +237,6 @@ public class EntitlementInitialization {
             ),
             new Scope("java.desktop", List.of(new LoadNativeLibrariesEntitlement())),
             new Scope("org.apache.httpcomponents.httpclient", List.of(new OutboundNetworkEntitlement())),
-            new Scope("io.netty.transport", List.of(new InboundNetworkEntitlement(), new OutboundNetworkEntitlement())),
             new Scope(
                 "org.apache.lucene.core",
                 List.of(

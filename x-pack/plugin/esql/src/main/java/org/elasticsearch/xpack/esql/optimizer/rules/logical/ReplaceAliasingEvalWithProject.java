@@ -54,9 +54,9 @@ public final class ReplaceAliasingEvalWithProject extends Rule<LogicalPlan, Logi
         LogicalPlan plan = eval;
 
         // holds simple aliases such as b = a, c = b, d = c
-        AttributeMap<Expression> basicAliases = new AttributeMap<>();
+        AttributeMap.Builder<Expression> basicAliasesBuilder = AttributeMap.builder();
         // same as above but keeps the original expression
-        AttributeMap<NamedExpression> basicAliasSources = new AttributeMap<>();
+        AttributeMap.Builder<NamedExpression> basicAliasSourcesBuilder = AttributeMap.builder();
 
         List<Alias> keptFields = new ArrayList<>();
 
@@ -67,22 +67,23 @@ public final class ReplaceAliasingEvalWithProject extends Rule<LogicalPlan, Logi
             var attribute = field.toAttribute();
             // put the aliases in a separate map to separate the underlying resolve from other aliases
             if (child instanceof Attribute) {
-                basicAliases.put(attribute, child);
-                basicAliasSources.put(attribute, field);
+                basicAliasesBuilder.put(attribute, child);
+                basicAliasSourcesBuilder.put(attribute, field);
             } else {
                 // be lazy and start replacing name aliases only if needed
-                if (basicAliases.size() > 0) {
+                if (basicAliasesBuilder.build().size() > 0) {
                     // update the child through the field
-                    field = (Alias) field.transformUp(e -> basicAliases.resolve(e, e));
+                    field = (Alias) field.transformUp(e -> basicAliasesBuilder.build().resolve(e, e));
                 }
                 keptFields.add(field);
             }
         }
 
         // at least one alias encountered, move it into a project
-        if (basicAliases.size() > 0) {
+        if (basicAliasesBuilder.build().size() > 0) {
             // preserve the eval output (takes care of shadowing and order) but replace the basic aliases
             List<NamedExpression> projections = new ArrayList<>(eval.output());
+            var basicAliasSources = basicAliasSourcesBuilder.build();
             // replace the removed aliases with their initial definition - however use the output to preserve the shadowing
             for (int i = projections.size() - 1; i >= 0; i--) {
                 NamedExpression project = projections.get(i);

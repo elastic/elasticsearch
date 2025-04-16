@@ -26,6 +26,8 @@ import org.elasticsearch.xcontent.XContentParser;
 import java.io.IOException;
 import java.util.Objects;
 
+import static org.elasticsearch.TransportVersions.INFERENCE_MODEL_REGISTRY_METADATA;
+import static org.elasticsearch.TransportVersions.INFERENCE_MODEL_REGISTRY_METADATA_8_19;
 import static org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.ElementType;
 import static org.elasticsearch.inference.TaskType.CHAT_COMPLETION;
 import static org.elasticsearch.inference.TaskType.COMPLETION;
@@ -161,7 +163,12 @@ public record MinimalServiceSettings(
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.INFERENCE_MODEL_REGISTRY_METADATA;
+        return TransportVersions.INFERENCE_MODEL_REGISTRY_METADATA_8_19;
+    }
+
+    @Override
+    public boolean supportsVersion(TransportVersion version) {
+        return version.isPatchFrom(INFERENCE_MODEL_REGISTRY_METADATA_8_19) || version.onOrAfter(INFERENCE_MODEL_REGISTRY_METADATA);
     }
 
     @Override
@@ -242,10 +249,6 @@ public record MinimalServiceSettings(
         }
     }
 
-    public ModelConfigurations toModelConfigurations(String inferenceEntityId) {
-        return new ModelConfigurations(inferenceEntityId, taskType, service == null ? UNKNOWN_SERVICE : service, this);
-    }
-
     /**
      * Checks if the given {@link MinimalServiceSettings} is equivalent to the current definition.
      */
@@ -253,7 +256,6 @@ public record MinimalServiceSettings(
         return taskType == other.taskType
             && Objects.equals(dimensions, other.dimensions)
             && similarity == other.similarity
-            && elementType == other.elementType
-            && (service == null || service.equals(other.service));
+            && elementType == other.elementType;
     }
 }

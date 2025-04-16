@@ -135,6 +135,7 @@ public class EsqlActionTaskIT extends AbstractPausableIntegTestCase {
                             matchesMap().entry("pause_me:column_at_a_time:ScriptLongs", greaterThanOrEqualTo(1))
                         );
                         assertThat(oStatus.pagesProcessed(), greaterThanOrEqualTo(1));
+                        assertThat(oStatus.valuesLoaded(), greaterThanOrEqualTo(1L));
                         valuesSourceReaders++;
                         continue;
                     }
@@ -167,7 +168,7 @@ public class EsqlActionTaskIT extends AbstractPausableIntegTestCase {
                         \\_AggregationOperator[mode = INITIAL, aggs = sum of longs]
                         \\_ExchangeSinkOperator""".replace(
                         "sourceStatus",
-                        "dataPartitioning = SHARD, maxPageSize = " + pageSize() + ", limit = 2147483647, scoreMode = COMPLETE_NO_SCORES"
+                        "dataPartitioning = SHARD, maxPageSize = " + pageSize() + ", limit = 2147483647, needsScore = false"
                     )
                 )
             );
@@ -181,6 +182,19 @@ public class EsqlActionTaskIT extends AbstractPausableIntegTestCase {
                 \\_ProjectOperator[projection = [0]]
                 \\_LimitOperator[limit = 1000]
                 \\_OutputOperator[columns = [sum(pause_me)]]"""));
+
+            for (TaskInfo task : dataTasks(foundTasks)) {
+                assertThat(((DriverStatus) task.status()).documentsFound(), greaterThan(0L));
+                assertThat(((DriverStatus) task.status()).valuesLoaded(), greaterThan(0L));
+            }
+            for (TaskInfo task : nodeReduceTasks(foundTasks)) {
+                assertThat(((DriverStatus) task.status()).documentsFound(), equalTo(0L));
+                assertThat(((DriverStatus) task.status()).valuesLoaded(), equalTo(0L));
+            }
+            for (TaskInfo task : coordinatorTasks(foundTasks)) {
+                assertThat(((DriverStatus) task.status()).documentsFound(), equalTo(0L));
+                assertThat(((DriverStatus) task.status()).valuesLoaded(), equalTo(0L));
+            }
         } finally {
             scriptPermits.release(numberOfDocs());
             try (EsqlQueryResponse esqlResponse = response.get()) {
@@ -502,7 +516,7 @@ public class EsqlActionTaskIT extends AbstractPausableIntegTestCase {
                 [{"pause_me":{"order":"asc","missing":"_last","unmapped_type":"long"}}]""";
             String sourceStatus = "dataPartitioning = SHARD, maxPageSize = "
                 + pageSize()
-                + ", limit = 1000, scoreMode = TOP_DOCS, sorts = "
+                + ", limit = 1000, needsScore = false, sorts = "
                 + sortStatus;
             assertThat(dataTasks(tasks).get(0).description(), equalTo("""
                 \\_LuceneTopNSourceOperator[sourceStatus]
@@ -545,7 +559,7 @@ public class EsqlActionTaskIT extends AbstractPausableIntegTestCase {
             scriptPermits.release(pageSize() - prereleasedDocs);
             List<TaskInfo> tasks = getTasksRunning();
             assertThat(dataTasks(tasks).get(0).description(), equalTo("""
-                \\_LuceneSourceOperator[dataPartitioning = SHARD, maxPageSize = pageSize(), limit = limit(), scoreMode = COMPLETE_NO_SCORES]
+                \\_LuceneSourceOperator[dataPartitioning = SHARD, maxPageSize = pageSize(), limit = limit(), needsScore = false]
                 \\_ValuesSourceReaderOperator[fields = [pause_me]]
                 \\_ProjectOperator[projection = [1]]
                 \\_ExchangeSinkOperator""".replace("pageSize()", Integer.toString(pageSize())).replace("limit()", limit)));
@@ -573,8 +587,10 @@ public class EsqlActionTaskIT extends AbstractPausableIntegTestCase {
             logger.info("unblocking script");
             scriptPermits.release(pageSize());
             List<TaskInfo> tasks = getTasksRunning();
-            String sourceStatus = "dataPartitioning = SHARD, maxPageSize = pageSize(), limit = 2147483647, scoreMode = COMPLETE_NO_SCORES"
-                .replace("pageSize()", Integer.toString(pageSize()));
+            String sourceStatus = "dataPartitioning = SHARD, maxPageSize = pageSize(), limit = 2147483647, needsScore = false".replace(
+                "pageSize()",
+                Integer.toString(pageSize())
+            );
             assertThat(
                 dataTasks(tasks).get(0).description(),
                 equalTo(

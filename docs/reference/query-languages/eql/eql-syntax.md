@@ -681,7 +681,7 @@ file where endsWith(file.path,".exe") or endsWith(file.path,".dll")
 While this works, it can be repetitive to write and can slow search speeds. To speed up search, you can do the following instead:
 
 1. [Add a new field](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-indices-put-mapping), `file.extension`, to the index. The `file.extension` field will contain only the file extension from the `file.path` field.
-2. Use an [ingest pipeline](docs-content://manage-data/ingest/transform-enrich/ingest-pipelines.md) containing the [`grok`](/reference/ingestion-tools/enrich-processor/grok-processor.md) processor or another preprocessor tool to extract the file extension from the `file.path` field before indexing.
+2. Use an [ingest pipeline](docs-content://manage-data/ingest/transform-enrich/ingest-pipelines.md) containing the [`grok`](/reference/enrich-processor/grok-processor.md) processor or another preprocessor tool to extract the file extension from the `file.path` field before indexing.
 3. Index the extracted file extension to the `file.extension` field.
 
 These changes may slow indexing but allow for faster searches. Users can use the `file.extension` field instead of multiple `endsWith` function calls:
@@ -788,7 +788,7 @@ You cannot use EQL to search the values of a [`nested`](/reference/elasticsearch
 * If two pending sequences are in the same state at the same time, the most recent sequence overwrites the older one.
 * If the query includes [`by` fields](#eql-by-keyword), the query uses a separate state machine for each unique `by` field value.
 
-:::::{dropdown} **Example**
+:::::{dropdown} Example
 A data set contains the following `process` events in ascending chronological order:
 
 ```js
@@ -831,13 +831,13 @@ The query’s event items correspond to the following states:
 * State B:  `[process where process.name == "bash"]`
 * Complete: `[process where process.name == "cat"]`
 
-:::{image} /images/sequence-state-machine.svg
+:::{image} ../images/sequence-state-machine.svg
 :alt: sequence state machine
 :::
 
 To find matching sequences, the query uses separate state machines for each unique `user.name` value. Based on the data set, you can expect two state machines: one for the `root` user and one for `elkbee`.
 
-:::{image} /images/separate-state-machines.svg
+:::{image} ../images/separate-state-machines.svg
 :alt: separate state machines
 :::
 

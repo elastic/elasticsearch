@@ -1185,7 +1185,7 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
             IndexVersions.INFERENCE_METADATA_FIELDS,
             IndexVersionUtils.getPreviousVersion(IndexVersions.SEMANTIC_TEXT_DEFAULTS_TO_BBQ)
         );
-        assertSemanticTextField(mapperService, "field", true, null, SemanticTextFieldMapper.defaultSemanticDenseIndexOptions());
+        assertSemanticTextField(mapperService, "field", true, null, defaultDenseVectorIndexOptions());
 
     }
 

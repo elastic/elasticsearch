@@ -153,29 +153,35 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
 
     private MapperService createMapperService(XContentBuilder mappings, boolean useLegacyFormat) throws IOException {
         IndexVersion indexVersion = SemanticInferenceMetadataFieldsMapperTests.getRandomCompatibleIndexVersion(useLegacyFormat);
-        return createMapperService(mappings, useLegacyFormat, indexVersion, indexVersion);
+        return createMapperService(mappings, useLegacyFormat, indexVersion, indexVersion, false);
     }
 
     private MapperService createMapperService(XContentBuilder mappings, boolean useLegacyFormat, IndexVersion minIndexVersion)
         throws IOException {
-        return createMapperService(mappings, useLegacyFormat, minIndexVersion, IndexVersion.current());
+        return createMapperService(mappings, useLegacyFormat, minIndexVersion, IndexVersion.current(), false);
     }
 
     private MapperService createMapperService(
         XContentBuilder mappings,
         boolean useLegacyFormat,
         IndexVersion minIndexVersion,
-        IndexVersion maxIndexVersion
+        IndexVersion maxIndexVersion,
+        boolean propagateIndexVersion
     ) throws IOException {
         validateIndexVersion(minIndexVersion, useLegacyFormat);
+        IndexVersion indexVersion = IndexVersionUtils.randomVersionBetween(random(), minIndexVersion, maxIndexVersion);
         var settings = Settings.builder()
-            .put(
-                IndexMetadata.SETTING_INDEX_VERSION_CREATED.getKey(),
-                IndexVersionUtils.randomVersionBetween(random(), minIndexVersion, maxIndexVersion)
-            )
+            .put(IndexMetadata.SETTING_INDEX_VERSION_CREATED.getKey(), indexVersion)
             .put(InferenceMetadataFieldsMapper.USE_LEGACY_SEMANTIC_TEXT_FORMAT.getKey(), useLegacyFormat)
             .build();
-        return createMapperService(settings, mappings);
+        // TODO - This is added, because we discovered a bug where the index version was not being correctly propagated
+        // in our mappings even though we were specifying the index version in settings. We will fix this in a followup and
+        // remove the boolean flag accordingly.
+        if (propagateIndexVersion) {
+            return createMapperService(indexVersion, settings, mappings);
+        } else {
+            return createMapperService(settings, mappings);
+        }
     }
 
     private static void validateIndexVersion(IndexVersion indexVersion, boolean useLegacyFormat) {
@@ -1183,7 +1189,8 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
         }),
             useLegacyFormat,
             IndexVersions.INFERENCE_METADATA_FIELDS,
-            IndexVersionUtils.getPreviousVersion(IndexVersions.SEMANTIC_TEXT_DEFAULTS_TO_BBQ)
+            IndexVersionUtils.getPreviousVersion(IndexVersions.SEMANTIC_TEXT_DEFAULTS_TO_BBQ),
+            true
         );
         assertSemanticTextField(mapperService, "field", true, null, defaultDenseVectorIndexOptions());
 

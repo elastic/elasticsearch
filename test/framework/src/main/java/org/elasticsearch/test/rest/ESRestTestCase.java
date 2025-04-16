@@ -456,40 +456,6 @@ public abstract class ESRestTestCase extends ESTestCase {
         assert nodesVersions != null;
     }
 
-    private void configureProjects() throws IOException {
-        if (projectsConfigured || multiProjectEnabled == false) {
-            return;
-        }
-        projectsConfigured = true;
-        createProject(activeProject);
-        for (var project : extraProjects) {
-            createProject(project);
-        }
-
-        // The admin client does not set a project id, and can see all projects
-        assertProjectIds(
-            adminClient(),
-            CollectionUtils.concatLists(List.of(Metadata.DEFAULT_PROJECT_ID.id(), activeProject), extraProjects)
-        );
-        // The test client can only see the project it targets
-        assertProjectIds(client(), List.of(activeProject));
-    }
-
-    @After
-    public final void assertEmptyProjects() throws Exception {
-        if (multiProjectEnabled == false) {
-            return;
-        }
-        assertEmptyProject(Metadata.DEFAULT_PROJECT_ID.id());
-        for (var project : extraProjects) {
-            assertEmptyProject(project);
-        }
-    }
-
-    public static String activeProject() {
-        return activeProject;
-    }
-
     protected final TestFeatureService createTestFeatureService(
         Map<String, Set<String>> clusterStateFeatures,
         Set<Version> semanticNodeVersions
@@ -2758,6 +2724,40 @@ public abstract class ESRestTestCase extends ESTestCase {
         Matcher<?> valuesMatcher
     ) {
         assertMap(result, mapMatcher.entry("columns", columnMatcher).entry("values", valuesMatcher));
+    }
+
+    private void configureProjects() throws IOException {
+        if (projectsConfigured || multiProjectEnabled == false) {
+            return;
+        }
+        projectsConfigured = true;
+        createProject(activeProject);
+        for (var project : extraProjects) {
+            createProject(project);
+        }
+
+        // The admin client does not set a project id, and can see all projects
+        assertProjectIds(
+            adminClient(),
+            CollectionUtils.concatLists(List.of(Metadata.DEFAULT_PROJECT_ID.id(), activeProject), extraProjects)
+        );
+        // The test client can only see the project it targets
+        assertProjectIds(client(), List.of(activeProject));
+    }
+
+    @After
+    public final void assertEmptyProjects() throws Exception {
+        if (multiProjectEnabled == false) {
+            return;
+        }
+        assertEmptyProject(Metadata.DEFAULT_PROJECT_ID.id());
+        for (var project : extraProjects) {
+            assertEmptyProject(project);
+        }
+    }
+
+    public static String activeProject() {
+        return activeProject;
     }
 
     protected void createProject(String project) throws IOException {

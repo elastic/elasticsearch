@@ -12,6 +12,7 @@ import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.index.query.RankDocsQueryBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.rank.RankDoc;
 import org.elasticsearch.search.retriever.CompoundRetrieverBuilder;
@@ -24,6 +25,7 @@ import org.elasticsearch.search.sort.ShardDocSortField;
 import org.elasticsearch.search.sort.SortBuilder;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.ToXContent.Params;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.searchbusinessrules.PinnedQueryBuilder;
@@ -205,10 +207,19 @@ public final class PinnedRetrieverBuilder extends CompoundRetrieverBuilder<Pinne
         RankDoc[] rankDocs = new RankDoc[scoreDocs.length];
         for (int i = 0; i < scoreDocs.length; i++) {
             ScoreDoc scoreDoc = scoreDocs[i];
-            boolean isPinned = docs.stream().anyMatch(doc -> doc.id().equals(String.valueOf(scoreDoc.doc)))
-                || ids.contains(String.valueOf(scoreDoc.doc));
-            String pinnedBy = docs.stream().anyMatch(doc -> doc.id().equals(String.valueOf(scoreDoc.doc))) ? "docs" : "ids";
-            rankDocs[i] = new PinnedRankDoc(scoreDoc.doc, scoreDoc.score, scoreDoc.shardIndex, isPinned, pinnedBy);
+
+            if (explain) {
+                boolean isPinned = scoreDoc.score > PinnedQueryBuilder.MAX_ORGANIC_SCORE;
+                if (isPinned) {
+                    String pinnedBy = (this.ids != null && this.ids.isEmpty() == false) ? "ids" : "docs";
+                    rankDocs[i] = new PinnedRankDoc(scoreDoc.doc, scoreDoc.score, scoreDoc.shardIndex, true, pinnedBy);
+                } else {
+                    rankDocs[i] = new RankDoc(scoreDoc.doc, scoreDoc.score, scoreDoc.shardIndex);
+                }
+            } else {
+                rankDocs[i] = new RankDoc(scoreDoc.doc, scoreDoc.score, scoreDoc.shardIndex);
+            }
+
             rankDocs[i].rank = i + 1;
         }
         return rankDocs;
@@ -246,8 +257,11 @@ public final class PinnedRetrieverBuilder extends CompoundRetrieverBuilder<Pinne
 
         @Override
         public QueryBuilder explainQuery() {
-            QueryBuilder baseQuery = in.explainQuery();
-            return createPinnedQuery(baseQuery);
+            RankDoc[] currentRankDocs = in.getRankDocs();
+            if (currentRankDocs == null) {
+                return in.explainQuery();
+            }
+            return new RankDocsQueryBuilder(currentRankDocs, new QueryBuilder[] { in.explainQuery() }, true);
         }
     }
 }

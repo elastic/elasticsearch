@@ -311,11 +311,11 @@ setup:
 
 ---
 "pinned retriever explanation":
-  - skip:
-      features: headers
+  - skip: { features: headers }
 
   - do:
       headers:
+        # Force JSON content type so that we use a parser that interprets the floating-point score as a double
         Content-Type: application/json
       search:
         index: test-index1
@@ -330,20 +330,14 @@ setup:
           explain: true
 
   - match: { hits.hits.0._id: doc1 }
-  # - match: { hits.hits.0._explanation.value: 1.7014124E38 }
+  - gt: { hits.hits.0._score: 1.0 }
   - match:
-      hits.hits.0._explanation.description: 'doc \[\d+\] with an original score of \[.+] is at rank \[\d+\] from the following source queries\.'
-  # - match: { hits.hits.0._explanation.details.0.description: "boost" }
-  # - match:
-  #     hits.hits.0._explanation.details.1.description: "/doc \[\d+\] with an original score of \[.+] is at rank \[\d+\] from the following source queries\./"
+      hits.hits.0._explanation.description: "Pinned document by ids, original explanation:"
 
   - match: { hits.hits.1._id: doc2 }
-  # - match: { hits.hits.1._explanation.value: 1.7014122E38 }
+  - gt: { hits.hits.1._score: 1.0 }
   - match:
-      hits.hits.1._explanation.description: 'doc \[\d+\] with an original score of \[.+] is at rank \[\d+\] from the following source queries\.'
-  # - match: { hits.hits.1._explanation.details.0.description: "boost" }
-  # - match:
-  #     hits.hits.1._explanation.details.1.description: "/doc \[\d+\] with an original score of \[.+] is at rank \[\d+\] from the following source queries\./"
+      hits.hits.1._explanation.description: "Pinned document by ids, original explanation:"
 
 ---
 "pinned retriever with empty parameters":

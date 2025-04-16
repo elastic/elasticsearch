@@ -59,7 +59,7 @@ public class PinnedQueryBuilder extends AbstractQueryBuilder<PinnedQueryBuilder>
 
     // Organic queries will have their scores capped to this number range,
     // We reserve the highest float exponent for scores of pinned queries
-    private static final float MAX_ORGANIC_SCORE = Float.intBitsToFloat((0xfe << 23)) - 1;
+    public static final float MAX_ORGANIC_SCORE = Float.intBitsToFloat((0xfe << 23)) - 1;
 
     public PinnedQueryBuilder(QueryBuilder organicQuery, String... ids) {
         this(organicQuery, Arrays.asList(ids), null);

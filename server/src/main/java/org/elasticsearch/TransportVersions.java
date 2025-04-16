@@ -141,6 +141,7 @@ public class TransportVersions {
     public static final TransportVersion ML_INFERENCE_IBM_WATSONX_RERANK_ADDED = def(8_840_0_00);
     public static final TransportVersion REMOVE_ALL_APPLICABLE_SELECTOR_BACKPORT_8_18 = def(8_840_0_01);
     public static final TransportVersion RETRY_ILM_ASYNC_ACTION_REQUIRE_ERROR_8_18 = def(8_840_0_02);
+    public static final TransportVersion INITIAL_ELASTICSEARCH_8_18_1 = def(8_840_0_03);
     public static final TransportVersion INITIAL_ELASTICSEARCH_8_19 = def(8_841_0_00);
     public static final TransportVersion COHERE_BIT_EMBEDDING_TYPE_SUPPORT_ADDED_BACKPORT_8_X = def(8_841_0_01);
     public static final TransportVersion REMOVE_ALL_APPLICABLE_SELECTOR_BACKPORT_8_19 = def(8_841_0_02);
@@ -222,6 +223,7 @@ public class TransportVersions {
     public static final TransportVersion AMAZON_BEDROCK_TASK_SETTINGS = def(9_049_0_00);
     public static final TransportVersion ESQL_REPORT_SHARD_PARTITIONING = def(9_050_0_00);
     public static final TransportVersion ESQL_QUERY_PLANNING_DURATION = def(9_051_0_00);
+    public static final TransportVersion ESQL_DOCUMENTS_FOUND_AND_VALUES_LOADED = def(9_052_0_00);
 
     /*
      * STOP! READ THIS FIRST! No, really,

@@ -38,6 +38,7 @@ import org.elasticsearch.xpack.esql.optimizer.rules.logical.PruneUnusedIndexMode
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.PushDownAndCombineFilters;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.PushDownAndCombineLimits;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.PushDownAndCombineOrderBy;
+import org.elasticsearch.xpack.esql.optimizer.rules.logical.PushDownCompletion;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.PushDownEnrich;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.PushDownEval;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.PushDownRegexExtract;
@@ -190,6 +191,7 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
             new PruneLiteralsInOrderBy(),
             new PushDownAndCombineLimits(),
             new PushDownAndCombineFilters(),
+            new PushDownCompletion(),
             new PushDownEval(),
             new PushDownRegexExtract(),
             new PushDownEnrich(),

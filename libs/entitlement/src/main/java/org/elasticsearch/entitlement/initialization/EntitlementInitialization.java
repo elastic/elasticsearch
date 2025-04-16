@@ -230,7 +230,6 @@ public class EntitlementInitialization {
                     new ReadStoreAttributesEntitlement(),
                     new CreateClassLoaderEntitlement(),
                     new InboundNetworkEntitlement(),
-                    new OutboundNetworkEntitlement(),
                     new LoadNativeLibrariesEntitlement(),
                     new ManageThreadsEntitlement(),
                     new FilesEntitlement(serverModuleFileDatas)
@@ -238,7 +237,6 @@ public class EntitlementInitialization {
             ),
             new Scope("java.desktop", List.of(new LoadNativeLibrariesEntitlement())),
             new Scope("org.apache.httpcomponents.httpclient", List.of(new OutboundNetworkEntitlement())),
-            new Scope("io.netty.transport", List.of(new InboundNetworkEntitlement(), new OutboundNetworkEntitlement())),
             new Scope(
                 "org.apache.lucene.core",
                 List.of(

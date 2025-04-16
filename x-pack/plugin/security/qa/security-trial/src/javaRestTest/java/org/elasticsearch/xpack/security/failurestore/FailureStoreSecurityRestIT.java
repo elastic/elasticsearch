@@ -50,6 +50,7 @@ import java.util.stream.Collectors;
 
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.is;
@@ -103,7 +104,7 @@ public class FailureStoreSecurityRestIT extends ESRestTestCase {
         upsertRole(Strings.format("""
             {
               "cluster": ["all"],
-              "indices": [{"names": ["test*"], "privileges": ["write", "auto_configure"]}]
+              "indices": [{"names": ["test*", "other*"], "privileges": ["write", "auto_configure"]}]
             }"""), WRITE_ACCESS);
     }
 
@@ -1812,6 +1813,186 @@ public class FailureStoreSecurityRestIT extends ESRestTestCase {
         }
     }
 
+    public void testModifyingFailureStoreBackingIndices() throws Exception {
+        setupDataStream();
+        Tuple<String, String> backingIndices = getSingleDataAndFailureIndices("test1");
+        String dataIndexName = backingIndices.v1();
+        String failureIndexName = backingIndices.v2();
+
+        createUser(MANAGE_ACCESS, PASSWORD, MANAGE_ACCESS);
+        upsertRole(Strings.format("""
+            {
+              "cluster": ["all"],
+              "indices": [{"names": ["test*"], "privileges": ["manage"]}]
+            }"""), MANAGE_ACCESS);
+        createAndStoreApiKey(MANAGE_ACCESS, randomBoolean() ? null : """
+            {
+              "role": {
+                "cluster": ["all"],
+                "indices": [{"names": ["test*"], "privileges": ["manage"]}]
+              }
+            }
+            """);
+        assertOK(addFailureStoreBackingIndex(MANAGE_ACCESS, "test1", failureIndexName));
+        assertDataStreamHasDataAndFailureIndices("test1", dataIndexName, failureIndexName);
+
+        // remove the failure index
+        assertOK(removeFailureStoreBackingIndex(MANAGE_ACCESS, "test1", failureIndexName));
+        assertDataStreamHasNoFailureIndices("test1", dataIndexName);
+
+        // adding it will fail because the user has no direct access to the backing failure index (.fs*)
+        expectThrows(() -> addFailureStoreBackingIndex(MANAGE_ACCESS, "test1", failureIndexName), 403);
+
+        // let's change that
+        upsertRole(Strings.format("""
+            {
+              "cluster": ["all"],
+              "indices": [{"names": ["test*", ".fs*"], "privileges": ["manage"]}]
+            }"""), MANAGE_ACCESS);
+        createOrUpdateApiKey(MANAGE_ACCESS, randomBoolean() ? null : """
+            {
+              "role": {
+                "cluster": ["all"],
+                "indices": [{"names": ["test*", ".fs*"], "privileges": ["manage"]}]
+              }
+            }
+            """);
+
+        // adding should succeed now
+        assertOK(addFailureStoreBackingIndex(MANAGE_ACCESS, "test1", failureIndexName));
+        assertDataStreamHasDataAndFailureIndices("test1", dataIndexName, failureIndexName);
+
+        createUser(MANAGE_FAILURE_STORE_ACCESS, PASSWORD, MANAGE_FAILURE_STORE_ACCESS);
+        upsertRole(Strings.format("""
+            {
+              "cluster": ["all"],
+              "indices": [{"names": ["test*"], "privileges": ["manage_failure_store"]}]
+            }"""), MANAGE_FAILURE_STORE_ACCESS);
+        createAndStoreApiKey(MANAGE_FAILURE_STORE_ACCESS, randomBoolean() ? null : """
+            {
+              "role": {
+                "cluster": ["all"],
+                "indices": [{"names": ["test*"], "privileges": ["manage_failure_store"]}]
+              }
+            }
+            """);
+
+        // manage_failure_store can only remove the failure backing index, but not add it
+        assertOK(removeFailureStoreBackingIndex(MANAGE_FAILURE_STORE_ACCESS, "test1", failureIndexName));
+        assertDataStreamHasNoFailureIndices("test1", dataIndexName);
+        expectThrows(() -> addFailureStoreBackingIndex(MANAGE_FAILURE_STORE_ACCESS, "test1", failureIndexName), 403);
+
+        // not even with access to .fs*
+        upsertRole(Strings.format("""
+            {
+              "cluster": ["all"],
+              "indices": [{"names": ["test*", ".fs*"], "privileges": ["manage_failure_store"]}]
+            }"""), MANAGE_FAILURE_STORE_ACCESS);
+        createOrUpdateApiKey(MANAGE_FAILURE_STORE_ACCESS, randomBoolean() ? null : """
+            {
+              "role": {
+                "cluster": ["all"],
+                "indices": [{"names": ["test*", ".fs*"], "privileges": ["manage_failure_store"]}]
+              }
+            }
+            """);
+        expectThrows(() -> addFailureStoreBackingIndex(MANAGE_FAILURE_STORE_ACCESS, "test1", failureIndexName), 403);
+    }
+
+    private void assertDataStreamHasDataAndFailureIndices(String dataStreamName, String dataIndexName, String failureIndexName)
+        throws IOException {
+        Tuple<List<String>, List<String>> indices = getDataAndFailureIndices(dataStreamName);
+        assertThat(indices.v1(), containsInAnyOrder(dataIndexName));
+        assertThat(indices.v2(), containsInAnyOrder(failureIndexName));
+    }
+
+    private void assertDataStreamHasNoFailureIndices(String dataStreamName, String dataIndexName) throws IOException {
+        Tuple<List<String>, List<String>> indices = getDataAndFailureIndices(dataStreamName);
+        assertThat(indices.v1(), containsInAnyOrder(dataIndexName));
+        assertThat(indices.v2(), is(empty()));
+    }
+
+    private Response addFailureStoreBackingIndex(String user, String dataStreamName, String failureIndexName) throws IOException {
+        return modifyFailureStoreBackingIndex(user, "add_backing_index", dataStreamName, failureIndexName);
+    }
+
+    private Response removeFailureStoreBackingIndex(String user, String dataStreamName, String failureIndexName) throws IOException {
+        return modifyFailureStoreBackingIndex(user, "remove_backing_index", dataStreamName, failureIndexName);
+    }
+
+    private Response modifyFailureStoreBackingIndex(String user, String action, String dataStreamName, String failureIndexName)
+        throws IOException {
+        Request request = new Request("POST", "/_data_stream/_modify");
+        request.setJsonEntity(Strings.format("""
+            {
+              "actions": [
+                {
+                  "%s": {
+                    "data_stream": "%s",
+                    "index": "%s",
+                    "failure_store" : true
+                  }
+                }
+              ]
+            }
+            """, action, dataStreamName, failureIndexName));
+        return performRequest(user, request);
+    }
+
+    public void testDataStreamApi() {
+        // test get data stream
+        // test data stream stats
+    }
+
+    public void testAliasBasedAccess() {
+        // test alias based access with failure store
+        // test filtered alias based access with failure store
+    }
+
+    public void testPatternExclusions() throws Exception {
+        List<String> docIds = setupDataStream();
+        assertThat(docIds.size(), equalTo(2));
+        assertThat(docIds, hasItem("1"));
+        String dataDocId = "1";
+        String failuresDocId = docIds.stream().filter(id -> false == id.equals(dataDocId)).findFirst().get();
+
+        List<String> otherDocIds = setupOtherDataStream();
+        assertThat(otherDocIds.size(), equalTo(2));
+        assertThat(otherDocIds, hasItem("3"));
+        String otherDataDocId = "3";
+        String otherFailuresDocId = otherDocIds.stream().filter(id -> false == id.equals(otherDataDocId)).findFirst().get();
+
+        createUser("user", PASSWORD, "role");
+        upsertRole("""
+            {
+              "cluster": ["all"],
+              "indices": [
+                {
+                  "names": ["test*", "other*"],
+                  "privileges": ["read", "read_failure_store"]
+                }
+              ]
+            }
+            """, "role");
+        createAndStoreApiKey("user", randomBoolean() ? null : """
+            {
+              "role": {
+                "cluster": ["all"],
+                "indices": [
+                  {
+                    "names": ["*"],
+                    "privileges": ["read", "read_failure_store"]
+                  }
+                ]
+              }
+            }
+            """);
+
+        // no exclusion -> should return two failure docs
+        expectSearch("user", new Search("*::failures"), failuresDocId, otherFailuresDocId);
+        expectSearch("user", new Search("*::failures,-other*::failures"), failuresDocId);
+    }
+
     public void testWriteAndManageOperations() throws IOException {
         setupDataStream();
         Tuple<String, String> backingIndices = getSingleDataAndFailureIndices("test1");
@@ -2430,6 +2611,32 @@ public class FailureStoreSecurityRestIT extends ESRestTestCase {
         return randomBoolean() ? populateDataStreamWithBulkRequest() : populateDataStreamWithDocRequests();
     }
 
+    @SuppressWarnings("unchecked")
+    private List<String> setupOtherDataStream() throws IOException {
+        createOtherTemplates();
+
+        var bulkRequest = new Request("POST", "/_bulk?refresh=true");
+        bulkRequest.setJsonEntity("""
+            { "create" : { "_index" : "other1", "_id" : "3" } }
+            { "@timestamp": 3, "age" : 1, "name" : "jane", "email" : "jane@example.com" }
+            { "create" : { "_index" : "other1", "_id" : "4" } }
+            { "@timestamp": 4, "age" : "this should be an int", "name" : "jane", "email" : "jane@example.com" }
+            """);
+        Response response = performRequest(WRITE_ACCESS, bulkRequest);
+        assertOK(response);
+        // we need this dance because the ID for the failed document is random, **not** 4
+        Map<String, Object> stringObjectMap = responseAsMap(response);
+        List<Object> items = (List<Object>) stringObjectMap.get("items");
+        List<String> ids = new ArrayList<>();
+        for (Object item : items) {
+            Map<String, Object> itemMap = (Map<String, Object>) item;
+            Map<String, Object> create = (Map<String, Object>) itemMap.get("create");
+            assertThat(create.get("status"), equalTo(201));
+            ids.add((String) create.get("_id"));
+        }
+        return ids;
+    }
+
     private void createTemplates() throws IOException {
         var componentTemplateRequest = new Request("PUT", "/_component_template/component1");
         componentTemplateRequest.setJsonEntity("""
@@ -2465,6 +2672,49 @@ public class FailureStoreSecurityRestIT extends ESRestTestCase {
         indexTemplateRequest.setJsonEntity("""
             {
                 "index_patterns": ["test*"],
+                "data_stream": {},
+                "priority": 500,
+                "composed_of": ["component1"]
+            }
+            """);
+        assertOK(adminClient().performRequest(indexTemplateRequest));
+    }
+
+    private void createOtherTemplates() throws IOException {
+        var componentTemplateRequest = new Request("PUT", "/_component_template/component2");
+        componentTemplateRequest.setJsonEntity("""
+            {
+                "template": {
+                    "mappings": {
+                        "properties": {
+                            "@timestamp": {
+                                "type": "date"
+                            },
+                            "age": {
+                                "type": "integer"
+                            },
+                            "email": {
+                                "type": "keyword"
+                            },
+                            "name": {
+                                "type": "text"
+                            }
+                        }
+                    },
+                    "data_stream_options": {
+                      "failure_store": {
+                        "enabled": true
+                      }
+                    }
+                }
+            }
+            """);
+        assertOK(adminClient().performRequest(componentTemplateRequest));
+
+        var indexTemplateRequest = new Request("PUT", "/_index_template/template2");
+        indexTemplateRequest.setJsonEntity("""
+            {
+                "index_patterns": ["other*"],
                 "data_stream": {},
                 "priority": 500,
                 "composed_of": ["component1"]
@@ -2588,6 +2838,11 @@ public class FailureStoreSecurityRestIT extends ESRestTestCase {
 
     protected String createAndStoreApiKey(String username, @Nullable String roleDescriptors) throws IOException {
         assertThat("API key already registered for user: " + username, apiKeys.containsKey(username), is(false));
+        apiKeys.put(username, createApiKey(username, roleDescriptors));
+        return apiKeys.get(username);
+    }
+
+    protected String createOrUpdateApiKey(String username, @Nullable String roleDescriptors) throws IOException {
         apiKeys.put(username, createApiKey(username, roleDescriptors));
         return apiKeys.get(username);
     }

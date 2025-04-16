@@ -81,6 +81,11 @@ public final class ServiceUtils {
      */
     @SuppressWarnings("unchecked")
     public static <T> T removeAsType(Map<String, Object> sourceMap, String key, Class<T> type, ValidationException validationException) {
+        if (sourceMap == null) {
+            validationException.addValidationError(Strings.format("Encountered a null input map while parsing field [%s]", key));
+            return null;
+        }
+
         Object o = sourceMap.remove(key);
         if (o == null) {
             return null;
@@ -189,6 +194,12 @@ public final class ServiceUtils {
         }
     }
 
+    public static void throwIfNotEmptyMap(Map<String, Object> settingsMap, String field, String scope) {
+        if (settingsMap != null && settingsMap.isEmpty() == false) {
+            throw ServiceUtils.unknownSettingsError(settingsMap, field, scope);
+        }
+    }
+
     public static ElasticsearchStatusException unknownSettingsError(Map<String, Object> config, String serviceName) {
         // TODO map as JSON
         return new ElasticsearchStatusException(
@@ -196,6 +207,17 @@ public final class ServiceUtils {
             RestStatus.BAD_REQUEST,
             config,
             serviceName
+        );
+    }
+
+    public static ElasticsearchStatusException unknownSettingsError(Map<String, Object> config, String field, String scope) {
+        // TODO map as JSON
+        return new ElasticsearchStatusException(
+            "Model configuration contains unknown settings [{}] while parsing field [{}] for settings [{}]",
+            RestStatus.BAD_REQUEST,
+            config,
+            field,
+            scope
         );
     }
 

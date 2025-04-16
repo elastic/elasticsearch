@@ -62,6 +62,12 @@ import org.elasticsearch.xpack.inference.services.cohere.rerank.CohereRerankTask
 import org.elasticsearch.xpack.inference.services.custom.CustomSecretSettings;
 import org.elasticsearch.xpack.inference.services.custom.CustomServiceSettings;
 import org.elasticsearch.xpack.inference.services.custom.CustomTaskSettings;
+import org.elasticsearch.xpack.inference.services.custom.response.CompletionResponseParser;
+import org.elasticsearch.xpack.inference.services.custom.response.NoopResponseParser;
+import org.elasticsearch.xpack.inference.services.custom.response.RerankResponseParser;
+import org.elasticsearch.xpack.inference.services.custom.response.ResponseParser;
+import org.elasticsearch.xpack.inference.services.custom.response.SparseEmbeddingResponseParser;
+import org.elasticsearch.xpack.inference.services.custom.response.TextEmbeddingResponseParser;
 import org.elasticsearch.xpack.inference.services.deepseek.DeepSeekChatCompletionModel;
 import org.elasticsearch.xpack.inference.services.elastic.completion.ElasticInferenceServiceCompletionServiceSettings;
 import org.elasticsearch.xpack.inference.services.elastic.sparseembeddings.ElasticInferenceServiceSparseEmbeddingsServiceSettings;
@@ -187,6 +193,46 @@ public class InferenceNamedWriteablesProvider {
                 SecretSettings.class,
                 CustomSecretSettings.NAME,
                 CustomSecretSettings::new
+            )
+        );
+
+        namedWriteables.add(
+            new NamedWriteableRegistry.Entry(
+                ResponseParser.class,
+                TextEmbeddingResponseParser.NAME,
+                TextEmbeddingResponseParser::new
+            )
+        );
+
+        namedWriteables.add(
+            new NamedWriteableRegistry.Entry(
+                ResponseParser.class,
+                SparseEmbeddingResponseParser.NAME,
+                SparseEmbeddingResponseParser::new
+            )
+        );
+
+        namedWriteables.add(
+            new NamedWriteableRegistry.Entry(
+                ResponseParser.class,
+                RerankResponseParser.NAME,
+                RerankResponseParser::new
+            )
+        );
+
+        namedWriteables.add(
+            new NamedWriteableRegistry.Entry(
+                ResponseParser.class,
+                NoopResponseParser.NAME,
+                NoopResponseParser::new
+            )
+        );
+
+        namedWriteables.add(
+            new NamedWriteableRegistry.Entry(
+                ResponseParser.class,
+                CompletionResponseParser.NAME,
+                CompletionResponseParser::new
             )
         );
     }

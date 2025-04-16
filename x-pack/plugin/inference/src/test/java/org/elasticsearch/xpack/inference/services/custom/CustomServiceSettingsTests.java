@@ -7,8 +7,11 @@
 
 package org.elasticsearch.xpack.inference.services.custom;
 
+import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.ValidationException;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.inference.SimilarityMeasure;
@@ -17,6 +20,7 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.ml.AbstractBWCWireSerializationTestCase;
+import org.elasticsearch.xpack.inference.InferenceNamedWriteablesProvider;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.ServiceFields;
 import org.elasticsearch.xpack.inference.services.custom.response.CompletionResponseParser;
@@ -119,7 +123,9 @@ public class CustomServiceSettingsTests extends AbstractBWCWireSerializationTest
                             CustomServiceSettings.JSON_PARSER,
                             new HashMap<>(
                                 Map.of(TextEmbeddingResponseParser.TEXT_EMBEDDING_PARSER_EMBEDDINGS, "$.result.embeddings[*].embedding")
-                            )
+                            ),
+                            CustomServiceSettings.ERROR_PARSER,
+                            new HashMap<>(Map.of(ErrorResponseParser.MESSAGE_PATH, "$.error.message"))
                         )
                     )
                 )
@@ -142,6 +148,455 @@ public class CustomServiceSettingsTests extends AbstractBWCWireSerializationTest
                     new RateLimitSettings(10_000),
                     new ErrorResponseParser("$.error.message")
                 )
+            )
+        );
+    }
+
+    public void testFromMap_WithOptionalsNotSpecified() {
+        String url = "http://www.abc.com";
+        String requestContentString = "request body";
+
+        var responseParser = new TextEmbeddingResponseParser("$.result.embeddings[*].embedding");
+
+        var settings = CustomServiceSettings.fromMap(
+            new HashMap<>(
+                Map.of(
+                    CustomServiceSettings.URL,
+                    url,
+                    CustomServiceSettings.REQUEST,
+                    new HashMap<>(Map.of(CustomServiceSettings.REQUEST_CONTENT, requestContentString)),
+                    CustomServiceSettings.RESPONSE,
+                    new HashMap<>(
+                        Map.of(
+                            CustomServiceSettings.JSON_PARSER,
+                            new HashMap<>(
+                                Map.of(TextEmbeddingResponseParser.TEXT_EMBEDDING_PARSER_EMBEDDINGS, "$.result.embeddings[*].embedding")
+                            ),
+                            CustomServiceSettings.ERROR_PARSER,
+                            new HashMap<>(Map.of(ErrorResponseParser.MESSAGE_PATH, "$.error.message"))
+                        )
+                    )
+                )
+            ),
+            ConfigurationParseContext.REQUEST,
+            TaskType.TEXT_EMBEDDING
+        );
+
+        MatcherAssert.assertThat(
+            settings,
+            is(
+                new CustomServiceSettings(
+                    null,
+                    null,
+                    null,
+                    url,
+                    Map.of(),
+                    requestContentString,
+                    responseParser,
+                    new RateLimitSettings(10_000),
+                    new ErrorResponseParser("$.error.message")
+                )
+            )
+        );
+    }
+
+    public void testFromMap_RemovesNullValues_FromHeaders() {
+        String similarity = SimilarityMeasure.DOT_PRODUCT.toString();
+        Integer dims = 1536;
+        Integer maxInputTokens = 512;
+        String url = "http://www.abc.com";
+
+        var headersWithNulls = new HashMap<String, Object>();
+        headersWithNulls.put("value", "abc");
+        headersWithNulls.put("null", null);
+
+        String requestContentString = "request body";
+
+        var responseParser = new TextEmbeddingResponseParser("$.result.embeddings[*].embedding");
+
+        var settings = CustomServiceSettings.fromMap(
+            new HashMap<>(
+                Map.of(
+                    ServiceFields.SIMILARITY,
+                    similarity,
+                    ServiceFields.DIMENSIONS,
+                    dims,
+                    ServiceFields.MAX_INPUT_TOKENS,
+                    maxInputTokens,
+                    CustomServiceSettings.URL,
+                    url,
+                    CustomServiceSettings.HEADERS,
+                    headersWithNulls,
+                    CustomServiceSettings.REQUEST,
+                    new HashMap<>(Map.of(CustomServiceSettings.REQUEST_CONTENT, requestContentString)),
+                    CustomServiceSettings.RESPONSE,
+                    new HashMap<>(
+                        Map.of(
+                            CustomServiceSettings.JSON_PARSER,
+                            new HashMap<>(
+                                Map.of(TextEmbeddingResponseParser.TEXT_EMBEDDING_PARSER_EMBEDDINGS, "$.result.embeddings[*].embedding")
+                            ),
+                            CustomServiceSettings.ERROR_PARSER,
+                            new HashMap<>(Map.of(ErrorResponseParser.MESSAGE_PATH, "$.error.message"))
+                        )
+                    )
+                )
+            ),
+            ConfigurationParseContext.REQUEST,
+            TaskType.TEXT_EMBEDDING
+        );
+
+        MatcherAssert.assertThat(
+            settings,
+            is(
+                new CustomServiceSettings(
+                    SimilarityMeasure.DOT_PRODUCT,
+                    dims,
+                    maxInputTokens,
+                    url,
+                    Map.of("value", "abc"),
+                    requestContentString,
+                    responseParser,
+                    new RateLimitSettings(10_000),
+                    new ErrorResponseParser("$.error.message")
+                )
+            )
+        );
+    }
+
+    public void testFromMap_ReturnsError_IfHeadersContainsNonStringValues() {
+        String similarity = SimilarityMeasure.DOT_PRODUCT.toString();
+        Integer dims = 1536;
+        Integer maxInputTokens = 512;
+        String url = "http://www.abc.com";
+        String requestContentString = "request body";
+
+        var mapSettings = new HashMap<String, Object>(
+            Map.of(
+                ServiceFields.SIMILARITY,
+                similarity,
+                ServiceFields.DIMENSIONS,
+                dims,
+                ServiceFields.MAX_INPUT_TOKENS,
+                maxInputTokens,
+                CustomServiceSettings.URL,
+                url,
+                CustomServiceSettings.HEADERS,
+                new HashMap<>(Map.of("key", 1)),
+                CustomServiceSettings.REQUEST,
+                new HashMap<>(Map.of(CustomServiceSettings.REQUEST_CONTENT, requestContentString)),
+                CustomServiceSettings.RESPONSE,
+                new HashMap<>(
+                    Map.of(
+                        CustomServiceSettings.JSON_PARSER,
+                        new HashMap<>(
+                            Map.of(TextEmbeddingResponseParser.TEXT_EMBEDDING_PARSER_EMBEDDINGS, "$.result.embeddings[*].embedding")
+                        ),
+                        CustomServiceSettings.ERROR_PARSER,
+                        new HashMap<>(Map.of(ErrorResponseParser.MESSAGE_PATH, "$.error.message"))
+                    )
+                )
+            )
+        );
+
+        var exception = expectThrows(
+            ValidationException.class,
+            () -> CustomServiceSettings.fromMap(mapSettings, ConfigurationParseContext.REQUEST, TaskType.TEXT_EMBEDDING)
+        );
+
+        assertThat(
+            exception.getMessage(),
+            is(
+                "Validation Failed: 1: Map field [headers] has an entry that is not valid, [key => 1]. "
+                    + "Value type is not one of [class java.lang.String].;"
+            )
+        );
+    }
+
+    public void testFromMap_ReturnsError_IfRequestMapIsMissing() {
+        String url = "http://www.abc.com";
+        String requestContentString = "request body";
+
+        var mapSettings = new HashMap<String, Object>(
+            Map.of(
+                CustomServiceSettings.URL,
+                url,
+                CustomServiceSettings.HEADERS,
+                new HashMap<>(Map.of("key", "value")),
+                "invalid_request",
+                new HashMap<>(Map.of(CustomServiceSettings.REQUEST_CONTENT, requestContentString)),
+                CustomServiceSettings.RESPONSE,
+                new HashMap<>(
+                    Map.of(
+                        CustomServiceSettings.JSON_PARSER,
+                        new HashMap<>(
+                            Map.of(TextEmbeddingResponseParser.TEXT_EMBEDDING_PARSER_EMBEDDINGS, "$.result.embeddings[*].embedding")
+                        ),
+                        CustomServiceSettings.ERROR_PARSER,
+                        new HashMap<>(Map.of(ErrorResponseParser.MESSAGE_PATH, "$.error.message"))
+                    )
+                )
+            )
+        );
+
+        var exception = expectThrows(
+            ValidationException.class,
+            () -> CustomServiceSettings.fromMap(mapSettings, ConfigurationParseContext.REQUEST, TaskType.TEXT_EMBEDDING)
+        );
+
+        assertThat(
+            exception.getMessage(),
+            is(
+                "Validation Failed: 1: [service_settings] does not contain the required setting [request];"
+                    + "2: [service_settings] does not contain the required setting [content];"
+            )
+        );
+    }
+
+    public void testFromMap_ReturnsError_IfResponseMapIsMissing() {
+        String url = "http://www.abc.com";
+        String requestContentString = "request body";
+
+        var mapSettings = new HashMap<String, Object>(
+            Map.of(
+                CustomServiceSettings.URL,
+                url,
+                CustomServiceSettings.HEADERS,
+                new HashMap<>(Map.of("key", "value")),
+                CustomServiceSettings.REQUEST,
+                new HashMap<>(Map.of(CustomServiceSettings.REQUEST_CONTENT, requestContentString)),
+                "invalid_response",
+                new HashMap<>(
+                    Map.of(
+                        CustomServiceSettings.JSON_PARSER,
+                        new HashMap<>(
+                            Map.of(TextEmbeddingResponseParser.TEXT_EMBEDDING_PARSER_EMBEDDINGS, "$.result.embeddings[*].embedding")
+                        ),
+                        CustomServiceSettings.ERROR_PARSER,
+                        new HashMap<>(Map.of(ErrorResponseParser.MESSAGE_PATH, "$.error.message"))
+                    )
+                )
+            )
+        );
+
+        var exception = expectThrows(
+            ValidationException.class,
+            () -> CustomServiceSettings.fromMap(mapSettings, ConfigurationParseContext.REQUEST, TaskType.TEXT_EMBEDDING)
+        );
+
+        assertThat(
+            exception.getMessage(),
+            is(
+                "Validation Failed: 1: [service_settings] does not contain the required setting [response];"
+                    + "2: [service_settings] does not contain the required setting [json_parser];"
+                    + "3: [service_settings] does not contain the required setting [error_parser];"
+                    + "4: Encountered a null input map while parsing field [path];"
+            )
+        );
+    }
+
+    public void testFromMap_ReturnsError_IfRequestMapIsNotEmptyAfterParsing() {
+        String url = "http://www.abc.com";
+        String requestContentString = "request body";
+
+        var mapSettings = new HashMap<String, Object>(
+            Map.of(
+                CustomServiceSettings.URL,
+                url,
+                CustomServiceSettings.HEADERS,
+                new HashMap<>(Map.of("key", "value")),
+                CustomServiceSettings.REQUEST,
+                new HashMap<>(Map.of(CustomServiceSettings.REQUEST_CONTENT, requestContentString, "key", "value")),
+                CustomServiceSettings.RESPONSE,
+                new HashMap<>(
+                    Map.of(
+                        CustomServiceSettings.JSON_PARSER,
+                        new HashMap<>(
+                            Map.of(TextEmbeddingResponseParser.TEXT_EMBEDDING_PARSER_EMBEDDINGS, "$.result.embeddings[*].embedding")
+                        ),
+                        CustomServiceSettings.ERROR_PARSER,
+                        new HashMap<>(Map.of(ErrorResponseParser.MESSAGE_PATH, "$.error.message"))
+                    )
+                )
+            )
+        );
+
+        var exception = expectThrows(
+            ElasticsearchStatusException.class,
+            () -> CustomServiceSettings.fromMap(mapSettings, ConfigurationParseContext.REQUEST, TaskType.TEXT_EMBEDDING)
+        );
+
+        assertThat(
+            exception.getMessage(),
+            is(
+                "Model configuration contains unknown settings [{key=value}] while parsing field [request]"
+                    + " for settings [custom_service_settings]"
+            )
+        );
+    }
+
+    public void testFromMap_ReturnsError_IfJsonParserMapIsNotEmptyAfterParsing() {
+        String url = "http://www.abc.com";
+        String requestContentString = "request body";
+
+        var mapSettings = new HashMap<String, Object>(
+            Map.of(
+                CustomServiceSettings.URL,
+                url,
+                CustomServiceSettings.HEADERS,
+                new HashMap<>(Map.of("key", "value")),
+                CustomServiceSettings.REQUEST,
+                new HashMap<>(Map.of(CustomServiceSettings.REQUEST_CONTENT, requestContentString)),
+                CustomServiceSettings.RESPONSE,
+                new HashMap<>(
+                    Map.of(
+                        CustomServiceSettings.JSON_PARSER,
+                        new HashMap<>(
+                            Map.of(
+                                TextEmbeddingResponseParser.TEXT_EMBEDDING_PARSER_EMBEDDINGS,
+                                "$.result.embeddings[*].embedding",
+                                "key",
+                                "value"
+                            )
+                        ),
+                        CustomServiceSettings.ERROR_PARSER,
+                        new HashMap<>(Map.of(ErrorResponseParser.MESSAGE_PATH, "$.error.message"))
+                    )
+                )
+            )
+        );
+
+        var exception = expectThrows(
+            ElasticsearchStatusException.class,
+            () -> CustomServiceSettings.fromMap(mapSettings, ConfigurationParseContext.REQUEST, TaskType.TEXT_EMBEDDING)
+        );
+
+        assertThat(
+            exception.getMessage(),
+            is(
+                "Model configuration contains unknown settings [{key=value}] while parsing field [json_parser]"
+                    + " for settings [custom_service_settings]"
+            )
+        );
+    }
+
+    public void testFromMap_ReturnsError_IfResponseMapIsNotEmptyAfterParsing() {
+        String url = "http://www.abc.com";
+        String requestContentString = "request body";
+
+        var mapSettings = new HashMap<String, Object>(
+            Map.of(
+                CustomServiceSettings.URL,
+                url,
+                CustomServiceSettings.HEADERS,
+                new HashMap<>(Map.of("key", "value")),
+                CustomServiceSettings.REQUEST,
+                new HashMap<>(Map.of(CustomServiceSettings.REQUEST_CONTENT, requestContentString)),
+                CustomServiceSettings.RESPONSE,
+                new HashMap<>(
+                    Map.of(
+                        CustomServiceSettings.JSON_PARSER,
+                        new HashMap<>(
+                            Map.of(TextEmbeddingResponseParser.TEXT_EMBEDDING_PARSER_EMBEDDINGS, "$.result.embeddings[*].embedding")
+                        ),
+                        CustomServiceSettings.ERROR_PARSER,
+                        new HashMap<>(Map.of(ErrorResponseParser.MESSAGE_PATH, "$.error.message")),
+                        "key",
+                        "value"
+                    )
+                )
+            )
+        );
+
+        var exception = expectThrows(
+            ElasticsearchStatusException.class,
+            () -> CustomServiceSettings.fromMap(mapSettings, ConfigurationParseContext.REQUEST, TaskType.TEXT_EMBEDDING)
+        );
+
+        assertThat(
+            exception.getMessage(),
+            is(
+                "Model configuration contains unknown settings [{key=value}] while parsing field [response]"
+                    + " for settings [custom_service_settings]"
+            )
+        );
+    }
+
+    public void testFromMap_ReturnsError_IfErrorParserMapIsNotEmptyAfterParsing() {
+        String url = "http://www.abc.com";
+        String requestContentString = "request body";
+
+        var mapSettings = new HashMap<String, Object>(
+            Map.of(
+                CustomServiceSettings.URL,
+                url,
+                CustomServiceSettings.HEADERS,
+                new HashMap<>(Map.of("key", "value")),
+                CustomServiceSettings.REQUEST,
+                new HashMap<>(Map.of(CustomServiceSettings.REQUEST_CONTENT, requestContentString)),
+                CustomServiceSettings.RESPONSE,
+                new HashMap<>(
+                    Map.of(
+                        CustomServiceSettings.JSON_PARSER,
+                        new HashMap<>(
+                            Map.of(TextEmbeddingResponseParser.TEXT_EMBEDDING_PARSER_EMBEDDINGS, "$.result.embeddings[*].embedding")
+                        ),
+                        CustomServiceSettings.ERROR_PARSER,
+                        new HashMap<>(Map.of(ErrorResponseParser.MESSAGE_PATH, "$.error.message", "key", "value"))
+                    )
+                )
+            )
+        );
+
+        var exception = expectThrows(
+            ElasticsearchStatusException.class,
+            () -> CustomServiceSettings.fromMap(mapSettings, ConfigurationParseContext.REQUEST, TaskType.TEXT_EMBEDDING)
+        );
+
+        assertThat(
+            exception.getMessage(),
+            is(
+                "Model configuration contains unknown settings [{key=value}] while parsing field [error_parser]"
+                    + " for settings [custom_service_settings]"
+            )
+        );
+    }
+
+    public void testFromMap_ReturnsError_IfTaskTypeIsInvalid() {
+        String url = "http://www.abc.com";
+        String requestContentString = "request body";
+
+        var mapSettings = new HashMap<String, Object>(
+            Map.of(
+                CustomServiceSettings.URL,
+                url,
+                CustomServiceSettings.HEADERS,
+                new HashMap<>(Map.of("key", "value")),
+                CustomServiceSettings.REQUEST,
+                new HashMap<>(Map.of(CustomServiceSettings.REQUEST_CONTENT, requestContentString)),
+                CustomServiceSettings.RESPONSE,
+                new HashMap<>(
+                    Map.of(
+                        CustomServiceSettings.JSON_PARSER,
+                        new HashMap<>(
+                            Map.of(TextEmbeddingResponseParser.TEXT_EMBEDDING_PARSER_EMBEDDINGS, "$.result.embeddings[*].embedding")
+                        ),
+                        CustomServiceSettings.ERROR_PARSER,
+                        new HashMap<>(Map.of(ErrorResponseParser.MESSAGE_PATH, "$.error.message", "key", "value"))
+                    )
+                )
+            )
+        );
+
+        var exception = expectThrows(
+            IllegalArgumentException.class,
+            () -> CustomServiceSettings.fromMap(mapSettings, ConfigurationParseContext.REQUEST, TaskType.CHAT_COMPLETION)
+        );
+
+        assertThat(
+            exception.getMessage(),
+            is(
+                "Invalid task type received [chat_completion] while constructing response parser"
             )
         );
     }
@@ -187,6 +642,11 @@ public class CustomServiceSettingsTests extends AbstractBWCWireSerializationTest
             """);
 
         assertThat(xContentResult, is(expected));
+    }
+
+    @Override
+    protected NamedWriteableRegistry getNamedWriteableRegistry() {
+        return new NamedWriteableRegistry(InferenceNamedWriteablesProvider.getNamedWriteables());
     }
 
     @Override

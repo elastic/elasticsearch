@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.inference.services.custom.response;
 
 import org.elasticsearch.common.ValidationException;
-import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xcontent.ToXContentFragment;
@@ -25,9 +24,8 @@ import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractReq
 import static org.elasticsearch.xpack.inference.services.custom.CustomServiceSettings.ERROR_PARSER;
 import static org.elasticsearch.xpack.inference.services.custom.CustomServiceSettings.RESPONSE;
 
-public class ErrorResponseParser implements ToXContentFragment, NamedWriteable, Function<HttpResult, ErrorResponse> {
+public class ErrorResponseParser implements ToXContentFragment, Function<HttpResult, ErrorResponse> {
 
-    private static final String NAME = "error_response_parser";
     public static final String MESSAGE_PATH = "path";
 
     private final String messagePath;
@@ -78,11 +76,6 @@ public class ErrorResponseParser implements ToXContentFragment, NamedWriteable, 
     @Override
     public int hashCode() {
         return Objects.hash(messagePath);
-    }
-
-    @Override
-    public String getWriteableName() {
-        return NAME;
     }
 
     @Override

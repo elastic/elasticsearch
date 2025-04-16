@@ -24,7 +24,7 @@ import static org.elasticsearch.xpack.inference.services.custom.CustomServiceSet
 
 public class TextEmbeddingResponseParser implements ResponseParser {
 
-    private static final String NAME = "text_embedding_response_parser";
+    public static final String NAME = "text_embedding_response_parser";
     public static final String TEXT_EMBEDDING_PARSER_EMBEDDINGS = "text_embeddings";
 
     private final String textEmbeddingsPath;

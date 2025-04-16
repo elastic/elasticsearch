@@ -23,7 +23,7 @@ import static org.elasticsearch.xpack.inference.services.custom.CustomServiceSet
 
 public class CompletionResponseParser implements ResponseParser {
 
-    private static final String NAME = "completion_response_parser";
+    public static final String NAME = "completion_response_parser";
     public static final String COMPLETION_PARSER_RESULT = "completion_result";
 
     private final String completionResultPath;

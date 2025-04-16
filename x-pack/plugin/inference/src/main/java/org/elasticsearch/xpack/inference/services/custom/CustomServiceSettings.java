@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.inference.services.custom;
 
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -120,10 +121,10 @@ public class CustomServiceSettings extends FilteredXContentObject implements Ser
             throw validationException;
         }
 
-        throwIfNotEmptyMap(requestBodyMap, NAME);
-        throwIfNotEmptyMap(jsonParserMap, NAME);
-        throwIfNotEmptyMap(responseParserMap, NAME);
-        throwIfNotEmptyMap(errorParserMap, NAME);
+        throwIfNotEmptyMap(requestBodyMap, REQUEST, NAME);
+        throwIfNotEmptyMap(jsonParserMap, JSON_PARSER, NAME);
+        throwIfNotEmptyMap(responseParserMap, RESPONSE, NAME);
+        throwIfNotEmptyMap(errorParserMap, ERROR_PARSER, NAME);
 
         if (validationException.validationErrors().isEmpty() == false) {
             throw validationException;
@@ -181,7 +182,7 @@ public class CustomServiceSettings extends FilteredXContentObject implements Ser
         url = in.readString();
         headers = in.readImmutableMap(StreamInput::readString);
         requestContentString = in.readString();
-        responseJsonParser = in.readOptionalNamedWriteable(ResponseParser.class);
+        responseJsonParser = in.readNamedWriteable(ResponseParser.class);
         rateLimitSettings = new RateLimitSettings(in);
         errorParser = new ErrorResponseParser(in);
     }
@@ -302,7 +303,7 @@ public class CustomServiceSettings extends FilteredXContentObject implements Ser
         out.writeString(url);
         out.writeMap(headers, StreamOutput::writeString, StreamOutput::writeString);
         out.writeString(requestContentString);
-        responseJsonParser.writeTo(out);
+        out.writeNamedWriteable(responseJsonParser);
         rateLimitSettings.writeTo(out);
         errorParser.writeTo(out);
     }
@@ -358,7 +359,9 @@ public class CustomServiceSettings extends FilteredXContentObject implements Ser
             case SPARSE_EMBEDDING -> SparseEmbeddingResponseParser.fromMap(responseParserMap, validationException);
             case RERANK -> RerankResponseParser.fromMap(responseParserMap, validationException);
             case COMPLETION -> CompletionResponseParser.fromMap(responseParserMap, validationException);
-            default -> throw new IllegalArgumentException("unexpected task type [" + taskType + "]");
+            default -> throw new IllegalArgumentException(
+                Strings.format("Invalid task type received [%s] while constructing response parser", taskType)
+            );
         };
     }
 }

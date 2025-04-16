@@ -17,8 +17,7 @@ import java.io.IOException;
 
 public record NoopResponseParser() implements ResponseParser {
 
-    private static final String NAME = "noop_response_parser";
-
+    public static final String NAME = "noop_response_parser";
     public static final NoopResponseParser INSTANCE = new NoopResponseParser();
 
     public static NoopResponseParser fromMap() {

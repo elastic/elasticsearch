@@ -25,7 +25,7 @@ import static org.elasticsearch.xpack.inference.services.custom.CustomServiceSet
 
 public class RerankResponseParser implements ResponseParser {
 
-    private static final String NAME = "rerank_response_parser";
+    public static final String NAME = "rerank_response_parser";
     public static final String RERANK_PARSER_SCORE = "relevance_score";
     public static final String RERANK_PARSER_INDEX = "reranked_index";
     public static final String RERANK_PARSER_DOCUMENT_TEXT = "document_text";

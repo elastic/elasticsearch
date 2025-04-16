@@ -23,7 +23,7 @@ import static org.elasticsearch.xpack.inference.services.custom.CustomServiceSet
 
 public class SparseEmbeddingResponseParser implements ResponseParser {
 
-    private static final String NAME = "sparse_embedding_response_parser";
+    public static final String NAME = "sparse_embedding_response_parser";
     public static final String SPARSE_RESULT_PATH = "path";
     public static final String SPARSE_EMBEDDING_PARSER_TOKEN = "sparse_token";
     public static final String SPARSE_EMBEDDING_PARSER_WEIGHT = "sparse_weight";

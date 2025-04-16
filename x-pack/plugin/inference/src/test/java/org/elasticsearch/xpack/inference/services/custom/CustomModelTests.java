@@ -19,6 +19,7 @@ import org.elasticsearch.xpack.inference.services.custom.response.TextEmbeddingR
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 import org.hamcrest.MatcherAssert;
 
+import java.util.HashMap;
 import java.util.Map;
 
 import static org.hamcrest.Matchers.is;
@@ -32,7 +33,7 @@ public class CustomModelTests extends ESTestCase {
     public static String url = "http://www.abc.com";
     public static String path = "/endpoint";
 
-    public void testOverride() {
+    public void testOverride_DoesNotModifiedFields_TaskSettingsIsEmpty() {
         var model = createModel(
             "service",
             TaskType.TEXT_EMBEDDING,
@@ -43,6 +44,33 @@ public class CustomModelTests extends ESTestCase {
 
         var overriddenModel = CustomModel.of(model, Map.of());
         MatcherAssert.assertThat(overriddenModel, is(model));
+    }
+
+    public void testOverride() {
+        var model = createModel(
+            "service",
+            TaskType.TEXT_EMBEDDING,
+            CustomServiceSettingsTests.createRandom(),
+            new CustomTaskSettings(Map.of("key", "value")),
+            CustomSecretSettingsTests.createRandom()
+        );
+
+        var overriddenModel = CustomModel.of(
+            model,
+            new HashMap<>(Map.of(CustomTaskSettings.PARAMETERS, new HashMap<>(Map.of("key", "different_value"))))
+        );
+        MatcherAssert.assertThat(
+            overriddenModel,
+            is(
+                createModel(
+                    "service",
+                    TaskType.TEXT_EMBEDDING,
+                    model.getServiceSettings(),
+                    new CustomTaskSettings(Map.of("key", "different_value")),
+                    model.getSecretSettings()
+                )
+            )
+        );
     }
 
     public static CustomModel createModel(
@@ -74,7 +102,6 @@ public class CustomModelTests extends ESTestCase {
         Integer maxInputTokens = 512;
         Map<String, String> headers = Map.of(HttpHeaders.AUTHORIZATION, "${" + secretSettingsKey + "}");
         String requestContentString = "\"input\":\"${input}\"";
-
 
         CustomServiceSettings serviceSettings = new CustomServiceSettings(
             SimilarityMeasure.DOT_PRODUCT,

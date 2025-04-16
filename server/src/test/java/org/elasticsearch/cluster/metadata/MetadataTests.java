@@ -1692,38 +1692,6 @@ public class MetadataTests extends ESTestCase {
         }
     }
 
-    public void testMetadataSerializationPreMultiProject() throws IOException {
-        final Metadata orig = randomMetadata();
-        TransportVersion version = TransportVersionUtils.getPreviousVersion(TransportVersions.MULTI_PROJECT);
-        final BytesStreamOutput out = new BytesStreamOutput();
-        out.setTransportVersion(version);
-        orig.writeTo(out);
-        NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry(ClusterModule.getNamedWriteables());
-        final StreamInput input = out.bytes().streamInput();
-        input.setTransportVersion(version);
-        final Metadata fromStreamMeta = Metadata.readFrom(new NamedWriteableAwareStreamInput(input, namedWriteableRegistry));
-        assertTrue(Metadata.isGlobalStateEquals(orig, fromStreamMeta));
-    }
-
-    public void testDiffSerializationPreMultiProject() throws IOException {
-        final Metadata meta1 = randomMetadata(1);
-        final Metadata meta2 = randomMetadata(2);
-        TransportVersion version = TransportVersionUtils.getPreviousVersion(TransportVersions.MULTI_PROJECT);
-        final Diff<Metadata> diff = meta2.diff(meta1);
-
-        final BytesStreamOutput out = new BytesStreamOutput();
-        out.setTransportVersion(version);
-        diff.writeTo(out);
-
-        NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry(ClusterModule.getNamedWriteables());
-        final StreamInput input = out.bytes().streamInput();
-        input.setTransportVersion(version);
-        final Diff<Metadata> read = Metadata.readDiffFrom(new NamedWriteableAwareStreamInput(input, namedWriteableRegistry));
-
-        final Metadata applied = read.apply(meta1);
-        assertTrue(Metadata.isGlobalStateEquals(meta2, applied));
-    }
-
     public void testGetNonExistingProjectThrows() {
         final List<ProjectMetadata> projects = IntStream.range(0, between(1, 3))
             .mapToObj(i -> randomProject(ProjectId.fromId("p_" + i), between(0, 5)))

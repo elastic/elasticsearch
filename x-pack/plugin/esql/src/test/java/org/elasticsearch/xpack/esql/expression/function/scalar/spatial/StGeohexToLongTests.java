@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.spatial;
 
 import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
+
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.h3.H3;
 import org.elasticsearch.xpack.esql.core.expression.Expression;

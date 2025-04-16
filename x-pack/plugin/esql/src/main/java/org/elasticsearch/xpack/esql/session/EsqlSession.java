@@ -86,8 +86,6 @@ import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalSupplier;
 import org.elasticsearch.xpack.esql.plan.physical.EstimatesRowSize;
 import org.elasticsearch.xpack.esql.plan.physical.FragmentExec;
-import org.elasticsearch.xpack.esql.plan.physical.LocalSourceExec;
-import org.elasticsearch.xpack.esql.plan.physical.MergeExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.planner.mapper.Mapper;
 import org.elasticsearch.xpack.esql.planner.premapper.PreMapper;
@@ -236,22 +234,6 @@ public class EsqlSession {
             });
         });
 
-        // Currently fork is limited and supported as streaming operators, similar to inlinestats
-        physicalPlan = physicalPlan.transformUp(MergeExec.class, m -> {
-            List<PhysicalPlan> newSubPlans = new ArrayList<>();
-            for (var plan : m.children()) {
-                if (plan instanceof FragmentExec fragmentExec) {
-                    LogicalPlan subplan = fragmentExec.fragment();
-                    subplan = optimizedPlan(subplan);
-                    PhysicalPlan subqueryPlan = logicalPlanToPhysicalPlan(subplan, request);
-                    subplans.add(new PlanTuple(subqueryPlan, subplan));
-                    plan = new FragmentExec(subplan);
-                }
-                newSubPlans.add(plan);
-            }
-            return new MergeExec(m.source(), newSubPlans, m.output());
-        });
-
         Iterator<PlanTuple> iterator = subplans.iterator();
 
         // TODO: merge into one method
@@ -288,26 +270,6 @@ public class EsqlSession {
                             ij -> ij.right() == tuple.logical ? InlineJoin.inlineData(ij, resultWrapper) : ij
                         )
                     );
-                });
-
-                // replace the original logical plan with the backing result, in MergeExec
-                newPlan = newPlan.transformUp(MergeExec.class, m -> {
-                    boolean changed = m.children()
-                        .stream()
-                        .filter(sp -> FragmentExec.class.isAssignableFrom(sp.getClass()))
-                        .map(FragmentExec.class::cast)
-                        .anyMatch(fragmentExec -> fragmentExec.fragment() == tuple.logical);
-                    if (changed) {
-                        List<PhysicalPlan> newSubPlans = m.children().stream().map(subPlan -> {
-                            if (subPlan instanceof FragmentExec fe && fe.fragment() == tuple.logical) {
-                                return new LocalSourceExec(resultWrapper.source(), resultWrapper.output(), resultWrapper.supplier());
-                            } else {
-                                return subPlan;
-                            }
-                        }).toList();
-                        return new MergeExec(m.source(), newSubPlans, m.output());
-                    }
-                    return m;
                 });
 
                 if (subPlanIterator.hasNext() == false) {

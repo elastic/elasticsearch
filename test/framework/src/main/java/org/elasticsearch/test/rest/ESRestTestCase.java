@@ -370,7 +370,7 @@ public abstract class ESRestTestCase extends ESTestCase {
         activeProject = "active00" + randomAlphaOfLength(8).toLowerCase(Locale.ROOT);
         extraProjects = randomSet(1, 3, () -> randomAlphaOfLength(12).toLowerCase(Locale.ROOT));
         // TODO do this in a different way
-        multiProjectEnabled = Objects.equals(System.getProperty("test.multi_project.enabled"), "true");
+        multiProjectEnabled = Boolean.parseBoolean(System.getProperty("test.multi_project.enabled"));
     }
 
     @Before

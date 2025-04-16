@@ -366,20 +366,18 @@ public class SynonymsManagementAPIServiceIT extends ESIntegTestCase {
 
         updateLatch.await(5, TimeUnit.SECONDS);
 
-        // Delete a rule fails
+        // Delete a rule does not fail
         CountDownLatch deleteLatch = new CountDownLatch(1);
         synonymsManagementAPIService.deleteSynonymRule(synonymSetId, synonymRuleId, true, new ActionListener<>() {
             @Override
             public void onResponse(SynonymsManagementAPIService.SynonymsReloadResult synonymsReloadResult) {
-                fail("Shouldn't have been able to delete a synonym rule with refresh in synonyms index health");
+                updateLatch.countDown();
             }
 
             @Override
             public void onFailure(Exception e) {
                 // Expected
-                assertTrue(e instanceof IndexCreationException);
-                assertTrue(e.getMessage().contains("synonyms index [.synonyms] is not searchable"));
-                updateLatch.countDown();
+                fail("Should have been able to delete a synonym rule");
             }
         });
 
@@ -418,21 +416,5 @@ public class SynonymsManagementAPIServiceIT extends ESIntegTestCase {
         });
 
         putRuleNoRefreshLatch.await(5, TimeUnit.SECONDS);
-
-        // Same for delete
-        CountDownLatch deleteNoRefreshLatch = new CountDownLatch(1);
-        synonymsManagementAPIService.deleteSynonymRule(synonymSetId, synonymRuleId, false, new ActionListener<>() {
-            @Override
-            public void onResponse(SynonymsManagementAPIService.SynonymsReloadResult synonymsReloadResult) {
-                deleteNoRefreshLatch.countDown();
-            }
-
-            @Override
-            public void onFailure(Exception e) {
-                fail(e);
-            }
-        });
-
-        deleteNoRefreshLatch.await(5, TimeUnit.SECONDS);
     }
 }

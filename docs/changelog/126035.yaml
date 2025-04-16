@@ -1,0 +1,5 @@
+pr: 126035
+summary: Fix top level knn search with scroll
+area: Vector Search
+type: bug
+issues: []

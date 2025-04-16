@@ -227,10 +227,7 @@ public class PolicyManagerTests extends ESTestCase {
         );
 
         assertEquals(
-            Map.of(
-                requestingModule,
-                policyManager.defaultEntitlements(SERVER_COMPONENT_NAME, mockServerSourcePath, httpserverModuleName)
-            ),
+            Map.of(requestingModule, policyManager.defaultEntitlements(SERVER_COMPONENT_NAME, mockServerSourcePath, httpserverModuleName)),
             policyManager.moduleEntitlementsMap
         );
     }

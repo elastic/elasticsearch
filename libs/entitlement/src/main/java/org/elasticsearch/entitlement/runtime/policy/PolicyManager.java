@@ -642,7 +642,8 @@ public class PolicyManager {
             }
             default -> {
                 // Must be a plugin
-                assert componentName.startsWith("(") == false: "Parentheses indicate a special component name that isn't a plugin: " + componentName;
+                assert componentName.startsWith("(") == false
+                    : "Parentheses indicate a special component name that isn't a plugin: " + componentName;
                 var pluginEntitlements = pluginsEntitlements.get(componentName);
                 if (pluginEntitlements == null) {
                     return defaultEntitlements(componentName, sourcePaths.get(componentName), moduleName);

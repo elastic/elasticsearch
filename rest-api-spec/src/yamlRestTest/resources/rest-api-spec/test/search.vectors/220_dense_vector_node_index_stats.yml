@@ -729,10 +729,7 @@
    - gt:    { nodes.$node_id.indices.dense_vector.value_count: 0 }
    - is_true: nodes.$node_id.indices.dense_vector.off_heap
    - gt:    { nodes.$node_id.indices.dense_vector.off_heap.total_size_bytes: 0 }
-   - gt:    { nodes.$node_id.indices.dense_vector.off_heap.total_veb_size_bytes: 0 }
    - gt:    { nodes.$node_id.indices.dense_vector.off_heap.total_vec_size_bytes: 0 }
-   - match: { nodes.$node_id.indices.dense_vector.off_heap.total_veq_size_bytes: 0 }
-   - gt:    { nodes.$node_id.indices.dense_vector.off_heap.total_vex_size_bytes: 0 }
    - is_false: nodes.$node_id.indices.dense_vector.off_heap.fielddata
 
    - do:

@@ -69,9 +69,8 @@ public final class JdkVectorLibrary implements VectorLibrary {
             } else {
                 if (caps < 0) {
                     logger.warn("""
-                        Your CPU supports vector capabilities, but they are disabled at OS level. For optimal performance, enable them in \
-                        your OS/Hypervisor/VM/container
-                        """);
+                        Your CPU supports vector capabilities, but they are disabled at OS level. For optimal performance, \
+                        enable them in your OS/Hypervisor/VM/container""");
                 }
                 dot7u$mh = null;
                 sqr7u$mh = null;

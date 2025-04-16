@@ -393,6 +393,25 @@ setup:
                     match: { text: "document" }
 
 ---
+"pinned retriever error case - duplicate doc":
+  - do:
+      catch: /duplicate doc found/
+      search:
+        index: test-index1
+        body:
+          retriever:
+            pinned:
+              docs:
+                - _index: test-index1
+                  _id: doc1
+                - _index: test-index1
+                  _id: doc1
+              retriever:
+                standard:
+                  query:
+                    match: { text: "document" }
+
+---
 "pinned retriever with ids and empty docs array":
   - do:
       search:

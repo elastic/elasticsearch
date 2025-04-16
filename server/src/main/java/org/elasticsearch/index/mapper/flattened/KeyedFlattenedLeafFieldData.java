@@ -219,7 +219,7 @@ public class KeyedFlattenedLeafFieldData implements LeafOrdinalsFieldData {
             if (delegate.advanceExact(target)) {
 
                 int count = 0;
-                for (int i = 0; i < delegate.docValueCount(); i++) {
+                for (int i = 0, dvc = delegate.docValueCount(); i < dvc; i++) {
                     long ord = delegate.nextOrd();
                     if (ord > maxOrd) {
                         break;

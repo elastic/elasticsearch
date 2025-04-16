@@ -162,6 +162,7 @@ public class BwcVersions implements Serializable {
         // Now handle all the feature freeze branches
         List<String> featureFreezeBranches = developmentBranches.stream()
             .filter(b -> Pattern.matches("[0-9]+\\.[0-9]+", b))
+            .filter(b -> currentVersion.getMajor() - Version.fromString(b, Version.Mode.RELAXED).getMajor() <= 1)
             .sorted(reverseOrder(comparing(s -> Version.fromString(s, Version.Mode.RELAXED))))
             .toList();
 

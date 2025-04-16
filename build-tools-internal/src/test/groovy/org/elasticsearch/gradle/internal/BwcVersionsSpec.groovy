@@ -37,7 +37,7 @@ class BwcVersionsSpec extends Specification {
 
         then:
         unreleased == [
-            (v('8.15.2')): new UnreleasedVersionInfo(v('8.15.2'), '8.15', ':distribution:bwc:bugfix2'),
+            (v('8.15.2')): new UnreleasedVersionInfo(v('8.15.2'), '8.15', ':distribution:bwc:maintenance'),
             (v('8.16.1')): new UnreleasedVersionInfo(v('8.16.1'), '8.16', ':distribution:bwc:bugfix'),
             (v('8.17.0')): new UnreleasedVersionInfo(v('8.17.0'), '8.x', ':distribution:bwc:minor'),
             (v('9.0.0')): new UnreleasedVersionInfo(v('9.0.0'), 'main', ':distribution'),
@@ -67,7 +67,7 @@ class BwcVersionsSpec extends Specification {
 
         then:
         unreleased == [
-            (v('8.15.2')): new UnreleasedVersionInfo(v('8.15.2'), '8.15', ':distribution:bwc:bugfix2'),
+            (v('8.15.2')): new UnreleasedVersionInfo(v('8.15.2'), '8.15', ':distribution:bwc:maintenance'),
             (v('8.16.1')): new UnreleasedVersionInfo(v('8.16.1'), '8.16', ':distribution:bwc:bugfix'),
             (v('8.17.0')): new UnreleasedVersionInfo(v('8.17.0'), '8.17', ':distribution:bwc:staged'),
             (v('8.18.0')): new UnreleasedVersionInfo(v('8.18.0'), '8.x', ':distribution:bwc:minor'),
@@ -99,7 +99,7 @@ class BwcVersionsSpec extends Specification {
 
         then:
         unreleased == [
-            (v('8.16.2')): new UnreleasedVersionInfo(v('8.16.2'), '8.16', ':distribution:bwc:bugfix2'),
+            (v('8.16.2')): new UnreleasedVersionInfo(v('8.16.2'), '8.16', ':distribution:bwc:maintenance'),
             (v('8.17.1')): new UnreleasedVersionInfo(v('8.17.1'), '8.17', ':distribution:bwc:bugfix'),
             (v('8.18.0')): new UnreleasedVersionInfo(v('8.18.0'), '8.18', ':distribution:bwc:staged2'),
             (v('8.19.0')): new UnreleasedVersionInfo(v('8.19.0'), '8.x', ':distribution:bwc:minor'),

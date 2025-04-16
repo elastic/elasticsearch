@@ -647,7 +647,7 @@ public class ThreadPoolTests extends ESTestCase {
         }
     }
 
-    private class MetricAsserter {
+    private static class MetricAsserter {
         private final RecordingMeterRegistry meterRegistry;
         private final String threadPoolName;
 

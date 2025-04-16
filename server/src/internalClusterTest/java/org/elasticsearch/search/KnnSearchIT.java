@@ -11,27 +11,26 @@ package org.elasticsearch.search;
 
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.action.search.SearchScrollRequest;
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.vectors.KnnSearchBuilder;
+import org.elasticsearch.search.vectors.KnnVectorQueryBuilder;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
-import org.elasticsearch.xcontent.XContentType;
 
 import java.util.List;
 
-import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
 
-@ESIntegTestCase.ClusterScope(minNumDataNodes = 3)
+@ESIntegTestCase.ClusterScope(minNumDataNodes = 2)
 public class KnnSearchIT extends ESIntegTestCase {
 
     private static final String INDEX_NAME = "test_knn_index";
     private static final String VECTOR_FIELD = "vector";
-    private static final int DIMENSION = 2;
 
     private XContentBuilder createKnnMapping() throws Exception {
         return XContentFactory.jsonBuilder()
@@ -39,51 +38,100 @@ public class KnnSearchIT extends ESIntegTestCase {
             .startObject("properties")
             .startObject(VECTOR_FIELD)
             .field("type", "dense_vector")
-            .field("dims", DIMENSION)
+            .field("dims", 2)
             .field("index", true)
             .field("similarity", "l2_norm")
+            .startObject("index_options")
+            .field("type", "hnsw")
+            .endObject()
+            .endObject()
+            .startObject("category")
+            .field("type", "keyword")
             .endObject()
             .endObject()
             .endObject();
     }
 
     public void testKnnSearchWithScroll() throws Exception {
+        final int numShards = randomIntBetween(1, 3);
         Client client = client();
+        client.admin()
+            .indices()
+            .prepareCreate(INDEX_NAME)
+            .setSettings(Settings.builder().put("index.number_of_shards", numShards))
+            .setMapping(createKnnMapping())
+            .get();
 
-        client.admin().indices().prepareCreate(INDEX_NAME).setMapping(createKnnMapping()).get();
-
-        int count = randomIntBetween(10, 20);
+        final int count = 100;
         for (int i = 0; i < count; i++) {
-            client.prepareIndex(INDEX_NAME).setSource(XContentType.JSON, VECTOR_FIELD, new float[] { i, i }).get();
+            XContentBuilder source = XContentFactory.jsonBuilder()
+                .startObject()
+                .field(VECTOR_FIELD, new float[] { i * 0.1f, i * 0.1f })
+                .field("category", i >= 90 ? "last_ten" : null)
+                .endObject();
+            client.prepareIndex(INDEX_NAME).setSource(source).get();
         }
-
         refresh(INDEX_NAME);
 
-        SearchSourceBuilder sourceBuilder = new SearchSourceBuilder();
-        int k = count / 2;
-        sourceBuilder.knnSearch(List.of(new KnnSearchBuilder(VECTOR_FIELD, new float[] { 0, 0 }, k, k, null, null)));
+        final int k = randomIntBetween(11, 15);
+        // test top level knn search
+        {
+            SearchSourceBuilder sourceBuilder = new SearchSourceBuilder();
+            sourceBuilder.knnSearch(List.of(new KnnSearchBuilder(VECTOR_FIELD, new float[] { 0, 0 }, k, 100, null, null)));
+            executeScrollSearch(client, sourceBuilder, k);
+        }
+        // test top level knn search + another query
+        {
+            SearchSourceBuilder sourceBuilder = new SearchSourceBuilder();
+            sourceBuilder.knnSearch(List.of(new KnnSearchBuilder(VECTOR_FIELD, new float[] { 0, 0 }, k, 100, null, null)));
+            sourceBuilder.query(QueryBuilders.existsQuery("category").boost(10));
+            executeScrollSearch(client, sourceBuilder, k + 10);
+        }
 
+        // test knn query
+        {
+            SearchSourceBuilder sourceBuilder = new SearchSourceBuilder();
+            sourceBuilder.query(new KnnVectorQueryBuilder(VECTOR_FIELD, new float[] { 0, 0 }, k, 100, null, null));
+            executeScrollSearch(client, sourceBuilder, k * numShards);
+        }
+        // test knn query + another query
+        {
+            SearchSourceBuilder sourceBuilder = new SearchSourceBuilder();
+            sourceBuilder.query(
+                QueryBuilders.boolQuery()
+                    .should(new KnnVectorQueryBuilder(VECTOR_FIELD, new float[] { 0, 0 }, k, 100, null, null))
+                    .should(QueryBuilders.existsQuery("category").boost(10))
+            );
+            executeScrollSearch(client, sourceBuilder, k * numShards + 10);
+        }
+
+    }
+
+    private static void executeScrollSearch(Client client, SearchSourceBuilder sourceBuilder, int expectedNumHits) {
         SearchRequest searchRequest = new SearchRequest(INDEX_NAME);
         searchRequest.source(sourceBuilder).scroll(TimeValue.timeValueMinutes(1));
 
-        SearchResponse firstResponse = client.search(searchRequest).actionGet();
-        assertThat(firstResponse.getScrollId(), notNullValue());
-        assertThat(firstResponse.getHits().getHits().length, equalTo(k));
-        firstResponse.decRef();
-
-        while (true) {
-            SearchScrollRequest scrollRequest = new SearchScrollRequest(firstResponse.getScrollId());
-            scrollRequest.scroll(TimeValue.timeValueMinutes(1));
-            SearchResponse scrollResponse = client.searchScroll(scrollRequest).actionGet();
-            if (scrollResponse.getHits().getHits().length == 0) {
-                break;
-            }
-            assertThat(scrollResponse.getHits().getHits().length, equalTo(1));
-            assertThat(scrollResponse.getScrollId(), notNullValue());
-            assertThat(scrollResponse.getHits().getTotalHits().value(), equalTo((long) k));
-            scrollResponse.decRef();
+        SearchResponse searchResponse = client.search(searchRequest).actionGet();
+        int hitsCollected = 0;
+        float prevScore = Float.POSITIVE_INFINITY;
+        try {
+            do {
+                assertThat(searchResponse.getScrollId(), notNullValue());
+                assertEquals(expectedNumHits, searchResponse.getHits().getTotalHits().value());
+                // assert correct order of returned hits
+                for (var searchHit : searchResponse.getHits()) {
+                    assert (searchHit.getScore() <= prevScore);
+                    prevScore = searchHit.getScore();
+                    hitsCollected += 1;
+                }
+                searchResponse.decRef();
+                searchResponse = client().prepareSearchScroll(searchResponse.getScrollId()).setScroll(TimeValue.timeValueMinutes(1)).get();
+            } while (searchResponse.getHits().getHits().length > 0);
+        } finally {
+            assertEquals(expectedNumHits, hitsCollected);
+            clearScroll(searchResponse.getScrollId());
+            searchResponse.decRef();
         }
-
-        client.prepareClearScroll().addScrollId(firstResponse.getScrollId()).get();
     }
+
 }

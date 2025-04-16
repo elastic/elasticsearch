@@ -190,7 +190,7 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
         this.name = name;
         this.generation = generation;
         this.metadata = metadata;
-        this.settings = settings;
+        this.settings = Objects.requireNonNull(settings);
         assert system == false || hidden; // system indices must be hidden
         this.hidden = hidden;
         this.replicated = replicated;
@@ -358,8 +358,7 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
 
     public Settings getEffectiveSettings(ProjectMetadata projectMetadata) {
         ComposableIndexTemplate template = getMatchingIndexTemplate(projectMetadata);
-        assert template.template() != null : "Template is unexpectedly null";
-        return mergeSettings(template.template().settings(), settings);
+        return mergeSettings(template.template() == null ? Settings.EMPTY : template.template().settings(), settings);
     }
 
     private ComposableIndexTemplate getMatchingIndexTemplate(ProjectMetadata projectMetadata) {
@@ -1387,7 +1386,7 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
             (String) args[0],
             (Long) args[2],
             (Map<String, Object>) args[3],
-            (Settings) args[12],
+            args[12] == null ? Settings.EMPTY : (Settings) args[12],
             args[4] != null && (boolean) args[4],
             args[5] != null && (boolean) args[5],
             args[6] != null && (boolean) args[6],

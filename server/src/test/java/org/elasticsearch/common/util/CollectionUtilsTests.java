@@ -75,6 +75,7 @@ public class CollectionUtilsTests extends ESTestCase {
         assertUniquify(List.<Integer>of(), Comparator.naturalOrder(), 0);
         assertUniquify(List.of(1), Comparator.naturalOrder(), 1);
         assertUniquify(List.of(1, 2, 3), Comparator.naturalOrder(), 3);
+        assertUniquify(List.of(1, 1, 3), Comparator.naturalOrder(), 2);
         assertUniquify(List.of(1, 1, 1), Comparator.naturalOrder(), 1);
         assertUniquify(List.of(1, 2, 2, 3), Comparator.naturalOrder(), 3);
         assertUniquify(List.of(1, 2, 2, 2), Comparator.naturalOrder(), 2);

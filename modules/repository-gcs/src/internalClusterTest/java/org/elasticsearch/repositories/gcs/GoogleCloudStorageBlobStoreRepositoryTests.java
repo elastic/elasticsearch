@@ -325,6 +325,8 @@ public class GoogleCloudStorageBlobStoreRepositoryTests extends ESMockAPIBasedRe
     @SuppressForbidden(reason = "this test uses a HttpServer to emulate a Google Cloud Storage endpoint")
     private static class GoogleErroneousHttpHandler extends ErroneousHttpHandler {
 
+        private static final String IDEMPOTENCY_TOKEN = "x-goog-gcs-idempotency-token";
+
         GoogleErroneousHttpHandler(final HttpHandler delegate, final int maxErrorsPerRequest) {
             super(delegate, maxErrorsPerRequest);
         }
@@ -338,6 +340,10 @@ public class GoogleCloudStorageBlobStoreRepositoryTests extends ESMockAPIBasedRe
                 } catch (IOException e) {
                     throw new AssertionError("Unable to read token request body", e);
                 }
+            }
+
+            if (exchange.getRequestHeaders().containsKey(IDEMPOTENCY_TOKEN)) {
+                return exchange.getRequestHeaders().getFirst(IDEMPOTENCY_TOKEN);
             }
 
             final String range = exchange.getRequestHeaders().getFirst("Content-Range");

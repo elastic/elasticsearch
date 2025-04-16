@@ -30,6 +30,7 @@ import org.apache.lucene.store.ByteArrayDataOutput;
 import org.apache.lucene.store.ByteBuffersDataOutput;
 import org.apache.lucene.store.ByteBuffersIndexOutput;
 import org.apache.lucene.store.Directory;
+import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.BytesRef;
@@ -56,6 +57,7 @@ import static org.elasticsearch.index.codec.tsdb.es819.ES819TSDBDocValuesFormat.
 final class ES819TSDBDocValuesConsumer extends XDocValuesConsumer {
 
     final Directory dir;
+    final IOContext context;
     IndexOutput data, meta;
     final int maxDoc;
     private byte[] termsDictBuffer;
@@ -73,6 +75,7 @@ final class ES819TSDBDocValuesConsumer extends XDocValuesConsumer {
     ) throws IOException {
         this.termsDictBuffer = new byte[1 << 14];
         this.dir = state.directory;
+        this.context = state.context;
         boolean success = false;
         try {
             final String dataName = IndexFileNames.segmentFileName(state.segmentInfo.name, state.segmentSuffix, dataExtension);
@@ -164,7 +167,7 @@ final class ES819TSDBDocValuesConsumer extends XDocValuesConsumer {
                     values = valuesProducer.getSortedNumeric(field);
                     final int bitsPerOrd = maxOrd >= 0 ? PackedInts.bitsRequired(maxOrd - 1) : -1;
                     if (enableOptimizedMerge && numDocsWithValue < maxDoc) {
-                        disiAccumulator = new DISIAccumulator(dir, data, IndexedDISI.DEFAULT_DENSE_RANK_POWER);
+                        disiAccumulator = new DISIAccumulator(dir, context, data, IndexedDISI.DEFAULT_DENSE_RANK_POWER);
                     }
                     for (int doc = values.nextDoc(); doc != DocIdSetIterator.NO_MORE_DOCS; doc = values.nextDoc()) {
                         if (disiAccumulator != null) {

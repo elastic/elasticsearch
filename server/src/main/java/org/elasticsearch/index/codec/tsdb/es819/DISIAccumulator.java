@@ -36,6 +36,7 @@ final class DISIAccumulator implements Closeable {
     static final int MAX_ARRAY_LENGTH = (1 << 12) - 1;
 
     final Directory dir;
+    final IOContext context;
     final String skipListTempFileName;
     final IndexOutput disiTempOutput;
     final byte denseRankPower;
@@ -48,10 +49,10 @@ final class DISIAccumulator implements Closeable {
     int prevBlock = -1;
     int jumpBlockIndex = 0;
 
-    DISIAccumulator(Directory dir, IndexOutput data, byte denseRankPower) throws IOException {
+    DISIAccumulator(Directory dir, IOContext context, IndexOutput data, byte denseRankPower) throws IOException {
         this.dir = dir;
-        // TODO: which IOContext should be used here?
-        this.disiTempOutput = dir.createTempOutput(data.getName(), "disi", IOContext.DEFAULT);
+        this.context = context;
+        this.disiTempOutput = dir.createTempOutput(data.getName(), "disi", context);
         this.skipListTempFileName = disiTempOutput.getName();
         this.denseRankPower = denseRankPower;
 
@@ -108,8 +109,7 @@ final class DISIAccumulator implements Closeable {
         short blockCount = flushBlockJumps(jumps, lastBlock + 1, disiTempOutput);
         disiTempOutput.close();
         try (
-            // TODO: which IOContext should be used here?
-            var addressDataInput = dir.openInput(skipListTempFileName, IOContext.DEFAULT)
+            var addressDataInput = dir.openInput(skipListTempFileName, context)
         ) {
             data.copyBytes(addressDataInput, addressDataInput.length());
         }

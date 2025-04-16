@@ -516,7 +516,7 @@ public class DISIAccumulatorTests extends LuceneTestCase {
     }
 
     private static short writeJumpTable(BitSet set, long cost, Directory dir, IndexOutput out, byte denseRankPower) throws IOException {
-        var disiAccumulator = new DISIAccumulator(dir, out, denseRankPower);
+        var disiAccumulator = new DISIAccumulator(dir, IOContext.DEFAULT, out, denseRankPower);
         var iterator = new BitSetIterator(set, cost);
         for (int docId = iterator.nextDoc(); docId != DocIdSetIterator.NO_MORE_DOCS; docId = iterator.nextDoc()) {
             disiAccumulator.addDocId(docId);

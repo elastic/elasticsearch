@@ -306,7 +306,7 @@ public class TransportStatelessPrimaryRelocationAction extends TransportAction<
                         hollowShardsMetrics.hollowSuccessCounter().increment();
                         hollowShardsMetrics.hollowTimeMs().record(threadPool.relativeTimeInMillisSupplier().getAsLong() - startTime);
                         engine = indexShard.getEngineOrNull();
-                        assert engine instanceof HollowIndexEngine : engine;
+                        assert engine == null || engine instanceof HollowIndexEngine : engine;
                     } else {
                         indexEngine.flush(false, true, ActionListener.noop());
                     }

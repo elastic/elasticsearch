@@ -35,6 +35,7 @@ import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.shard.IndexShard;
+import org.elasticsearch.index.shard.IndexShardClosedException;
 import org.elasticsearch.index.shard.IndexShardState;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesService;
@@ -213,6 +214,7 @@ public class HollowShardsService extends AbstractLifecycleComponent {
         assert ThreadPool.assertCurrentThreadPool(ThreadPool.Names.GENERIC);
         final var shardId = indexShard.shardId();
         logger.info(() -> "installing ingestion blocker for shard " + shardId + " due to " + reason);
+
         // We only install the blocker when all primary permits are held during primary relocation or when a hollow shard
         // is recovering (before any ingestion is processed)
         assert indexShard.state() == IndexShardState.POST_RECOVERY || indexShard.getActiveOperationsCount() == IndexShard.OPERATIONS_BLOCKED
@@ -225,6 +227,13 @@ public class HollowShardsService extends AbstractLifecycleComponent {
         var existingBlocker = hollowShards.put(shardId, new HollowShardInfo(new SubscribableListener<>(), new AtomicBoolean(false)));
         assert existingBlocker == null : "already hollow shard " + shardId;
         metrics.incrementHollowShardCount();
+
+        // If shard got closed in the meantime, it might have missed removing the ingestion blocker we just installed, so ensure
+        // we remove the blocker. And then throw.
+        if (indexShard.state() == IndexShardState.CLOSED) {
+            removeHollowShard(indexShard, "closed while adding ingestion blocker");
+            throw new IndexShardClosedException(shardId);
+        }
     }
 
     /**

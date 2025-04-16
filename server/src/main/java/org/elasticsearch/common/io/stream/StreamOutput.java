@@ -18,6 +18,7 @@ import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.compress.CompressorFactory;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.io.stream.Writeable.Writer;
 import org.elasticsearch.common.settings.SecureString;
@@ -137,6 +138,23 @@ public abstract class StreamOutput extends OutputStream {
         tmp.setTransportVersion(version);
         writeable.writeTo(tmp);
         writeBytesReference(tmp.bytes());
+    }
+
+    /**
+     * Same as {@link #writeWithSizePrefix(Writeable)} but compresses the result of serialization and prefixes with a 4 bytes int for the
+     * instead of a variable length int.
+     *
+     * @param writeable {@link Writeable} to serialize
+     */
+    public void writeWithSizePrefixAndCompressed(Writeable writeable) throws IOException {
+        final BytesStreamOutput tmp = new BytesStreamOutput();
+        try (var o = new OutputStreamStreamOutput(CompressorFactory.COMPRESSOR.threadLocalOutputStream(tmp))) {
+            o.setTransportVersion(version);
+            writeable.writeTo(o);
+        }
+        var bytes = tmp.bytes();
+        this.writeInt(bytes.length());
+        bytes.writeTo(this);
     }
 
     /**

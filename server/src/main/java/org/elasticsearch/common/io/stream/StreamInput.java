@@ -127,6 +127,10 @@ public abstract class StreamInput extends InputStream {
         return ReleasableBytesReference.wrap(readBytesReference());
     }
 
+    public ReleasableBytesReference readReleasableBytesReference2() throws IOException {
+        return ReleasableBytesReference.wrap(readBytesReference(readInt()));
+    }
+
     /**
      * Reads the same bytes returned by {@link #readReleasableBytesReference()} but does not retain a reference to these bytes.
      * The returned {@link BytesReference} thus only contains valid content as long as the underlying buffer has not been released.

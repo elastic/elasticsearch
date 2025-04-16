@@ -10,8 +10,10 @@
 package org.elasticsearch.common.io.stream;
 
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.bytes.ReleasableBytesReference;
+import org.elasticsearch.common.compress.CompressorFactory;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 
@@ -53,11 +55,22 @@ public abstract class DelayableWriteable<T extends Writeable> implements Writeab
      * when {@link #expand()} is called.
      */
     public static <T extends Writeable> DelayableWriteable<T> delayed(Writeable.Reader<T> reader, StreamInput in) throws IOException {
-        return new Serialized<>(reader, in.getTransportVersion(), in.namedWriteableRegistry(), in.readReleasableBytesReference());
+        return new Serialized<>(
+            reader,
+            in.getTransportVersion(),
+            in.namedWriteableRegistry(),
+            in.getTransportVersion().onOrAfter(TransportVersions.COMPRESS_DELAYABLE_WRITEABLE)
+                ? in.readReleasableBytesReference2()
+                : in.readReleasableBytesReference()
+        );
     }
 
     public static <T extends Writeable> DelayableWriteable<T> referencing(Writeable.Reader<T> reader, StreamInput in) throws IOException {
-        try (ReleasableBytesReference serialized = in.readReleasableBytesReference()) {
+        try (
+            ReleasableBytesReference serialized = in.getTransportVersion().onOrAfter(TransportVersions.COMPRESS_DELAYABLE_WRITEABLE)
+                ? in.readReleasableBytesReference2()
+                : in.readReleasableBytesReference()
+        ) {
             return new Referencing<>(deserialize(reader, in.getTransportVersion(), in.namedWriteableRegistry(), serialized));
         }
     }
@@ -95,7 +108,11 @@ public abstract class DelayableWriteable<T extends Writeable> implements Writeab
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            out.writeWithSizePrefix(reference);
+            if (out.getTransportVersion().onOrAfter(TransportVersions.COMPRESS_DELAYABLE_WRITEABLE)) {
+                out.writeWithSizePrefixAndCompressed(reference);
+            } else {
+                out.writeWithSizePrefix(reference);
+            }
         }
 
         @Override
@@ -105,14 +122,14 @@ public abstract class DelayableWriteable<T extends Writeable> implements Writeab
 
         @Override
         public Serialized<T> asSerialized(Reader<T> reader, NamedWriteableRegistry registry) {
-            BytesStreamOutput buffer;
+            BytesReference buffer;
             try {
                 buffer = writeToBuffer(TransportVersion.current());
             } catch (IOException e) {
                 throw new RuntimeException("unexpected error writing writeable to buffer", e);
             }
             // TODO: this path is currently not used in production code, if it ever is this should start using pooled buffers
-            return new Serialized<>(reader, TransportVersion.current(), registry, ReleasableBytesReference.wrap(buffer.bytes()));
+            return new Serialized<>(reader, TransportVersion.current(), registry, ReleasableBytesReference.wrap(buffer));
         }
 
         @Override
@@ -125,11 +142,11 @@ public abstract class DelayableWriteable<T extends Writeable> implements Writeab
             return DelayableWriteable.getSerializedSize(reference);
         }
 
-        private BytesStreamOutput writeToBuffer(TransportVersion version) throws IOException {
+        private BytesReference writeToBuffer(TransportVersion version) throws IOException {
             try (BytesStreamOutput buffer = new BytesStreamOutput()) {
                 buffer.setTransportVersion(version);
                 reference.writeTo(buffer);
-                return buffer;
+                return CompressorFactory.COMPRESSOR.compress(buffer.bytes());
             }
         }
 
@@ -169,7 +186,12 @@ public abstract class DelayableWriteable<T extends Writeable> implements Writeab
                  * which is good because this is how shard request caching
                  * works.
                  */
-                out.writeBytesReference(serialized);
+                if (out.getTransportVersion().onOrAfter(TransportVersions.COMPRESS_DELAYABLE_WRITEABLE)) {
+                    out.writeInt(serialized.length());
+                    serialized.writeTo(out);
+                } else {
+                    out.writeBytesReference(serialized);
+                }
             } else {
                 /*
                  * If the version doesn't line up then we have to deserialize
@@ -217,13 +239,14 @@ public abstract class DelayableWriteable<T extends Writeable> implements Writeab
      * Returns the serialized size in bytes of the provided {@link Writeable}.
      */
     public static long getSerializedSize(Writeable ref) {
-        try (CountingStreamOutput out = new CountingStreamOutput()) {
-            out.setTransportVersion(TransportVersion.current());
-            ref.writeTo(out);
-            return out.size();
+        var out = new CountingStreamOutput();
+        try (var o = new OutputStreamStreamOutput(CompressorFactory.COMPRESSOR.threadLocalOutputStream(out))) {
+            o.setTransportVersion(TransportVersion.current());
+            ref.writeTo(o);
         } catch (IOException exc) {
             throw new UncheckedIOException(exc);
         }
+        return out.size();
     }
 
     private static <T> T deserialize(
@@ -232,7 +255,11 @@ public abstract class DelayableWriteable<T extends Writeable> implements Writeab
         NamedWriteableRegistry registry,
         BytesReference serialized
     ) throws IOException {
-        try (StreamInput in = serialized.streamInput()) {
+        try (
+            StreamInput in = serializedAtVersion.onOrAfter(TransportVersions.COMPRESS_DELAYABLE_WRITEABLE)
+                ? CompressorFactory.COMPRESSOR.threadLocalStreamInput(serialized.streamInput())
+                : serialized.streamInput()
+        ) {
             return reader.read(wrapWithDeduplicatorStreamInput(in, serializedAtVersion, registry));
         }
     }

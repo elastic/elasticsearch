@@ -152,7 +152,7 @@ public class PinnedRetrieverBuilderTests extends AbstractXContentTestCase<Pinned
     }
 
     public void testValidation() {
-        expectThrows(IllegalArgumentException.class, () -> {
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> {
             new PinnedRetrieverBuilder(
                 List.of("id1"),
                 List.of(new SpecifiedDocument("id2", "index")),
@@ -160,14 +160,17 @@ public class PinnedRetrieverBuilderTests extends AbstractXContentTestCase<Pinned
                 DEFAULT_RANK_WINDOW_SIZE
             );
         });
+        assertThat(e.getMessage(), equalTo("Both 'ids' and 'docs' cannot be specified at the same time"));
 
-        PinnedRetrieverBuilder builder = new PinnedRetrieverBuilder(
-            List.of(),
-            List.of(),
-            new TestRetrieverBuilder("test"),
-            DEFAULT_RANK_WINDOW_SIZE
-        );
-        assertNotNull(builder);
+        e = expectThrows(IllegalArgumentException.class, () -> {
+            new PinnedRetrieverBuilder(
+                List.of(),
+                List.of(),
+                new TestRetrieverBuilder("test"),
+                DEFAULT_RANK_WINDOW_SIZE
+            );
+        });
+        assertThat(e.getMessage(), equalTo("Either 'ids' or 'docs' must be provided and non-empty for pinned retriever"));
     }
 
     public void testValidateSort() {
@@ -190,12 +193,18 @@ public class PinnedRetrieverBuilderTests extends AbstractXContentTestCase<Pinned
         SearchSourceBuilder customSortSource = new SearchSourceBuilder();
         customSortSource.sort("field1");
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> builder.finalizeSourceBuilder(customSortSource));
-        assertThat(e.getMessage(), equalTo("Pinned retriever only supports sorting by score. Custom sorting is not allowed."));
+        assertThat(
+            e.getMessage(),
+            equalTo("[pinned] retriever only supports sorting by score, invalid sort criterion: {\n  \"field1\" : {\n    \"order\" : \"asc\"\n  }\n}")
+        );
 
         SearchSourceBuilder multipleSortsSource = new SearchSourceBuilder();
         multipleSortsSource.sort("_score");
         multipleSortsSource.sort("field1");
         e = expectThrows(IllegalArgumentException.class, () -> builder.finalizeSourceBuilder(multipleSortsSource));
-        assertThat(e.getMessage(), equalTo("Pinned retriever only supports sorting by score. Custom sorting is not allowed."));
+        assertThat(
+            e.getMessage(),
+            equalTo("[pinned] retriever only supports sorting by score, invalid sort criterion: {\n  \"field1\" : {\n    \"order\" : \"asc\"\n  }\n}")
+        );
     }
 }

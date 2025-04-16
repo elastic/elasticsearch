@@ -354,7 +354,13 @@ public class SynonymsManagementAPIService {
                         ? UpdateSynonymsResultStatus.CREATED
                         : UpdateSynonymsResultStatus.UPDATED;
 
-                    checkIndexSearchableAndReloadAnalyzers(synonymSetId, refresh, false, updateSynonymsResultStatus, bulkInsertResponseListener);
+                    checkIndexSearchableAndReloadAnalyzers(
+                        synonymSetId,
+                        refresh,
+                        false,
+                        updateSynonymsResultStatus,
+                        bulkInsertResponseListener
+                    );
                 })
             );
         }));
@@ -604,7 +610,12 @@ public class SynonymsManagementAPIService {
         }));
     }
 
-    private void reloadAnalyzers(String synonymSetId, boolean preview, UpdateSynonymsResultStatus synonymsOperationResult, ActionListener<SynonymsReloadResult> listener) {
+    private void reloadAnalyzers(
+        String synonymSetId,
+        boolean preview,
+        UpdateSynonymsResultStatus synonymsOperationResult,
+        ActionListener<SynonymsReloadResult> listener
+    ) {
         // auto-reload all reloadable analyzers (currently only those that use updateable synonym or keyword_marker filters)
         ReloadAnalyzersRequest reloadAnalyzersRequest = new ReloadAnalyzersRequest(synonymSetId, preview, "*");
         client.execute(

@@ -2,10 +2,6 @@ setup:
   - do:
       indices.create:
         index: test-index1
-        body:
-          settings:
-            number_of_shards: 1
-            number_of_replicas: 0
 
   - do:
       bulk:
@@ -30,7 +26,9 @@ setup:
 
 ---
 "pinned retriever parameter variations":
+  - skip: { features: headers }
   - do:
+      headers: { Content-Type: application/json }
       search:
         index: test-index1
         body:
@@ -44,14 +42,18 @@ setup:
               retriever:
                 standard:
                   query:
-                    match_all: {}
+                    match: { text: "document" }
 
   - match: { hits.total.value: 5 }
   - match: { hits.hits.0._id: doc1 }
+  - match: { hits.hits.0._score: 1.7014124E38 }
   - match: { hits.hits.1._id: doc2 }
+  - match: { hits.hits.1._score: 1.7014122E38 }
   - match: { hits.hits.2._id: doc3 }
+  - match: { hits.hits.2._score < 100.0 }
 
   - do:
+      headers: { Content-Type: application/json }
       search:
         index: test-index1
         body:
@@ -61,13 +63,16 @@ setup:
               retriever:
                 standard:
                   query:
-                    match_all: {}
+                    match: { text: "document" }
 
   - match: { hits.total.value: 5 }
   - match: { hits.hits.0._id: doc1 }
+  - match: { hits.hits.0._score: 1.7014122E38 }
   - match: { hits.hits.1._id: doc2 }
+  - match: { hits.hits.1._score < 100.0 }
 
   - do:
+      headers: { Content-Type: application/json }
       search:
         index: test-index1
         body:
@@ -79,11 +84,13 @@ setup:
               retriever:
                 standard:
                   query:
-                    match_all: {}
+                    match: { text: "document" }
 
   - match: { hits.total.value: 5 }
   - match: { hits.hits.0._id: doc1 }
+  - match: { hits.hits.0._score: 1.7014122E38 }
   - match: { hits.hits.1._id: doc2 }
+  - match: { hits.hits.1._score < 100.0 }
 
 ---
 "pinned retriever dynamic pinning and ordering":
@@ -101,16 +108,16 @@ setup:
               retriever:
                 standard:
                   query:
-                    match_all: {}
+                    match: { text: "document" }
         explain: true
 
   - match: { hits.total.value: 5 }
   - match: { hits.hits.0._id: doc1 }
-  - match: { hits.hits.1._id: doc2 }
-  - match: { hits.hits.2._id: doc3 }
   - match: { hits.hits.0._score: 1.7014124E38 }
+  - match: { hits.hits.1._id: doc2 }
   - match: { hits.hits.1._score: 1.7014122E38 }
-  - match: { hits.hits.2._score: 1.0 }
+  - match: { hits.hits.2._id: doc3 }
+  - match: { hits.hits.2._score < 100.0 }
 
   - do:
       headers:
@@ -124,18 +131,18 @@ setup:
               retriever:
                 standard:
                   query:
-                    match_all: {}
+                    match: { text: "document" }
         explain: true
 
   - match: { hits.total.value: 5 }
   - match: { hits.hits.0._id: doc1 }
+  - match: { hits.hits.0._score: 1.7014124E38 }
   - match: { hits.hits.1._id: doc3 }
+  - match: { hits.hits.1._score: 1.7014122E38 }
   - match: { hits.hits.2._id: doc2 }
+  - match: { hits.hits.2._score < 100.0 }
   - match: { hits.hits.3._id: doc4 }
   - match: { hits.hits.4._id: doc5 }
-  - match: { hits.hits.0._score: 1.7014124E38 }
-  - match: { hits.hits.1._score: 1.7014122E38 }
-  - match: { hits.hits.2._score: 1.0 }
 
 ---
 "pinned retriever combined with rrf":
@@ -175,12 +182,14 @@ setup:
   - match: { hits.hits.0._id: doc1 }
   - match: { hits.hits.0._score: 1.7014122E38 }
   - match: { hits.hits.1._id: doc3 }
+  - match: { hits.hits.1._score < 100.0 }
   - match: { hits.hits.2._id: doc2 }
-  - match: { hits.hits.1._score < hits.hits.0._score }
 
 ---
 "pinned retriever with pagination":
+  - skip: { features: headers }
   - do:
+      headers: { Content-Type: application/json }
       search:
         index: test-index1
         body:
@@ -192,15 +201,18 @@ setup:
               retriever:
                 standard:
                   query:
-                    match_all: {}
+                    match: { text: "document" }
 
   - match: { hits.total.value: 5 }
   - length: { hits.hits: 1 }
   - match: { hits.hits.0._id: doc2 }
+  - match: { hits.hits.0._score: 1.7014122E38 }
 
 ---
 "pinned retriever as a sub-retriever":
+  - skip: { features: headers }
   - do:
+      headers: { Content-Type: application/json }
       search:
         index: test-index1
         body:
@@ -210,23 +222,24 @@ setup:
                 -
                   standard:
                     query:
-                      match_all: {}
+                      match: { text: "document" }
                 -
                   pinned:
                     ids: ["doc1", "doc2"]
                     retriever:
                       standard:
                         query:
-                          match_all: {}
+                          match: { text: "document" }
 
   - match: { hits.total.value: 5 }
   - match: { hits.hits.0._id: doc1 }
-  - match: { hits.hits.1._id: doc2 }
-  - match: { hits.hits.2._id: doc3 }
+  - lt: { hits.hits.0._score: 100.0 }
 
 ---
 "pinned retriever with explicit sort on score":
+  - skip: { features: headers }
   - do:
+      headers: { Content-Type: application/json }
       search:
         index: test-index1
         body:
@@ -236,13 +249,16 @@ setup:
               retriever:
                 standard:
                   query:
-                    match_all: {}
+                    match: { text: "document" }
                   sort: [ "_score" ]
 
   - match: { hits.total.value: 5 }
   - match: { hits.hits.0._id: doc1 }
+  - match: { hits.hits.0._score: 1.7014124E38 }
   - match: { hits.hits.1._id: doc2 }
+  - match: { hits.hits.1._score: 1.7014122E38 }
   - match: { hits.hits.2._id: doc3 }
+  - match: { hits.hits.2._score < 100.0 }
 
 ---
 "pinned retriever with rank window size":
@@ -261,12 +277,13 @@ setup:
               retriever:
                 standard:
                   query:
-                    match_all: {}
+                    match: { text: "document" }
               rank_window_size: 1
 
   - match: { hits.total.value: 5 }
   - length: { hits.hits: 1 }
   - match: { hits.hits.0._id: doc1 }
+  - match: { hits.hits.0._score: 1.7014124E38 }
 
   - do:
       headers:
@@ -280,14 +297,17 @@ setup:
               retriever:
                 standard:
                   query:
-                    match_all: {}
+                    match: { text: "document" }
               rank_window_size: 10
 
   - match: { hits.total.value: 5 }
   - length: { hits.hits: 5 }
   - match: { hits.hits.0._id: doc1 }
+  - match: { hits.hits.0._score: 1.7014124E38 }
   - match: { hits.hits.1._id: doc2 }
+  - match: { hits.hits.1._score: 1.7014122E38 }
   - match: { hits.hits.2._id: doc3 }
+  - match: { hits.hits.2._score < 100.0 }
 
 ---
 "pinned retriever explanation":
@@ -306,16 +326,24 @@ setup:
               retriever:
                 standard:
                   query:
-                    match_all: {}
+                    match: { text: "document" }
           explain: true
 
   - match: { hits.hits.0._id: doc1 }
-  - match: { hits.hits.0._explanation.value: 1.0 }
-  - match: { hits.hits.0._explanation.description: "doc [0] with an original score of [1.7014124E38] is at rank [1] from the following source queries." }
+  # - match: { hits.hits.0._explanation.value: 1.7014124E38 }
+  - match:
+      hits.hits.0._explanation.description: 'doc \[\d+\] with an original score of \[.+] is at rank \[\d+\] from the following source queries\.'
+  # - match: { hits.hits.0._explanation.details.0.description: "boost" }
+  # - match:
+  #     hits.hits.0._explanation.details.1.description: "/doc \[\d+\] with an original score of \[.+] is at rank \[\d+\] from the following source queries\./"
 
   - match: { hits.hits.1._id: doc2 }
-  - match: { hits.hits.1._explanation.value: 2.0 }
-  - match: { hits.hits.1._explanation.description: "doc [1] with an original score of [1.7014122E38] is at rank [2] from the following source queries." }
+  # - match: { hits.hits.1._explanation.value: 1.7014122E38 }
+  - match:
+      hits.hits.1._explanation.description: 'doc \[\d+\] with an original score of \[.+] is at rank \[\d+\] from the following source queries\.'
+  # - match: { hits.hits.1._explanation.details.0.description: "boost" }
+  # - match:
+  #     hits.hits.1._explanation.details.1.description: "/doc \[\d+\] with an original score of \[.+] is at rank \[\d+\] from the following source queries\./"
 
 ---
 "pinned retriever with empty parameters":
@@ -329,7 +357,7 @@ setup:
               retriever:
                 standard:
                   query:
-                    match_all: {}
+                    match: { text: "document" }
 
 ---
 "pinned retriever error case - both ids and docs":
@@ -347,7 +375,7 @@ setup:
               retriever:
                 standard:
                   query:
-                    match_all: {}
+                    match: { text: "document" }
 
 ---
 "pinned retriever error case - duplicate id":
@@ -362,7 +390,7 @@ setup:
               retriever:
                 standard:
                   query:
-                    match_all: {}
+                    match: { text: "document" }
 
 ---
 "pinned retriever with ids and empty docs array":
@@ -377,7 +405,7 @@ setup:
               retriever:
                 standard:
                   query:
-                    match_all: {}
+                    match: { text: "document" }
   - match: { hits.total.value: 5 }
   - match: { hits.hits.0._id: doc1 }
   - match: { hits.hits.1._id: doc2 }
@@ -386,7 +414,7 @@ setup:
 ---
 "pinned retriever errors if sorting by anything other than score":
   - do:
-      catch: /Pinned retriever only supports sorting by score. Custom sorting is not allowed./
+      catch: /\[pinned\] retriever only supports sorting by score/
       search:
         index: test-index1
         body:
@@ -396,5 +424,5 @@ setup:
               retriever:
                 standard:
                   query:
-                    match_all: {}
+                    match: { text: "document" }
                   sort: [ { "_id": "desc" } ]

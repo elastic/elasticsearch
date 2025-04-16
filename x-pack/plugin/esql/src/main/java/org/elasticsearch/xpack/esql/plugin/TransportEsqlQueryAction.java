@@ -43,13 +43,13 @@ import org.elasticsearch.xpack.esql.action.EsqlQueryRequest;
 import org.elasticsearch.xpack.esql.action.EsqlQueryResponse;
 import org.elasticsearch.xpack.esql.action.EsqlQueryTask;
 import org.elasticsearch.xpack.esql.core.async.AsyncTaskManagementService;
-import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.enrich.AbstractLookupService;
 import org.elasticsearch.xpack.esql.enrich.EnrichLookupService;
 import org.elasticsearch.xpack.esql.enrich.EnrichPolicyResolver;
 import org.elasticsearch.xpack.esql.enrich.LookupFromIndexService;
 import org.elasticsearch.xpack.esql.execution.PlanExecutor;
+import org.elasticsearch.xpack.esql.expression.function.UnsupportedAttribute;
 import org.elasticsearch.xpack.esql.inference.InferenceRunner;
 import org.elasticsearch.xpack.esql.session.Configuration;
 import org.elasticsearch.xpack.esql.session.EsqlSession.PlanRunner;
@@ -322,9 +322,9 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
     private EsqlQueryResponse toResponse(Task task, EsqlQueryRequest request, Configuration configuration, Result result) {
         List<ColumnInfoImpl> columns = result.schema().stream().map(c -> {
             List<String> originalTypes;
-            if (c instanceof FieldAttribute fa && (originalTypes = fa.originalTypes()) != null) {
+            if (c instanceof UnsupportedAttribute ua) {
                 // Sort the original types so they are easier to test against and prettier.
-                originalTypes = new ArrayList<>(originalTypes);
+                originalTypes = new ArrayList<>(ua.originalTypes());
                 Collections.sort(originalTypes);
             } else {
                 originalTypes = null;

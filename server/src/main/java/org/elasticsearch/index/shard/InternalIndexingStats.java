@@ -166,22 +166,26 @@ final class InternalIndexingStats implements IndexingOperationListener {
      * @param took   time taken to write buffers
      * @see org.elasticsearch.indices.IndexingMemoryController
      */
-    void writeIndexBuffers(long took) {
+    void writeIndexingBuffersTime(long took) {
         totalStats.writeIndexingBufferTime.add(took);
         totalStats.recentIndexMetric.addIncrement(took, relativeTimeInNanosSupplier.getAsLong());
     }
 
     static class StatsHolder {
         private final MeanMetric indexMetric = new MeanMetric(); // Used for the count and total 'took' time (in ns) of index operations
-        private final ExponentiallyWeightedMovingRate recentIndexMetric; // An EWMR of the total 'took' time of index operations (in ns)
-        private final AtomicReference<Double> peakIndexMetric; // The peak value of the EWMR observed in any stats() call
+        private final LongAdder writeIndexingBufferTime = new LongAdder();
+        // Used for the total time taken to flush indexing buffers to disk (on indexing threads) (in ns)
+        private final ExponentiallyWeightedMovingRate recentIndexMetric;
+        // An EWMR of the total 'took' time of index operations (in ns) plus the writeIndexingBufferTime
+        private final AtomicReference<Double> peakIndexMetric;
+        // The peak value of the EWMR (recentIndexMetric) observed in any stats() call
         private final MeanMetric deleteMetric = new MeanMetric();
         private final CounterMetric indexCurrent = new CounterMetric();
         private final CounterMetric indexFailed = new CounterMetric();
         private final CounterMetric indexFailedDueToVersionConflicts = new CounterMetric();
         private final CounterMetric deleteCurrent = new CounterMetric();
         private final CounterMetric noopUpdates = new CounterMetric();
-        private final LongAdder writeIndexingBufferTime = new LongAdder();
+
 
         StatsHolder(long startTimeInNanos, TimeValue recentWriteLoadHalfLife) {
             double lambdaInInverseNanos = Math.log(2.0) / recentWriteLoadHalfLife.nanos();

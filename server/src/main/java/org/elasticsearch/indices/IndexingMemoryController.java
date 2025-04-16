@@ -211,6 +211,7 @@ public class IndexingMemoryController implements IndexingOperationListener, Clos
             .pollFirst()) {
             // Remove the shard from the set first, so that multiple threads can run writeIndexingBuffer concurrently on the same shard.
             pendingWriteIndexingBufferSet.remove(shard);
+            // Calculate the time taken to write the indexing buffers so it can be accounted for in the index write load
             startTime = System.nanoTime();
             shard.writeIndexingBuffer();
             took = System.nanoTime() - startTime;

@@ -33,7 +33,7 @@ public class IndexingStatsTests extends ESTestCase {
             false,
             10,
             1_800_000_000L, // totalIndexingTimeSinceShardStartedInNanos - 1.8sec
-            1_800_000_000L, // totalIndexingTimeSinceShardStartedInNanos - 1.8sec
+            1_800_000_000L, // totalIndexingLoadSinceShardStartedInNanos - 1.8sec
             3_000_000_000L, // totalActiveTimeInNanos - 3sec
             0.1357,
             0.2468
@@ -106,7 +106,7 @@ public class IndexingStatsTests extends ESTestCase {
             false,
             10,
             1_000_000_000L, // totalIndexingTimeSinceShardStartedInNanos - 1sec
-            1_000_000_000L, // totalIndexingTimeSinceShardStartedInNanos - 1sec
+            1_000_000_000L, // totalIndexingLoadSinceShardStartedInNanos - 1sec
             2_000_000_000L, // totalActiveTimeInNanos - 2sec
             0.1357, // recentWriteLoad
             0.3579 // peakWriteLoad

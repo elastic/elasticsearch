@@ -3245,7 +3245,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      * @see org.elasticsearch.indices.IndexingMemoryController
      */
     public void writeIndexBuffersOnIndexThreads(long took) {
-        internalIndexingStats.writeIndexBuffers(took);
+        internalIndexingStats.writeIndexingBuffersTime(took);
     }
 
     public void maybeCheckIndex() {

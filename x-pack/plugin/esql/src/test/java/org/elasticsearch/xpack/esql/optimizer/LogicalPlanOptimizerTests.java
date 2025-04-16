@@ -2779,7 +2779,6 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         return topN.order().stream().map(o -> as(o.child(), NamedExpression.class).name()).toList();
     }
 
-
     /**
      * Expects
      * Eval[[2[INTEGER] AS x]]

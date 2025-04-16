@@ -102,6 +102,15 @@ final class FastMath {
     private static final int MIN_DOUBLE_EXPONENT = -1074;
     private static final int MAX_DOUBLE_EXPONENT = 1023;
 
+    /**
+     * PI / 2.0
+     */
+    private static final double M_HALF_PI = Math.PI * 0.5;
+    /**
+     * PI / 4.0
+     */
+    private static final double M_QUARTER_PI = Math.PI * 0.25;
+
     // --------------------------------------------------------------------------
     // CONSTANTS FOR NORMALIZATIONS
     // --------------------------------------------------------------------------
@@ -335,7 +344,7 @@ final class FastMath {
             // Faster than using normalizeZeroTwoPi.
             angle = remainderTwoPi(angle);
             if (angle < 0.0) {
-                angle += 2 * Math.PI;
+                angle += Constants.M_2PI;
             }
         }
         // index: possibly outside tables range.
@@ -366,7 +375,7 @@ final class FastMath {
             // Faster than using normalizeZeroTwoPi.
             angle = remainderTwoPi(angle);
             if (angle < 0.0) {
-                angle += 2 * Math.PI;
+                angle += Constants.M_2PI;
             }
         }
         int index = (int) (angle * SIN_COS_INDEXER + 0.5);
@@ -387,9 +396,9 @@ final class FastMath {
         if (Math.abs(angle) > TAN_MAX_VALUE_FOR_INT_MODULO) {
             // Faster than using normalizeMinusHalfPiHalfPi.
             angle = remainderTwoPi(angle);
-            if (angle < -Math.PI / 2) {
+            if (angle < -M_HALF_PI) {
                 angle += Math.PI;
-            } else if (angle > Math.PI / 2) {
+            } else if (angle > M_HALF_PI) {
                 angle -= Math.PI;
             }
         }
@@ -428,7 +437,7 @@ final class FastMath {
      * @return Value arccosine, in radians, in [0,PI].
      */
     public static double acos(double value) {
-        return Math.PI / 2 - FastMath.asin(value);
+        return M_HALF_PI - FastMath.asin(value);
     }
 
     /**
@@ -468,7 +477,7 @@ final class FastMath {
                 return negateResult ? -result : result;
             } else { // value >= 1.0, or value is NaN
                 if (value == 1.0) {
-                    return negateResult ? -Math.PI / 2 : Math.PI / 2;
+                    return negateResult ? -M_HALF_PI : M_HALF_PI;
                 } else {
                     return Double.NaN;
                 }
@@ -490,7 +499,7 @@ final class FastMath {
         }
         if (value == 1.0) {
             // We want "exact" result for 1.0.
-            return negateResult ? -Math.PI / 4 : Math.PI / 4;
+            return negateResult ? -M_QUARTER_PI : M_QUARTER_PI;
         } else if (value <= ATAN_MAX_VALUE_FOR_TABS) {
             int index = (int) (value * ATAN_INDEXER + 0.5);
             double delta = value - index * ATAN_DELTA;
@@ -511,7 +520,7 @@ final class FastMath {
                 if (Double.isNaN(value)) {
                     return Double.NaN;
                 } else {
-                    return negateResult ? -Math.PI / 2 : Math.PI / 2;
+                    return negateResult ? -M_HALF_PI : M_HALF_PI;
                 }
             }
         }
@@ -532,9 +541,9 @@ final class FastMath {
             }
             if (x == Double.POSITIVE_INFINITY) {
                 if (y == Double.POSITIVE_INFINITY) {
-                    return Math.PI / 4;
+                    return M_QUARTER_PI;
                 } else if (y == Double.NEGATIVE_INFINITY) {
-                    return -Math.PI / 4;
+                    return -M_QUARTER_PI;
                 } else if (y > 0.0) {
                     return 0.0;
                 } else if (y < 0.0) {
@@ -551,9 +560,9 @@ final class FastMath {
             }
             if (x == Double.NEGATIVE_INFINITY) {
                 if (y == Double.POSITIVE_INFINITY) {
-                    return 3 * Math.PI / 4;
+                    return 3 * M_QUARTER_PI;
                 } else if (y == Double.NEGATIVE_INFINITY) {
-                    return -3 * Math.PI / 4;
+                    return -3 * M_QUARTER_PI;
                 } else if (y > 0.0) {
                     return Math.PI;
                 } else if (y < 0.0) {
@@ -562,9 +571,9 @@ final class FastMath {
                     return Double.NaN;
                 }
             } else if (y > 0.0) {
-                return Math.PI / 2 + FastMath.atan(-x / y);
+                return M_HALF_PI + FastMath.atan(-x / y);
             } else if (y < 0.0) {
-                return -Math.PI / 2 - FastMath.atan(x / y);
+                return -M_HALF_PI - FastMath.atan(x / y);
             } else {
                 return Double.NaN;
             }
@@ -577,9 +586,9 @@ final class FastMath {
                 }
             }
             if (y > 0.0) {
-                return Math.PI / 2;
+                return M_HALF_PI;
             } else if (y < 0.0) {
-                return -Math.PI / 2;
+                return -M_HALF_PI;
             } else {
                 return Double.NaN;
             }

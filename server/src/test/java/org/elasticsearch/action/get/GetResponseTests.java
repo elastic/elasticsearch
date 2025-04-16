@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.get;
@@ -16,6 +17,7 @@ import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.get.GetResult;
+import org.elasticsearch.index.get.GetResultTests;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentParser;
@@ -187,7 +189,7 @@ public class GetResponseTests extends ESTestCase {
     }
 
     private static GetResponse parseInstance(XContentParser parser) throws IOException {
-        GetResult getResult = GetResult.fromXContent(parser);
+        GetResult getResult = GetResultTests.parseInstance(parser);
 
         // At this stage we ensure that we parsed enough information to return
         // a valid GetResponse instance. If it's not the case, we throw an

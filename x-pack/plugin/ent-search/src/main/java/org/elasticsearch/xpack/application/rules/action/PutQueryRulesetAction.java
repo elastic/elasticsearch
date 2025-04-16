@@ -69,6 +69,15 @@ public class PutQueryRulesetAction {
             List<QueryRule> rules = queryRuleset.rules();
             if (rules == null || rules.isEmpty()) {
                 validationException = addValidationError("rules cannot be null or empty", validationException);
+            } else {
+                for (QueryRule rule : rules) {
+                    if (rule.id() == null) {
+                        validationException = addValidationError(
+                            "rule_id cannot be null or empty. rule: [" + rule + "]",
+                            validationException
+                        );
+                    }
+                }
             }
 
             return validationException;
@@ -127,7 +136,6 @@ public class PutQueryRulesetAction {
         final DocWriteResponse.Result result;
 
         public Response(StreamInput in) throws IOException {
-            super(in);
             result = DocWriteResponse.Result.readFrom(in);
         }
 

@@ -16,7 +16,7 @@ import org.elasticsearch.action.support.tasks.TransportTasksAction;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
@@ -57,7 +57,6 @@ public class TransportKillProcessAction extends TransportTasksAction<
             actionFilters,
             KillProcessAction.Request::new,
             KillProcessAction.Response::new,
-            KillProcessAction.Response::new,
             transportService.getThreadPool().executor(MachineLearning.UTILITY_THREAD_POOL_NAME)
         );
         this.auditor = auditor;
@@ -97,7 +96,7 @@ public class TransportKillProcessAction extends TransportTasksAction<
     @Override
     protected void doExecute(Task task, KillProcessAction.Request request, ActionListener<KillProcessAction.Response> listener) {
         DiscoveryNodes nodes = clusterService.state().nodes();
-        PersistentTasksCustomMetadata tasks = clusterService.state().getMetadata().custom(PersistentTasksCustomMetadata.TYPE);
+        PersistentTasksCustomMetadata tasks = PersistentTasksCustomMetadata.get(clusterService.state().metadata().getDefaultProject());
         List<PersistentTasksCustomMetadata.PersistentTask<?>> jobTasks;
         if (Strings.isAllOrWildcard(request.getJobId())) {
             jobTasks = MlTasks.openJobTasks(tasks).stream().filter(t -> t.getExecutorNode() != null).collect(Collectors.toList());

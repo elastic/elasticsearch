@@ -12,11 +12,10 @@ import org.elasticsearch.action.support.master.TransportMasterNodeAction;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -38,7 +37,6 @@ public class TransportUpdateDatafeedAction extends TransportMasterNodeAction<Upd
         ClusterService clusterService,
         ThreadPool threadPool,
         ActionFilters actionFilters,
-        IndexNameExpressionResolver indexNameExpressionResolver,
         DatafeedManager datafeedManager
     ) {
         super(
@@ -48,7 +46,6 @@ public class TransportUpdateDatafeedAction extends TransportMasterNodeAction<Upd
             threadPool,
             actionFilters,
             UpdateDatafeedAction.Request::new,
-            indexNameExpressionResolver,
             PutDatafeedAction.Response::new,
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         );

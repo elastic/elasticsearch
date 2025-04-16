@@ -20,8 +20,8 @@ setup:
 
 ---
 "respect offsets in range bounds":
-    - skip:
-        version: " - 7.15.99"
+    - requires:
+        cluster_features: ["gte_v7.16.0"]
         reason: "Fixed in 7.16"
     - do:
         search:
@@ -54,8 +54,8 @@ setup:
 
 ---
 "offsets and timezones play nicely together":
-    - skip:
-        version: " - 7.15.99"
+    - requires:
+        cluster_features: ["gte_v7.16.0"]
         reason: "Fixed in 7.16"
     - do:
         search:

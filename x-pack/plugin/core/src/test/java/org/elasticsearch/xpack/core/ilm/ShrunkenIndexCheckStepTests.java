@@ -59,8 +59,8 @@ public class ShrunkenIndexCheckStepTests extends AbstractStepTestCase<ShrunkenIn
 
         ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT).metadata(metadata).build();
         Result result = step.isConditionMet(indexMetadata.getIndex(), clusterState);
-        assertTrue(result.isComplete());
-        assertNull(result.getInfomationContext());
+        assertTrue(result.complete());
+        assertNull(result.informationContext());
     }
 
     public void testConditionNotMetBecauseNotSameShrunkenIndex() {
@@ -77,8 +77,8 @@ public class ShrunkenIndexCheckStepTests extends AbstractStepTestCase<ShrunkenIn
             .build();
         ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT).metadata(metadata).build();
         Result result = step.isConditionMet(shrinkIndexMetadata.getIndex(), clusterState);
-        assertFalse(result.isComplete());
-        assertEquals(new ShrunkenIndexCheckStep.Info(sourceIndex), result.getInfomationContext());
+        assertFalse(result.complete());
+        assertEquals(new ShrunkenIndexCheckStep.Info(sourceIndex), result.informationContext());
     }
 
     public void testConditionNotMetBecauseSourceIndexExists() {
@@ -101,8 +101,8 @@ public class ShrunkenIndexCheckStepTests extends AbstractStepTestCase<ShrunkenIn
             .build();
         ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT).metadata(metadata).build();
         Result result = step.isConditionMet(shrinkIndexMetadata.getIndex(), clusterState);
-        assertFalse(result.isComplete());
-        assertEquals(new ShrunkenIndexCheckStep.Info(sourceIndex), result.getInfomationContext());
+        assertFalse(result.complete());
+        assertEquals(new ShrunkenIndexCheckStep.Info(sourceIndex), result.informationContext());
     }
 
     public void testIllegalState() {

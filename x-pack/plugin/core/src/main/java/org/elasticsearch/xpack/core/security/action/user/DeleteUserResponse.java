@@ -7,7 +7,6 @@
 package org.elasticsearch.xpack.core.security.action.user;
 
 import org.elasticsearch.action.ActionResponse;
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -20,12 +19,7 @@ import java.io.IOException;
  */
 public class DeleteUserResponse extends ActionResponse implements ToXContentObject {
 
-    private boolean found;
-
-    public DeleteUserResponse(StreamInput in) throws IOException {
-        super(in);
-        found = in.readBoolean();
-    }
+    private final boolean found;
 
     public DeleteUserResponse(boolean found) {
         this.found = found;

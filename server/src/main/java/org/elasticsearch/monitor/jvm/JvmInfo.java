@@ -1,21 +1,19 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.monitor.jvm;
 
-import org.apache.lucene.util.Constants;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.core.PathUtils;
-import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.node.ReportingService;
 import org.elasticsearch.xcontent.XContentBuilder;
 
@@ -167,19 +165,8 @@ public class JvmInfo implements ReportingService.Info {
         );
     }
 
-    @SuppressForbidden(reason = "PathUtils#get")
     private static boolean usingBundledJdk() {
-        /*
-         * We are using the bundled JDK if java.home is the jdk sub-directory of our working directory. This is because we always set
-         * the working directory of Elasticsearch to home, and the bundled JDK is in the jdk sub-directory there.
-         */
-        final String javaHome = System.getProperty("java.home");
-        final String userDir = System.getProperty("user.dir");
-        if (Constants.MAC_OS_X) {
-            return PathUtils.get(javaHome).equals(PathUtils.get(userDir).resolve("jdk.app/Contents/Home").toAbsolutePath());
-        } else {
-            return PathUtils.get(javaHome).equals(PathUtils.get(userDir).resolve("jdk").toAbsolutePath());
-        }
+        return System.getProperty("es.java.type", "").equals("bundled JDK");
     }
 
     public static JvmInfo jvmInfo() {
@@ -419,7 +406,7 @@ public class JvmInfo implements ReportingService.Info {
         builder.field(Fields.VM_VERSION, vmVersion);
         builder.field(Fields.VM_VENDOR, vmVendor);
         builder.field(Fields.USING_BUNDLED_JDK, usingBundledJdk);
-        builder.timeField(Fields.START_TIME_IN_MILLIS, Fields.START_TIME, startTime);
+        builder.timestampFieldsFromUnixEpochMillis(Fields.START_TIME_IN_MILLIS, Fields.START_TIME, startTime);
 
         builder.startObject(Fields.MEM);
         builder.humanReadableField(Fields.HEAP_INIT_IN_BYTES, Fields.HEAP_INIT, ByteSizeValue.ofBytes(mem.heapInit));

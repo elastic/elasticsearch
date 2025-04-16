@@ -49,10 +49,12 @@ import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.xpack.ml.MachineLearning.UTILITY_THREAD_POOL_NAME;
 import static org.elasticsearch.xpack.ml.inference.assignment.TrainedModelAssignmentClusterServiceTests.shutdownMetadata;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.notNullValue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
@@ -91,19 +93,13 @@ public class TrainedModelAssignmentNodeServiceTests extends ESTestCase {
         taskManager = new TaskManager(Settings.EMPTY, threadPool, Collections.emptySet());
         deploymentManager = mock(DeploymentManager.class);
         doAnswer(invocationOnMock -> {
-            ActionListener listener = (ActionListener) invocationOnMock.getArguments()[1];
-            listener.onResponse(invocationOnMock.getArguments()[0]);
+            ActionListener listener = invocationOnMock.getArgument(1);
+            listener.onResponse(invocationOnMock.getArgument(0));
             return null;
         }).when(deploymentManager).startDeployment(any(), any());
 
         doAnswer(invocationOnMock -> {
-            ActionListener listener = (ActionListener) invocationOnMock.getArguments()[1];
-            listener.onResponse(null);
-            return null;
-        }).when(deploymentManager).stopAfterCompletingPendingWork(any());
-
-        doAnswer(invocationOnMock -> {
-            ActionListener listener = (ActionListener) invocationOnMock.getArguments()[1];
+            ActionListener listener = invocationOnMock.getArgument(1);
             listener.onResponse(AcknowledgedResponse.TRUE);
             return null;
         }).when(trainedModelAssignmentService).updateModelAssignmentState(any(), any());
@@ -114,15 +110,33 @@ public class TrainedModelAssignmentNodeServiceTests extends ESTestCase {
         terminate(threadPool);
     }
 
-    public void testLoadQueuedModels_GivenNoQueuedModels() {
-        TrainedModelAssignmentNodeService trainedModelAssignmentNodeService = createService();
-
+    public void testLoadQueuedModels_GivenNoQueuedModels() throws InterruptedException {
         // When there are no queued models
-        trainedModelAssignmentNodeService.loadQueuedModels();
+        loadQueuedModels(createService());
         verify(deploymentManager, never()).startDeployment(any(), any());
     }
 
-    public void testLoadQueuedModels() {
+    private void loadQueuedModels(TrainedModelAssignmentNodeService trainedModelAssignmentNodeService) throws InterruptedException {
+        loadQueuedModels(trainedModelAssignmentNodeService, false);
+    }
+
+    private void loadQueuedModels(TrainedModelAssignmentNodeService trainedModelAssignmentNodeService, boolean expectedRunImmediately)
+        throws InterruptedException {
+        var latch = new CountDownLatch(1);
+        var actual = new AtomicReference<Boolean>(); // AtomicReference for nullable
+        trainedModelAssignmentNodeService.loadQueuedModels(
+            ActionListener.runAfter(ActionListener.wrap(actual::set, e -> {}), latch::countDown)
+        );
+        assertTrue("Timed out waiting for loadQueuedModels to finish.", latch.await(10, TimeUnit.SECONDS));
+        assertThat("Test failed to call the onResponse handler.", actual.get(), notNullValue());
+        assertThat(
+            "We should rerun immediately if there are still model loading tasks to process.",
+            actual.get(),
+            equalTo(expectedRunImmediately)
+        );
+    }
+
+    public void testLoadQueuedModels() throws InterruptedException {
         TrainedModelAssignmentNodeService trainedModelAssignmentNodeService = createService();
 
         String modelToLoad = "loading-model";
@@ -136,7 +150,8 @@ public class TrainedModelAssignmentNodeServiceTests extends ESTestCase {
         trainedModelAssignmentNodeService.prepareModelToLoad(newParams(deploymentId, modelToLoad));
         trainedModelAssignmentNodeService.prepareModelToLoad(newParams(anotherDeployment, anotherModel));
 
-        trainedModelAssignmentNodeService.loadQueuedModels();
+        loadQueuedModels(trainedModelAssignmentNodeService, true);
+        loadQueuedModels(trainedModelAssignmentNodeService, false);
 
         ArgumentCaptor<TrainedModelDeploymentTask> taskCapture = ArgumentCaptor.forClass(TrainedModelDeploymentTask.class);
         ArgumentCaptor<UpdateTrainedModelAssignmentRoutingInfoAction.Request> requestCapture = ArgumentCaptor.forClass(
@@ -157,11 +172,11 @@ public class TrainedModelAssignmentNodeServiceTests extends ESTestCase {
 
         // Since models are loaded, there shouldn't be any more loadings to occur
         trainedModelAssignmentNodeService.prepareModelToLoad(newParams(anotherDeployment, anotherModel));
-        trainedModelAssignmentNodeService.loadQueuedModels();
+        loadQueuedModels(trainedModelAssignmentNodeService);
         verifyNoMoreInteractions(deploymentManager, trainedModelAssignmentService);
     }
 
-    public void testLoadQueuedModelsWhenFailureIsRetried() {
+    public void testLoadQueuedModelsWhenFailureIsRetried() throws InterruptedException {
         String modelToLoad = "loading-model";
         String failedModelToLoad = "failed-search-loading-model";
         String deploymentId = "foo";
@@ -174,9 +189,9 @@ public class TrainedModelAssignmentNodeServiceTests extends ESTestCase {
         trainedModelAssignmentNodeService.prepareModelToLoad(newParams(deploymentId, modelToLoad));
         trainedModelAssignmentNodeService.prepareModelToLoad(newParams(failedDeploymentId, failedModelToLoad));
 
-        trainedModelAssignmentNodeService.loadQueuedModels();
-
-        trainedModelAssignmentNodeService.loadQueuedModels();
+        loadQueuedModels(trainedModelAssignmentNodeService, true);
+        loadQueuedModels(trainedModelAssignmentNodeService, false);
+        loadQueuedModels(trainedModelAssignmentNodeService, false);
 
         ArgumentCaptor<TrainedModelDeploymentTask> startTaskCapture = ArgumentCaptor.forClass(TrainedModelDeploymentTask.class);
         ArgumentCaptor<UpdateTrainedModelAssignmentRoutingInfoAction.Request> requestCapture = ArgumentCaptor.forClass(
@@ -199,7 +214,7 @@ public class TrainedModelAssignmentNodeServiceTests extends ESTestCase {
         verifyNoMoreInteractions(deploymentManager, trainedModelAssignmentService);
     }
 
-    public void testLoadQueuedModelsWhenStopped() {
+    public void testLoadQueuedModelsWhenStopped() throws InterruptedException {
         TrainedModelAssignmentNodeService trainedModelAssignmentNodeService = createService();
 
         // When there are no queued models
@@ -209,7 +224,12 @@ public class TrainedModelAssignmentNodeServiceTests extends ESTestCase {
         trainedModelAssignmentNodeService.prepareModelToLoad(newParams(modelToLoad, modelToLoad));
         trainedModelAssignmentNodeService.stop();
 
-        trainedModelAssignmentNodeService.loadQueuedModels();
+        var latch = new CountDownLatch(1);
+        trainedModelAssignmentNodeService.loadQueuedModels(ActionListener.running(latch::countDown));
+        assertTrue(
+            "loadQueuedModels should immediately call the listener without forking to another thread.",
+            latch.await(0, TimeUnit.SECONDS)
+        );
         verifyNoMoreInteractions(deploymentManager, trainedModelAssignmentService);
     }
 
@@ -231,7 +251,8 @@ public class TrainedModelAssignmentNodeServiceTests extends ESTestCase {
         trainedModelAssignmentNodeService.prepareModelToLoad(newParams(loadingDeploymentId, modelToLoad));
         trainedModelAssignmentNodeService.prepareModelToLoad(newParams(stoppedLoadingDeploymentId, stoppedModelToLoad));
         trainedModelAssignmentNodeService.getTask(stoppedLoadingDeploymentId).stop("testing", false, ActionListener.noop());
-        trainedModelAssignmentNodeService.loadQueuedModels();
+        loadQueuedModels(trainedModelAssignmentNodeService, true);
+        loadQueuedModels(trainedModelAssignmentNodeService, false);
 
         assertBusy(() -> {
             ArgumentCaptor<TrainedModelDeploymentTask> stoppedTaskCapture = ArgumentCaptor.forClass(TrainedModelDeploymentTask.class);
@@ -283,15 +304,8 @@ public class TrainedModelAssignmentNodeServiceTests extends ESTestCase {
         trainedModelAssignmentNodeService.prepareModelToLoad(newParams(loadingDeploymentId, modelToLoad));
         trainedModelAssignmentNodeService.prepareModelToLoad(newParams(failedLoadingDeploymentId, failedModelToLoad));
 
-        CountDownLatch latch = new CountDownLatch(1);
-        doAnswer(invocationOnMock -> {
-            latch.countDown();
-            return null;
-        }).when(deploymentManager).stopDeployment(any());
-
-        trainedModelAssignmentNodeService.loadQueuedModels();
-
-        latch.await(5, TimeUnit.SECONDS);
+        loadQueuedModels(trainedModelAssignmentNodeService, true);
+        loadQueuedModels(trainedModelAssignmentNodeService, false);
 
         ArgumentCaptor<TrainedModelDeploymentTask> startTaskCapture = ArgumentCaptor.forClass(TrainedModelDeploymentTask.class);
         ArgumentCaptor<UpdateTrainedModelAssignmentRoutingInfoAction.Request> requestCapture = ArgumentCaptor.forClass(
@@ -318,7 +332,7 @@ public class TrainedModelAssignmentNodeServiceTests extends ESTestCase {
         verifyNoMoreInteractions(deploymentManager, trainedModelAssignmentService);
     }
 
-    public void testClusterChangedWithResetMode() {
+    public void testClusterChangedWithResetMode() throws InterruptedException {
         final TrainedModelAssignmentNodeService trainedModelAssignmentNodeService = createService();
         final DiscoveryNodes nodes = DiscoveryNodes.builder().localNodeId(NODE_ID).add(DiscoveryNodeUtils.create(NODE_ID, NODE_ID)).build();
         String modelOne = "model-1";
@@ -339,17 +353,17 @@ public class TrainedModelAssignmentNodeServiceTests extends ESTestCase {
                             TrainedModelAssignmentMetadata.Builder.empty()
                                 .addNewAssignment(
                                     modelOne,
-                                    TrainedModelAssignment.Builder.empty(newParams(deploymentOne, modelOne))
+                                    TrainedModelAssignment.Builder.empty(newParams(deploymentOne, modelOne), null)
                                         .addRoutingEntry(NODE_ID, new RoutingInfo(1, 1, RoutingState.STARTING, ""))
                                 )
                                 .addNewAssignment(
                                     modelTwo,
-                                    TrainedModelAssignment.Builder.empty(newParams(deploymentTwo, modelTwo))
+                                    TrainedModelAssignment.Builder.empty(newParams(deploymentTwo, modelTwo), null)
                                         .addRoutingEntry(NODE_ID, new RoutingInfo(1, 1, RoutingState.STARTING, ""))
                                 )
                                 .addNewAssignment(
                                     notUsedModel,
-                                    TrainedModelAssignment.Builder.empty(newParams(notUsedDeployment, notUsedModel))
+                                    TrainedModelAssignment.Builder.empty(newParams(notUsedDeployment, notUsedModel), null)
                                         .addRoutingEntry("some-other-node", new RoutingInfo(1, 1, RoutingState.STARTING, ""))
                                 )
                                 .build()
@@ -362,7 +376,7 @@ public class TrainedModelAssignmentNodeServiceTests extends ESTestCase {
         );
 
         trainedModelAssignmentNodeService.clusterChanged(event);
-        trainedModelAssignmentNodeService.loadQueuedModels();
+        loadQueuedModels(trainedModelAssignmentNodeService);
         verifyNoMoreInteractions(deploymentManager, trainedModelAssignmentService);
     }
 
@@ -397,7 +411,7 @@ public class TrainedModelAssignmentNodeServiceTests extends ESTestCase {
                             TrainedModelAssignmentMetadata.Builder.empty()
                                 .addNewAssignment(
                                     deploymentOne,
-                                    TrainedModelAssignment.Builder.empty(taskParams)
+                                    TrainedModelAssignment.Builder.empty(taskParams, null)
                                         .addRoutingEntry(NODE_ID, new RoutingInfo(1, 1, RoutingState.STOPPING, ""))
                                 )
                                 .build()
@@ -450,7 +464,7 @@ public class TrainedModelAssignmentNodeServiceTests extends ESTestCase {
                             TrainedModelAssignmentMetadata.Builder.empty()
                                 .addNewAssignment(
                                     deploymentOne,
-                                    TrainedModelAssignment.Builder.empty(taskParams)
+                                    TrainedModelAssignment.Builder.empty(taskParams, null)
                                         .addRoutingEntry(NODE_ID, new RoutingInfo(1, 1, RoutingState.STOPPING, ""))
                                         .addRoutingEntry(node2, new RoutingInfo(1, 1, RoutingState.STARTING, ""))
                                 )
@@ -480,7 +494,6 @@ public class TrainedModelAssignmentNodeServiceTests extends ESTestCase {
         String modelOne = "model-1";
         String deploymentOne = "deployment-1";
 
-        ArgumentCaptor<TrainedModelDeploymentTask> stopParamsCapture = ArgumentCaptor.forClass(TrainedModelDeploymentTask.class);
         var taskParams = newParams(deploymentOne, modelOne);
 
         ClusterChangedEvent event = new ClusterChangedEvent(
@@ -494,7 +507,7 @@ public class TrainedModelAssignmentNodeServiceTests extends ESTestCase {
                             TrainedModelAssignmentMetadata.Builder.empty()
                                 .addNewAssignment(
                                     deploymentOne,
-                                    TrainedModelAssignment.Builder.empty(taskParams)
+                                    TrainedModelAssignment.Builder.empty(taskParams, null)
                                         .addRoutingEntry(NODE_ID, new RoutingInfo(1, 1, RoutingState.STOPPING, ""))
                                 )
                                 .build()
@@ -535,7 +548,7 @@ public class TrainedModelAssignmentNodeServiceTests extends ESTestCase {
                             TrainedModelAssignmentMetadata.Builder.empty()
                                 .addNewAssignment(
                                     deploymentOne,
-                                    TrainedModelAssignment.Builder.empty(taskParams)
+                                    TrainedModelAssignment.Builder.empty(taskParams, null)
                                         .addRoutingEntry(NODE_ID, new RoutingInfo(1, 1, RoutingState.STARTING, ""))
                                 )
                                 .build()
@@ -558,7 +571,7 @@ public class TrainedModelAssignmentNodeServiceTests extends ESTestCase {
         verifyNoMoreInteractions(deploymentManager, trainedModelAssignmentService);
     }
 
-    public void testClusterChanged_WhenAssigmentIsStopping_DoesNotAddModelToBeLoaded() {
+    public void testClusterChanged_WhenAssigmentIsStopping_DoesNotAddModelToBeLoaded() throws InterruptedException {
         final TrainedModelAssignmentNodeService trainedModelAssignmentNodeService = createService();
         final DiscoveryNodes nodes = DiscoveryNodes.builder().localNodeId(NODE_ID).add(DiscoveryNodeUtils.create(NODE_ID, NODE_ID)).build();
         String modelOne = "model-1";
@@ -577,7 +590,7 @@ public class TrainedModelAssignmentNodeServiceTests extends ESTestCase {
                             TrainedModelAssignmentMetadata.Builder.empty()
                                 .addNewAssignment(
                                     deploymentOne,
-                                    TrainedModelAssignment.Builder.empty(taskParams)
+                                    TrainedModelAssignment.Builder.empty(taskParams, null)
                                         .addRoutingEntry(NODE_ID, new RoutingInfo(1, 1, RoutingState.STARTING, ""))
                                         .stopAssignment("stopping")
                                 )
@@ -592,7 +605,7 @@ public class TrainedModelAssignmentNodeServiceTests extends ESTestCase {
 
         // trainedModelAssignmentNodeService.prepareModelToLoad(taskParams);
         trainedModelAssignmentNodeService.clusterChanged(event);
-        trainedModelAssignmentNodeService.loadQueuedModels();
+        loadQueuedModels(trainedModelAssignmentNodeService);
 
         verify(deploymentManager, never()).startDeployment(any(), any());
         verifyNoMoreInteractions(deploymentManager, trainedModelAssignmentService);
@@ -626,12 +639,12 @@ public class TrainedModelAssignmentNodeServiceTests extends ESTestCase {
                             TrainedModelAssignmentMetadata.Builder.empty()
                                 .addNewAssignment(
                                     deploymentOne,
-                                    TrainedModelAssignment.Builder.empty(newParams(deploymentOne, modelOne))
+                                    TrainedModelAssignment.Builder.empty(newParams(deploymentOne, modelOne), null)
                                         .addRoutingEntry(NODE_ID, new RoutingInfo(1, 1, RoutingState.STARTING, ""))
                                 )
                                 .addNewAssignment(
                                     deploymentTwo,
-                                    TrainedModelAssignment.Builder.empty(newParams(deploymentTwo, modelTwo))
+                                    TrainedModelAssignment.Builder.empty(newParams(deploymentTwo, modelTwo), null)
                                         .addRoutingEntry(NODE_ID, new RoutingInfo(1, 1, RoutingState.STARTING, ""))
                                         .updateExistingRoutingEntry(
                                             NODE_ID,
@@ -645,7 +658,7 @@ public class TrainedModelAssignmentNodeServiceTests extends ESTestCase {
                                 )
                                 .addNewAssignment(
                                     previouslyUsedDeployment,
-                                    TrainedModelAssignment.Builder.empty(newParams(previouslyUsedDeployment, previouslyUsedModel))
+                                    TrainedModelAssignment.Builder.empty(newParams(previouslyUsedDeployment, previouslyUsedModel), null)
                                         .addRoutingEntry(NODE_ID, new RoutingInfo(1, 1, RoutingState.STARTING, ""))
                                         .updateExistingRoutingEntry(
                                             NODE_ID,
@@ -659,7 +672,7 @@ public class TrainedModelAssignmentNodeServiceTests extends ESTestCase {
                                 )
                                 .addNewAssignment(
                                     notUsedDeployment,
-                                    TrainedModelAssignment.Builder.empty(newParams(notUsedDeployment, notUsedModel))
+                                    TrainedModelAssignment.Builder.empty(newParams(notUsedDeployment, notUsedModel), null)
                                         .addRoutingEntry("some-other-node", new RoutingInfo(1, 1, RoutingState.STARTING, ""))
                                 )
                                 .build()
@@ -684,17 +697,17 @@ public class TrainedModelAssignmentNodeServiceTests extends ESTestCase {
                             TrainedModelAssignmentMetadata.Builder.empty()
                                 .addNewAssignment(
                                     deploymentOne,
-                                    TrainedModelAssignment.Builder.empty(newParams(deploymentOne, modelOne))
+                                    TrainedModelAssignment.Builder.empty(newParams(deploymentOne, modelOne), null)
                                         .addRoutingEntry(NODE_ID, new RoutingInfo(1, 1, RoutingState.STARTING, ""))
                                 )
                                 .addNewAssignment(
                                     deploymentTwo,
-                                    TrainedModelAssignment.Builder.empty(newParams(deploymentTwo, modelTwo))
+                                    TrainedModelAssignment.Builder.empty(newParams(deploymentTwo, modelTwo), null)
                                         .addRoutingEntry("some-other-node", new RoutingInfo(1, 1, RoutingState.STARTING, ""))
                                 )
                                 .addNewAssignment(
                                     notUsedDeployment,
-                                    TrainedModelAssignment.Builder.empty(newParams(notUsedDeployment, notUsedModel))
+                                    TrainedModelAssignment.Builder.empty(newParams(notUsedDeployment, notUsedModel), null)
                                         .addRoutingEntry("some-other-node", new RoutingInfo(1, 1, RoutingState.STARTING, ""))
                                 )
                                 .build()
@@ -706,7 +719,8 @@ public class TrainedModelAssignmentNodeServiceTests extends ESTestCase {
         );
         trainedModelAssignmentNodeService.clusterChanged(event);
 
-        trainedModelAssignmentNodeService.loadQueuedModels();
+        loadQueuedModels(trainedModelAssignmentNodeService, true);
+        loadQueuedModels(trainedModelAssignmentNodeService, false);
 
         assertBusy(() -> {
             ArgumentCaptor<TrainedModelDeploymentTask> stoppedTaskCapture = ArgumentCaptor.forClass(TrainedModelDeploymentTask.class);
@@ -737,7 +751,7 @@ public class TrainedModelAssignmentNodeServiceTests extends ESTestCase {
                             TrainedModelAssignmentMetadata.Builder.empty()
                                 .addNewAssignment(
                                     deploymentOne,
-                                    TrainedModelAssignment.Builder.empty(newParams(deploymentOne, modelOne))
+                                    TrainedModelAssignment.Builder.empty(newParams(deploymentOne, modelOne), null)
                                         .addRoutingEntry(NODE_ID, new RoutingInfo(1, 1, RoutingState.STARTING, ""))
                                 )
                                 .build()
@@ -749,7 +763,7 @@ public class TrainedModelAssignmentNodeServiceTests extends ESTestCase {
         );
         trainedModelAssignmentNodeService.clusterChanged(event);
 
-        trainedModelAssignmentNodeService.loadQueuedModels();
+        loadQueuedModels(trainedModelAssignmentNodeService);
 
         verifyNoMoreInteractions(deploymentManager, trainedModelAssignmentService);
     }
@@ -764,7 +778,8 @@ public class TrainedModelAssignmentNodeServiceTests extends ESTestCase {
         givenAssignmentsInClusterStateForModels(List.of(deploymentOne, deploymentTwo), List.of(modelOne, modelTwo));
         trainedModelAssignmentNodeService.prepareModelToLoad(newParams(deploymentOne, modelOne));
         trainedModelAssignmentNodeService.prepareModelToLoad(newParams(deploymentTwo, modelTwo));
-        trainedModelAssignmentNodeService.loadQueuedModels();
+        loadQueuedModels(trainedModelAssignmentNodeService, true);
+        loadQueuedModels(trainedModelAssignmentNodeService, false);
 
         ClusterChangedEvent event = new ClusterChangedEvent(
             "shouldUpdateAllocations",
@@ -778,12 +793,12 @@ public class TrainedModelAssignmentNodeServiceTests extends ESTestCase {
                             TrainedModelAssignmentMetadata.Builder.empty()
                                 .addNewAssignment(
                                     deploymentOne,
-                                    TrainedModelAssignment.Builder.empty(newParams(deploymentOne, modelOne))
+                                    TrainedModelAssignment.Builder.empty(newParams(deploymentOne, modelOne), null)
                                         .addRoutingEntry(NODE_ID, new RoutingInfo(1, 3, RoutingState.STARTED, ""))
                                 )
                                 .addNewAssignment(
                                     deploymentTwo,
-                                    TrainedModelAssignment.Builder.empty(newParams(deploymentTwo, modelTwo))
+                                    TrainedModelAssignment.Builder.empty(newParams(deploymentTwo, modelTwo), null)
                                         .addRoutingEntry(NODE_ID, new RoutingInfo(2, 1, RoutingState.STARTED, ""))
                                 )
                                 .build()
@@ -830,7 +845,7 @@ public class TrainedModelAssignmentNodeServiceTests extends ESTestCase {
         for (int i = 0; i < modelIds.size(); i++) {
             builder.addNewAssignment(
                 deploymentIds.get(i),
-                TrainedModelAssignment.Builder.empty(newParams(deploymentIds.get(i), modelIds.get(i)))
+                TrainedModelAssignment.Builder.empty(newParams(deploymentIds.get(i), modelIds.get(i)), null)
                     .addRoutingEntry("test-node", new RoutingInfo(1, 1, RoutingState.STARTING, ""))
             );
         }

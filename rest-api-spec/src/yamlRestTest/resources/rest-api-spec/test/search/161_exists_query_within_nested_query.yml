@@ -539,8 +539,8 @@ setup:
 
 ---
 "Test exists query within nested query on mapped binary field with no doc values":
-  - skip:
-      version: " - 7.99.99"
+  - requires:
+      cluster_features: ["gte_v8.0.0"]
       reason: "Fixed in 7.16 (backport pending)"
   - do:
       search:
@@ -558,8 +558,8 @@ setup:
 
 ---
 "Test exists query within nested query on mapped boolean field with no doc values":
-  - skip:
-      version: " - 7.99.99"
+  - requires:
+      cluster_features: ["gte_v8.0.0"]
       reason: "Fixed in 7.16 (backport pending)"
   - do:
       search:
@@ -577,8 +577,8 @@ setup:
 
 ---
 "Test exists query within nested query on mapped date field with no doc values":
-  - skip:
-      version: " - 7.99.99"
+  - requires:
+      cluster_features: ["gte_v8.0.0"]
       reason: "Fixed in 7.16 (backport pending)"
   - do:
       search:
@@ -596,8 +596,8 @@ setup:
 
 ---
 "Test exists query within nested query on mapped geo_point field with no doc values":
-  - skip:
-      version: " - 7.99.99"
+  - requires:
+      cluster_features: ["gte_v8.0.0"]
       reason: "Fixed in 7.16 (backport pending)"
   - do:
       search:
@@ -616,8 +616,8 @@ setup:
 
 ---
 "Test exists query within nested query on mapped ip field with no doc values":
-  - skip:
-      version: " - 7.99.99"
+  - requires:
+      cluster_features: ["gte_v8.0.0"]
       reason: "Fixed in 7.16 (backport pending)"
   - do:
       search:
@@ -635,8 +635,8 @@ setup:
 
 ---
 "Test exists query within nested query on mapped keyword field with no doc values":
-  - skip:
-      version: " - 7.99.99"
+  - requires:
+      cluster_features: ["gte_v8.0.0"]
       reason: "Fixed in 7.16 (backport pending)"
   - do:
       search:
@@ -654,8 +654,8 @@ setup:
 
 ---
 "Test exists query within nested query on mapped byte field with no doc values":
-  - skip:
-      version: " - 7.99.99"
+  - requires:
+      cluster_features: ["gte_v8.0.0"]
       reason: "Fixed in 7.16 (backport pending)"
   - do:
       search:
@@ -673,8 +673,8 @@ setup:
 
 ---
 "Test exists query within nested query on mapped double field with no doc values":
-  - skip:
-      version: " - 7.99.99"
+  - requires:
+      cluster_features: ["gte_v8.0.0"]
       reason: "Fixed in 7.16 (backport pending)"
   - do:
       search:
@@ -692,8 +692,8 @@ setup:
 
 ---
 "Test exists query within nested query on mapped float field with no doc values":
-  - skip:
-      version: " - 7.99.99"
+  - requires:
+      cluster_features: ["gte_v8.0.0"]
       reason: "Fixed in 7.16 (backport pending)"
   - do:
       search:
@@ -711,8 +711,8 @@ setup:
 
 ---
 "Test exists query within nested query on mapped half_float field with no doc values":
-  - skip:
-      version: " - 7.99.99"
+  - requires:
+      cluster_features: ["gte_v8.0.0"]
       reason: "Fixed in 7.16 (backport pending)"
   - do:
       search:
@@ -730,8 +730,8 @@ setup:
 
 ---
 "Test exists query within nested query on mapped integer field with no doc values":
-  - skip:
-      version: " - 7.99.99"
+  - requires:
+      cluster_features: ["gte_v8.0.0"]
       reason: "Fixed in 7.16 (backport pending)"
   - do:
       search:
@@ -749,8 +749,8 @@ setup:
 
 ---
 "Test exists query within nested query on mapped long field with no doc values":
-  - skip:
-      version: " - 7.99.99"
+  - requires:
+      cluster_features: ["gte_v8.0.0"]
       reason: "Fixed in 7.16 (backport pending)"
   - do:
       search:
@@ -768,8 +768,8 @@ setup:
 
 ---
 "Test exists query within nested query on mapped short field with no doc values":
-  - skip:
-      version: " - 7.99.99"
+  - requires:
+      cluster_features: ["gte_v8.0.0"]
       reason: "Fixed in 7.16 (backport pending)"
   - do:
       search:
@@ -787,8 +787,8 @@ setup:
 
 ---
 "Test exists query within nested query on mapped object field with no doc values":
-  - skip:
-      version: " - 7.99.99"
+  - requires:
+      cluster_features: ["gte_v8.0.0"]
       reason: "Fixed in 7.16 (backport pending)"
   - do:
       search:
@@ -806,8 +806,8 @@ setup:
 
 ---
 "Test exists query within nested query on mapped object inner field with no doc values":
-  - skip:
-      version: " - 7.99.99"
+  - requires:
+      cluster_features: ["gte_v8.0.0"]
       reason: "Fixed in 7.16 (backport pending)"
   - do:
       search:

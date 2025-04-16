@@ -1,14 +1,14 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.search;
 
-import org.apache.lucene.index.PrefixCodedTerms;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanClause.Occur;
 import org.apache.lucene.search.BooleanQuery;
@@ -21,29 +21,21 @@ import org.apache.lucene.search.PointRangeQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermInSetQuery;
 import org.apache.lucene.search.TermQuery;
-import org.elasticsearch.index.mapper.NestedLookup;
 import org.elasticsearch.index.mapper.NestedObjectMapper;
-
-import java.util.function.Predicate;
+import org.elasticsearch.index.query.SearchExecutionContext;
 
 /** Utility class to filter parent and children clauses when building nested
  * queries. */
 public final class NestedHelper {
 
-    private final NestedLookup nestedLookup;
-    private final Predicate<String> isMappedFieldPredicate;
-
-    public NestedHelper(NestedLookup nestedLookup, Predicate<String> isMappedFieldPredicate) {
-        this.nestedLookup = nestedLookup;
-        this.isMappedFieldPredicate = isMappedFieldPredicate;
-    }
+    private NestedHelper() {}
 
     /** Returns true if the given query might match nested documents. */
-    public boolean mightMatchNestedDocs(Query query) {
+    public static boolean mightMatchNestedDocs(Query query, SearchExecutionContext searchExecutionContext) {
         if (query instanceof ConstantScoreQuery) {
-            return mightMatchNestedDocs(((ConstantScoreQuery) query).getQuery());
+            return mightMatchNestedDocs(((ConstantScoreQuery) query).getQuery(), searchExecutionContext);
         } else if (query instanceof BoostQuery) {
-            return mightMatchNestedDocs(((BoostQuery) query).getQuery());
+            return mightMatchNestedDocs(((BoostQuery) query).getQuery(), searchExecutionContext);
         } else if (query instanceof MatchAllDocsQuery) {
             return true;
         } else if (query instanceof MatchNoDocsQuery) {
@@ -51,34 +43,31 @@ public final class NestedHelper {
         } else if (query instanceof TermQuery) {
             // We only handle term(s) queries and range queries, which should already
             // cover a high majority of use-cases
-            return mightMatchNestedDocs(((TermQuery) query).getTerm().field());
-        } else if (query instanceof TermInSetQuery) {
-            PrefixCodedTerms terms = ((TermInSetQuery) query).getTermData();
-            if (terms.size() > 0) {
-                PrefixCodedTerms.TermIterator it = terms.iterator();
-                it.next();
-                return mightMatchNestedDocs(it.field());
+            return mightMatchNestedDocs(((TermQuery) query).getTerm().field(), searchExecutionContext);
+        } else if (query instanceof TermInSetQuery tis) {
+            if (tis.getTermsCount() > 0) {
+                return mightMatchNestedDocs(tis.getField(), searchExecutionContext);
             } else {
                 return false;
             }
         } else if (query instanceof PointRangeQuery) {
-            return mightMatchNestedDocs(((PointRangeQuery) query).getField());
+            return mightMatchNestedDocs(((PointRangeQuery) query).getField(), searchExecutionContext);
         } else if (query instanceof IndexOrDocValuesQuery) {
-            return mightMatchNestedDocs(((IndexOrDocValuesQuery) query).getIndexQuery());
+            return mightMatchNestedDocs(((IndexOrDocValuesQuery) query).getIndexQuery(), searchExecutionContext);
         } else if (query instanceof final BooleanQuery bq) {
             final boolean hasRequiredClauses = bq.clauses().stream().anyMatch(BooleanClause::isRequired);
             if (hasRequiredClauses) {
                 return bq.clauses()
                     .stream()
                     .filter(BooleanClause::isRequired)
-                    .map(BooleanClause::getQuery)
-                    .allMatch(this::mightMatchNestedDocs);
+                    .map(BooleanClause::query)
+                    .allMatch(f -> mightMatchNestedDocs(f, searchExecutionContext));
             } else {
                 return bq.clauses()
                     .stream()
-                    .filter(c -> c.getOccur() == Occur.SHOULD)
-                    .map(BooleanClause::getQuery)
-                    .anyMatch(this::mightMatchNestedDocs);
+                    .filter(c -> c.occur() == Occur.SHOULD)
+                    .map(BooleanClause::query)
+                    .anyMatch(f -> mightMatchNestedDocs(f, searchExecutionContext));
             }
         } else if (query instanceof ESToParentBlockJoinQuery) {
             return ((ESToParentBlockJoinQuery) query).getPath() != null;
@@ -88,7 +77,7 @@ public final class NestedHelper {
     }
 
     /** Returns true if a query on the given field might match nested documents. */
-    boolean mightMatchNestedDocs(String field) {
+    private static boolean mightMatchNestedDocs(String field, SearchExecutionContext searchExecutionContext) {
         if (field.startsWith("_")) {
             // meta field. Every meta field behaves differently, eg. nested
             // documents have the same _uid as their parent, put their path in
@@ -97,53 +86,50 @@ public final class NestedHelper {
             // we might add a nested filter when it is nor required.
             return true;
         }
-        if (isMappedFieldPredicate.test(field) == false) {
+        if (searchExecutionContext.isFieldMapped(field) == false) {
             // field does not exist
             return false;
         }
-        return nestedLookup.getNestedParent(field) != null;
+        return searchExecutionContext.nestedLookup().getNestedParent(field) != null;
     }
 
     /** Returns true if the given query might match parent documents or documents
      *  that are nested under a different path. */
-    public boolean mightMatchNonNestedDocs(Query query, String nestedPath) {
+    public static boolean mightMatchNonNestedDocs(Query query, String nestedPath, SearchExecutionContext searchExecutionContext) {
         if (query instanceof ConstantScoreQuery) {
-            return mightMatchNonNestedDocs(((ConstantScoreQuery) query).getQuery(), nestedPath);
+            return mightMatchNonNestedDocs(((ConstantScoreQuery) query).getQuery(), nestedPath, searchExecutionContext);
         } else if (query instanceof BoostQuery) {
-            return mightMatchNonNestedDocs(((BoostQuery) query).getQuery(), nestedPath);
+            return mightMatchNonNestedDocs(((BoostQuery) query).getQuery(), nestedPath, searchExecutionContext);
         } else if (query instanceof MatchAllDocsQuery) {
             return true;
         } else if (query instanceof MatchNoDocsQuery) {
             return false;
         } else if (query instanceof TermQuery) {
-            return mightMatchNonNestedDocs(((TermQuery) query).getTerm().field(), nestedPath);
-        } else if (query instanceof TermInSetQuery) {
-            PrefixCodedTerms terms = ((TermInSetQuery) query).getTermData();
-            if (terms.size() > 0) {
-                PrefixCodedTerms.TermIterator it = terms.iterator();
-                it.next();
-                return mightMatchNonNestedDocs(it.field(), nestedPath);
+            return mightMatchNonNestedDocs(searchExecutionContext, ((TermQuery) query).getTerm().field(), nestedPath);
+        } else if (query instanceof TermInSetQuery tis) {
+            if (tis.getTermsCount() > 0) {
+                return mightMatchNonNestedDocs(searchExecutionContext, tis.getField(), nestedPath);
             } else {
                 return false;
             }
         } else if (query instanceof PointRangeQuery) {
-            return mightMatchNonNestedDocs(((PointRangeQuery) query).getField(), nestedPath);
+            return mightMatchNonNestedDocs(searchExecutionContext, ((PointRangeQuery) query).getField(), nestedPath);
         } else if (query instanceof IndexOrDocValuesQuery) {
-            return mightMatchNonNestedDocs(((IndexOrDocValuesQuery) query).getIndexQuery(), nestedPath);
+            return mightMatchNonNestedDocs(((IndexOrDocValuesQuery) query).getIndexQuery(), nestedPath, searchExecutionContext);
         } else if (query instanceof final BooleanQuery bq) {
             final boolean hasRequiredClauses = bq.clauses().stream().anyMatch(BooleanClause::isRequired);
             if (hasRequiredClauses) {
                 return bq.clauses()
                     .stream()
                     .filter(BooleanClause::isRequired)
-                    .map(BooleanClause::getQuery)
-                    .allMatch(q -> mightMatchNonNestedDocs(q, nestedPath));
+                    .map(BooleanClause::query)
+                    .allMatch(q -> mightMatchNonNestedDocs(q, nestedPath, searchExecutionContext));
             } else {
                 return bq.clauses()
                     .stream()
-                    .filter(c -> c.getOccur() == Occur.SHOULD)
-                    .map(BooleanClause::getQuery)
-                    .anyMatch(q -> mightMatchNonNestedDocs(q, nestedPath));
+                    .filter(c -> c.occur() == Occur.SHOULD)
+                    .map(BooleanClause::query)
+                    .anyMatch(q -> mightMatchNonNestedDocs(q, nestedPath, searchExecutionContext));
             }
         } else {
             return true;
@@ -152,7 +138,7 @@ public final class NestedHelper {
 
     /** Returns true if a query on the given field might match parent documents
      *  or documents that are nested under a different path. */
-    boolean mightMatchNonNestedDocs(String field, String nestedPath) {
+    private static boolean mightMatchNonNestedDocs(SearchExecutionContext searchExecutionContext, String field, String nestedPath) {
         if (field.startsWith("_")) {
             // meta field. Every meta field behaves differently, eg. nested
             // documents have the same _uid as their parent, put their path in
@@ -161,9 +147,10 @@ public final class NestedHelper {
             // we might add a nested filter when it is nor required.
             return true;
         }
-        if (isMappedFieldPredicate.test(field) == false) {
+        if (searchExecutionContext.isFieldMapped(field) == false) {
             return false;
         }
+        var nestedLookup = searchExecutionContext.nestedLookup();
         String nestedParent = nestedLookup.getNestedParent(field);
         if (nestedParent == null || nestedParent.startsWith(nestedPath) == false) {
             // the field is not a sub field of the nested path
@@ -177,5 +164,4 @@ public final class NestedHelper {
         }
         return true;
     }
-
 }

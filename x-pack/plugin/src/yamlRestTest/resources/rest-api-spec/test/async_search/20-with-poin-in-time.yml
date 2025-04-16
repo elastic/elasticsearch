@@ -1,7 +1,7 @@
 ---
 "Async search with point in time":
-  - skip:
-      version: " - 7.9.99"
+  - requires:
+      cluster_features: ["gte_v7.10.0"]
       reason: "point in time is introduced in 7.10"
   - do:
       indices.create:

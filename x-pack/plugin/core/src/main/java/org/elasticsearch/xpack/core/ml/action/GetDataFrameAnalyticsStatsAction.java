@@ -356,7 +356,7 @@ public class GetDataFrameAnalyticsStatsAction extends ActionType<GetDataFrameAna
             }
         }
 
-        private QueryPage<Stats> stats;
+        private final QueryPage<Stats> stats;
 
         public Response(QueryPage<Stats> stats) {
             this(Collections.emptyList(), Collections.emptyList(), stats);

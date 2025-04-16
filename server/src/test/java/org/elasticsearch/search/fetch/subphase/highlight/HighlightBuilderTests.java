@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.fetch.subphase.highlight;
@@ -17,12 +18,16 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
+import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperBuilderContext;
+import org.elasticsearch.index.mapper.MapperMetrics;
 import org.elasticsearch.index.mapper.MappingLookup;
+import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.index.mapper.TextFieldMapper;
 import org.elasticsearch.index.query.IdsQueryBuilder;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
@@ -43,6 +48,7 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParseException;
 import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.junit.AfterClass;
@@ -313,11 +319,16 @@ public class HighlightBuilderTests extends ESTestCase {
             null,
             () -> true,
             null,
-            emptyMap()
+            emptyMap(),
+            MapperMetrics.NOOP
         ) {
             @Override
             public MappedFieldType getFieldType(String name) {
-                TextFieldMapper.Builder builder = new TextFieldMapper.Builder(name, createDefaultIndexAnalyzers());
+                TextFieldMapper.Builder builder = new TextFieldMapper.Builder(
+                    name,
+                    createDefaultIndexAnalyzers(),
+                    SourceFieldMapper.isSynthetic(idxSettings)
+                );
                 return builder.build(MapperBuilderContext.root(false, false)).fieldType();
             }
         };
@@ -328,8 +339,6 @@ public class HighlightBuilderTests extends ESTestCase {
             highlightBuilder = Rewriteable.rewrite(highlightBuilder, mockContext);
             SearchHighlightContext highlight = highlightBuilder.build(mockContext);
             for (SearchHighlightContext.Field field : highlight.fields()) {
-                String encoder = highlightBuilder.encoder() != null ? highlightBuilder.encoder() : HighlightBuilder.DEFAULT_ENCODER;
-                assertEquals(encoder, field.fieldOptions().encoder());
                 final Field fieldBuilder = getFieldBuilderByName(highlightBuilder, field.field());
                 assertNotNull("expected a highlight builder for field " + field.field(), fieldBuilder);
                 FieldOptions fieldOptions = field.fieldOptions();
@@ -340,6 +349,7 @@ public class HighlightBuilderTests extends ESTestCase {
                     fieldOptions
                 );
 
+                checkSame.accept(AbstractHighlighterBuilder::encoder, FieldOptions::encoder);
                 checkSame.accept(AbstractHighlighterBuilder::boundaryChars, FieldOptions::boundaryChars);
                 checkSame.accept(AbstractHighlighterBuilder::boundaryScannerType, FieldOptions::boundaryScannerType);
                 checkSame.accept(AbstractHighlighterBuilder::boundaryMaxScan, FieldOptions::boundaryMaxScan);
@@ -407,12 +417,8 @@ public class HighlightBuilderTests extends ESTestCase {
             Object actualValue = fieldOptionsParameterAccessor.apply(options);
             if (actualValue instanceof String[]) {
                 assertArrayEquals((String[]) expectedValue, (String[]) actualValue);
-            } else if (actualValue instanceof Character[]) {
-                if (expectedValue instanceof char[]) {
-                    assertArrayEquals(HighlightBuilder.convertCharArray((char[]) expectedValue), (Character[]) actualValue);
-                } else {
-                    assertArrayEquals((Character[]) expectedValue, (Character[]) actualValue);
-                }
+            } else if (actualValue instanceof char[]) {
+                assertArrayEquals((char[]) expectedValue, (char[]) actualValue);
             } else {
                 assertEquals(expectedValue, actualValue);
             }
@@ -473,6 +479,49 @@ public class HighlightBuilderTests extends ESTestCase {
                 highlightBuilder.postTags()
             );
 
+        }
+
+        highlightElement = """
+            {
+                "fields": {
+                    "default_string": {
+                        "tags_schema": "default"
+                    },
+                    "styled_string": {
+                        "tags_schema": "styled"
+                    }
+                }
+            }
+            """;
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, highlightElement)) {
+
+            HighlightBuilder highlightBuilder = HighlightBuilder.fromXContent(parser);
+            Field defaultStringField = getFieldBuilderByName(highlightBuilder, "default_string");
+            assertNotNull(defaultStringField);
+            assertArrayEquals(
+                "setting tags_schema 'default' at the field level should alter pre_tags for that field",
+                HighlightBuilder.DEFAULT_PRE_TAGS,
+                defaultStringField.preTags()
+            );
+            assertArrayEquals(
+                "setting tags_schema 'default' at the field level should alter post_tags for that that field",
+                HighlightBuilder.DEFAULT_POST_TAGS,
+                defaultStringField.postTags()
+            );
+
+            Field styledStringField = getFieldBuilderByName(highlightBuilder, "styled_string");
+            assertNotNull(styledStringField);
+            assertArrayEquals(
+                "setting tags_schema 'styled' at the field level should alter pre_tags for that that field",
+                HighlightBuilder.DEFAULT_STYLED_PRE_TAG,
+                styledStringField.preTags()
+            );
+            assertArrayEquals(
+                "setting tags_schema 'styled' at the field level should alter post_tags for that that field",
+                HighlightBuilder.DEFAULT_STYLED_POST_TAGS,
+                styledStringField.postTags()
+            );
+
             XContentParseException e = expectParseThrows(XContentParseException.class, """
                 {
                     "tags_schema" : "somthing_else"
@@ -531,10 +580,10 @@ public class HighlightBuilderTests extends ESTestCase {
     public void testInvalidMaxAnalyzedOffset() throws IOException {
         XContentParseException e = expectParseThrows(
             XContentParseException.class,
-            "{ \"max_analyzed_offset\" : " + randomIntBetween(-100, 0) + "}"
+            "{ \"max_analyzed_offset\" : " + randomIntBetween(-100, -2) + "}"
         );
         assertThat(e.getMessage(), containsString("[highlight] failed to parse field [" + MAX_ANALYZED_OFFSET_FIELD.toString() + "]"));
-        assertThat(e.getCause().getMessage(), containsString("[max_analyzed_offset] must be a positive integer"));
+        assertThat(e.getCause().getMessage(), containsString("[max_analyzed_offset] must be a positive integer, or -1"));
     }
 
     /**
@@ -561,15 +610,34 @@ public class HighlightBuilderTests extends ESTestCase {
         }
     }
 
-    public void testForceSourceDeprecation() throws IOException {
+    public void testForceSourceRemovedInV9() throws IOException {
         String highlightJson = """
             { "fields" : { }, "force_source" : true }
             """;
-        try (XContentParser parser = createParser(JsonXContent.jsonXContent, highlightJson)) {
-            HighlightBuilder.fromXContent(parser);
-        }
 
-        assertWarnings("Deprecated field [force_source] used, this field is unused and will be removed entirely");
+        XContentParserConfiguration config = XContentParserConfiguration.EMPTY.withRegistry(xContentRegistry())
+            .withDeprecationHandler(LoggingDeprecationHandler.INSTANCE)
+            .withRestApiVersion(RestApiVersion.V_9);
+        try (XContentParser parser = JsonXContent.jsonXContent.createParser(config, highlightJson)) {
+            XContentParseException xContentParseException = expectThrows(
+                XContentParseException.class,
+                () -> HighlightBuilder.fromXContent(parser)
+            );
+            assertThat(xContentParseException.getMessage(), containsString("unknown field [force_source]"));
+        }
+    }
+
+    public void testForceSourceV8Comp() throws IOException {
+        String highlightJson = """
+            { "fields" : { }, "force_source" : true }
+            """;
+        XContentParserConfiguration config = XContentParserConfiguration.EMPTY.withRegistry(xContentRegistry())
+            .withDeprecationHandler(LoggingDeprecationHandler.INSTANCE)
+            .withRestApiVersion(RestApiVersion.V_8);
+        try (XContentParser parser = JsonXContent.jsonXContent.createParser(config, highlightJson)) {
+            HighlightBuilder.fromXContent(parser);
+            assertWarnings("Deprecated field [force_source] used, this field is unused and will be removed entirely");
+        }
     }
 
     protected static XContentBuilder toXContent(HighlightBuilder highlight, XContentType contentType) throws IOException {
@@ -588,9 +656,6 @@ public class HighlightBuilderTests extends ESTestCase {
         HighlightBuilder testHighlighter = new HighlightBuilder();
         setRandomCommonOptions(testHighlighter);
         testHighlighter.useExplicitFieldOrder(randomBoolean());
-        if (randomBoolean()) {
-            testHighlighter.encoder(randomFrom(Arrays.asList(new String[] { "default", "html" })));
-        }
         int numberOfFields = randomIntBetween(1, 5);
         for (int i = 0; i < numberOfFields; i++) {
             Field field = new Field(i + "_" + randomAlphaOfLengthBetween(1, 10));
@@ -610,8 +675,11 @@ public class HighlightBuilderTests extends ESTestCase {
     private static void setRandomCommonOptions(AbstractHighlighterBuilder highlightBuilder) {
         if (randomBoolean()) {
             // need to set this together, otherwise parsing will complain
-            highlightBuilder.preTags(randomStringArray(0, 3));
-            highlightBuilder.postTags(randomStringArray(0, 3));
+            highlightBuilder.preTags(randomStringArray(1, 3));
+            highlightBuilder.postTags(randomStringArray(1, 3));
+        }
+        if (randomBoolean()) {
+            highlightBuilder.encoder(randomFrom(Arrays.asList("default", "html")));
         }
         if (randomBoolean()) {
             highlightBuilder.fragmentSize(randomIntBetween(0, 100));

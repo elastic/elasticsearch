@@ -21,7 +21,12 @@ import org.junit.rules.TestRule;
 @ThreadLeakFilters(filters = { TestContainersThreadFilter.class })
 public class MinioSearchableSnapshotsIT extends AbstractSearchableSnapshotsRestTestCase {
 
-    public static final MinioTestContainer minioFixture = new MinioTestContainer();
+    public static final MinioTestContainer minioFixture = new MinioTestContainer(
+        true,
+        "s3_test_access_key",
+        "s3_test_secret_key",
+        "bucket"
+    );
 
     public static ElasticsearchCluster cluster = ElasticsearchCluster.local()
         .distribution(DistributionType.DEFAULT)

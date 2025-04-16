@@ -4,26 +4,27 @@
 setup:
   - do:
       indices.create:
-          index:  test
+        index: test
 
   - do:
       index:
-        index:  test
-        id:     "1"
-        body:   { "important_field": "foo" }
+        index: test
+        id: "1"
+        body: { "important_field": "foo" }
   - do:
-        index:
-          index:  test
-          id:     "2"
-          body:   { "important_field": "foo foo foo" }
+      index:
+        index: test
+        id: "2"
+        body: { "important_field": "foo foo foo" }
   - do:
-        index:
-          index:  test
-          id:     "3"
-          body:   { "important_field": "foo foo" }
+      index:
+        index: test
+        id: "3"
+        body: { "important_field": "foo foo" }
 
   - do:
-      indices.refresh: {}
+      indices.refresh: { }
+
 ---
 "document scoring":
   - do:
@@ -46,6 +47,39 @@ setup:
                         term: "foo"
 
   - length: { hits.hits: 3 }
-  - match: {hits.hits.0._id: "2" }
-  - match: {hits.hits.1._id: "3" }
-  - match: {hits.hits.2._id: "1" }
+  - match: { hits.hits.0._id: "2" }
+  - match: { hits.hits.1._id: "3" }
+  - match: { hits.hits.2._id: "1" }
+
+---
+"document scoring with custom explanation":
+
+  - requires:
+      cluster_features: [ "gte_v8.15.1" ]
+      reason: "bug fixed where explanations were throwing npe prior to 8.16"
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test
+        body:
+          explain: true
+          query:
+            function_score:
+              query:
+                match:
+                  important_field: "foo"
+              functions:
+                - script_score:
+                    script:
+                      source: "pure_df"
+                      lang: "expert_scripts"
+                      params:
+                        field: "important_field"
+                        term: "foo"
+
+  - length: { hits.hits: 3 }
+  - match: { hits.hits.0._id: "2" }
+  - match: { hits.hits.1._id: "3" }
+  - match: { hits.hits.2._id: "1" }
+  - match: { hits.hits.0._explanation.details.1.details.0.description: "An example optional custom description to explain details for this script's execution; we'll provide a default one if you leave this out." }

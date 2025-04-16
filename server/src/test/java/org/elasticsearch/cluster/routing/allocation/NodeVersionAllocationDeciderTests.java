@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.cluster.routing.allocation;
@@ -92,7 +93,7 @@ public class NodeVersionAllocationDeciderTests extends ESAllocationTestCase {
             .build();
 
         RoutingTable initialRoutingTable = RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY)
-            .addAsNew(metadata.index("test"))
+            .addAsNew(metadata.getProject().index("test"))
             .build();
 
         ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT).metadata(metadata).routingTable(initialRoutingTable).build();
@@ -198,7 +199,7 @@ public class NodeVersionAllocationDeciderTests extends ESAllocationTestCase {
         Metadata metadata = builder.build();
 
         for (int i = 0; i < numIndices; i++) {
-            rtBuilder.addAsNew(metadata.index("test_" + i));
+            rtBuilder.addAsNew(metadata.getProject().index("test_" + i));
         }
         RoutingTable routingTable = rtBuilder.build();
 
@@ -217,14 +218,12 @@ public class NodeVersionAllocationDeciderTests extends ESAllocationTestCase {
                 for (int j = nodes.size(); j < numNodes; j++) {
                     if (frequently()) {
                         if (randomBoolean()) {
-                            nodes.add(
-                                newNode("node" + (nodeIdx++), VersionUtils.getPreviousVersion(), IndexVersionUtils.getPreviousVersion())
-                            );
+                            nodes.add(newNode("node" + (nodeIdx++), VersionUtils.getPreviousVersion(), IndexVersion.current()));
                         } else {
                             nodes.add(newNode("node" + (nodeIdx++), Version.CURRENT, IndexVersion.current()));
                         }
                     } else {
-                        nodes.add(newNode("node" + (nodeIdx++), VersionUtils.randomVersion(random()), IndexVersionUtils.randomVersion()));
+                        nodes.add(newNode("node" + (nodeIdx++), VersionUtils.randomVersion(random()), IndexVersion.current()));
                     }
                 }
             }
@@ -252,7 +251,7 @@ public class NodeVersionAllocationDeciderTests extends ESAllocationTestCase {
             .build();
 
         RoutingTable routingTable = RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY)
-            .addAsNew(metadata.index("test"))
+            .addAsNew(metadata.getProject().index("test"))
             .build();
 
         ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT).metadata(metadata).routingTable(routingTable).build();
@@ -270,9 +269,9 @@ public class NodeVersionAllocationDeciderTests extends ESAllocationTestCase {
         clusterState = ClusterState.builder(clusterState)
             .nodes(
                 DiscoveryNodes.builder()
-                    .add(newNode("old0", VersionUtils.getPreviousVersion(), IndexVersionUtils.getPreviousVersion()))
-                    .add(newNode("old1", VersionUtils.getPreviousVersion(), IndexVersionUtils.getPreviousVersion()))
-                    .add(newNode("old2", VersionUtils.getPreviousVersion(), IndexVersionUtils.getPreviousVersion()))
+                    .add(newNode("old0", VersionUtils.getPreviousVersion(), IndexVersion.current()))
+                    .add(newNode("old1", VersionUtils.getPreviousVersion(), IndexVersion.current()))
+                    .add(newNode("old2", VersionUtils.getPreviousVersion(), IndexVersion.current()))
             )
             .build();
         clusterState = stabilize(clusterState, service);
@@ -280,8 +279,8 @@ public class NodeVersionAllocationDeciderTests extends ESAllocationTestCase {
         clusterState = ClusterState.builder(clusterState)
             .nodes(
                 DiscoveryNodes.builder()
-                    .add(newNode("old0", VersionUtils.getPreviousVersion(), IndexVersionUtils.getPreviousVersion()))
-                    .add(newNode("old1", VersionUtils.getPreviousVersion(), IndexVersionUtils.getPreviousVersion()))
+                    .add(newNode("old0", VersionUtils.getPreviousVersion(), IndexVersion.current()))
+                    .add(newNode("old1", VersionUtils.getPreviousVersion(), IndexVersion.current()))
                     .add(newNode("new0"))
             )
             .build();
@@ -291,7 +290,7 @@ public class NodeVersionAllocationDeciderTests extends ESAllocationTestCase {
         clusterState = ClusterState.builder(clusterState)
             .nodes(
                 DiscoveryNodes.builder()
-                    .add(newNode("node0", VersionUtils.getPreviousVersion(), IndexVersionUtils.getPreviousVersion()))
+                    .add(newNode("node0", VersionUtils.getPreviousVersion(), IndexVersion.current()))
                     .add(newNode("new1"))
                     .add(newNode("new0"))
             )
@@ -321,11 +320,11 @@ public class NodeVersionAllocationDeciderTests extends ESAllocationTestCase {
         final DiscoveryNode newNode = DiscoveryNodeUtils.builder("newNode").roles(MASTER_DATA_ROLES).build();
         final DiscoveryNode oldNode1 = DiscoveryNodeUtils.builder("oldNode1")
             .roles(MASTER_DATA_ROLES)
-            .version(VersionUtils.getPreviousVersion(), IndexVersions.MINIMUM_COMPATIBLE, IndexVersionUtils.getPreviousVersion())
+            .version(VersionUtils.getPreviousVersion(), IndexVersions.MINIMUM_COMPATIBLE, IndexVersion.current())
             .build();
         final DiscoveryNode oldNode2 = DiscoveryNodeUtils.builder("oldNode2")
             .roles(MASTER_DATA_ROLES)
-            .version(VersionUtils.getPreviousVersion(), IndexVersions.MINIMUM_COMPATIBLE, IndexVersionUtils.getPreviousVersion())
+            .version(VersionUtils.getPreviousVersion(), IndexVersions.MINIMUM_COMPATIBLE, IndexVersion.current())
             .build();
         AllocationId allocationId1P = AllocationId.newInitializing();
         AllocationId allocationId1R = AllocationId.newInitializing();
@@ -431,7 +430,7 @@ public class NodeVersionAllocationDeciderTests extends ESAllocationTestCase {
         Metadata metadata = Metadata.builder().put(indexMetadata).build();
 
         final Map<InternalSnapshotsInfoService.SnapshotShard, Long> snapshotShardSizes = new HashMap<>(numberOfShards);
-        final Index index = metadata.index("test").getIndex();
+        final Index index = metadata.getProject().index("test").getIndex();
         for (int i = 0; i < numberOfShards; i++) {
             final ShardId shardId = new ShardId(index, i);
             snapshotShardSizes.put(new InternalSnapshotsInfoService.SnapshotShard(snapshot, indexId, shardId), randomNonNegativeLong());
@@ -442,7 +441,7 @@ public class NodeVersionAllocationDeciderTests extends ESAllocationTestCase {
             .routingTable(
                 RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY)
                     .addAsRestore(
-                        metadata.index("test"),
+                        metadata.getProject().index("test"),
                         new SnapshotRecoverySource(UUIDs.randomBase64UUID(), snapshot, IndexVersion.current(), indexId)
                     )
                     .build()
@@ -547,7 +546,7 @@ public class NodeVersionAllocationDeciderTests extends ESAllocationTestCase {
             .build();
 
         RoutingTable initialRoutingTable = RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY)
-            .addAsNew(metadata.index("test"))
+            .addAsNew(metadata.getProject().index("test"))
             .build();
 
         RoutingNode newNode = RoutingNodesHelper.routingNode("newNode", newNode("newNode", Version.CURRENT, IndexVersion.current()));
@@ -653,7 +652,6 @@ public class NodeVersionAllocationDeciderTests extends ESAllocationTestCase {
         };
         final RoutingNodes routingNodes = clusterState.mutableRoutingNodes();
         final ShardRouting startedPrimary = routingNodes.startShard(
-            logger,
             routingNodes.initializeShard(primaryShard, "newNode", null, 0, routingChangesObserver),
             routingChangesObserver,
             ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE
@@ -675,8 +673,7 @@ public class NodeVersionAllocationDeciderTests extends ESAllocationTestCase {
         );
 
         routingNodes.startShard(
-            logger,
-            routingNodes.relocateShard(startedPrimary, "oldNode", 0, routingChangesObserver).v2(),
+            routingNodes.relocateShard(startedPrimary, "oldNode", 0, "test", routingChangesObserver).v2(),
             routingChangesObserver,
             ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE
         );

@@ -72,7 +72,8 @@ public class JobStorageDeletionTaskIT extends BaseMlIntegTestCase {
                     ResultsPersisterService.PERSIST_RESULTS_MAX_RETRIES,
                     OperationRouting.USE_ADAPTIVE_REPLICA_SELECTION_SETTING,
                     ClusterService.USER_DEFINED_METADATA,
-                    ClusterApplierService.CLUSTER_SERVICE_SLOW_TASK_LOGGING_THRESHOLD_SETTING
+                    ClusterApplierService.CLUSTER_SERVICE_SLOW_TASK_LOGGING_THRESHOLD_SETTING,
+                    ClusterApplierService.CLUSTER_SERVICE_SLOW_TASK_THREAD_DUMP_TIMEOUT_SETTING
                 )
             )
         );
@@ -129,7 +130,7 @@ public class JobStorageDeletionTaskIT extends BaseMlIntegTestCase {
         createBuckets(jobIdShared, 1, 10);
 
         // Manually switching over alias info
-        IndicesAliasesRequest aliasesRequest = new IndicesAliasesRequest().addAliasAction(
+        IndicesAliasesRequest aliasesRequest = new IndicesAliasesRequest(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT).addAliasAction(
             IndicesAliasesRequest.AliasActions.add()
                 .alias(AnomalyDetectorsIndex.jobResultsAliasedName(jobIdDedicated))
                 .isHidden(true)
@@ -194,7 +195,7 @@ public class JobStorageDeletionTaskIT extends BaseMlIntegTestCase {
 
         // Make sure dedicated index is gone
         assertThat(
-            indicesAdmin().prepareGetIndex()
+            indicesAdmin().prepareGetIndex(TEST_REQUEST_TIMEOUT)
                 .setIndices(dedicatedIndex)
                 .setIndicesOptions(IndicesOptions.LENIENT_EXPAND_OPEN_CLOSED_HIDDEN)
                 .get()

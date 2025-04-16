@@ -24,10 +24,10 @@ public class LifecycleExecutionStateUtils {
     /**
      * Given a cluster state, index, and lifecycle state, returns a cluster state where
      * the lifecycle state will be associated with the given index.
-     *
+     * <p>
      * The passed-in index must already be present in the cluster state, this method cannot
      * be used to add an index.
-     *
+     * <p>
      *  See also {@link Metadata#withLifecycleState}.
      */
     public static ClusterState newClusterStateWithLifecycleState(

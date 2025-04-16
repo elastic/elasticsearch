@@ -93,7 +93,6 @@ public class SSLReloadIntegTests extends SecurityIntegTestCase {
     }
 
     public void testThatSSLConfigurationReloadsOnModification() throws Exception {
-        assumeFalse("https://github.com/elastic/elasticsearch/issues/49094", inFipsJvm());
         Path keyPath = createTempDir().resolve("testnode_updated.pem");
         Path certPath = createTempDir().resolve("testnode_updated.crt");
         Files.copy(getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode_updated.pem"), keyPath);
@@ -127,6 +126,9 @@ public class SSLReloadIntegTests extends SecurityIntegTestCase {
             fail("handshake should not have been successful!");
         } catch (SSLException | SocketException expected) {
             logger.trace("expected exception", expected);
+        } catch (IOException e) {
+            // BouncyCastle throws a different exception
+            assertThat(e.getClass().getName(), is("org.bouncycastle.tls.TlsFatalAlertReceived"));
         }
         // Copy testnode_updated.crt to the placeholder updateable.crt so that the nodes will start trusting it now
         try {

@@ -5,11 +5,10 @@
     "hidden": true
   },
   "allow_auto_create": true,
+  "composed_of": ["kibana-reporting@settings", "kibana-reporting@custom"],
+  "ignore_missing_component_templates": ["kibana-reporting@custom"],
   "template": {
-    "settings": {
-      "number_of_shards": 1,
-      "auto_expand_replicas": "0-1"
-    },
+    "lifecycle": {},
     "mappings": {
       "properties": {
         "meta": {

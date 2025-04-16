@@ -22,17 +22,14 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.ingest.IngestMetadata;
 import org.elasticsearch.ingest.IngestService;
-import org.elasticsearch.ingest.Pipeline;
-import org.elasticsearch.ingest.PipelineConfiguration;
+import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskInfo;
@@ -44,13 +41,12 @@ import org.elasticsearch.xpack.core.ml.action.StopTrainedModelDeploymentAction;
 import org.elasticsearch.xpack.core.ml.inference.ModelAliasMetadata;
 import org.elasticsearch.xpack.core.ml.inference.assignment.TrainedModelAssignmentMetadata;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
-import org.elasticsearch.xpack.ml.inference.ingest.InferenceProcessor;
+import org.elasticsearch.xpack.core.ml.utils.InferenceProcessorInfoExtractor;
 import org.elasticsearch.xpack.ml.inference.persistence.TrainedModelProvider;
 import org.elasticsearch.xpack.ml.notifications.InferenceAuditor;
 
 import java.util.ArrayList;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -80,7 +76,6 @@ public class TransportDeleteTrainedModelAction extends AcknowledgedTransportMast
         ThreadPool threadPool,
         Client client,
         ActionFilters actionFilters,
-        IndexNameExpressionResolver indexNameExpressionResolver,
         TrainedModelProvider configProvider,
         InferenceAuditor auditor,
         IngestService ingestService
@@ -92,7 +87,6 @@ public class TransportDeleteTrainedModelAction extends AcknowledgedTransportMast
             threadPool,
             actionFilters,
             DeleteTrainedModelAction.Request::new,
-            indexNameExpressionResolver,
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
         this.client = client;
@@ -111,7 +105,12 @@ public class TransportDeleteTrainedModelAction extends AcknowledgedTransportMast
         logger.debug(() -> format("[%s] Request to delete trained model%s", request.getId(), request.isForce() ? " (force)" : ""));
 
         String id = request.getId();
-        cancelDownloadTask(client, id, listener.delegateFailureAndWrap((l, ignored) -> deleteModel(request, state, l)), request.timeout());
+        cancelDownloadTask(
+            client,
+            id,
+            listener.delegateFailureAndWrap((l, ignored) -> deleteModel(request, state, l)),
+            request.ackTimeout()
+        );
     }
 
     // package-private for testing
@@ -136,34 +135,6 @@ public class TransportDeleteTrainedModelAction extends AcknowledgedTransportMast
         getDownloadTaskInfo(mlClient, modelId, false, timeout, () -> null, taskListener);
     }
 
-    static Set<String> getReferencedModelKeys(IngestMetadata ingestMetadata, IngestService ingestService) {
-        Set<String> allReferencedModelKeys = new HashSet<>();
-        if (ingestMetadata == null) {
-            return allReferencedModelKeys;
-        }
-        for (Map.Entry<String, PipelineConfiguration> entry : ingestMetadata.getPipelines().entrySet()) {
-            String pipelineId = entry.getKey();
-            Map<String, Object> config = entry.getValue().getConfigAsMap();
-            try {
-                Pipeline pipeline = Pipeline.create(
-                    pipelineId,
-                    config,
-                    ingestService.getProcessorFactories(),
-                    ingestService.getScriptService()
-                );
-                pipeline.getProcessors()
-                    .stream()
-                    .filter(p -> p instanceof InferenceProcessor)
-                    .map(p -> (InferenceProcessor) p)
-                    .map(InferenceProcessor::getModelId)
-                    .forEach(allReferencedModelKeys::add);
-            } catch (Exception ex) {
-                logger.warn(() -> "failed to load pipeline [" + pipelineId + "]", ex);
-            }
-        }
-        return allReferencedModelKeys;
-    }
-
     static List<String> getModelAliases(ClusterState clusterState, String modelId) {
         final ModelAliasMetadata currentMetadata = ModelAliasMetadata.fromState(clusterState);
         final List<String> modelAliases = new ArrayList<>();
@@ -177,8 +148,8 @@ public class TransportDeleteTrainedModelAction extends AcknowledgedTransportMast
 
     private void deleteModel(DeleteTrainedModelAction.Request request, ClusterState state, ActionListener<AcknowledgedResponse> listener) {
         String id = request.getId();
-        IngestMetadata currentIngestMetadata = state.metadata().custom(IngestMetadata.TYPE);
-        Set<String> referencedModels = getReferencedModelKeys(currentIngestMetadata, ingestService);
+        IngestMetadata currentIngestMetadata = state.metadata().getProject().custom(IngestMetadata.TYPE);
+        Set<String> referencedModels = InferenceProcessorInfoExtractor.getModelIdsFromInferenceProcessors(currentIngestMetadata);
 
         if (request.isForce() == false && referencedModels.contains(id)) {
             listener.onFailure(

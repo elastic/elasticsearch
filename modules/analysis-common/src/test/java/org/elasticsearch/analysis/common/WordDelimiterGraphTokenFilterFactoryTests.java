@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.analysis.common;
 
@@ -30,6 +31,9 @@ import org.elasticsearch.test.index.IndexVersionUtils;
 import java.io.IOException;
 import java.io.StringReader;
 import java.util.Collections;
+
+import static org.apache.lucene.tests.analysis.BaseTokenStreamTestCase.assertAnalyzesTo;
+import static org.apache.lucene.tests.analysis.BaseTokenStreamTestCase.assertTokenStreamContents;
 
 public class WordDelimiterGraphTokenFilterFactoryTests extends BaseWordDelimiterTokenFilterFactoryTestCase {
     public WordDelimiterGraphTokenFilterFactoryTests() {
@@ -188,7 +192,7 @@ public class WordDelimiterGraphTokenFilterFactoryTests extends BaseWordDelimiter
                     IndexMetadata.SETTING_VERSION_CREATED,
                     IndexVersionUtils.randomVersionBetween(
                         random(),
-                        IndexVersions.V_7_0_0,
+                        IndexVersions.MINIMUM_READONLY_COMPATIBLE,
                         IndexVersionUtils.getPreviousVersion(IndexVersions.V_7_3_0)
                     )
                 )

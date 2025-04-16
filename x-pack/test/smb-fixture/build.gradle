@@ -2,6 +2,8 @@ apply plugin: 'elasticsearch.java'
 apply plugin: 'elasticsearch.cache-test-fixtures'
 
 dependencies {
+  implementation "com.fasterxml.jackson.core:jackson-annotations:${versions.jackson}"
+
   api project(':test:fixtures:testcontainer-utils')
   api "junit:junit:${versions.junit}"
   api "org.testcontainers:testcontainers:${versions.testcontainer}"

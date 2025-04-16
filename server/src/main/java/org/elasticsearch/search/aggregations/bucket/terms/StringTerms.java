@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.search.aggregations.bucket.terms;
 
@@ -14,12 +15,10 @@ import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.AggregationReduceContext;
 import org.elasticsearch.search.aggregations.AggregatorReducer;
 import org.elasticsearch.search.aggregations.BucketOrder;
-import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -153,19 +152,7 @@ public class StringTerms extends InternalMappedTerms<StringTerms, StringTerms.Bu
 
     @Override
     protected AggregatorReducer getLeaderReducer(AggregationReduceContext reduceContext, int size) {
-        return new AggregatorReducer() {
-            private final List<InternalAggregation> aggregations = new ArrayList<>(size);
-
-            @Override
-            public void accept(InternalAggregation aggregation) {
-                aggregations.add(aggregation);
-            }
-
-            @Override
-            public InternalAggregation get() {
-                return ((AbstractInternalTerms<?, ?>) aggregations.get(0)).doReduce(aggregations, reduceContext);
-            }
-        };
+        return termsAggregationReducer(reduceContext, size);
     }
 
     @Override
@@ -197,15 +184,15 @@ public class StringTerms extends InternalMappedTerms<StringTerms, StringTerms.Bu
             prototype.termBytes,
             prototype.docCount,
             aggregations,
-            prototype.showDocCountError,
-            prototype.docCountError,
+            showTermDocCountError,
+            prototype.getDocCountError(),
             prototype.format
         );
     }
 
     @Override
     protected Bucket createBucket(long docCount, InternalAggregations aggs, long docCountError, StringTerms.Bucket prototype) {
-        return new Bucket(prototype.termBytes, docCount, aggs, prototype.showDocCountError, docCountError, format);
+        return new Bucket(prototype.termBytes, docCount, aggs, showTermDocCountError, docCountError, format);
     }
 
     @Override

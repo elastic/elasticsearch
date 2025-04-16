@@ -8,21 +8,13 @@
 package org.elasticsearch.xpack.application.connector.secrets.action;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.xpack.application.connector.Connector;
 import org.elasticsearch.xpack.application.connector.secrets.ConnectorSecretsTestUtils;
 import org.elasticsearch.xpack.core.ml.AbstractBWCWireSerializationTestCase;
 
 import java.io.IOException;
-import java.util.List;
 
 public class GetConnectorSecretResponseBWCSerializingTests extends AbstractBWCWireSerializationTestCase<GetConnectorSecretResponse> {
-
-    @Override
-    public NamedWriteableRegistry getNamedWriteableRegistry() {
-        return new NamedWriteableRegistry(List.of(new NamedWriteableRegistry.Entry(Connector.class, Connector.NAME, Connector::new)));
-    }
 
     @Override
     protected Writeable.Reader<GetConnectorSecretResponse> instanceReader() {

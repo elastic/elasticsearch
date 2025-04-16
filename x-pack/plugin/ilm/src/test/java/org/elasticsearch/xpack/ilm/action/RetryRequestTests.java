@@ -8,19 +8,22 @@
 package org.elasticsearch.xpack.ilm.action;
 
 import org.elasticsearch.action.support.IndicesOptions;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
+import org.elasticsearch.xpack.core.ilm.action.RetryActionRequest;
 
 import java.util.Arrays;
 
-public class RetryRequestTests extends AbstractWireSerializingTestCase<TransportRetryAction.Request> {
+public class RetryRequestTests extends AbstractWireSerializingTestCase<RetryActionRequest> {
 
     @Override
-    protected TransportRetryAction.Request createTestInstance() {
-        TransportRetryAction.Request request = new TransportRetryAction.Request();
-        if (randomBoolean()) {
-            request.indices(generateRandomStringArray(20, 20, false));
-        }
+    protected RetryActionRequest createTestInstance() {
+        final var request = new RetryActionRequest(
+            TEST_REQUEST_TIMEOUT,
+            TEST_REQUEST_TIMEOUT,
+            randomBoolean() ? Strings.EMPTY_ARRAY : generateRandomStringArray(20, 20, false)
+        );
         if (randomBoolean()) {
             IndicesOptions indicesOptions = IndicesOptions.fromOptions(
                 randomBoolean(),
@@ -34,19 +37,23 @@ public class RetryRequestTests extends AbstractWireSerializingTestCase<Transport
             );
             request.indicesOptions(indicesOptions);
         }
+        if (randomBoolean()) {
+            request.requireError(randomBoolean());
+        }
         return request;
     }
 
     @Override
-    protected Writeable.Reader<TransportRetryAction.Request> instanceReader() {
-        return TransportRetryAction.Request::new;
+    protected Writeable.Reader<RetryActionRequest> instanceReader() {
+        return RetryActionRequest::new;
     }
 
     @Override
-    protected TransportRetryAction.Request mutateInstance(TransportRetryAction.Request instance) {
+    protected RetryActionRequest mutateInstance(RetryActionRequest instance) {
         String[] indices = instance.indices();
         IndicesOptions indicesOptions = instance.indicesOptions();
-        switch (between(0, 1)) {
+        boolean requireError = instance.requireError();
+        switch (between(0, 2)) {
             case 0 -> indices = randomValueOtherThanMany(
                 i -> Arrays.equals(i, instance.indices()),
                 () -> generateRandomStringArray(20, 10, false, true)
@@ -64,11 +71,12 @@ public class RetryRequestTests extends AbstractWireSerializingTestCase<Transport
                     randomBoolean()
                 )
             );
+            case 2 -> requireError = requireError == false;
             default -> throw new AssertionError("Illegal randomisation branch");
         }
-        TransportRetryAction.Request newRequest = new TransportRetryAction.Request();
-        newRequest.indices(indices);
+        final var newRequest = new RetryActionRequest(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, indices);
         newRequest.indicesOptions(indicesOptions);
+        newRequest.requireError(requireError);
         return newRequest;
     }
 }

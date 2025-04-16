@@ -1,0 +1,14 @@
+[
+  {
+    "event_subtype_full": "already_running",
+    "event_type": "process",
+    "event_type_full": "process_event",
+    "opcode": 3,
+    "pid": 0,
+    "process_name": "System Idle Process",
+    "serial_event_id": 10000,
+    "subtype": "create",
+    "timestamp": 117444736000000000,
+    "unique_pid": 1
+  }
+]

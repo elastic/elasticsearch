@@ -6,16 +6,15 @@
  */
 package org.elasticsearch.xpack.sql.cli;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.Build;
 import org.elasticsearch.xpack.sql.client.ClientVersion;
+import org.elasticsearch.xpack.sql.proto.SqlVersion;
 
 public class VersionTests extends SqlCliTestCase {
     public void testVersionIsCurrent() {
         /* This test will only work properly in gradle because in gradle we run the tests
          * using the jar. */
-        assertEquals(Version.CURRENT.major, ClientVersion.CURRENT.major);
-        assertEquals(Version.CURRENT.minor, ClientVersion.CURRENT.minor);
-        assertEquals(Version.CURRENT.revision, ClientVersion.CURRENT.revision);
+        assertEquals(SqlVersion.fromString(Build.current().version()), ClientVersion.CURRENT);
     }
 
 }

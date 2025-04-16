@@ -343,6 +343,46 @@ public class TransportGetTransformStatsActionTests extends ESTestCase {
         );
     }
 
+    public void testDeriveStatsWithIndexBlock() {
+        String transformId = "transform-with-stats";
+        String reason = "transform is paused while destination index is blocked";
+        TransformIndexerStats stats = TransformIndexerStatsTests.randomStats();
+        TransformState runningState = new TransformState(
+            TransformTaskState.STARTED,
+            IndexerState.STARTED,
+            null,
+            0,
+            null,
+            null,
+            null,
+            false,
+            null
+        );
+
+        var context = new TransformContext(TransformTaskState.STARTED, "", 0, mock());
+        context.setIsWaitingForIndexToUnblock(true);
+        var task = mock(TransformTask.class);
+        when(task.getContext()).thenReturn(context);
+        when(task.getTransformId()).thenReturn(transformId);
+        when(task.getState()).thenReturn(runningState);
+        when(task.getStats()).thenReturn(stats);
+
+        assertThat(
+            TransportGetTransformStatsAction.deriveStats(task, null),
+            equalTo(
+                new TransformStats(
+                    transformId,
+                    TransformStats.State.WAITING,
+                    reason,
+                    null,
+                    stats,
+                    TransformCheckpointingInfo.EMPTY,
+                    TransformHealth.GREEN
+                )
+            )
+        );
+    }
+
     private void withIdStateAndStats(String transformId, TransformState state, TransformIndexerStats stats) {
         when(task.getTransformId()).thenReturn(transformId);
         when(task.getState()).thenReturn(state);

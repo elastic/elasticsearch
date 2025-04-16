@@ -16,6 +16,8 @@ import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
 import java.io.IOException;
 import java.util.Objects;
 
+import static org.elasticsearch.xpack.sql.expression.function.scalar.string.StringProcessor.checkResultLength;
+
 public class ConcatFunctionProcessor extends BinaryProcessor {
 
     public static final String NAME = "scon";
@@ -62,7 +64,10 @@ public class ConcatFunctionProcessor extends BinaryProcessor {
             throw new SqlIllegalArgumentException("A string/char is required; received [{}]", source2);
         }
 
-        return source1.toString().concat(source2.toString());
+        String str1 = source1.toString();
+        String str2 = source2.toString();
+        checkResultLength(str1.length() + str2.length());
+        return str1.concat(str2);
     }
 
     @Override

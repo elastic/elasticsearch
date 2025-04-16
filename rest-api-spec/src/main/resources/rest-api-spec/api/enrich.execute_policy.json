@@ -28,6 +28,10 @@
         "type":"boolean",
         "default":true,
         "description":"Should the request should block until the execution is complete."
+      },
+      "master_timeout":{
+        "type":"time",
+        "description":"Timeout for processing on master node"
       }
     }
   }

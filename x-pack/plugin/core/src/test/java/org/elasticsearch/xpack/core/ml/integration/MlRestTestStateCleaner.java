@@ -10,14 +10,15 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.RestClient;
-import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.test.rest.ESRestTestCase;
 
 import java.io.IOException;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
-import java.util.stream.Collectors;
+
+import static org.hamcrest.MatcherAssert.assertThat;
+import static org.hamcrest.Matchers.hasSize;
 
 public class MlRestTestStateCleaner {
 
@@ -30,23 +31,29 @@ public class MlRestTestStateCleaner {
     }
 
     public void resetFeatures() throws IOException {
-        deleteAllTrainedModelIngestPipelines();
+        deletePipelinesWithInferenceProcessors();
         // This resets all features, not just ML, but they should have been getting reset between tests anyway so it shouldn't matter
         adminClient.performRequest(new Request("POST", "/_features/_reset"));
     }
 
     @SuppressWarnings("unchecked")
-    private void deleteAllTrainedModelIngestPipelines() throws IOException {
-        final Request getAllTrainedModelStats = new Request("GET", "/_ml/trained_models/_stats");
-        getAllTrainedModelStats.addParameter("size", "10000");
-        final Response trainedModelsStatsResponse = adminClient.performRequest(getAllTrainedModelStats);
+    private void deletePipelinesWithInferenceProcessors() throws IOException {
+        final Response pipelinesResponse = adminClient.performRequest(new Request("GET", "/_ingest/pipeline"));
+        final Map<String, Object> pipelines = ESRestTestCase.entityAsMap(pipelinesResponse);
 
-        final List<Map<String, Object>> pipelines = (List<Map<String, Object>>) XContentMapValues.extractValue(
-            "trained_model_stats.ingest.pipelines",
-            ESRestTestCase.entityAsMap(trainedModelsStatsResponse)
-        );
-        Set<String> pipelineIds = pipelines.stream().flatMap(m -> m.keySet().stream()).collect(Collectors.toSet());
-        for (String pipelineId : pipelineIds) {
+        var pipelinesWithInferenceProcessors = new HashSet<String>();
+        for (var entry : pipelines.entrySet()) {
+            var pipelineDef = (Map<String, Object>) entry.getValue(); // each top level object is a separate pipeline
+            var processors = (List<Map<String, Object>>) pipelineDef.get("processors");
+            for (var processor : processors) {
+                assertThat(processor.entrySet(), hasSize(1));
+                if ("inference".equals(processor.keySet().iterator().next())) {
+                    pipelinesWithInferenceProcessors.add(entry.getKey());
+                }
+            }
+        }
+
+        for (String pipelineId : pipelinesWithInferenceProcessors) {
             try {
                 adminClient.performRequest(new Request("DELETE", "/_ingest/pipeline/" + pipelineId));
             } catch (Exception ex) {

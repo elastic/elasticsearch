@@ -3,7 +3,6 @@
     "settings": {
       "index": {
         "number_of_shards": 16,
-        "number_of_replicas": 0,
         "auto_expand_replicas": "0-1",
         "refresh_interval": "10s",
         "hidden": true,
@@ -12,13 +11,15 @@
           "field": [
             "Stacktrace.frame.ids"
           ]
+        },
+        "mapping": {
+          "source": {
+            "mode": "synthetic"
+          }
         }
       }
     },
     "mappings": {
-      "_source": {
-        "mode": "synthetic"
-      },
       "_meta": {
         "index-template-version": ${xpack.profiling.template.version},
         "index-version": ${xpack.profiling.index.stacktraces.version},

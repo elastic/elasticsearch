@@ -43,8 +43,8 @@ setup:
 
 ---
 "significant_texts all terms":
-  - skip:
-      version: " - 8.1.99"
+  - requires:
+      cluster_features: ["gte_v8.2.0"]
       reason: bug fixed in 8.2.0
   - do:
       search:
@@ -88,8 +88,8 @@ setup:
 
 ---
 "significant_texts limited size":
-  - skip:
-      version: " - 8.1.99"
+  - requires:
+      cluster_features: ["gte_v8.2.0"]
       reason: bug fixed in 8.2.0
   - do:
       search:
@@ -128,8 +128,8 @@ setup:
 
 ---
 "significant_texts with min_doc_count":
-  - skip:
-      version: " - 8.1.99"
+  - requires:
+      cluster_features: ["gte_v8.2.0"]
       reason: bug fixed in 8.2.0
   - do:
       search:
@@ -164,8 +164,8 @@ setup:
 
 ---
 "significant_texts with exclude":
-  - skip:
-      version: " - 8.1.99"
+  - requires:
+      cluster_features: ["gte_v8.2.0"]
       reason: bug fixed in 8.2.0
   - do:
       search:
@@ -207,8 +207,8 @@ setup:
 
 ---
 "significant_texts with include":
-  - skip:
-      version: " - 8.1.99"
+  - requires:
+      cluster_features: ["gte_v8.2.0"]
       reason: bug fixed in 8.2.0
   - do:
       search:

@@ -154,6 +154,6 @@ public class StringStatsAggregationBuilder extends ValuesSourceAggregationBuilde
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.V_7_6_0;
+        return TransportVersions.ZERO;
     }
 }

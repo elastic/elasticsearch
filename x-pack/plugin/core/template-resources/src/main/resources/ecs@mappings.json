@@ -24,6 +24,30 @@
           }
         },
         {
+          "ecs_non_indexed_keyword": {
+            "mapping": {
+              "type": "keyword",
+              "index": false,
+              "doc_values": false
+            },
+            "path_match": [
+              "*event.original"
+            ]
+          }
+        },
+        {
+          "ecs_non_indexed_long": {
+            "mapping": {
+              "type": "long",
+              "index": false,
+              "doc_values": false
+            },
+            "path_match": [
+              "*.x509.public_key_exponent"
+            ]
+          }
+        },
+        {
           "ecs_ip": {
             "mapping": {
               "type": "ip"
@@ -104,9 +128,9 @@
               "*file.path",
               "*file.target_path",
               "*os.full",
-              "email.subject",
-              "vulnerability.description",
-              "user_agent.original"
+              "*email.subject",
+              "*vulnerability.description",
+              "*user_agent.original"
             ],
             "unmatch_mapping_type": "object"
           }
@@ -131,7 +155,11 @@
               "ingested",
               "*.ingested",
               "*.start",
-              "*.end"
+              "*.end",
+              "*.indicator.first_seen",
+              "*.indicator.last_seen",
+              "*.indicator.modified_at",
+              "*threat.enrichments.matched.occurred"
             ],
             "unmatch_mapping_type": "object"
           }
@@ -165,8 +193,7 @@
               "type": "geo_point"
             },
             "path_match": [
-              "location",
-              "*.location"
+              "*.geo.location"
             ]
           }
         },

@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.admin.indices.resolve;
@@ -53,11 +54,12 @@ public class ResolveClusterActionResponseTests extends AbstractWireSerializingTe
     }
 
     static ResolveClusterInfo randomResolveClusterInfo() {
-        int val = randomIntBetween(1, 3);
+        int val = randomIntBetween(1, 4);
         return switch (val) {
             case 1 -> new ResolveClusterInfo(false, randomBoolean());
             case 2 -> new ResolveClusterInfo(randomBoolean(), randomBoolean(), randomAlphaOfLength(15));
             case 3 -> new ResolveClusterInfo(randomBoolean(), randomBoolean(), randomBoolean(), Build.current());
+            case 4 -> new ResolveClusterInfo(true, randomBoolean(), null, Build.current());
             default -> throw new UnsupportedOperationException("should not get here");
         };
     }

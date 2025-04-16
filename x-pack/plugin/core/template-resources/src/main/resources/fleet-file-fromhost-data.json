@@ -38,6 +38,9 @@
           "last": {
             "type": "boolean",
             "index": false
+          },
+          "namespaces": {
+            "type": "keyword"
           }
         }
       }

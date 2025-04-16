@@ -1,6 +1,0 @@
-pr: 104218
-summary: "Support ST_CENTROID over spatial points"
-area: "ES|QL"
-type: enhancement
-issues:
- - 104656

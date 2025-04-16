@@ -1,0 +1,6 @@
+* [`DATE_DIFF`](../../functions-operators/date-time-functions.md#esql-date_diff)
+* [`DATE_EXTRACT`](../../functions-operators/date-time-functions.md#esql-date_extract)
+* [`DATE_FORMAT`](../../functions-operators/date-time-functions.md#esql-date_format)
+* [`DATE_PARSE`](../../functions-operators/date-time-functions.md#esql-date_parse)
+* [`DATE_TRUNC`](../../functions-operators/date-time-functions.md#esql-date_trunc)
+* [`NOW`](../../functions-operators/date-time-functions.md#esql-now)

@@ -1,0 +1,38 @@
+{
+  "metadata": {
+    "version": "2",
+    "compatibility": "8.4.0"
+  },
+  "state": {
+    "role_mappings": {
+      "operator_role_mapping_1": {
+        "enabled": true,
+        "roles": [
+          "kibana_user"
+        ],
+        "metadata": {
+          "from_file": true
+        },
+        "rules": {
+          "field": {
+            "username": "role-mapping-test-user"
+          }
+        }
+      },
+      "operator_role_mapping_2": {
+        "enabled": true,
+        "roles": [
+          "fleet_user"
+        ],
+        "metadata": {
+          "from_file": true
+        },
+        "rules": {
+          "field": {
+            "username": "role-mapping-test-user"
+          }
+        }
+      }
+    }
+  }
+}

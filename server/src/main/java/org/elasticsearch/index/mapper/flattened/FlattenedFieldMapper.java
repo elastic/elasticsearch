@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.mapper.flattened;
@@ -27,10 +28,10 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.util.AttributeSource;
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.IOBooleanSupplier;
 import org.apache.lucene.util.automaton.Automata;
 import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.CompiledAutomaton;
-import org.apache.lucene.util.automaton.MinimizationOperations;
 import org.apache.lucene.util.automaton.Operations;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.search.AutomatonQueries;
@@ -50,10 +51,10 @@ import org.elasticsearch.index.fielddata.plain.SortedSetOrdinalsIndexFieldData;
 import org.elasticsearch.index.mapper.DocumentParserContext;
 import org.elasticsearch.index.mapper.DynamicFieldType;
 import org.elasticsearch.index.mapper.FieldMapper;
+import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperBuilderContext;
-import org.elasticsearch.index.mapper.SourceLoader;
 import org.elasticsearch.index.mapper.SourceValueFetcher;
 import org.elasticsearch.index.mapper.StringFieldType;
 import org.elasticsearch.index.mapper.TextParams;
@@ -73,10 +74,15 @@ import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.Function;
+
+import static org.elasticsearch.index.IndexSettings.IGNORE_ABOVE_SETTING;
 
 /**
  * A field mapper that accepts a JSON object and flattens it into a single field. This data type
@@ -107,6 +113,7 @@ public final class FlattenedFieldMapper extends FieldMapper {
 
     public static final String CONTENT_TYPE = "flattened";
     public static final String KEYED_FIELD_SUFFIX = "._keyed";
+    public static final String KEYED_IGNORED_VALUES_FIELD_SUFFIX = "._keyed._ignored";
     public static final String TIME_SERIES_DIMENSIONS_ARRAY_PARAM = "time_series_dimensions";
 
     private static class Defaults {
@@ -116,6 +123,9 @@ public final class FlattenedFieldMapper extends FieldMapper {
     private static Builder builder(Mapper in) {
         return ((FlattenedFieldMapper) in).builder;
     }
+
+    private final int ignoreAboveDefault;
+    private final int ignoreAbove;
 
     public static class Builder extends FieldMapper.Builder {
 
@@ -142,12 +152,8 @@ public final class FlattenedFieldMapper extends FieldMapper {
             m -> builder(m).eagerGlobalOrdinals.get(),
             false
         );
-        private final Parameter<Integer> ignoreAbove = Parameter.intParam(
-            "ignore_above",
-            true,
-            m -> builder(m).ignoreAbove.get(),
-            Integer.MAX_VALUE
-        );
+        private final int ignoreAboveDefault;
+        private final Parameter<Integer> ignoreAbove;
 
         private final Parameter<String> indexOptions = TextParams.keywordIndexOptions(m -> builder(m).indexOptions.get());
         private final Parameter<SimilarityProvider> similarity = TextParams.similarity(m -> builder(m).similarity.get());
@@ -170,7 +176,7 @@ public final class FlattenedFieldMapper extends FieldMapper {
                         + "] are true"
                 );
             }
-        }).precludesParameters(ignoreAbove);
+        });
 
         private final Parameter<Map<String, String>> meta = Parameter.metaParam();
 
@@ -178,8 +184,20 @@ public final class FlattenedFieldMapper extends FieldMapper {
             return FieldMapper.Parameter.stringArrayParam(TIME_SERIES_DIMENSIONS_ARRAY_PARAM, false, initializer);
         }
 
-        public Builder(String name) {
+        public Builder(final String name) {
+            this(name, Integer.MAX_VALUE);
+        }
+
+        private Builder(String name, int ignoreAboveDefault) {
             super(name);
+            this.ignoreAboveDefault = ignoreAboveDefault;
+            this.ignoreAbove = Parameter.intParam("ignore_above", true, m -> builder(m).ignoreAbove.get(), ignoreAboveDefault)
+                .addValidator(v -> {
+                    if (v < 0) {
+                        throw new IllegalArgumentException("[ignore_above] must be positive, got [" + v + "]");
+                    }
+                });
+            this.dimensions.precludesParameters(ignoreAbove);
         }
 
         @Override
@@ -202,25 +220,26 @@ public final class FlattenedFieldMapper extends FieldMapper {
         public FlattenedFieldMapper build(MapperBuilderContext context) {
             MultiFields multiFields = multiFieldsBuilder.build(this, context);
             if (multiFields.iterator().hasNext()) {
-                throw new IllegalArgumentException(CONTENT_TYPE + " field [" + name() + "] does not support [fields]");
+                throw new IllegalArgumentException(CONTENT_TYPE + " field [" + leafName() + "] does not support [fields]");
             }
             if (copyTo.copyToFields().isEmpty() == false) {
-                throw new IllegalArgumentException(CONTENT_TYPE + " field [" + name() + "] does not support [copy_to]");
+                throw new IllegalArgumentException(CONTENT_TYPE + " field [" + leafName() + "] does not support [copy_to]");
             }
             MappedFieldType ft = new RootFlattenedFieldType(
-                context.buildFullName(name()),
+                context.buildFullName(leafName()),
                 indexed.get(),
                 hasDocValues.get(),
                 meta.get(),
                 splitQueriesOnWhitespace.get(),
                 eagerGlobalOrdinals.get(),
-                dimensions.get()
+                dimensions.get(),
+                ignoreAbove.getValue()
             );
-            return new FlattenedFieldMapper(name(), ft, this);
+            return new FlattenedFieldMapper(leafName(), ft, builderParams(this, context), ignoreAboveDefault, this);
         }
     }
 
-    public static final TypeParser PARSER = new TypeParser((n, c) -> new Builder(n));
+    public static final TypeParser PARSER = new TypeParser((n, c) -> new Builder(n, IGNORE_ABOVE_SETTING.get(c.getSettings())));
 
     /**
      * A field type that represents the values under a particular JSON key, used
@@ -230,6 +249,11 @@ public final class FlattenedFieldMapper extends FieldMapper {
         private final String key;
         private final String rootName;
         private final boolean isDimension;
+
+        @Override
+        public boolean isDimension() {
+            return isDimension;
+        }
 
         KeyedFlattenedFieldType(
             String rootName,
@@ -270,6 +294,10 @@ public final class FlattenedFieldMapper extends FieldMapper {
             return CONTENT_TYPE;
         }
 
+        public String rootName() {
+            return this.rootName;
+        }
+
         public String key() {
             return key;
         }
@@ -278,24 +306,6 @@ public final class FlattenedFieldMapper extends FieldMapper {
         public Query existsQuery(SearchExecutionContext context) {
             Term term = new Term(name(), FlattenedFieldParser.createKeyedValue(key, ""));
             return new PrefixQuery(term);
-        }
-
-        @Override
-        public void validateMatchedRoutingPath(final String routingPath) {
-            if (false == isDimension) {
-                throw new IllegalArgumentException(
-                    "All fields that match routing_path "
-                        + "must be keywords with [time_series_dimension: true] "
-                        + "or flattened fields with a list of dimensions in [time_series_dimensions] and "
-                        + "without the [script] parameter. ["
-                        + this.rootName
-                        + "."
-                        + this.key
-                        + "] was ["
-                        + typeName()
-                        + "]."
-                );
-            }
         }
 
         @Override
@@ -381,7 +391,6 @@ public final class FlattenedFieldMapper extends FieldMapper {
                 a = Operations.concatenate(a, Automata.makeAnyString());
             }
             assert a.isDeterministic();
-            a = MinimizationOperations.minimize(a, 0);
 
             CompiledAutomaton automaton = new CompiledAutomaton(a);
             if (searchAfter != null) {
@@ -467,6 +476,11 @@ public final class FlattenedFieldMapper extends FieldMapper {
 
         @Override
         public AttributeSource attributes() {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public IOBooleanSupplier prepareSeekExact(BytesRef bytesRef) throws IOException {
             throw new UnsupportedOperationException();
         }
 
@@ -651,26 +665,29 @@ public final class FlattenedFieldMapper extends FieldMapper {
         private final boolean eagerGlobalOrdinals;
         private final List<String> dimensions;
         private final boolean isDimension;
+        private final int ignoreAbove;
 
-        public RootFlattenedFieldType(
-            String name,
-            boolean indexed,
-            boolean hasDocValues,
-            Map<String, String> meta,
-            boolean splitQueriesOnWhitespace,
-            boolean eagerGlobalOrdinals
-        ) {
-            this(name, indexed, hasDocValues, meta, splitQueriesOnWhitespace, eagerGlobalOrdinals, Collections.emptyList());
-        }
-
-        public RootFlattenedFieldType(
+        RootFlattenedFieldType(
             String name,
             boolean indexed,
             boolean hasDocValues,
             Map<String, String> meta,
             boolean splitQueriesOnWhitespace,
             boolean eagerGlobalOrdinals,
-            List<String> dimensions
+            int ignoreAbove
+        ) {
+            this(name, indexed, hasDocValues, meta, splitQueriesOnWhitespace, eagerGlobalOrdinals, Collections.emptyList(), ignoreAbove);
+        }
+
+        RootFlattenedFieldType(
+            String name,
+            boolean indexed,
+            boolean hasDocValues,
+            Map<String, String> meta,
+            boolean splitQueriesOnWhitespace,
+            boolean eagerGlobalOrdinals,
+            List<String> dimensions,
+            int ignoreAbove
         ) {
             super(
                 name,
@@ -684,6 +701,7 @@ public final class FlattenedFieldMapper extends FieldMapper {
             this.eagerGlobalOrdinals = eagerGlobalOrdinals;
             this.dimensions = dimensions;
             this.isDimension = dimensions.isEmpty() == false;
+            this.ignoreAbove = ignoreAbove;
         }
 
         @Override
@@ -717,12 +735,76 @@ public final class FlattenedFieldMapper extends FieldMapper {
 
         @Override
         public ValueFetcher valueFetcher(SearchExecutionContext context, String format) {
-            return SourceValueFetcher.identity(name(), context, format);
+            if (format != null) {
+                throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] doesn't support formats.");
+            }
+            return sourceValueFetcher(context.isSourceEnabled() ? context.sourcePath(name()) : Collections.emptySet());
+        }
+
+        private SourceValueFetcher sourceValueFetcher(Set<String> sourcePaths) {
+            return new SourceValueFetcher(sourcePaths, null) {
+                @Override
+                @SuppressWarnings("unchecked")
+                protected Object parseSourceValue(Object value) {
+                    if (value instanceof Map<?, ?> valueAsMap && valueAsMap.isEmpty() == false) {
+                        final Map<String, Object> result = filterIgnoredValues((Map<String, Object>) valueAsMap);
+                        return result.isEmpty() ? null : result;
+                    }
+                    if (value instanceof String valueAsString && valueAsString.length() <= ignoreAbove) {
+                        return valueAsString;
+                    }
+                    return null;
+                }
+
+                private Map<String, Object> filterIgnoredValues(final Map<String, Object> values) {
+                    final Map<String, Object> result = new HashMap<>();
+                    for (final Map.Entry<String, Object> entry : values.entrySet()) {
+                        Object value = filterIgnoredValues(entry.getValue());
+                        if (value != null) {
+                            result.put(entry.getKey(), value);
+                        }
+                    }
+                    return result;
+                }
+
+                private Object filterIgnoredValues(final Object entryValue) {
+                    if (entryValue instanceof List<?> valueAsList) {
+                        final List<Object> validValues = new ArrayList<>();
+                        for (Object value : valueAsList) {
+                            if (value instanceof String valueAsString) {
+                                if (valueAsString.length() <= ignoreAbove) {
+                                    validValues.add(valueAsString);
+                                }
+                            } else {
+                                validValues.add(value);
+                            }
+                        }
+                        if (validValues.isEmpty()) {
+                            return null;
+                        }
+                        if (validValues.size() == 1) {
+                            // NOTE: for single-value flattened fields do not return an array
+                            return validValues.getFirst();
+                        }
+                        return validValues;
+                    } else if (entryValue instanceof String valueAsString) {
+                        if (valueAsString.length() <= ignoreAbove) {
+                            return valueAsString;
+                        }
+                        return null;
+                    }
+                    return entryValue;
+                }
+            };
         }
 
         @Override
         public MappedFieldType getChildFieldType(String childPath) {
             return new KeyedFlattenedFieldType(name(), childPath, this);
+        }
+
+        public MappedFieldType getKeyedFieldType() {
+            return new KeywordFieldMapper.KeywordFieldType(name() + KEYED_FIELD_SUFFIX);
         }
 
         @Override
@@ -737,17 +819,8 @@ public final class FlattenedFieldMapper extends FieldMapper {
 
         @Override
         public void validateMatchedRoutingPath(final String routingPath) {
-            if (false == isDimension && this.dimensions.contains(routingPath) == false) {
-                throw new IllegalArgumentException(
-                    "All fields that match routing_path "
-                        + "must be keywords with [time_series_dimension: true] "
-                        + "or flattened fields with a list of dimensions in [time_series_dimensions] and "
-                        + "without the [script] parameter. ["
-                        + name()
-                        + "] was ["
-                        + typeName()
-                        + "]."
-                );
+            if (this.dimensions.contains(routingPath) == false) {
+                super.validateMatchedRoutingPath(routingPath);
             }
         }
     }
@@ -755,12 +828,21 @@ public final class FlattenedFieldMapper extends FieldMapper {
     private final FlattenedFieldParser fieldParser;
     private final Builder builder;
 
-    private FlattenedFieldMapper(String simpleName, MappedFieldType mappedFieldType, Builder builder) {
-        super(simpleName, mappedFieldType, MultiFields.empty(), CopyTo.empty());
+    private FlattenedFieldMapper(
+        String leafName,
+        MappedFieldType mappedFieldType,
+        BuilderParams builderParams,
+        int ignoreAboveDefault,
+        Builder builder
+    ) {
+        super(leafName, mappedFieldType, builderParams);
+        this.ignoreAboveDefault = ignoreAboveDefault;
         this.builder = builder;
+        this.ignoreAbove = builder.ignoreAbove.get();
         this.fieldParser = new FlattenedFieldParser(
             mappedFieldType.name(),
             mappedFieldType.name() + KEYED_FIELD_SUFFIX,
+            mappedFieldType.name() + KEYED_IGNORED_VALUES_FIELD_SUFFIX,
             mappedFieldType,
             builder.depthLimit.get(),
             builder.ignoreAbove.get(),
@@ -782,8 +864,8 @@ public final class FlattenedFieldMapper extends FieldMapper {
         return builder.depthLimit.get();
     }
 
-    int ignoreAbove() {
-        return builder.ignoreAbove.get();
+    public int ignoreAbove() {
+        return ignoreAbove;
     }
 
     @Override
@@ -823,20 +905,22 @@ public final class FlattenedFieldMapper extends FieldMapper {
 
     @Override
     public FieldMapper.Builder getMergeBuilder() {
-        return new Builder(simpleName()).init(this);
+        return new Builder(leafName(), ignoreAboveDefault).init(this);
     }
 
     @Override
-    public SourceLoader.SyntheticFieldLoader syntheticFieldLoader() {
-        if (hasScript()) {
-            return SourceLoader.SyntheticFieldLoader.NOTHING;
-        }
+    protected SyntheticSourceSupport syntheticSourceSupport() {
         if (fieldType().hasDocValues()) {
-            return new FlattenedSortedSetDocValuesSyntheticFieldLoader(name() + "._keyed", simpleName());
+            return new SyntheticSourceSupport.Native(
+                () -> new FlattenedSortedSetDocValuesSyntheticFieldLoader(
+                    fullPath(),
+                    fullPath() + KEYED_FIELD_SUFFIX,
+                    ignoreAbove() < Integer.MAX_VALUE ? fullPath() + KEYED_IGNORED_VALUES_FIELD_SUFFIX : null,
+                    leafName()
+                )
+            );
         }
 
-        throw new IllegalArgumentException(
-            "field [" + name() + "] of type [" + typeName() + "] doesn't support synthetic source because it doesn't have doc values"
-        );
+        return super.syntheticSourceSupport();
     }
 }

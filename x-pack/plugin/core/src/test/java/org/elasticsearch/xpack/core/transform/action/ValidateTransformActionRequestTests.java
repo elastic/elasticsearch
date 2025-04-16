@@ -18,7 +18,7 @@ public class ValidateTransformActionRequestTests extends AbstractWireSerializing
 
     @Override
     protected Request createTestInstance() {
-        return new Request(randomTransformConfig(), randomBoolean(), TimeValue.parseTimeValue(randomTimeValue(), "timeout"));
+        return new Request(randomTransformConfig(), randomBoolean(), randomTimeValue());
     }
 
     @Override
@@ -30,7 +30,7 @@ public class ValidateTransformActionRequestTests extends AbstractWireSerializing
     protected Request mutateInstance(Request instance) {
         TransformConfig config = instance.getConfig();
         boolean deferValidation = instance.isDeferValidation();
-        TimeValue timeout = instance.timeout();
+        TimeValue timeout = instance.ackTimeout();
 
         switch (between(0, 2)) {
             case 0 -> config = new TransformConfig.Builder(config).setId(config.getId() + randomAlphaOfLengthBetween(1, 5)).build();

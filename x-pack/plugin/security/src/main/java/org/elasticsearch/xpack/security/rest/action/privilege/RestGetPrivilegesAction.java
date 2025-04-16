@@ -10,7 +10,6 @@ import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.set.Sets;
-import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
@@ -47,13 +46,9 @@ public class RestGetPrivilegesAction extends SecurityBaseRestHandler {
     @Override
     public List<Route> routes() {
         return List.of(
-            Route.builder(GET, "/_security/privilege/").replaces(GET, "/_xpack/security/privilege/", RestApiVersion.V_7).build(),
-            Route.builder(GET, "/_security/privilege/{application}")
-                .replaces(GET, "/_xpack/security/privilege/{application}", RestApiVersion.V_7)
-                .build(),
-            Route.builder(GET, "/_security/privilege/{application}/{privilege}")
-                .replaces(GET, "/_xpack/security/privilege/{application}/{privilege}", RestApiVersion.V_7)
-                .build()
+            new Route(GET, "/_security/privilege/"),
+            new Route(GET, "/_security/privilege/{application}"),
+            new Route(GET, "/_security/privilege/{application}/{privilege}")
         );
     }
 

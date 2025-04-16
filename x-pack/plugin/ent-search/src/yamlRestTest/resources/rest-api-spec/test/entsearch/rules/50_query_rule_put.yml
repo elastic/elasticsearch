@@ -1,0 +1,327 @@
+setup:
+  - requires:
+      cluster_features: [ "gte_v8.15.0" ]
+      reason: Introduced in 8.15.0
+
+
+---
+teardown:
+  - do:
+      query_rules.delete_ruleset:
+        ruleset_id: test-ruleset
+        ignore: 404
+
+  - do:
+      query_rules.delete_ruleset:
+        ruleset_id: test-query-rule-recreating
+        ignore: 404
+
+  - do:
+      query_rules.delete_ruleset:
+        ruleset_id: forbidden-query-ruleset
+        ignore: 404
+
+
+---
+'Create query rule with nonexistant ruleset that is also created':
+  - do:
+      query_rules.put_rule:
+        ruleset_id: new-ruleset
+        rule_id: query-rule-id
+        body:
+          type: 'pinned'
+          criteria:
+            type: 'exact'
+            metadata: 'query_string'
+            values: [ 'elastic' ]
+          actions:
+            ids:
+              - 'id1'
+              - 'id2'
+          priority: 5
+
+  - match: { result: 'created' }
+
+  - do:
+      query_rules.get_rule:
+        ruleset_id: new-ruleset
+        rule_id: query-rule-id
+
+  - match: { rule_id: 'query-rule-id' }
+  - match: { type: 'pinned' }
+  - match: { criteria: [ { type: 'exact', metadata: 'query_string', values: [ 'elastic' ] } ] }
+  - match: { actions: { ids: [ 'id1', 'id2' ] } }
+  - match: { priority: 5 }
+
+  # Update the same rule in place
+  - do:
+      query_rules.put_rule:
+        ruleset_id: new-ruleset
+        rule_id: query-rule-id
+        body:
+          type: 'pinned'
+          criteria:
+            type: 'contains'
+            metadata: 'query_string'
+            values: [ 'search' ]
+          actions:
+            ids:
+              - 'id3'
+          priority: 2
+
+  - match: { result: 'updated' }
+
+  - do:
+      query_rules.get_rule:
+        ruleset_id: new-ruleset
+        rule_id: query-rule-id
+
+  - match: { rule_id: 'query-rule-id' }
+  - match: { type: 'pinned' }
+  - match: { criteria: [ { type: 'contains', metadata: 'query_string', values: [ 'search' ] } ] }
+  - match: { actions: { ids: [ 'id3' ] } }
+  - match: { priority: 2 }
+
+---
+'Create query rule with existing ruleset respecting priority order':
+  # Start with 2 rules, one that specifies priority and one that does not (should go at the end)
+  - do:
+      query_rules.put_ruleset:
+        ruleset_id: test-ruleset
+        body:
+          rules:
+            - rule_id: query-rule-id1
+              type: pinned
+              criteria:
+                - type: exact
+                  metadata: query_string
+                  values: [ elastic ]
+              actions:
+                ids:
+                  - 'id1'
+                  - 'id2'
+            - rule_id: query-rule-id2
+              type: exclude
+              criteria:
+                - type: exact
+                  metadata: query_string
+                  values: [ kibana ]
+              actions:
+                ids:
+                  - 'id3'
+                  - 'id4'
+              priority: 1
+
+  - match: { result: 'created' }
+
+  - do:
+      query_rules.get_ruleset:
+        ruleset_id: test-ruleset
+
+  - match: { ruleset_id: test-ruleset }
+  - match:
+      rules:
+        - rule_id: query-rule-id2
+          type: exclude
+          criteria:
+            - type: exact
+              metadata: query_string
+              values: [ kibana ]
+          actions:
+            ids:
+              - 'id3'
+              - 'id4'
+          priority: 1
+        - rule_id: query-rule-id1
+          type: pinned
+          criteria:
+            - type: exact
+              metadata: query_string
+              values: [ elastic ]
+          actions:
+            ids:
+              - 'id1'
+              - 'id2'
+
+  # Next, add a rule with a priority 2 - this should go in the middle
+  - do:
+      query_rules.put_rule:
+        ruleset_id: test-ruleset
+        rule_id: query-rule-id3
+        body:
+          type: 'pinned'
+          criteria:
+            type: 'exact'
+            metadata: 'query_string'
+            values: [ 'logstash' ]
+          actions:
+            ids:
+              - 'id1'
+          priority: 2
+
+  - match: { result: 'created' }
+
+  - do:
+      query_rules.get_ruleset:
+        ruleset_id: test-ruleset
+
+  - match: { ruleset_id: test-ruleset }
+  - match:
+      rules:
+        - rule_id: query-rule-id2
+          type: exclude
+          criteria:
+            - type: exact
+              metadata: query_string
+              values: [ kibana ]
+          actions:
+            ids:
+              - 'id3'
+              - 'id4'
+          priority: 1
+        - rule_id: query-rule-id3
+          type: pinned
+          criteria:
+            - type: exact
+              metadata: query_string
+              values: [ logstash ]
+          actions:
+            ids:
+              - 'id1'
+          priority: 2
+        - rule_id: query-rule-id1
+          type: pinned
+          criteria:
+            - type: exact
+              metadata: query_string
+              values: [ elastic ]
+          actions:
+            ids:
+              - 'id1'
+              - 'id2'
+
+  # Finally, add another single rule with no priority. This should be appended to the ruleset.
+  - do:
+      query_rules.put_rule:
+        ruleset_id: test-ruleset
+        rule_id: query-rule-id4
+        body:
+          type: 'pinned'
+          criteria:
+            type: 'exact'
+            metadata: 'query_string'
+            values: [ 'search' ]
+          actions:
+            ids:
+              - 'id2'
+
+  - match: { result: 'created' }
+
+  - do:
+      query_rules.get_ruleset:
+        ruleset_id: test-ruleset
+
+  - match: { ruleset_id: test-ruleset }
+  - match:
+      rules:
+        - rule_id: query-rule-id2
+          type: exclude
+          criteria:
+            - type: exact
+              metadata: query_string
+              values: [ kibana ]
+          actions:
+            ids:
+              - 'id3'
+              - 'id4'
+          priority: 1
+        - rule_id: query-rule-id3
+          type: pinned
+          criteria:
+            - type: exact
+              metadata: query_string
+              values: [ logstash ]
+          actions:
+            ids:
+              - 'id1'
+          priority: 2
+        - rule_id: query-rule-id1
+          type: pinned
+          criteria:
+            - type: exact
+              metadata: query_string
+              values: [ elastic ]
+          actions:
+            ids:
+              - 'id1'
+              - 'id2'
+        - rule_id: query-rule-id4
+          type: pinned
+          criteria:
+            - type: exact
+              metadata: query_string
+              values: [ search ]
+          actions:
+            ids:
+              - 'id2'
+
+
+---
+'Create Query Rule - Resource already exists':
+  - do:
+      query_rules.put_rule:
+        ruleset_id: test-query-rule-recreating
+        rule_id: abc
+        body:
+          type: 'pinned'
+          criteria:
+            type: 'exact'
+            metadata: 'query_string'
+            values: [ 'elastic' ]
+          actions:
+            ids:
+              - 'id1'
+          priority: 5
+
+  - match: { result: 'created' }
+
+  - do:
+      query_rules.put_rule:
+        ruleset_id: test-query-rule-recreating
+        rule_id: abc
+        body:
+          type: 'pinned'
+          criteria:
+            type: 'exact'
+            metadata: 'query_string'
+            values: [ 'elastic' ]
+          actions:
+            ids:
+              - 'id2'
+          priority: 3
+
+  - match: { result: 'updated' }
+
+---
+'Create Query Rule - Insufficient privilege':
+  - skip:
+      features: headers
+
+  - do:
+      catch: forbidden
+      headers: { Authorization: "Basic ZW50c2VhcmNoLXVzZXI6ZW50c2VhcmNoLXVzZXItcGFzc3dvcmQ=" }  # user
+      query_rules.put_rule:
+        ruleset_id: forbidden-query-ruleset
+        rule_id: abc
+        body:
+          type: 'pinned'
+          criteria:
+            type: 'exact'
+            metadata: 'query_string'
+            values: [ 'elastic' ]
+          actions:
+            ids:
+              - 'id1'
+              - 'id2'
+
+  - match: { error.type: 'security_exception' }

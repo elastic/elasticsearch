@@ -188,11 +188,10 @@ public class EvaluateDataFrameAction extends ActionType<EvaluateDataFrameAction.
 
     public static class Response extends ActionResponse implements ToXContentObject {
 
-        private String evaluationName;
-        private List<EvaluationMetricResult> metrics;
+        private final String evaluationName;
+        private final List<EvaluationMetricResult> metrics;
 
         public Response(StreamInput in) throws IOException {
-            super(in);
             this.evaluationName = in.readString();
             this.metrics = in.readNamedWriteableCollectionAsList(EvaluationMetricResult.class);
         }

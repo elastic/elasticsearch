@@ -161,7 +161,6 @@ public class DeleteExpiredDataAction extends ActionType<DeleteExpiredDataAction.
         }
 
         public Response(StreamInput in) throws IOException {
-            super(in);
             deleted = in.readBoolean();
         }
 

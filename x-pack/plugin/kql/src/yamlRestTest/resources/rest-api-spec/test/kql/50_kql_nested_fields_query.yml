@@ -1,0 +1,218 @@
+setup:
+  - requires:
+      capabilities:
+        - method: POST
+          path: /_search
+          capabilities: [ kql_query ]
+      test_runner_features: [ capabilities, contains ]
+      reason: KQL query is not available
+
+  - requires:
+      "test_runner_features": "contains"
+
+  - do:
+      indices.create:
+        index: test-index
+        body:
+          mappings:
+            properties:
+              department:
+                type: keyword
+              staff:
+                type: integer
+              courses:
+                type: nested
+                properties:
+                  name:
+                    type: text
+                  credits:
+                    type: integer
+                  sessions:
+                    type: nested
+                    properties:
+                      semester:
+                        type: keyword
+                      students:
+                        type: integer
+
+  - do:
+      bulk:
+        index: test-index
+        refresh: true
+        body: |
+          { "index" : { "_id": "doc-1" } }
+          { "department": "compsci", "staff": 12, "courses": [ { "name": "Object Oriented Programming", "credits": 3, "sessions": [ { "semester": "spr2021", "students": 37 }, { "semester": "fall2020", "students": 45} ] }, { "name": "Theory of Computation", "credits": 4, "sessions": [ { "semester": "spr2021", "students": 19 }, { "semester": "fall2020", "students": 14 } ] } ] }
+          { "index" : { "_id": "doc-42" } }
+          { "department": "math", "staff": 20, "courses": [ { "name": "Precalculus", "credits": 1, "sessions": [ { "semester": "spr2021", "students": 100 }, { "semester": "fall2020", "students": 134 } ] }, { "name": "Linear Algebra", "credits": 3, "sessions": [ { "semester": "spr2021", "students": 29 }, { "semester": "fall2020", "students": 23 } ] } ] }
+
+---
+"Inline syntax":
+  - do:
+      search:
+        index: test-index
+        rest_total_hits_as_int: true
+        body: >
+          {
+            "query": {
+              "kql": {
+                "query": "courses.name: object oriented programming"
+              }
+            }
+          }
+  - match: { hits.total: 1 }
+  - match: { hits.hits.0._id: "doc-1" }
+
+  - do:
+      search:
+        index: test-index
+        rest_total_hits_as_int: true
+        body: >
+          {
+            "query": {
+              "kql": {
+                "query": "courses.name: object oriented programming AND courses.credits > 3"
+              }
+            }
+          }
+  - match: { hits.total: 1 }
+  - match: { hits.hits.0._id: "doc-1" }
+
+  - do:
+      search:
+        index: test-index
+        rest_total_hits_as_int: true
+        body: >
+          {
+            "query": {
+              "kql": {
+                "query": "courses.name: object oriented programming OR courses.credits > 3"
+              }
+            }
+          }
+  - match: { hits.total: 1 }
+  - match: { hits.hits.0._id: "doc-1" }
+
+
+---
+"Nested field syntax":
+  - do:
+      search:
+        index: test-index
+        rest_total_hits_as_int: true
+        body: >
+          {
+            "query": {
+              "kql": {
+                "query": "courses : { name: object oriented programming }"
+              }
+            }
+          }
+  - match: { hits.total: 1 }
+  - match: { hits.hits.0._id: "doc-1" }
+
+  - do:
+      search:
+        index: test-index
+        rest_total_hits_as_int: true
+        body: >
+          {
+            "query": {
+              "kql": {
+                "query": "courses: { name: object oriented programming AND credits > 3 }"
+              }
+            }
+          }
+  - match: { hits.total: 0 }
+
+  - do:
+      search:
+        index: test-index
+        rest_total_hits_as_int: true
+        body: >
+          {
+            "query": {
+              "kql": {
+                "query": "courses: { name: object oriented programming AND credits >= 3 }"
+              }
+            }
+          }
+  - match: { hits.total: 1 }
+  - match: { hits.hits.0._id: "doc-1" }
+
+  - do:
+      search:
+        index: test-index
+        rest_total_hits_as_int: true
+        body: >
+          {
+            "query": {
+              "kql": {
+                "query": "courses: { name: object oriented programming OR credits > 3 }"
+              }
+            }
+          }
+  - match: { hits.total: 1 }
+  - match: { hits.hits.0._id: "doc-1" }
+
+  - do:
+      search:
+        index: test-index
+        rest_total_hits_as_int: true
+        body: >
+          {
+            "query": {
+              "kql": {
+                "query": "courses: { NOT name: object oriented programming AND credits < 4 }"
+              }
+            }
+          }
+  - match: { hits.total: 1 }
+  - match: { hits.hits.0._id: "doc-42" }
+
+
+---
+"Several level of nesting field syntax":
+  - do:
+      search:
+        index: test-index
+        rest_total_hits_as_int: true
+        body: >
+          {
+            "query": {
+              "kql": {
+                "query": "courses: { name: object oriented programming AND sessions.semester: spr2021 }"
+              }
+            }
+          }
+  - match: { hits.total: 1 }
+  - match: { hits.hits.0._id: "doc-1" }
+
+  - do:
+      search:
+        index: test-index
+        rest_total_hits_as_int: true
+        body: >
+          {
+            "query": {
+              "kql": {
+                "query": "courses: { sessions : { semester: spr2021 AND students < 20 } }"
+              }
+            }
+          }
+  - match: { hits.total: 1 }
+  - match: { hits.hits.0._id: "doc-1" }
+
+  - do:
+      search:
+        index: test-index
+        rest_total_hits_as_int: true
+        body: >
+          {
+            "query": {
+              "kql": {
+                "query": "courses: { name: computation AND sessions : { semester: spr2021 AND students < 20 } }"
+              }
+            }
+          }
+  - match: { hits.total: 1 }
+  - match: { hits.hits.0._id: "doc-1" }

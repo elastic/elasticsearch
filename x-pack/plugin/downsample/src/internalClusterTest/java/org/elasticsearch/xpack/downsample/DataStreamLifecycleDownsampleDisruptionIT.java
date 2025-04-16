@@ -11,39 +11,33 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.admin.indices.rollover.RolloverAction;
 import org.elasticsearch.action.admin.indices.rollover.RolloverRequest;
-import org.elasticsearch.action.admin.indices.settings.get.GetSettingsRequest;
-import org.elasticsearch.action.admin.indices.settings.get.GetSettingsResponse;
 import org.elasticsearch.action.downsample.DownsampleConfig;
-import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.metadata.DataStreamLifecycle;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.datastreams.DataStreamsPlugin;
 import org.elasticsearch.datastreams.lifecycle.DataStreamLifecycleService;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
+import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.InternalTestCluster;
-import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.xpack.aggregatemetric.AggregateMetricMapperPlugin;
 import org.elasticsearch.xpack.core.LocalStateCompositeXPackPlugin;
 
 import java.util.Collection;
 import java.util.List;
-import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.TimeUnit;
-import java.util.function.Consumer;
 
+import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_DOWNSAMPLE_STATUS;
 import static org.elasticsearch.xpack.downsample.DataStreamLifecycleDriver.getBackingIndices;
 import static org.elasticsearch.xpack.downsample.DataStreamLifecycleDriver.putTSDBIndexTemplate;
-import static org.hamcrest.Matchers.is;
-import static org.hamcrest.Matchers.notNullValue;
 
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0, numClientNodes = 4)
 public class DataStreamLifecycleDownsampleDisruptionIT extends ESIntegTestCase {
     private static final Logger logger = LogManager.getLogger(DataStreamLifecycleDownsampleDisruptionIT.class);
-    public static final int DOC_COUNT = 50_000;
+    public static final int DOC_COUNT = 25_000;
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
@@ -57,28 +51,24 @@ public class DataStreamLifecycleDownsampleDisruptionIT extends ESIntegTestCase {
         return settings.build();
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/105577")
-    @TestLogging(value = "org.elasticsearch.datastreams.lifecycle:TRACE", reason = "debugging")
     public void testDataStreamLifecycleDownsampleRollingRestart() throws Exception {
         final InternalTestCluster cluster = internalCluster();
-        final List<String> masterNodes = cluster.startMasterOnlyNodes(1);
+        cluster.startMasterOnlyNodes(1);
         cluster.startDataOnlyNodes(3);
         ensureStableCluster(cluster.size());
         ensureGreen();
 
         final String dataStreamName = "metrics-foo";
-        DataStreamLifecycle lifecycle = DataStreamLifecycle.newBuilder()
+        DataStreamLifecycle.Template lifecycle = DataStreamLifecycle.builder()
             .downsampling(
-                new DataStreamLifecycle.Downsampling(
-                    List.of(
-                        new DataStreamLifecycle.Downsampling.Round(
-                            TimeValue.timeValueMillis(0),
-                            new DownsampleConfig(new DateHistogramInterval("5m"))
-                        )
+                List.of(
+                    new DataStreamLifecycle.DownsamplingRound(
+                        TimeValue.timeValueMillis(0),
+                        new DownsampleConfig(new DateHistogramInterval("5m"))
                     )
                 )
             )
-            .build();
+            .buildTemplate();
         DataStreamLifecycleDriver.setupTSDBDataStreamAndIngestDocs(
             client(),
             dataStreamName,
@@ -93,109 +83,38 @@ public class DataStreamLifecycleDownsampleDisruptionIT extends ESIntegTestCase {
         // testing so DSL doesn't have to wait for the end_time to lapse)
         putTSDBIndexTemplate(client(), dataStreamName, null, null, lifecycle);
         client().execute(RolloverAction.INSTANCE, new RolloverRequest(dataStreamName, null)).actionGet();
+        String sourceIndex = getBackingIndices(client(), dataStreamName).get(0);
+        final String targetIndex = "downsample-5m-" + sourceIndex;
 
-        // DSL runs every second and it has to tail forcemerge the index (2 seconds) and mark it as read-only (2s) before it starts
-        // downsampling. This sleep here tries to get as close as possible to having disruption during the downsample execution.
-        long sleepTime = randomLongBetween(3000, 4500);
-        logger.info("-> giving data stream lifecycle [{}] millis to make some progress before starting the disruption", sleepTime);
-        Thread.sleep(sleepTime);
-        final CountDownLatch disruptionStart = new CountDownLatch(1);
-        final CountDownLatch disruptionEnd = new CountDownLatch(1);
-        List<String> backingIndices = getBackingIndices(client(), dataStreamName);
-        // first generation index
-        String sourceIndex = backingIndices.get(0);
-        new Thread(new Disruptor(cluster, sourceIndex, new DisruptionListener() {
-            @Override
-            public void disruptionStart() {
-                disruptionStart.countDown();
-            }
+        /**
+         * DLM runs every second and it has to tail forcemerge the index (2 seconds) and mark it as read-only (2s) before it starts
+         * downsampling. We try to detect if the downsampling has started by checking the downsample status in the target index.
+         */
+        logger.info("-> Waiting for the data stream lifecycle to start the downsampling operation before starting the disruption.");
+        ensureDownsamplingStatus(targetIndex, IndexMetadata.DownsampleTaskStatus.STARTED, TimeValue.timeValueSeconds(8));
 
-            @Override
-            public void disruptionEnd() {
-                disruptionEnd.countDown();
-            }
-        }, masterNodes.get(0), (ignored) -> {
-            try {
-                cluster.rollingRestart(new InternalTestCluster.RestartCallback() {
-                    @Override
-                    public boolean validateClusterForming() {
-                        return true;
-                    }
-                });
-            } catch (Exception e) {
-                throw new RuntimeException(e);
-            }
-        })).start();
+        logger.info("-> Starting the disruption.");
+        internalCluster().rollingRestart(new InternalTestCluster.RestartCallback());
 
-        waitUntil(() -> getClusterPendingTasks(cluster.client()).pendingTasks().isEmpty(), 60, TimeUnit.SECONDS);
-        ensureStableCluster(cluster.numDataAndMasterNodes());
-
-        // if the source index has already been downsampled and moved into the data stream just use its name directly
-        final String targetIndex = sourceIndex.startsWith("downsample-5m-") ? sourceIndex : "downsample-5m-" + sourceIndex;
-        assertBusy(() -> {
-            try {
-                GetSettingsResponse getSettingsResponse = cluster.client()
-                    .admin()
-                    .indices()
-                    .getSettings(new GetSettingsRequest().indices(targetIndex).indicesOptions(IndicesOptions.LENIENT_EXPAND_OPEN))
-                    .actionGet();
-                Settings indexSettings = getSettingsResponse.getIndexToSettings().get(targetIndex);
-                assertThat(indexSettings, is(notNullValue()));
-                assertThat(IndexMetadata.INDEX_DOWNSAMPLE_STATUS.get(indexSettings), is(IndexMetadata.DownsampleTaskStatus.SUCCESS));
-                assertEquals("5m", IndexMetadata.INDEX_DOWNSAMPLE_INTERVAL.get(indexSettings));
-            } catch (Exception e) {
-                throw new AssertionError(e);
-            }
-        }, 60, TimeUnit.SECONDS);
+        ensureDownsamplingStatus(targetIndex, IndexMetadata.DownsampleTaskStatus.SUCCESS, TimeValue.timeValueSeconds(120));
+        ensureGreen(targetIndex);
+        logger.info("-> Relocation has finished");
     }
 
-    interface DisruptionListener {
-        void disruptionStart();
-
-        void disruptionEnd();
-    }
-
-    private class Disruptor implements Runnable {
-        final InternalTestCluster cluster;
-        private final String sourceIndex;
-        private final DisruptionListener listener;
-        private final String clientNode;
-        private final Consumer<String> disruption;
-
-        private Disruptor(
-            final InternalTestCluster cluster,
-            final String sourceIndex,
-            final DisruptionListener listener,
-            final String clientNode,
-            final Consumer<String> disruption
-        ) {
-            this.cluster = cluster;
-            this.sourceIndex = sourceIndex;
-            this.listener = listener;
-            this.clientNode = clientNode;
-            this.disruption = disruption;
-        }
-
-        @Override
-        public void run() {
-            listener.disruptionStart();
-            try {
-                final String candidateNode = cluster.client(clientNode)
-                    .admin()
-                    .cluster()
-                    .prepareSearchShards(sourceIndex)
-                    .get()
-                    .getNodes()[0].getName();
-                logger.info("Candidate node [" + candidateNode + "]");
-                disruption.accept(candidateNode);
-                ensureGreen(sourceIndex);
-                ensureStableCluster(cluster.numDataAndMasterNodes(), clientNode);
-
-            } catch (Exception e) {
-                logger.error("Ignoring Error while injecting disruption [" + e.getMessage() + "]");
-            } finally {
-                listener.disruptionEnd();
+    private void ensureDownsamplingStatus(String downsampledIndex, IndexMetadata.DownsampleTaskStatus expectedStatus, TimeValue timeout) {
+        final var clusterService = internalCluster().getCurrentMasterNodeInstance(ClusterService.class);
+        final var listener = ClusterServiceUtils.addTemporaryStateListener(clusterService, clusterState -> {
+            final var indexMetadata = clusterState.metadata().getProject().index(downsampledIndex);
+            if (indexMetadata == null) {
+                return false;
             }
-        }
+            var downsamplingStatus = INDEX_DOWNSAMPLE_STATUS.get(indexMetadata.getSettings());
+            if (expectedStatus == downsamplingStatus) {
+                logger.info("-> Downsampling status for index [{}] is [{}]", downsampledIndex, downsamplingStatus);
+                return true;
+            }
+            return false;
+        }, timeout);
+        safeAwait(listener, timeout);
     }
 }

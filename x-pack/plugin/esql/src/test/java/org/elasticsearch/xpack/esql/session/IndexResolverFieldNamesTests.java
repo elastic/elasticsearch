@@ -7,14 +7,18 @@
 
 package org.elasticsearch.xpack.esql.session;
 
+import org.elasticsearch.Build;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.parser.EsqlParser;
+import org.elasticsearch.xpack.esql.parser.ParsingException;
 
 import java.util.Collections;
 import java.util.Set;
 
-import static org.elasticsearch.xpack.ql.index.IndexResolver.ALL_FIELDS;
-import static org.elasticsearch.xpack.ql.index.IndexResolver.INDEX_METADATA_FIELD;
+import static org.elasticsearch.xpack.esql.session.IndexResolver.ALL_FIELDS;
+import static org.elasticsearch.xpack.esql.session.IndexResolver.INDEX_METADATA_FIELD;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
 public class IndexResolverFieldNamesTests extends ESTestCase {
@@ -212,11 +216,11 @@ public class IndexResolverFieldNamesTests extends ESTestCase {
             | limit 4""", Set.of("hire_date", "hire_date.*", "birth_date", "birth_date.*"));
     }
 
-    public void testAutoBucketMonth() {
+    public void testBucketMonth() {
         assertFieldNames("""
             from employees
             | where hire_date >= "1985-01-01T00:00:00Z" and hire_date < "1986-01-01T00:00:00Z"
-            | eval hd = auto_bucket(hire_date, 20, "1985-01-01T00:00:00Z", "1986-01-01T00:00:00Z")
+            | eval hd = bucket(hire_date, 20, "1985-01-01T00:00:00Z", "1986-01-01T00:00:00Z")
             | sort hire_date
             | keep hire_date, hd""", Set.of("hire_date", "hire_date.*"));
     }
@@ -228,11 +232,11 @@ public class IndexResolverFieldNamesTests extends ESTestCase {
         );
     }
 
-    public void testAutoBucketMonthInAgg() {
+    public void testBucketMonthInAgg() {
         assertFieldNames("""
             FROM employees
             | WHERE hire_date >= "1985-01-01T00:00:00Z" AND hire_date < "1986-01-01T00:00:00Z"
-            | EVAL bucket = AUTO_BUCKET(hire_date, 20, "1985-01-01T00:00:00Z", "1986-01-01T00:00:00Z")
+            | EVAL bucket = BUCKET(hire_date, 20, "1985-01-01T00:00:00Z", "1986-01-01T00:00:00Z")
             | STATS AVG(salary) BY bucket
             | SORT bucket""", Set.of("salary", "salary.*", "hire_date", "hire_date.*"));
     }
@@ -350,6 +354,114 @@ public class IndexResolverFieldNamesTests extends ESTestCase {
             | SORT languages""", Set.of("emp_no", "emp_no.*", "languages", "languages.*"));
     }
 
+    public void testEvalStats() {
+
+        assertFieldNames("""
+            FROM employees
+            | EVAL y = "a"
+            | STATS count = COUNT(*) BY y""", Set.of("_index"));
+
+        assertFieldNames("""
+            FROM employees
+            | EVAL y = "a"
+            | STATS count = COUNT(*) BY y
+            | SORT y""", Set.of("_index"));
+
+        assertFieldNames("""
+            FROM employees
+            | EVAL y = "a"
+            | STATS count = COUNT(*) BY x = y
+            | SORT x""", Set.of("_index"));
+
+        assertFieldNames("""
+            FROM employees
+            | STATS count = COUNT(*) BY first_name
+            | SORT first_name""", Set.of("first_name", "first_name.*"));
+
+        assertFieldNames("""
+            FROM employees
+            | EVAL y = "a"
+            | STATS count = COUNT(*) BY x = y
+            | SORT x, first_name""", Set.of("first_name", "first_name.*"));
+
+        assertFieldNames("""
+            FROM employees
+            | EVAL first_name = "a"
+            | STATS count = COUNT(*) BY first_name
+            | SORT first_name""", Set.of("_index"));
+
+        assertFieldNames("""
+            FROM employees
+            | EVAL y = "a"
+            | STATS count = COUNT(*) BY first_name = to_upper(y)
+            | SORT first_name""", Set.of("_index"));
+
+        assertFieldNames("""
+            FROM employees
+            | EVAL y = to_upper(first_name), z = "z"
+            | STATS count = COUNT(*) BY first_name = to_lower(y), z
+            | SORT first_name""", Set.of("first_name", "first_name.*"));
+
+        assertFieldNames("""
+            FROM employees
+            | EVAL y = "a"
+            | STATS count = COUNT(*) BY x = y, z = first_name
+            | SORT x, z""", Set.of("first_name", "first_name.*"));
+
+        assertFieldNames("""
+            FROM employees
+            | EVAL y = "a"
+            | STATS count = COUNT(*) BY x = y, first_name
+            | SORT x, first_name""", Set.of("first_name", "first_name.*"));
+
+        assertFieldNames("""
+            FROM employees
+            | EVAL y = "a"
+            | STATS count = COUNT(first_name) BY x = y
+            | SORT x
+            | DROP first_name""", Set.of("first_name", "first_name.*"));
+
+        assertFieldNames("""
+            FROM employees
+            | EVAL y = "a"
+            | STATS count = COUNT(*) BY x = y
+            | MV_EXPAND x""", Set.of("_index"));
+
+        assertFieldNames("""
+            FROM employees
+            | EVAL y = "a"
+            | STATS count = COUNT(*) BY first_name, y
+            | MV_EXPAND first_name""", Set.of("first_name", "first_name.*"));
+
+        assertFieldNames("""
+            FROM employees
+            | MV_EXPAND first_name
+            | EVAL y = "a"
+            | STATS count = COUNT(*) BY first_name, y
+            | SORT y""", Set.of("first_name", "first_name.*"));
+
+        assertFieldNames("""
+            FROM employees
+            | EVAL y = "a"
+            | MV_EXPAND y
+            | STATS count = COUNT(*) BY x = y
+            | SORT x""", Set.of("_index"));
+
+        assertFieldNames("""
+            FROM employees
+            | EVAL y = "a"
+            | STATS count = COUNT(*) BY x = y
+            | STATS count = COUNT(count) by x
+            | SORT x""", Set.of("_index"));
+
+        assertFieldNames("""
+            FROM employees
+            | EVAL y = "a"
+            | STATS count = COUNT(*) BY first_name, y
+            | STATS count = COUNT(count) by x = y
+            | SORT x""", Set.of("first_name", "first_name.*"));
+    }
+
     public void testSortWithLimitOne_DropHeight() {
         assertFieldNames("from employees | sort languages | limit 1 | drop height*", ALL_FIELDS);
     }
@@ -366,13 +478,16 @@ public class IndexResolverFieldNamesTests extends ESTestCase {
     }
 
     public void testEnrichOn() {
-        assertFieldNames("""
-            from employees
-            | sort emp_no
-            | limit 1
-            | eval x = to_string(languages)
-            | enrich languages_policy on x
-            | keep emp_no, language_name""", Set.of("emp_no", "emp_no.*", "languages", "languages.*", "language_name", "language_name.*"));
+        assertFieldNames(
+            """
+                from employees
+                | sort emp_no
+                | limit 1
+                | eval x = to_string(languages)
+                | enrich languages_policy on x
+                | keep emp_no, language_name""",
+            Set.of("emp_no", "emp_no.*", "languages", "languages.*", "language_name", "language_name.*", "x", "x.*")
+        );
     }
 
     public void testEnrichOn2() {
@@ -382,7 +497,7 @@ public class IndexResolverFieldNamesTests extends ESTestCase {
             | enrich languages_policy on x
             | keep emp_no, language_name
             | sort emp_no
-            | limit 1""", Set.of("emp_no", "emp_no.*", "languages", "languages.*", "language_name", "language_name.*"));
+            | limit 1""", Set.of("emp_no", "emp_no.*", "languages", "languages.*", "language_name", "language_name.*", "x", "x.*"));
     }
 
     public void testUselessEnrich() {
@@ -400,7 +515,7 @@ public class IndexResolverFieldNamesTests extends ESTestCase {
             | enrich languages_policy on x
             | keep emp_no, language_name
             | sort emp_no
-            | limit 1""", Set.of("languages", "languages.*", "emp_no", "emp_no.*", "language_name", "language_name.*"));
+            | limit 1""", Set.of("languages", "languages.*", "emp_no", "emp_no.*", "language_name", "language_name.*", "x", "x.*"));
     }
 
     public void testWith() {
@@ -408,7 +523,7 @@ public class IndexResolverFieldNamesTests extends ESTestCase {
             """
                 from employees | eval x = to_string(languages) | keep emp_no, x | sort emp_no | limit 1
                 | enrich languages_policy on x with language_name""",
-            Set.of("emp_no", "emp_no.*", "languages", "languages.*", "language_name", "language_name.*")
+            Set.of("emp_no", "emp_no.*", "languages", "languages.*", "language_name", "language_name.*", "x", "x.*")
         );
     }
 
@@ -417,7 +532,7 @@ public class IndexResolverFieldNamesTests extends ESTestCase {
             """
                 from employees  | sort emp_no | limit 3 | eval x = to_string(languages) | keep emp_no, x
                 | enrich languages_policy on x with lang = language_name""",
-            Set.of("emp_no", "emp_no.*", "languages", "languages.*", "language_name", "language_name.*")
+            Set.of("emp_no", "emp_no.*", "languages", "languages.*", "language_name", "language_name.*", "x", "x.*")
         );
     }
 
@@ -426,7 +541,7 @@ public class IndexResolverFieldNamesTests extends ESTestCase {
             """
                 from employees | eval x = to_string(languages) | keep emp_no, x  | sort emp_no | limit 3
                 | enrich languages_policy on x with lang = language_name""",
-            Set.of("emp_no", "emp_no.*", "languages", "languages.*", "language_name", "language_name.*")
+            Set.of("emp_no", "emp_no.*", "languages", "languages.*", "language_name", "language_name.*", "x", "x.*")
         );
     }
 
@@ -435,7 +550,7 @@ public class IndexResolverFieldNamesTests extends ESTestCase {
             """
                 from employees  | sort emp_no desc | limit 3 | eval x = to_string(languages) | keep emp_no, x
                 | enrich languages_policy on x with lang = language_name, language_name""",
-            Set.of("emp_no", "emp_no.*", "languages", "languages.*", "language_name", "language_name.*")
+            Set.of("emp_no", "emp_no.*", "languages", "languages.*", "language_name", "language_name.*", "x", "x.*")
         );
     }
 
@@ -444,7 +559,7 @@ public class IndexResolverFieldNamesTests extends ESTestCase {
             """
                 from employees  | sort emp_no | limit 1 | eval x = to_string(languages) | keep emp_no, x
                 | enrich languages_policy on x with lang = language_name, lang2 = language_name""",
-            Set.of("emp_no", "emp_no.*", "languages", "languages.*", "language_name", "language_name.*")
+            Set.of("emp_no", "emp_no.*", "languages", "languages.*", "language_name", "language_name.*", "x", "x.*")
         );
     }
 
@@ -453,7 +568,7 @@ public class IndexResolverFieldNamesTests extends ESTestCase {
             """
                 from employees  | sort emp_no | limit 1 | eval x = to_string(languages) | keep emp_no, x
                 | enrich languages_policy on x with language_name, language_name""",
-            Set.of("emp_no", "emp_no.*", "languages", "languages.*", "language_name", "language_name.*")
+            Set.of("emp_no", "emp_no.*", "languages", "languages.*", "language_name", "language_name.*", "x", "x.*")
         );
     }
 
@@ -476,28 +591,34 @@ public class IndexResolverFieldNamesTests extends ESTestCase {
                 | eval x = to_string(languages)
                 | keep emp_no, x
                 | enrich languages_policy on x with language_name, language_name""",
-            Set.of("languages", "languages.*", "emp_no", "emp_no.*", "language_name", "language_name.*")
+            Set.of("languages", "languages.*", "emp_no", "emp_no.*", "language_name", "language_name.*", "x", "x.*")
         );
     }
 
     public void testEnrichEval() {
-        assertFieldNames("""
-            from employees
-            | eval x = to_string(languages)
-            | enrich languages_policy on x with lang = language_name
-            | eval language = concat(x, "-", lang)
-            | keep emp_no, x, lang, language
-            | sort emp_no desc | limit 3""", Set.of("languages", "languages.*", "emp_no", "emp_no.*", "language_name", "language_name.*"));
+        assertFieldNames(
+            """
+                from employees
+                | eval x = to_string(languages)
+                | enrich languages_policy on x with lang = language_name
+                | eval language = concat(x, "-", lang)
+                | keep emp_no, x, lang, language
+                | sort emp_no desc | limit 3""",
+            Set.of("languages", "languages.*", "emp_no", "emp_no.*", "language_name", "language_name.*", "x", "x.*", "lang", "lang.*")
+        );
     }
 
     public void testSimple() {
-        assertFieldNames("""
-            from employees
-            | eval x = 1, y = to_string(languages)
-            | enrich languages_policy on y
-            | where x > 1
-            | keep emp_no, language_name
-            | limit 1""", Set.of("emp_no", "emp_no.*", "languages", "languages.*", "language_name", "language_name.*"));
+        assertFieldNames(
+            """
+                from employees
+                | eval x = 1, y = to_string(languages)
+                | enrich languages_policy on y
+                | where x > 1
+                | keep emp_no, language_name
+                | limit 1""",
+            Set.of("emp_no", "emp_no.*", "languages", "languages.*", "language_name", "language_name.*", "x", "y", "x.*", "y.*")
+        );
     }
 
     public void testEvalNullSort() {
@@ -554,11 +675,11 @@ public class IndexResolverFieldNamesTests extends ESTestCase {
         );
     }
 
-    public void testAutoBucket() {
+    public void testBucket() {
         assertFieldNames("""
             FROM employees
             | WHERE hire_date >= "1985-01-01T00:00:00Z" AND hire_date < "1986-01-01T00:00:00Z"
-            | EVAL bh = auto_bucket(height, 20, 1.41, 2.10)
+            | EVAL bh = bucket(height, 20, 1.41, 2.10)
             | SORT hire_date
             | KEEP hire_date, height, bh""", Set.of("hire_date", "hire_date.*", "height", "height.*"));
     }
@@ -1205,22 +1326,403 @@ public class IndexResolverFieldNamesTests extends ESTestCase {
     }
 
     public void testEnrichOnDefaultFieldWithKeep() {
-        Set<String> fieldNames = EsqlSession.fieldNames(parser.createStatement("""
+        Set<String> fieldNames = fieldNames("""
             from employees
             | enrich languages_policy
-            | keep emp_no"""), Set.of("language_name"));
+            | keep emp_no""", Set.of("language_name"));
         assertThat(fieldNames, equalTo(Set.of("emp_no", "emp_no.*", "language_name", "language_name.*")));
     }
 
-    public void testEnrichOnDefaultField() {
-        Set<String> fieldNames = EsqlSession.fieldNames(parser.createStatement("""
+    public void testDissectOverwriteName() {
+        Set<String> fieldNames = fieldNames("""
             from employees
-            | enrich languages_policy"""), Set.of("language_name"));
+            | dissect first_name "%{first_name} %{more}"
+            | keep emp_no, first_name, more""", Set.of());
+        assertThat(fieldNames, equalTo(Set.of("emp_no", "emp_no.*", "first_name", "first_name.*")));
+    }
+
+    public void testEnrichOnDefaultField() {
+        Set<String> fieldNames = fieldNames("""
+            from employees
+            | enrich languages_policy""", Set.of("language_name"));
         assertThat(fieldNames, equalTo(ALL_FIELDS));
     }
 
+    public void testMetrics() {
+        var query = "TS k8s | STATS bytes=sum(rate(network.total_bytes_in)), sum(rate(network.total_cost)) BY cluster";
+        if (Build.current().isSnapshot() == false) {
+            var e = expectThrows(ParsingException.class, () -> parser.createStatement(query));
+            assertThat(e.getMessage(), containsString("line 1:1: mismatched input 'TS' expecting {"));
+            return;
+        }
+        Set<String> fieldNames = fieldNames(query, Set.of());
+        assertThat(
+            fieldNames,
+            equalTo(
+                Set.of(
+                    "@timestamp",
+                    "@timestamp.*",
+                    "network.total_bytes_in",
+                    "network.total_bytes_in.*",
+                    "network.total_cost",
+                    "network.total_cost.*",
+                    "cluster",
+                    "cluster.*"
+                )
+            )
+        );
+    }
+
+    public void testLookupJoin() {
+        assumeTrue("LOOKUP JOIN available as snapshot only", EsqlCapabilities.Cap.JOIN_LOOKUP_V12.isEnabled());
+        assertFieldNames(
+            "FROM employees | KEEP languages | RENAME languages AS language_code | LOOKUP JOIN languages_lookup ON language_code",
+            Set.of("languages", "languages.*", "language_code", "language_code.*"),
+            Set.of("languages_lookup") // Since we have KEEP before the LOOKUP JOIN we need to wildcard the lookup index
+        );
+    }
+
+    public void testLookupJoinKeep() {
+        assumeTrue("LOOKUP JOIN available as snapshot only", EsqlCapabilities.Cap.JOIN_LOOKUP_V12.isEnabled());
+        assertFieldNames(
+            """
+                FROM employees
+                | KEEP languages
+                | RENAME languages AS language_code
+                | LOOKUP JOIN languages_lookup ON language_code
+                | KEEP languages, language_code, language_name""",
+            Set.of("languages", "languages.*", "language_code", "language_code.*", "language_name", "language_name.*"),
+            Set.of()  // Since we have KEEP after the LOOKUP, we can use the global field names instead of wildcarding the lookup index
+        );
+    }
+
+    public void testLookupJoinKeepWildcard() {
+        assumeTrue("LOOKUP JOIN available as snapshot only", EsqlCapabilities.Cap.JOIN_LOOKUP_V12.isEnabled());
+        assertFieldNames(
+            """
+                FROM employees
+                | KEEP languages
+                | RENAME languages AS language_code
+                | LOOKUP JOIN languages_lookup ON language_code
+                | KEEP language*""",
+            Set.of("language*", "languages", "languages.*", "language_code", "language_code.*"),
+            Set.of()  // Since we have KEEP after the LOOKUP, we can use the global field names instead of wildcarding the lookup index
+        );
+    }
+
+    public void testMultiLookupJoin() {
+        assumeTrue("LOOKUP JOIN available as snapshot only", EsqlCapabilities.Cap.JOIN_LOOKUP_V12.isEnabled());
+        assertFieldNames(
+            """
+                FROM sample_data
+                | EVAL client_ip = client_ip::keyword
+                | LOOKUP JOIN clientips_lookup ON client_ip
+                | LOOKUP JOIN message_types_lookup ON message""",
+            Set.of("*"), // With no KEEP we should keep all fields
+            Set.of() // since global field names are wildcarded, we don't need to wildcard any indices
+        );
+    }
+
+    public void testMultiLookupJoinKeepBefore() {
+        assumeTrue("LOOKUP JOIN available as snapshot only", EsqlCapabilities.Cap.JOIN_LOOKUP_V12.isEnabled());
+        assertFieldNames(
+            """
+                FROM sample_data
+                | EVAL client_ip = client_ip::keyword
+                | KEEP @timestamp, client_ip, event_duration, message
+                | LOOKUP JOIN clientips_lookup ON client_ip
+                | LOOKUP JOIN message_types_lookup ON message""",
+            Set.of("@timestamp", "@timestamp.*", "client_ip", "client_ip.*", "event_duration", "event_duration.*", "message", "message.*"),
+            Set.of("clientips_lookup", "message_types_lookup") // Since the KEEP is before both JOINS we need to wildcard both indices
+        );
+    }
+
+    public void testMultiLookupJoinKeepBetween() {
+        assumeTrue("LOOKUP JOIN available as snapshot only", EsqlCapabilities.Cap.JOIN_LOOKUP_V12.isEnabled());
+        assertFieldNames(
+            """
+                FROM sample_data
+                | EVAL client_ip = client_ip::keyword
+                | LOOKUP JOIN clientips_lookup ON client_ip
+                | KEEP @timestamp, client_ip, event_duration, message, env
+                | LOOKUP JOIN message_types_lookup ON message""",
+            Set.of(
+                "@timestamp",
+                "@timestamp.*",
+                "client_ip",
+                "client_ip.*",
+                "event_duration",
+                "event_duration.*",
+                "message",
+                "message.*",
+                "env",
+                "env.*"
+            ),
+            Set.of("message_types_lookup")  // Since the KEEP is before the second JOIN, we need to wildcard the second index
+        );
+    }
+
+    public void testMultiLookupJoinKeepAfter() {
+        assumeTrue("LOOKUP JOIN available as snapshot only", EsqlCapabilities.Cap.JOIN_LOOKUP_V12.isEnabled());
+        assertFieldNames(
+            """
+                FROM sample_data
+                | EVAL client_ip = client_ip::keyword
+                | LOOKUP JOIN clientips_lookup ON client_ip
+                | LOOKUP JOIN message_types_lookup ON message
+                | KEEP @timestamp, client_ip, event_duration, message, env, type""",
+            Set.of(
+                "@timestamp",
+                "@timestamp.*",
+                "client_ip",
+                "client_ip.*",
+                "event_duration",
+                "event_duration.*",
+                "message",
+                "message.*",
+                "env",
+                "env.*",
+                "type",
+                "type.*"
+            ),
+            Set.of()  // Since the KEEP is after both JOINs, we can use the global field names
+        );
+    }
+
+    public void testMultiLookupJoinKeepAfterWildcard() {
+        assumeTrue("LOOKUP JOIN available as snapshot only", EsqlCapabilities.Cap.JOIN_LOOKUP_V12.isEnabled());
+        assertFieldNames(
+            """
+                FROM sample_data
+                | EVAL client_ip = client_ip::keyword
+                | LOOKUP JOIN clientips_lookup ON client_ip
+                | LOOKUP JOIN message_types_lookup ON message
+                | KEEP *env*, *type*""",
+            Set.of("*env*", "*type*", "client_ip", "client_ip.*", "message", "message.*"),
+            Set.of()  // Since the KEEP is after both JOINs, we can use the global field names
+        );
+    }
+
+    public void testMultiLookupJoinSameIndex() {
+        assumeTrue("LOOKUP JOIN available as snapshot only", EsqlCapabilities.Cap.JOIN_LOOKUP_V12.isEnabled());
+        assertFieldNames(
+            """
+                FROM sample_data
+                | EVAL client_ip = client_ip::keyword
+                | LOOKUP JOIN clientips_lookup ON client_ip
+                | EVAL client_ip = message
+                | LOOKUP JOIN clientips_lookup ON client_ip""",
+            Set.of("*"), // With no KEEP we should keep all fields
+            Set.of() // since global field names are wildcarded, we don't need to wildcard any indices
+        );
+    }
+
+    public void testMultiLookupJoinSameIndexKeepBefore() {
+        assumeTrue("LOOKUP JOIN available as snapshot only", EsqlCapabilities.Cap.JOIN_LOOKUP_V12.isEnabled());
+        assertFieldNames(
+            """
+                FROM sample_data
+                | EVAL client_ip = client_ip::keyword
+                | KEEP @timestamp, client_ip, event_duration, message
+                | LOOKUP JOIN clientips_lookup ON client_ip
+                | EVAL client_ip = message
+                | LOOKUP JOIN clientips_lookup ON client_ip""",
+            Set.of("@timestamp", "@timestamp.*", "client_ip", "client_ip.*", "event_duration", "event_duration.*", "message", "message.*"),
+            Set.of("clientips_lookup") // Since there is no KEEP after the last JOIN, we need to wildcard the index
+        );
+    }
+
+    public void testMultiLookupJoinSameIndexKeepBetween() {
+        assumeTrue("LOOKUP JOIN available as snapshot only", EsqlCapabilities.Cap.JOIN_LOOKUP_V12.isEnabled());
+        assertFieldNames(
+            """
+                FROM sample_data
+                | EVAL client_ip = client_ip::keyword
+                | LOOKUP JOIN clientips_lookup ON client_ip
+                | KEEP @timestamp, client_ip, event_duration, message, env
+                | EVAL client_ip = message
+                | LOOKUP JOIN clientips_lookup ON client_ip""",
+            Set.of(
+                "@timestamp",
+                "@timestamp.*",
+                "client_ip",
+                "client_ip.*",
+                "event_duration",
+                "event_duration.*",
+                "message",
+                "message.*",
+                "env",
+                "env.*"
+            ),
+            Set.of("clientips_lookup") // Since there is no KEEP after the last JOIN, we need to wildcard the index
+        );
+    }
+
+    public void testMultiLookupJoinSameIndexKeepAfter() {
+        assumeTrue("LOOKUP JOIN available as snapshot only", EsqlCapabilities.Cap.JOIN_LOOKUP_V12.isEnabled());
+        assertFieldNames(
+            """
+                FROM sample_data
+                | EVAL client_ip = client_ip::keyword
+                | LOOKUP JOIN clientips_lookup ON client_ip
+                | EVAL client_ip = message
+                | LOOKUP JOIN clientips_lookup ON client_ip
+                | KEEP @timestamp, client_ip, event_duration, message, env""",
+            Set.of(
+                "@timestamp",
+                "@timestamp.*",
+                "client_ip",
+                "client_ip.*",
+                "event_duration",
+                "event_duration.*",
+                "message",
+                "message.*",
+                "env",
+                "env.*"
+            ),
+            Set.of()  // Since the KEEP is after both JOINs, we can use the global field names
+        );
+    }
+
+    public void testInsist_fieldIsMappedToNonKeywordSingleIndex() {
+        assumeTrue("UNMAPPED_FIELDS available as snapshot only", EsqlCapabilities.Cap.UNMAPPED_FIELDS.isEnabled());
+        assertFieldNames(
+            "FROM partial_mapping_sample_data | INSIST_🐔 client_ip | KEEP @timestamp, client_ip",
+            Set.of("@timestamp", "@timestamp.*", "client_ip", "client_ip.*"),
+            Set.of()
+        );
+    }
+
+    public void testInsist_fieldIsMappedToKeywordSingleIndex() {
+        assumeTrue("UNMAPPED_FIELDS available as snapshot only", EsqlCapabilities.Cap.UNMAPPED_FIELDS.isEnabled());
+        assertFieldNames(
+            "FROM partial_mapping_sample_data | INSIST_🐔 message | KEEP @timestamp, message",
+            Set.of("@timestamp", "@timestamp.*", "message", "message.*"),
+            Set.of()
+        );
+    }
+
+    public void testInsist_fieldDoesNotExistSingleIndex() {
+        assumeTrue("UNMAPPED_FIELDS available as snapshot only", EsqlCapabilities.Cap.UNMAPPED_FIELDS.isEnabled());
+        assertFieldNames(
+            "FROM partial_mapping_sample_data | INSIST_🐔 foo | KEEP @timestamp, foo",
+            Set.of("@timestamp", "@timestamp.*", "foo", "foo.*"),
+            Set.of()
+        );
+    }
+
+    public void testInsist_fieldIsUnmappedSingleIndex() {
+        assumeTrue("UNMAPPED_FIELDS available as snapshot only", EsqlCapabilities.Cap.UNMAPPED_FIELDS.isEnabled());
+        assertFieldNames(
+            "FROM partial_mapping_sample_data | INSIST_🐔 unmapped_message | KEEP @timestamp, unmapped_message",
+            Set.of("@timestamp", "@timestamp.*", "unmapped_message", "unmapped_message.*"),
+            Set.of()
+        );
+    }
+
+    public void testInsist_multiFieldTestSingleIndex() {
+        assumeTrue("UNMAPPED_FIELDS available as snapshot only", EsqlCapabilities.Cap.UNMAPPED_FIELDS.isEnabled());
+        assertFieldNames(
+            "FROM partial_mapping_sample_data | INSIST_🐔 message, unmapped_message, client_ip, foo | KEEP @timestamp, unmapped_message",
+            Set.of(
+                "@timestamp",
+                "@timestamp.*",
+                "message",
+                "message.*",
+                "unmapped_message",
+                "unmapped_message.*",
+                "client_ip",
+                "client_ip.*",
+                "foo",
+                "foo.*"
+            ),
+            Set.of()
+        );
+    }
+
+    public void testInsist_fieldIsMappedToDifferentTypesMultiIndex() {
+        assumeTrue("UNMAPPED_FIELDS available as snapshot only", EsqlCapabilities.Cap.UNMAPPED_FIELDS.isEnabled());
+        assertFieldNames(
+            "FROM sample_data_ts_long, sample_data METADATA _index | INSIST_🐔 @timestamp | KEEP _index, @timestamp",
+            Set.of("@timestamp", "@timestamp.*"),
+            Set.of()
+        );
+    }
+
+    public void testInsist_multiFieldMappedMultiIndex() {
+        assumeTrue("UNMAPPED_FIELDS available as snapshot only", EsqlCapabilities.Cap.UNMAPPED_FIELDS.isEnabled());
+        assertFieldNames(
+            """
+                FROM sample_data_ts_long, sample_data METADATA _index
+                | INSIST_🐔 @timestamp, unmapped_message
+                | INSIST_🐔 message, foo
+                | KEEP _index, @timestamp, message, foo""",
+            Set.of("@timestamp", "@timestamp.*", "message", "message.*", "unmapped_message", "unmapped_message.*", "foo", "foo.*"),
+            Set.of()
+        );
+    }
+
+    public void testJoinMaskingKeep() {
+        assertFieldNames(
+            """
+                from languag*
+                | eval type = null
+                | rename language_name as message
+                | lookup join message_types_lookup on message
+                | rename type as message
+                | lookup join message_types_lookup on message
+                | keep `language.name`""",
+            Set.of("language.name", "type", "language_name", "message", "language_name.*", "message.*", "type.*", "language.name.*")
+        );
+    }
+
+    public void testJoinMaskingKeep2() {
+        assertFieldNames("""
+            from languag*
+            | eval type = "foo"
+            | rename type as message
+            | lookup join message_types_lookup on message
+            | rename type as message
+            | lookup join message_types_lookup on message
+            | keep `language.name`""", Set.of("language.name", "type", "message", "message.*", "type.*", "language.name.*"));
+    }
+
+    public void testEnrichMaskingEvalOn() {
+        assertFieldNames("""
+            from employees
+            | eval language_name = null
+            | enrich languages_policy on languages
+            | rename language_name as languages
+            | eval languages = length(languages)
+            | enrich languages_policy on languages
+            | keep emp_no, language_name""", Set.of("emp_no", "language_name", "languages", "language_name.*", "languages.*", "emp_no.*"));
+    }
+
+    public void testEnrichAndJoinMaskingEvalWh() {
+        assertFieldNames("""
+            from employees
+            | eval language_name = null
+            | enrich languages_policy on languages
+            | rename language_name as languages
+            | eval languages = length(languages)
+            | enrich languages_policy on languages
+            | lookup join message_types_lookup on language_name
+            | keep emp_no, language_name""", Set.of("emp_no", "language_name", "languages", "language_name.*", "languages.*", "emp_no.*"));
+    }
+
+    private Set<String> fieldNames(String query, Set<String> enrichPolicyMatchFields) {
+        var preAnalysisResult = new EsqlSession.PreAnalysisResult(null);
+        return EsqlSession.fieldNames(parser.createStatement(query), enrichPolicyMatchFields, preAnalysisResult).fieldNames();
+    }
+
     private void assertFieldNames(String query, Set<String> expected) {
-        Set<String> fieldNames = EsqlSession.fieldNames(parser.createStatement(query), Collections.emptySet());
+        Set<String> fieldNames = fieldNames(query, Collections.emptySet());
         assertThat(fieldNames, equalTo(expected));
+    }
+
+    private void assertFieldNames(String query, Set<String> expected, Set<String> wildCardIndices) {
+        var preAnalysisResult = EsqlSession.fieldNames(parser.createStatement(query), Set.of(), new EsqlSession.PreAnalysisResult(null));
+        assertThat("Query-wide field names", preAnalysisResult.fieldNames(), equalTo(expected));
+        assertThat("Lookup Indices that expect wildcard lookups", preAnalysisResult.wildcardJoinIndices(), equalTo(wildCardIndices));
     }
 }

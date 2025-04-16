@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.admin.indices.segments;
@@ -14,12 +15,9 @@ import org.apache.lucene.search.SortedSetSortField;
 import org.elasticsearch.action.support.DefaultShardOperationFailedException;
 import org.elasticsearch.action.support.broadcast.ChunkedBroadcastResponse;
 import org.elasticsearch.common.collect.Iterators;
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.xcontent.ChunkedToXContentHelper;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.xcontent.ToXContent;
 
 import java.io.IOException;
@@ -37,12 +35,7 @@ public class IndicesSegmentResponse extends ChunkedBroadcastResponse {
 
     private volatile Map<String, IndexSegments> indicesSegments;
 
-    IndicesSegmentResponse(StreamInput in) throws IOException {
-        super(in);
-        shards = in.readArray(ShardSegments::new, ShardSegments[]::new);
-    }
-
-    IndicesSegmentResponse(
+    public IndicesSegmentResponse(
         ShardSegments[] shards,
         int totalShards,
         int successfulShards,
@@ -78,26 +71,22 @@ public class IndicesSegmentResponse extends ChunkedBroadcastResponse {
 
     @Override
     protected Iterator<ToXContent> customXContentChunks(ToXContent.Params params) {
-        return Iterators.concat(
-
-            ChunkedToXContentHelper.startObject(Fields.INDICES),
+        return ChunkedToXContentHelper.object(
+            Fields.INDICES,
             Iterators.flatMap(
                 getIndices().values().iterator(),
                 indexSegments -> Iterators.concat(
 
-                    ChunkedToXContentHelper.singleChunk(
-                        (builder, p) -> builder.startObject(indexSegments.getIndex()).startObject(Fields.SHARDS)
-                    ),
+                    ChunkedToXContentHelper.chunk((builder, p) -> builder.startObject(indexSegments.getIndex()).startObject(Fields.SHARDS)),
                     Iterators.flatMap(
                         indexSegments.iterator(),
-                        indexSegment -> Iterators.concat(
-
-                            ChunkedToXContentHelper.startArray(Integer.toString(indexSegment.shardId().id())),
+                        indexSegment -> ChunkedToXContentHelper.array(
+                            Integer.toString(indexSegment.shardId().id()),
                             Iterators.flatMap(
                                 indexSegment.iterator(),
                                 shardSegments -> Iterators.concat(
 
-                                    ChunkedToXContentHelper.singleChunk((builder, p) -> {
+                                    ChunkedToXContentHelper.chunk((builder, p) -> {
                                         builder.startObject();
 
                                         builder.startObject(Fields.ROUTING);
@@ -119,15 +108,12 @@ public class IndicesSegmentResponse extends ChunkedBroadcastResponse {
                                         shardSegments.iterator(),
                                         segment -> Iterators.concat(
 
-                                            ChunkedToXContentHelper.singleChunk((builder, p) -> {
+                                            ChunkedToXContentHelper.chunk((builder, p) -> {
                                                 builder.startObject(segment.getName());
                                                 builder.field(Fields.GENERATION, segment.getGeneration());
                                                 builder.field(Fields.NUM_DOCS, segment.getNumDocs());
                                                 builder.field(Fields.DELETED_DOCS, segment.getDeletedDocs());
                                                 builder.humanReadableField(Fields.SIZE_IN_BYTES, Fields.SIZE, segment.getSize());
-                                                if (builder.getRestApiVersion() == RestApiVersion.V_7) {
-                                                    builder.humanReadableField(Fields.MEMORY_IN_BYTES, Fields.MEMORY, ByteSizeValue.ZERO);
-                                                }
                                                 builder.field(Fields.COMMITTED, segment.isCommitted());
                                                 builder.field(Fields.SEARCH, segment.isSearch());
                                                 if (segment.getVersion() != null) {
@@ -142,7 +128,7 @@ public class IndicesSegmentResponse extends ChunkedBroadcastResponse {
                                                 return builder;
                                             }),
                                             getSegmentSortChunks(segment.getSegmentSort()),
-                                            ChunkedToXContentHelper.singleChunk((builder, p) -> {
+                                            ChunkedToXContentHelper.chunk((builder, p) -> {
                                                 if (segment.attributes != null && segment.attributes.isEmpty() == false) {
                                                     builder.field("attributes", segment.attributes);
                                                 }
@@ -151,16 +137,14 @@ public class IndicesSegmentResponse extends ChunkedBroadcastResponse {
                                             })
                                         )
                                     ),
-                                    ChunkedToXContentHelper.singleChunk((builder, p) -> builder.endObject().endObject())
+                                    ChunkedToXContentHelper.chunk((builder, p) -> builder.endObject().endObject())
                                 )
-                            ),
-                            ChunkedToXContentHelper.endArray()
+                            )
                         )
                     ),
-                    ChunkedToXContentHelper.singleChunk((builder, p) -> builder.endObject().endObject())
+                    ChunkedToXContentHelper.chunk((builder, p) -> builder.endObject().endObject())
                 )
-            ),
-            ChunkedToXContentHelper.endObject()
+            )
         );
     }
 
@@ -169,25 +153,21 @@ public class IndicesSegmentResponse extends ChunkedBroadcastResponse {
             return Collections.emptyIterator();
         }
 
-        return Iterators.concat(
-            ChunkedToXContentHelper.startArray("sort"),
-            Iterators.map(Iterators.forArray(segmentSort.getSort()), field -> (builder, p) -> {
-                builder.startObject();
-                builder.field("field", field.getField());
-                if (field instanceof SortedNumericSortField sortedNumericSortField) {
-                    builder.field("mode", sortedNumericSortField.getSelector().toString().toLowerCase(Locale.ROOT));
-                } else if (field instanceof SortedSetSortField sortedSetSortField) {
-                    builder.field("mode", sortedSetSortField.getSelector().toString().toLowerCase(Locale.ROOT));
-                }
-                if (field.getMissingValue() != null) {
-                    builder.field("missing", field.getMissingValue().toString());
-                }
-                builder.field("reverse", field.getReverse());
-                builder.endObject();
-                return builder;
-            }),
-            ChunkedToXContentHelper.endArray()
-        );
+        return ChunkedToXContentHelper.array("sort", Iterators.map(Iterators.forArray(segmentSort.getSort()), field -> (builder, p) -> {
+            builder.startObject();
+            builder.field("field", field.getField());
+            if (field instanceof SortedNumericSortField sortedNumericSortField) {
+                builder.field("mode", sortedNumericSortField.getSelector().toString().toLowerCase(Locale.ROOT));
+            } else if (field instanceof SortedSetSortField sortedSetSortField) {
+                builder.field("mode", sortedSetSortField.getSelector().toString().toLowerCase(Locale.ROOT));
+            }
+            if (field.getMissingValue() != null) {
+                builder.field("missing", field.getMissingValue().toString());
+            }
+            builder.field("reverse", field.getReverse());
+            builder.endObject();
+            return builder;
+        }));
     }
 
     static final class Fields {
@@ -214,8 +194,5 @@ public class IndicesSegmentResponse extends ChunkedBroadcastResponse {
         static final String MERGE_ID = "merge_id";
         static final String MEMORY = "memory";
         static final String MEMORY_IN_BYTES = "memory_in_bytes";
-        static final String RAM_TREE = "ram_tree";
-        static final String DESCRIPTION = "description";
-        static final String CHILDREN = "children";
     }
 }

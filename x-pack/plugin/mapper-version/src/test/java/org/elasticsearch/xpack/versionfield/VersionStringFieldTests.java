@@ -117,7 +117,7 @@ public class VersionStringFieldTests extends ESSingleNodeTestCase {
         assertResponse(
             client().prepareSearch(indexName).setQuery(QueryBuilders.prefixQuery("version", "2.1.0-A").caseInsensitive(true)),
             response -> {
-                assertEquals(1, response.getHits().getTotalHits().value);
+                assertEquals(1, response.getHits().getTotalHits().value());
                 assertEquals("2.1.0-alpha.beta", response.getHits().getHits()[0].getSourceAsMap().get("version"));
             }
         );
@@ -134,7 +134,7 @@ public class VersionStringFieldTests extends ESSingleNodeTestCase {
         assertResponse(
             client().prepareSearch(indexName).setQuery(QueryBuilders.matchAllQuery()).addSort("version", SortOrder.DESC),
             response -> {
-                assertEquals(8, response.getHits().getTotalHits().value);
+                assertEquals(8, response.getHits().getTotalHits().value());
                 SearchHit[] hits = response.getHits().getHits();
                 assertEquals("1.3.567#12", hits[0].getSortValues()[0]);
                 assertEquals("1.2.3alpha", hits[1].getSortValues()[0]);
@@ -150,7 +150,7 @@ public class VersionStringFieldTests extends ESSingleNodeTestCase {
         assertResponse(
             client().prepareSearch(indexName).setQuery(QueryBuilders.matchAllQuery()).addSort("version", SortOrder.ASC),
             response -> {
-                assertEquals(8, response.getHits().getTotalHits().value);
+                assertEquals(8, response.getHits().getTotalHits().value());
                 var hits = response.getHits().getHits();
                 assertEquals("1.0.0", hits[0].getSortValues()[0]);
                 assertEquals("1.3.0+build.1234567", hits[1].getSortValues()[0]);
@@ -179,7 +179,7 @@ public class VersionStringFieldTests extends ESSingleNodeTestCase {
         client().admin().indices().prepareRefresh(indexName).get();
 
         assertResponse(client().prepareSearch(indexName).setQuery(QueryBuilders.regexpQuery("version", "2.*0")), response -> {
-            assertEquals(2, response.getHits().getTotalHits().value);
+            assertEquals(2, response.getHits().getTotalHits().value());
             assertEquals("2.1.0", response.getHits().getHits()[0].getSourceAsMap().get("version"));
             assertEquals("2.33.0", response.getHits().getHits()[1].getSourceAsMap().get("version"));
         });
@@ -187,21 +187,21 @@ public class VersionStringFieldTests extends ESSingleNodeTestCase {
         assertResponse(
             client().prepareSearch(indexName).setQuery(QueryBuilders.regexpQuery("version", "<0-10>.<0-10>.*al.*")),
             response -> {
-                assertEquals(2, response.getHits().getTotalHits().value);
+                assertEquals(2, response.getHits().getTotalHits().value());
                 assertEquals("1.0.0alpha2.1.0-rc.1", response.getHits().getHits()[0].getSourceAsMap().get("version"));
                 assertEquals("2.1.0-alpha.beta", response.getHits().getHits()[1].getSourceAsMap().get("version"));
             }
         );
 
         assertResponse(client().prepareSearch(indexName).setQuery(QueryBuilders.regexpQuery("version", "1.[0-9].[0-9].*")), response -> {
-            assertEquals(2, response.getHits().getTotalHits().value);
+            assertEquals(2, response.getHits().getTotalHits().value());
             assertEquals("1.0.0alpha2.1.0-rc.1", response.getHits().getHits()[0].getSourceAsMap().get("version"));
             assertEquals("1.3.0+build.1234567", response.getHits().getHits()[1].getSourceAsMap().get("version"));
         });
 
         // test case sensitivity / insensitivity
         assertResponse(client().prepareSearch(indexName).setQuery(QueryBuilders.regexpQuery("version", ".*alpha.*")), response -> {
-            assertEquals(2, response.getHits().getTotalHits().value);
+            assertEquals(2, response.getHits().getTotalHits().value());
             assertEquals("1.0.0alpha2.1.0-rc.1", response.getHits().getHits()[0].getSourceAsMap().get("version"));
             assertEquals("2.1.0-alpha.beta", response.getHits().getHits()[1].getSourceAsMap().get("version"));
         });
@@ -211,7 +211,7 @@ public class VersionStringFieldTests extends ESSingleNodeTestCase {
         assertResponse(
             client().prepareSearch(indexName).setQuery(QueryBuilders.regexpQuery("version", ".*Alpha.*").caseInsensitive(true)),
             response -> {
-                assertEquals(2, response.getHits().getTotalHits().value);
+                assertEquals(2, response.getHits().getTotalHits().value());
                 assertEquals("1.0.0alpha2.1.0-rc.1", response.getHits().getHits()[0].getSourceAsMap().get("version"));
                 assertEquals("2.1.0-alpha.beta", response.getHits().getHits()[1].getSourceAsMap().get("version"));
             }
@@ -234,7 +234,7 @@ public class VersionStringFieldTests extends ESSingleNodeTestCase {
         client().admin().indices().prepareRefresh(indexName).get();
 
         assertResponse(client().prepareSearch(indexName).setQuery(QueryBuilders.fuzzyQuery("version", "2.3.0")), response -> {
-            assertEquals(3, response.getHits().getTotalHits().value);
+            assertEquals(3, response.getHits().getTotalHits().value());
             assertEquals("2.1.0", response.getHits().getHits()[0].getSourceAsMap().get("version"));
             assertEquals("2.33.0", response.getHits().getHits()[1].getSourceAsMap().get("version"));
             assertEquals("2.a3.0", response.getHits().getHits()[2].getSourceAsMap().get("version"));
@@ -288,7 +288,7 @@ public class VersionStringFieldTests extends ESSingleNodeTestCase {
         assertResponse(
             client().prepareSearch(indexName).setQuery(QueryBuilders.wildcardQuery("version", "*Alpha*").caseInsensitive(true)),
             response -> {
-                assertEquals(2, response.getHits().getTotalHits().value);
+                assertEquals(2, response.getHits().getTotalHits().value());
                 assertEquals("1.0.0-alpha.2.1.0-rc.1", response.getHits().getHits()[0].getSourceAsMap().get("version"));
                 assertEquals("2.1.0-alpha.beta", response.getHits().getHits()[1].getSourceAsMap().get("version"));
             }
@@ -297,7 +297,7 @@ public class VersionStringFieldTests extends ESSingleNodeTestCase {
 
     private void checkWildcardQuery(String indexName, String query, String... expectedResults) {
         assertResponse(client().prepareSearch(indexName).setQuery(QueryBuilders.wildcardQuery("version", query)), response -> {
-            assertEquals(expectedResults.length, response.getHits().getTotalHits().value);
+            assertEquals(expectedResults.length, response.getHits().getTotalHits().value());
             for (int i = 0; i < expectedResults.length; i++) {
                 String expected = expectedResults[i];
                 Object actual = response.getHits().getHits()[i].getSourceAsMap().get("version");
@@ -321,7 +321,7 @@ public class VersionStringFieldTests extends ESSingleNodeTestCase {
         client().admin().indices().prepareRefresh(indexName).get();
 
         assertResponse(client().prepareSearch(indexName).addDocValueField("version"), response -> {
-            assertEquals(4, response.getHits().getTotalHits().value);
+            assertEquals(4, response.getHits().getTotalHits().value());
             assertEquals("1", response.getHits().getAt(0).getId());
             assertEquals("1.invalid.0", response.getHits().getAt(0).field("version").getValue());
 
@@ -359,7 +359,7 @@ public class VersionStringFieldTests extends ESSingleNodeTestCase {
         assertResponse(
             client().prepareSearch(indexName).setQuery(QueryBuilders.matchAllQuery()).addSort("version", SortOrder.ASC),
             response -> {
-                assertEquals(4, response.getHits().getTotalHits().value);
+                assertEquals(4, response.getHits().getTotalHits().value());
                 SearchHit[] hits = response.getHits().getHits();
                 assertEquals("2.2.0", hits[0].getSortValues()[0]);
                 assertEquals("", hits[1].getSortValues()[0]);
@@ -437,36 +437,36 @@ public class VersionStringFieldTests extends ESSingleNodeTestCase {
         client().admin().indices().prepareRefresh(indexName).get();
 
         assertResponse(client().prepareSearch(indexName).addSort("version", SortOrder.ASC), response -> {
-            assertEquals(3, response.getHits().getTotalHits().value);
+            assertEquals(3, response.getHits().getTotalHits().value());
             assertEquals("1", response.getHits().getAt(0).getId());
             assertEquals("2", response.getHits().getAt(1).getId());
             assertEquals("3", response.getHits().getAt(2).getId());
         });
 
         assertResponse(client().prepareSearch(indexName).setQuery(QueryBuilders.matchQuery("version", "3.0.0")), response -> {
-            assertEquals(1, response.getHits().getTotalHits().value);
+            assertEquals(1, response.getHits().getTotalHits().value());
             assertEquals("1", response.getHits().getAt(0).getId());
         });
 
         assertResponse(client().prepareSearch(indexName).setQuery(QueryBuilders.matchQuery("version", "4.alpha.0")), response -> {
-            assertEquals(1, response.getHits().getTotalHits().value);
+            assertEquals(1, response.getHits().getTotalHits().value());
             assertEquals("2", response.getHits().getAt(0).getId());
         });
 
         // range
         assertResponse(
             client().prepareSearch(indexName).setQuery(QueryBuilders.rangeQuery("version").to("1.5.0")),
-            response -> assertEquals(1, response.getHits().getTotalHits().value)
+            response -> assertEquals(1, response.getHits().getTotalHits().value())
         );
 
         assertResponse(
             client().prepareSearch(indexName).setQuery(QueryBuilders.rangeQuery("version").from("1.5.0")),
-            response -> assertEquals(3, response.getHits().getTotalHits().value)
+            response -> assertEquals(3, response.getHits().getTotalHits().value())
         );
 
         assertResponse(
             client().prepareSearch(indexName).setQuery(QueryBuilders.rangeQuery("version").from("5.0.0").to("6.0.0")),
-            response -> assertEquals(1, response.getHits().getTotalHits().value)
+            response -> assertEquals(1, response.getHits().getTotalHits().value())
         );
     }
 }

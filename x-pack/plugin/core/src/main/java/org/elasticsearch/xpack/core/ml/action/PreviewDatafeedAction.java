@@ -298,11 +298,6 @@ public class PreviewDatafeedAction extends ActionType<PreviewDatafeedAction.Resp
 
         private final BytesReference preview;
 
-        public Response(StreamInput in) throws IOException {
-            super(in);
-            preview = in.readBytesReference();
-        }
-
         public Response(BytesReference preview) {
             this.preview = preview;
         }

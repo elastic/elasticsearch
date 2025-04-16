@@ -116,6 +116,7 @@ public class TestRestrictedIndices {
                             .build(),
                         Map.of(),
                         List.of("fleet", "kibana"),
+                        "fleet",
                         null
                     )
                 )
@@ -179,8 +180,7 @@ public class TestRestrictedIndices {
     private static SystemIndexDescriptor.Builder getInitializedDescriptorBuilder(int indexFormat) {
         return SystemIndexDescriptor.builder()
             .setMappings(mockMappings())
-            .setSettings(Settings.builder().put(IndexMetadata.INDEX_FORMAT_SETTING.getKey(), indexFormat).build())
-            .setVersionMetaKey("version");
+            .setSettings(Settings.builder().put(IndexMetadata.INDEX_FORMAT_SETTING.getKey(), indexFormat).build());
     }
 
     private static SystemIndexDescriptor getMainSecurityDescriptor() {

@@ -10,7 +10,7 @@ import org.elasticsearch.test.AbstractXContentTestCase;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.ilm.WaitForFollowShardTasksStep.Info;
-import org.elasticsearch.xpack.core.ilm.WaitForFollowShardTasksStep.Info.ShardFollowTaskInfo;
+import org.elasticsearch.xpack.core.ilm.WaitForFollowShardTasksStep.ShardFollowTaskInfo;
 
 import java.io.IOException;
 import java.util.ArrayList;

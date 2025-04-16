@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.ingest;
@@ -18,6 +19,9 @@ import java.util.List;
 import java.util.Map;
 
 import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.sameInstance;
 
 public class IngestStatsTests extends ESTestCase {
 
@@ -28,6 +32,71 @@ public class IngestStatsTests extends ESTestCase {
         IngestStats ingestStats = new IngestStats(totalStats, pipelineStats, processorStats);
         IngestStats serializedStats = serialize(ingestStats);
         assertIngestStats(ingestStats, serializedStats);
+    }
+
+    public void testIdentitySerialization() throws IOException {
+        IngestStats serializedStats = serialize(IngestStats.IDENTITY);
+        assertThat(serializedStats, sameInstance(IngestStats.IDENTITY));
+    }
+
+    public void testProcessorNameAndTypeIdentitySerialization() throws IOException {
+        IngestStats.Builder builder = new IngestStats.Builder();
+        builder.addPipelineMetrics("pipeline_id", new IngestPipelineMetric());
+        builder.addProcessorMetrics("pipeline_id", "set", "set", new IngestMetric());
+        builder.addProcessorMetrics("pipeline_id", "set:foo", "set", new IngestMetric());
+        builder.addProcessorMetrics("pipeline_id", "set:bar", "set", new IngestMetric());
+        builder.addTotalMetrics(new IngestMetric());
+
+        IngestStats serializedStats = serialize(builder.build());
+        List<IngestStats.ProcessorStat> processorStats = serializedStats.processorStats().get("pipeline_id");
+
+        // these are just table stakes
+        assertThat(processorStats.get(0).name(), is("set"));
+        assertThat(processorStats.get(0).type(), is("set"));
+        assertThat(processorStats.get(1).name(), is("set:foo"));
+        assertThat(processorStats.get(1).type(), is("set"));
+        assertThat(processorStats.get(2).name(), is("set:bar"));
+        assertThat(processorStats.get(2).type(), is("set"));
+
+        // this is actually interesting, though -- we're canonical-izing these strings to keep our heap usage under control
+        final String set = processorStats.get(0).name();
+        assertThat(processorStats.get(0).name(), sameInstance(set));
+        assertThat(processorStats.get(0).type(), sameInstance(set));
+        assertThat(processorStats.get(1).type(), sameInstance(set));
+        assertThat(processorStats.get(2).type(), sameInstance(set));
+    }
+
+    public void testBytesStatsSerialization() throws IOException {
+        {
+            IngestPipelineMetric metric = new IngestPipelineMetric();
+            IngestStats.ByteStats byteStats = metric.createByteStats();
+            assertThat(byteStats, sameInstance(IngestStats.ByteStats.IDENTITY));
+
+            IngestStats.ByteStats serializedByteStats = serialize(byteStats);
+            assertThat(serializedByteStats, sameInstance(IngestStats.ByteStats.IDENTITY));
+            assertThat(IngestStats.ByteStats.merge(IngestStats.ByteStats.IDENTITY, byteStats), sameInstance(byteStats));
+        }
+        {
+            long ingestBytes = randomLongBetween(0, Long.MAX_VALUE);
+            long producedBytes = randomLongBetween(0, Long.MAX_VALUE);
+            IngestPipelineMetric metric = new IngestPipelineMetric();
+            metric.preIngestBytes(ingestBytes);
+            metric.postIngestBytes(producedBytes);
+            IngestStats.ByteStats byteStats = metric.createByteStats();
+            assertThat(byteStats.bytesIngested(), equalTo(ingestBytes));
+            assertThat(byteStats.bytesProduced(), equalTo(producedBytes));
+
+            IngestStats.ByteStats serializedByteStats = serialize(byteStats);
+            assertThat(serializedByteStats.bytesIngested(), equalTo(ingestBytes));
+            assertThat(serializedByteStats.bytesProduced(), equalTo(producedBytes));
+
+            assertThat(IngestStats.ByteStats.merge(byteStats, IngestStats.ByteStats.IDENTITY), sameInstance(byteStats));
+            assertThat(IngestStats.ByteStats.merge(IngestStats.ByteStats.IDENTITY, byteStats), sameInstance(byteStats));
+            assertThat(
+                IngestStats.ByteStats.merge(IngestStats.ByteStats.IDENTITY, IngestStats.ByteStats.IDENTITY),
+                sameInstance(IngestStats.ByteStats.IDENTITY)
+            );
+        }
     }
 
     public void testStatsMerge() {
@@ -62,11 +131,23 @@ public class IngestStatsTests extends ESTestCase {
         assertThat(
             IngestStats.PipelineStat.merge(first, second),
             containsInAnyOrder(
-                new IngestStats.PipelineStat("pipeline-1", merge(first.get(0).stats(), first.get(1).stats(), second.get(1).stats())),
-                new IngestStats.PipelineStat("pipeline-2", merge(first.get(2).stats(), second.get(0).stats())),
-                new IngestStats.PipelineStat("pipeline-3", merge(first.get(3).stats(), second.get(3).stats())),
-                new IngestStats.PipelineStat("pipeline-4", second.get(2).stats()),
-                new IngestStats.PipelineStat("pipeline-5", first.get(4).stats())
+                new IngestStats.PipelineStat(
+                    "pipeline-1",
+                    merge(first.get(0).stats(), first.get(1).stats(), second.get(1).stats()),
+                    merge(first.get(0).byteStats(), first.get(1).byteStats(), second.get(1).byteStats())
+                ),
+                new IngestStats.PipelineStat(
+                    "pipeline-2",
+                    merge(first.get(2).stats(), second.get(0).stats()),
+                    IngestStats.ByteStats.merge(first.get(2).byteStats(), second.get(0).byteStats())
+                ),
+                new IngestStats.PipelineStat(
+                    "pipeline-3",
+                    merge(first.get(3).stats(), second.get(3).stats()),
+                    IngestStats.ByteStats.merge(first.get(3).byteStats(), second.get(3).byteStats())
+                ),
+                new IngestStats.PipelineStat("pipeline-4", second.get(2).stats(), second.get(2).byteStats()),
+                new IngestStats.PipelineStat("pipeline-5", first.get(4).stats(), first.get(4).byteStats())
             )
         );
     }
@@ -178,10 +259,26 @@ public class IngestStatsTests extends ESTestCase {
         return Arrays.stream(stats).reduce(IngestStats.Stats.IDENTITY, IngestStats.Stats::merge);
     }
 
+    private static IngestStats.ByteStats merge(IngestStats.ByteStats... stats) {
+        return Arrays.stream(stats).reduce(new IngestStats.ByteStats(0, 0), IngestStats.ByteStats::merge);
+    }
+
     private static List<IngestStats.PipelineStat> createPipelineStats() {
-        IngestStats.PipelineStat pipeline1Stats = new IngestStats.PipelineStat("pipeline1", new IngestStats.Stats(3, 3, 3, 3));
-        IngestStats.PipelineStat pipeline2Stats = new IngestStats.PipelineStat("pipeline2", new IngestStats.Stats(47, 97, 197, 297));
-        IngestStats.PipelineStat pipeline3Stats = new IngestStats.PipelineStat("pipeline3", new IngestStats.Stats(0, 0, 0, 0));
+        IngestStats.PipelineStat pipeline1Stats = new IngestStats.PipelineStat(
+            "pipeline1",
+            new IngestStats.Stats(3, 3, 3, 3),
+            new IngestStats.ByteStats(123, 456)
+        );
+        IngestStats.PipelineStat pipeline2Stats = new IngestStats.PipelineStat(
+            "pipeline2",
+            new IngestStats.Stats(47, 97, 197, 297),
+            new IngestStats.ByteStats(1234567, 34567890)
+        );
+        IngestStats.PipelineStat pipeline3Stats = new IngestStats.PipelineStat(
+            "pipeline3",
+            new IngestStats.Stats(0, 0, 0, 0),
+            new IngestStats.ByteStats(0, 0)
+        );
         return List.of(pipeline1Stats, pipeline2Stats, pipeline3Stats);
     }
 
@@ -210,6 +307,13 @@ public class IngestStatsTests extends ESTestCase {
         return IngestStats.read(in);
     }
 
+    private static IngestStats.ByteStats serialize(IngestStats.ByteStats stats) throws IOException {
+        var out = new BytesStreamOutput();
+        stats.writeTo(out);
+        var in = out.bytes().streamInput();
+        return IngestStats.readByteStats(in);
+    }
+
     private static void assertIngestStats(IngestStats ingestStats, IngestStats serializedStats) {
         assertNotSame(ingestStats, serializedStats);
         assertNotSame(ingestStats.totalStats(), serializedStats.totalStats());
@@ -223,6 +327,10 @@ public class IngestStatsTests extends ESTestCase {
             assertEquals(
                 getPipelineStats(ingestStats.pipelineStats(), serializedPipelineStat.pipelineId()),
                 serializedPipelineStat.stats()
+            );
+            assertEquals(
+                getPipelineByteStats(ingestStats.pipelineStats(), serializedPipelineStat.pipelineId()),
+                serializedPipelineStat.byteStats()
             );
             List<IngestStats.ProcessorStat> serializedProcessorStats = serializedStats.processorStats()
                 .get(serializedPipelineStat.pipelineId());
@@ -249,12 +357,20 @@ public class IngestStatsTests extends ESTestCase {
             .orElse(null);
     }
 
+    private static IngestStats.ByteStats getPipelineByteStats(List<IngestStats.PipelineStat> pipelineStats, String id) {
+        return pipelineStats.stream()
+            .filter(p1 -> p1.pipelineId().equals(id))
+            .findFirst()
+            .map(IngestStats.PipelineStat::byteStats)
+            .orElse(null);
+    }
+
     private static IngestStats.ProcessorStat randomProcessorStat(String name, String type) {
         return new IngestStats.ProcessorStat(name, type, randomStats());
     }
 
     private static IngestStats.PipelineStat randomPipelineStat(String id) {
-        return new IngestStats.PipelineStat(id, randomStats());
+        return new IngestStats.PipelineStat(id, randomStats(), randomByteStats());
     }
 
     private static IngestStats.Stats randomStats() {
@@ -263,5 +379,9 @@ public class IngestStatsTests extends ESTestCase {
 
     private static IngestStats.Stats zeroStats() {
         return new IngestStats.Stats(0, 0, 0, 0);
+    }
+
+    private static IngestStats.ByteStats randomByteStats() {
+        return new IngestStats.ByteStats(randomLong(), randomLong());
     }
 }

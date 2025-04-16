@@ -11,7 +11,7 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.LifecycleExecutionState;
-import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
@@ -34,7 +34,7 @@ public final class InitializePolicyContextStep extends ClusterStateActionStep {
 
     @Override
     public ClusterState performAction(Index index, ClusterState clusterState) {
-        IndexMetadata indexMetadata = clusterState.getMetadata().index(index);
+        IndexMetadata indexMetadata = clusterState.getMetadata().getProject().index(index);
         if (indexMetadata == null) {
             logger.debug("[{}] lifecycle action for index [{}] executed but index no longer exists", getKey().action(), index.getName());
             // Index must have been since deleted, ignore it
@@ -79,7 +79,9 @@ public final class InitializePolicyContextStep extends ClusterStateActionStep {
                         .build()
                 );
             builder.putCustom(ILM_CUSTOM_METADATA_KEY, newLifecycleState.asMap());
-            return ClusterState.builder(clusterState).metadata(Metadata.builder(clusterState.metadata()).put(builder).build()).build();
+            return ClusterState.builder(clusterState)
+                .putProjectMetadata(ProjectMetadata.builder(clusterState.metadata().getProject()).put(builder).build())
+                .build();
         }
     }
 

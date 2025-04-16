@@ -12,6 +12,7 @@ import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsRequest;
 import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsResponse;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.metadata.MappingMetadata;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsSource;
@@ -34,6 +35,7 @@ public final class MappingsMerger {
 
     public static void mergeMappings(
         Client client,
+        TimeValue masterTimeout,
         Map<String, String> headers,
         DataFrameAnalyticsSource source,
         ActionListener<MappingMetadata> listener
@@ -43,7 +45,7 @@ public final class MappingsMerger {
             listener::onFailure
         );
 
-        GetMappingsRequest getMappingsRequest = new GetMappingsRequest();
+        GetMappingsRequest getMappingsRequest = new GetMappingsRequest(masterTimeout);
         getMappingsRequest.indices(source.getIndex());
         ClientHelper.executeWithHeadersAsync(headers, ML_ORIGIN, client, GetMappingsAction.INSTANCE, getMappingsRequest, mappingsListener);
     }

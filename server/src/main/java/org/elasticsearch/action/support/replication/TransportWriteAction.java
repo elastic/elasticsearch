@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.support.replication;
@@ -18,6 +19,7 @@ import org.elasticsearch.action.support.WriteResponse;
 import org.elasticsearch.cluster.action.shard.ShardStateAction;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -39,6 +41,7 @@ import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
+import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
@@ -59,9 +62,10 @@ public abstract class TransportWriteAction<
     protected final IndexingPressure indexingPressure;
     protected final SystemIndices systemIndices;
     protected final ExecutorSelector executorSelector;
+    protected final ProjectResolver projectResolver;
 
     protected final PostWriteRefresh postWriteRefresh;
-    private final BiFunction<ExecutorSelector, IndexShard, String> executorFunction;
+    private final BiFunction<ExecutorSelector, IndexShard, Executor> executorFunction;
 
     protected TransportWriteAction(
         Settings settings,
@@ -74,10 +78,12 @@ public abstract class TransportWriteAction<
         ActionFilters actionFilters,
         Writeable.Reader<Request> request,
         Writeable.Reader<ReplicaRequest> replicaRequest,
-        BiFunction<ExecutorSelector, IndexShard, String> executorFunction,
-        boolean forceExecutionOnPrimary,
+        BiFunction<ExecutorSelector, IndexShard, Executor> executorFunction,
+        PrimaryActionExecution primaryActionExecution,
         IndexingPressure indexingPressure,
-        SystemIndices systemIndices
+        SystemIndices systemIndices,
+        ProjectResolver projectResolver,
+        ReplicaActionExecution replicaActionExecution
     ) {
         // We pass ThreadPool.Names.SAME to the super class as we control the dispatching to the
         // ThreadPool.Names.WRITE/ThreadPool.Names.SYSTEM_WRITE thread pools in this class.
@@ -93,23 +99,31 @@ public abstract class TransportWriteAction<
             request,
             replicaRequest,
             EsExecutors.DIRECT_EXECUTOR_SERVICE,
-            true,
-            forceExecutionOnPrimary
+            SyncGlobalCheckpointAfterOperation.AttemptAfterSuccess,
+            primaryActionExecution,
+            replicaActionExecution
         );
         this.executorFunction = executorFunction;
         this.indexingPressure = indexingPressure;
         this.systemIndices = systemIndices;
         this.executorSelector = systemIndices.getExecutorSelector();
+        this.projectResolver = projectResolver;
         this.postWriteRefresh = new PostWriteRefresh(transportService);
     }
 
-    protected String executor(IndexShard shard) {
+    protected Executor executor(IndexShard shard) {
         return executorFunction.apply(executorSelector, shard);
     }
 
     @Override
     protected Releasable checkOperationLimits(Request request) {
-        return indexingPressure.markPrimaryOperationStarted(primaryOperationCount(request), primaryOperationSize(request), force(request));
+        return indexingPressure.validateAndMarkPrimaryOperationStarted(
+            primaryOperationCount(request),
+            primaryOperationSize(request),
+            primaryLargestOperationSize(request),
+            force(request),
+            primaryAllowsOperationsBeyondSizeLimit(request)
+        );
     }
 
     protected boolean force(ReplicatedWriteRequest<?> request) {
@@ -117,7 +131,9 @@ public abstract class TransportWriteAction<
     }
 
     protected boolean isSystemShard(ShardId shardId) {
-        final IndexAbstraction abstraction = clusterService.state().metadata().getIndicesLookup().get(shardId.getIndexName());
+        final IndexAbstraction abstraction = projectResolver.getProjectMetadata(clusterService.state())
+            .getIndicesLookup()
+            .get(shardId.getIndexName());
         return abstraction != null ? abstraction.isSystem() : systemIndices.isSystemIndex(shardId.getIndexName());
     }
 
@@ -127,9 +143,11 @@ public abstract class TransportWriteAction<
             // If this primary request was received from a local reroute initiated by the node client, we
             // must mark a new primary operation local to the coordinating node.
             if (localRerouteInitiatedByNodeClient) {
-                return indexingPressure.markPrimaryOperationLocalToCoordinatingNodeStarted(
+                return indexingPressure.validateAndMarkPrimaryOperationLocalToCoordinatingNodeStarted(
                     primaryOperationCount(request),
-                    primaryOperationSize(request)
+                    primaryOperationSize(request),
+                    primaryLargestOperationSize(request),
+                    primaryAllowsOperationsBeyondSizeLimit(request)
                 );
             } else {
                 return () -> {};
@@ -138,11 +156,14 @@ public abstract class TransportWriteAction<
             // If this primary request was received directly from the network, we must mark a new primary
             // operation. This happens if the write action skips the reroute step (ex: rsync) or during
             // primary delegation, after the primary relocation hand-off.
-            return indexingPressure.markPrimaryOperationStarted(
+            return indexingPressure.validateAndMarkPrimaryOperationStarted(
                 primaryOperationCount(request),
                 primaryOperationSize(request),
-                force(request)
+                primaryLargestOperationSize(request),
+                force(request),
+                primaryAllowsOperationsBeyondSizeLimit(request)
             );
+
         }
     }
 
@@ -152,6 +173,14 @@ public abstract class TransportWriteAction<
 
     protected int primaryOperationCount(Request request) {
         return 0;
+    }
+
+    protected long primaryLargestOperationSize(Request request) {
+        return 0;
+    }
+
+    protected boolean primaryAllowsOperationsBeyondSizeLimit(Request request) {
+        return true;
     }
 
     @Override
@@ -210,7 +239,7 @@ public abstract class TransportWriteAction<
         IndexShard primary,
         ActionListener<PrimaryResult<ReplicaRequest, Response>> listener
     ) {
-        threadPool.executor(executorFunction.apply(executorSelector, primary)).execute(new ActionRunnable<>(listener) {
+        executorFunction.apply(executorSelector, primary).execute(new ActionRunnable<>(listener) {
             @Override
             protected void doRun() {
                 dispatchedShardOperationOnPrimary(request, primary, listener);
@@ -238,7 +267,7 @@ public abstract class TransportWriteAction<
      */
     @Override
     protected void shardOperationOnReplica(ReplicaRequest request, IndexShard replica, ActionListener<ReplicaResult> listener) {
-        threadPool.executor(executorFunction.apply(executorSelector, replica)).execute(new ActionRunnable<>(listener) {
+        executorFunction.apply(executorSelector, replica).execute(new ActionRunnable<>(listener) {
             @Override
             protected void doRun() {
                 dispatchedShardOperationOnReplica(request, replica, listener);

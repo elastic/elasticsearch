@@ -1,13 +1,15 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.mapper.vectors;
 
+import org.apache.lucene.index.KnnVectorValues;
 import org.apache.lucene.index.NumericDocValues;
 import org.elasticsearch.test.ESTestCase;
 
@@ -24,7 +26,7 @@ public class DenormalizedCosineFloatVectorValuesTests extends ESTestCase {
             wrap(new float[0][0]),
             wrapMagnitudes(new float[0])
         );
-        assertEquals(NO_MORE_DOCS, normalizedCosineFloatVectorValues.nextDoc());
+        assertEquals(NO_MORE_DOCS, normalizedCosineFloatVectorValues.iterator().nextDoc());
     }
 
     public void testRandomVectors() throws IOException {
@@ -46,9 +48,10 @@ public class DenormalizedCosineFloatVectorValuesTests extends ESTestCase {
             wrapMagnitudes(magnitudes)
         );
 
+        KnnVectorValues.DocIndexIterator iterator = normalizedCosineFloatVectorValues.iterator();
         for (int i = 0; i < numVectors; i++) {
-            assertEquals(i, normalizedCosineFloatVectorValues.advance(i));
-            assertArrayEquals(vectors[i], normalizedCosineFloatVectorValues.vectorValue(), (float) 1e-6);
+            assertEquals(i, iterator.advance(i));
+            assertArrayEquals(vectors[i], normalizedCosineFloatVectorValues.vectorValue(iterator.index()), (float) 1e-6);
             assertEquals(magnitudes[i], normalizedCosineFloatVectorValues.magnitude(), (float) 1e-6);
         }
 

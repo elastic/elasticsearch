@@ -22,6 +22,7 @@ import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.store.ReservedRolesStore;
 import org.elasticsearch.xpack.core.security.authz.store.RoleRetrievalResult;
 import org.elasticsearch.xpack.core.security.user.UsernamesField;
+import org.elasticsearch.xpack.security.authz.ReservedRoleNameChecker;
 import org.elasticsearch.xpack.security.authz.store.NativeRolesStore;
 import org.junit.BeforeClass;
 
@@ -70,8 +71,8 @@ public class TransportGetRolesActionTests extends ESTestCase {
         TransportGetRolesAction action = new TransportGetRolesAction(
             mock(ActionFilters.class),
             rolesStore,
-            transportService,
-            new ReservedRolesStore()
+            new ReservedRoleNameChecker.Default(),
+            transportService
         );
 
         final int size = randomIntBetween(1, ReservedRolesStore.names().size());
@@ -147,8 +148,8 @@ public class TransportGetRolesActionTests extends ESTestCase {
         TransportGetRolesAction action = new TransportGetRolesAction(
             mock(ActionFilters.class),
             rolesStore,
-            transportService,
-            new ReservedRolesStore()
+            new ReservedRoleNameChecker.Default(),
+            transportService
         );
 
         GetRolesRequest request = new GetRolesRequest();
@@ -213,8 +214,8 @@ public class TransportGetRolesActionTests extends ESTestCase {
         TransportGetRolesAction action = new TransportGetRolesAction(
             mock(ActionFilters.class),
             rolesStore,
-            transportService,
-            new ReservedRolesStore()
+            new ReservedRoleNameChecker.Default(),
+            transportService
         );
 
         final List<String> expectedNames = new ArrayList<>();
@@ -290,7 +291,7 @@ public class TransportGetRolesActionTests extends ESTestCase {
             requestedNames.addAll(requestedStoreNames);
         }
 
-        final NativeRolesStore rolesStore = mockNativeRolesStore(requestedNames, storeRoleDescriptors);
+        final NativeRolesStore rolesStore = mockNativeRolesStore(requestedStoreNames, storeRoleDescriptors);
 
         final TransportService transportService = new TransportService(
             Settings.EMPTY,
@@ -304,8 +305,8 @@ public class TransportGetRolesActionTests extends ESTestCase {
         final TransportGetRolesAction action = new TransportGetRolesAction(
             mock(ActionFilters.class),
             rolesStore,
-            transportService,
-            new ReservedRolesStore()
+            new ReservedRoleNameChecker.Default(),
+            transportService
         );
 
         final GetRolesRequest request = new GetRolesRequest();
@@ -318,7 +319,7 @@ public class TransportGetRolesActionTests extends ESTestCase {
             verify(rolesStore, times(1)).getRoleDescriptors(eq(new HashSet<>()), anyActionListener());
         } else {
             assertThat(actualRoleNames, containsInAnyOrder(requestedStoreNames.toArray(Strings.EMPTY_ARRAY)));
-            verify(rolesStore, times(1)).getRoleDescriptors(eq(new HashSet<>(requestedNames)), anyActionListener());
+            verify(rolesStore, times(1)).getRoleDescriptors(eq(new HashSet<>(requestedStoreNames)), anyActionListener());
         }
     }
 
@@ -381,8 +382,8 @@ public class TransportGetRolesActionTests extends ESTestCase {
         TransportGetRolesAction action = new TransportGetRolesAction(
             mock(ActionFilters.class),
             rolesStore,
-            transportService,
-            new ReservedRolesStore()
+            new ReservedRoleNameChecker.Default(),
+            transportService
         );
 
         GetRolesRequest request = new GetRolesRequest();

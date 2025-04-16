@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.threadpool;
@@ -107,7 +108,7 @@ public interface Scheduler {
      *         not be interrupted.
      */
     default Cancellable scheduleWithFixedDelay(Runnable command, TimeValue interval, Executor executor) {
-        var runnable = new ReschedulingRunnable(command, interval, executor, this, (e) -> {}, (e) -> {});
+        var runnable = new ReschedulingRunnable(command, interval, executor, this, e -> {}, e -> {});
         runnable.start();
         return runnable;
     }
@@ -226,13 +227,25 @@ public interface Scheduler {
 
         @Override
         public void onFailure(Exception e) {
-            failureConsumer.accept(e);
+            try {
+                if (runnable instanceof AbstractRunnable abstractRunnable) {
+                    abstractRunnable.onFailure(e);
+                }
+            } finally {
+                failureConsumer.accept(e);
+            }
         }
 
         @Override
         public void onRejection(Exception e) {
             run = false;
-            rejectionConsumer.accept(e);
+            try {
+                if (runnable instanceof AbstractRunnable abstractRunnable) {
+                    abstractRunnable.onRejection(e);
+                }
+            } finally {
+                rejectionConsumer.accept(e);
+            }
         }
 
         @Override
@@ -245,6 +258,11 @@ public interface Scheduler {
                     onRejection(e);
                 }
             }
+        }
+
+        @Override
+        public boolean isForceExecution() {
+            return runnable instanceof AbstractRunnable abstractRunnable && abstractRunnable.isForceExecution();
         }
 
         @Override

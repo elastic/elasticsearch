@@ -8,8 +8,8 @@ package org.elasticsearch.xpack.core.ml.inference.trainedmodel.metadata;
 
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.test.AbstractBWCSerializationTestCase;
 import org.elasticsearch.xcontent.XContentParser;
-import org.elasticsearch.xpack.core.ml.AbstractBWCSerializationTestCase;
 import org.junit.Before;
 
 import java.io.IOException;

@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.security.rest.action.user;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
@@ -39,10 +38,7 @@ public class RestGetUsersAction extends NativeUserBaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return List.of(
-            Route.builder(GET, "/_security/user/").replaces(GET, "/_xpack/security/user/", RestApiVersion.V_7).build(),
-            Route.builder(GET, "/_security/user/{username}").replaces(GET, "/_xpack/security/user/{username}", RestApiVersion.V_7).build()
-        );
+        return List.of(new Route(GET, "/_security/user/"), new Route(GET, "/_security/user/{username}"));
     }
 
     @Override

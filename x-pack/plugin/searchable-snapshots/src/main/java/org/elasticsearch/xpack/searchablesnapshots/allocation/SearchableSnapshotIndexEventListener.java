@@ -21,6 +21,7 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.shard.IndexEventListener;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.index.store.ByteSizeCachingDirectory;
 import org.elasticsearch.indices.cluster.IndicesClusterStateService.AllocatedIndices.IndexRemovalReason;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots;
@@ -61,6 +62,12 @@ public class SearchableSnapshotIndexEventListener implements IndexEventListener 
     public void beforeIndexShardRecovery(IndexShard indexShard, IndexSettings indexSettings, ActionListener<Void> listener) {
         assert ThreadPool.assertCurrentThreadPool(ThreadPool.Names.GENERIC);
         ensureSnapshotIsLoaded(indexShard);
+        var sizeCachingDirectory = ByteSizeCachingDirectory.unwrapDirectory(indexShard.store().directory());
+        if (sizeCachingDirectory != null) {
+            // Marks the cached estimation of the directory size as stale in ByteSizeCachingDirectory since we just loaded the snapshot
+            // files list into the searchable snapshot directory.
+            sizeCachingDirectory.markEstimatedSizeAsStale();
+        }
         listener.onResponse(null);
     }
 

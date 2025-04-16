@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.lucene.grouping;
 
@@ -198,12 +199,12 @@ abstract class GroupingDocValuesSelector<T> extends GroupSelector<T> {
                             @Override
                             public boolean advanceExact(int target) throws IOException {
                                 if (sorted.advanceExact(target)) {
-                                    ord = (int) sorted.nextOrd();
-                                    if (sorted.nextOrd() != SortedSetDocValues.NO_MORE_ORDS) {
+                                    if (sorted.docValueCount() > 1) {
                                         throw new IllegalStateException(
                                             "failed to extract doc:" + target + ", the grouping field must be single valued"
                                         );
                                     }
+                                    ord = (int) sorted.nextOrd();
                                     return true;
                                 } else {
                                     return false;

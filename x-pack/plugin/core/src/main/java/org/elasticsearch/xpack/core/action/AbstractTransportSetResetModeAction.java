@@ -19,11 +19,10 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.SuppressForbidden;
+import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -33,7 +32,6 @@ import static org.elasticsearch.core.Strings.format;
 public abstract class AbstractTransportSetResetModeAction extends AcknowledgedTransportMasterNodeAction<SetResetModeActionRequest> {
 
     private static final Logger logger = LogManager.getLogger(AbstractTransportSetResetModeAction.class);
-    private final ClusterService clusterService;
 
     @Inject
     public AbstractTransportSetResetModeAction(
@@ -41,8 +39,7 @@ public abstract class AbstractTransportSetResetModeAction extends AcknowledgedTr
         TransportService transportService,
         ThreadPool threadPool,
         ClusterService clusterService,
-        ActionFilters actionFilters,
-        IndexNameExpressionResolver indexNameExpressionResolver
+        ActionFilters actionFilters
     ) {
         super(
             actionName,
@@ -51,10 +48,8 @@ public abstract class AbstractTransportSetResetModeAction extends AcknowledgedTr
             threadPool,
             actionFilters,
             SetResetModeActionRequest::new,
-            indexNameExpressionResolver,
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
-        this.clusterService = clusterService;
     }
 
     protected abstract boolean isResetMode(ClusterState clusterState);

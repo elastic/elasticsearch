@@ -99,7 +99,7 @@ public class FlushAcknowledgement implements ToXContentObject, Writeable {
         builder.startObject();
         builder.field(ID.getPreferredName(), id);
         if (lastFinalizedBucketEnd != null) {
-            builder.timeField(
+            builder.timestampFieldsFromUnixEpochMillis(
                 LAST_FINALIZED_BUCKET_END.getPreferredName(),
                 LAST_FINALIZED_BUCKET_END.getPreferredName() + "_string",
                 lastFinalizedBucketEnd.toEpochMilli()

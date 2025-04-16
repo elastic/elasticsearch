@@ -1,8 +1,8 @@
 ---
 setup:
-  - skip:
-      features: ["headers", "allowed_warnings"]
-      version: " - 7.8.99"
+  - requires:
+      test_runner_features: ["headers", "allowed_warnings"]
+      cluster_features: ["gte_v7.9.0"]
       reason: "data streams available in 7.9+"
 
   - do:
@@ -105,10 +105,10 @@ teardown:
 
 ---
 "Test backing indices inherit parent data stream privileges":
-  - skip:
-      version: " - 7.8.99"
+  - requires:
+      cluster_features: ["gte_v7.9.0"]
       reason: "data streams available in 7.9+"
-      features: ["headers"]
+      test_runner_features: ["headers"]
 
   - do: # superuser
       indices.create_data_stream:
@@ -173,10 +173,10 @@ teardown:
 
 ---
 "Test that requests not supporting data streams do not include data streams among authorized indices":
-  - skip:
-      version: " - 7.8.99"
+  - requires:
+      cluster_features: ["gte_v7.9.0"]
       reason: "data streams available in 7.9+"
-      features: ["headers"]
+      test_runner_features: ["headers"]
 
   - do: # superuser
       indices.create_data_stream:
@@ -205,8 +205,8 @@ teardown:
 
 ---
 "Test auto mapping updates unauthorized for create_doc privilege":
-  - skip:
-      version: " - 7.99.99"
+  - requires:
+      cluster_features: ["gte_v8.0.0"]
       reason: "change to 7.8.99 after backport"
 
   - do: # superuser
@@ -305,8 +305,8 @@ teardown:
 
 ---
 "Test that create data stream is limited to authorized namespace":
-  - skip:
-      version: " - 7.8.99"
+  - requires:
+      cluster_features: ["gte_v7.9.0"]
       reason: "data streams available in 7.9+"
 
   - do:
@@ -328,8 +328,8 @@ teardown:
 
 ---
 "Test that get data stream is limited to authorized namespace":
-  - skip:
-      version: " - 7.8.99"
+  - requires:
+      cluster_features: ["gte_v7.9.0"]
       reason: "data streams available in 7.9+"
 
   - do: # superuser
@@ -393,8 +393,8 @@ teardown:
 
 ---
 "Test that delete data stream is limited to authorized namespace":
-  - skip:
-      version: " - 7.8.99"
+  - requires:
+      cluster_features: ["gte_v7.9.0"]
       reason: "data streams available in 7.9+"
 
   - do: # superuser
@@ -432,8 +432,8 @@ teardown:
 
 ---
 "Test that data streams stats is limited to authorized namespace":
-  - skip:
-      version: " - 7.99.99"
+  - requires:
+      cluster_features: ["gte_v8.0.0"]
       reason: "change to 7.8.99 after backport"
 
   - do: # superuser
@@ -487,10 +487,10 @@ teardown:
 
 ---
 "auto_configure privilege permits auto-create of data streams":
-  - skip:
-      version: " - 7.8.99"
+  - requires:
+      cluster_features: ["gte_v7.9.0"]
       reason: "data streams available in 7.9+"
-      features: ["headers", "allowed_warnings"]
+      test_runner_features: ["headers", "allowed_warnings"]
 
   - do:
       allowed_warnings:

@@ -19,7 +19,6 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.xpack.core.ilm.step.info.SingleMessageFieldInfo;
 
 import java.time.Clock;
-import java.util.Locale;
 import java.util.Objects;
 import java.util.concurrent.atomic.AtomicBoolean;
 
@@ -30,7 +29,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
  * If the action response is complete, the {@link ClusterStateWaitUntilThresholdStep}'s nextStepKey will be the nextStepKey of the
  * wrapped action. When the threshold level is surpassed, if the underlying step's condition was not met, the nextStepKey will be changed to
  * the provided {@link #nextKeyOnThresholdBreach} and this step will stop waiting.
- *
+ * <p>
  * Failures encountered whilst executing the wrapped action will be propagated directly.
  */
 public class ClusterStateWaitUntilThresholdStep extends ClusterStateWaitStep {
@@ -54,7 +53,7 @@ public class ClusterStateWaitUntilThresholdStep extends ClusterStateWaitStep {
 
     @Override
     public Result isConditionMet(Index index, ClusterState clusterState) {
-        IndexMetadata idxMeta = clusterState.metadata().index(index);
+        IndexMetadata idxMeta = clusterState.metadata().getProject().index(index);
         if (idxMeta == null) {
             // Index must have been since deleted, ignore it
             logger.debug("[{}] lifecycle action for index [{}] executed but index no longer exists", getKey().action(), index.getName());
@@ -63,7 +62,7 @@ public class ClusterStateWaitUntilThresholdStep extends ClusterStateWaitStep {
 
         Result stepResult = stepToExecute.isConditionMet(index, clusterState);
 
-        if (stepResult.isComplete() == false) {
+        if (stepResult.complete() == false) {
             // checking the threshold after we execute the step to make sure we execute the wrapped step at least once (because time is a
             // wonderful thing)
             TimeValue retryThreshold = LifecycleSettings.LIFECYCLE_STEP_WAIT_TIME_THRESHOLD_SETTING.get(idxMeta.getSettings());
@@ -72,14 +71,13 @@ public class ClusterStateWaitUntilThresholdStep extends ClusterStateWaitStep {
                 // we may not have passed the time threshold, but the step is not completable due to a different reason
                 thresholdPassed.set(true);
 
-                String message = String.format(
-                    Locale.ROOT,
+                String message = Strings.format(
                     "[%s] lifecycle step, as part of [%s] action, for index [%s] Is not "
                         + "completable, reason: [%s]. Abandoning execution and moving to the next fallback step [%s]",
                     getKey().name(),
                     getKey().action(),
                     idxMeta.getIndex().getName(),
-                    Strings.toString(stepResult.getInfomationContext()),
+                    Strings.toString(stepResult.informationContext()),
                     nextKeyOnThresholdBreach
                 );
                 logger.debug(message);
@@ -90,8 +88,7 @@ public class ClusterStateWaitUntilThresholdStep extends ClusterStateWaitStep {
                 // we retried this step enough, next step will be the configured to {@code nextKeyOnThresholdBreach}
                 thresholdPassed.set(true);
 
-                String message = String.format(
-                    Locale.ROOT,
+                String message = Strings.format(
                     "[%s] lifecycle step, as part of [%s] action, for index [%s] executed for"
                         + " more than [%s]. Abandoning execution and moving to the next fallback step [%s]",
                     getKey().name(),

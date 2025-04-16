@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.health.node;
@@ -23,8 +24,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.RelativeByteSizeValue;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.features.FeatureService;
-import org.elasticsearch.health.HealthFeatures;
 import org.elasticsearch.health.HealthStatus;
 import org.elasticsearch.health.metadata.HealthMetadata;
 import org.elasticsearch.health.node.selection.HealthNode;
@@ -118,18 +117,9 @@ public class LocalHealthMonitorTests extends ESTestCase {
 
         client = mock(Client.class);
 
-        FeatureService featureService = new FeatureService(List.of(new HealthFeatures()));
-
         mockHealthTracker = new MockHealthTracker();
 
-        localHealthMonitor = LocalHealthMonitor.create(
-            Settings.EMPTY,
-            clusterService,
-            threadPool,
-            client,
-            featureService,
-            List.of(mockHealthTracker)
-        );
+        localHealthMonitor = LocalHealthMonitor.create(Settings.EMPTY, clusterService, threadPool, client, List.of(mockHealthTracker));
     }
 
     @After
@@ -152,9 +142,9 @@ public class LocalHealthMonitorTests extends ESTestCase {
 
         // We override the poll interval like this to avoid the min value set by the setting which is too high for this test
         localHealthMonitor.setMonitorInterval(TimeValue.timeValueMillis(10));
-        assertThat(mockHealthTracker.getLastReportedValue(), nullValue());
+        assertThat(mockHealthTracker.getLastDeterminedHealth(), nullValue());
         localHealthMonitor.clusterChanged(new ClusterChangedEvent("initialize", clusterState, ClusterState.EMPTY_STATE));
-        assertBusy(() -> assertThat(mockHealthTracker.getLastReportedValue(), equalTo(GREEN)));
+        assertBusy(() -> assertThat(mockHealthTracker.getLastDeterminedHealth(), equalTo(GREEN)));
     }
 
     @SuppressWarnings("unchecked")
@@ -169,7 +159,7 @@ public class LocalHealthMonitorTests extends ESTestCase {
 
         localHealthMonitor.clusterChanged(new ClusterChangedEvent("initialize", clusterState, ClusterState.EMPTY_STATE));
         assertBusy(() -> assertThat(clientCalled.get(), equalTo(true)));
-        assertThat(mockHealthTracker.getLastReportedValue(), nullValue());
+        assertThat(mockHealthTracker.getLastDeterminedHealth(), nullValue());
     }
 
     @SuppressWarnings("unchecked")
@@ -189,9 +179,10 @@ public class LocalHealthMonitorTests extends ESTestCase {
             return null;
         }).when(client).execute(any(), any(), any());
 
+        localHealthMonitor.setMonitorInterval(TimeValue.timeValueMillis(10));
         when(clusterService.state()).thenReturn(previous);
         localHealthMonitor.clusterChanged(new ClusterChangedEvent("start-up", previous, ClusterState.EMPTY_STATE));
-        assertBusy(() -> assertThat(mockHealthTracker.getLastReportedValue(), equalTo(GREEN)));
+        assertBusy(() -> assertThat(mockHealthTracker.getLastDeterminedHealth(), equalTo(GREEN)));
         localHealthMonitor.clusterChanged(new ClusterChangedEvent("health-node-switch", current, previous));
         assertBusy(() -> assertThat(counter.get(), equalTo(2)));
     }
@@ -213,9 +204,10 @@ public class LocalHealthMonitorTests extends ESTestCase {
             return null;
         }).when(client).execute(any(), any(), any());
 
+        localHealthMonitor.setMonitorInterval(TimeValue.timeValueMillis(10));
         when(clusterService.state()).thenReturn(previous);
         localHealthMonitor.clusterChanged(new ClusterChangedEvent("start-up", previous, ClusterState.EMPTY_STATE));
-        assertBusy(() -> assertThat(mockHealthTracker.getLastReportedValue(), equalTo(GREEN)));
+        assertBusy(() -> assertThat(mockHealthTracker.getLastDeterminedHealth(), equalTo(GREEN)));
         localHealthMonitor.clusterChanged(new ClusterChangedEvent("health-node-switch", current, previous));
         assertBusy(() -> assertThat(counter.get(), equalTo(2)));
     }
@@ -233,25 +225,24 @@ public class LocalHealthMonitorTests extends ESTestCase {
 
         // Ensure that there are no issues if the cluster state hasn't been initialized yet
         localHealthMonitor.setEnabled(true);
-        assertThat(mockHealthTracker.getLastReportedValue(), nullValue());
+        assertThat(mockHealthTracker.getLastDeterminedHealth(), nullValue());
         assertThat(clientCalledCount.get(), equalTo(0));
 
         when(clusterService.state()).thenReturn(clusterState);
         localHealthMonitor.clusterChanged(new ClusterChangedEvent("test", clusterState, ClusterState.EMPTY_STATE));
-        assertBusy(() -> assertThat(mockHealthTracker.getLastReportedValue(), equalTo(GREEN)));
-        assertThat(clientCalledCount.get(), equalTo(1));
+        assertBusy(() -> assertThat(mockHealthTracker.getLastDeterminedHealth(), equalTo(GREEN)));
+        assertBusy(() -> assertThat(clientCalledCount.get(), equalTo(1)));
 
         DiskHealthInfo nextHealthStatus = new DiskHealthInfo(HealthStatus.RED, DiskHealthInfo.Cause.NODE_OVER_THE_FLOOD_STAGE_THRESHOLD);
 
         // Disable the local monitoring
         localHealthMonitor.setEnabled(false);
-        localHealthMonitor.setMonitorInterval(TimeValue.timeValueMillis(1));
+        localHealthMonitor.setMonitorInterval(TimeValue.timeValueMillis(10));
         mockHealthTracker.setHealthInfo(nextHealthStatus);
         assertThat(clientCalledCount.get(), equalTo(1));
-        localHealthMonitor.setMonitorInterval(TimeValue.timeValueSeconds(30));
 
         localHealthMonitor.setEnabled(true);
-        assertBusy(() -> assertThat(mockHealthTracker.getLastReportedValue(), equalTo(nextHealthStatus)));
+        assertBusy(() -> assertThat(mockHealthTracker.getLastDeterminedHealth(), equalTo(nextHealthStatus)));
     }
 
     /**
@@ -386,12 +377,12 @@ public class LocalHealthMonitorTests extends ESTestCase {
         private volatile DiskHealthInfo healthInfo = GREEN;
 
         @Override
-        public DiskHealthInfo checkCurrentHealth() {
+        protected DiskHealthInfo determineCurrentHealth() {
             return healthInfo;
         }
 
         @Override
-        public void addToRequestBuilder(UpdateHealthInfoCacheAction.Request.Builder builder, DiskHealthInfo healthInfo) {
+        protected void addToRequestBuilder(UpdateHealthInfoCacheAction.Request.Builder builder, DiskHealthInfo healthInfo) {
             builder.diskHealthInfo(healthInfo);
         }
 

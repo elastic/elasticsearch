@@ -1,18 +1,21 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.cluster;
 
+import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.xcontent.ChunkedToXContentHelper;
 import org.elasticsearch.common.xcontent.ChunkedToXContentObject;
-import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.xcontent.ToXContent;
 
@@ -78,13 +81,7 @@ public class ClusterFeatures implements Diffable<ClusterFeatures>, ChunkedToXCon
         return nodeFeatures;
     }
 
-    /**
-     * The features in all nodes in the cluster.
-     * <p>
-     * NOTE: This should not be used directly.
-     * Please use {@link org.elasticsearch.features.FeatureService#clusterHasFeature} instead.
-     */
-    public Set<String> allNodeFeatures() {
+    private Set<String> allNodeFeatures() {
         if (allNodeFeatures == null) {
             allNodeFeatures = Set.copyOf(calculateAllNodeFeatures(nodeFeatures.values()));
         }
@@ -92,14 +89,53 @@ public class ClusterFeatures implements Diffable<ClusterFeatures>, ChunkedToXCon
     }
 
     /**
+     * Returns {@code true} if {@code node} can have assumed features.
+     * @see org.elasticsearch.env.BuildVersion#canRemoveAssumedFeatures
+     */
+    public static boolean featuresCanBeAssumedForNode(DiscoveryNode node) {
+        return node.getBuildVersion().canRemoveAssumedFeatures();
+    }
+
+    /**
+     * Returns {@code true} if one or more nodes in {@code nodes} can have assumed features.
+     * @see org.elasticsearch.env.BuildVersion#canRemoveAssumedFeatures
+     */
+    public static boolean featuresCanBeAssumedForNodes(DiscoveryNodes nodes) {
+        return nodes.getAllNodes().stream().anyMatch(n -> n.getBuildVersion().canRemoveAssumedFeatures());
+    }
+
+    /**
      * {@code true} if {@code feature} is present on all nodes in the cluster.
      * <p>
-     * NOTE: This should not be used directly, as it does not read historical features.
+     * NOTE: This should not be used directly.
      * Please use {@link org.elasticsearch.features.FeatureService#clusterHasFeature} instead.
      */
-    @SuppressForbidden(reason = "directly reading cluster features")
-    public boolean clusterHasFeature(NodeFeature feature) {
-        return allNodeFeatures().contains(feature.id());
+    public boolean clusterHasFeature(DiscoveryNodes nodes, NodeFeature feature) {
+        assert nodes.getNodes().keySet().equals(nodeFeatures.keySet())
+            : "Cluster features nodes " + nodeFeatures.keySet() + " is different to discovery nodes " + nodes.getNodes().keySet();
+
+        // basic case
+        boolean allNodesHaveFeature = allNodeFeatures().contains(feature.id());
+        if (allNodesHaveFeature) {
+            return true;
+        }
+
+        // if the feature is assumed, check the versions more closely
+        // it's actually ok if the feature is assumed, and all nodes missing the feature can assume it
+        // TODO: do we need some kind of transient cache of this calculation?
+        if (feature.assumedAfterNextCompatibilityBoundary()) {
+            for (var nf : nodeFeatures.entrySet()) {
+                if (nf.getValue().contains(feature.id()) == false
+                    && featuresCanBeAssumedForNode(nodes.getNodes().get(nf.getKey())) == false) {
+                    return false;
+                }
+            }
+
+            // all nodes missing the feature can assume it - so that's alright then
+            return true;
+        }
+
+        return false;
     }
 
     /**
@@ -140,11 +176,10 @@ public class ClusterFeatures implements Diffable<ClusterFeatures>, ChunkedToXCon
         out.writeMap(nodeFeatureSetIndexes, StreamOutput::writeVInt);
     }
 
+    @SuppressWarnings("unchecked")
     private static Map<String, Set<String>> readCanonicalSets(StreamInput in) throws IOException {
-        List<Set<String>> featureSets = in.readCollectionAsList(i -> i.readCollectionAsImmutableSet(StreamInput::readString));
-        Map<String, Integer> nodeIndexes = in.readMap(StreamInput::readVInt);
-
-        return nodeIndexes.entrySet().stream().collect(Collectors.toUnmodifiableMap(Map.Entry::getKey, e -> featureSets.get(e.getValue())));
+        Set<String>[] featureSets = in.readArray(i -> i.readCollectionAsImmutableSet(StreamInput::readString), Set[]::new);
+        return in.readImmutableMap(streamInput -> featureSets[streamInput.readVInt()]);
     }
 
     public static ClusterFeatures readFrom(StreamInput in) throws IOException {
@@ -245,13 +280,13 @@ public class ClusterFeatures implements Diffable<ClusterFeatures>, ChunkedToXCon
     @Override
     public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params params) {
         return Iterators.concat(
-            Iterators.single((builder, p) -> builder.startArray()),
+            ChunkedToXContentHelper.startArray(),
             nodeFeatures.entrySet().stream().sorted(Map.Entry.comparingByKey()).<ToXContent>map(e -> (builder, p) -> {
                 String[] features = e.getValue().toArray(String[]::new);
                 Arrays.sort(features);
                 return builder.startObject().field("node_id", e.getKey()).array("features", features).endObject();
             }).iterator(),
-            Iterators.single((builder, p) -> builder.endArray())
+            ChunkedToXContentHelper.endArray()
         );
     }
 

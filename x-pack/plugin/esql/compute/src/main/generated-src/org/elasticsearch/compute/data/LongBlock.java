@@ -8,16 +8,16 @@
 package org.elasticsearch.compute.data;
 
 import org.elasticsearch.TransportVersions;
-import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.core.ReleasableIterator;
 import org.elasticsearch.index.mapper.BlockLoader;
 
 import java.io.IOException;
 
 /**
  * Block that stores long values.
- * This class is generated. Do not edit it.
+ * This class is generated. Edit {@code X-Block.java.st} instead.
  */
 public sealed interface LongBlock extends Block permits LongArrayBlock, LongVectorBlock, ConstantNullBlock, LongBigArrayBlock {
 
@@ -39,22 +39,21 @@ public sealed interface LongBlock extends Block permits LongArrayBlock, LongVect
     LongBlock filter(int... positions);
 
     @Override
-    default String getWriteableName() {
-        return "LongBlock";
-    }
+    LongBlock keepMask(BooleanVector mask);
 
-    NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Block.class, "LongBlock", LongBlock::readFrom);
+    @Override
+    ReleasableIterator<? extends LongBlock> lookup(IntBlock positions, ByteSizeValue targetBlockSize);
 
-    private static LongBlock readFrom(StreamInput in) throws IOException {
-        return readFrom((BlockStreamInput) in);
-    }
+    @Override
+    LongBlock expand();
 
-    private static LongBlock readFrom(BlockStreamInput in) throws IOException {
+    static LongBlock readFrom(BlockStreamInput in) throws IOException {
         final byte serializationType = in.readByte();
         return switch (serializationType) {
             case SERIALIZE_BLOCK_VALUES -> LongBlock.readValues(in);
             case SERIALIZE_BLOCK_VECTOR -> LongVector.readFrom(in.blockFactory(), in).asBlock();
             case SERIALIZE_BLOCK_ARRAY -> LongArrayBlock.readArrayBlock(in.blockFactory(), in);
+            case SERIALIZE_BLOCK_BIG_ARRAY -> LongBigArrayBlock.readArrayBlock(in.blockFactory(), in);
             default -> {
                 assert false : "invalid block serialization type " + serializationType;
                 throw new IllegalStateException("invalid serialization type " + serializationType);
@@ -88,8 +87,11 @@ public sealed interface LongBlock extends Block permits LongArrayBlock, LongVect
         if (vector != null) {
             out.writeByte(SERIALIZE_BLOCK_VECTOR);
             vector.writeTo(out);
-        } else if (version.onOrAfter(TransportVersions.ESQL_SERIALIZE_ARRAY_BLOCK) && this instanceof LongArrayBlock b) {
+        } else if (version.onOrAfter(TransportVersions.V_8_14_0) && this instanceof LongArrayBlock b) {
             out.writeByte(SERIALIZE_BLOCK_ARRAY);
+            b.writeArrayBlock(out);
+        } else if (version.onOrAfter(TransportVersions.V_8_14_0) && this instanceof LongBigArrayBlock b) {
+            out.writeByte(SERIALIZE_BLOCK_BIG_ARRAY);
             b.writeArrayBlock(out);
         } else {
             out.writeByte(SERIALIZE_BLOCK_VALUES);
@@ -202,6 +204,14 @@ public sealed interface LongBlock extends Block permits LongArrayBlock, LongVect
          */
         Builder copyFrom(LongBlock block, int beginInclusive, int endExclusive);
 
+        /**
+         * Copy the values in {@code block} at {@code position}. If this position
+         * has a single value, this'll copy a single value. If this positions has
+         * many values, it'll copy all of them. If this is {@code null}, then it'll
+         * copy the {@code null}.
+         */
+        Builder copyFrom(LongBlock block, int position);
+
         @Override
         Builder appendNull();
 
@@ -216,19 +226,6 @@ public sealed interface LongBlock extends Block permits LongArrayBlock, LongVect
 
         @Override
         Builder mvOrdering(Block.MvOrdering mvOrdering);
-
-        /**
-         * Appends the all values of the given block into a the current position
-         * in this builder.
-         */
-        @Override
-        Builder appendAllValuesToCurrentPosition(Block block);
-
-        /**
-         * Appends the all values of the given block into a the current position
-         * in this builder.
-         */
-        Builder appendAllValuesToCurrentPosition(LongBlock block);
 
         @Override
         LongBlock build();

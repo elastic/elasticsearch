@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.translog;
@@ -149,8 +150,8 @@ public abstract class BaseTranslogReader implements Comparable<BaseTranslogReade
      * Reads a single operation from the given location.
      */
     Translog.Operation read(Translog.Location location) throws IOException {
-        assert location.generation == this.generation : "generation mismatch expected: " + generation + " got: " + location.generation;
-        ByteBuffer buffer = ByteBuffer.allocate(location.size);
-        return read(checksummedStream(buffer, location.translogLocation, location.size, null));
+        assert location.generation() == this.generation : "generation mismatch expected: " + generation + " got: " + location.generation();
+        ByteBuffer buffer = ByteBuffer.allocate(location.size());
+        return read(checksummedStream(buffer, location.translogLocation(), location.size(), null));
     }
 }

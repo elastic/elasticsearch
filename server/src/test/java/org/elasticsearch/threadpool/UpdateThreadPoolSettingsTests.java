@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.threadpool;
@@ -29,7 +30,7 @@ import static org.hamcrest.Matchers.is;
 
 public class UpdateThreadPoolSettingsTests extends ESThreadPoolTestCase {
 
-    public void testCorrectThreadPoolTypePermittedInSettings() throws InterruptedException {
+    public void testCorrectThreadPoolTypePermittedInSettings() {
         String threadPoolName = randomThreadPoolName();
         ThreadPool.ThreadPoolType correctThreadPoolType = ThreadPool.THREAD_POOL_TYPES.get(threadPoolName);
         ThreadPool threadPool = null;
@@ -39,15 +40,10 @@ public class UpdateThreadPoolSettingsTests extends ESThreadPoolTestCase {
                     .put("node.name", "testCorrectThreadPoolTypePermittedInSettings")
                     .put("thread_pool." + threadPoolName + ".type", correctThreadPoolType.getType())
                     .build(),
-                MeterRegistry.NOOP
+                MeterRegistry.NOOP,
+                new DefaultBuiltInExecutorBuilders()
             );
-            ThreadPool.Info info = info(threadPool, threadPoolName);
-            if (ThreadPool.Names.SAME.equals(threadPoolName)) {
-                assertNull(info); // we don't report on the "same" thread pool
-            } else {
-                // otherwise check we have the expected type
-                assertEquals(info.getThreadPoolType(), correctThreadPoolType);
-            }
+            assertEquals(info(threadPool, threadPoolName).getThreadPoolType(), correctThreadPoolType);
         } finally {
             terminateThreadPoolIfNeeded(threadPool);
         }
@@ -66,7 +62,8 @@ public class UpdateThreadPoolSettingsTests extends ESThreadPoolTestCase {
                         .put("node.name", "testIndexingThreadPoolsMaxSize")
                         .put("thread_pool." + Names.WRITE + ".size", tooBig)
                         .build(),
-                    MeterRegistry.NOOP
+                    MeterRegistry.NOOP,
+                    new DefaultBuiltInExecutorBuilders()
                 );
             } finally {
                 terminateThreadPoolIfNeeded(tp);
@@ -99,7 +96,7 @@ public class UpdateThreadPoolSettingsTests extends ESThreadPoolTestCase {
                 .put("node.name", "testFixedExecutorType")
                 .put("thread_pool." + threadPoolName + ".size", expectedSize)
                 .build();
-            threadPool = new ThreadPool(nodeSettings, MeterRegistry.NOOP);
+            threadPool = new ThreadPool(nodeSettings, MeterRegistry.NOOP, new DefaultBuiltInExecutorBuilders());
             assertThat(threadPool.executor(threadPoolName), instanceOf(EsThreadPoolExecutor.class));
 
             assertEquals(info(threadPool, threadPoolName).getThreadPoolType(), ThreadPool.ThreadPoolType.FIXED);
@@ -123,7 +120,7 @@ public class UpdateThreadPoolSettingsTests extends ESThreadPoolTestCase {
                 .put("thread_pool." + threadPoolName + ".max", 10)
                 .put("node.name", "testScalingExecutorType")
                 .build();
-            threadPool = new ThreadPool(nodeSettings, MeterRegistry.NOOP);
+            threadPool = new ThreadPool(nodeSettings, MeterRegistry.NOOP, new DefaultBuiltInExecutorBuilders());
             final int expectedMinimum = "generic".equals(threadPoolName) ? 4 : 1;
             assertThat(info(threadPool, threadPoolName).getMin(), equalTo(expectedMinimum));
             assertThat(info(threadPool, threadPoolName).getMax(), equalTo(10));
@@ -144,7 +141,7 @@ public class UpdateThreadPoolSettingsTests extends ESThreadPoolTestCase {
                 .put("thread_pool." + threadPoolName + ".queue_size", 1000)
                 .put("node.name", "testShutdownNowInterrupts")
                 .build();
-            threadPool = new ThreadPool(nodeSettings, MeterRegistry.NOOP);
+            threadPool = new ThreadPool(nodeSettings, MeterRegistry.NOOP, new DefaultBuiltInExecutorBuilders());
             assertEquals(info(threadPool, threadPoolName).getQueueSize().singles(), 1000L);
 
             final CountDownLatch shutDownLatch = new CountDownLatch(1);
@@ -191,6 +188,7 @@ public class UpdateThreadPoolSettingsTests extends ESThreadPoolTestCase {
             threadPool = new ThreadPool(
                 Settings.builder().put("node.name", "testCustomThreadPool").build(),
                 MeterRegistry.NOOP,
+                new DefaultBuiltInExecutorBuilders(),
                 scaling,
                 fixed
             );

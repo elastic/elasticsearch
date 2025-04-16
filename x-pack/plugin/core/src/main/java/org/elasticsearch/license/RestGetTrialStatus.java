@@ -8,9 +8,9 @@
 package org.elasticsearch.license;
 
 import org.elasticsearch.client.internal.node.NodeClient;
-import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.RestUtils;
 import org.elasticsearch.rest.action.RestToXContentListener;
 
 import java.util.List;
@@ -23,14 +23,13 @@ public class RestGetTrialStatus extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return List.of(
-            Route.builder(GET, "/_license/trial_status").replaces(GET, "/_xpack/license/trial_status", RestApiVersion.V_7).build()
-        );
+        return List.of(new Route(GET, "/_license/trial_status"));
     }
 
     @Override
-    protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) {
-        return channel -> new GetTrialStatusRequestBuilder(client).execute(new RestToXContentListener<>(channel));
+    protected RestChannelConsumer prepareRequest(RestRequest restRequest, NodeClient client) {
+        final var request = new GetTrialStatusRequest(RestUtils.getMasterNodeTimeout(restRequest));
+        return channel -> client.execute(GetTrialStatusAction.INSTANCE, request, new RestToXContentListener<>(channel));
     }
 
     @Override

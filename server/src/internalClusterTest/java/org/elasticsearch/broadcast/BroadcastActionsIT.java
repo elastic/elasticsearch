@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.broadcast;
@@ -43,7 +44,7 @@ public class BroadcastActionsIT extends ESIntegTestCase {
         for (int i = 0; i < 5; i++) {
             // test successful
             assertResponse(prepareSearch("test").setSize(0).setQuery(matchAllQuery()), countResponse -> {
-                assertThat(countResponse.getHits().getTotalHits().value, equalTo(2L));
+                assertThat(countResponse.getHits().getTotalHits().value(), equalTo(2L));
                 assertThat(countResponse.getTotalShards(), equalTo(numShards.numPrimaries));
                 assertThat(countResponse.getSuccessfulShards(), equalTo(numShards.numPrimaries));
                 assertThat(countResponse.getFailedShards(), equalTo(0));

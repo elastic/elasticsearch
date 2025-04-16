@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.mapper.vectors;
@@ -81,6 +82,16 @@ public final class VectorEncoderDecoder {
                 vector[dim] = byteBuffer.getFloat((dim * Float.BYTES) + vectorBR.offset);
             }
         }
+    }
+
+    public static float[] getMultiMagnitudes(BytesRef magnitudes) {
+        assert magnitudes.length % Float.BYTES == 0;
+        float[] multiMagnitudes = new float[magnitudes.length / Float.BYTES];
+        ByteBuffer byteBuffer = ByteBuffer.wrap(magnitudes.bytes, magnitudes.offset, magnitudes.length).order(ByteOrder.LITTLE_ENDIAN);
+        for (int i = 0; i < magnitudes.length / Float.BYTES; i++) {
+            multiMagnitudes[i] = byteBuffer.getFloat();
+        }
+        return multiMagnitudes;
     }
 
 }

@@ -1,16 +1,16 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.reindex;
 
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.client.internal.node.NodeClient;
-import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.index.reindex.ReindexAction;
 import org.elasticsearch.index.reindex.ReindexRequest;
@@ -34,12 +34,10 @@ import static org.elasticsearch.rest.RestRequest.Method.POST;
 @ServerlessScope(Scope.PUBLIC)
 public class RestReindexAction extends AbstractBaseReindexRestHandler<ReindexRequest, ReindexAction> implements RestRequestFilter {
 
-    private final NamedWriteableRegistry namedWriteableRegistry;
     private final Predicate<NodeFeature> clusterSupportsFeature;
 
-    public RestReindexAction(NamedWriteableRegistry namedWriteableRegistry, Predicate<NodeFeature> clusterSupportsFeature) {
+    public RestReindexAction(Predicate<NodeFeature> clusterSupportsFeature) {
         super(ReindexAction.INSTANCE);
-        this.namedWriteableRegistry = namedWriteableRegistry;
         this.clusterSupportsFeature = clusterSupportsFeature;
     }
 
@@ -55,11 +53,11 @@ public class RestReindexAction extends AbstractBaseReindexRestHandler<ReindexReq
 
     @Override
     public RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
-        return doPrepareRequest(request, namedWriteableRegistry, client, true, true);
+        return doPrepareRequest(request, client, true, true);
     }
 
     @Override
-    protected ReindexRequest buildRequest(RestRequest request, NamedWriteableRegistry namedWriteableRegistry) throws IOException {
+    protected ReindexRequest buildRequest(RestRequest request) throws IOException {
         if (request.hasParam("pipeline")) {
             throw new IllegalArgumentException(
                 "_reindex doesn't support [pipeline] as a query parameter. Specify it in the [dest] object instead."

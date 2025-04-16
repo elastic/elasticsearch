@@ -23,17 +23,15 @@ import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.single.shard.SingleShardRequest;
 import org.elasticsearch.action.support.single.shard.TransportSingleShardAction;
-import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ProjectState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
-import org.elasticsearch.cluster.routing.GroupShardsIterator;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.Preference;
-import org.elasticsearch.cluster.routing.ShardIterator;
 import org.elasticsearch.cluster.routing.ShardsIterator;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
@@ -50,6 +48,7 @@ import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesService;
+import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.SearchModule;
@@ -182,6 +181,7 @@ public class EnrichShardMultiSearchAction extends ActionType<MultiSearchResponse
             ClusterService clusterService,
             TransportService transportService,
             ActionFilters actionFilters,
+            ProjectResolver projectResolver,
             IndexNameExpressionResolver indexNameExpressionResolver,
             IndicesService indicesService
         ) {
@@ -191,6 +191,7 @@ public class EnrichShardMultiSearchAction extends ActionType<MultiSearchResponse
                 clusterService,
                 transportService,
                 actionFilters,
+                projectResolver,
                 indexNameExpressionResolver,
                 Request::new,
                 threadPool.executor(ThreadPool.Names.SEARCH)
@@ -209,17 +210,16 @@ public class EnrichShardMultiSearchAction extends ActionType<MultiSearchResponse
         }
 
         @Override
-        protected ShardsIterator shards(ClusterState state, InternalRequest request) {
+        protected ShardsIterator shards(ProjectState project, InternalRequest request) {
             String index = request.concreteIndex();
-            IndexRoutingTable indexRouting = state.routingTable().index(index);
+            IndexRoutingTable indexRouting = project.routingTable().index(index);
             int numShards = indexRouting.size();
             if (numShards != 1) {
                 throw new IllegalStateException("index [" + index + "] should have 1 shard, but has " + numShards + " shards");
             }
-
-            GroupShardsIterator<ShardIterator> result = clusterService.operationRouting()
-                .searchShards(state, new String[] { index }, null, Preference.LOCAL.type());
-            return result.get(0);
+            return clusterService.operationRouting()
+                .searchShards(project, new String[] { index }, null, Preference.LOCAL.type())
+                .getFirst();
         }
 
         @Override

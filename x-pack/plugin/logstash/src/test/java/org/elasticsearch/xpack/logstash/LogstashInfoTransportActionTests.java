@@ -13,7 +13,7 @@ import org.elasticsearch.license.MockLicenseState;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.xpack.core.XPackFeatureSet;
+import org.elasticsearch.xpack.core.XPackFeatureUsage;
 import org.elasticsearch.xpack.core.action.XPackUsageFeatureResponse;
 import org.elasticsearch.xpack.core.logstash.LogstashFeatureSetUsage;
 
@@ -35,12 +35,12 @@ public class LogstashInfoTransportActionTests extends ESTestCase {
 
         LogstashUsageTransportAction usageAction = newUsageAction(false);
         PlainActionFuture<XPackUsageFeatureResponse> future = new PlainActionFuture<>();
-        usageAction.masterOperation(null, null, null, future);
-        XPackFeatureSet.Usage usage = future.get().getUsage();
+        usageAction.localClusterStateOperation(null, null, null, future);
+        XPackFeatureUsage usage = future.get().getUsage();
 
         BytesStreamOutput out = new BytesStreamOutput();
         usage.writeTo(out);
-        XPackFeatureSet.Usage serializedUsage = new LogstashFeatureSetUsage(out.bytes().streamInput());
+        XPackFeatureUsage serializedUsage = new LogstashFeatureSetUsage(out.bytes().streamInput());
         assertThat(serializedUsage.enabled(), is(true));
     }
 
@@ -53,13 +53,13 @@ public class LogstashInfoTransportActionTests extends ESTestCase {
 
         var usageAction = newUsageAction(available);
         PlainActionFuture<XPackUsageFeatureResponse> future = new PlainActionFuture<>();
-        usageAction.masterOperation(null, null, null, future);
-        XPackFeatureSet.Usage usage = future.get().getUsage();
+        usageAction.localClusterStateOperation(null, null, null, future);
+        XPackFeatureUsage usage = future.get().getUsage();
         assertThat(usage.available(), is(available));
 
         BytesStreamOutput out = new BytesStreamOutput();
         usage.writeTo(out);
-        XPackFeatureSet.Usage serializedUsage = new LogstashFeatureSetUsage(out.bytes().streamInput());
+        XPackFeatureUsage serializedUsage = new LogstashFeatureSetUsage(out.bytes().streamInput());
         assertThat(serializedUsage.available(), is(available));
     }
 
@@ -71,7 +71,6 @@ public class LogstashInfoTransportActionTests extends ESTestCase {
             null,
             transportService.getThreadPool(),
             mock(ActionFilters.class),
-            null,
             licenseState
         );
     }

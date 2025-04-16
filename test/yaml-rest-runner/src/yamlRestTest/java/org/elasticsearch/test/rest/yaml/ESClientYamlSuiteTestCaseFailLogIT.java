@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.test.rest.yaml;
@@ -11,14 +12,17 @@ package org.elasticsearch.test.rest.yaml;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.apache.logging.log4j.Level;
-import org.apache.logging.log4j.LogManager;
-import org.elasticsearch.common.logging.Loggers;
-import org.elasticsearch.test.MockLogAppender;
+import org.elasticsearch.test.MockLog;
+import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.junit.annotations.TestLogging;
+import org.junit.ClassRule;
 
 import java.io.IOException;
 
 public class ESClientYamlSuiteTestCaseFailLogIT extends ESClientYamlSuiteTestCase {
+
+    @ClassRule
+    public static ElasticsearchCluster cluster = ElasticsearchCluster.local().build();
 
     public ESClientYamlSuiteTestCaseFailLogIT(final ClientYamlTestCandidate testCandidate) {
         super(testCandidate);
@@ -35,13 +39,9 @@ public class ESClientYamlSuiteTestCaseFailLogIT extends ESClientYamlSuiteTestCas
     )
     @Override
     public void test() throws IOException {
-        final MockLogAppender mockLogAppender = new MockLogAppender();
-        try {
-            mockLogAppender.start();
-            Loggers.addAppender(LogManager.getLogger(ESClientYamlSuiteTestCaseFailLogIT.class), mockLogAppender);
-
-            mockLogAppender.addExpectation(
-                new MockLogAppender.SeenEventExpectation(
+        try (var mockLog = MockLog.capture(ESClientYamlSuiteTestCaseFailLogIT.class)) {
+            mockLog.addExpectation(
+                new MockLog.SeenEventExpectation(
                     "message with dump of the test yaml",
                     ESClientYamlSuiteTestCaseFailLogIT.class.getCanonicalName(),
                     Level.INFO,
@@ -49,8 +49,8 @@ public class ESClientYamlSuiteTestCaseFailLogIT extends ESClientYamlSuiteTestCas
                 )
             );
 
-            mockLogAppender.addExpectation(
-                new MockLogAppender.SeenEventExpectation(
+            mockLog.addExpectation(
+                new MockLog.SeenEventExpectation(
                     "message with stash dump of response",
                     ESClientYamlSuiteTestCaseFailLogIT.class.getCanonicalName(),
                     Level.INFO,
@@ -67,10 +67,12 @@ public class ESClientYamlSuiteTestCaseFailLogIT extends ESClientYamlSuiteTestCas
                 }
             }
 
-            mockLogAppender.assertAllExpectationsMatched();
-        } finally {
-            Loggers.removeAppender(LogManager.getLogger(ESClientYamlSuiteTestCaseFailLogIT.class), mockLogAppender);
-            mockLogAppender.stop();
+            mockLog.assertAllExpectationsMatched();
         }
+    }
+
+    @Override
+    protected String getTestRestCluster() {
+        return cluster.getHttpAddresses();
     }
 }

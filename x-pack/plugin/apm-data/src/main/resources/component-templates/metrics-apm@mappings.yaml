@@ -5,8 +5,6 @@ _meta:
   managed: true
 template:
   mappings:
-    _source:
-      mode: synthetic
     properties:
       processor.event:
         type: constant_keyword

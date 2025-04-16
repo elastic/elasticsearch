@@ -3,7 +3,9 @@ config:
   skip-labels: []
 steps:
   - label: precommit
-    command: .ci/scripts/run-gradle.sh -Dignore.tests.seed precommit
+    command: |
+      .buildkite/scripts/spotless.sh
+      .ci/scripts/run-gradle.sh -Dignore.tests.seed precommit
     timeout_in_minutes: 300
     agents:
       provider: gcp

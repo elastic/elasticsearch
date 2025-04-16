@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.health.node.tracker;
@@ -48,7 +49,7 @@ public class DiskHealthTracker extends HealthTracker<DiskHealthInfo> {
      * @return the current disk health info.
      */
     @Override
-    public DiskHealthInfo checkCurrentHealth() {
+    protected DiskHealthInfo determineCurrentHealth() {
         var clusterState = clusterService.state();
         var healthMetadata = HealthMetadata.getFromClusterState(clusterState);
         DiscoveryNode node = clusterState.getNodes().getLocalNode();
@@ -92,7 +93,7 @@ public class DiskHealthTracker extends HealthTracker<DiskHealthInfo> {
     }
 
     @Override
-    public void addToRequestBuilder(UpdateHealthInfoCacheAction.Request.Builder builder, DiskHealthInfo healthInfo) {
+    protected void addToRequestBuilder(UpdateHealthInfoCacheAction.Request.Builder builder, DiskHealthInfo healthInfo) {
         builder.diskHealthInfo(healthInfo);
     }
 

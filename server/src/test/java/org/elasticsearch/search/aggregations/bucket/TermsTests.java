@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.aggregations.bucket;
@@ -211,8 +212,8 @@ public class TermsTests extends BaseAggregationTestCase<TermsAggregationBuilder>
         {
             TermsAggregationBuilder terms = new TermsAggregationBuilder("terms");
             terms.shardSize(10);
-            assertTrue(terms.supportsParallelCollection(field -> randomIntBetween(1, 10)));
-            assertFalse(terms.supportsParallelCollection(field -> randomIntBetween(11, 100)));
+            assertTrue(terms.supportsParallelCollection(field -> randomIntBetween(1, 9)));
+            assertFalse(terms.supportsParallelCollection(field -> randomIntBetween(10, 100)));
         }
         {
             TermsAggregationBuilder terms = new TermsAggregationBuilder("terms");

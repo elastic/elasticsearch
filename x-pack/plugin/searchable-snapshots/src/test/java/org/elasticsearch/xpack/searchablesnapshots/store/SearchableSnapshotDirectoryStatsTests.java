@@ -116,7 +116,7 @@ public class SearchableSnapshotDirectoryStatsTests extends AbstractSearchableSna
     public void testCachedBytesReadsAndWrites() throws Exception {
         // a cache service with a low range size but enough space to not evict the cache file
         final ByteSizeValue rangeSize = ByteSizeValue.ofBytes(SharedBytes.PAGE_SIZE * randomLongBetween(3, 6));
-        final ByteSizeValue cacheSize = new ByteSizeValue(10, ByteSizeUnit.MB);
+        final ByteSizeValue cacheSize = ByteSizeValue.of(10, ByteSizeUnit.MB);
 
         executeTestCaseWithCache(cacheSize, rangeSize, (fileName, fileContent, directory) -> {
             try (IndexInput input = directory.openInput(fileName, randomIOContext())) {
@@ -254,7 +254,7 @@ public class SearchableSnapshotDirectoryStatsTests extends AbstractSearchableSna
     }
 
     public void testDirectBytesReadsWithoutCache() throws Exception {
-        final ByteSizeValue uncachedChunkSize = new ByteSizeValue(randomIntBetween(512, MAX_FILE_LENGTH), ByteSizeUnit.BYTES);
+        final ByteSizeValue uncachedChunkSize = ByteSizeValue.of(randomIntBetween(512, MAX_FILE_LENGTH), ByteSizeUnit.BYTES);
         executeTestCaseWithoutCache(uncachedChunkSize, (fileName, fileContent, directory) -> {
             assertThat(directory.getStats(fileName), nullValue());
 
@@ -291,7 +291,7 @@ public class SearchableSnapshotDirectoryStatsTests extends AbstractSearchableSna
 
     public void testOptimizedBytesReads() throws Exception {
         // use a large uncached chunk size that allows to read the file in a single operation
-        final ByteSizeValue uncachedChunkSize = new ByteSizeValue(1, ByteSizeUnit.GB);
+        final ByteSizeValue uncachedChunkSize = ByteSizeValue.of(1, ByteSizeUnit.GB);
         executeTestCaseWithoutCache(uncachedChunkSize, (fileName, fileContent, directory) -> {
             final IOContext context = randomIOContext();
             try (IndexInput input = directory.openInput(fileName, context)) {

@@ -68,6 +68,7 @@ public class MlMemoryAction extends ActionType<MlMemoryAction.Response> {
         private final String nodeId;
 
         public Request(String nodeId) {
+            super(TRAPPY_IMPLICIT_DEFAULT_MASTER_NODE_TIMEOUT, DEFAULT_ACK_TIMEOUT);
             this.nodeId = ExceptionsHelper.requireNonNull(nodeId, "nodeId");
         }
 

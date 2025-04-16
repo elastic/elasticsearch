@@ -1,0 +1,208 @@
+---
+setup:
+  - requires:
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: [method, path, parameters, capabilities]
+          capabilities: [enrich_strict_range_types]
+      reason: "Strict range type checking was added"
+      test_runner_features: [capabilities, allowed_warnings_regex, warnings_regex]
+
+  - do:
+      indices.create:
+        index: ages
+        body:
+          settings:
+            index.number_of_shards: 1
+            index.routing.rebalance.enable: "none"
+          mappings:
+            properties:
+              age_range:
+                type: "integer_range"
+              description:
+                type: "keyword"
+
+  - do:
+      bulk:
+        index: ages
+        refresh: true
+        body:
+          - { "index": { } }
+          - { "age_range": { "gte": 0, "lt": 2 },     "description": "Baby" }
+          - { "index": { } }
+          - { "age_range": { "gte": 2, "lt": 4 },     "description": "Toddler" }
+          - { "index": { } }
+          - { "age_range": { "gte": 3, "lt": 5 },     "description": "Preschooler" }
+          - { "index": { } }
+          - { "age_range": { "gte": 5, "lt": 12 },    "description": "Child" }
+          - { "index": { } }
+          - { "age_range": { "gte": 13, "lt": 20 },   "description": "Adolescent" }
+          - { "index": { } }
+          - { "age_range": { "gte": 20, "lt": 40 },   "description": "Young Adult" }
+          - { "index": { } }
+          - { "age_range": { "gte": 40, "lt": 60 },   "description": "Middle-aged" }
+          - { "index": { } }
+          - { "age_range": { "gte": 60, "lt": 80 },   "description": "Senior" }
+          - { "index": { } }
+          - { "age_range": { "gte": 80, "lt": 100 },  "description": "Elderly" }
+          - { "index": { } }
+          - { "age_range": { "gte": 100, "lt": 200 }, "description": "Incredible" }
+  - do:
+      cluster.health:
+        wait_for_no_initializing_shards: true
+        wait_for_events: languid
+
+  - do:
+      enrich.put_policy:
+        name: ages-policy
+        body:
+          range:
+            indices: [ "ages" ]
+            match_field: "age_range"
+            enrich_fields: [ "description" ]
+
+  - do:
+      enrich.execute_policy:
+        name: ages-policy
+
+  - do:
+      indices.create:
+        index: employees
+        body:
+          mappings:
+            properties:
+              name:
+                type: keyword
+              age:
+                type: integer
+              ak:
+                type: keyword
+              salary:
+                type: double
+
+  - do:
+      bulk:
+        index: employees
+        refresh: true
+        body:
+          - { "index": { } }
+          - { "name": "Joe Soap", "age": 36, "ak": "36", "salary": 55.55 }
+          - { "index": { } }
+          - { "name": "Jane Doe", "age": 31, "ak": "31", "salary": 55.55 }
+          - { "index": { } }
+          - { "name": "Jane Immortal", "age": -1, "ak": "immortal", "salary": 55.55 }
+          - { "index": { } }
+          - { "name": "Magic Mike", "age": 44, "ak": "44", "salary": 55.55 }
+          - { "index": { } }
+          - { "name": "Anon Ymous", "age": 61, "ak": "61", "salary": 55.55 }
+
+---
+teardown:
+  - do:
+      enrich.delete_policy:
+        name: ages-policy
+
+---
+"ages":
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'FROM employees | ENRICH ages-policy ON age | STATS count=COUNT(*) BY description | SORT count DESC, description ASC'
+
+  - match: { columns.0.name: "count" }
+  - match: { columns.0.type: "long" }
+  - match: { columns.1.name: "description" }
+  - match: { columns.1.type: "keyword" }
+
+  - length: { values: 4 }
+  - match: { values.0: [ 2, "Young Adult" ] }
+  - match: { values.1: [ 1, "Middle-aged" ] }
+  - match: { values.2: [ 1, "Senior" ] }
+  - match: { values.3: [ 1, null ] }
+
+---
+"ages as typecast keywords":
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+        - "Line 1:29: evaluation of \\[ak::integer\\] failed, treating result as null. Only first 20 failures recorded."
+        - "Line 1:29: org.elasticsearch.xpack.esql.core.InvalidArgumentException: Cannot parse number \\[immortal\\]"
+      esql.query:
+        body:
+          query: 'FROM employees | EVAL aki = ak::integer | ENRICH ages-policy ON aki | STATS count=COUNT(*) BY description | SORT count DESC, description ASC'
+
+  - match: { columns.0.name: "count" }
+  - match: { columns.0.type: "long" }
+  - match: { columns.1.name: "description" }
+  - match: { columns.1.type: "keyword" }
+
+  - length: { values: 4 }
+  - match: { values.0: [ 2, "Young Adult" ] }
+  - match: { values.1: [ 1, "Middle-aged" ] }
+  - match: { values.2: [ 1, "Senior" ] }
+  - match: { values.3: [ 1, null ] }
+
+---
+"ages as keywords":
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+        - "Line (1:18|-1:-1): evaluation of \\[(ENRICH ages-policy ON ak|)\\] failed, treating result as null. Only first 20 failures recorded."
+        - 'Line (1:18|-1:-1): java.lang.NumberFormatException: For input string: \\"immortal\\"'
+      esql.query:
+        body:
+          query: 'FROM employees | ENRICH ages-policy ON ak | STATS count=COUNT(*) BY description | SORT count DESC, description ASC'
+
+  - match: { columns.0.name: "count" }
+  - match: { columns.0.type: "long" }
+  - match: { columns.1.name: "description" }
+  - match: { columns.1.type: "keyword" }
+
+  - length: { values: 4 }
+  - match: { values.0: [ 2, "Young Adult" ] }
+  - match: { values.1: [ 1, "Middle-aged" ] }
+  - match: { values.2: [ 1, "Senior" ] }
+  - match: { values.3: [ 1, null ] }
+
+---
+"Invalid age as keyword":
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+        - "Line (1:18|-1:-1): evaluation of \\[(ENRICH ages-policy ON name|)\\] failed, treating result as null. Only first 20 failures recorded."
+        - 'Line (1:18|-1:-1): java.lang.NumberFormatException: For input string: \\"Joe Soap\\"'
+        - 'Line (1:18|-1:-1): java.lang.NumberFormatException: For input string: \\"Jane Doe\\"'
+        - 'Line (1:18|-1:-1): java.lang.NumberFormatException: For input string: \\"Jane Immortal\\"'
+        - 'Line (1:18|-1:-1): java.lang.NumberFormatException: For input string: \\"Magic Mike\\"'
+        - 'Line (1:18|-1:-1): java.lang.NumberFormatException: For input string: \\"Anon Ymous\\"'
+      esql.query:
+        body:
+          query: 'FROM employees | ENRICH ages-policy ON name | STATS count=COUNT(*) BY description | SORT count DESC, description ASC'
+
+  - match: { columns.0.name: "count" }
+  - match: { columns.0.type: "long" }
+  - match: { columns.1.name: "description" }
+  - match: { columns.1.type: "keyword" }
+
+  - length: { values: 1 }
+  - match: { values.0: [ 5, null ] }
+
+---
+"Invalid age as double":
+  - requires:
+        test_runner_features: [ capabilities ]
+        capabilities:
+          - method: POST
+            path: /_query
+            parameters: [ ]
+            capabilities: [ support_partial_results ]
+        reason: "disable partial_results"
+  - do:
+      catch: /ENRICH range and input types are incompatible. range\[INTEGER\], input\[DOUBLE\]/
+      esql.query:
+        allow_partial_results: false
+        body:
+          query: 'FROM employees | ENRICH ages-policy ON salary | STATS count=COUNT(*) BY description | SORT count DESC, description ASC'

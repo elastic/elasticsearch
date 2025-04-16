@@ -15,7 +15,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.xpack.searchablesnapshots.BaseSearchableSnapshotsIntegTestCase;
-import org.elasticsearch.xpack.searchablesnapshots.allocation.decider.SearchableSnapshotEnableAllocationDecider;
 import org.hamcrest.Matchers;
 
 import java.util.List;
@@ -31,27 +30,23 @@ public class SearchableSnapshotEnableAllocationDeciderIntegTests extends BaseSea
         final String restoredIndexName = setupMountedIndex();
         int numPrimaries = getNumShards(restoredIndexName).numPrimaries;
         setEnableAllocation(EnableAllocationDecider.Allocation.PRIMARIES);
-        if (randomBoolean()) {
-            setAllocateOnRollingRestart(false);
-        }
+
         Set<String> indexNodes = internalCluster().nodesInclude(restoredIndexName);
         for (String indexNode : indexNodes) {
             internalCluster().restartNode(indexNode);
         }
 
-        ClusterHealthResponse response = clusterAdmin().health(new ClusterHealthRequest(restoredIndexName)).actionGet();
+        ClusterHealthResponse response = clusterAdmin().health(new ClusterHealthRequest(TEST_REQUEST_TIMEOUT, restoredIndexName))
+            .actionGet();
         assertThat(response.getUnassignedShards(), Matchers.equalTo(numPrimaries));
 
-        setAllocateOnRollingRestart(true);
+        setEnableAllocation(null);
         ensureGreen(restoredIndexName);
     }
 
     public void testAllocateOnRollingRestartEnabled() throws Exception {
         final String restoredIndexName = setupMountedIndex();
-        if (randomBoolean()) {
-            setEnableAllocation(EnableAllocationDecider.Allocation.PRIMARIES);
-        }
-        setAllocateOnRollingRestart(true);
+        setEnableAllocation(null);
         Set<String> indexNodes = internalCluster().nodesInclude(restoredIndexName);
         for (String indexNode : indexNodes) {
             internalCluster().restartNode(indexNode);
@@ -73,14 +68,7 @@ public class SearchableSnapshotEnableAllocationDeciderIntegTests extends BaseSea
     }
 
     public void setEnableAllocation(EnableAllocationDecider.Allocation allocation) {
-        setSetting(EnableAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ENABLE_SETTING, allocation.name());
-    }
-
-    public void setAllocateOnRollingRestart(boolean allocateOnRollingRestart) {
-        setSetting(
-            SearchableSnapshotEnableAllocationDecider.SEARCHABLE_SNAPSHOTS_ALLOCATE_ON_ROLLING_RESTART,
-            Boolean.toString(allocateOnRollingRestart)
-        );
+        setSetting(EnableAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ENABLE_SETTING, allocation != null ? allocation.name() : null);
     }
 
     private void setSetting(Setting<?> setting, String value) {

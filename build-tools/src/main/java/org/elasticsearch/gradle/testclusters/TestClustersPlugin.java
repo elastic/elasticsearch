@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.gradle.testclusters;
 
@@ -25,6 +26,7 @@ import org.gradle.api.internal.file.FileOperations;
 import org.gradle.api.invocation.Gradle;
 import org.gradle.api.logging.Logger;
 import org.gradle.api.logging.Logging;
+import org.gradle.api.provider.Property;
 import org.gradle.api.provider.Provider;
 import org.gradle.api.provider.ProviderFactory;
 import org.gradle.api.services.BuildService;
@@ -105,14 +107,21 @@ public class TestClustersPlugin implements Plugin<Project> {
         runtimeJavaProvider = providerFactory.provider(
             () -> System.getenv("RUNTIME_JAVA_HOME") == null ? Jvm.current().getJavaHome() : new File(System.getenv("RUNTIME_JAVA_HOME"))
         );
+
+        // register cluster registry as a global build service
+        Provider<TestClustersRegistry> testClustersRegistryProvider = project.getGradle()
+            .getSharedServices()
+            .registerIfAbsent(REGISTRY_SERVICE_NAME, TestClustersRegistry.class, noop());
+
         // enable the DSL to describe clusters
-        NamedDomainObjectContainer<ElasticsearchCluster> container = createTestClustersContainerExtension(project, reaperServiceProvider);
+        NamedDomainObjectContainer<ElasticsearchCluster> container = createTestClustersContainerExtension(
+            project,
+            testClustersRegistryProvider,
+            reaperServiceProvider
+        );
 
         // provide a task to be able to list defined clusters.
         createListClustersTask(project, container);
-
-        // register cluster registry as a global build service
-        project.getGradle().getSharedServices().registerIfAbsent(REGISTRY_SERVICE_NAME, TestClustersRegistry.class, noop());
 
         // register throttle so we only run at most max-workers/2 nodes concurrently
         Provider<TestClustersThrottle> testClustersThrottleProvider = project.getGradle()
@@ -144,6 +153,7 @@ public class TestClustersPlugin implements Plugin<Project> {
 
     private NamedDomainObjectContainer<ElasticsearchCluster> createTestClustersContainerExtension(
         Project project,
+        Provider<TestClustersRegistry> testClustersRegistryProvider,
         Provider<ReaperService> reaper
     ) {
         // Create an extensions that allows describing clusters
@@ -154,6 +164,7 @@ public class TestClustersPlugin implements Plugin<Project> {
                 name,
                 project,
                 reaper,
+                testClustersRegistryProvider,
                 getFileSystemOperations(),
                 getArchiveOperations(),
                 getExecOperations(),
@@ -198,7 +209,9 @@ public class TestClustersPlugin implements Plugin<Project> {
 
             Provider<TaskEventsService> testClusterTasksService = project.getGradle()
                 .getSharedServices()
-                .registerIfAbsent(TEST_CLUSTER_TASKS_SERVICE, TaskEventsService.class, spec -> {});
+                .registerIfAbsent(TEST_CLUSTER_TASKS_SERVICE, TaskEventsService.class, spec -> {
+                    spec.getParameters().getRegistry().set(registryProvider);
+                });
 
             TestClustersRegistry registry = registryProvider.get();
             // When we know what tasks will run, we claim the clusters of those task to differentiate between clusters
@@ -208,7 +221,7 @@ public class TestClustersPlugin implements Plugin<Project> {
             configureClaimClustersHook(project.getGradle(), registry);
 
             // Before each task, we determine if a cluster needs to be started for that task.
-            configureStartClustersHook(project.getGradle(), registry, testClusterTasksService);
+            configureStartClustersHook(project.getGradle());
 
             // After each task we determine if there are clusters that are no longer needed.
             getEventsListenerRegistry().onTaskCompletion(testClusterTasksService);
@@ -227,12 +240,7 @@ public class TestClustersPlugin implements Plugin<Project> {
             });
         }
 
-        private void configureStartClustersHook(
-            Gradle gradle,
-            TestClustersRegistry registry,
-            Provider<TaskEventsService> testClusterTasksService
-        ) {
-            testClusterTasksService.get().registry(registry);
+        private void configureStartClustersHook(Gradle gradle) {
             gradle.getTaskGraph().whenReady(taskExecutionGraph -> {
                 taskExecutionGraph.getAllTasks()
                     .stream()
@@ -241,24 +249,19 @@ public class TestClustersPlugin implements Plugin<Project> {
                     .forEach(awareTask -> {
                         awareTask.doFirst(task -> {
                             awareTask.beforeStart();
-                            awareTask.getClusters().forEach(awareTask.getRegistery().get()::maybeStartCluster);
+                            awareTask.getClusters().forEach(awareTask.getRegistry().get()::maybeStartCluster);
                         });
                     });
             });
         }
     }
 
-    static public abstract class TaskEventsService implements BuildService<BuildServiceParameters.None>, OperationCompletionListener {
+    static public abstract class TaskEventsService implements BuildService<TaskEventsService.Params>, OperationCompletionListener {
 
         Map<String, TestClustersAware> tasksMap = new HashMap<>();
-        private TestClustersRegistry registryProvider;
 
         public void register(TestClustersAware task) {
             tasksMap.put(task.getPath(), task);
-        }
-
-        public void registry(TestClustersRegistry registry) {
-            this.registryProvider = registry;
         }
 
         @Override
@@ -272,11 +275,18 @@ public class TestClustersPlugin implements Plugin<Project> {
                     if (task.getDidWork()) {
                         task.getClusters()
                             .forEach(
-                                cluster -> registryProvider.stopCluster(cluster, taskFinishEvent.getResult() instanceof TaskFailureResult)
+                                cluster -> getParameters().getRegistry()
+                                    .get()
+                                    .stopCluster(cluster, taskFinishEvent.getResult() instanceof TaskFailureResult)
                             );
                     }
                 }
             }
+        }
+
+        // Some parameters for the web server
+        interface Params extends BuildServiceParameters {
+            Property<TestClustersRegistry> getRegistry();
         }
     }
 }

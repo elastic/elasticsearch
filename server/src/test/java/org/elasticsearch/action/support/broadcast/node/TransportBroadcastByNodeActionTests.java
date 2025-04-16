@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.support.broadcast.node;
@@ -27,9 +28,11 @@ import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.cluster.project.TestProjectResolvers;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.RoutingTable;
@@ -168,12 +171,12 @@ public class TransportBroadcastByNodeActionTests extends ESTestCase {
         TestTransportBroadcastByNodeAction(String actionName) {
             super(
                 actionName,
-                clusterService,
-                transportService,
+                TransportBroadcastByNodeActionTests.this.clusterService,
+                TransportBroadcastByNodeActionTests.this.transportService,
                 new ActionFilters(Set.of()),
                 new MyResolver(),
                 Request::new,
-                transportService.getThreadPool().executor(TEST_THREAD_POOL_NAME)
+                TransportBroadcastByNodeActionTests.this.transportService.getThreadPool().executor(TEST_THREAD_POOL_NAME)
             );
         }
 
@@ -234,11 +237,11 @@ public class TransportBroadcastByNodeActionTests extends ESTestCase {
 
     static class MyResolver extends IndexNameExpressionResolver {
         MyResolver() {
-            super(new ThreadContext(Settings.EMPTY), EmptySystemIndices.INSTANCE);
+            super(new ThreadContext(Settings.EMPTY), EmptySystemIndices.INSTANCE, TestProjectResolvers.DEFAULT_PROJECT_ONLY);
         }
 
         @Override
-        public String[] concreteIndexNames(ClusterState state, IndicesRequest request) {
+        public String[] concreteIndexNames(ProjectMetadata project, IndicesRequest request) {
             return request.indices();
         }
     }
@@ -246,11 +249,7 @@ public class TransportBroadcastByNodeActionTests extends ESTestCase {
     private static final String TEST_THREAD_POOL_NAME = "test_thread_pool";
 
     private static void awaitForkedTasks() {
-        PlainActionFuture.get(
-            listener -> THREAD_POOL.executor(TEST_THREAD_POOL_NAME).execute(ActionRunnable.run(listener, () -> {})),
-            10,
-            TimeUnit.SECONDS
-        );
+        safeAwait(listener -> THREAD_POOL.executor(TEST_THREAD_POOL_NAME).execute(ActionRunnable.run(listener, () -> {})));
     }
 
     @BeforeClass
@@ -347,14 +346,8 @@ public class TransportBroadcastByNodeActionTests extends ESTestCase {
 
         assertEquals(
             "blocked by: [SERVICE_UNAVAILABLE/1/test-block];",
-            expectThrows(
-                ClusterBlockException.class,
-                () -> PlainActionFuture.<Response, RuntimeException>get(
-                    listener -> action.doExecute(null, request, listener),
-                    10,
-                    TimeUnit.SECONDS
-                )
-            ).getMessage()
+            safeAwaitFailure(ClusterBlockException.class, Response.class, listener -> action.doExecute(null, request, listener))
+                .getMessage()
         );
     }
 
@@ -369,14 +362,8 @@ public class TransportBroadcastByNodeActionTests extends ESTestCase {
         setState(clusterService, ClusterState.builder(clusterService.state()).blocks(block));
         assertEquals(
             "index [" + TEST_INDEX + "] blocked by: [SERVICE_UNAVAILABLE/1/test-block];",
-            expectThrows(
-                ClusterBlockException.class,
-                () -> PlainActionFuture.<Response, RuntimeException>get(
-                    listener -> action.doExecute(null, request, listener),
-                    10,
-                    TimeUnit.SECONDS
-                )
-            ).getMessage()
+            safeAwaitFailure(ClusterBlockException.class, Response.class, listener -> action.doExecute(null, request, listener))
+                .getMessage()
         );
     }
 

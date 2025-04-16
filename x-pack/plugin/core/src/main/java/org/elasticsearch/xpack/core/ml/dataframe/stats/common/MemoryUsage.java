@@ -126,7 +126,7 @@ public class MemoryUsage implements Writeable, ToXContentObject {
             builder.field(Fields.JOB_ID.getPreferredName(), jobId);
         }
         if (timestamp != null) {
-            builder.timeField(
+            builder.timestampFieldsFromUnixEpochMillis(
                 Fields.TIMESTAMP.getPreferredName(),
                 Fields.TIMESTAMP.getPreferredName() + "_string",
                 timestamp.toEpochMilli()

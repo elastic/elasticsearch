@@ -23,17 +23,27 @@ public final class GetBuiltinPrivilegesResponse extends ActionResponse {
 
     private final String[] clusterPrivileges;
     private final String[] indexPrivileges;
+    private final String[] remoteClusterPrivileges;
 
+    // used by serverless
     public GetBuiltinPrivilegesResponse(Collection<String> clusterPrivileges, Collection<String> indexPrivileges) {
-        this.clusterPrivileges = Objects.requireNonNull(
-            clusterPrivileges.toArray(Strings.EMPTY_ARRAY),
-            "Cluster privileges cannot be null"
-        );
-        this.indexPrivileges = Objects.requireNonNull(indexPrivileges.toArray(Strings.EMPTY_ARRAY), "Index privileges cannot be null");
+        this(clusterPrivileges, indexPrivileges, Collections.emptySet());
+    }
+
+    public GetBuiltinPrivilegesResponse(
+        Collection<String> clusterPrivileges,
+        Collection<String> indexPrivileges,
+        Collection<String> remoteClusterPrivileges
+    ) {
+        this.clusterPrivileges = Objects.requireNonNull(clusterPrivileges, "Cluster privileges cannot be null")
+            .toArray(Strings.EMPTY_ARRAY);
+        this.indexPrivileges = Objects.requireNonNull(indexPrivileges, "Index privileges cannot be null").toArray(Strings.EMPTY_ARRAY);
+        this.remoteClusterPrivileges = Objects.requireNonNull(remoteClusterPrivileges, "Remote cluster privileges cannot be null")
+            .toArray(Strings.EMPTY_ARRAY);
     }
 
     public GetBuiltinPrivilegesResponse() {
-        this(Collections.emptySet(), Collections.emptySet());
+        this(Collections.emptySet(), Collections.emptySet(), Collections.emptySet());
     }
 
     public String[] getClusterPrivileges() {
@@ -42,6 +52,10 @@ public final class GetBuiltinPrivilegesResponse extends ActionResponse {
 
     public String[] getIndexPrivileges() {
         return indexPrivileges;
+    }
+
+    public String[] getRemoteClusterPrivileges() {
+        return remoteClusterPrivileges;
     }
 
     @Override

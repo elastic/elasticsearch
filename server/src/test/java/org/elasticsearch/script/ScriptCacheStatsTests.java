@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.script;
@@ -30,9 +31,7 @@ public class ScriptCacheStatsTests extends ESTestCase {
         var scriptCacheStats = new ScriptCacheStats(stats);
 
         builder.startObject();
-        for (var it = scriptCacheStats.toXContentChunked(ToXContent.EMPTY_PARAMS); it.hasNext();) {
-            it.next().toXContent(builder, ToXContent.EMPTY_PARAMS);
-        }
+        scriptCacheStats.toXContent(builder, ToXContent.EMPTY_PARAMS);
         builder.endObject();
 
         String expected = """
@@ -62,9 +61,7 @@ public class ScriptCacheStatsTests extends ESTestCase {
         );
 
         builder.startObject();
-        for (var it = scriptCacheStats.toXContentChunked(ToXContent.EMPTY_PARAMS); it.hasNext();) {
-            it.next().toXContent(builder, ToXContent.EMPTY_PARAMS);
-        }
+        scriptCacheStats.toXContent(builder, ToXContent.EMPTY_PARAMS);
         builder.endObject();
 
         String expected = """

@@ -7,7 +7,7 @@ echo "steps:"
 source .buildkite/scripts/branches.sh
 
 for BRANCH in "${BRANCHES[@]}"; do
-  if [[ "$BRANCH" == "main" ]]; then
+  if [[ "$BRANCH" == "9.0" ]]; then
     continue
   fi
 
@@ -24,5 +24,6 @@ for BRANCH in "${BRANCHES[@]}"; do
       commit: "$LAST_GOOD_COMMIT"
       env:
         DRA_WORKFLOW: staging
+        VERSION_QUALIFIER: ${VERSION_QUALIFIER:-}
 EOF
 done

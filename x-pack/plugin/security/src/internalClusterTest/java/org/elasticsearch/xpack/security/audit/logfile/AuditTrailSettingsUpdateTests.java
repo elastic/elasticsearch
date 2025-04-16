@@ -103,7 +103,9 @@ public class AuditTrailSettingsUpdateTests extends SecurityIntegTestCase {
         settingsBuilder.put(randomFrom(allSettingsKeys), invalidLuceneRegex);
         final IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
-            () -> clusterAdmin().prepareUpdateSettings().setPersistentSettings(settingsBuilder.build()).get()
+            () -> clusterAdmin().prepareUpdateSettings(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT)
+                .setPersistentSettings(settingsBuilder.build())
+                .get()
         );
         assertThat(e.getMessage(), containsString("invalid pattern [/invalid]"));
     }

@@ -1,19 +1,26 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.mapper;
 
+import org.apache.logging.log4j.Level;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.core.LogEvent;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.core.KeywordAnalyzer;
 import org.apache.lucene.analysis.core.WhitespaceAnalyzer;
 import org.apache.lucene.analysis.standard.StandardAnalyzer;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.compress.CompressedXContent;
+import org.elasticsearch.common.logging.Loggers;
+import org.elasticsearch.common.logging.MockAppender;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
@@ -69,7 +76,14 @@ public class DocumentMapperTests extends MapperServiceTestCase {
         assertThat(stage1.mappers().getMapper("obj1.prop1"), nullValue());
         // but merged should
         DocumentParser documentParser = new DocumentParser(null, null);
-        DocumentMapper mergedMapper = new DocumentMapper(documentParser, merged, merged.toCompressedXContent(), IndexVersion.current());
+        DocumentMapper mergedMapper = new DocumentMapper(
+            documentParser,
+            merged,
+            merged.toCompressedXContent(),
+            IndexVersion.current(),
+            MapperMetrics.NOOP,
+            "myIndex"
+        );
         assertThat(mergedMapper.mappers().getMapper("age"), notNullValue());
         assertThat(mergedMapper.mappers().getMapper("obj1.prop1"), notNullValue());
     }
@@ -319,7 +333,9 @@ public class DocumentMapperTests extends MapperServiceTestCase {
                 .item(DocCountFieldMapper.class)
                 .item(FieldNamesFieldMapper.class)
                 .item(IgnoredFieldMapper.class)
+                .item(IgnoredSourceFieldMapper.class)
                 .item(IndexFieldMapper.class)
+                .item(IndexModeFieldMapper.class)
                 .item(NestedPathFieldMapper.class)
                 .item(ProvidedIdFieldMapper.class)
                 .item(RoutingFieldMapper.class)
@@ -336,7 +352,9 @@ public class DocumentMapperTests extends MapperServiceTestCase {
                 .item(FieldNamesFieldMapper.CONTENT_TYPE)
                 .item(IdFieldMapper.CONTENT_TYPE)
                 .item(IgnoredFieldMapper.CONTENT_TYPE)
+                .item(IgnoredSourceFieldMapper.NAME)
                 .item(IndexFieldMapper.CONTENT_TYPE)
+                .item(IndexModeFieldMapper.CONTENT_TYPE)
                 .item(NestedPathFieldMapper.NAME)
                 .item(RoutingFieldMapper.CONTENT_TYPE)
                 .item(SeqNoFieldMapper.CONTENT_TYPE)
@@ -464,7 +482,11 @@ public class DocumentMapperTests extends MapperServiceTestCase {
                 threads[threadId] = new Thread(() -> {
                     try {
                         latch.await();
-                        mapperService.parseMapping("_doc", new CompressedXContent(Strings.toString(builders[threadId])));
+                        mapperService.parseMapping(
+                            "_doc",
+                            MergeReason.MAPPING_UPDATE,
+                            new CompressedXContent(Strings.toString(builders[threadId]))
+                        );
                     } catch (Exception e) {
                         throw new AssertionError(e);
                     }
@@ -475,6 +497,37 @@ public class DocumentMapperTests extends MapperServiceTestCase {
             for (Thread thread : threads) {
                 thread.join();
             }
+        }
+    }
+
+    public void testParsingErrorLogging() throws Exception {
+        MockAppender appender = new MockAppender("mock_appender");
+        appender.start();
+        Logger testLogger = LogManager.getLogger(DocumentMapper.class);
+        Loggers.addAppender(testLogger, appender);
+        Level originalLogLevel = testLogger.getLevel();
+        Loggers.setLevel(testLogger, Level.ERROR);
+
+        try {
+            DocumentMapper doc = createDocumentMapper(mapping(b -> b.startObject("value").field("type", "integer").endObject()));
+
+            DocumentParsingException e = expectThrows(
+                DocumentParsingException.class,
+                () -> doc.parse(source(b -> b.field("value", "foo")))
+            );
+            assertThat(e.getMessage(), containsString("failed to parse field [value] of type [integer] in document with id '1'"));
+            LogEvent event = appender.getLastEventAndReset();
+            if (event != null) {
+                assertThat(event.getMessage().getFormattedMessage(), containsString(e.getMessage()));
+            }
+
+            e = expectThrows(DocumentParsingException.class, () -> doc.parse(source(b -> b.field("value", "foo"))));
+            assertThat(e.getMessage(), containsString("failed to parse field [value] of type [integer] in document with id '1'"));
+            assertThat(appender.getLastEventAndReset(), nullValue());
+        } finally {
+            Loggers.setLevel(testLogger, originalLogLevel);
+            Loggers.removeAppender(testLogger, appender);
+            appender.stop();
         }
     }
 }

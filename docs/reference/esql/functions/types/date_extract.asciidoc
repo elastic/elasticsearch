@@ -1,5 +1,0 @@
-[%header.monospaced.styled,format=dsv,separator=|]
-|===
-date_part | field | result
-keyword | datetime | long
-|===

@@ -1,0 +1,42 @@
+admin:
+  cluster:
+    - manage_search_application
+    - manage_behavioral_analytics
+    - manage
+    - monitor
+    - manage_connector
+  indices:
+    - names: [
+        # indices and search applications
+        "test-*",
+        "another-test-search-application",
+    ]
+      privileges: [ "manage", "write", "read" ]
+
+user:
+  cluster:
+    - post_behavioral_analytics_event
+    - manage_api_key
+    - read_connector_secrets
+    - write_connector_secrets
+    - monitor_connector
+  indices:
+    - names: [
+      "test-index1",
+      "test-search-application",
+      "test-search-application-1",
+      "test-search-application-with-aggs",
+      "test-search-application-with-list",
+      "test-search-application-with-list-invalid"
+    ]
+      privileges: [ "read" ]
+
+unprivileged:
+  indices:
+    - names: [
+      # indices and search applications
+      "test-*",
+      "another-test-search-application"
+    ]
+      privileges: [ "manage", "write", "read" ]
+

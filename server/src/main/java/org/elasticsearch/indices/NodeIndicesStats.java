@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.indices;
@@ -38,6 +39,7 @@ import org.elasticsearch.index.shard.DenseVectorStats;
 import org.elasticsearch.index.shard.DocsStats;
 import org.elasticsearch.index.shard.IndexingStats;
 import org.elasticsearch.index.shard.ShardCountStats;
+import org.elasticsearch.index.shard.SparseVectorStats;
 import org.elasticsearch.index.store.StoreStats;
 import org.elasticsearch.index.translog.TranslogStats;
 import org.elasticsearch.index.warmer.WarmerStats;
@@ -214,6 +216,11 @@ public class NodeIndicesStats implements Writeable, ChunkedToXContent {
         return stats.getDenseVectorStats();
     }
 
+    @Nullable
+    public SparseVectorStats getSparseVectorStats() {
+        return stats.getSparseVectorStats();
+    }
+
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         stats.writeTo(out);
@@ -250,22 +257,21 @@ public class NodeIndicesStats implements Writeable, ChunkedToXContent {
 
                 case NODE -> Collections.<ToXContent>emptyIterator();
 
-                case INDICES -> Iterators.concat(
-                    ChunkedToXContentHelper.startObject(Fields.INDICES),
+                case INDICES -> ChunkedToXContentHelper.object(
+                    Fields.INDICES,
                     Iterators.map(createCommonStatsByIndex().entrySet().iterator(), entry -> (builder, params) -> {
                         builder.startObject(entry.getKey().getName());
                         entry.getValue().toXContent(builder, params);
                         return builder.endObject();
-                    }),
-                    ChunkedToXContentHelper.endObject()
+                    })
                 );
 
-                case SHARDS -> Iterators.concat(
-                    ChunkedToXContentHelper.startObject(Fields.SHARDS),
+                case SHARDS -> ChunkedToXContentHelper.object(
+                    Fields.SHARDS,
                     Iterators.flatMap(
                         statsByShard.entrySet().iterator(),
-                        entry -> Iterators.concat(
-                            ChunkedToXContentHelper.startArray(entry.getKey().getName()),
+                        entry -> ChunkedToXContentHelper.array(
+                            entry.getKey().getName(),
                             Iterators.flatMap(
                                 entry.getValue().iterator(),
                                 indexShardStats -> Iterators.concat(
@@ -275,11 +281,9 @@ public class NodeIndicesStats implements Writeable, ChunkedToXContent {
                                     Iterators.flatMap(Iterators.forArray(indexShardStats.getShards()), Iterators::<ToXContent>single),
                                     Iterators.single((b, p) -> b.endObject().endObject())
                                 )
-                            ),
-                            ChunkedToXContentHelper.endArray()
+                            )
                         )
-                    ),
-                    ChunkedToXContentHelper.endObject()
+                    )
                 );
             },
 

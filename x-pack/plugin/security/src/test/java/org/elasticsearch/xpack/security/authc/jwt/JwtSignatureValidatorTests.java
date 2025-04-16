@@ -59,7 +59,7 @@ public class JwtSignatureValidatorTests extends ESTestCase {
         final RealmConfig realmConfig = mock(RealmConfig.class);
         when(realmConfig.getSetting(JwtRealmSettings.PKC_JWKSET_PATH)).thenReturn("jwkset.json");
         final Environment env = mock(Environment.class);
-        when(env.configFile()).thenReturn(tempDir);
+        when(env.configDir()).thenReturn(tempDir);
         when(realmConfig.env()).thenReturn(env);
 
         validateSignatureAttemptCounter = new AtomicInteger();
@@ -266,7 +266,7 @@ public class JwtSignatureValidatorTests extends ESTestCase {
             try {
                 helpTestSignatureAlgorithm(signatureAlgorithm, false);
             } catch (Exception e) {
-                fail("signature validation with algorithm [" + signatureAlgorithm + "] should have succeeded");
+                throw new RuntimeException("signature validation with algorithm [" + signatureAlgorithm + "] should have succeeded", e);
             }
         }
         // Fail: "ES256K"

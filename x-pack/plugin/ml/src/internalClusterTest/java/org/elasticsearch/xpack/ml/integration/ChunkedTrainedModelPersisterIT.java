@@ -7,10 +7,13 @@
 package org.elasticsearch.xpack.ml.integration;
 
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.indices.TestIndexNameExpressionResolver;
 import org.elasticsearch.license.License;
 import org.elasticsearch.xpack.core.action.util.PageParams;
 import org.elasticsearch.xpack.core.ml.MlConfigVersion;
@@ -39,6 +42,7 @@ import org.elasticsearch.xpack.ml.extractor.ExtractedField;
 import org.elasticsearch.xpack.ml.extractor.ExtractedFields;
 import org.elasticsearch.xpack.ml.inference.modelsize.ModelSizeInfo;
 import org.elasticsearch.xpack.ml.inference.modelsize.ModelSizeInfoTests;
+import org.elasticsearch.xpack.ml.inference.persistence.TrainedModelCacheMetadataService;
 import org.elasticsearch.xpack.ml.inference.persistence.TrainedModelProvider;
 import org.elasticsearch.xpack.ml.notifications.DataFrameAnalyticsAuditor;
 import org.junit.Before;
@@ -57,14 +61,23 @@ import java.util.stream.Stream;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.startsWith;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.mock;
 
 public class ChunkedTrainedModelPersisterIT extends MlSingleNodeTestCase {
 
     private TrainedModelProvider trainedModelProvider;
 
     @Before
+    @SuppressWarnings("unchecked")
     public void createComponents() throws Exception {
-        trainedModelProvider = new TrainedModelProvider(client(), xContentRegistry());
+        TrainedModelCacheMetadataService modelCacheMetadataService = mock(TrainedModelCacheMetadataService.class);
+        doAnswer(invocationOnMock -> {
+            invocationOnMock.getArgument(0, ActionListener.class).onResponse(AcknowledgedResponse.TRUE);
+            return Void.TYPE;
+        }).when(modelCacheMetadataService).updateCacheVersion(any(ActionListener.class));
+        trainedModelProvider = new TrainedModelProvider(client(), modelCacheMetadataService, xContentRegistry());
         waitForMlTemplates();
     }
 
@@ -83,7 +96,12 @@ public class ChunkedTrainedModelPersisterIT extends MlSingleNodeTestCase {
         ChunkedTrainedModelPersister persister = new ChunkedTrainedModelPersister(
             trainedModelProvider,
             analyticsConfig,
-            new DataFrameAnalyticsAuditor(client(), getInstanceFromNode(ClusterService.class), true),
+            new DataFrameAnalyticsAuditor(
+                client(),
+                getInstanceFromNode(ClusterService.class),
+                TestIndexNameExpressionResolver.newInstance(),
+                true
+            ),
             (ex) -> {
                 throw new ElasticsearchException(ex);
             },
@@ -155,7 +173,12 @@ public class ChunkedTrainedModelPersisterIT extends MlSingleNodeTestCase {
         ChunkedTrainedModelPersister persister = new ChunkedTrainedModelPersister(
             trainedModelProvider,
             analyticsConfig,
-            new DataFrameAnalyticsAuditor(client(), getInstanceFromNode(ClusterService.class), false),
+            new DataFrameAnalyticsAuditor(
+                client(),
+                getInstanceFromNode(ClusterService.class),
+                TestIndexNameExpressionResolver.newInstance(),
+                false
+            ),
             (ex) -> {
                 throw new ElasticsearchException(ex);
             },

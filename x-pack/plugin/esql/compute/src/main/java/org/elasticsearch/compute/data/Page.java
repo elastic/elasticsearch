@@ -83,7 +83,9 @@ public final class Page implements Writeable {
     private Page(Page prev, Block[] toAdd) {
         for (Block block : toAdd) {
             if (prev.positionCount != block.getPositionCount()) {
-                throw new IllegalArgumentException("Block [" + block + "] does not have same position count");
+                throw new IllegalArgumentException(
+                    "Block [" + block + "] does not have same position count: " + block.getPositionCount() + " != " + prev.positionCount
+                );
             }
         }
         this.positionCount = prev.positionCount;
@@ -96,10 +98,11 @@ public final class Page implements Writeable {
         int positionCount = in.readVInt();
         int blockPositions = in.readVInt();
         Block[] blocks = new Block[blockPositions];
+        BlockStreamInput blockStreamInput = (BlockStreamInput) in;
         boolean success = false;
         try {
             for (int blockIndex = 0; blockIndex < blockPositions; blockIndex++) {
-                blocks[blockIndex] = in.readNamedWriteable(Block.class);
+                blocks[blockIndex] = Block.readTypedBlock(blockStreamInput);
             }
             success = true;
         } finally {
@@ -109,6 +112,15 @@ public final class Page implements Writeable {
         }
         this.positionCount = positionCount;
         this.blocks = blocks;
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        out.writeVInt(positionCount);
+        out.writeVInt(getBlockCount());
+        for (Block block : blocks) {
+            Block.writeTypedBlock(block, out);
+        }
     }
 
     private static int determinePositionCount(Block... blocks) {
@@ -215,15 +227,6 @@ public final class Page implements Writeable {
         return blocks.length;
     }
 
-    @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        out.writeVInt(positionCount);
-        out.writeVInt(getBlockCount());
-        for (Block block : blocks) {
-            out.writeNamedWriteable(block);
-        }
-    }
-
     public long ramBytesUsedByBlocks() {
         return Arrays.stream(blocks).mapToLong(Accountable::ramBytesUsed).sum();
     }
@@ -250,6 +253,45 @@ public final class Page implements Writeable {
     public void allowPassingToDifferentDriver() {
         for (Block block : blocks) {
             block.allowPassingToDifferentDriver();
+        }
+    }
+
+    public Page shallowCopy() {
+        for (Block b : blocks) {
+            b.incRef();
+        }
+        return new Page(blocks);
+    }
+
+    /**
+     * Returns a new page with blocks in the containing {@link Block}s
+     * shifted around or removed. The new {@link Page} will have as
+     * many blocks as the {@code length} of the provided array. Those
+     * blocks will be set to the block at the position of the
+     * <strong>value</strong> of each entry in the parameter.
+     */
+    public Page projectBlocks(int[] blockMapping) {
+        if (blocksReleased) {
+            throw new IllegalStateException("can't read released page");
+        }
+        Block[] mapped = new Block[blockMapping.length];
+        try {
+            for (int b = 0; b < blockMapping.length; b++) {
+                if (blockMapping[b] >= blocks.length) {
+                    throw new IllegalArgumentException(
+                        "Cannot project block with index [" + blockMapping[b] + "] from a page with size [" + blocks.length + "]"
+                    );
+                }
+                mapped[b] = blocks[blockMapping[b]];
+                mapped[b].incRef();
+            }
+            Page result = new Page(false, getPositionCount(), mapped);
+            mapped = null;
+            return result;
+        } finally {
+            if (mapped != null) {
+                Releasables.close(mapped);
+            }
         }
     }
 }

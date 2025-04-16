@@ -9,6 +9,7 @@ package org.elasticsearch.license;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.core.TimeValue;
 
 import java.io.IOException;
 
@@ -16,7 +17,9 @@ public class PostStartBasicRequest extends AcknowledgedRequest<PostStartBasicReq
 
     private boolean acknowledge = false;
 
-    public PostStartBasicRequest() {}
+    public PostStartBasicRequest(TimeValue masterNodeTimeout, TimeValue ackTimeout) {
+        super(masterNodeTimeout, ackTimeout);
+    }
 
     public PostStartBasicRequest(StreamInput in) throws IOException {
         super(in);

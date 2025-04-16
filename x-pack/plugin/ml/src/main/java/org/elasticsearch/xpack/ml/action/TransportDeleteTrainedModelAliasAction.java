@@ -19,28 +19,26 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.ingest.IngestMetadata;
 import org.elasticsearch.ingest.IngestService;
+import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.ml.action.DeleteTrainedModelAliasAction;
 import org.elasticsearch.xpack.core.ml.inference.ModelAliasMetadata;
+import org.elasticsearch.xpack.core.ml.utils.InferenceProcessorInfoExtractor;
 import org.elasticsearch.xpack.ml.notifications.InferenceAuditor;
 
 import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
-
-import static org.elasticsearch.xpack.ml.action.TransportDeleteTrainedModelAction.getReferencedModelKeys;
 
 public class TransportDeleteTrainedModelAliasAction extends AcknowledgedTransportMasterNodeAction<DeleteTrainedModelAliasAction.Request> {
 
@@ -56,8 +54,7 @@ public class TransportDeleteTrainedModelAliasAction extends AcknowledgedTranspor
         ThreadPool threadPool,
         ActionFilters actionFilters,
         InferenceAuditor auditor,
-        IngestService ingestService,
-        IndexNameExpressionResolver indexNameExpressionResolver
+        IngestService ingestService
     ) {
         super(
             DeleteTrainedModelAliasAction.NAME,
@@ -66,7 +63,6 @@ public class TransportDeleteTrainedModelAliasAction extends AcknowledgedTranspor
             threadPool,
             actionFilters,
             DeleteTrainedModelAliasAction.Request::new,
-            indexNameExpressionResolver,
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
         this.auditor = auditor;
@@ -112,8 +108,8 @@ public class TransportDeleteTrainedModelAliasAction extends AcknowledgedTranspor
                 request.getModelId()
             );
         }
-        IngestMetadata currentIngestMetadata = currentState.metadata().custom(IngestMetadata.TYPE);
-        Set<String> referencedModels = getReferencedModelKeys(currentIngestMetadata, ingestService);
+        IngestMetadata currentIngestMetadata = currentState.metadata().getProject().custom(IngestMetadata.TYPE);
+        Set<String> referencedModels = InferenceProcessorInfoExtractor.getModelIdsFromInferenceProcessors(currentIngestMetadata);
         if (referencedModels.contains(request.getModelAlias())) {
             throw new ElasticsearchStatusException(
                 "Cannot delete model_alias [{}] as it is still referenced by ingest processors",

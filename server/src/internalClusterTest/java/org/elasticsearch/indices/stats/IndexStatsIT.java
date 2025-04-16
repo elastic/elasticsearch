@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.indices.stats;
@@ -57,6 +58,7 @@ import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.ESIntegTestCase.Scope;
 import org.elasticsearch.test.InternalSettingsPlugin;
+import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
@@ -77,6 +79,7 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_REPLICAS;
@@ -237,7 +240,7 @@ public class IndexStatsIT extends ESIntegTestCase {
                 .setMapping("field", "type=text,fielddata=true")
         );
         ensureGreen();
-        clusterAdmin().prepareHealth().setWaitForGreenStatus().get();
+        clusterAdmin().prepareHealth(TEST_REQUEST_TIMEOUT).setWaitForGreenStatus().get();
         prepareIndex("test").setId("1").setSource("field", "value1").get();
         prepareIndex("test").setId("2").setSource("field", "value2").get();
         indicesAdmin().prepareRefresh().get();
@@ -466,50 +469,61 @@ public class IndexStatsIT extends ESIntegTestCase {
 
     public void testThrottleStats() throws Exception {
         assertAcked(
-            prepareCreate("test").setSettings(
+            prepareCreate("test_throttle_stats_index").setSettings(
                 settingsBuilder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, "1")
                     .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, "0")
                     .put(MergePolicyConfig.INDEX_MERGE_POLICY_MAX_MERGE_AT_ONCE_SETTING.getKey(), "2")
                     .put(MergePolicyConfig.INDEX_MERGE_POLICY_SEGMENTS_PER_TIER_SETTING.getKey(), "2")
                     .put(MergeSchedulerConfig.MAX_THREAD_COUNT_SETTING.getKey(), "1")
                     .put(MergeSchedulerConfig.MAX_MERGE_COUNT_SETTING.getKey(), "1")
+                    .put(MergeSchedulerConfig.AUTO_THROTTLE_SETTING.getKey(), "true")
                     .put(IndexSettings.INDEX_TRANSLOG_DURABILITY_SETTING.getKey(), Translog.Durability.ASYNC.name())
             )
         );
-        ensureGreen();
-        long termUpto = 0;
-        IndicesStatsResponse stats;
+        ensureGreen("test_throttle_stats_index");
         // make sure we see throttling kicking in:
-        boolean done = false;
-        long start = System.currentTimeMillis();
-        while (done == false) {
-            for (int i = 0; i < 100; i++) {
-                // Provoke slowish merging by making many unique terms:
-                StringBuilder sb = new StringBuilder();
-                for (int j = 0; j < 100; j++) {
-                    sb.append(' ');
-                    sb.append(termUpto++);
+        AtomicBoolean done = new AtomicBoolean();
+        AtomicLong termUpTo = new AtomicLong();
+        Thread[] indexingThreads = new Thread[5];
+        for (int threadIdx = 0; threadIdx < indexingThreads.length; threadIdx++) {
+            indexingThreads[threadIdx] = new Thread(() -> {
+                while (done.get() == false) {
+                    for (int i = 0; i < 100; i++) {
+                        // Provoke slowish merging by making many unique terms:
+                        StringBuilder sb = new StringBuilder();
+                        for (int j = 0; j < 100; j++) {
+                            sb.append(' ');
+                            sb.append(termUpTo.incrementAndGet());
+                        }
+                        prepareIndex("test_throttle_stats_index").setId("" + termUpTo.get())
+                            .setSource("field" + (i % 10), sb.toString())
+                            .get();
+                        if (i % 2 == 0) {
+                            refresh("test_throttle_stats_index");
+                        }
+                    }
+                    refresh("test_throttle_stats_index");
                 }
-                prepareIndex("test").setId("" + termUpto).setSource("field" + (i % 10), sb.toString()).get();
-                if (i % 2 == 0) {
-                    refresh();
-                }
-            }
-            refresh();
-            stats = indicesAdmin().prepareStats().get();
-            // nodesStats = clusterAdmin().prepareNodesStats().setIndices(true).get();
-            done = stats.getPrimaries().getIndexing().getTotal().getThrottleTime().millis() > 0;
-            if (System.currentTimeMillis() - start > 300 * 1000) { // Wait 5 minutes for throttling to kick in
-                fail("index throttling didn't kick in after 5 minutes of intense merging");
-            }
+            });
+            indexingThreads[threadIdx].start();
+        }
+
+        assertBusy(() -> {
+            IndicesStatsResponse stats = indicesAdmin().prepareStats("test_throttle_stats_index").get();
+            assertTrue(stats.getPrimaries().getIndexing().getTotal().getThrottleTime().millis() > 0);
+            done.set(true);
+        }, 5L, TimeUnit.MINUTES);
+
+        for (Thread indexingThread : indexingThreads) {
+            indexingThread.join();
         }
 
         // Optimize & flush and wait; else we sometimes get a "Delete Index failed - not acked"
         // when ESIntegTestCase.after tries to remove indices created by the test:
-        logger.info("test: now optimize");
-        indicesAdmin().prepareForceMerge("test").get();
-        flush();
-        logger.info("test: test done");
+        logger.info("test throttle stats: now optimize");
+        indicesAdmin().prepareForceMerge("test_throttle_stats_index").get();
+        flush("test_throttle_stats_index");
+        logger.info("test throttle stats: test done");
     }
 
     public void testSimpleStats() throws Exception {
@@ -834,7 +848,8 @@ public class IndexStatsIT extends ESIntegTestCase {
             Flag.Bulk,
             Flag.Shards,
             Flag.Mappings,
-            Flag.DenseVector };
+            Flag.DenseVector,
+            Flag.SparseVector };
 
         assertThat(flags.length, equalTo(Flag.values().length));
         for (int i = 0; i < flags.length; i++) {
@@ -1000,6 +1015,7 @@ public class IndexStatsIT extends ESIntegTestCase {
                 // We don't actually expose shards in IndexStats, but this test fails if it isn't handled
                 builder.request().flags().set(Flag.Shards, set);
             case DenseVector -> builder.setDenseVector(set);
+            case SparseVector -> builder.setSparseVector(set);
             default -> fail("new flag? " + flag);
         }
     }
@@ -1046,6 +1062,8 @@ public class IndexStatsIT extends ESIntegTestCase {
                 return response.getNodeMappings() != null;
             case DenseVector:
                 return response.getDenseVectorStats() != null;
+            case SparseVector:
+                return response.getSparseVectorStats() != null;
             default:
                 fail("new flag? " + flag);
                 return false;
@@ -1077,6 +1095,7 @@ public class IndexStatsIT extends ESIntegTestCase {
         assertEquals(total, shardTotal);
     }
 
+    @TestLogging(value = "org.elasticsearch.cluster.service:TRACE", reason = "https://github.com/elastic/elasticsearch/issues/124447")
     public void testFilterCacheStats() throws Exception {
         Settings settings = Settings.builder()
             .put(indexSettings())
@@ -1351,7 +1370,11 @@ public class IndexStatsIT extends ESIntegTestCase {
             for (IndexService indexService : indexServices) {
                 for (IndexShard indexShard : indexService) {
                     indexShard.sync();
-                    assertThat(indexShard.getLastSyncedGlobalCheckpoint(), equalTo(indexShard.getLastKnownGlobalCheckpoint()));
+                    assertThat(
+                        "Routing entry for shard " + indexShard.routingEntry().toString(),
+                        indexShard.getLastSyncedGlobalCheckpoint(),
+                        equalTo(indexShard.getLastKnownGlobalCheckpoint())
+                    );
                 }
             }
         }

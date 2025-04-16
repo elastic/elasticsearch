@@ -8,15 +8,19 @@
 package org.elasticsearch.compute.data;
 
 import org.apache.lucene.util.RamUsageEstimator;
+import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.$Array$;
+import org.elasticsearch.core.ReleasableIterator;
 import org.elasticsearch.core.Releasables;
 
+import java.io.IOException;
 import java.util.BitSet;
 
 /**
  * Block implementation that stores values in a {@link $Type$BigArrayVector}. Does not take ownership of the given
  * {@link $Array$} and does not adjust circuit breakers to account for it.
- * This class is generated. Do not edit it.
+ * This class is generated. Edit {@code X-BigArrayBlock.java.st} instead.
  */
 public final class $Type$BigArrayBlock extends AbstractArrayBlock implements $Type$Block {
 
@@ -54,10 +58,56 @@ public final class $Type$BigArrayBlock extends AbstractArrayBlock implements $Ty
             : firstValueIndexes[getPositionCount()] == vector.getPositionCount();
     }
 
+    static $Type$BigArrayBlock readArrayBlock(BlockFactory blockFactory, BlockStreamInput in) throws IOException {
+        final SubFields sub = new SubFields(blockFactory, in);
+        $Type$BigArrayVector vector = null;
+        boolean success = false;
+        try {
+            vector = $Type$BigArrayVector.readArrayVector(sub.vectorPositions(), in, blockFactory);
+            var block = new $Type$BigArrayBlock(vector, sub.positionCount, sub.firstValueIndexes, sub.nullsMask, sub.mvOrdering);
+            blockFactory.adjustBreaker(block.ramBytesUsed() - vector.ramBytesUsed() - sub.bytesReserved);
+            success = true;
+            return block;
+        } finally {
+            if (success == false) {
+                Releasables.close(vector);
+                blockFactory.adjustBreaker(-sub.bytesReserved);
+            }
+        }
+    }
+
+    void writeArrayBlock(StreamOutput out) throws IOException {
+        writeSubFields(out);
+        vector.writeArrayVector(vector.getPositionCount(), out);
+    }
+
     @Override
     public $Type$Vector asVector() {
         return null;
     }
+
+$if(boolean)$
+    @Override
+    public ToMask toMask() {
+        if (getPositionCount() == 0) {
+            return new ToMask(blockFactory().newConstantBooleanVector(false, 0), false);
+        }
+        try (BooleanVector.FixedBuilder builder = blockFactory().newBooleanVectorFixedBuilder(getPositionCount())) {
+            boolean hasMv = false;
+            for (int p = 0; p < getPositionCount(); p++) {
+                builder.appendBoolean(switch (getValueCount(p)) {
+                    case 0 -> false;
+                    case 1 -> getBoolean(getFirstValueIndex(p));
+                    default -> {
+                        hasMv = true;
+                        yield false;
+                    }
+                });
+            }
+            return new ToMask(builder.build(), hasMv);
+        }
+    }
+$endif$
 
     @Override
     public $type$ get$Type$(int valueIndex) {
@@ -86,6 +136,55 @@ public final class $Type$BigArrayBlock extends AbstractArrayBlock implements $Ty
             }
             return builder.mvOrdering(mvOrdering()).build();
         }
+    }
+
+    @Override
+    public $Type$Block keepMask(BooleanVector mask) {
+        if (getPositionCount() == 0) {
+            incRef();
+            return this;
+        }
+        if (mask.isConstant()) {
+            if (mask.getBoolean(0)) {
+                incRef();
+                return this;
+            }
+            return ($Type$Block) blockFactory().newConstantNullBlock(getPositionCount());
+        }
+$if(BytesRef)$
+        BytesRef scratch = new BytesRef();
+$endif$
+        try ($Type$Block.Builder builder = blockFactory().new$Type$BlockBuilder(getPositionCount())) {
+            // TODO if X-ArrayBlock used BooleanVector for it's null mask then we could shuffle references here.
+            for (int p = 0; p < getPositionCount(); p++) {
+                if (false == mask.getBoolean(p)) {
+                    builder.appendNull();
+                    continue;
+                }
+                int valueCount = getValueCount(p);
+                if (valueCount == 0) {
+                    builder.appendNull();
+                    continue;
+                }
+                int start = getFirstValueIndex(p);
+                if (valueCount == 1) {
+                    builder.append$Type$(get$Type$(start$if(BytesRef)$, scratch$endif$));
+                    continue;
+                }
+                int end = start + valueCount;
+                builder.beginPositionEntry();
+                for (int i = start; i < end; i++) {
+                    builder.append$Type$(get$Type$(i$if(BytesRef)$, scratch$endif$));
+                }
+                builder.endPositionEntry();
+            }
+            return builder.build();
+        }
+    }
+
+    @Override
+    public ReleasableIterator<$Type$Block> lookup(IntBlock positions, ByteSizeValue targetBlockSize) {
+        return new $Type$Lookup(this, positions, targetBlockSize);
     }
 
     @Override

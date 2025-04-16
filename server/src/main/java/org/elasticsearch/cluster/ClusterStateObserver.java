@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.cluster;
@@ -45,10 +46,6 @@ public class ClusterStateObserver {
     final AtomicReference<ObservingContext> observingContext = new AtomicReference<>(null);
     volatile Long startTimeMS;
     volatile boolean timedOut;
-
-    public ClusterStateObserver(ClusterService clusterService, Logger logger, ThreadContext contextHolder) {
-        this(clusterService, new TimeValue(60000), logger, contextHolder);
-    }
 
     /**
      * @param timeout        a global timeout for this observer. After it has expired the observer

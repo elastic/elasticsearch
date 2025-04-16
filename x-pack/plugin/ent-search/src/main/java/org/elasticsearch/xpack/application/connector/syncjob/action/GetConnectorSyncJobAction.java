@@ -29,7 +29,7 @@ import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg
 
 public class GetConnectorSyncJobAction {
 
-    public static final String NAME = "indices:data/read/xpack/connector/sync_job/get";
+    public static final String NAME = "cluster:admin/xpack/connector/sync_job/get";
     public static final ActionType<GetConnectorSyncJobAction.Response> INSTANCE = new ActionType<>(NAME);
 
     private GetConnectorSyncJobAction() {/* no instances */}
@@ -116,7 +116,6 @@ public class GetConnectorSyncJobAction {
         }
 
         public Response(StreamInput in) throws IOException {
-            super(in);
             this.connectorSyncJob = new ConnectorSyncJobSearchResult(in);
         }
 

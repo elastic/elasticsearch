@@ -136,7 +136,7 @@ public final class TransformNodes {
      * @param clusterState state
      */
     public static void warnIfNoTransformNodes(ClusterState clusterState) {
-        if (TransformMetadata.getTransformMetadata(clusterState).isResetMode() == false) {
+        if (TransformMetadata.getTransformMetadata(clusterState).resetMode() == false) {
             if (hasAnyTransformNode(clusterState.getNodes()) == false) {
                 HeaderWarning.addWarning(TransformMessages.REST_WARN_NO_TRANSFORM_NODES);
             }

@@ -1,5 +1,0 @@
-pr: 103035
-summary: "x-pack/plugin/core: add `match_mapping_type` to `ecs@mappings` dynamic templates"
-area: Data streams
-type: bug
-issues: []

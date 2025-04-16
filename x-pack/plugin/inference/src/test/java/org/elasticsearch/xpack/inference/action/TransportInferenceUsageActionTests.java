@@ -12,7 +12,6 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.inference.ModelConfigurations;
@@ -28,7 +27,7 @@ import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
-import org.elasticsearch.xpack.core.XPackFeatureSet;
+import org.elasticsearch.xpack.core.XPackFeatureUsage;
 import org.elasticsearch.xpack.core.XPackField;
 import org.elasticsearch.xpack.core.action.XPackUsageFeatureResponse;
 import org.elasticsearch.xpack.core.inference.InferenceFeatureSetUsage;
@@ -39,6 +38,7 @@ import org.junit.Before;
 
 import java.util.List;
 
+import static org.elasticsearch.xpack.inference.Utils.TIMEOUT;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.core.Is.is;
 import static org.mockito.ArgumentMatchers.any;
@@ -64,7 +64,6 @@ public class TransportInferenceUsageActionTests extends ESTestCase {
             mock(ClusterService.class),
             mock(ThreadPool.class),
             mock(ActionFilters.class),
-            mock(IndexNameExpressionResolver.class),
             client
         );
     }
@@ -94,11 +93,11 @@ public class TransportInferenceUsageActionTests extends ESTestCase {
         }).when(client).execute(any(GetInferenceModelAction.class), any(), any());
 
         PlainActionFuture<XPackUsageFeatureResponse> future = new PlainActionFuture<>();
-        action.masterOperation(mock(Task.class), mock(XPackUsageRequest.class), mock(ClusterState.class), future);
+        action.localClusterStateOperation(mock(Task.class), mock(XPackUsageRequest.class), mock(ClusterState.class), future);
 
         BytesStreamOutput out = new BytesStreamOutput();
         future.get().getUsage().writeTo(out);
-        XPackFeatureSet.Usage usage = new InferenceFeatureSetUsage(out.bytes().streamInput());
+        XPackFeatureUsage usage = new InferenceFeatureSetUsage(out.bytes().streamInput());
 
         assertThat(usage.name(), is(XPackField.INFERENCE));
         assertTrue(usage.enabled());
@@ -117,5 +116,20 @@ public class TransportInferenceUsageActionTests extends ESTestCase {
         assertThat(source.getValue("models.2.service"), is("openai"));
         assertThat(source.getValue("models.2.task_type"), is("TEXT_EMBEDDING"));
         assertThat(source.getValue("models.2.count"), is(3));
+    }
+
+    public void testFailureReturnsEmptyUsage() {
+        doAnswer(invocation -> {
+            ActionListener<GetInferenceModelAction.Response> listener = invocation.getArgument(2);
+            listener.onFailure(new IllegalArgumentException("invalid field"));
+            return Void.TYPE;
+        }).when(client).execute(any(GetInferenceModelAction.class), any(), any());
+
+        var future = new PlainActionFuture<XPackUsageFeatureResponse>();
+        action.localClusterStateOperation(mock(Task.class), mock(XPackUsageRequest.class), mock(ClusterState.class), future);
+
+        var usage = future.actionGet(TIMEOUT);
+        var inferenceUsage = (InferenceFeatureSetUsage) usage.getUsage();
+        assertThat(inferenceUsage, is(InferenceFeatureSetUsage.EMPTY));
     }
 }

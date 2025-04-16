@@ -5,11 +5,12 @@
  * 2.0.
  */
 apply plugin: 'elasticsearch.internal-es-plugin'
+apply plugin: 'elasticsearch.internal-java-rest-test'
 
 esplugin {
-  name 'apm'
-  description 'Provides APM integration for Elasticsearch'
-  classname 'org.elasticsearch.telemetry.apm.APM'
+  name = 'apm'
+  description = 'Provides APM integration for Elasticsearch'
+  classname ='org.elasticsearch.telemetry.apm.APM'
 }
 
 def otelVersion = '1.31.0'
@@ -19,7 +20,10 @@ dependencies {
   implementation "io.opentelemetry:opentelemetry-api:${otelVersion}"
   implementation "io.opentelemetry:opentelemetry-context:${otelVersion}"
   implementation "io.opentelemetry:opentelemetry-semconv:${otelSemconvVersion}"
-  runtimeOnly    "co.elastic.apm:elastic-apm-agent:1.44.0"
+  runtimeOnly    "co.elastic.apm:elastic-apm-agent:1.52.2"
+
+  javaRestTestImplementation project(':modules:apm')
+  javaRestTestImplementation project(':test:framework')
 }
 
 tasks.named("dependencyLicenses").configure {

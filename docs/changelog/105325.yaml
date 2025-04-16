@@ -1,6 +1,0 @@
-pr: 105325
-summary: "ESQL: Fix Analyzer to not interpret escaped * as a pattern"
-area: ES|QL
-type: bug
-issues:
- - 104955

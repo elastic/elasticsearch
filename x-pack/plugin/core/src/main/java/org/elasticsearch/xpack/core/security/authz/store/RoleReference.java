@@ -92,12 +92,16 @@ public interface RoleReference {
         public RoleKey id() {
             // Hashing can be expensive. memorize the result in case the method is called multiple times.
             if (id == null) {
-                final String roleDescriptorsHash = MessageDigests.toHexString(
-                    MessageDigests.digest(roleDescriptorsBytes, MessageDigests.sha256())
-                );
-                id = new RoleKey(Set.of("apikey:" + roleDescriptorsHash), "apikey_" + roleType);
+                id = computeRoleKey(roleDescriptorsBytes, roleType);
             }
             return id;
+        }
+
+        private static RoleKey computeRoleKey(BytesReference roleDescriptorsBytes, ApiKeyRoleType roleType) {
+            final String roleDescriptorsHash = MessageDigests.toHexString(
+                MessageDigests.digest(roleDescriptorsBytes, MessageDigests.sha256())
+            );
+            return new RoleKey(Set.of("apikey:" + roleDescriptorsHash), "apikey_" + roleType);
         }
 
         @Override
@@ -118,6 +122,58 @@ public interface RoleReference {
         }
     }
 
+    /**
+     * Represents the role descriptors of the cross-cluster API key underlying an API key authentication based remote cluster connection.
+     * This captures the permissions of the cross-cluster API key on the fulfilling cluster and is intersected with the permissions of the
+     * query-cluster-side user entity making the cross cluster request (see {@link CrossClusterAccessRoleReference}).
+     */
+    final class CrossClusterApiKeyRoleReference implements RoleReference {
+
+        private final String apiKeyId;
+        private final BytesReference roleDescriptorsBytes;
+        private final ApiKeyRoleType roleType;
+        private RoleKey id = null;
+
+        public CrossClusterApiKeyRoleReference(String apiKeyId, BytesReference roleDescriptorsBytes) {
+            this.apiKeyId = apiKeyId;
+            this.roleDescriptorsBytes = roleDescriptorsBytes;
+            this.roleType = ApiKeyRoleType.ASSIGNED;
+        }
+
+        @Override
+        public RoleKey id() {
+            // Hashing can be expensive. memorize the result in case the method is called multiple times.
+            if (id == null) {
+                // Note: the role key is the same as for ApiKeyRoleReference, to maximize cache utilization
+                id = ApiKeyRoleReference.computeRoleKey(roleDescriptorsBytes, roleType);
+            }
+            return id;
+        }
+
+        @Override
+        public void resolve(RoleReferenceResolver resolver, ActionListener<RolesRetrievalResult> listener) {
+            resolver.resolveCrossClusterApiKeyRoleReference(this, listener);
+        }
+
+        public String getApiKeyId() {
+            return apiKeyId;
+        }
+
+        public BytesReference getRoleDescriptorsBytes() {
+            return roleDescriptorsBytes;
+        }
+
+        public ApiKeyRoleType getRoleType() {
+            return roleType;
+        }
+    }
+
+    /**
+     * Represents the role descriptors sent from the querying cluster to the fulfilling cluster as part of API key authentication based
+     * cross cluster operations. This captures the permissions of the user entity on the querying cluster and is intersected with the
+     * fulfilling-cluster-side permissions of the cross-cluster API key underlying the connection
+     * (see {@link CrossClusterApiKeyRoleReference}).
+     */
     final class CrossClusterAccessRoleReference implements RoleReference {
 
         private final CrossClusterAccessSubjectInfo.RoleDescriptorsBytes roleDescriptorsBytes;

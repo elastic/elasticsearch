@@ -1,38 +1,2150 @@
-invalid:
-  - skip:
-      version: " - 8.2.99"
-      reason: introduced in 8.3.0
-
-  - do:
-      catch: bad_request
-      indices.create:
-        index: test
-        body:
-          mappings:
-            _source:
-              mode: synthetic
-            properties:
-              kwd:
-                type: keyword
-                doc_values: false
+setup:
+  - requires:
+      cluster_features: [ "mapper.source.mode_from_index_setting" ]
+      reason: "Source mode configured through index setting"
 
 ---
-nested is disabled:
-  - skip:
-      version: " - 8.2.99"
-      reason: introduced in 8.3.0
-
+object with unmapped fields:
   - do:
-      catch: bad_request
       indices.create:
         index: test
         body:
+          settings:
+            index:
+              mapping:
+                source.mode: synthetic
+                total_fields:
+                  ignore_dynamic_beyond_limit: true
+                  limit: 1
           mappings:
-            _source:
-              mode: synthetic
             properties:
-              n:
+              name:
+                type: keyword
+
+  - do:
+      bulk:
+        index: test
+        refresh: true
+        body:
+          - '{ "create": { } }'
+          - '{ "name": "aaaa", "some_string": "AaAa", "some_int": 1000, "some_double": 123.456789, "some_bool": true, "a.very.deeply.nested.field": "AAAA" }'
+          - '{ "create": { } }'
+          - '{ "name": "bbbb", "some_string": "BbBb", "some_int": 2000, "some_double": 321.987654, "some_bool": false, "a.very.deeply.nested.field": "BBBB" }'
+
+  - do:
+      search:
+        index: test
+        sort: name
+
+  - match: { hits.total.value: 2 }
+  - match: { hits.hits.0._source.name: aaaa }
+  - match: { hits.hits.0._source.some_string: AaAa }
+  - match: { hits.hits.0._source.some_int: 1000 }
+  - match: { hits.hits.0._source.some_double: 123.456789 }
+  - match: { hits.hits.0._source.a: { very.deeply.nested.field: AAAA } }
+  - match: { hits.hits.0._source.some_bool: true }
+  - match: { hits.hits.1._source.name: bbbb }
+  - match: { hits.hits.1._source.some_string: BbBb }
+  - match: { hits.hits.1._source.some_int: 2000 }
+  - match: { hits.hits.1._source.some_double: 321.987654 }
+  - match: { hits.hits.1._source.a: { very.deeply.nested.field: BBBB } }
+
+
+---
+unmapped arrays:
+  - do:
+      indices.create:
+        index: test
+        body:
+          settings:
+            index:
+              mapping:
+                source.mode: synthetic
+                total_fields:
+                  ignore_dynamic_beyond_limit: true
+                  limit: 1
+
+          mappings:
+            properties:
+              name:
+                type: keyword
+
+  - do:
+      bulk:
+        index: test
+        refresh: true
+        body:
+          - '{ "create": { } }'
+          - '{ "name": "aaaa", "object_array": [ { "int_value": 10 }, { "int_value": 20 } ] }'
+          - '{ "create": { } }'
+          - '{ "name": "bbbb", "value_array": [ 100, 200, 300 ] }'
+
+  - do:
+      search:
+        index: test
+        sort: name
+
+  - match: { hits.total.value: 2 }
+  - match: { hits.hits.0._source.name: aaaa }
+  - match: { hits.hits.0._source.object_array.0.int_value: 10 }
+  - match: { hits.hits.0._source.object_array.1.int_value: 20 }
+  - match: { hits.hits.1._source.name: bbbb }
+  - match: { hits.hits.1._source.value_array: [ 100, 200, 300] }
+
+
+---
+nested object with unmapped fields:
+  - do:
+      indices.create:
+        index: test
+        body:
+          settings:
+            index:
+              mapping:
+                source.mode: synthetic
+                total_fields:
+                  ignore_dynamic_beyond_limit: true
+                  limit: 3
+
+          mappings:
+            properties:
+              path:
+                properties:
+                  to:
+                    properties:
+                      name:
+                        type: keyword
+
+  - do:
+      bulk:
+        index: test
+        refresh: true
+        body:
+          - '{ "create": { } }'
+          - '{ "path.to.name": "aaaa", "path.to.surname": "AaAa", "path.some.other.name": "AaAaAa"  }'
+          - '{ "create": { } }'
+          - '{ "path.to.name": "bbbb", "path.to.surname": "BbBb", "path.some.other.name": "BbBbBb"  }'
+
+  - do:
+      search:
+        index: test
+        sort: path.to.name
+
+  - match: { hits.total.value: 2 }
+  - match: { hits.hits.0._source.path.to.name: aaaa }
+  - match: { hits.hits.0._source.path.to.surname: AaAa }
+  - match: { hits.hits.0._source.path.some.other\.name: AaAaAa }
+  - match: { hits.hits.1._source.path.to.name: bbbb }
+  - match: { hits.hits.1._source.path.to.surname: BbBb }
+  - match: { hits.hits.1._source.path.some.other\.name: BbBbBb }
+
+
+---
+empty object with unmapped fields:
+  - do:
+      indices.create:
+        index: test
+        body:
+          settings:
+            index:
+              mapping:
+                source.mode: synthetic
+                total_fields:
+                  ignore_dynamic_beyond_limit: true
+                  limit: 3
+
+          mappings:
+            properties:
+              path:
+                properties:
+                  to:
+                    properties:
+                      name:
+                        type: keyword
+
+  - do:
+      bulk:
+        index: test
+        refresh: true
+        body:
+          - '{ "create": { } }'
+          - '{ "path.to.surname": "AaAa", "path.some.other.name": "AaAaAa"  }'
+
+  - do:
+      search:
+        index: test
+
+  - match: { hits.total.value: 1 }
+  - match: { hits.hits.0._source.path.to.surname: AaAa }
+  - match: { hits.hits.0._source.path.some.other\.name: AaAaAa }
+
+
+---
+disabled root object:
+  - requires:
+      cluster_features: ["mapper.ignored_source.dont_expand_dots"]
+      reason: requires tracking ignored source
+
+  - do:
+      indices.create:
+        index: test
+        body:
+          settings:
+            index:
+              mapping.source.mode: synthetic
+          mappings:
+            enabled: false
+
+  - do:
+      bulk:
+        index: test
+        refresh: true
+        body:
+          - '{ "create": { } }'
+          - '{ "name": "aaaa", "some_string": "AaAa", "some_int": 1000, "some_double": 123.456789, "some_bool": true, "a.very.deeply.nested.field": "AAAA" }'
+
+  - do:
+      search:
+        index: test
+
+  - match: { hits.total.value: 1 }
+  - match:
+      hits.hits.0._source:
+        name: aaaa
+        some_string: AaAa
+        some_int: 1000
+        some_double: 123.456789
+        some_bool: true
+        a.very.deeply.nested.field: AAAA
+
+---
+disabled object:
+  - requires:
+      cluster_features: ["mapper.ignored_source.dont_expand_dots"]
+      reason: requires tracking ignored source
+
+  - do:
+      indices.create:
+        index: test
+        body:
+          settings:
+            index:
+              mapping.source.mode: synthetic
+          mappings:
+            properties:
+              path:
+                enabled: false
+
+
+  - do:
+      bulk:
+        index: test
+        refresh: true
+        body:
+          - '{ "create": { } }'
+          - '{ "name": "aaaa", "path": { "some_int": 1000, "to.a.very.deeply.nested.field": "AAAA" } }'
+
+  - do:
+      search:
+        index: test
+
+  - match: { hits.total.value: 1 }
+  - match: { hits.hits.0._source.name: aaaa }
+  - match:
+      hits.hits.0._source.path:
+        some_int: 1000
+        to.a.very.deeply.nested.field: AAAA
+
+---
+disabled object contains array:
+  - requires:
+      cluster_features: ["mapper.ignored_source.dont_expand_dots"]
+      reason: requires tracking ignored source
+
+  - do:
+      indices.create:
+        index: test
+        body:
+          settings:
+            index:
+              mapping.source.mode: synthetic
+          mappings:
+            properties:
+              path:
+                enabled: false
+
+
+  - do:
+      bulk:
+        index: test
+        refresh: true
+        body:
+          - '{ "create": { } }'
+          - '{ "name": "aaaa", "path": [{ "some_int": 1000, "to.a.very.deeply.nested.field": "AAAA" }, { "some_double": 10.0, "some_bool": true } ] }'
+
+  - do:
+      search:
+        index: test
+
+  - match: { hits.total.value: 1 }
+  - match: { hits.hits.0._source.name: aaaa }
+  - match:
+      hits.hits.0._source.path:
+        - some_int: 1000
+          to.a.very.deeply.nested.field: AAAA
+        - some_double: 10.0
+          some_bool: true
+
+
+---
+disabled subobject:
+  - do:
+      indices.create:
+        index: test
+        body:
+          settings:
+            index:
+              mapping.source.mode: synthetic
+          mappings:
+            properties:
+              path:
+                properties:
+                  to:
+                    enabled: false
+
+
+  - do:
+      bulk:
+        index: test
+        refresh: true
+        body:
+          - '{ "create": { } }'
+          - '{ "name": "aaaa", "path": { "some_int": 1000, "to": { "some_text": "AAAA" } } }'
+
+  - do:
+      search:
+        index: test
+
+  - match: { hits.total.value: 1 }
+  - match: { hits.hits.0._source.name: aaaa }
+  - match: { hits.hits.0._source.path.some_int: 1000 }
+  - match: { hits.hits.0._source.path.to.some_text: AAAA }
+
+
+---
+disabled subobject with array:
+  - do:
+      indices.create:
+        index: test
+        body:
+          settings:
+            index:
+              mapping.source.mode: synthetic
+          mappings:
+            properties:
+              path:
+                properties:
+                  to:
+                    enabled: false
+
+
+  - do:
+      bulk:
+        index: test
+        refresh: true
+        body:
+          - '{ "create": { } }'
+          - '{ "name": "aaaa", "path": { "some_int": 1000, "to": [{ "some_text": "AAAA" }, { "some_text": "BBBB" } ] } }'
+
+  - do:
+      search:
+        index: test
+
+  - match: { hits.total.value: 1 }
+  - match: { hits.hits.0._source.name: aaaa }
+  - match: { hits.hits.0._source.path.some_int: 1000 }
+  - match: { hits.hits.0._source.path.to.0.some_text: AAAA }
+  - match: { hits.hits.0._source.path.to.1.some_text: BBBB }
+
+
+---
+mixed disabled and enabled objects:
+  - do:
+      indices.create:
+        index: test
+        body:
+          settings:
+            index:
+              mapping.source.mode: synthetic
+          mappings:
+            properties:
+              path:
+                properties:
+                  to:
+                    properties:
+                      foo:
+                        enabled: false
+                      bar:
+                        enabled: true
+                      baz:
+                        enabled: false
+                      bad:
+                        enabled: true
+
+  - do:
+      bulk:
+        index: test
+        refresh: true
+        body:
+          - '{ "create": { } }'
+          - '{ "path": { "to": { "foo": { "value": "foo" }, "bar": { "value": "bar" }, "baz": { "value": 1000 }, "bad": { "value": false } } } }'
+
+  - do:
+      search:
+        index: test
+
+  - match: { hits.total.value: 1 }
+  - match: { hits.hits.0._source.path.to.foo.value: foo }
+  - match: { hits.hits.0._source.path.to.bar.value: bar }
+  - match: { hits.hits.0._source.path.to.baz.value: 1000 }
+  - match: { hits.hits.0._source.path.to.bad.value: false }
+
+
+---
+object with dynamic override:
+  - requires:
+      cluster_features: ["mapper.ignored_source.dont_expand_dots"]
+      reason: requires tracking ignored source
+
+  - do:
+      indices.create:
+        index: test
+        body:
+          settings:
+            index:
+              mapping.source.mode: synthetic
+          mappings:
+            properties:
+              path_no:
+                dynamic: false
+                properties:
+                  name:
+                    type: keyword
+              path_runtime:
+                dynamic: runtime
+                properties:
+                  name:
+                    type: keyword
+
+  - do:
+      bulk:
+        index: test
+        refresh: true
+        body:
+          - '{ "create": { } }'
+          - '{ "name": "a", "path_no": { "some_int": 10, "to.a.very.deeply.nested.field": "A", "name": "foo" }, "path_runtime": { "some_int": 20, "to.a.very.deeply.nested.field": "B", "name": "bar" } }'
+
+  - do:
+      search:
+        index: test
+
+  - match: { hits.total.value: 1 }
+  - match: { hits.hits.0._source.name: a }
+  - match: { hits.hits.0._source.path_no.name: foo }
+  - match: { hits.hits.0._source.path_no.some_int: 10 }
+  - match: { hits.hits.0._source.path_no.to: { a.very.deeply.nested.field: A } }
+  - match: { hits.hits.0._source.path_runtime.name: bar }
+  - match: { hits.hits.0._source.path_runtime.some_int: 20 }
+  - match: { hits.hits.0._source.path_runtime.to: { a.very.deeply.nested.field: B } }
+
+
+---
+subobject with dynamic override:
+  - do:
+      indices.create:
+        index: test
+        body:
+          settings:
+            index:
+              mapping.source.mode: synthetic
+          mappings:
+            properties:
+              path:
+                properties:
+                  to_no:
+                    dynamic: false
+                    properties:
+                      name:
+                        type: keyword
+                  to_runtime:
+                    dynamic: runtime
+                    properties:
+                      name:
+                        type: keyword
+
+  - do:
+      bulk:
+        index: test
+        refresh: true
+        body:
+          - '{ "create": { } }'
+          - '{ "name": "a", "path": { "some_int": 10, "to_no": { "some_text": "A", "name": "foo" }, "to_runtime": { "some_text": "B", "name": "bar" } } }'
+
+  - do:
+      search:
+        index: test
+
+  - match: { hits.total.value: 1 }
+  - match: { hits.hits.0._source.name: a }
+  - match: { hits.hits.0._source.path.some_int: 10 }
+  - match: { hits.hits.0._source.path.to_no.name: foo }
+  - match: { hits.hits.0._source.path.to_no.some_text: A }
+  - match: { hits.hits.0._source.path.to_runtime.name: bar }
+  - match: { hits.hits.0._source.path.to_runtime.some_text: B }
+
+
+---
+object array in object with dynamic override:
+  - do:
+      indices.create:
+        index: test
+        body:
+          settings:
+            index:
+              mapping.source.mode: synthetic
+          mappings:
+            properties:
+              id:
+                type: integer
+              path_no:
+                dynamic: false
+                properties:
+                  name:
+                    type: keyword
+              path_runtime:
+                dynamic: runtime
+                properties:
+                  name:
+                    type: keyword
+
+  - do:
+      bulk:
+        index: test
+        refresh: true
+        body:
+          - '{ "create": { } }'
+          - '{ "id": 1, "path_no": [ { "some_int": 30 }, {"name": "baz"}, { "some_int": 20 }, {"name": "bar"} ], "name": "A" }'
+          - '{ "create": { } }'
+          - '{ "id": 2, "path_runtime": [ { "some_int": 30 }, {"name": "baz"}, { "some_int": 20 }, {"name": "bar"} ], "name": "B" }'
+  - match: { errors: false }
+
+  - do:
+      search:
+        index: test
+        sort: id
+
+  - match: { hits.hits.0._source.id: 1 }
+  - match: { hits.hits.0._source.name: A }
+  - match: { hits.hits.0._source.path_no.some_int: [ 30, 20 ] }
+  - match: { hits.hits.0._source.path_no.name: [ bar, baz ] }
+
+  - match: { hits.hits.1._source.id: 2 }
+  - match: { hits.hits.1._source.name: B }
+  - match: { hits.hits.1._source.path_runtime.some_int: [ 30, 20 ] }
+  - match: { hits.hits.1._source.path_runtime.name: [ bar, baz ] }
+
+
+---
+value array in object with dynamic override:
+  - do:
+      indices.create:
+        index: test
+        body:
+          settings:
+            index:
+              mapping.source.mode: synthetic
+          mappings:
+            properties:
+              path_no:
+                dynamic: false
+                properties:
+                  name:
+                    type: keyword
+              path_runtime:
+                dynamic: runtime
+                properties:
+                  name:
+                    type: keyword
+
+  - do:
+      bulk:
+        index: test
+        refresh: true
+        body:
+          - '{ "create": { } }'
+          - '{ "path_no": { "values": [ "A", "B" ] }, "path_runtime": { "values": [ "C", "D" ] }, "name": "foo" }'
+
+  - do:
+      search:
+        index: test
+
+  - match: { hits.total.value: 1 }
+  - match: { hits.hits.0._source.name: foo }
+  - match: { hits.hits.0._source.path_no.values: [ A, B] }
+  - match: { hits.hits.0._source.path_runtime.values: [ C, D] }
+
+
+---
+nested object:
+  - do:
+      indices.create:
+        index: test
+        body:
+          settings:
+            index:
+              mapping.source.mode: synthetic
+          mappings:
+            properties:
+              nested_field:
+                type: nested
+              nested_array:
+                type: nested
+
+  - do:
+      bulk:
+        index: test
+        refresh: true
+        body:
+          - '{ "create": { } }'
+          - '{ "name": "aaaa", "nested_field": {"a": 1, "b": 2}, "nested_array": [{ "a": 10, "b": 20 }, { "a": 100, "b": 200 }] }'
+
+  - match: { errors: false }
+
+  - do:
+      search:
+        index: test
+
+  - match:  { hits.total.value: 1 }
+  - match:  { hits.hits.0._source.name: aaaa }
+  - length: { hits.hits.0._source.nested_field: 2 }
+  - match:  { hits.hits.0._source.nested_field.a: 1 }
+  - match:  { hits.hits.0._source.nested_field.b: 2 }
+  - length: { hits.hits.0._source.nested_array: 2 }
+  - match:  { hits.hits.0._source.nested_array.0.a: 10 }
+  - match:  { hits.hits.0._source.nested_array.0.b: 20 }
+  - match:  { hits.hits.0._source.nested_array.1.a: 100 }
+  - match:  { hits.hits.0._source.nested_array.1.b: 200 }
+
+
+---
+nested object next to regular:
+  - do:
+      indices.create:
+        index: test
+        body:
+          settings:
+            index:
+              mapping.source.mode: synthetic
+          mappings:
+            properties:
+              path:
+                properties:
+                  to:
+                    properties:
+                      nested:
+                        type: nested
+
+  - do:
+      bulk:
+        index: test
+        refresh: true
+        body:
+          - '{ "create": { } }'
+          - '{ "name": "aaaa", "path": { "to": { "nested": [{ "a": 10, "b": 20 }, { "a": 100, "b": 200 } ], "regular": [{ "a": 10, "b": 20 }, { "a": 100, "b": 200 } ] } } }'
+
+  - match: { errors: false }
+
+  - do:
+      search:
+        index: test
+
+  - match:  { hits.total.value: 1 }
+  - match:  { hits.hits.0._source.name: aaaa }
+  - length: { hits.hits.0._source.path.to.nested: 2 }
+  - match:  { hits.hits.0._source.path.to.nested.0.a: 10 }
+  - match:  { hits.hits.0._source.path.to.nested.0.b: 20 }
+  - match:  { hits.hits.0._source.path.to.nested.1.a: 100 }
+  - match:  { hits.hits.0._source.path.to.nested.1.b: 200 }
+  - match:  { hits.hits.0._source.path.to.regular.a: [ 10, 100 ] }
+  - match:  { hits.hits.0._source.path.to.regular.b: [ 20, 200 ] }
+
+
+---
+nested object with disabled:
+  - do:
+      indices.create:
+        index: test
+        body:
+          settings:
+            index:
+              mapping.source.mode: synthetic
+          mappings:
+            properties:
+              obj_field:
+                properties:
+                  obj1:
+                    enabled: false
+                  sub_nested:
+                    type: nested
+              nested_field:
                 type: nested
                 properties:
-                  foo:
+                  obj1:
+                    enabled: false
+              nested_array:
+                type: nested
+                properties:
+                  obj1:
+                    enabled: false
+
+  - do:
+      bulk:
+        index: test
+        refresh: true
+        body:
+          - '{ "create": { } }'
+          - '{ "id": 0, "nested_field": {"a": 1, "b": 2, "obj1": { "foo": "bar", "k": [1, 2, 3]}}, "nested_array": [{ "a": 10, "b": 20, "obj1": [{"field1": 1, "field2": 2},  {"field3": 3, "field4": 4}]}, { "a": 100, "b": 200, "obj1": {"field5": 5, "field6": 6}}]}'
+          - '{ "create": { } }'
+          - '{ "id": 1, "obj_field": {"a": 1, "b": 2, "obj1": { "foo": "bar", "k": [1, 2, 3]}, "sub_nested": [{ "a": 10, "b": 20}, { "a": 100, "b": 200}]}}'
+
+  - match: { errors: false }
+
+  - do:
+      search:
+        index: test
+        sort: "id"
+
+  - match:  { hits.total.value: 2 }
+  - length: { hits.hits.0._source: 3 }
+  - match:  { hits.hits.0._source.id: 0 }
+  - length: { hits.hits.0._source.nested_field: 3 }
+  - match:  { hits.hits.0._source.nested_field.a: 1 }
+  - match:  { hits.hits.0._source.nested_field.b: 2 }
+  - length: { hits.hits.0._source.nested_field.obj1: 2 }
+  - match:  { hits.hits.0._source.nested_field.obj1.foo: "bar" }
+  - match:  { hits.hits.0._source.nested_field.obj1.k: [1, 2, 3] }
+  - length: { hits.hits.0._source.nested_array: 2 }
+  - match:  { hits.hits.0._source.nested_array.0.a: 10 }
+  - match:  { hits.hits.0._source.nested_array.0.b: 20 }
+  - length: { hits.hits.0._source.nested_array.0.obj1: 2 }
+  - match:  { hits.hits.0._source.nested_array.0.obj1.0.field1: 1 }
+  - match:  { hits.hits.0._source.nested_array.0.obj1.0.field2: 2 }
+  - match:  { hits.hits.0._source.nested_array.0.obj1.1.field3: 3 }
+  - match:  { hits.hits.0._source.nested_array.0.obj1.1.field4: 4 }
+  - length: { hits.hits.0._source.nested_array.1: 3 }
+  - match:  { hits.hits.0._source.nested_array.1.a: 100 }
+  - match:  { hits.hits.0._source.nested_array.1.b: 200 }
+  - length: { hits.hits.0._source.nested_array.1.obj1: 2 }
+  - match:  { hits.hits.0._source.nested_array.1.obj1.field5: 5 }
+  - match:  { hits.hits.0._source.nested_array.1.obj1.field6: 6 }
+  - length: { hits.hits.1._source: 2 }
+  - match:  { hits.hits.1._source.id: 1 }
+  - length: { hits.hits.1._source.obj_field: 4 }
+  - match:  { hits.hits.1._source.obj_field.a: 1 }
+  - match:  { hits.hits.1._source.obj_field.b: 2 }
+  - length: { hits.hits.1._source.obj_field.obj1: 2 }
+  - match:  { hits.hits.1._source.obj_field.obj1.foo: "bar" }
+  - match:  { hits.hits.1._source.obj_field.obj1.k: [ 1, 2, 3 ] }
+  - length: { hits.hits.1._source.obj_field.sub_nested: 2 }
+  - length: { hits.hits.1._source.obj_field.sub_nested.0: 2 }
+  - match:  { hits.hits.1._source.obj_field.sub_nested.0.a: 10 }
+  - match:  { hits.hits.1._source.obj_field.sub_nested.0.b: 20 }
+  - length: { hits.hits.1._source.obj_field.sub_nested.1: 2 }
+  - match:  { hits.hits.1._source.obj_field.sub_nested.1.a: 100 }
+  - match:  { hits.hits.1._source.obj_field.sub_nested.1.b: 200 }
+
+
+---
+doubly nested object:
+  - do:
+      indices.create:
+        index: test
+        body:
+          settings:
+            index:
+              mapping.source.mode: synthetic
+          mappings:
+            properties:
+              obj_field:
+                properties:
+                  obj1:
+                    enabled: false
+                  sub_nested:
+                    type: nested
+              nested_field:
+                type: nested
+                properties:
+                  sub_nested_field:
+                    type: nested
+                    properties:
+                      obj1:
+                        enabled: false
+
+  - do:
+      bulk:
+        index: test
+        refresh: true
+        body:
+          - '{ "create": { } }'
+          - '{ "id": 0, "nested_field": {"a": 1, "b": 2, "sub_nested_field": {"foo": "bar", "k": [1, 2, 3]}}}'
+          - '{ "create": { } }'
+          - '{ "id": 1, "nested_field": {"a": 2, "b": 3, "sub_nested_field": [{"foo": "baz", "k": [4, 50, 6]}, {"foo": "bar"}]}}'
+          - '{ "create": { } }'
+          - '{ "id": 2, "nested_field": [{"a": 20, "b": 30, "sub_nested_field": [{"foo": "foobar", "k": [7, 8, 9]}, {"k": [400, 500, 6]}]}, {"a": 0, "b": 33, "sub_nested_field": [{"other": "value", "k": [1, 2, -3]}, {"number": 42}]}]}'
+          - '{ "create": { } }'
+          - '{ "id": 3}'
+
+  - match: { errors: false }
+
+  - do:
+      search:
+        index: test
+        sort: "id"
+
+  - match:  { hits.total.value: 4 }
+  - length: { hits.hits.0._source: 2 }
+  - match:  { hits.hits.0._source.id: 0 }
+  - length: { hits.hits.0._source.nested_field: 3 }
+  - match:  { hits.hits.0._source.nested_field.a: 1 }
+  - match:  { hits.hits.0._source.nested_field.b: 2 }
+  - length: { hits.hits.0._source.nested_field.sub_nested_field: 2 }
+  - match:  { hits.hits.0._source.nested_field.sub_nested_field.foo: "bar" }
+  - match:  { hits.hits.0._source.nested_field.sub_nested_field.k: [ 1, 2, 3 ] }
+  - length: { hits.hits.1._source: 2 }
+  - match:  { hits.hits.1._source.id: 1 }
+  - length: { hits.hits.1._source.nested_field: 3 }
+  - match:  { hits.hits.1._source.nested_field.a: 2 }
+  - match:  { hits.hits.1._source.nested_field.b: 3 }
+  - length: { hits.hits.1._source.nested_field.sub_nested_field: 2 }
+  - length: { hits.hits.1._source.nested_field.sub_nested_field.0: 2 }
+  - match:  { hits.hits.1._source.nested_field.sub_nested_field.0.foo: "baz" }
+  - match:  { hits.hits.1._source.nested_field.sub_nested_field.0.k: [ 4, 6, 50 ] }
+  - length: { hits.hits.1._source.nested_field.sub_nested_field.1: 1 }
+  - match:  { hits.hits.1._source.nested_field.sub_nested_field.1.foo: "bar" }
+  - length: { hits.hits.2._source: 2 }
+  - match:  { hits.hits.2._source.id: 2 }
+  - length: { hits.hits.2._source.nested_field: 2 }
+  - length: { hits.hits.2._source.nested_field.0: 3 }
+  - match:  { hits.hits.2._source.nested_field.0.a: 20 }
+  - match:  { hits.hits.2._source.nested_field.0.b: 30 }
+  - length: { hits.hits.2._source.nested_field.0.sub_nested_field: 2 }
+  - length: { hits.hits.2._source.nested_field.0.sub_nested_field.0: 2 }
+  - match:  { hits.hits.2._source.nested_field.0.sub_nested_field.0.foo: "foobar" }
+  - match:  { hits.hits.2._source.nested_field.0.sub_nested_field.0.k: [ 7, 8, 9 ] }
+  - length: { hits.hits.2._source.nested_field.0.sub_nested_field.1: 1 }
+  - match:  { hits.hits.2._source.nested_field.0.sub_nested_field.1.k: [6, 400, 500] }
+  - length: { hits.hits.2._source.nested_field.1: 3 }
+  - match:  { hits.hits.2._source.nested_field.1.a: 0 }
+  - match:  { hits.hits.2._source.nested_field.1.b: 33 }
+  - length: { hits.hits.2._source.nested_field.1.sub_nested_field: 2 }
+  - length: { hits.hits.2._source.nested_field.1.sub_nested_field.0: 2 }
+  - match:  { hits.hits.2._source.nested_field.1.sub_nested_field.0.other: "value" }
+  - match:  { hits.hits.2._source.nested_field.1.sub_nested_field.0.k: [ -3, 1, 2 ] }
+  - length: { hits.hits.2._source.nested_field.1.sub_nested_field.1: 1 }
+  - match:  { hits.hits.2._source.nested_field.1.sub_nested_field.1.number: 42 }
+  - length: { hits.hits.3._source: 1 }
+  - match:  { hits.hits.3._source.id: 3 }
+
+
+---
+subobjects auto:
+  - do:
+      indices.create:
+        index: test
+        body:
+          settings:
+            index:
+              mapping.source.mode: synthetic
+          mappings:
+            subobjects: auto
+            properties:
+              id:
+                type: integer
+              regular:
+                properties:
+                  span:
+                    properties:
+                      id:
+                        type: keyword
+                  trace:
+                    properties:
+                      id:
+                        type: keyword
+              stored:
+                synthetic_source_keep: arrays
+                properties:
+                  span:
+                    properties:
+                      id:
+                        type: keyword
+                  trace:
+                    properties:
+                      id:
+                        type: keyword
+              nested:
+                type: nested
+              auto_obj:
+                type: object
+                subobjects: auto
+
+  - do:
+      bulk:
+        index: test
+        refresh: true
+        body:
+          - '{ "create": { } }'
+          - '{  "id": 1, "foo": 10, "foo.bar": 100, "regular": [ { "trace": { "id": "a" }, "span": { "id": "1" } }, { "trace": { "id": "b" }, "span": { "id": "1" } } ] }'
+          - '{ "create": { } }'
+          - '{  "id": 2, "foo": 20, "foo.bar": 200, "stored": [ { "trace": { "id": "a" }, "span": { "id": "1" } }, { "trace": { "id": "b" }, "span": { "id": "1" } } ] }'
+          - '{ "create": { } }'
+          - '{  "id": 3, "foo": 30, "foo.bar": 300, "nested": [ { "a": 10, "b": 20 }, { "a": 100, "b": 200 } ] }'
+          - '{ "create": { } }'
+          - '{  "id": 4, "auto_obj": {  "foo": 40, "foo.bar": 400 } }'
+
+  - match: { errors: false }
+
+  - do:
+      search:
+        index: test
+        sort: id
+
+  - match: { hits.hits.0._source.id: 1  }
+  - match: { hits.hits.0._source.foo: 10  }
+  - match: { hits.hits.0._source.foo\.bar: 100  }
+  - match: { hits.hits.0._source.regular.span.id: "1" }
+  - match: { hits.hits.0._source.regular.trace.id: ["a", "b" ] }
+  - match: { hits.hits.1._source.id: 2  }
+  - match: { hits.hits.1._source.foo: 20 }
+  - match: { hits.hits.1._source.foo\.bar: 200 }
+  - match: { hits.hits.1._source.stored.0.trace.id: a  }
+  - match: { hits.hits.1._source.stored.0.span.id: "1"  }
+  - match: { hits.hits.1._source.stored.1.trace.id: b }
+  - match: { hits.hits.1._source.stored.1.span.id: "1" }
+  - match: { hits.hits.2._source.id: 3  }
+  - match: { hits.hits.2._source.foo: 30 }
+  - match: { hits.hits.2._source.foo\.bar: 300 }
+  - match: { hits.hits.2._source.nested.0.a: 10 }
+  - match: { hits.hits.2._source.nested.0.b: 20 }
+  - match: { hits.hits.2._source.nested.1.a: 100 }
+  - match: { hits.hits.2._source.nested.1.b: 200 }
+  - match: { hits.hits.3._source.id: 4  }
+  - match: { hits.hits.3._source.auto_obj.foo: 40 }
+  - match: { hits.hits.3._source.auto_obj.foo\.bar: 400 }
+
+---
+synthetic_source with copy_to:
+  - do:
+      indices.create:
+        index: test
+        body:
+          settings:
+            index:
+              mapping.source.mode: synthetic
+          mappings:
+            properties:
+              number:
+                type: integer
+                copy_to: number_copy
+              number_copy:
+                type: keyword
+              boolean:
+                type: boolean
+                copy_to: boolean_copy
+              boolean_copy:
+                type: keyword
+              keyword:
+                type: keyword
+                copy_to: keyword_copy
+              keyword_copy:
+                type: keyword
+              date:
+                type: date
+                copy_to: date_copy
+              date_copy:
+                type: keyword
+              text:
+                type: text
+                copy_to: text_copy
+              text_copy:
+                type: keyword
+              ip:
+                type: ip
+                copy_to: ip_copy
+              ip_copy:
+                type: keyword
+              ip_range:
+                type: ip_range
+                copy_to: ip_range_copy
+              ip_range_copy:
+                type: keyword
+              geo_point:
+                type: geo_point
+                copy_to: geo_point_copy
+              geo_point_copy:
+                type: keyword
+              binary:
+                type: binary
+                copy_to: binary_copy
+              binary_copy:
+                type: keyword
+              scaled_float:
+                type: scaled_float
+                scaling_factor: 10
+                copy_to: scaled_float_copy
+              scaled_float_copy:
+                type: keyword
+
+
+  - do:
+      bulk:
+        index: test
+        refresh: true
+        body:
+          - '{ "create": { } }'
+          - >-
+            {
+              "number": 100,
+              "boolean": false,
+              "keyword": "hello_keyword",
+              "date": "2015-01-01T12:10:30Z",
+              "text": "hello_text",
+              "match_only_text": "hello_match_only_text",
+              "ip": "192.168.1.1",
+              "ip_range": "10.0.0.0/24",
+              "geo_point": "POINT (-71.34 41.12)",
+              "binary": "aGVsbG8gY3VyaW91cyBwZXJzb24=",
+              "scaled_float": 1.5
+            }
+
+  - match: { errors: false }
+
+  - do:
+      search:
+        index: test
+        body:
+          fields: ["number_copy", "boolean_copy", "keyword_copy", "date_copy", "text_copy", "ip_copy", "ip_range_copy", "geo_point_copy", "binary_copy", "scaled_float_copy"]
+
+  - match: { hits.hits.0._source.number: 100 }
+  - match: { hits.hits.0._source.number_copy: null }
+  - match: { hits.hits.0.fields.number_copy.0: "100" }
+
+  - match: { hits.hits.0._source.boolean: false }
+  - match: { hits.hits.0._source.boolean_copy: null }
+  - match: { hits.hits.0.fields.boolean_copy.0: "false" }
+
+  - match: { hits.hits.0._source.keyword: "hello_keyword" }
+  - match: { hits.hits.0._source.keyword_copy: null }
+  - match: { hits.hits.0.fields.keyword_copy.0: "hello_keyword" }
+
+  - match: { hits.hits.0._source.date: "2015-01-01T12:10:30Z" }
+  - match: { hits.hits.0._source.date_copy: null }
+  - match: { hits.hits.0.fields.date_copy.0: "2015-01-01T12:10:30Z" }
+
+  - match: { hits.hits.0._source.text: "hello_text" }
+  - match: { hits.hits.0._source.text_copy: null }
+  - match: { hits.hits.0.fields.text_copy.0: "hello_text" }
+
+  - match: { hits.hits.0._source.ip: "192.168.1.1" }
+  - match: { hits.hits.0._source.ip_copy: null }
+  - match: { hits.hits.0.fields.ip_copy.0: "192.168.1.1" }
+
+  - match: { hits.hits.0._source.ip_range: "10.0.0.0/24" }
+  - match: { hits.hits.0._source.ip_range_copy: null }
+  - match: { hits.hits.0.fields.ip_range_copy.0: "10.0.0.0/24" }
+
+  - match: { hits.hits.0._source.geo_point: "POINT (-71.34 41.12)" }
+  - match: { hits.hits.0._source.geo_point_copy: null }
+  - match: { hits.hits.0.fields.geo_point_copy.0: "POINT (-71.34 41.12)" }
+
+  - match: { hits.hits.0._source.binary: "aGVsbG8gY3VyaW91cyBwZXJzb24=" }
+  - match: { hits.hits.0._source.binary_copy: null }
+  - match: { hits.hits.0.fields.binary_copy.0: "aGVsbG8gY3VyaW91cyBwZXJzb24=" }
+
+  - match: { hits.hits.0._source.scaled_float: 1.5 }
+  - match: { hits.hits.0._source.scaled_float_copy: null }
+  - match: { hits.hits.0.fields.scaled_float_copy.0: "1.5" }
+
+---
+synthetic_source with disabled doc_values:
+  - do:
+      indices.create:
+        index: test
+        body:
+          settings:
+            index:
+              mapping.source.mode: synthetic
+          mappings:
+            properties:
+              number:
+                type: integer
+                doc_values: false
+              boolean:
+                type: boolean
+                doc_values: false
+              keyword:
+                type: keyword
+                doc_values: false
+              date:
+                type: date
+                doc_values: false
+              ip:
+                type: ip
+                doc_values: false
+              ip_range:
+                type: ip_range
+                doc_values: false
+              flattened:
+                type: flattened
+                doc_values: false
+              geo_point:
+                type: geo_point
+                doc_values: false
+              binary:
+                type: binary
+                doc_values: false
+              scaled_float:
+                type: scaled_float
+                scaling_factor: 10
+                doc_values: false
+
+  - do:
+      bulk:
+        index: test
+        refresh: true
+        body:
+          - '{ "create": { } }'
+          - >-
+            {
+              "number": 100,
+              "boolean": false,
+              "keyword": "hello_keyword",
+              "date": "2015-01-01T12:10:30Z",
+              "ip": "192.168.1.1",
+              "ip_range": "10.0.0.0/24",
+              "flattened": { "f": "hey" },
+              "geo_point": "POINT (-71.34 41.12)",
+              "binary": "aGVsbG8gY3VyaW91cyBwZXJzb24=",
+              "scaled_float": 1.5
+            }
+
+  - match: { errors: false }
+
+  - do:
+      search:
+        index: test
+
+  - match: { hits.hits.0._source.number: 100 }
+  - match: { hits.hits.0._source.boolean: false }
+  - match: { hits.hits.0._source.keyword: "hello_keyword" }
+  - match: { hits.hits.0._source.date: "2015-01-01T12:10:30Z" }
+  - match: { hits.hits.0._source.ip: "192.168.1.1" }
+  - match: { hits.hits.0._source.ip_range: "10.0.0.0/24" }
+  - match: { hits.hits.0._source.flattened.f: "hey" }
+  - match: { hits.hits.0._source.geo_point: "POINT (-71.34 41.12)" }
+  - match: { hits.hits.0._source.binary: "aGVsbG8gY3VyaW91cyBwZXJzb24=" }
+  - match: { hits.hits.0._source.scaled_float: 1.5 }
+
+---
+fallback synthetic_source for text field:
+  - do:
+      indices.create:
+        index: test
+        body:
+          settings:
+            index:
+              mapping.source.mode: synthetic
+          mappings:
+            properties:
+              text:
+                type: text
+                store: false
+
+  - do:
+      index:
+        index: test
+        id: 1
+        refresh: true
+        body:
+          text: [ "world", "hello", "world" ]
+
+  - do:
+      search:
+        index: test
+
+  - match:
+      hits.hits.0._source:
+        text: [ "world", "hello", "world" ]
+
+---
+synthetic_source with copy_to and ignored values:
+  - do:
+      indices.create:
+        index: test
+        body:
+          settings:
+            index:
+              mapping.source.mode: synthetic
+          mappings:
+            properties:
+              name:
+                type: keyword
+              k:
+                type: keyword
+                ignore_above: 1
+                copy_to: copy
+              long:
+                type: long
+                ignore_malformed: true
+                copy_to: copy
+              copy:
+                type: keyword
+
+  - do:
+      index:
+        index: test
+        id: 1
+        refresh: true
+        body:
+          name: "A"
+          k: "hello"
+          long: "world"
+
+  - do:
+      index:
+        index: test
+        id: 2
+        refresh: true
+        body:
+          name: "B"
+          k: ["55", "66"]
+          long: ["77", "88"]
+
+  - do:
+      search:
+        index: test
+        sort: name
+        body:
+          docvalue_fields: [ "copy" ]
+
+  - match:
+      hits.hits.0._source:
+        name: "A"
+        k: "hello"
+        long: "world"
+  - match: { hits.hits.0.fields.copy: ["hello", "world"] }
+
+  - match:
+      hits.hits.1._source:
+        name: "B"
+        k: ["55", "66"]
+        long: ["77", "88"]
+  - match: { hits.hits.1.fields.copy: ["55", "66", "77", "88"] }
+
+---
+synthetic_source with copy_to field having values in source:
+  - do:
+      indices.create:
+        index: test
+        body:
+          settings:
+            index:
+              mapping.source.mode: synthetic
+          mappings:
+            properties:
+              name:
+                type: keyword
+              k:
+                type: keyword
+                copy_to: copy
+              copy:
+                type: keyword
+
+  - do:
+      index:
+        index: test
+        id: 1
+        refresh: true
+        body:
+          name: "A"
+          copy: "world"
+          k: "hello"
+
+  - do:
+      index:
+        index: test
+        id: 2
+        refresh: true
+        body:
+          name: "B"
+          k: ["5", "6"]
+          copy: ["7", "8"]
+
+  - do:
+      search:
+        index: test
+        sort: name
+        body:
+          docvalue_fields: [ "copy" ]
+
+  - match:
+      hits.hits.0._source:
+        name: "A"
+        k: "hello"
+        copy: "world"
+  - match: { hits.hits.0.fields.copy: ["hello", "world"] }
+
+  - match:
+      hits.hits.1._source:
+        name: "B"
+        k: ["5", "6"]
+        copy: ["7", "8"]
+  - match: { hits.hits.1.fields.copy: ["5", "6", "7", "8"] }
+
+---
+synthetic_source with ignored source field using copy_to:
+  - do:
+      indices.create:
+        index: test
+        body:
+          settings:
+            index:
+              mapping.source.mode: synthetic
+          mappings:
+            properties:
+              name:
+                type: keyword
+              k:
+                type: keyword
+                doc_values: false
+                copy_to: copy
+              copy:
+                type: keyword
+
+  - do:
+      index:
+        index: test
+        id: 1
+        refresh: true
+        body:
+          name: "A"
+          copy: "world"
+          k: "hello"
+
+  - do:
+      index:
+        index: test
+        id: 2
+        refresh: true
+        body:
+          name: "B"
+          k: ["5", "6"]
+          copy: ["7", "8"]
+
+  - do:
+      search:
+        index: test
+        sort: name
+        body:
+          docvalue_fields: [ "copy" ]
+
+  - match:
+      hits.hits.0._source:
+        name: "A"
+        k: "hello"
+        copy: "world"
+  - match: { hits.hits.0.fields.copy: ["hello", "world"] }
+
+  - match:
+      hits.hits.1._source:
+        name: "B"
+        k: ["5", "6"]
+        copy: ["7", "8"]
+  - match: { hits.hits.1.fields.copy: ["5", "6", "7", "8"] }
+
+---
+synthetic_source with copy_to field from dynamic template having values in source:
+  - do:
+      indices.create:
+        index: test
+        body:
+          settings:
+            index:
+              mapping.source.mode: synthetic
+          mappings:
+            dynamic_templates:
+              - copy_template:
+                  match: "k"
+                  mapping:
                     type: keyword
+                    copy_to: copy
+            properties:
+              name:
+                type: keyword
+              copy:
+                type: keyword
+
+  - do:
+      index:
+        index: test
+        id: 1
+        refresh: true
+        body:
+          name: "A"
+          k: "hello"
+
+  - do:
+      index:
+        index: test
+        id: 2
+        refresh: true
+        body:
+          name: "B"
+          copy: "world"
+          k: "hello"
+
+  - do:
+      index:
+        index: test
+        id: 3
+        refresh: true
+        body:
+          name: "C"
+          k: ["5", "6"]
+
+  - do:
+      index:
+        index: test
+        id: 4
+        refresh: true
+        body:
+          name: "D"
+          k: ["5", "6"]
+          copy: ["7", "8"]
+
+  - do:
+      search:
+        index: test
+        sort: name
+        body:
+          docvalue_fields: [ "copy" ]
+
+  - match:
+      hits.hits.0._source:
+        name: "A"
+        k: "hello"
+  - match: { hits.hits.0.fields.copy: ["hello"] }
+
+  - match:
+      hits.hits.1._source:
+        name: "B"
+        k: "hello"
+        copy: "world"
+  - match: { hits.hits.1.fields.copy: ["hello", "world"] }
+
+  - match:
+      hits.hits.2._source:
+        name: "C"
+        k: ["5", "6"]
+  - match: { hits.hits.2.fields.copy: ["5", "6"] }
+
+  - match:
+      hits.hits.3._source:
+        name: "D"
+        k: ["5", "6"]
+        copy: ["7", "8"]
+  - match: { hits.hits.3.fields.copy: ["5", "6", "7", "8"] }
+
+---
+synthetic_source with copy_to and invalid values for copy:
+  - requires:
+      reason: requires copy_to support in synthetic source
+      test_runner_features: "contains"
+
+  - do:
+      indices.create:
+        index: test
+        body:
+          settings:
+            index:
+              mapping.source.mode: synthetic
+          mappings:
+            properties:
+              name:
+                type: keyword
+              p:
+                type: long_range
+                copy_to: copy
+              copy:
+                type: keyword
+
+  - do:
+      catch: bad_request
+      index:
+        index: test
+        id: 1
+        refresh: true
+        body:
+          name: "A"
+          p:
+            gte: 10
+
+  - match: { error.type: "document_parsing_exception" }
+  - contains: { error.reason: "Copy-to currently only works for value-type fields" }
+
+---
+synthetic_source with copy_to pointing inside object:
+  - do:
+      indices.create:
+        index: test
+        body:
+          settings:
+            index:
+              mapping.source.mode: synthetic
+          mappings:
+            properties:
+              name:
+                type: keyword
+              my_values:
+                properties:
+                  k:
+                    type: keyword
+                    ignore_above: 1
+                    copy_to: c.copy
+                  long:
+                    type: long
+                    copy_to: c.copy
+              c:
+                properties:
+                  copy:
+                    type: keyword
+
+  - do:
+      index:
+        index: test
+        id: 1
+        refresh: true
+        body:
+          name: "A"
+          my_values:
+            k: "hello"
+            long: 100
+
+  - do:
+      index:
+        index: test
+        id: 2
+        refresh: true
+        body:
+          name: "B"
+          my_values:
+            k: ["55", "66"]
+            long: [77, 88]
+
+  - do:
+      index:
+        index: test
+        id: 3
+        refresh: true
+        body:
+          name: "C"
+          my_values:
+            k: "hello"
+            long: 100
+          c:
+            copy: "zap"
+
+  - do:
+      search:
+        index: test
+        sort: name
+        body:
+          docvalue_fields: [ "c.copy" ]
+
+  - match:
+      hits.hits.0._source:
+        name: "A"
+        my_values:
+          k: "hello"
+          long: 100
+  - match:
+      hits.hits.0.fields:
+        c.copy: [ "100", "hello" ]
+
+  - match:
+      hits.hits.1._source:
+        name: "B"
+        my_values:
+          k: ["55", "66"]
+          long: [77, 88]
+  - match:
+      hits.hits.1.fields:
+        c.copy: ["55", "66", "77", "88"]
+
+  - match:
+      hits.hits.2._source:
+        name: "C"
+        my_values:
+          k: "hello"
+          long: 100
+        c:
+          copy: "zap"
+  - match:
+      hits.hits.2.fields:
+          c.copy: [ "100", "hello", "zap" ]
+
+---
+synthetic_source with copy_to inside nested object:
+  - do:
+      indices.create:
+        index: test
+        body:
+          settings:
+            index:
+              mapping.source.mode: synthetic
+          mappings:
+            properties:
+              name:
+                type: keyword
+              my_values:
+                type: nested
+                properties:
+                  k:
+                    type: keyword
+                    copy_to: my_values.copy
+                  second_level:
+                    type: nested
+                    properties:
+                      k2:
+                        type: keyword
+                        copy_to: my_values.copy
+                  copy:
+                    type: keyword
+              dummy:
+                type: keyword
+
+  - do:
+      index:
+        index: test
+        id: 1
+        refresh: true
+        body:
+          name: "A"
+          my_values:
+            k: "hello"
+
+  - do:
+      index:
+        index: test
+        id: 2
+        refresh: true
+        body:
+          name: "B"
+          my_values:
+            second_level:
+              k2: "hello"
+
+  - do:
+      search:
+        index: test
+        sort: name
+
+  - match:
+      hits.hits.0._source:
+        name: "A"
+        my_values:
+          k: "hello"
+  - match:
+      hits.hits.1._source:
+        name: "B"
+        my_values:
+          second_level:
+            k2: "hello"
+
+---
+synthetic_source with copy_to pointing to ambiguous field:
+  - do:
+      indices.create:
+        index: test
+        body:
+          settings:
+            index:
+              mapping.source.mode: synthetic
+          mappings:
+            properties:
+              k:
+                type: keyword
+                copy_to: a.b.c
+              a:
+                properties:
+                  b:
+                    properties:
+                      c:
+                        type: keyword
+                  b.c:
+                    type: keyword
+
+  - do:
+      index:
+        index: test
+        id: 1
+        refresh: true
+        body:
+          k: "hey"
+
+  - do:
+      search:
+        index: test
+        body:
+          docvalue_fields: [ "a.b.c" ]
+
+  - match:
+      hits.hits.0._source:
+        k: "hey"
+  - match:
+      hits.hits.0.fields:
+        a.b.c: [ "hey" ]
+
+---
+synthetic_source with copy_to pointing to ambiguous field and subobjects false:
+  - do:
+      indices.create:
+        index: test
+        body:
+          settings:
+            index:
+              mapping.source.mode: synthetic
+          mappings:
+            subobjects: false
+            properties:
+              k:
+                type: keyword
+                copy_to: a.b.c
+              a:
+                properties:
+                  b:
+                    properties:
+                      c:
+                        type: keyword
+                  b.c:
+                    type: keyword
+
+  - do:
+      index:
+        index: test
+        id: 1
+        refresh: true
+        body:
+          k: "hey"
+
+  - do:
+      search:
+        index: test
+        body:
+          docvalue_fields: [ "a.b.c" ]
+
+  - match:
+      hits.hits.0._source:
+        k: "hey"
+  - match:
+      hits.hits.0.fields:
+        a.b.c: [ "hey" ]
+
+---
+synthetic_source with copy_to pointing to ambiguous field and subobjects auto:
+  - do:
+      indices.create:
+        index: test
+        body:
+          settings:
+            index:
+              mapping.source.mode: synthetic
+          mappings:
+            subobjects: auto
+            properties:
+              k:
+                type: keyword
+                copy_to: a.b.c
+              a:
+                properties:
+                  b:
+                    properties:
+                      c:
+                        type: keyword
+                  b.c:
+                    type: keyword
+
+  - do:
+      index:
+        index: test
+        id: 1
+        refresh: true
+        body:
+          k: "hey"
+
+  - do:
+      search:
+        index: test
+        body:
+          docvalue_fields: [ "a.b.c" ]
+
+  - match:
+      hits.hits.0._source:
+        k: "hey"
+  - match:
+      hits.hits.0.fields:
+        a.b.c: [ "hey" ]
+
+---
+synthetic_source with copy_to pointing at dynamic field:
+  - requires:
+      test_runner_features: contains
+      reason: requires copy_to support in synthetic source
+
+  - do:
+      indices.create:
+        index: test
+        body:
+          settings:
+            index:
+              mapping.source.mode: synthetic
+          mappings:
+            properties:
+              name:
+                type: keyword
+              k:
+                type: keyword
+                copy_to: c.copy
+              c:
+                properties:
+                  f:
+                    type: float
+
+  - do:
+      index:
+        index: test
+        id: 1
+        refresh: true
+        body:
+          name: "A"
+          k: "hello"
+
+  - do:
+      index:
+        index: test
+        id: 2
+        refresh: true
+        body:
+          name: "B"
+          k: ["55", "66"]
+
+  - do:
+      index:
+        index: test
+        id: 3
+        refresh: true
+        body:
+          name: "C"
+          k: "hello"
+          c:
+            copy: "zap"
+
+  - do:
+      search:
+        index: test
+        sort: name
+        body:
+          docvalue_fields: [ "c.copy.keyword" ]
+
+  - match:
+      hits.hits.0._source:
+        name: "A"
+        k: "hello"
+  - match:
+      hits.hits.0.fields:
+        c.copy.keyword: [ "hello" ]
+
+  - match:
+      hits.hits.1._source:
+        name: "B"
+        k: ["55", "66"]
+  - match:
+      hits.hits.1.fields:
+        c.copy.keyword: [ "55", "66" ]
+
+  - match:
+      hits.hits.2._source:
+        name: "C"
+        k: "hello"
+        c:
+          copy: "zap"
+  - match:
+      hits.hits.2.fields:
+        c.copy.keyword: [ "hello", "zap" ]
+
+---
+synthetic_source with copy_to pointing inside dynamic object:
+  - do:
+      indices.create:
+        index: test
+        body:
+          settings:
+            index:
+              mapping.source.mode: synthetic
+          mappings:
+            properties:
+              name:
+                type: keyword
+              k:
+                type: keyword
+                copy_to: c.copy
+
+  - do:
+      index:
+        index: test
+        id: 1
+        refresh: true
+        body:
+          name: "A"
+          k: "hello"
+
+  - do:
+      index:
+        index: test
+        id: 2
+        refresh: true
+        body:
+          name: "B"
+          k: ["55", "66"]
+
+  - do:
+      index:
+        index: test
+        id: 3
+        refresh: true
+        body:
+          name: "C"
+          k: "hello"
+          c:
+            copy: "zap"
+
+  - do:
+      search:
+        index: test
+        sort: name
+        body:
+          docvalue_fields: [ "c.copy.keyword" ]
+
+  - match:
+      hits.hits.0._source:
+        name: "A"
+        k: "hello"
+  - match:
+      hits.hits.0.fields:
+        c.copy.keyword: [ "hello" ]
+
+  - match:
+      hits.hits.1._source:
+        name: "B"
+        k: ["55", "66"]
+  - match:
+      hits.hits.1.fields:
+        c.copy.keyword: [ "55", "66" ]
+
+  - match:
+      hits.hits.2._source:
+        name: "C"
+        k: "hello"
+        c:
+          copy: "zap"
+  - match:
+      hits.hits.2.fields:
+        c.copy.keyword: [ "hello", "zap" ]
+
+---
+create index with use_synthetic_source:
+  - requires:
+      cluster_features: ["mapper.synthetic_recovery_source"]
+      reason: requires synthetic recovery source
+
+  - do:
+      indices.create:
+        index: test
+        body:
+          settings:
+            index:
+              recovery:
+                use_synthetic_source: true
+              mapping:
+                source:
+                  mode: synthetic
+
+  - do:
+      indices.get_settings: {}
+  - match: { test.settings.index.mapping.source.mode: synthetic}
+  - is_true: test.settings.index.recovery.use_synthetic_source
+
+  - do:
+      index:
+        index: test
+        id: 1
+        refresh: true
+        body: { foo: bar }
+  - match: { _version: 1 }
+
+  - do:
+      indices.disk_usage:
+        index: test
+        run_expensive_tasks: true
+        flush: false
+  - gt: { test.store_size_in_bytes: 0 }
+  - is_false: test.fields._recovery_source
+---
+"Nested synthetic source with indexed dense vectors":
+  - requires:
+      test_runner_features: [ capabilities ]
+      capabilities:
+        - method: PUT
+          path: /{index}
+          capabilities: [ synthetic_nested_dense_vector_bug_fix ]
+      reason: "Requires synthetic source bugfix for dense vectors in nested objects"
+  - do:
+      indices.create:
+        index: nested_dense_vector_synthetic_test
+        body:
+          mappings:
+            properties:
+              parent:
+                type: nested
+                properties:
+                  vector:
+                    type: dense_vector
+                    index: true
+                    similarity: l2_norm
+                  text:
+                    type: text
+          settings:
+            index:
+              mapping:
+                source:
+                  mode: synthetic
+  - do:
+      index:
+        index: nested_dense_vector_synthetic_test
+        id: 0
+        refresh: true
+        body: { "parent": [ { "vector": [ 1, 2 ],"text": "foo" }, { "vector": [ 2, 2 ], "text": "bar" } ] }
+
+  - do:
+      index:
+        index: nested_dense_vector_synthetic_test
+        id: 1
+        refresh: true
+        body: { "parent": [ { "text": "foo" }, { "vector": [ 2, 2 ], "text": "bar" } ] }
+
+  - do:
+      index:
+        index: nested_dense_vector_synthetic_test
+        id: 2
+        refresh: true
+        body: { "parent": [ { "vector": [ 1, 2 ] }, { "vector": [ 2, 2 ], "text": "bar" } ] }
+
+
+  - do:
+      search:
+        index: nested_dense_vector_synthetic_test
+        body:
+          query:
+            match_all: {}
+
+  - match: { hits.hits.0._source.parent.0.vector: [ 1.0, 2.0 ] }
+  - match: { hits.hits.0._source.parent.0.text: "foo" }
+  - match: { hits.hits.0._source.parent.1.vector: [ 2.0, 2.0 ] }
+  - match: { hits.hits.0._source.parent.1.text: "bar" }
+  - is_false:  hits.hits.1._source.parent.0.vector
+  - match: { hits.hits.1._source.parent.0.text: "foo" }
+  - match: { hits.hits.1._source.parent.1.vector: [ 2.0, 2.0 ] }
+  - match: { hits.hits.1._source.parent.1.text: "bar" }
+  - match: {hits.hits.2._source.parent.0.vector: [ 1.0, 2.0 ] }
+  - is_false: hits.hits.2._source.parent.0.text
+  - match: { hits.hits.2._source.parent.1.vector: [ 2.0, 2.0 ] }
+  - match: { hits.hits.2._source.parent.1.text: "bar" }
+---
+"Nested synthetic source with un-indexed dense vectors":
+  - requires:
+      test_runner_features: [ capabilities ]
+      capabilities:
+        - method: PUT
+          path: /{index}
+          capabilities: [ synthetic_nested_dense_vector_bug_fix ]
+      reason: "Requires synthetic source bugfix for dense vectors in nested objects"
+  - do:
+      indices.create:
+        index: nested_dense_vector_synthetic_test
+        body:
+          mappings:
+            properties:
+              parent:
+                type: nested
+                properties:
+                  vector:
+                    type: dense_vector
+                    index: false
+                  text:
+                    type: text
+          settings:
+            index:
+              mapping:
+                source:
+                  mode: synthetic
+  - do:
+      index:
+        index: nested_dense_vector_synthetic_test
+        id: 0
+        refresh: true
+        body: { "parent": [ { "vector": [ 1, 2 ],"text": "foo" }, { "vector": [ 2, 2 ], "text": "bar" } ] }
+
+  - do:
+      index:
+        index: nested_dense_vector_synthetic_test
+        id: 1
+        refresh: true
+        body: { "parent": [ { "text": "foo" }, { "vector": [ 2, 2 ], "text": "bar" } ] }
+
+  - do:
+      index:
+        index: nested_dense_vector_synthetic_test
+        id: 2
+        refresh: true
+        body: { "parent": [ { "vector": [ 1, 2 ] }, { "vector": [ 2, 2 ], "text": "bar" } ] }
+
+
+  - do:
+      search:
+        index: nested_dense_vector_synthetic_test
+        body:
+          query:
+            match_all: {}
+
+  - match: { hits.hits.0._source.parent.0.vector: [ 1.0, 2.0 ] }
+  - match: { hits.hits.0._source.parent.0.text: "foo" }
+  - match: { hits.hits.0._source.parent.1.vector: [ 2.0, 2.0 ] }
+  - match: { hits.hits.0._source.parent.1.text: "bar" }
+  - is_false:  hits.hits.1._source.parent.0.vector
+  - match: { hits.hits.1._source.parent.0.text: "foo" }
+  - match: { hits.hits.1._source.parent.1.vector: [ 2.0, 2.0 ] }
+  - match: { hits.hits.1._source.parent.1.text: "bar" }
+  - match: {hits.hits.2._source.parent.0.vector: [ 1.0, 2.0 ] }
+  - is_false: hits.hits.2._source.parent.0.text
+  - match: { hits.hits.2._source.parent.1.vector: [ 2.0, 2.0 ] }
+  - match: { hits.hits.2._source.parent.1.text: "bar" }
+

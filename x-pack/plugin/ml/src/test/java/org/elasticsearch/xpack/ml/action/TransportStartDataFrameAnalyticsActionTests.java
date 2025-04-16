@@ -130,7 +130,7 @@ public class TransportStartDataFrameAnalyticsActionTests extends ESTestCase {
                 MachineLearning.MAX_MACHINE_MEMORY_PERCENT,
                 MachineLearningField.USE_AUTO_MACHINE_MEMORY_PERCENT,
                 MachineLearning.MAX_ML_NODE_SIZE,
-                MachineLearning.MAX_LAZY_ML_NODES,
+                MachineLearningField.MAX_LAZY_ML_NODES,
                 MachineLearning.MAX_OPEN_JOBS_PER_NODE
             )
         );

@@ -1,0 +1,50 @@
+setup:
+  - requires:
+      cluster_features: [ "mapper.source.mode_from_index_setting" ]
+      reason: "Source mode configured through index setting"
+
+  - do:
+      indices.create:
+        index: test
+        body:
+          settings:
+            index:
+              mapping.source.mode: synthetic
+          mappings:
+            properties:
+              pagerank:
+                type: rank_feature
+
+---
+"synthetic source sanity test":
+  - do:
+      index:
+        index: test
+        id: "1"
+        body:
+          pagerank: 10
+
+  - do:
+      index:
+        index: test
+        id: "2"
+        body:
+          pagerank: null
+
+  - do:
+      indices.refresh: {}
+
+  - do:
+      get:
+        index: test
+        id: "1"
+
+  - match: { _source.pagerank: 10 }
+
+  - do:
+      get:
+        index: test
+        id: "2"
+
+  - match: { _source.pagerank: null }
+

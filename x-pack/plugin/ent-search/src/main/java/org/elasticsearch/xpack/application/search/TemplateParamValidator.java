@@ -15,11 +15,14 @@ import com.networknt.schema.JsonSchemaFactory;
 import com.networknt.schema.SpecVersion;
 import com.networknt.schema.ValidationMessage;
 
+import org.elasticsearch.ElasticsearchStatusException;
+import org.elasticsearch.SpecialPermission;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContent;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -28,6 +31,9 @@ import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
+import java.security.AccessController;
+import java.security.PrivilegedActionException;
+import java.security.PrivilegedExceptionAction;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
@@ -79,7 +85,21 @@ public class TemplateParamValidator implements ToXContentObject, Writeable {
     }
 
     public void validate(Map<String, Object> templateParams) throws ValidationException {
-        validateWithSchema(this.jsonSchema, OBJECT_MAPPER.valueToTree(templateParams));
+
+        JsonNode secondParam = null;
+        try {
+            SpecialPermission.check();
+            secondParam = AccessController.doPrivileged((PrivilegedExceptionAction<JsonNode>) () -> {
+                return OBJECT_MAPPER.valueToTree(templateParams);
+            });
+        } catch (PrivilegedActionException e) {
+            throw new ElasticsearchStatusException(
+                "failed to convert parameters while validating",
+                RestStatus.INTERNAL_SERVER_ERROR,
+                e.getCause()
+            );
+        }
+        validateWithSchema(this.jsonSchema, secondParam);
     }
 
     @Override

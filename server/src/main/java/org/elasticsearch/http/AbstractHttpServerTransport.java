@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.http;
@@ -37,7 +38,6 @@ import org.elasticsearch.core.AbstractRefCounted;
 import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestRequest;
-import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.telemetry.tracing.Tracer;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -70,6 +70,7 @@ import static org.elasticsearch.http.HttpTransportSettings.SETTING_HTTP_PORT;
 import static org.elasticsearch.http.HttpTransportSettings.SETTING_HTTP_PUBLISH_HOST;
 import static org.elasticsearch.http.HttpTransportSettings.SETTING_HTTP_PUBLISH_PORT;
 import static org.elasticsearch.http.HttpTransportSettings.SETTING_HTTP_SERVER_SHUTDOWN_GRACE_PERIOD;
+import static org.elasticsearch.http.HttpTransportSettings.SETTING_HTTP_SERVER_SHUTDOWN_POLL_PERIOD;
 
 public abstract class AbstractHttpServerTransport extends AbstractLifecycleComponent implements HttpServerTransport {
     private static final Logger logger = LogManager.getLogger(AbstractHttpServerTransport.class);
@@ -95,6 +96,7 @@ public abstract class AbstractHttpServerTransport extends AbstractLifecycleCompo
     private final RefCounted refCounted = AbstractRefCounted.of(() -> allClientsClosedListener.onResponse(null));
     private final Set<HttpServerChannel> httpServerChannels = ConcurrentCollections.newConcurrentSet();
     private final long shutdownGracePeriodMillis;
+    private final long shutdownPollPeriodMillis;
     private final HttpClientStatsTracker httpClientStatsTracker;
 
     private final HttpTracer httpLogger;
@@ -146,6 +148,7 @@ public abstract class AbstractHttpServerTransport extends AbstractLifecycleCompo
         slowLogThresholdMs = TransportSettings.SLOW_OPERATION_THRESHOLD_SETTING.get(settings).getMillis();
         httpClientStatsTracker = new HttpClientStatsTracker(settings, clusterSettings, threadPool);
         shutdownGracePeriodMillis = SETTING_HTTP_SERVER_SHUTDOWN_GRACE_PERIOD.get(settings).getMillis();
+        shutdownPollPeriodMillis = SETTING_HTTP_SERVER_SHUTDOWN_POLL_PERIOD.get(settings).getMillis();
     }
 
     public Recycler<BytesRef> recycler() {
@@ -272,17 +275,36 @@ public abstract class AbstractHttpServerTransport extends AbstractLifecycleCompo
 
         boolean closed = false;
 
+        long pollTimeMillis = shutdownPollPeriodMillis;
         if (shutdownGracePeriodMillis > 0) {
+            if (shutdownGracePeriodMillis < pollTimeMillis) {
+                pollTimeMillis = shutdownGracePeriodMillis;
+            }
+            logger.debug(format("waiting [%d]ms for clients to close connections", shutdownGracePeriodMillis));
+        } else {
+            logger.debug("waiting indefinitely for clients to close connections");
+        }
+
+        long startPollTimeMillis = System.currentTimeMillis();
+        do {
             try {
-                logger.debug(format("waiting [%d]ms for clients to close connections", shutdownGracePeriodMillis));
-                FutureUtils.get(allClientsClosedListener, shutdownGracePeriodMillis, TimeUnit.MILLISECONDS);
+                FutureUtils.get(allClientsClosedListener, pollTimeMillis, TimeUnit.MILLISECONDS);
                 closed = true;
             } catch (ElasticsearchTimeoutException t) {
-                logger.warn(format("timed out while waiting [%d]ms for clients to close connections", shutdownGracePeriodMillis));
+                logger.info(format("still waiting on %d client connections to close", httpChannels.size()));
+                if (shutdownGracePeriodMillis > 0) {
+                    long endPollTimeMillis = System.currentTimeMillis();
+                    long remainingGracePeriodMillis = shutdownGracePeriodMillis - (endPollTimeMillis - startPollTimeMillis);
+                    if (remainingGracePeriodMillis <= 0) {
+                        logger.warn(format("timed out while waiting [%d]ms for clients to close connections", shutdownGracePeriodMillis));
+                        break;
+                    } else if (remainingGracePeriodMillis < pollTimeMillis) {
+                        pollTimeMillis = remainingGracePeriodMillis;
+                    }
+                }
             }
-        } else {
-            logger.debug("closing all client connections immediately");
-        }
+        } while (closed == false);
+
         if (closed == false) {
             try {
                 CloseableChannel.closeChannels(new ArrayList<>(httpChannels.values()), true);
@@ -461,21 +483,18 @@ public abstract class AbstractHttpServerTransport extends AbstractLifecycleCompo
             if (badRequestCause != null) {
                 dispatcher.dispatchBadRequest(channel, threadContext, badRequestCause);
             } else {
-                populatePerRequestThreadContext0(restRequest, channel, threadContext);
+                try {
+                    populatePerRequestThreadContext(restRequest, threadContext);
+                } catch (Exception e) {
+                    try {
+                        dispatcher.dispatchBadRequest(channel, threadContext, e);
+                    } catch (Exception inner) {
+                        inner.addSuppressed(e);
+                        logger.error(() -> "failed to send failure response for uri [" + restRequest.uri() + "]", inner);
+                    }
+                    return;
+                }
                 dispatcher.dispatchRequest(restRequest, channel, threadContext);
-            }
-        }
-    }
-
-    private void populatePerRequestThreadContext0(RestRequest restRequest, RestChannel channel, ThreadContext threadContext) {
-        try {
-            populatePerRequestThreadContext(restRequest, threadContext);
-        } catch (Exception e) {
-            try {
-                channel.sendResponse(new RestResponse(channel, e));
-            } catch (Exception inner) {
-                inner.addSuppressed(e);
-                logger.error(() -> "failed to send failure response for uri [" + restRequest.uri() + "]", inner);
             }
         }
     }

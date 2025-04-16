@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.admin.indices.create;
@@ -235,9 +236,12 @@ public class SplitIndexIT extends ESIntegTestCase {
             GetResponse getResponse = client().prepareGet("second_split", Integer.toString(i)).setRouting(routingValue[i]).get();
             assertTrue(getResponse.isExists());
         }
-        assertHitCount(prepareSearch("second_split").setSize(100).setQuery(new TermsQueryBuilder("foo", "bar")), numDocs);
-        assertHitCount(prepareSearch("first_split").setSize(100).setQuery(new TermsQueryBuilder("foo", "bar")), numDocs);
-        assertHitCount(prepareSearch("source").setSize(100).setQuery(new TermsQueryBuilder("foo", "bar")), numDocs);
+        assertHitCount(
+            numDocs,
+            prepareSearch("second_split").setSize(100).setQuery(new TermsQueryBuilder("foo", "bar")),
+            prepareSearch("first_split").setSize(100).setQuery(new TermsQueryBuilder("foo", "bar")),
+            prepareSearch("source").setSize(100).setQuery(new TermsQueryBuilder("foo", "bar"))
+        );
         if (useNested) {
             assertNested("source", numDocs);
             assertNested("first_split", numDocs);
@@ -252,7 +256,7 @@ public class SplitIndexIT extends ESIntegTestCase {
         // now, do a nested query
         assertNoFailuresAndResponse(
             prepareSearch(index).setQuery(nestedQuery("nested1", termQuery("nested1.n_field1", "n_value1_1"), ScoreMode.Avg)),
-            searchResponse -> assertThat(searchResponse.getHits().getTotalHits().value, equalTo((long) numDocs))
+            searchResponse -> assertThat(searchResponse.getHits().getTotalHits().value(), equalTo((long) numDocs))
         );
     }
 
@@ -276,6 +280,7 @@ public class SplitIndexIT extends ESIntegTestCase {
                 .put(indexSettings())
                 .put("number_of_shards", numberOfShards)
                 .put("index.number_of_routing_shards", numberOfTargetShards)
+                .put("index.routing.rebalance.enable", EnableAllocationDecider.Rebalance.NONE)
         ).get();
         ensureGreen(TimeValue.timeValueSeconds(120)); // needs more than the default to allocate many shards
 
@@ -332,12 +337,15 @@ public class SplitIndexIT extends ESIntegTestCase {
     }
 
     private static IndexMetadata indexMetadata(final Client client, final String index) {
-        final ClusterStateResponse clusterStateResponse = client.admin().cluster().state(new ClusterStateRequest()).actionGet();
-        return clusterStateResponse.getState().metadata().index(index);
+        final ClusterStateResponse clusterStateResponse = client.admin()
+            .cluster()
+            .state(new ClusterStateRequest(TEST_REQUEST_TIMEOUT))
+            .actionGet();
+        return clusterStateResponse.getState().metadata().getProject().index(index);
     }
 
-    public void testCreateSplitIndex() throws Exception {
-        IndexVersion version = IndexVersionUtils.randomCompatibleVersion(random());
+    public void testCreateSplitIndex() {
+        IndexVersion version = IndexVersionUtils.randomCompatibleWriteVersion(random());
         prepareCreate("source").setSettings(
             Settings.builder().put(indexSettings()).put("number_of_shards", 1).put("index.version.created", version)
         ).get();
@@ -370,7 +378,7 @@ public class SplitIndexIT extends ESIntegTestCase {
             ensureGreen();
             assertNoResizeSourceIndexSettings("target");
 
-            final ClusterState state = clusterAdmin().prepareState().get().getState();
+            final ClusterState state = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get().getState();
             DiscoveryNode mergeNode = state.nodes().get(state.getRoutingTable().index("target").shard(0).primaryShard().currentNodeId());
             logger.info("split node {}", mergeNode);
 
@@ -417,7 +425,7 @@ public class SplitIndexIT extends ESIntegTestCase {
             flushAndRefresh();
             assertHitCount(prepareSearch("target").setSize(2 * size).setQuery(new TermsQueryBuilder("foo", "bar")), 2 * docs);
             assertHitCount(prepareSearch("source").setSize(size).setQuery(new TermsQueryBuilder("foo", "bar")), docs);
-            GetSettingsResponse target = indicesAdmin().prepareGetSettings("target").get();
+            GetSettingsResponse target = indicesAdmin().prepareGetSettings(TEST_REQUEST_TIMEOUT, "target").get();
             assertThat(
                 target.getIndexToSettings().get("target").getAsVersionId("index.version.created", IndexVersion::fromId),
                 equalTo(version)
@@ -475,7 +483,7 @@ public class SplitIndexIT extends ESIntegTestCase {
         );
         ensureGreen();
         flushAndRefresh();
-        GetSettingsResponse settingsResponse = indicesAdmin().prepareGetSettings("target").get();
+        GetSettingsResponse settingsResponse = indicesAdmin().prepareGetSettings(TEST_REQUEST_TIMEOUT, "target").get();
         assertEquals(settingsResponse.getSetting("target", "index.sort.field"), "id");
         assertEquals(settingsResponse.getSetting("target", "index.sort.order"), "desc");
         assertSortedSegments("target", expectedIndexSort);

@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.search.aggregations.bucket.terms;
 
@@ -13,7 +14,6 @@ import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.BucketOrder;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.InternalOrder;
-import org.elasticsearch.search.aggregations.KeyComparable;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentBuilder;
 
@@ -29,7 +29,7 @@ public abstract class InternalTerms<A extends InternalTerms<A, B>, B extends Int
     public static final ParseField DOC_COUNT_ERROR_UPPER_BOUND_FIELD_NAME = new ParseField("doc_count_error_upper_bound");
     public static final ParseField SUM_OF_OTHER_DOC_COUNTS = new ParseField("sum_other_doc_count");
 
-    public abstract static class Bucket<B extends Bucket<B>> extends AbstractTermsBucket implements Terms.Bucket, KeyComparable<B> {
+    public abstract static class Bucket<B extends Bucket<B>> extends AbstractTermsBucket<B> implements Terms.Bucket {
         /**
          * Reads a bucket. Should be a constructor reference.
          */
@@ -38,12 +38,9 @@ public abstract class InternalTerms<A extends InternalTerms<A, B>, B extends Int
             B read(StreamInput in, DocValueFormat format, boolean showDocCountError) throws IOException;
         }
 
-        long bucketOrd;
-
         protected long docCount;
-        protected long docCountError;
+        private long docCountError;
         protected InternalAggregations aggregations;
-        protected final boolean showDocCountError;
         protected final DocValueFormat format;
 
         protected Bucket(
@@ -53,29 +50,23 @@ public abstract class InternalTerms<A extends InternalTerms<A, B>, B extends Int
             long docCountError,
             DocValueFormat formatter
         ) {
-            this.showDocCountError = showDocCountError;
             this.format = formatter;
             this.docCount = docCount;
             this.aggregations = aggregations;
-            this.docCountError = docCountError;
+            this.docCountError = showDocCountError ? docCountError : -1;
         }
 
         /**
          * Read from a stream.
          */
         protected Bucket(StreamInput in, DocValueFormat formatter, boolean showDocCountError) throws IOException {
-            this.showDocCountError = showDocCountError;
             this.format = formatter;
             docCount = in.readVLong();
-            docCountError = -1;
-            if (showDocCountError) {
-                docCountError = in.readLong();
-            }
+            docCountError = showDocCountError ? in.readLong() : -1;
             aggregations = InternalAggregations.readFrom(in);
         }
 
-        @Override
-        public final void writeTo(StreamOutput out) throws IOException {
+        final void writeTo(StreamOutput out, boolean showDocCountError) throws IOException {
             out.writeVLong(getDocCount());
             if (showDocCountError) {
                 out.writeLong(docCountError);
@@ -95,19 +86,8 @@ public abstract class InternalTerms<A extends InternalTerms<A, B>, B extends Int
             this.docCount = docCount;
         }
 
-        public long getBucketOrd() {
-            return bucketOrd;
-        }
-
-        public void setBucketOrd(long bucketOrd) {
-            this.bucketOrd = bucketOrd;
-        }
-
         @Override
         public long getDocCountError() {
-            if (showDocCountError == false) {
-                throw new IllegalStateException("show_terms_doc_count_error is false");
-            }
             return docCountError;
         }
 
@@ -122,11 +102,6 @@ public abstract class InternalTerms<A extends InternalTerms<A, B>, B extends Int
         }
 
         @Override
-        protected boolean getShowDocCountError() {
-            return showDocCountError;
-        }
-
-        @Override
         public InternalAggregations getAggregations() {
             return aggregations;
         }
@@ -136,7 +111,7 @@ public abstract class InternalTerms<A extends InternalTerms<A, B>, B extends Int
         }
 
         @Override
-        public final XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        public final void bucketToXContent(XContentBuilder builder, Params params, boolean showDocCountError) throws IOException {
             builder.startObject();
             keyToXContent(builder);
             builder.field(CommonFields.DOC_COUNT.getPreferredName(), getDocCount());
@@ -145,7 +120,6 @@ public abstract class InternalTerms<A extends InternalTerms<A, B>, B extends Int
             }
             aggregations.toXContentInternal(builder, params);
             builder.endObject();
-            return builder;
         }
 
         protected abstract XContentBuilder keyToXContent(XContentBuilder builder) throws IOException;
@@ -156,23 +130,15 @@ public abstract class InternalTerms<A extends InternalTerms<A, B>, B extends Int
                 return false;
             }
             Bucket<?> that = (Bucket<?>) obj;
-            if (showDocCountError && docCountError != that.docCountError) {
-                /*
-                 * docCountError doesn't matter if not showing it and
-                 * serialization sets it to -1 no matter what it was
-                 * before.
-                 */
-                return false;
-            }
-            return Objects.equals(docCount, that.docCount)
-                && Objects.equals(showDocCountError, that.showDocCountError)
+            return Objects.equals(docCountError, that.docCountError)
+                && Objects.equals(docCount, that.docCount)
                 && Objects.equals(format, that.format)
                 && Objects.equals(aggregations, that.aggregations);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(getClass(), docCount, format, showDocCountError, showDocCountError ? docCountError : -1, aggregations);
+            return Objects.hash(getClass(), docCount, format, docCountError, aggregations);
         }
     }
 

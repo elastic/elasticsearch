@@ -1,7 +1,7 @@
 setup:
-  - skip:
-      features: headers
-      version: " - 8.9.99"
+  - requires:
+      test_runner_features: headers
+      cluster_features: ["gte_v8.10.0"]
       reason: Introduced in 8.10.0
 
   - do:

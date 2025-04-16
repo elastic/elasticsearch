@@ -1,0 +1,1069 @@
+setup:
+  - requires:
+      cluster_features: "gte_v8.15.0"
+      reason: semantic_text introduced in 8.15.0
+
+  - do:
+      inference.put:
+        task_type: sparse_embedding
+        inference_id: sparse-inference-id
+        body: >
+          {
+            "service": "test_service",
+            "service_settings": {
+              "model": "my_model",
+              "api_key": "abc64"
+            },
+            "task_settings": {
+            }
+          }
+
+  - do:
+      inference.put:
+        task_type: sparse_embedding
+        inference_id: sparse-inference-id-2
+        body: >
+          {
+            "service": "test_service",
+            "service_settings": {
+              "model": "my_model",
+              "api_key": "abc64"
+            },
+            "task_settings": {
+            }
+          }
+
+  - do:
+      inference.put:
+        task_type: text_embedding
+        inference_id: dense-inference-id
+        body: >
+          {
+            "service": "text_embedding_test_service",
+            "service_settings": {
+              "model": "my_model",
+              "dimensions": 10,
+              "api_key": "abc64",
+              "similarity": "COSINE"
+            },
+            "task_settings": {
+            }
+          }
+
+  - do:
+      inference.put:
+        task_type: text_embedding
+        inference_id: dense-inference-id-2
+        body: >
+          {
+            "service": "text_embedding_test_service",
+            "service_settings": {
+              "model": "my_model",
+              "dimensions": 10,
+              "api_key": "abc64",
+              "similarity": "COSINE"
+            },
+            "task_settings": {
+            }
+          }
+
+  - do:
+      indices.create:
+        index: test-sparse-index
+        body:
+          mappings:
+            properties:
+              inference_field:
+                type: semantic_text
+                inference_id: sparse-inference-id
+              non_inference_field:
+                type: text
+
+  - do:
+      indices.create:
+        index: test-dense-index
+        body:
+          mappings:
+            properties:
+              inference_field:
+                type: semantic_text
+                inference_id: dense-inference-id
+              non_inference_field:
+                type: text
+
+---
+"Query using a sparse embedding model":
+  - skip:
+      features: [ "headers", "close_to" ]
+
+  - do:
+      index:
+        index: test-sparse-index
+        id: doc_1
+        body:
+          inference_field: [ "inference test", "another inference test" ]
+          non_inference_field: "non inference test"
+        refresh: true
+
+  - do:
+      headers:
+        # Force JSON content type so that we use a parser that interprets the floating-point score as a double
+        Content-Type: application/json
+      search:
+        index: test-sparse-index
+        body:
+          query:
+            semantic:
+              field: "inference_field"
+              query: "inference test"
+
+  - match: { hits.total.value: 1 }
+  - match: { hits.hits.0._id: "doc_1" }
+  - close_to: { hits.hits.0._score: { value: 3.7837332e17, error: 1e10 } }
+
+---
+"Numeric query using a sparse embedding model":
+  - skip:
+      features: [ "headers", "close_to" ]
+
+  - do:
+      index:
+        index: test-sparse-index
+        id: doc_1
+        body:
+          inference_field: [ 40, 49.678 ]
+        refresh: true
+
+  - do:
+      search:
+        index: test-sparse-index
+        body:
+          query:
+            semantic:
+              field: "inference_field"
+              query: "40"
+
+  - match: { hits.total.value: 1 }
+  - match: { hits.hits.0._id: "doc_1" }
+
+---
+"Boolean query using a sparse embedding model":
+  - skip:
+      features: [ "headers", "close_to" ]
+
+  - do:
+      index:
+        index: test-sparse-index
+        id: doc_1
+        body:
+          inference_field: true
+        refresh: true
+
+  - do:
+      search:
+        index: test-sparse-index
+        body:
+          query:
+            semantic:
+              field: "inference_field"
+              query: "true"
+
+  - match: { hits.total.value: 1 }
+  - match: { hits.hits.0._id: "doc_1" }
+
+---
+"Query using a sparse embedding model via a search inference ID":
+  - skip:
+      features: [ "headers", "close_to" ]
+
+  - do:
+      indices.put_mapping:
+        index: test-sparse-index
+        body:
+          properties:
+            inference_field:
+              type: semantic_text
+              inference_id: sparse-inference-id
+              search_inference_id: sparse-inference-id-2
+
+  - do:
+      index:
+        index: test-sparse-index
+        id: doc_1
+        body:
+          inference_field: [ "inference test", "another inference test" ]
+          non_inference_field: "non inference test"
+        refresh: true
+
+  - do:
+      headers:
+        # Force JSON content type so that we use a parser that interprets the floating-point score as a double
+        Content-Type: application/json
+      search:
+        index: test-sparse-index
+        body:
+          query:
+            semantic:
+              field: "inference_field"
+              query: "inference test"
+
+  - match: { hits.total.value: 1 }
+  - match: { hits.hits.0._id: "doc_1" }
+  - close_to: { hits.hits.0._score: { value: 3.7837332e17, error: 1e10 } }
+
+---
+"Query using a dense embedding model":
+  - skip:
+      features: [ "headers", "close_to" ]
+
+  - do:
+      index:
+        index: test-dense-index
+        id: doc_1
+        body:
+          inference_field: [ "inference test", "another inference test" ]
+          non_inference_field: "non inference test"
+        refresh: true
+
+  - do:
+      headers:
+        # Force JSON content type so that we use a parser that interprets the floating-point score as a double
+        Content-Type: application/json
+      search:
+        index: test-dense-index
+        body:
+          query:
+            semantic:
+              field: "inference_field"
+              query: "inference test"
+
+  - match: { hits.total.value: 1 }
+  - match: { hits.hits.0._id: "doc_1" }
+  - close_to: { hits.hits.0._score: { value: 1.0, error: 0.0001 } }
+
+---
+"Numeric query using a dense embedding model":
+  - skip:
+      features: [ "headers", "close_to" ]
+
+  - do:
+      index:
+        index: test-dense-index
+        id: doc_1
+        body:
+          inference_field: [ 45.1, 100 ]
+        refresh: true
+
+  - do:
+      search:
+        index: test-dense-index
+        body:
+          query:
+            semantic:
+              field: "inference_field"
+              query: "45.1"
+
+  - match: { hits.total.value: 1 }
+  - match: { hits.hits.0._id: "doc_1" }
+
+---
+"Boolean query using a dense embedding model":
+  - skip:
+      features: [ "headers", "close_to" ]
+
+  - do:
+      index:
+        index: test-dense-index
+        id: doc_1
+        body:
+          inference_field: false
+        refresh: true
+
+  - do:
+      search:
+        index: test-dense-index
+        body:
+          query:
+            semantic:
+              field: "inference_field"
+              query: "false"
+
+  - match: { hits.total.value: 1 }
+  - match: { hits.hits.0._id: "doc_1" }
+
+---
+"Query using a dense embedding model that uses byte embeddings":
+  - skip:
+      features: [ "headers", "close_to" ]
+
+  - do:
+      inference.put:
+        task_type: text_embedding
+        inference_id: dense-inference-byte-id
+        body: >
+          {
+            "service": "text_embedding_test_service",
+            "service_settings": {
+              "model": "my_model",
+              "dimensions": 10,
+              "api_key": "abc64",
+              "similarity": "COSINE",
+              "element_type": "byte"
+            },
+            "task_settings": {
+            }
+          }
+
+  - do:
+      indices.create:
+        index: test-dense-byte-index
+        body:
+          mappings:
+            properties:
+              inference_field:
+                type: semantic_text
+                inference_id: dense-inference-byte-id
+              non_inference_field:
+                type: text
+
+  - do:
+      index:
+        index: test-dense-byte-index
+        id: doc_1
+        body:
+          inference_field: [ "inference test", "another inference test" ]
+          non_inference_field: "non inference test"
+        refresh: true
+
+  - do:
+      headers:
+        # Force JSON content type so that we use a parser that interprets the floating-point score as a double
+        Content-Type: application/json
+      search:
+        index: test-dense-byte-index
+        body:
+          query:
+            semantic:
+              field: "inference_field"
+              query: "inference test"
+
+  - match: { hits.total.value: 1 }
+  - match: { hits.hits.0._id: "doc_1" }
+  - close_to: { hits.hits.0._score: { value: 1.0, error: 0.0001 } }
+
+---
+"Query using a dense embedding model that uses bit embeddings":
+  - requires:
+      cluster_features: "semantic_text.bit_vector_support"
+      reason: Bit vector support
+
+  - skip:
+      features: [ "headers", "close_to" ]
+
+  - do:
+      inference.put:
+        task_type: text_embedding
+        inference_id: dense-inference-bit-id
+        body: >
+          {
+            "service": "text_embedding_test_service",
+            "service_settings": {
+              "model": "my_model",
+              "dimensions": 16,
+              "api_key": "abc64",
+              "similarity": "L2_NORM",
+              "element_type": "bit"
+            },
+            "task_settings": {
+            }
+          }
+
+  - do:
+      indices.create:
+        index: test-dense-bit-index
+        body:
+          mappings:
+            properties:
+              inference_field:
+                type: semantic_text
+                inference_id: dense-inference-bit-id
+              non_inference_field:
+                type: text
+
+  - do:
+      index:
+        index: test-dense-bit-index
+        id: doc_1
+        body:
+          inference_field: [ "inference test", "another inference test" ]
+          non_inference_field: "non inference test"
+        refresh: true
+
+  - do:
+      headers:
+        # Force JSON content type so that we use a parser that interprets the floating-point score as a double
+        Content-Type: application/json
+      search:
+        index: test-dense-bit-index
+        body:
+          query:
+            semantic:
+              field: "inference_field"
+              query: "inference test"
+
+  - match: { hits.total.value: 1 }
+  - match: { hits.hits.0._id: "doc_1" }
+  - close_to: { hits.hits.0._score: { value: 1.0, error: 0.0001 } }
+
+---
+"Query using a dense embedding model via a search inference ID":
+  - skip:
+      features: [ "headers", "close_to" ]
+
+  - do:
+      indices.put_mapping:
+        index: test-dense-index
+        body:
+          properties:
+            inference_field:
+              type: semantic_text
+              inference_id: dense-inference-id
+              search_inference_id: dense-inference-id-2
+
+  - do:
+      index:
+        index: test-dense-index
+        id: doc_1
+        body:
+          inference_field: [ "inference test", "another inference test" ]
+          non_inference_field: "non inference test"
+        refresh: true
+
+  - do:
+      headers:
+        # Force JSON content type so that we use a parser that interprets the floating-point score as a double
+        Content-Type: application/json
+      search:
+        index: test-dense-index
+        body:
+          query:
+            semantic:
+              field: "inference_field"
+              query: "inference test"
+
+  - match: { hits.total.value: 1 }
+  - match: { hits.hits.0._id: "doc_1" }
+  - close_to: { hits.hits.0._score: { value: 1.0, error: 0.0001 } }
+
+---
+"Apply boost and query name":
+  - skip:
+      features: [ "headers", "close_to" ]
+
+  - do:
+      index:
+        index: test-sparse-index
+        id: doc_1
+        body:
+          inference_field: [ "inference test", "another inference test" ]
+          non_inference_field: "non inference test"
+        refresh: true
+
+  - do:
+      headers:
+        # Force JSON content type so that we use a parser that interprets the floating-point score as a double
+        Content-Type: application/json
+      search:
+        index: test-sparse-index
+        body:
+          query:
+            semantic:
+              field: "inference_field"
+              query: "inference test"
+              boost: 100.0
+              _name: i-like-naming-my-queries
+
+  - match: { hits.total.value: 1 }
+  - match: { hits.hits.0._id: "doc_1" }
+  - close_to: { hits.hits.0._score: { value: 3.783733e19, error: 1e13 } }
+  - match: { hits.hits.0.matched_queries: [ "i-like-naming-my-queries" ] }
+
+---
+"Query an index alias":
+  - skip:
+      features: [ "headers", "close_to" ]
+
+  - do:
+      index:
+        index: test-sparse-index
+        id: doc_1
+        body:
+          inference_field: [ "inference test", "another inference test" ]
+          non_inference_field: "non inference test"
+        refresh: true
+
+  - do:
+      indices.put_alias:
+        index: test-sparse-index
+        name: my-alias
+
+  - do:
+      headers:
+        # Force JSON content type so that we use a parser that interprets the floating-point score as a double
+        Content-Type: application/json
+      search:
+        index: my-alias
+        body:
+          query:
+            semantic:
+              field: "inference_field"
+              query: "inference test"
+
+  - match: { hits.total.value: 1 }
+  - match: { hits.hits.0._id: "doc_1" }
+  - close_to: { hits.hits.0._score: { value: 3.7837332e17, error: 1e10 } }
+
+---
+"Query the wrong field type":
+  - do:
+      index:
+        index: test-sparse-index
+        id: doc_1
+        body:
+          inference_field: "inference test"
+          non_inference_field: "non inference test"
+        refresh: true
+
+  - do:
+      catch: bad_request
+      search:
+        index: test-sparse-index
+        body:
+          query:
+            semantic:
+              field: "non_inference_field"
+              query: "inference test"
+
+  - match: { error.type: "search_phase_execution_exception" }
+  - match: { error.root_cause.0.type: "illegal_argument_exception" }
+  - match: { error.root_cause.0.reason: "Field [non_inference_field] of type [text] does not support semantic queries" }
+
+---
+"Query the wrong field type with lenient: true":
+  - requires:
+      cluster_features: "search.semantic_match_query_rewrite_interception_supported"
+      reason: lenient introduced in 8.18.0
+
+  - do:
+      index:
+        index: test-sparse-index
+        id: doc_1
+        body:
+          inference_field: "inference test"
+          non_inference_field: "non inference test"
+        refresh: true
+
+  - do:
+      catch: bad_request
+      search:
+        index: test-sparse-index
+        body:
+          query:
+            semantic:
+              field: "non_inference_field"
+              query: "inference test"
+
+  - match: { error.type: "search_phase_execution_exception" }
+  - match: { error.root_cause.0.type: "illegal_argument_exception" }
+  - match: { error.root_cause.0.reason: "Field [non_inference_field] of type [text] does not support semantic queries" }
+
+  - do:
+      search:
+        index: test-sparse-index
+        body:
+          query:
+            semantic:
+              field: "non_inference_field"
+              query: "inference test"
+              lenient: true
+
+  - match: { hits.total.value: 0 }
+
+
+---
+"Query a missing field":
+  - do:
+      index:
+        index: test-sparse-index
+        id: doc_1
+        body:
+          inference_field: "inference test"
+          non_inference_field: "non inference test"
+        refresh: true
+
+  - do:
+      search:
+        index: test-sparse-index
+        body:
+          query:
+            semantic:
+              field: "missing_field"
+              query: "inference test"
+
+  - match: { hits.total.value: 0 }
+
+---
+"Query a missing index":
+  - do:
+      catch: missing
+      search:
+        index: missing-index
+        body:
+          query:
+            semantic:
+              field: "inference_field"
+              query: "inference test"
+
+  - match: { error.type: "index_not_found_exception" }
+  - match: { error.reason: "no such index [missing-index]" }
+
+  - do:
+      search:
+        index: missing-index
+        ignore_unavailable: true
+        body:
+          query:
+            semantic:
+              field: "inference_field"
+              query: "inference test"
+
+  - match: { hits.total.value: 0 }
+
+---
+"Query multiple indices":
+  - do:
+      catch: bad_request
+      search:
+        index:
+          - test-sparse-index
+          - test-dense-index
+        body:
+          query:
+            semantic:
+              field: "inference_field"
+              query: "inference test"
+
+  - match: { error.type: "illegal_argument_exception" }
+  - match: { error.reason: "Field [inference_field] has multiple inference IDs associated with it" }
+
+  # Test wildcard resolution
+  - do:
+      catch: bad_request
+      search:
+        index: test-*
+        body:
+          query:
+            semantic:
+              field: "inference_field"
+              query: "inference test"
+
+  - match: { error.type: "illegal_argument_exception" }
+  - match: { error.reason: "Field [inference_field] has multiple inference IDs associated with it" }
+
+  # Test querying an index alias that resolves to multiple indices
+  - do:
+      indices.put_alias:
+        index:
+          - test-sparse-index
+          - test-dense-index
+        name: my-alias
+
+  - do:
+      catch: bad_request
+      search:
+        index: my-alias
+        body:
+          query:
+            semantic:
+              field: "inference_field"
+              query: "inference test"
+
+  - match: { error.type: "illegal_argument_exception" }
+  - match: { error.reason: "Field [inference_field] has multiple inference IDs associated with it" }
+
+  # Test querying multiple indices that use the same inference ID - this should work
+  - do:
+      indices.create:
+        index: test-sparse-index-2
+        body:
+          mappings:
+            properties:
+              inference_field:
+                type: semantic_text
+                inference_id: sparse-inference-id
+              non_inference_field:
+                type: text
+
+  - do:
+      index:
+        index: test-sparse-index
+        id: doc_1
+        body:
+          inference_field: "inference test"
+        refresh: true
+
+  - do:
+      index:
+        index: test-sparse-index-2
+        id: doc_2
+        body:
+          inference_field: "another inference test"
+        refresh: true
+
+  - do:
+      search:
+        index: test-sparse-index*
+        body:
+          query:
+            semantic:
+              field: "inference_field"
+              query: "inference test"
+
+  - match: { hits.total.value: 2 }
+  - match: { hits.hits.0._id: "doc_2" }
+  - match: { hits.hits.1._id: "doc_1" }
+
+---
+"Query a field that has no indexed inference results":
+  - skip:
+      features: [ "headers" ]
+
+  - do:
+      headers:
+        # Force JSON content type so that we use a parser that interprets the floating-point score as a double
+        Content-Type: application/json
+      search:
+        index: test-sparse-index
+        body:
+          query:
+            semantic:
+              field: "inference_field"
+              query: "inference test"
+
+  - match: { hits.total.value: 0 }
+
+  - do:
+      headers:
+        # Force JSON content type so that we use a parser that interprets the floating-point score as a double
+        Content-Type: application/json
+      search:
+        index: test-dense-index
+        body:
+          query:
+            semantic:
+              field: "inference_field"
+              query: "inference test"
+
+  - match: { hits.total.value: 0 }
+
+---
+"Query a field with an invalid inference ID":
+  - do:
+      indices.create:
+        index: test-index-with-invalid-inference-id
+        body:
+          mappings:
+            properties:
+              inference_field:
+                type: semantic_text
+                inference_id: invalid-inference-id
+
+  - do:
+      catch: missing
+      search:
+        index: test-index-with-invalid-inference-id
+        body:
+          query:
+            semantic:
+              field: "inference_field"
+              query: "inference test"
+
+  - match: { error.type: "resource_not_found_exception" }
+  - match: { error.reason: "Inference endpoint not found [invalid-inference-id]" }
+
+---
+"Query a field with a search inference ID that uses the wrong task type":
+  - do:
+      indices.put_mapping:
+        index: test-sparse-index
+        body:
+          properties:
+            inference_field:
+              type: semantic_text
+              inference_id: sparse-inference-id
+              search_inference_id: dense-inference-id
+
+  - do:
+      index:
+        index: test-sparse-index
+        id: doc_1
+        body:
+          inference_field: [ "inference test", "another inference test" ]
+          non_inference_field: "non inference test"
+        refresh: true
+
+  - do:
+      catch: bad_request
+      search:
+        index: test-sparse-index
+        body:
+          query:
+            semantic:
+              field: "inference_field"
+              query: "inference test"
+
+  - match: { error.caused_by.type: "illegal_argument_exception" }
+  - match: { error.caused_by.reason: "Field [inference_field] expected query inference results to be of type
+                                    [text_expansion_result], got [text_embedding_result]. Is the search inference
+                                    endpoint [dense-inference-id] compatible with the inference endpoint
+                                    [sparse-inference-id]?" }
+
+---
+"Query a field with a search inference ID that uses the wrong dimension count":
+  - do:
+      inference.put:
+        task_type: text_embedding
+        inference_id: dense-inference-id-20-dims
+        body: >
+          {
+            "service": "text_embedding_test_service",
+            "service_settings": {
+              "model": "my_model",
+              "dimensions": 20,
+              "api_key": "abc64",
+              "similarity": "COSINE"
+            },
+            "task_settings": {
+            }
+          }
+
+  - do:
+      indices.put_mapping:
+        index: test-dense-index
+        body:
+          properties:
+            inference_field:
+              type: semantic_text
+              inference_id: dense-inference-id
+              search_inference_id: dense-inference-id-20-dims
+
+  - do:
+      index:
+        index: test-dense-index
+        id: doc_1
+        body:
+          inference_field: [ "inference test", "another inference test" ]
+          non_inference_field: "non inference test"
+        refresh: true
+
+  - do:
+      catch: bad_request
+      search:
+        index: test-dense-index
+        body:
+          query:
+            semantic:
+              field: "inference_field"
+              query: "inference test"
+
+  - match: { error.caused_by.type: "illegal_argument_exception" }
+  - match: { error.caused_by.reason: "Field [inference_field] expected query inference results with 10 dimensions, got
+                                      20 dimensions. Is the search inference endpoint [dense-inference-id-20-dims]
+                                      compatible with the inference endpoint [dense-inference-id]?" }
+
+---
+"Query a field with an invalid search inference ID":
+  - do:
+      indices.put_mapping:
+        index: test-dense-index
+        body:
+          properties:
+            inference_field:
+              type: semantic_text
+              inference_id: dense-inference-id
+              search_inference_id: invalid-inference-id
+
+  - do:
+      index:
+        index: test-dense-index
+        id: doc_1
+        body:
+          inference_field: [ "inference test", "another inference test" ]
+          non_inference_field: "non inference test"
+        refresh: true
+
+  - do:
+      catch: missing
+      search:
+        index: test-dense-index
+        body:
+          query:
+            semantic:
+              field: "inference_field"
+              query: "inference test"
+
+  - match: { error.type: "resource_not_found_exception" }
+  - match: { error.reason: "Inference endpoint not found [invalid-inference-id]" }
+
+---
+"Query a field that uses the default ELSER 2 endpoint":
+  - requires:
+      reason: "default ELSER 2 inference ID is enabled via a capability"
+      test_runner_features: [ capabilities ]
+      capabilities:
+        - method: GET
+          path: /_inference
+          capabilities: [ default_elser_2 ]
+
+  - do:
+      indices.create:
+        index: test-elser-2-default-index
+        body:
+          mappings:
+            properties:
+              sparse_field:
+                type: semantic_text
+
+  - do:
+      index:
+        index: test-elser-2-default-index
+        id: doc_1
+        body:
+          sparse_field: "inference test"
+        refresh: true
+
+  - do:
+      search:
+        index: test-elser-2-default-index
+        body:
+          query:
+            semantic:
+              field: "sparse_field"
+              query: "inference test"
+
+  - match: { hits.total.value: 1 }
+  - match: { hits.hits.0._id: "doc_1" }
+
+---
+"Query using a sparse embedding model with size set to zero":
+  - requires:
+      cluster_features: "semantic_text.zero_size_fix"
+      reason: zero size fix added in 8.16.1 & 8.15.5
+
+  - do:
+      indices.create:
+        index: test-sparse-index-with-agg-id
+        body:
+          mappings:
+            properties:
+              inference_field:
+                type: semantic_text
+                inference_id: sparse-inference-id
+              non_inference_field:
+                type: text
+              agg_id:
+                type: keyword
+
+  - do:
+      index:
+        index: test-sparse-index-with-agg-id
+        id: doc_1
+        body:
+          inference_field: "inference test"
+          agg_id: "doc_1"
+
+  - do:
+      index:
+        index: test-sparse-index-with-agg-id
+        id: doc_2
+        body:
+          non_inference_field: "non-inference test"
+          agg_id: "doc_2"
+        refresh: true
+
+  - do:
+      search:
+        index: test-sparse-index-with-agg-id
+        body:
+          size: 0
+          query:
+            semantic:
+              field: "inference_field"
+              query: "inference test"
+          aggs:
+            agg_ids:
+              terms:
+                field: agg_id
+
+  - match: { hits.total.value: 1 }
+  - length: { hits.hits: 0 }
+  - length: { aggregations.agg_ids.buckets: 1 }
+  - match: { aggregations.agg_ids.buckets.0.key: "doc_1" }
+  - match: { aggregations.agg_ids.buckets.0.doc_count: 1 }
+
+---
+"Query using a dense embedding model with size set to zero":
+  - requires:
+      cluster_features: "semantic_text.zero_size_fix"
+      reason: zero size fix added in 8.16.1 & 8.15.5
+
+  - do:
+      indices.create:
+        index: test-dense-index-with-agg-id
+        body:
+          mappings:
+            properties:
+              inference_field:
+                type: semantic_text
+                inference_id: dense-inference-id
+              non_inference_field:
+                type: text
+              agg_id:
+                type: keyword
+
+  - do:
+      index:
+        index: test-dense-index-with-agg-id
+        id: doc_1
+        body:
+          inference_field: "inference test"
+          agg_id: "doc_1"
+
+  - do:
+      index:
+        index: test-dense-index-with-agg-id
+        id: doc_2
+        body:
+          non_inference_field: "non-inference test"
+          agg_id: "doc_2"
+        refresh: true
+
+  - do:
+      search:
+        index: test-dense-index-with-agg-id
+        body:
+          size: 0
+          query:
+            semantic:
+              field: "inference_field"
+              query: "inference test"
+          aggs:
+            agg_ids:
+              terms:
+                field: agg_id
+
+  - match: { hits.total.value: 1 }
+  - length: { hits.hits: 0 }
+  - length: { aggregations.agg_ids.buckets: 1 }
+  - match: { aggregations.agg_ids.buckets.0.key: "doc_1" }
+  - match: { aggregations.agg_ids.buckets.0.doc_count: 1 }

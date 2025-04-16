@@ -252,6 +252,14 @@ public class RealmsAuthenticator implements Authenticator {
                     listener.onFailure(context.getRequest().authenticationFailed(authenticationToken));
                 } else {
                     assert e instanceof AuthenticationTerminatedSuccessfullyException == false : e;
+                    logger.debug(
+                        () -> format(
+                            "An error occurred while attempting to authenticate [%s] with token of type [%s]",
+                            authenticationToken.principal(),
+                            authenticationToken.getClass().getName()
+                        ),
+                        e
+                    );
                     listener.onFailure(context.getRequest().exceptionProcessingRequest(e, authenticationToken));
                 }
             }), context.getThreadContext()),
@@ -264,7 +272,7 @@ public class RealmsAuthenticator implements Authenticator {
         } catch (Exception e) {
             logger.debug(
                 () -> format(
-                    "Authentication of [%s] with token [%s] failed",
+                    "Authentication of [%s] with token of type [%s] failed",
                     authenticationToken.principal(),
                     authenticationToken.getClass().getName()
                 ),
@@ -284,7 +292,16 @@ public class RealmsAuthenticator implements Authenticator {
     ) {
         messages.forEach((realm, tuple) -> {
             final String message = tuple.v1();
-            final String cause = tuple.v2() == null ? "" : " (Caused by " + tuple.v2() + ")";
+            Throwable ex = tuple.v2();
+            var cause = new StringBuilder();
+            while (ex != null) {
+                cause.append(cause.isEmpty() ? " (" : "; ");
+                cause.append("Caused by ").append(ex);
+                ex = ex.getCause();
+            }
+            if (cause.isEmpty() == false) {
+                cause.append(')');
+            }
             logger.warn("Authentication to realm {} failed - {}{}", realm.name(), message, cause);
         });
         if (context.getUnlicensedRealms().isEmpty() == false) {
@@ -338,7 +355,17 @@ public class RealmsAuthenticator implements Authenticator {
                     );
                     listener.onResponse(tuple);
                 }
-            }, e -> listener.onFailure(context.getRequest().exceptionProcessingRequest(e, context.getMostRecentAuthenticationToken()))));
+            }, e -> {
+                logger.debug(
+                    () -> format(
+                        "An error occurred while looking up run-as user [%s] for authenticated user [%s]",
+                        runAsUsername,
+                        authentication.getAuthenticatingSubject().getUser().principal()
+                    ),
+                    e
+                );
+                listener.onFailure(context.getRequest().exceptionProcessingRequest(e, context.getMostRecentAuthenticationToken()));
+            }));
         } else if (runAsUsername == null) {
             listener.onResponse(null);
         } else {

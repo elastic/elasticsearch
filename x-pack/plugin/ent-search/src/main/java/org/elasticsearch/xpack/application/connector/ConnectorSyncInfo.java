@@ -101,22 +101,78 @@ public class ConnectorSyncInfo implements Writeable, ToXContentFragment {
     public static final ParseField LAST_SYNC_STATUS_FIELD = new ParseField("last_sync_status");
     public static final ParseField LAST_SYNCED_FIELD = new ParseField("last_synced");
 
+    public String getLastAccessControlSyncError() {
+        return lastAccessControlSyncError;
+    }
+
+    public Instant getLastAccessControlSyncScheduledAt() {
+        return lastAccessControlSyncScheduledAt;
+    }
+
+    public ConnectorSyncStatus getLastAccessControlSyncStatus() {
+        return lastAccessControlSyncStatus;
+    }
+
+    public Long getLastDeletedDocumentCount() {
+        return lastDeletedDocumentCount;
+    }
+
+    public Instant getLastIncrementalSyncScheduledAt() {
+        return lastIncrementalSyncScheduledAt;
+    }
+
+    public Long getLastIndexedDocumentCount() {
+        return lastIndexedDocumentCount;
+    }
+
+    public String getLastSyncError() {
+        return lastSyncError;
+    }
+
+    public Instant getLastSyncScheduledAt() {
+        return lastSyncScheduledAt;
+    }
+
+    public ConnectorSyncStatus getLastSyncStatus() {
+        return lastSyncStatus;
+    }
+
+    public Instant getLastSynced() {
+        return lastSynced;
+    }
+
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.field(LAST_ACCESS_CONTROL_SYNC_ERROR.getPreferredName(), lastAccessControlSyncError);
-        builder.field(LAST_ACCESS_CONTROL_SYNC_STATUS_FIELD.getPreferredName(), lastAccessControlSyncStatus);
-        builder.field(LAST_ACCESS_CONTROL_SYNC_SCHEDULED_AT_FIELD.getPreferredName(), lastAccessControlSyncScheduledAt);
+        if (lastAccessControlSyncError != null) {
+            builder.field(LAST_ACCESS_CONTROL_SYNC_ERROR.getPreferredName(), lastAccessControlSyncError);
+        }
+        if (lastAccessControlSyncStatus != null) {
+            builder.field(LAST_ACCESS_CONTROL_SYNC_STATUS_FIELD.getPreferredName(), lastAccessControlSyncStatus);
+        }
+        if (lastAccessControlSyncScheduledAt != null) {
+            builder.field(LAST_ACCESS_CONTROL_SYNC_SCHEDULED_AT_FIELD.getPreferredName(), lastAccessControlSyncScheduledAt);
+        }
         if (lastDeletedDocumentCount != null) {
             builder.field(LAST_DELETED_DOCUMENT_COUNT_FIELD.getPreferredName(), lastDeletedDocumentCount);
         }
-        builder.field(LAST_INCREMENTAL_SYNC_SCHEDULED_AT_FIELD.getPreferredName(), lastIncrementalSyncScheduledAt);
+        if (lastIncrementalSyncScheduledAt != null) {
+            builder.field(LAST_INCREMENTAL_SYNC_SCHEDULED_AT_FIELD.getPreferredName(), lastIncrementalSyncScheduledAt);
+        }
         if (lastIndexedDocumentCount != null) {
             builder.field(LAST_INDEXED_DOCUMENT_COUNT_FIELD.getPreferredName(), lastIndexedDocumentCount);
         }
-        builder.field(LAST_SYNC_ERROR_FIELD.getPreferredName(), lastSyncError);
-        builder.field(LAST_SYNC_SCHEDULED_AT_FIELD.getPreferredName(), lastSyncScheduledAt);
-        builder.field(LAST_SYNC_STATUS_FIELD.getPreferredName(), lastSyncStatus);
-        builder.field(LAST_SYNCED_FIELD.getPreferredName(), lastSynced);
+        if (lastSyncError != null) {
+            builder.field(LAST_SYNC_ERROR_FIELD.getPreferredName(), lastSyncError);
+        }
+        if (lastSyncScheduledAt != null) {
+            builder.field(LAST_SYNC_SCHEDULED_AT_FIELD.getPreferredName(), lastSyncScheduledAt);
+        }
+        if (lastSyncStatus != null) {
+            builder.field(LAST_SYNC_STATUS_FIELD.getPreferredName(), lastSyncStatus);
+        }
+        if (lastSynced != null) {
+            builder.field(LAST_SYNCED_FIELD.getPreferredName(), lastSynced);
+        }
         return builder;
     }
 

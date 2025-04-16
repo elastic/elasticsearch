@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.http;
@@ -27,29 +28,21 @@ import static org.elasticsearch.common.settings.Setting.stringListSetting;
 public final class HttpTransportSettings {
 
     public static final Setting<Boolean> SETTING_CORS_ENABLED = Setting.boolSetting("http.cors.enabled", false, Property.NodeScope);
-    public static final Setting<String> SETTING_CORS_ALLOW_ORIGIN = new Setting<>(
-        "http.cors.allow-origin",
-        "",
-        (value) -> value,
-        Property.NodeScope
-    );
+    public static final Setting<String> SETTING_CORS_ALLOW_ORIGIN = Setting.simpleString("http.cors.allow-origin", Property.NodeScope);
     public static final Setting<Integer> SETTING_CORS_MAX_AGE = intSetting("http.cors.max-age", 1728000, Property.NodeScope);
-    public static final Setting<String> SETTING_CORS_ALLOW_METHODS = new Setting<>(
+    public static final Setting<String> SETTING_CORS_ALLOW_METHODS = Setting.simpleString(
         "http.cors.allow-methods",
         "OPTIONS,HEAD,GET,POST,PUT,DELETE",
-        (value) -> value,
         Property.NodeScope
     );
-    public static final Setting<String> SETTING_CORS_ALLOW_HEADERS = new Setting<>(
+    public static final Setting<String> SETTING_CORS_ALLOW_HEADERS = Setting.simpleString(
         "http.cors.allow-headers",
         "X-Requested-With,Content-Type,Content-Length,Authorization,Accept,User-Agent,X-Elastic-Client-Meta",
-        (value) -> value,
         Property.NodeScope
     );
-    public static final Setting<String> SETTING_CORS_EXPOSE_HEADERS = new Setting<>(
+    public static final Setting<String> SETTING_CORS_EXPOSE_HEADERS = Setting.simpleString(
         "http.cors.expose-headers",
         "X-elastic-product",
-        (value) -> value,
         Property.NodeScope
     );
     public static final Setting<Boolean> SETTING_CORS_ALLOW_CREDENTIALS = Setting.boolSetting(
@@ -94,19 +87,19 @@ public final class HttpTransportSettings {
     );
     public static final Setting<ByteSizeValue> SETTING_HTTP_MAX_CONTENT_LENGTH = Setting.byteSizeSetting(
         "http.max_content_length",
-        new ByteSizeValue(100, ByteSizeUnit.MB),
+        ByteSizeValue.of(100, ByteSizeUnit.MB),
         ByteSizeValue.ZERO,
         ByteSizeValue.ofBytes(Integer.MAX_VALUE),
         Property.NodeScope
     );
     public static final Setting<ByteSizeValue> SETTING_HTTP_MAX_CHUNK_SIZE = Setting.byteSizeSetting(
         "http.max_chunk_size",
-        new ByteSizeValue(8, ByteSizeUnit.KB),
+        ByteSizeValue.of(8, ByteSizeUnit.KB),
         Property.NodeScope
     );
     public static final Setting<ByteSizeValue> SETTING_HTTP_MAX_HEADER_SIZE = Setting.byteSizeSetting(
         "http.max_header_size",
-        new ByteSizeValue(16, ByteSizeUnit.KB),
+        ByteSizeValue.of(16, ByteSizeUnit.KB),
         Property.NodeScope
     );
     public static final Setting<Integer> SETTING_HTTP_MAX_WARNING_HEADER_COUNT = intSetting(
@@ -122,13 +115,19 @@ public final class HttpTransportSettings {
     );
     public static final Setting<ByteSizeValue> SETTING_HTTP_MAX_INITIAL_LINE_LENGTH = Setting.byteSizeSetting(
         "http.max_initial_line_length",
-        new ByteSizeValue(4, ByteSizeUnit.KB),
+        ByteSizeValue.of(4, ByteSizeUnit.KB),
         Property.NodeScope
     );
 
     public static final Setting<TimeValue> SETTING_HTTP_SERVER_SHUTDOWN_GRACE_PERIOD = Setting.positiveTimeSetting(
         "http.shutdown_grace_period",
         TimeValue.timeValueMillis(0),
+        Setting.Property.NodeScope
+    );
+
+    public static final Setting<TimeValue> SETTING_HTTP_SERVER_SHUTDOWN_POLL_PERIOD = Setting.positiveTimeSetting(
+        "http.shutdown_poll_period",
+        TimeValue.timeValueMinutes(5),
         Setting.Property.NodeScope
     );
 

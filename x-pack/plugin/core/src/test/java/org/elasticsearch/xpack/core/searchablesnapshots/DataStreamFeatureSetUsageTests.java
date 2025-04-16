@@ -16,7 +16,13 @@ public class DataStreamFeatureSetUsageTests extends AbstractWireSerializingTestC
     @Override
     protected DataStreamFeatureSetUsage createTestInstance() {
         return new DataStreamFeatureSetUsage(
-            new DataStreamFeatureSetUsage.DataStreamStats(randomNonNegativeLong(), randomNonNegativeLong())
+            new DataStreamFeatureSetUsage.DataStreamStats(
+                randomNonNegativeLong(),
+                randomNonNegativeLong(),
+                randomNonNegativeLong(),
+                randomNonNegativeLong(),
+                randomNonNegativeLong()
+            )
         );
     }
 

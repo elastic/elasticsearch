@@ -1,14 +1,16 @@
 
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.system.indices;
 
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.client.internal.node.NodeClient;
@@ -40,7 +42,7 @@ import java.util.List;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
 
-import static org.elasticsearch.action.admin.cluster.node.tasks.get.GetTaskAction.TASKS_ORIGIN;
+import static org.elasticsearch.action.admin.cluster.node.tasks.get.TransportGetTaskAction.TASKS_ORIGIN;
 import static org.elasticsearch.index.mapper.MapperService.SINGLE_MAPPING_NAME;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 import static org.elasticsearch.rest.RestRequest.Method.PUT;
@@ -72,12 +74,10 @@ public class SystemIndicesQA extends Plugin implements SystemIndexPlugin, Action
                 .setSettings(
                     Settings.builder()
                         .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-                        .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
                         .put(IndexMetadata.SETTING_AUTO_EXPAND_REPLICAS, "0-1")
                         .build()
                 )
                 .setOrigin(TASKS_ORIGIN)
-                .setVersionMetaKey("version")
                 .setPrimaryIndex(".net-new-system-index-primary")
                 .build(),
             SystemIndexDescriptor.builder()
@@ -95,12 +95,10 @@ public class SystemIndicesQA extends Plugin implements SystemIndexPlugin, Action
                 .setSettings(
                     Settings.builder()
                         .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-                        .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
                         .put(IndexMetadata.SETTING_AUTO_EXPAND_REPLICAS, "0-1")
                         .build()
                 )
                 .setOrigin(TASKS_ORIGIN)
-                .setVersionMetaKey("version")
                 .setPrimaryIndex(".internal-managed-index-primary")
                 .setAliasName(".internal-managed-alias")
                 .build()
@@ -151,7 +149,7 @@ public class SystemIndicesQA extends Plugin implements SystemIndexPlugin, Action
 
         @Override
         public List<Route> routes() {
-            return List.of(Route.builder(Method.PUT, "/_net_new_sys_index/_create").build());
+            return List.of(new Route(Method.PUT, "/_net_new_sys_index/_create"));
         }
 
         @Override
@@ -180,12 +178,12 @@ public class SystemIndicesQA extends Plugin implements SystemIndexPlugin, Action
 
         @Override
         protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
+            var content = request.requiredContent();
             IndexRequest indexRequest = new IndexRequest(".net-new-system-index-primary");
-            indexRequest.source(request.requiredContent(), request.getXContentType());
+            indexRequest.source(content, request.getXContentType());
             indexRequest.id(request.param("id"));
             indexRequest.setRefreshPolicy(request.param("refresh"));
-
-            return channel -> client.index(indexRequest, new RestToXContentListener<>(channel));
+            return channel -> client.index(indexRequest, ActionListener.withRef(new RestToXContentListener<>(channel), content));
         }
 
         @Override

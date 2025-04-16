@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.admin.cluster.snapshots.status;
@@ -11,6 +12,7 @@ package org.elasticsearch.action.admin.cluster.snapshots.status;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.RefCountAwareThreadedActionListener;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
@@ -20,15 +22,14 @@ import org.elasticsearch.cluster.SnapshotsInProgress;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.util.concurrent.ListenableFuture;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.snapshots.IndexShardSnapshotStatus;
+import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.repositories.Repository;
@@ -65,6 +66,7 @@ import static org.elasticsearch.cluster.SnapshotsInProgress.ShardState.SUCCESS;
 
 public class TransportSnapshotsStatusAction extends TransportMasterNodeAction<SnapshotsStatusRequest, SnapshotsStatusResponse> {
 
+    public static final ActionType<SnapshotsStatusResponse> TYPE = new ActionType<>("cluster:admin/snapshot/status");
     private static final Logger logger = LogManager.getLogger(TransportSnapshotsStatusAction.class);
 
     private final RepositoriesService repositoriesService;
@@ -78,17 +80,15 @@ public class TransportSnapshotsStatusAction extends TransportMasterNodeAction<Sn
         ThreadPool threadPool,
         RepositoriesService repositoriesService,
         NodeClient client,
-        ActionFilters actionFilters,
-        IndexNameExpressionResolver indexNameExpressionResolver
+        ActionFilters actionFilters
     ) {
         super(
-            SnapshotsStatusAction.NAME,
+            TYPE.name(),
             transportService,
             clusterService,
             threadPool,
             actionFilters,
             SnapshotsStatusRequest::new,
-            indexNameExpressionResolver,
             SnapshotsStatusResponse::new,
             // building the response is somewhat expensive for large snapshots, so we fork.
             threadPool.executor(ThreadPool.Names.SNAPSHOT_META)
@@ -125,7 +125,7 @@ public class TransportSnapshotsStatusAction extends TransportMasterNodeAction<Sn
 
         Set<String> nodesIds = new HashSet<>();
         for (SnapshotsInProgress.Entry entry : currentSnapshots) {
-            for (SnapshotsInProgress.ShardSnapshotStatus status : entry.shardsByRepoShardId().values()) {
+            for (SnapshotsInProgress.ShardSnapshotStatus status : entry.shardSnapshotStatusByRepoShardId().values()) {
                 if (status.nodeId() != null) {
                     nodesIds.add(status.nodeId());
                 }
@@ -138,10 +138,11 @@ public class TransportSnapshotsStatusAction extends TransportMasterNodeAction<Sn
             for (int i = 0; i < currentSnapshots.size(); i++) {
                 snapshots[i] = currentSnapshots.get(i).snapshot();
             }
+            final var snapshotStatusRequest = new TransportNodesSnapshotsStatus.Request(nodesIds.toArray(Strings.EMPTY_ARRAY), snapshots);
+            snapshotStatusRequest.setTimeout(request.masterNodeTimeout().millis() < 0 ? null : request.masterNodeTimeout());
             client.executeLocally(
                 TransportNodesSnapshotsStatus.TYPE,
-                new TransportNodesSnapshotsStatus.Request(nodesIds.toArray(Strings.EMPTY_ARRAY)).snapshots(snapshots)
-                    .timeout(request.masterNodeTimeout()),
+                snapshotStatusRequest,
                 // fork to snapshot meta since building the response is expensive for large snapshots
                 new RefCountAwareThreadedActionListener<>(
                     threadPool.executor(ThreadPool.Names.SNAPSHOT_META),
@@ -186,7 +187,8 @@ public class TransportSnapshotsStatusAction extends TransportMasterNodeAction<Sn
             for (SnapshotsInProgress.Entry entry : currentSnapshotEntries) {
                 currentSnapshotNames.add(entry.snapshot().getSnapshotId().getName());
                 List<SnapshotIndexShardStatus> shardStatusBuilder = new ArrayList<>();
-                for (Map.Entry<RepositoryShardId, SnapshotsInProgress.ShardSnapshotStatus> shardEntry : entry.shardsByRepoShardId()
+                for (Map.Entry<RepositoryShardId, SnapshotsInProgress.ShardSnapshotStatus> shardEntry : entry
+                    .shardSnapshotStatusByRepoShardId()
                     .entrySet()) {
                     SnapshotsInProgress.ShardSnapshotStatus status = shardEntry.getValue();
                     if (status.nodeId() != null) {
@@ -329,8 +331,7 @@ public class TransportSnapshotsStatusAction extends TransportMasterNodeAction<Sn
                     final SnapshotsInProgress.State state = switch (snapshotInfo.state()) {
                         case FAILED -> SnapshotsInProgress.State.FAILED;
                         case SUCCESS, PARTIAL ->
-                            // Translating both PARTIAL and SUCCESS to SUCCESS for now
-                            // TODO: add the differentiation on the metadata level in the next major release
+                            // Both of these means the snapshot has completed.
                             SnapshotsInProgress.State.SUCCESS;
                         default -> throw new IllegalArgumentException("Unexpected snapshot state " + snapshotInfo.state());
                     };

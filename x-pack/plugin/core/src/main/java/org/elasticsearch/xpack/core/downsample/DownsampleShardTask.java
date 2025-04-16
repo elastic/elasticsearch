@@ -98,6 +98,10 @@ public class DownsampleShardTask extends AllocatedPersistentTask {
         return config;
     }
 
+    public ShardId shardId() {
+        return shardId;
+    }
+
     public long getTotalShardDocCount() {
         return totalShardDocCount;
     }

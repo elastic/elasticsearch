@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.repositories;
@@ -39,9 +40,12 @@ import java.util.stream.Collectors;
 
 import static org.elasticsearch.repositories.RepositoryData.EMPTY_REPO_GEN;
 import static org.elasticsearch.repositories.RepositoryData.MISSING_UUID;
+import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.not;
 
 /**
  * Tests for the {@link RepositoryData} class.
@@ -427,6 +431,19 @@ public class RepositoryDataTests extends ESTestCase {
                 equalTo("this snapshot repository format requires Elasticsearch version [" + futureVersion + "] or later")
             );
         }
+    }
+
+    public void testToString() {
+        final var repositoryData = generateRandomRepoData();
+        assertThat(
+            repositoryData.toString(),
+            allOf(
+                containsString("RepositoryData"),
+                containsString(repositoryData.getUuid()),
+                containsString(Long.toString(repositoryData.getGenId())),
+                not(containsString("@")) // not the default Object#toString which does a very expensive hashcode computation
+            )
+        );
     }
 
     public static RepositoryData generateRandomRepoData() {

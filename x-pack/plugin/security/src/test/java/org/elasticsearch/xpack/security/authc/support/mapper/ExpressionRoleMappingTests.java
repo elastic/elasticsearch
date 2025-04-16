@@ -7,7 +7,6 @@
 package org.elasticsearch.xpack.security.authc.support.mapper;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
@@ -408,29 +407,7 @@ public class ExpressionRoleMappingTests extends ESTestCase {
     public void testSerialization() throws Exception {
         final ExpressionRoleMapping original = randomRoleMapping(true);
 
-        TransportVersion version = TransportVersionUtils.randomVersionBetween(random(), TransportVersions.V_7_2_0, null);
-        BytesStreamOutput output = new BytesStreamOutput();
-        output.setTransportVersion(version);
-        original.writeTo(output);
-
-        final NamedWriteableRegistry registry = new NamedWriteableRegistry(new XPackClientPlugin().getNamedWriteables());
-        StreamInput streamInput = new NamedWriteableAwareStreamInput(
-            ByteBufferStreamInput.wrap(BytesReference.toBytes(output.bytes())),
-            registry
-        );
-        streamInput.setTransportVersion(version);
-        final ExpressionRoleMapping serialized = new ExpressionRoleMapping(streamInput);
-        assertEquals(original, serialized);
-    }
-
-    public void testSerializationPreV71() throws Exception {
-        final ExpressionRoleMapping original = randomRoleMapping(false);
-
-        TransportVersion version = TransportVersionUtils.randomVersionBetween(
-            random(),
-            TransportVersions.V_7_0_0,
-            TransportVersions.V_7_0_1
-        );
+        TransportVersion version = TransportVersionUtils.randomCompatibleVersion(random());
         BytesStreamOutput output = new BytesStreamOutput();
         output.setTransportVersion(version);
         original.writeTo(output);
@@ -459,7 +436,7 @@ public class ExpressionRoleMappingTests extends ESTestCase {
         return mapping;
     }
 
-    private ExpressionRoleMapping randomRoleMapping(boolean acceptRoleTemplates) {
+    public static ExpressionRoleMapping randomRoleMapping(boolean acceptRoleTemplates) {
         final boolean useTemplate = acceptRoleTemplates && randomBoolean();
         final List<String> roles;
         final List<TemplateRoleName> templates;
@@ -484,7 +461,7 @@ public class ExpressionRoleMappingTests extends ESTestCase {
             randomAlphaOfLengthBetween(3, 8),
             new FieldExpression(
                 randomAlphaOfLengthBetween(4, 12),
-                Collections.singletonList(new FieldExpression.FieldValue(randomInt(99)))
+                Collections.singletonList(new FieldExpression.FieldValue((long) randomInt(99)))
             ),
             roles,
             templates,

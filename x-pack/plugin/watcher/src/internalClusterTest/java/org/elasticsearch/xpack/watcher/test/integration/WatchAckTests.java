@@ -75,7 +75,8 @@ public class WatchAckTests extends AbstractWatcherIntegrationTestCase {
             .get();
 
         assertThat(putWatchResponse.isCreated(), is(true));
-        assertThat(new WatcherStatsRequestBuilder(client()).get().getWatchesCount(), is(1L));
+
+        assertBusy(() -> assertThat(new WatcherStatsRequestBuilder(client()).get().getWatchesCount(), is(1L)));
 
         timeWarp().trigger("_id", 4, TimeValue.timeValueSeconds(5));
         AckWatchResponse ackResponse = new AckWatchRequestBuilder(client(), "_id").setActionIds("_a1").get();
@@ -148,7 +149,7 @@ public class WatchAckTests extends AbstractWatcherIntegrationTestCase {
             .get();
 
         assertThat(putWatchResponse.isCreated(), is(true));
-        assertThat(new WatcherStatsRequestBuilder(client()).get().getWatchesCount(), is(1L));
+        assertBusy(() -> assertThat(new WatcherStatsRequestBuilder(client()).get().getWatchesCount(), is(1L)));
 
         timeWarp().trigger("_id", 4, TimeValue.timeValueSeconds(5));
 
@@ -226,7 +227,7 @@ public class WatchAckTests extends AbstractWatcherIntegrationTestCase {
             )
             .get();
         assertThat(putWatchResponse.isCreated(), is(true));
-        assertThat(new WatcherStatsRequestBuilder(client()).get().getWatchesCount(), is(1L));
+        assertBusy(() -> assertThat(new WatcherStatsRequestBuilder(client()).get().getWatchesCount(), is(1L)));
 
         timeWarp().trigger("_name", 4, TimeValue.timeValueSeconds(5));
         restartWatcherRandomly();

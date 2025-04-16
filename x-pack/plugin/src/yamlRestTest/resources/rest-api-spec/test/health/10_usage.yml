@@ -17,8 +17,8 @@ setup:
         feature: disk
 ---
 "Usage stats on the health API":
-  - skip:
-      version: "- 8.6.99"
+  - requires:
+      cluster_features: "gte_v8.7.0"
       reason: "the health api stats were only added to the usage api in 8.7"
 
   - do:

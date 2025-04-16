@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.bulk;
@@ -43,7 +44,7 @@ public class BulkRequestModifierTests extends ESTestCase {
         for (int i = 0; modifier.hasNext(); i++) {
             modifier.next();
             if (randomBoolean()) {
-                modifier.markItemAsFailed(i, new RuntimeException());
+                modifier.markItemAsFailed(i, new RuntimeException(), randomFrom(IndexDocFailureStoreStatus.values()));
                 failedSlots.add(i);
             }
         }
@@ -109,7 +110,7 @@ public class BulkRequestModifierTests extends ESTestCase {
 
         // actually mark the failures
         for (int i : failures) {
-            modifier.markItemAsFailed(i, new RuntimeException());
+            modifier.markItemAsFailed(i, new RuntimeException(), randomFrom(IndexDocFailureStoreStatus.values()));
         }
 
         // So half of the requests have "failed", so only the successful requests are left:

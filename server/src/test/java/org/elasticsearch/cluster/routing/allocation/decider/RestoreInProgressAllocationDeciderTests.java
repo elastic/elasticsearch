@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.cluster.routing.allocation.decider;
 
@@ -66,7 +67,7 @@ public class RestoreInProgressAllocationDeciderTests extends ESAllocationTestCas
     public void testCannotAllocatePrimaryMissingInRestoreInProgress() {
         ClusterState clusterState = createInitialClusterState();
         RoutingTable routingTable = RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY, clusterState.getRoutingTable())
-            .addAsRestore(clusterState.getMetadata().index("test"), createSnapshotRecoverySource("_missing"))
+            .addAsRestore(clusterState.getMetadata().getProject().index("test"), createSnapshotRecoverySource("_missing"))
             .build();
 
         clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
@@ -80,7 +81,7 @@ public class RestoreInProgressAllocationDeciderTests extends ESAllocationTestCas
         assertThat(
             decision.getExplanation(),
             equalTo(
-                "shard has failed to be restored from the snapshot [_repository:_missing/_uuid] - manually close or "
+                "shard has failed to be restored from the snapshot [default:_repository:_missing/_uuid] - manually close or "
                     + "delete the index [test] in order to retry to restore the snapshot again or use the reroute API "
                     + "to force the allocation of an empty primary shard. Details: [restore_source[_repository/_missing]]"
             )
@@ -92,7 +93,7 @@ public class RestoreInProgressAllocationDeciderTests extends ESAllocationTestCas
 
         ClusterState clusterState = createInitialClusterState();
         RoutingTable routingTable = RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY, clusterState.getRoutingTable())
-            .addAsRestore(clusterState.getMetadata().index("test"), recoverySource)
+            .addAsRestore(clusterState.getMetadata().getProject().index("test"), recoverySource)
             .build();
 
         clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
@@ -111,16 +112,16 @@ public class RestoreInProgressAllocationDeciderTests extends ESAllocationTestCas
 
             UnassignedInfo currentInfo = primary.unassignedInfo();
             UnassignedInfo newInfo = new UnassignedInfo(
-                currentInfo.getReason(),
-                currentInfo.getMessage(),
+                currentInfo.reason(),
+                currentInfo.message(),
                 new IOException("i/o failure"),
-                currentInfo.getNumFailedAllocations(),
-                currentInfo.getUnassignedTimeInNanos(),
-                currentInfo.getUnassignedTimeInMillis(),
-                currentInfo.isDelayed(),
-                currentInfo.getLastAllocationStatus(),
-                currentInfo.getFailedNodeIds(),
-                currentInfo.getLastAllocatedNodeId()
+                currentInfo.failedAllocations(),
+                currentInfo.unassignedTimeNanos(),
+                currentInfo.unassignedTimeMillis(),
+                currentInfo.delayed(),
+                currentInfo.lastAllocationStatus(),
+                currentInfo.failedNodeIds(),
+                currentInfo.lastAllocatedNodeId()
             );
             primary = primary.updateUnassigned(newInfo, primary.recoverySource());
 
@@ -167,7 +168,8 @@ public class RestoreInProgressAllocationDeciderTests extends ESAllocationTestCas
             assertThat(
                 decision.getExplanation(),
                 startsWith(
-                    "shard has failed to be restored from the snapshot [_repository:_existing/_uuid] - manually close or delete the index "
+                    "shard has failed to be restored from the snapshot [default:_repository:_existing/_uuid]"
+                        + " - manually close or delete the index "
                         + "[test] in order to retry to restore the snapshot again or use the reroute API to force the allocation of "
                         + "an empty primary shard. Details: [restore_source[_repository/_existing], failure "
                         + "java.io.IOException: i/o failure"
@@ -185,7 +187,7 @@ public class RestoreInProgressAllocationDeciderTests extends ESAllocationTestCas
             .build();
 
         RoutingTable routingTable = RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY)
-            .addAsNew(metadata.index("test"))
+            .addAsNew(metadata.getProject().index("test"))
             .build();
 
         DiscoveryNodes discoveryNodes = DiscoveryNodes.builder()

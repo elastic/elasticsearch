@@ -58,7 +58,7 @@ public class ILMHistoryStore implements Closeable {
 
     public static final String ILM_HISTORY_DATA_STREAM = "ilm-history-" + INDEX_TEMPLATE_VERSION;
 
-    private static int ILM_HISTORY_BULK_SIZE = StrictMath.toIntExact(
+    private static final int ILM_HISTORY_BULK_SIZE = StrictMath.toIntExact(
         ByteSizeValue.parseBytesSizeValue(
             System.getProperty("es.indices.lifecycle.history.bulk.size", "50MB"),
             "es.indices.lifecycle.history.bulk.size"
@@ -95,7 +95,7 @@ public class ILMHistoryStore implements Closeable {
             new BulkProcessor2.Listener() {
                 @Override
                 public void beforeBulk(long executionId, BulkRequest request) {
-                    if (clusterService.state().getMetadata().templatesV2().containsKey(ILM_TEMPLATE_NAME) == false) {
+                    if (clusterService.state().getMetadata().getProject().templatesV2().containsKey(ILM_TEMPLATE_NAME) == false) {
                         ElasticsearchException e = new ElasticsearchException("no ILM history template");
                         logger.warn(
                             () -> format(

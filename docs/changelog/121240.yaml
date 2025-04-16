@@ -1,0 +1,5 @@
+pr: 121240
+summary: Implement runtime skip_unavailable=true
+area: ES|QL
+type: enhancement
+issues: []

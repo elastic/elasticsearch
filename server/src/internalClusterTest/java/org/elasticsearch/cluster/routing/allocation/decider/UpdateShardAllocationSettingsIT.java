@@ -1,12 +1,14 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.cluster.routing.allocation.decider;
 
+import org.elasticsearch.action.admin.cluster.reroute.ClusterRerouteUtils;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.common.settings.Settings;
@@ -37,8 +39,10 @@ public class UpdateShardAllocationSettingsIT extends ESIntegTestCase {
         // we test with 2 shards since otherwise it's pretty fragile if there are difference in the num or shards such that
         // all shards are relocated to the second node which is not what we want here. It's solely a test for the settings to take effect
         final int numShards = 2;
-        assertAcked(prepareCreate("test").setSettings(indexSettings(numShards, 0)));
-        assertAcked(prepareCreate("test_1").setSettings(indexSettings(numShards, 0)));
+        assertAcked(
+            prepareCreate("test").setSettings(indexSettings(numShards, 0)),
+            prepareCreate("test_1").setSettings(indexSettings(numShards, 0))
+        );
         ensureGreen();
         assertAllShardsOnNodes("test", firstNode);
         assertAllShardsOnNodes("test_1", firstNode);
@@ -50,7 +54,7 @@ public class UpdateShardAllocationSettingsIT extends ESIntegTestCase {
                 .put(EnableAllocationDecider.INDEX_ROUTING_REBALANCE_ENABLE_SETTING.getKey(), EnableAllocationDecider.Rebalance.NONE),
             "test"
         );
-        clusterAdmin().prepareReroute().get();
+        ClusterRerouteUtils.reroute(client());
         ensureGreen();
         assertAllShardsOnNodes("test", firstNode);
         assertAllShardsOnNodes("test_1", firstNode);
@@ -65,7 +69,7 @@ public class UpdateShardAllocationSettingsIT extends ESIntegTestCase {
             "test"
         );
         logger.info("--> balance index [test]");
-        clusterAdmin().prepareReroute().get();
+        ClusterRerouteUtils.reroute(client());
         ensureGreen("test");
         Set<String> test = assertAllShardsOnNodes("test", firstNode, secondNode);
         assertThat("index: [test] expected to be rebalanced on both nodes", test.size(), equalTo(2));
@@ -80,7 +84,7 @@ public class UpdateShardAllocationSettingsIT extends ESIntegTestCase {
                 )
         );
         logger.info("--> balance index [test_1]");
-        clusterAdmin().prepareReroute().get();
+        ClusterRerouteUtils.reroute(client());
         ensureGreen("test_1");
         Set<String> test_1 = assertAllShardsOnNodes("test_1", firstNode, secondNode);
         assertThat("index: [test_1] expected to be rebalanced on both nodes", test_1.size(), equalTo(2));
@@ -99,7 +103,7 @@ public class UpdateShardAllocationSettingsIT extends ESIntegTestCase {
         updateClusterSettings(Settings.builder().put(CLUSTER_ROUTING_ALLOCATION_SAME_HOST_SETTING.getKey(), true));
         final String indexName = "idx";
         createIndex(indexName, 1, 1);
-        ClusterState clusterState = clusterAdmin().prepareState().get().getState();
+        ClusterState clusterState = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get().getState();
         assertFalse(
             "replica should be unassigned",
             clusterState.getRoutingTable().index(indexName).shardsWithState(ShardRoutingState.UNASSIGNED).isEmpty()
@@ -108,7 +112,7 @@ public class UpdateShardAllocationSettingsIT extends ESIntegTestCase {
         // the same host - the replica should get assigned
         updateClusterSettings(Settings.builder().put(CLUSTER_ROUTING_ALLOCATION_SAME_HOST_SETTING.getKey(), false));
 
-        clusterState = clusterAdmin().prepareState().get().getState();
+        clusterState = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get().getState();
         assertTrue(
             "all shards should be assigned",
             clusterState.getRoutingTable().index(indexName).shardsWithState(ShardRoutingState.UNASSIGNED).isEmpty()

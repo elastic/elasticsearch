@@ -1,23 +1,27 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.watcher;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.hash.MessageDigests;
-import org.elasticsearch.common.io.FileSystemUtils;
 import org.elasticsearch.common.util.CollectionUtils;
 
 import java.io.IOException;
+import java.io.InputStream;
+import java.nio.file.DirectoryStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.attribute.BasicFileAttributes;
 import java.util.Arrays;
+import java.util.stream.StreamSupport;
 
 /**
  * File resources watcher
@@ -75,20 +79,67 @@ public class FileWatcher extends AbstractResourceWatcher<FileChangesListener> {
         rootFileObserver.checkAndNotify();
     }
 
-    private static final FileObserver[] EMPTY_DIRECTORY = new FileObserver[0];
+    private static final Observer[] EMPTY_DIRECTORY = new Observer[0];
 
-    private class FileObserver {
-        private final Path path;
+    private abstract static class Observer {
+        final Path path;
+        boolean exists;
+        boolean isDirectory;
 
-        private boolean exists;
+        private Observer(Path path) {
+            this.path = path;
+        }
+
+        abstract void checkAndNotify() throws IOException;
+
+        abstract void onDirectoryDeleted();
+
+        abstract void onFileDeleted();
+    }
+
+    /**
+     * A placeholder {@link Observer} for a file that we don't have permissions to access.
+     * We can't watch it for changes, but it shouldn't block us from watching other files in the same directory.
+     */
+    private static class DeniedObserver extends Observer {
+        private DeniedObserver(Path path) {
+            super(path);
+        }
+
+        @Override
+        void checkAndNotify() throws IOException {}
+
+        @Override
+        void onDirectoryDeleted() {}
+
+        @Override
+        void onFileDeleted() {}
+    }
+
+    protected boolean fileExists(Path path) {
+        return Files.exists(path);
+    }
+
+    protected BasicFileAttributes readAttributes(Path path) throws IOException {
+        return Files.readAttributes(path, BasicFileAttributes.class);
+    }
+
+    protected InputStream newInputStream(Path path) throws IOException {
+        return Files.newInputStream(path);
+    }
+
+    protected DirectoryStream<Path> listFiles(Path path) throws IOException {
+        return Files.newDirectoryStream(path);
+    }
+
+    private class FileObserver extends Observer {
         private long length;
         private long lastModified;
-        private boolean isDirectory;
-        private FileObserver[] children;
+        private Observer[] children;
         private byte[] digest;
 
         FileObserver(Path path) {
-            this.path = path;
+            super(path);
         }
 
         public void checkAndNotify() throws IOException {
@@ -98,10 +149,10 @@ public class FileWatcher extends AbstractResourceWatcher<FileChangesListener> {
             long prevLastModified = lastModified;
             byte[] prevDigest = digest;
 
-            exists = Files.exists(path);
+            exists = fileExists(path);
             // TODO we might use the new NIO2 API to get real notification?
             if (exists) {
-                BasicFileAttributes attributes = Files.readAttributes(path, BasicFileAttributes.class);
+                BasicFileAttributes attributes = readAttributes(path);
                 isDirectory = attributes.isDirectory();
                 if (isDirectory) {
                     length = 0;
@@ -169,7 +220,7 @@ public class FileWatcher extends AbstractResourceWatcher<FileChangesListener> {
         }
 
         private byte[] calculateDigest() {
-            try (var in = Files.newInputStream(path)) {
+            try (var in = newInputStream(path)) {
                 return MessageDigests.digest(in, MessageDigests.md5());
             } catch (IOException e) {
                 logger.warn(
@@ -182,9 +233,9 @@ public class FileWatcher extends AbstractResourceWatcher<FileChangesListener> {
         }
 
         private void init(boolean initial) throws IOException {
-            exists = Files.exists(path);
+            exists = fileExists(path);
             if (exists) {
-                BasicFileAttributes attributes = Files.readAttributes(path, BasicFileAttributes.class);
+                BasicFileAttributes attributes = readAttributes(path);
                 isDirectory = attributes.isDirectory();
                 if (isDirectory) {
                     onDirectoryCreated(initial);
@@ -199,22 +250,28 @@ public class FileWatcher extends AbstractResourceWatcher<FileChangesListener> {
             }
         }
 
-        private FileObserver createChild(Path file, boolean initial) throws IOException {
-            FileObserver child = new FileObserver(file);
-            child.init(initial);
-            return child;
+        private Observer createChild(Path file, boolean initial) throws IOException {
+            try {
+                FileObserver child = new FileObserver(file);
+                child.init(initial);
+                return child;
+            } catch (SecurityException e) {
+                // don't have permissions, use a placeholder
+                logger.debug(() -> Strings.format("Don't have permissions to watch path [%s]", file), e);
+                return new DeniedObserver(file);
+            }
         }
 
         private Path[] listFiles() throws IOException {
-            final Path[] files = FileSystemUtils.files(path);
-            Arrays.sort(files);
-            return files;
+            try (var dirs = FileWatcher.this.listFiles(path)) {
+                return StreamSupport.stream(dirs.spliterator(), false).sorted().toArray(Path[]::new);
+            }
         }
 
-        private FileObserver[] listChildren(boolean initial) throws IOException {
+        private Observer[] listChildren(boolean initial) throws IOException {
             Path[] files = listFiles();
             if (CollectionUtils.isEmpty(files) == false) {
-                FileObserver[] childObservers = new FileObserver[files.length];
+                Observer[] childObservers = new Observer[files.length];
                 for (int i = 0; i < files.length; i++) {
                     childObservers[i] = createChild(files[i], initial);
                 }
@@ -227,7 +284,7 @@ public class FileWatcher extends AbstractResourceWatcher<FileChangesListener> {
         private void updateChildren() throws IOException {
             Path[] files = listFiles();
             if (CollectionUtils.isEmpty(files) == false) {
-                FileObserver[] newChildren = new FileObserver[files.length];
+                Observer[] newChildren = new Observer[files.length];
                 int child = 0;
                 int file = 0;
                 while (file < files.length || child < children.length) {
@@ -294,7 +351,7 @@ public class FileWatcher extends AbstractResourceWatcher<FileChangesListener> {
             }
         }
 
-        private void onFileDeleted() {
+        void onFileDeleted() {
             for (FileChangesListener listener : listeners()) {
                 try {
                     listener.onFileDeleted(path);
@@ -330,7 +387,7 @@ public class FileWatcher extends AbstractResourceWatcher<FileChangesListener> {
             children = listChildren(initial);
         }
 
-        private void onDirectoryDeleted() {
+        void onDirectoryDeleted() {
             // First delete all children
             for (int child = 0; child < children.length; child++) {
                 deleteChild(child);

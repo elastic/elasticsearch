@@ -10,8 +10,8 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.admin.cluster.node.tasks.get.GetTaskAction;
 import org.elasticsearch.action.admin.cluster.node.tasks.get.GetTaskRequest;
+import org.elasticsearch.action.admin.cluster.node.tasks.get.TransportGetTaskAction;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
 import org.elasticsearch.client.internal.Client;
@@ -20,8 +20,8 @@ import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
@@ -58,6 +58,7 @@ public class TransportRevertModelSnapshotAction extends TransportMasterNodeActio
 
     private static final Logger logger = LogManager.getLogger(TransportRevertModelSnapshotAction.class);
 
+    private final IndexNameExpressionResolver indexNameExpressionResolver;
     private final Client client;
     private final JobManager jobManager;
     private final JobResultsProvider jobResultsProvider;
@@ -82,10 +83,10 @@ public class TransportRevertModelSnapshotAction extends TransportMasterNodeActio
             threadPool,
             actionFilters,
             RevertModelSnapshotAction.Request::new,
-            indexNameExpressionResolver,
             RevertModelSnapshotAction.Response::new,
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
+        this.indexNameExpressionResolver = indexNameExpressionResolver;
         this.client = client;
         this.jobManager = jobManager;
         this.jobResultsProvider = jobResultsProvider;
@@ -112,7 +113,7 @@ public class TransportRevertModelSnapshotAction extends TransportMasterNodeActio
         // 5. Revert the state
         ActionListener<Boolean> annotationsIndexUpdateListener = ActionListener.wrap(r -> {
             ActionListener<Job> jobListener = ActionListener.wrap(job -> {
-                PersistentTasksCustomMetadata tasks = state.getMetadata().custom(PersistentTasksCustomMetadata.TYPE);
+                PersistentTasksCustomMetadata tasks = state.getMetadata().getProject().custom(PersistentTasksCustomMetadata.TYPE);
                 JobState jobState = MlTasks.getJobState(job.getId(), tasks);
                 if (request.isForce() == false && jobState.equals(JobState.CLOSED) == false) {
                     listener.onFailure(ExceptionsHelper.conflictStatusException(Messages.getMessage(Messages.REST_JOB_NOT_CLOSED_REVERT)));
@@ -210,12 +211,12 @@ public class TransportRevertModelSnapshotAction extends TransportMasterNodeActio
             // to give a chance to this request to be executed without returning an error.
             // This is particularly useful when a relocating job is calling revert.
             getTaskRequest.setWaitForCompletion(request.isForce());
-            getTaskRequest.setTimeout(request.timeout());
+            getTaskRequest.setTimeout(request.ackTimeout());
 
             executeAsyncWithOrigin(
                 client,
                 ML_ORIGIN,
-                GetTaskAction.INSTANCE,
+                TransportGetTaskAction.TYPE,
                 getTaskRequest,
                 ActionListener.wrap(r -> listener.onResponse(r.getTask().isCompleted() == false), e -> {
                     if (ExceptionsHelper.unwrapCause(e) instanceof ResourceNotFoundException) {
@@ -265,7 +266,7 @@ public class TransportRevertModelSnapshotAction extends TransportMasterNodeActio
         Consumer<ModelSnapshot> handler,
         Consumer<Exception> errorHandler
     ) {
-        logger.info("Reverting to snapshot '" + request.getSnapshotId() + "'");
+        logger.info("[{}] Reverting to snapshot {}", request.getJobId(), request.getSnapshotId());
 
         if (ModelSnapshot.isTheEmptySnapshot(request.getSnapshotId())) {
             handler.accept(ModelSnapshot.emptySnapshot(request.getJobId()));

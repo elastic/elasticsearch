@@ -17,7 +17,7 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import java.io.IOException;
 import java.util.List;
 
-public class RemoteClusterFeatureSetUsage extends XPackFeatureSet.Usage {
+public class RemoteClusterFeatureSetUsage extends XPackFeatureUsage {
 
     private final List<RemoteConnectionInfo> remoteConnectionInfos;
 

@@ -36,9 +36,10 @@ public class ConsumeProcessor implements Processor {
     public Set<String> getSupportedAnnotationTypes() {
         return Set.of(
             "org.elasticsearch.core.Nullable",
-            "org.elasticsearch.common.inject.Inject",
+            "org.elasticsearch.injection.guice.Inject",
             "org.elasticsearch.xpack.esql.expression.function.FunctionInfo",
             "org.elasticsearch.xpack.esql.expression.function.Param",
+            "org.elasticsearch.xpack.esql.expression.function.MapParam",
             "org.elasticsearch.rest.ServerlessScope",
             "org.elasticsearch.xcontent.ParserConstructor",
             Fixed.class.getName()
@@ -47,7 +48,7 @@ public class ConsumeProcessor implements Processor {
 
     @Override
     public SourceVersion getSupportedSourceVersion() {
-        return SourceVersion.latest();
+        return SourceVersion.RELEASE_21;
     }
 
     @Override

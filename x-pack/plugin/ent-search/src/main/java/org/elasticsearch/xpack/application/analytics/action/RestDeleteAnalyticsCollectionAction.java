@@ -8,8 +8,10 @@
 package org.elasticsearch.xpack.application.analytics.action;
 
 import org.elasticsearch.client.internal.node.NodeClient;
+import org.elasticsearch.core.UpdateForV10;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.RestUtils;
 import org.elasticsearch.rest.Scope;
 import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestToXContentListener;
@@ -22,6 +24,11 @@ import java.util.List;
 
 import static org.elasticsearch.rest.RestRequest.Method.DELETE;
 
+/**
+ * @deprecated in 9.0
+ */
+@Deprecated
+@UpdateForV10(owner = UpdateForV10.Owner.ENTERPRISE_SEARCH)
 @ServerlessScope(Scope.PUBLIC)
 public class RestDeleteAnalyticsCollectionAction extends EnterpriseSearchBaseRestHandler {
     public RestDeleteAnalyticsCollectionAction(XPackLicenseState licenseState) {
@@ -40,7 +47,10 @@ public class RestDeleteAnalyticsCollectionAction extends EnterpriseSearchBaseRes
 
     @Override
     protected RestChannelConsumer innerPrepareRequest(RestRequest restRequest, NodeClient client) throws IOException {
-        DeleteAnalyticsCollectionAction.Request request = new DeleteAnalyticsCollectionAction.Request(restRequest.param("collection_name"));
+        DeleteAnalyticsCollectionAction.Request request = new DeleteAnalyticsCollectionAction.Request(
+            RestUtils.getMasterNodeTimeout(restRequest),
+            restRequest.param("collection_name")
+        );
         return channel -> client.execute(DeleteAnalyticsCollectionAction.INSTANCE, request, new RestToXContentListener<>(channel));
     }
 }

@@ -11,6 +11,7 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteResponse;
+import org.elasticsearch.action.UnavailableShardsException;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.delete.DeleteResponse;
@@ -54,6 +55,7 @@ import org.elasticsearch.xpack.core.security.support.StringMatcher;
 import org.elasticsearch.xpack.security.support.CacheInvalidatorRegistry;
 import org.elasticsearch.xpack.security.support.LockingAtomicCounter;
 import org.elasticsearch.xpack.security.support.SecurityIndexManager;
+import org.elasticsearch.xpack.security.support.SecurityIndexManager.IndexState;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -97,6 +99,16 @@ public class NativePrivilegeStore {
         "xpack.security.authz.store.privileges.cache.ttl",
         TimeValue.timeValueHours(24L),
         Setting.Property.NodeScope
+    );
+
+    /**
+     * Determines how long get privileges calls will wait for an available security index.
+     * The default value of 0 bypasses all waiting-related logic entirely.
+     */
+    private static final TimeValue SECURITY_INDEX_WAIT_TIMEOUT = TimeValue.parseTimeValue(
+        System.getProperty("es.security.security_index.wait_timeout", null),
+        TimeValue.ZERO,
+        "system property <es.security.security_index.wait_timeout>"
     );
 
     private static final Collector<Tuple<String, String>, ?, Map<String, List<String>>> TUPLES_TO_MAP = Collectors.toMap(
@@ -144,6 +156,17 @@ public class NativePrivilegeStore {
         Collection<String> names,
         ActionListener<Collection<ApplicationPrivilegeDescriptor>> listener
     ) {
+        // timeout of 0 means skip wait attempt entirely
+        final boolean waitForAvailableSecurityIndex = false == SECURITY_INDEX_WAIT_TIMEOUT.equals(TimeValue.ZERO);
+        getPrivileges(applications, names, waitForAvailableSecurityIndex, listener);
+    }
+
+    public void getPrivileges(
+        Collection<String> applications,
+        Collection<String> names,
+        boolean waitForAvailableSecurityIndex,
+        ActionListener<Collection<ApplicationPrivilegeDescriptor>> listener
+    ) {
         if (false == isEmpty(names) && names.stream().noneMatch(ApplicationPrivilege::isValidPrivilegeName)) {
             logger.debug("no concrete privilege, only action patterns [{}], returning no application privilege descriptors", names);
             listener.onResponse(Collections.emptySet());
@@ -179,7 +202,7 @@ public class NativePrivilegeStore {
                 final long invalidationCount = descriptorsAndApplicationNamesCache == null
                     ? -1
                     : descriptorsAndApplicationNamesCache.getInvalidationCount();
-                innerGetPrivileges(applicationNamesCacheKey, ActionListener.wrap(fetchedDescriptors -> {
+                innerGetPrivileges(applicationNamesCacheKey, waitForAvailableSecurityIndex, ActionListener.wrap(fetchedDescriptors -> {
                     final Map<String, Set<ApplicationPrivilegeDescriptor>> mapOfFetchedDescriptors = fetchedDescriptors.stream()
                         .collect(Collectors.groupingBy(ApplicationPrivilegeDescriptor::getApplication, Collectors.toUnmodifiableSet()));
                     if (invalidationCount != -1) {
@@ -191,17 +214,37 @@ public class NativePrivilegeStore {
         }
     }
 
-    private void innerGetPrivileges(Collection<String> applications, ActionListener<Collection<ApplicationPrivilegeDescriptor>> listener) {
+    private void innerGetPrivileges(
+        Collection<String> applications,
+        boolean waitForAvailableSecurityIndex,
+        ActionListener<Collection<ApplicationPrivilegeDescriptor>> listener
+    ) {
         assert applications != null && applications.size() > 0 : "Application names are required (found " + applications + ")";
 
-        final SecurityIndexManager frozenSecurityIndex = securityIndexManager.defensiveCopy();
-        if (frozenSecurityIndex.indexExists() == false) {
+        final IndexState projectSecurityIndex = securityIndexManager.forCurrentProject();
+        if (projectSecurityIndex.indexExists() == false) {
             listener.onResponse(Collections.emptyList());
-        } else if (frozenSecurityIndex.isAvailable(SEARCH_SHARDS) == false) {
-            listener.onFailure(frozenSecurityIndex.getUnavailableReason(SEARCH_SHARDS));
-        } else {
-            securityIndexManager.checkIndexVersionThenExecute(listener::onFailure, () -> {
+        } else if (projectSecurityIndex.isAvailable(SEARCH_SHARDS) == false) {
+            final ElasticsearchException unavailableReason = projectSecurityIndex.getUnavailableReason(SEARCH_SHARDS);
+            if (false == waitForAvailableSecurityIndex || false == unavailableReason instanceof UnavailableShardsException) {
+                listener.onFailure(unavailableReason);
+                return;
+            }
+            projectSecurityIndex.onIndexAvailableForSearch(new ActionListener<>() {
+                @Override
+                public void onResponse(Void unused) {
+                    innerGetPrivileges(applications, false, listener);
+                }
 
+                @Override
+                public void onFailure(Exception e) {
+                    logger.warn("Failure while waiting for security index [" + projectSecurityIndex.getConcreteIndexName() + "]", e);
+                    // Call get privileges once more to get most up-to-date failure (or result, in case of an unlucky time-out)
+                    innerGetPrivileges(applications, false, listener);
+                }
+            }, SECURITY_INDEX_WAIT_TIMEOUT);
+        } else {
+            projectSecurityIndex.checkIndexVersionThenExecute(listener::onFailure, () -> {
                 final TermQueryBuilder typeQuery = QueryBuilders.termQuery(
                     ApplicationPrivilegeDescriptor.Fields.TYPE.getPreferredName(),
                     DOC_TYPE_VALUE
@@ -226,7 +269,6 @@ public class NativePrivilegeStore {
                         .setFetchSource(true)
                         .request();
                     logger.trace(() -> format("Searching for [%s] privileges with query [%s]", applications, Strings.toString(query)));
-                    request.indicesOptions().ignoreUnavailable();
                     ScrollHelper.fetchAllByEntity(
                         client,
                         request,
@@ -236,6 +278,10 @@ public class NativePrivilegeStore {
                 }
             });
         }
+    }
+
+    public SecurityIndexManager getSecurityIndexManager() {
+        return securityIndexManager;
     }
 
     private Tuple<QueryBuilder, Predicate<String>> getApplicationNameQueryAndPredicate(Collection<String> applications) {
@@ -389,7 +435,7 @@ public class NativePrivilegeStore {
             listener.onFailure(e);
         }
 
-        securityIndexManager.prepareIndexIfNeededThenExecute(listener::onFailure, () -> {
+        securityIndexManager.forCurrentProject().prepareIndexIfNeededThenExecute(listener::onFailure, () -> {
             ClientHelper.executeAsyncWithOrigin(
                 client.threadPool().getThreadContext(),
                 SECURITY_ORIGIN,
@@ -453,13 +499,13 @@ public class NativePrivilegeStore {
         WriteRequest.RefreshPolicy refreshPolicy,
         ActionListener<Map<String, List<String>>> listener
     ) {
-        final SecurityIndexManager frozenSecurityIndex = securityIndexManager.defensiveCopy();
-        if (frozenSecurityIndex.indexExists() == false) {
+        final IndexState projectSecurityIndex = securityIndexManager.forCurrentProject();
+        if (projectSecurityIndex.indexExists() == false) {
             listener.onResponse(Collections.emptyMap());
-        } else if (frozenSecurityIndex.isAvailable(PRIMARY_SHARDS) == false) {
-            listener.onFailure(frozenSecurityIndex.getUnavailableReason(PRIMARY_SHARDS));
+        } else if (projectSecurityIndex.isAvailable(PRIMARY_SHARDS) == false) {
+            listener.onFailure(projectSecurityIndex.getUnavailableReason(PRIMARY_SHARDS));
         } else {
-            securityIndexManager.checkIndexVersionThenExecute(listener::onFailure, () -> {
+            projectSecurityIndex.checkIndexVersionThenExecute(listener::onFailure, () -> {
                 ActionListener<DeleteResponse> groupListener = new GroupedActionListener<>(names.size(), ActionListener.wrap(responses -> {
                     final Map<String, List<String>> deletedNames = responses.stream()
                         .filter(r -> r.getResult() == DocWriteResponse.Result.DELETED)

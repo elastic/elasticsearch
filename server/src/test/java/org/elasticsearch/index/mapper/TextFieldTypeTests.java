@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.index.mapper;
 
@@ -15,6 +16,7 @@ import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.FuzzyQuery;
+import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MultiTermQuery;
 import org.apache.lucene.search.PrefixQuery;
 import org.apache.lucene.search.Query;
@@ -242,20 +244,26 @@ public class TextFieldTypeTests extends FieldTypeTestCase {
     public void testPrefixIntervals() throws IOException {
         MappedFieldType ft = createFieldType();
         IntervalsSource prefixIntervals = ft.prefixIntervals(new BytesRef("foo"), MOCK_CONTEXT);
-        assertEquals(Intervals.prefix(new BytesRef("foo")), prefixIntervals);
+        assertEquals(Intervals.prefix(new BytesRef("foo"), IndexSearcher.getMaxClauseCount()), prefixIntervals);
     }
 
-    public void testWildcardIntervals() throws IOException {
+    public void testWildcardIntervals() {
         MappedFieldType ft = createFieldType();
         IntervalsSource wildcardIntervals = ft.wildcardIntervals(new BytesRef("foo"), MOCK_CONTEXT);
-        assertEquals(Intervals.wildcard(new BytesRef("foo")), wildcardIntervals);
+        assertEquals(Intervals.wildcard(new BytesRef("foo"), IndexSearcher.getMaxClauseCount()), wildcardIntervals);
     }
 
-    public void testFuzzyIntervals() throws IOException {
+    public void testRegexpIntervals() {
+        MappedFieldType ft = createFieldType();
+        IntervalsSource regexpIntervals = ft.regexpIntervals(new BytesRef("foo"), MOCK_CONTEXT);
+        assertEquals(Intervals.regexp(new BytesRef("foo"), IndexSearcher.getMaxClauseCount()), regexpIntervals);
+    }
+
+    public void testFuzzyIntervals() {
         MappedFieldType ft = createFieldType();
         IntervalsSource fuzzyIntervals = ft.fuzzyIntervals("foo", 1, 2, true, MOCK_CONTEXT);
         FuzzyQuery fq = new FuzzyQuery(new Term("field", "foo"), 1, 2, 128, true);
-        IntervalsSource expectedIntervals = Intervals.multiterm(fq.getAutomata(), "foo");
+        IntervalsSource expectedIntervals = Intervals.multiterm(fq.getAutomata(), IndexSearcher.getMaxClauseCount(), "foo");
         assertEquals(expectedIntervals, fuzzyIntervals);
     }
 
@@ -270,6 +278,15 @@ public class TextFieldTypeTests extends FieldTypeTestCase {
         TextFieldType ft = createFieldType();
         ft.setIndexPrefixes(1, 4);
         IntervalsSource wildcardIntervals = ft.wildcardIntervals(new BytesRef("foo"), MOCK_CONTEXT);
-        assertEquals(Intervals.wildcard(new BytesRef("foo")), wildcardIntervals);
+        assertEquals(Intervals.wildcard(new BytesRef("foo"), IndexSearcher.getMaxClauseCount()), wildcardIntervals);
+    }
+
+    public void testRangeIntervals() {
+        MappedFieldType ft = createFieldType();
+        IntervalsSource rangeIntervals = ft.rangeIntervals(new BytesRef("foo"), new BytesRef("foo1"), true, true, MOCK_CONTEXT);
+        assertEquals(
+            Intervals.range(new BytesRef("foo"), new BytesRef("foo1"), true, true, IndexSearcher.getMaxClauseCount()),
+            rangeIntervals
+        );
     }
 }

@@ -2,7 +2,7 @@
 "Test with date processor":
   - do:
       ingest.put_pipeline:
-        id: "_id"
+        id: "pipeline-id"
         body:  >
           {
             "processors": [
@@ -44,7 +44,7 @@
       index:
         index: test
         id: "1"
-        pipeline: "_id"
+        pipeline: "pipeline-id"
         body: {
           log: "89.160.20.128 - - [08/Sep/2014:02:54:42 +0000] \"GET /presentations/logstash-scale11x/images/ahhh___rage_face_by_samusmmx-d5g5zap.png HTTP/1.1\" 200 175208 \"http://mobile.rivals.com/board_posts.asp?SID=880&mid=198829575&fid=2208&tid=198829575&Team=&TeamId=&SiteId=\" \"Mozilla/5.0 (Linux; Android 4.2.2; VS980 4G Build/JDQ39B) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/33.0.1750.135 Mobile Safari/537.36\""
         }
@@ -71,7 +71,7 @@
 "Test with date processor and ECS-v1":
   - do:
       ingest.put_pipeline:
-        id: "_id"
+        id: "pipeline-id"
         body:  >
           {
             "processors": [
@@ -102,7 +102,7 @@
       index:
         index: test
         id: "1"
-        pipeline: "_id"
+        pipeline: "pipeline-id"
         body: {
           log: "89.160.20.128 - - [08/Sep/2014:02:54:42 +0000] \"GET /presentations/logstash-scale11x/images/ahhh___rage_face_by_samusmmx-d5g5zap.png HTTP/1.1\" 200 175208 \"http://mobile.rivals.com/board_posts.asp?SID=880&mid=198829575&fid=2208&tid=198829575&Team=&TeamId=&SiteId=\" \"Mozilla/5.0 (Linux; Android 4.2.2; VS980 4G Build/JDQ39B) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/33.0.1750.135 Mobile Safari/537.36\""
         }
@@ -128,7 +128,7 @@
 "Test mutate":
   - do:
       ingest.put_pipeline:
-        id: "_id"
+        id: "pipeline-id"
         body:  >
           {
             "processors": [
@@ -188,7 +188,7 @@
       index:
         index: test
         id: "1"
-        pipeline: "_id"
+        pipeline: "pipeline-id"
         body: {
           "age" : 33,
           "eyeColor" : "brown",

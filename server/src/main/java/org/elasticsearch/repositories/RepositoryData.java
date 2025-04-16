@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.repositories;
@@ -28,6 +29,7 @@ import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.snapshots.SnapshotInfo;
 import org.elasticsearch.snapshots.SnapshotState;
 import org.elasticsearch.snapshots.SnapshotsService;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 
@@ -47,8 +49,7 @@ import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
 /**
- * A class that represents the data in a repository, as captured in the
- * repository's index blob.
+ * Represents the data in a repository: the snapshots and the indices across all snapshots found in the repository.
  */
 public final class RepositoryData {
 
@@ -283,6 +284,13 @@ public final class RepositoryData {
     }
 
     /**
+     * @return the number of index snapshots (i.e. the sum of the index count of each snapshot)
+     */
+    public long getIndexSnapshotCount() {
+        return indexSnapshots.values().stream().mapToLong(List::size).sum();
+    }
+
+    /**
      * @return whether some of the {@link SnapshotDetails} of the given snapshot are missing, due to BwC, so that they must be loaded from
      * the {@link SnapshotInfo} blob instead.
      */
@@ -370,6 +378,7 @@ public final class RepositoryData {
      * @return map of index to index metadata blob id to delete
      */
     public Map<IndexId, Collection<String>> indexMetaDataToRemoveAfterRemovingSnapshots(Collection<SnapshotId> snapshotIds) {
+        assert ThreadPool.assertCurrentThreadPool(ThreadPool.Names.SNAPSHOT);
         Iterator<IndexId> indicesForSnapshot = indicesToUpdateAfterRemovingSnapshot(snapshotIds);
         final Set<String> allRemainingIdentifiers = indexMetaDataGenerations.lookup.entrySet()
             .stream()
@@ -596,6 +605,11 @@ public final class RepositoryData {
     @Override
     public int hashCode() {
         return Objects.hash(snapshotIds, snapshotsDetails, indices, indexSnapshots, shardGenerations, indexMetaDataGenerations);
+    }
+
+    @Override
+    public String toString() {
+        return Strings.format("RepositoryData[uuid=%s,gen=%s]", uuid, genId);
     }
 
     /**
@@ -1146,7 +1160,7 @@ public final class RepositoryData {
      */
     public static class SnapshotDetails {
 
-        public static SnapshotDetails EMPTY = new SnapshotDetails(null, null, -1, -1, null);
+        public static final SnapshotDetails EMPTY = new SnapshotDetails(null, null, -1, -1, null);
 
         @Nullable // TODO forbid nulls here, this only applies to very old repositories
         private final SnapshotState snapshotState;

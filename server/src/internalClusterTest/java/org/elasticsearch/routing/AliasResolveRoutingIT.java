@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.routing;
@@ -33,7 +34,10 @@ public class AliasResolveRoutingIT extends ESIntegTestCase {
         createIndex("test-0");
         createIndex("test-1");
         ensureGreen();
-        indicesAdmin().prepareAliases().addAlias("test-0", "alias-0").addAlias("test-1", "alias-1").get();
+        indicesAdmin().prepareAliases(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT)
+            .addAlias("test-0", "alias-0")
+            .addAlias("test-1", "alias-1")
+            .get();
         indicesAdmin().prepareClose("test-1").get();
         indexRandom(
             true,
@@ -51,9 +55,9 @@ public class AliasResolveRoutingIT extends ESIntegTestCase {
     public void testResolveIndexRouting() {
         createIndex("test1");
         createIndex("test2");
-        clusterAdmin().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().get();
+        clusterAdmin().prepareHealth(TEST_REQUEST_TIMEOUT).setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().get();
 
-        indicesAdmin().prepareAliases()
+        indicesAdmin().prepareAliases(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT)
             .addAliasAction(AliasActions.add().index("test1").alias("alias"))
             .addAliasAction(AliasActions.add().index("test1").alias("alias10").routing("0"))
             .addAliasAction(AliasActions.add().index("test1").alias("alias110").searchRouting("1,0"))
@@ -64,25 +68,25 @@ public class AliasResolveRoutingIT extends ESIntegTestCase {
             .addAliasAction(AliasActions.add().index("test2").alias("alias0").routing("0"))
             .get();
 
-        assertThat(clusterService().state().metadata().resolveIndexRouting(null, "test1"), nullValue());
-        assertThat(clusterService().state().metadata().resolveIndexRouting(null, "alias"), nullValue());
+        assertThat(clusterService().state().metadata().getProject().resolveIndexRouting(null, "test1"), nullValue());
+        assertThat(clusterService().state().metadata().getProject().resolveIndexRouting(null, "alias"), nullValue());
 
-        assertThat(clusterService().state().metadata().resolveIndexRouting(null, "test1"), nullValue());
-        assertThat(clusterService().state().metadata().resolveIndexRouting(null, "alias10"), equalTo("0"));
-        assertThat(clusterService().state().metadata().resolveIndexRouting(null, "alias20"), equalTo("0"));
-        assertThat(clusterService().state().metadata().resolveIndexRouting(null, "alias21"), equalTo("1"));
-        assertThat(clusterService().state().metadata().resolveIndexRouting("3", "test1"), equalTo("3"));
-        assertThat(clusterService().state().metadata().resolveIndexRouting("0", "alias10"), equalTo("0"));
+        assertThat(clusterService().state().metadata().getProject().resolveIndexRouting(null, "test1"), nullValue());
+        assertThat(clusterService().state().metadata().getProject().resolveIndexRouting(null, "alias10"), equalTo("0"));
+        assertThat(clusterService().state().metadata().getProject().resolveIndexRouting(null, "alias20"), equalTo("0"));
+        assertThat(clusterService().state().metadata().getProject().resolveIndexRouting(null, "alias21"), equalTo("1"));
+        assertThat(clusterService().state().metadata().getProject().resolveIndexRouting("3", "test1"), equalTo("3"));
+        assertThat(clusterService().state().metadata().getProject().resolveIndexRouting("0", "alias10"), equalTo("0"));
 
         try {
-            clusterService().state().metadata().resolveIndexRouting("1", "alias10");
+            clusterService().state().metadata().getProject().resolveIndexRouting("1", "alias10");
             fail("should fail");
         } catch (IllegalArgumentException e) {
             // all is well, we can't have two mappings, one provided, and one in the alias
         }
 
         try {
-            clusterService().state().metadata().resolveIndexRouting(null, "alias0");
+            clusterService().state().metadata().getProject().resolveIndexRouting(null, "alias0");
             fail("should fail");
         } catch (IllegalArgumentException ex) {
             // Expected
@@ -93,9 +97,9 @@ public class AliasResolveRoutingIT extends ESIntegTestCase {
         createIndex("test1");
         createIndex("test2");
         createIndex("test3");
-        clusterAdmin().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().get();
+        clusterAdmin().prepareHealth(TEST_REQUEST_TIMEOUT).setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().get();
 
-        indicesAdmin().prepareAliases()
+        indicesAdmin().prepareAliases(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT)
             .addAliasAction(AliasActions.add().index("test1").alias("alias"))
             .addAliasAction(AliasActions.add().index("test1").alias("alias10").routing("0"))
             .addAliasAction(AliasActions.add().index("test2").alias("alias20").routing("0"))
@@ -197,7 +201,7 @@ public class AliasResolveRoutingIT extends ESIntegTestCase {
         );
 
         assertThat(
-            IndexNameExpressionResolver.resolveSearchRoutingAllIndices(state.metadata(), "0,1,2,tw , ltw , lw"),
+            IndexNameExpressionResolver.resolveSearchRoutingAllIndices(state.metadata().getProject(), "0,1,2,tw , ltw , lw"),
             equalTo(
                 newMap(
                     "test1",

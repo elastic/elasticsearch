@@ -24,10 +24,10 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
 import java.util.Set;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.LongSupplier;
-import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
@@ -60,7 +60,7 @@ public class StagnatingIndicesFinderTests extends ESTestCase {
             assertEquals(expectedMaxTimeOnStep, maxTimeOnStep);
             assertEquals(expectedMaxRetriesPerStep, maxRetriesPerStep);
             return rc;
-        }).collect(Collectors.toList());
+        }).toList();
         // Per the evaluator, the timeSupplier _must_ be called only twice
         when(mockedTimeSupplier.getAsLong()).thenReturn(instant, instant);
 
@@ -222,7 +222,7 @@ public class StagnatingIndicesFinderTests extends ESTestCase {
     }
 
     private static TimeValue randomTimeValueInDays() {
-        return TimeValue.parseTimeValue(randomTimeValue(1, 1000, "d"), "some.name");
+        return randomTimeValue(1, 1000, TimeUnit.DAYS);
     }
 
     private static IndexMetadata indexMetadataUnmanaged(String indexName) {

@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.common.util.concurrent;
@@ -441,22 +442,6 @@ public class DeterministicTaskQueueTests extends ESTestCase {
         taskQueue.runAllRunnableTasks();
 
         assertThat(strings, contains("periodic-0", "periodic-1", "periodic-2"));
-    }
-
-    public void testSameExecutor() {
-        final DeterministicTaskQueue taskQueue = new DeterministicTaskQueue();
-        final ThreadPool threadPool = taskQueue.getThreadPool();
-        final AtomicBoolean executed = new AtomicBoolean(false);
-        final AtomicBoolean executedNested = new AtomicBoolean(false);
-        threadPool.generic().execute(() -> {
-            final var executor = threadPool.executor(ThreadPool.Names.SAME);
-            assertSame(EsExecutors.DIRECT_EXECUTOR_SERVICE, executor);
-            executor.execute(() -> assertTrue(executedNested.compareAndSet(false, true)));
-            assertThat(executedNested.get(), is(true));
-            assertTrue(executed.compareAndSet(false, true));
-        });
-        taskQueue.runAllRunnableTasks();
-        assertThat(executed.get(), is(true));
     }
 
 }

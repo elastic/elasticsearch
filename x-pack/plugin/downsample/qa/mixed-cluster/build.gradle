@@ -1,0 +1,48 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
+ */
+
+import org.elasticsearch.gradle.VersionProperties
+import org.elasticsearch.gradle.testclusters.StandaloneRestIntegTestTask
+
+apply plugin: 'elasticsearch.internal-yaml-rest-test'
+apply plugin: 'elasticsearch.internal-test-artifact'
+apply plugin: 'elasticsearch.bwc-test'
+
+
+dependencies {
+  testImplementation project(path: ':test:test-clusters')
+  yamlRestTestImplementation project(path: xpackModule('rollup'))
+}
+
+restResources {
+  restApi {
+    include '_common', 'bulk', 'cluster', 'indices', 'search', 'ingest.put_pipeline', 'ingest.delete_pipeline'
+  }
+}
+
+def supportedVersion = bwcVersion -> {
+  return bwcVersion.onOrAfter("8.10.0") && bwcVersion != VersionProperties.elasticsearchVersion
+}
+
+buildParams.bwcVersions.withWireCompatible(supportedVersion) { bwcVersion, baseName ->
+
+  def yamlRestTest = tasks.register("v${bwcVersion}#yamlRestTest", StandaloneRestIntegTestTask) {
+    usesDefaultDistribution("BWC tests require full distribution for now")
+    usesBwcDistribution(bwcVersion)
+    systemProperty("tests.old_cluster_version", bwcVersion)
+    testClassesDirs = sourceSets.yamlRestTest.output.classesDirs
+    classpath = sourceSets.yamlRestTest.runtimeClasspath
+  }
+
+  tasks.register(bwcTaskName(bwcVersion)) {
+    dependsOn yamlRestTest
+  }
+}
+
+tasks.named("yamlRestTest") {
+  enabled = false
+}

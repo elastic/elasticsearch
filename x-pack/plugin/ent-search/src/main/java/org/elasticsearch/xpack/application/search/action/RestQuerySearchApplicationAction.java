@@ -14,12 +14,14 @@ import org.elasticsearch.rest.Scope;
 import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestCancellableNodeClient;
 import org.elasticsearch.rest.action.RestRefCountedChunkedToXContentListener;
+import org.elasticsearch.rest.action.search.RestSearchAction;
 import org.elasticsearch.xpack.application.EnterpriseSearch;
 import org.elasticsearch.xpack.application.EnterpriseSearchBaseRestHandler;
 import org.elasticsearch.xpack.application.utils.LicenseUtils;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Set;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
@@ -31,6 +33,7 @@ public class RestQuerySearchApplicationAction extends EnterpriseSearchBaseRestHa
     }
 
     public static final String ENDPOINT_PATH = "/" + EnterpriseSearch.SEARCH_APPLICATION_API_ENDPOINT + "/{name}" + "/_search";
+    public static final Set<String> RESPONSE_PARAMS = Set.of(RestSearchAction.TYPED_KEYS_PARAM);
 
     @Override
     public String getName() {
@@ -55,5 +58,10 @@ public class RestQuerySearchApplicationAction extends EnterpriseSearchBaseRestHa
             RestCancellableNodeClient cancelClient = new RestCancellableNodeClient(client, restRequest.getHttpChannel());
             cancelClient.execute(QuerySearchApplicationAction.INSTANCE, request, new RestRefCountedChunkedToXContentListener<>(channel));
         };
+    }
+
+    @Override
+    protected Set<String> responseParams() {
+        return RESPONSE_PARAMS;
     }
 }

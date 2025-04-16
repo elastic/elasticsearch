@@ -64,7 +64,7 @@ public class GetJobsStatsAction extends ActionType<GetJobsStatsAction.Response> 
 
         public static final String ALLOW_NO_MATCH = "allow_no_match";
 
-        private String jobId;
+        private final String jobId;
         private boolean allowNoMatch = true;
 
         // used internally to expand _all jobid to encapsulate all jobs in cluster:

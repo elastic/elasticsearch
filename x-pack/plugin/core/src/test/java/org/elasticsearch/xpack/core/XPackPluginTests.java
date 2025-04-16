@@ -18,6 +18,7 @@ import org.elasticsearch.common.component.Lifecycle;
 import org.elasticsearch.common.component.LifecycleListener;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.PathUtils;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.license.ClusterStateLicenseService;
 import org.elasticsearch.license.License;
@@ -142,7 +143,7 @@ public class XPackPluginTests extends ESTestCase {
 
         Environment mockEnvironment = mock(Environment.class);
         when(mockEnvironment.settings()).thenReturn(Settings.builder().build());
-        when(mockEnvironment.configFile()).thenReturn(PathUtils.get(""));
+        when(mockEnvironment.configDir()).thenReturn(PathUtils.get(""));
         // ensure createComponents does not influence the results
         Plugin.PluginServices services = mock(Plugin.PluginServices.class);
         when(services.clusterService()).thenReturn(mock(ClusterService.class));
@@ -186,7 +187,7 @@ public class XPackPluginTests extends ESTestCase {
         });
         Environment mockEnvironment = mock(Environment.class);
         when(mockEnvironment.settings()).thenReturn(Settings.builder().build());
-        when(mockEnvironment.configFile()).thenReturn(PathUtils.get(""));
+        when(mockEnvironment.configDir()).thenReturn(PathUtils.get(""));
         Plugin.PluginServices services = mock(Plugin.PluginServices.class);
         when(services.clusterService()).thenReturn(mock(ClusterService.class));
         when(services.threadPool()).thenReturn(mock(ThreadPool.class));
@@ -211,7 +212,11 @@ public class XPackPluginTests extends ESTestCase {
         public void registerLicense(PutLicenseRequest request, ActionListener<PutLicenseResponse> listener) {}
 
         @Override
-        public void removeLicense(ActionListener<? extends AcknowledgedResponse> listener) {}
+        public void removeLicense(
+            TimeValue masterNodeTimeout,
+            TimeValue ackTimeout,
+            ActionListener<? extends AcknowledgedResponse> listener
+        ) {}
 
         @Override
         public void startBasicLicense(PostStartBasicRequest request, ActionListener<PostStartBasicResponse> listener) {}

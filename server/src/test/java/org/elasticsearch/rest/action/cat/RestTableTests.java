@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.rest.action.cat;
@@ -200,7 +201,7 @@ public class RestTableTests extends ESTestCase {
         table.addCell("compare");
         table.endHeaders();
         restRequest.params().put("s", "notaheader");
-        Exception e = expectThrows(UnsupportedOperationException.class, () -> RestTable.getRowOrder(table, restRequest));
+        Exception e = expectThrows(IllegalArgumentException.class, () -> RestTable.getRowOrder(table, restRequest));
         assertEquals("Unable to sort by unknown sort key `notaheader`", e.getMessage());
     }
 
@@ -432,14 +433,15 @@ public class RestTableTests extends ESTestCase {
         };
 
         final var bodyChunks = new ArrayList<String>();
-        final var chunkedRestResponseBody = response.chunkedContent();
+        final var firstBodyPart = response.chunkedContent();
 
-        while (chunkedRestResponseBody.isDone() == false) {
-            try (var chunk = chunkedRestResponseBody.encodeChunk(pageSize, recycler)) {
+        while (firstBodyPart.isPartComplete() == false) {
+            try (var chunk = firstBodyPart.encodeChunk(pageSize, recycler)) {
                 assertThat(chunk.length(), greaterThan(0));
                 bodyChunks.add(chunk.utf8ToString());
             }
         }
+        assertTrue(firstBodyPart.isLastPart());
         assertEquals(0, openPages.get());
         return bodyChunks;
     }

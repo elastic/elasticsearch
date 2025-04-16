@@ -13,6 +13,7 @@ import org.apache.lucene.index.TermState;
 import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.util.AttributeSource;
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.IOBooleanSupplier;
 import org.elasticsearch.index.mapper.MappedFieldType;
 
 import java.io.IOException;
@@ -66,6 +67,11 @@ public class SimpleTermCountEnum extends TermsEnum {
 
     @Override
     public AttributeSource attributes() {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public IOBooleanSupplier prepareSeekExact(BytesRef bytesRef) throws IOException {
         throw new UnsupportedOperationException();
     }
 

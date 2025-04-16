@@ -1,5 +1,0 @@
-pr: 103646
-summary: Add index mapping parameter for `counted_keyword`
-area: Aggregations
-type: enhancement
-issues: []

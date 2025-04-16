@@ -233,9 +233,49 @@ public class ProgressListenableActionFutureTests extends ESTestCase {
         assertThat(future.isDone(), is(true));
     }
 
+    public void testLongConsumerCalledOnProgressUpdate() {
+        // min length of 2 to have at least one progress update before reaching the end
+        long length = randomLongBetween(2L, ByteSizeUnit.TB.toBytes(1L));
+        long start = randomLongBetween(Long.MIN_VALUE, Long.MAX_VALUE - length);
+        long end = start + length;
+
+        var consumed = new HashSet<Long>();
+        var future = new ProgressListenableActionFuture(
+            start,
+            end,
+            p -> assertThat("LongConsumer should not consumed the same value twice", consumed.add(p), equalTo(true))
+        );
+
+        long position = start;
+        int iters = randomIntBetween(10, 25);
+        for (int i = 0; i < iters && position < end - 1L; i++) {
+            var progress = randomLongBetween(position + 1L, end - 1L);
+
+            var listener = new PlainActionFuture<Long>();
+            future.addListener(
+                ActionListener.runBefore(
+                    listener,
+                    () -> assertThat(
+                        "LongConsumer should have been called before listener completion",
+                        consumed.contains(progress),
+                        equalTo(true)
+                    )
+                ),
+                randomLongBetween(position + 1L, progress)
+            );
+            future.onProgress(progress);
+
+            assertThat(consumed.contains(progress), equalTo(true));
+            assertThat(listener.isDone(), equalTo(true));
+            position = progress;
+        }
+        future.onProgress(end);
+        assertThat("LongConsumer is not called when progress is updated to the end", consumed.contains(end), equalTo(false));
+    }
+
     private static ProgressListenableActionFuture randomFuture() {
         final long delta = randomLongBetween(1L, ByteSizeUnit.TB.toBytes(1L));
         final long start = randomLongBetween(Long.MIN_VALUE, Long.MAX_VALUE - delta);
-        return new ProgressListenableActionFuture(start, start + delta);
+        return new ProgressListenableActionFuture(start, start + delta, null);
     }
 }

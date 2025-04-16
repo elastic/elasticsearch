@@ -8,16 +8,16 @@
 package org.elasticsearch.compute.data;
 
 import org.elasticsearch.TransportVersions;
-import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.core.ReleasableIterator;
 import org.elasticsearch.index.mapper.BlockLoader;
 
 import java.io.IOException;
 
 /**
  * Block that stores int values.
- * This class is generated. Do not edit it.
+ * This class is generated. Edit {@code X-Block.java.st} instead.
  */
 public sealed interface IntBlock extends Block permits IntArrayBlock, IntVectorBlock, ConstantNullBlock, IntBigArrayBlock {
 
@@ -39,22 +39,21 @@ public sealed interface IntBlock extends Block permits IntArrayBlock, IntVectorB
     IntBlock filter(int... positions);
 
     @Override
-    default String getWriteableName() {
-        return "IntBlock";
-    }
+    IntBlock keepMask(BooleanVector mask);
 
-    NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Block.class, "IntBlock", IntBlock::readFrom);
+    @Override
+    ReleasableIterator<? extends IntBlock> lookup(IntBlock positions, ByteSizeValue targetBlockSize);
 
-    private static IntBlock readFrom(StreamInput in) throws IOException {
-        return readFrom((BlockStreamInput) in);
-    }
+    @Override
+    IntBlock expand();
 
-    private static IntBlock readFrom(BlockStreamInput in) throws IOException {
+    static IntBlock readFrom(BlockStreamInput in) throws IOException {
         final byte serializationType = in.readByte();
         return switch (serializationType) {
             case SERIALIZE_BLOCK_VALUES -> IntBlock.readValues(in);
             case SERIALIZE_BLOCK_VECTOR -> IntVector.readFrom(in.blockFactory(), in).asBlock();
             case SERIALIZE_BLOCK_ARRAY -> IntArrayBlock.readArrayBlock(in.blockFactory(), in);
+            case SERIALIZE_BLOCK_BIG_ARRAY -> IntBigArrayBlock.readArrayBlock(in.blockFactory(), in);
             default -> {
                 assert false : "invalid block serialization type " + serializationType;
                 throw new IllegalStateException("invalid serialization type " + serializationType);
@@ -88,8 +87,11 @@ public sealed interface IntBlock extends Block permits IntArrayBlock, IntVectorB
         if (vector != null) {
             out.writeByte(SERIALIZE_BLOCK_VECTOR);
             vector.writeTo(out);
-        } else if (version.onOrAfter(TransportVersions.ESQL_SERIALIZE_ARRAY_BLOCK) && this instanceof IntArrayBlock b) {
+        } else if (version.onOrAfter(TransportVersions.V_8_14_0) && this instanceof IntArrayBlock b) {
             out.writeByte(SERIALIZE_BLOCK_ARRAY);
+            b.writeArrayBlock(out);
+        } else if (version.onOrAfter(TransportVersions.V_8_14_0) && this instanceof IntBigArrayBlock b) {
+            out.writeByte(SERIALIZE_BLOCK_BIG_ARRAY);
             b.writeArrayBlock(out);
         } else {
             out.writeByte(SERIALIZE_BLOCK_VALUES);
@@ -201,6 +203,14 @@ public sealed interface IntBlock extends Block permits IntArrayBlock, IntVectorB
          */
         Builder copyFrom(IntBlock block, int beginInclusive, int endExclusive);
 
+        /**
+         * Copy the values in {@code block} at {@code position}. If this position
+         * has a single value, this'll copy a single value. If this positions has
+         * many values, it'll copy all of them. If this is {@code null}, then it'll
+         * copy the {@code null}.
+         */
+        Builder copyFrom(IntBlock block, int position);
+
         @Override
         Builder appendNull();
 
@@ -215,19 +225,6 @@ public sealed interface IntBlock extends Block permits IntArrayBlock, IntVectorB
 
         @Override
         Builder mvOrdering(Block.MvOrdering mvOrdering);
-
-        /**
-         * Appends the all values of the given block into a the current position
-         * in this builder.
-         */
-        @Override
-        Builder appendAllValuesToCurrentPosition(Block block);
-
-        /**
-         * Appends the all values of the given block into a the current position
-         * in this builder.
-         */
-        Builder appendAllValuesToCurrentPosition(IntBlock block);
 
         @Override
         IntBlock build();

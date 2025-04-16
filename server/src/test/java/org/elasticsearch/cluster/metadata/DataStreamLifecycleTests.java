@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.cluster.metadata;
@@ -17,8 +18,8 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
 import org.elasticsearch.test.AbstractXContentSerializingTestCase;
 import org.elasticsearch.test.ESTestCase;
@@ -30,11 +31,17 @@ import org.elasticsearch.xcontent.XContentType;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.TimeUnit;
 import java.util.stream.Stream;
 
+import static org.elasticsearch.cluster.metadata.DataStreamLifecycle.RetentionSource.DATA_STREAM_CONFIGURATION;
+import static org.elasticsearch.cluster.metadata.DataStreamLifecycle.RetentionSource.DEFAULT_GLOBAL_RETENTION;
+import static org.elasticsearch.cluster.metadata.DataStreamLifecycle.RetentionSource.MAX_GLOBAL_RETENTION;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
 
 public class DataStreamLifecycleTests extends AbstractXContentSerializingTestCase<DataStreamLifecycle> {
@@ -51,50 +58,29 @@ public class DataStreamLifecycleTests extends AbstractXContentSerializingTestCas
 
     @Override
     protected DataStreamLifecycle mutateInstance(DataStreamLifecycle instance) throws IOException {
-        var enabled = instance.isEnabled();
-        var retention = instance.getDataRetention();
-        var downsampling = instance.getDownsampling();
+        var enabled = instance.enabled();
+        var retention = instance.dataRetention();
+        var downsampling = instance.downsampling();
         switch (randomInt(2)) {
             case 0 -> {
-                if (retention == null || retention == DataStreamLifecycle.Retention.NULL) {
-                    retention = randomValueOtherThan(retention, DataStreamLifecycleTests::randomRetention);
+                if (retention == null) {
+                    retention = randomPositiveTimeValue();
                 } else {
-                    retention = switch (randomInt(2)) {
-                        case 0 -> null;
-                        case 1 -> DataStreamLifecycle.Retention.NULL;
-                        default -> new DataStreamLifecycle.Retention(
-                            TimeValue.timeValueMillis(
-                                randomValueOtherThan(retention.value().millis(), ESTestCase::randomMillisUpToYear9999)
-                            )
-                        );
-                    };
+                    retention = randomBoolean() ? null : randomValueOtherThan(retention, ESTestCase::randomPositiveTimeValue);
                 }
             }
             case 1 -> {
-                if (downsampling == null || downsampling == DataStreamLifecycle.Downsampling.NULL) {
-                    downsampling = randomValueOtherThan(downsampling, DataStreamLifecycleTests::randomDownsampling);
+                if (downsampling == null) {
+                    downsampling = randomDownsampling();
                 } else {
-                    downsampling = switch (randomInt(2)) {
-                        case 0 -> null;
-                        case 1 -> DataStreamLifecycle.Downsampling.NULL;
-                        default -> {
-                            if (downsampling.rounds().size() == 1) {
-                                yield new DataStreamLifecycle.Downsampling(
-                                    List.of(downsampling.rounds().get(0), nextRound(downsampling.rounds().get(0)))
-                                );
-
-                            } else {
-                                var updatedRounds = new ArrayList<>(downsampling.rounds());
-                                updatedRounds.remove(randomInt(downsampling.rounds().size() - 1));
-                                yield new DataStreamLifecycle.Downsampling(updatedRounds);
-                            }
-                        }
-                    };
+                    downsampling = randomBoolean()
+                        ? null
+                        : randomValueOtherThan(downsampling, DataStreamLifecycleTests::randomDownsampling);
                 }
             }
             default -> enabled = enabled == false;
         }
-        return DataStreamLifecycle.newBuilder().dataRetention(retention).downsampling(downsampling).enabled(enabled).build();
+        return new DataStreamLifecycle(enabled, retention, downsampling);
     }
 
     @Override
@@ -102,15 +88,17 @@ public class DataStreamLifecycleTests extends AbstractXContentSerializingTestCas
         return DataStreamLifecycle.fromXContent(parser);
     }
 
-    public void testXContentSerializationWithRollover() throws IOException {
+    public void testXContentSerializationWithRolloverAndEffectiveRetention() throws IOException {
         DataStreamLifecycle lifecycle = createTestInstance();
         try (XContentBuilder builder = XContentBuilder.builder(XContentType.JSON.xContent())) {
             builder.humanReadable(true);
             RolloverConfiguration rolloverConfiguration = RolloverConfigurationTests.randomRolloverConditions();
-            lifecycle.toXContent(builder, ToXContent.EMPTY_PARAMS, rolloverConfiguration);
+            DataStreamGlobalRetention globalRetention = DataStreamGlobalRetentionTests.randomGlobalRetention();
+            ToXContent.Params withEffectiveRetention = new ToXContent.MapParams(DataStreamLifecycle.INCLUDE_EFFECTIVE_RETENTION_PARAMS);
+            lifecycle.toXContent(builder, withEffectiveRetention, rolloverConfiguration, globalRetention, false);
             String serialized = Strings.toString(builder);
             assertThat(serialized, containsString("rollover"));
-            for (String label : rolloverConfiguration.resolveRolloverConditions(lifecycle.getEffectiveDataRetention())
+            for (String label : rolloverConfiguration.resolveRolloverConditions(lifecycle.getEffectiveDataRetention(globalRetention, false))
                 .getConditions()
                 .keySet()) {
                 assertThat(serialized, containsString(label));
@@ -119,6 +107,35 @@ public class DataStreamLifecycleTests extends AbstractXContentSerializingTestCas
             if (rolloverConfiguration.getAutomaticConditions().isEmpty() == false) {
                 assertThat(serialized, containsString("[automatic]"));
             }
+            // We check that even if there was no retention provided by the user, the global retention applies
+            if (lifecycle.dataRetention() == null) {
+                assertThat(serialized, not(containsString("data_retention")));
+            } else {
+                assertThat(serialized, containsString("data_retention"));
+            }
+            boolean globalRetentionIsNotNull = globalRetention.defaultRetention() != null || globalRetention.maxRetention() != null;
+            boolean configuredLifeCycleIsNotNull = lifecycle.dataRetention() != null;
+            if (lifecycle.enabled() && (globalRetentionIsNotNull || configuredLifeCycleIsNotNull)) {
+                assertThat(serialized, containsString("effective_retention"));
+            } else {
+                assertThat(serialized, not(containsString("effective_retention")));
+            }
+        }
+    }
+
+    public void testXContentDeSerializationWithNullValues() throws IOException {
+        String lifecycleJson = """
+            {
+              "data_retention": null,
+              "downsampling": null
+            }
+            """;
+        try (XContentParser parser = createParser(XContentType.JSON.xContent(), lifecycleJson)) {
+            assertEquals(XContentParser.Token.START_OBJECT, parser.nextToken());
+            var parsed = DataStreamLifecycle.fromXContent(parser);
+            assertEquals(XContentParser.Token.END_OBJECT, parser.currentToken());
+            assertNull(parser.nextToken());
+            assertThat(parsed, equalTo(DataStreamLifecycle.DEFAULT_DATA_LIFECYCLE));
         }
     }
 
@@ -155,18 +172,20 @@ public class DataStreamLifecycleTests extends AbstractXContentSerializingTestCas
         {
             IllegalArgumentException exception = expectThrows(
                 IllegalArgumentException.class,
-                () -> new DataStreamLifecycle.Downsampling(
-                    List.of(
-                        new DataStreamLifecycle.Downsampling.Round(
-                            TimeValue.timeValueDays(10),
-                            new DownsampleConfig(new DateHistogramInterval("2h"))
-                        ),
-                        new DataStreamLifecycle.Downsampling.Round(
-                            TimeValue.timeValueDays(3),
-                            new DownsampleConfig(new DateHistogramInterval("2h"))
+                () -> DataStreamLifecycle.builder()
+                    .downsampling(
+                        List.of(
+                            new DataStreamLifecycle.DownsamplingRound(
+                                TimeValue.timeValueDays(10),
+                                new DownsampleConfig(new DateHistogramInterval("2h"))
+                            ),
+                            new DataStreamLifecycle.DownsamplingRound(
+                                TimeValue.timeValueDays(3),
+                                new DownsampleConfig(new DateHistogramInterval("2h"))
+                            )
                         )
                     )
-                )
+                    .build()
             );
             assertThat(
                 exception.getMessage(),
@@ -176,60 +195,66 @@ public class DataStreamLifecycleTests extends AbstractXContentSerializingTestCas
         {
             IllegalArgumentException exception = expectThrows(
                 IllegalArgumentException.class,
-                () -> new DataStreamLifecycle.Downsampling(
-                    List.of(
-                        new DataStreamLifecycle.Downsampling.Round(
-                            TimeValue.timeValueDays(10),
-                            new DownsampleConfig(new DateHistogramInterval("2h"))
-                        ),
-                        new DataStreamLifecycle.Downsampling.Round(
-                            TimeValue.timeValueDays(30),
-                            new DownsampleConfig(new DateHistogramInterval("2h"))
+                () -> DataStreamLifecycle.builder()
+                    .downsampling(
+                        List.of(
+                            new DataStreamLifecycle.DownsamplingRound(
+                                TimeValue.timeValueDays(10),
+                                new DownsampleConfig(new DateHistogramInterval("2h"))
+                            ),
+                            new DataStreamLifecycle.DownsamplingRound(
+                                TimeValue.timeValueDays(30),
+                                new DownsampleConfig(new DateHistogramInterval("2h"))
+                            )
                         )
                     )
-                )
+                    .build()
             );
             assertThat(exception.getMessage(), equalTo("Downsampling interval [2h] must be greater than the source index interval [2h]."));
         }
         {
             IllegalArgumentException exception = expectThrows(
                 IllegalArgumentException.class,
-                () -> new DataStreamLifecycle.Downsampling(
-                    List.of(
-                        new DataStreamLifecycle.Downsampling.Round(
-                            TimeValue.timeValueDays(10),
-                            new DownsampleConfig(new DateHistogramInterval("2h"))
-                        ),
-                        new DataStreamLifecycle.Downsampling.Round(
-                            TimeValue.timeValueDays(30),
-                            new DownsampleConfig(new DateHistogramInterval("3h"))
+                () -> DataStreamLifecycle.builder()
+                    .downsampling(
+                        List.of(
+                            new DataStreamLifecycle.DownsamplingRound(
+                                TimeValue.timeValueDays(10),
+                                new DownsampleConfig(new DateHistogramInterval("2h"))
+                            ),
+                            new DataStreamLifecycle.DownsamplingRound(
+                                TimeValue.timeValueDays(30),
+                                new DownsampleConfig(new DateHistogramInterval("3h"))
+                            )
                         )
                     )
-                )
+                    .build()
             );
             assertThat(exception.getMessage(), equalTo("Downsampling interval [3h] must be a multiple of the source index interval [2h]."));
         }
         {
             IllegalArgumentException exception = expectThrows(
                 IllegalArgumentException.class,
-                () -> new DataStreamLifecycle.Downsampling(List.of())
+                () -> DataStreamLifecycle.builder().downsampling((List.of())).build()
             );
             assertThat(exception.getMessage(), equalTo("Downsampling configuration should have at least one round configured."));
         }
         {
             IllegalArgumentException exception = expectThrows(
                 IllegalArgumentException.class,
-                () -> new DataStreamLifecycle.Downsampling(
-                    Stream.iterate(1, i -> i * 2)
-                        .limit(12)
-                        .map(
-                            i -> new DataStreamLifecycle.Downsampling.Round(
-                                TimeValue.timeValueDays(i),
-                                new DownsampleConfig(new DateHistogramInterval(i + "h"))
+                () -> DataStreamLifecycle.builder()
+                    .downsampling(
+                        Stream.iterate(1, i -> i * 2)
+                            .limit(12)
+                            .map(
+                                i -> new DataStreamLifecycle.DownsamplingRound(
+                                    TimeValue.timeValueDays(i),
+                                    new DownsampleConfig(new DateHistogramInterval(i + "h"))
+                                )
                             )
-                        )
-                        .toList()
-                )
+                            .toList()
+                    )
+                    .build()
             );
             assertThat(exception.getMessage(), equalTo("Downsampling configuration supports maximum 10 configured rounds. Found: 12"));
         }
@@ -237,14 +262,16 @@ public class DataStreamLifecycleTests extends AbstractXContentSerializingTestCas
         {
             IllegalArgumentException exception = expectThrows(
                 IllegalArgumentException.class,
-                () -> new DataStreamLifecycle.Downsampling(
-                    List.of(
-                        new DataStreamLifecycle.Downsampling.Round(
-                            TimeValue.timeValueDays(10),
-                            new DownsampleConfig(new DateHistogramInterval("2m"))
+                () -> DataStreamLifecycle.builder()
+                    .downsampling(
+                        List.of(
+                            new DataStreamLifecycle.DownsamplingRound(
+                                TimeValue.timeValueDays(10),
+                                new DownsampleConfig(new DateHistogramInterval("2m"))
+                            )
                         )
                     )
-                )
+                    .build()
             );
             assertThat(
                 exception.getMessage(),
@@ -253,52 +280,153 @@ public class DataStreamLifecycleTests extends AbstractXContentSerializingTestCas
         }
     }
 
-    @Nullable
+    public void testEffectiveRetention() {
+        // No retention in the data stream lifecycle
+        {
+            DataStreamLifecycle noRetentionLifecycle = DataStreamLifecycle.builder().downsampling(randomDownsampling()).build();
+            TimeValue maxRetention = TimeValue.timeValueDays(randomIntBetween(50, 100));
+            TimeValue defaultRetention = TimeValue.timeValueDays(randomIntBetween(1, 50));
+            Tuple<TimeValue, DataStreamLifecycle.RetentionSource> effectiveDataRetentionWithSource = noRetentionLifecycle
+                .getEffectiveDataRetentionWithSource(null, randomBoolean());
+            assertThat(effectiveDataRetentionWithSource.v1(), nullValue());
+            assertThat(effectiveDataRetentionWithSource.v2(), equalTo(DATA_STREAM_CONFIGURATION));
+
+            effectiveDataRetentionWithSource = noRetentionLifecycle.getEffectiveDataRetentionWithSource(
+                new DataStreamGlobalRetention(null, maxRetention),
+                false
+            );
+            assertThat(effectiveDataRetentionWithSource.v1(), equalTo(maxRetention));
+            assertThat(effectiveDataRetentionWithSource.v2(), equalTo(MAX_GLOBAL_RETENTION));
+
+            effectiveDataRetentionWithSource = noRetentionLifecycle.getEffectiveDataRetentionWithSource(
+                new DataStreamGlobalRetention(defaultRetention, null),
+                false
+            );
+            assertThat(effectiveDataRetentionWithSource.v1(), equalTo(defaultRetention));
+            assertThat(effectiveDataRetentionWithSource.v2(), equalTo(DEFAULT_GLOBAL_RETENTION));
+
+            effectiveDataRetentionWithSource = noRetentionLifecycle.getEffectiveDataRetentionWithSource(
+                new DataStreamGlobalRetention(defaultRetention, maxRetention),
+                false
+            );
+            assertThat(effectiveDataRetentionWithSource.v1(), equalTo(defaultRetention));
+            assertThat(effectiveDataRetentionWithSource.v2(), equalTo(DEFAULT_GLOBAL_RETENTION));
+        }
+
+        // With retention in the data stream lifecycle
+        {
+            TimeValue dataStreamRetention = TimeValue.timeValueDays(randomIntBetween(5, 100));
+            DataStreamLifecycle lifecycleRetention = DataStreamLifecycle.builder()
+                .dataRetention(dataStreamRetention)
+                .downsampling(randomDownsampling())
+                .build();
+            TimeValue defaultRetention = TimeValue.timeValueDays(randomIntBetween(1, (int) dataStreamRetention.getDays() - 1));
+
+            Tuple<TimeValue, DataStreamLifecycle.RetentionSource> effectiveDataRetentionWithSource = lifecycleRetention
+                .getEffectiveDataRetentionWithSource(null, randomBoolean());
+            assertThat(effectiveDataRetentionWithSource.v1(), equalTo(dataStreamRetention));
+            assertThat(effectiveDataRetentionWithSource.v2(), equalTo(DATA_STREAM_CONFIGURATION));
+
+            effectiveDataRetentionWithSource = lifecycleRetention.getEffectiveDataRetentionWithSource(
+                new DataStreamGlobalRetention(defaultRetention, null),
+                false
+            );
+            assertThat(effectiveDataRetentionWithSource.v1(), equalTo(dataStreamRetention));
+            assertThat(effectiveDataRetentionWithSource.v2(), equalTo(DATA_STREAM_CONFIGURATION));
+
+            TimeValue maxGlobalRetention = randomBoolean() ? dataStreamRetention : TimeValue.timeValueDays(dataStreamRetention.days() + 1);
+            effectiveDataRetentionWithSource = lifecycleRetention.getEffectiveDataRetentionWithSource(
+                new DataStreamGlobalRetention(defaultRetention, maxGlobalRetention),
+                false
+            );
+            assertThat(effectiveDataRetentionWithSource.v1(), equalTo(dataStreamRetention));
+            assertThat(effectiveDataRetentionWithSource.v2(), equalTo(DATA_STREAM_CONFIGURATION));
+
+            TimeValue maxRetentionLessThanDataStream = TimeValue.timeValueDays(dataStreamRetention.days() - 1);
+            effectiveDataRetentionWithSource = lifecycleRetention.getEffectiveDataRetentionWithSource(
+                new DataStreamGlobalRetention(
+                    randomBoolean()
+                        ? null
+                        : TimeValue.timeValueDays(randomIntBetween(1, (int) (maxRetentionLessThanDataStream.days() - 1))),
+                    maxRetentionLessThanDataStream
+                ),
+                false
+            );
+            assertThat(effectiveDataRetentionWithSource.v1(), equalTo(maxRetentionLessThanDataStream));
+            assertThat(effectiveDataRetentionWithSource.v2(), equalTo(MAX_GLOBAL_RETENTION));
+        }
+
+        // Global retention does not apply to internal data streams
+        {
+            // Pick the values in such a way that global retention should have kicked in
+            boolean dataStreamWithRetention = randomBoolean();
+            TimeValue dataStreamRetention = dataStreamWithRetention ? TimeValue.timeValueDays(365) : null;
+            DataStreamGlobalRetention globalRetention = new DataStreamGlobalRetention(
+                TimeValue.timeValueDays(7),
+                TimeValue.timeValueDays(90)
+            );
+            DataStreamLifecycle lifecycle = DataStreamLifecycle.builder().dataRetention(dataStreamRetention).build();
+
+            // Verify that global retention should have kicked in
+            var effectiveDataRetentionWithSource = lifecycle.getEffectiveDataRetentionWithSource(globalRetention, false);
+            if (dataStreamWithRetention) {
+                assertThat(effectiveDataRetentionWithSource.v1(), equalTo(globalRetention.maxRetention()));
+                assertThat(effectiveDataRetentionWithSource.v2(), equalTo(MAX_GLOBAL_RETENTION));
+            } else {
+                assertThat(effectiveDataRetentionWithSource.v1(), equalTo(globalRetention.defaultRetention()));
+                assertThat(effectiveDataRetentionWithSource.v2(), equalTo(DEFAULT_GLOBAL_RETENTION));
+            }
+
+            // Now verify that internal data streams do not use global retention
+            // Verify that global retention should have kicked in
+            effectiveDataRetentionWithSource = lifecycle.getEffectiveDataRetentionWithSource(globalRetention, true);
+            if (dataStreamWithRetention) {
+                assertThat(effectiveDataRetentionWithSource.v1(), equalTo(dataStreamRetention));
+            } else {
+                assertThat(effectiveDataRetentionWithSource.v1(), nullValue());
+            }
+            assertThat(effectiveDataRetentionWithSource.v2(), equalTo(DATA_STREAM_CONFIGURATION));
+        }
+    }
+
+    public void testEffectiveRetentionParams() {
+        Map<String, String> initialParams = randomMap(0, 10, () -> Tuple.tuple(randomAlphaOfLength(10), randomAlphaOfLength(10)));
+        ToXContent.Params params = DataStreamLifecycle.addEffectiveRetentionParams(new ToXContent.MapParams(initialParams));
+        assertThat(params.paramAsBoolean(DataStreamLifecycle.INCLUDE_EFFECTIVE_RETENTION_PARAM_NAME, false), equalTo(true));
+        for (String key : initialParams.keySet()) {
+            assertThat(initialParams.get(key), equalTo(params.param(key)));
+        }
+    }
+
     public static DataStreamLifecycle randomLifecycle() {
-        return DataStreamLifecycle.newBuilder()
-            .dataRetention(randomRetention())
-            .downsampling(randomDownsampling())
-            .enabled(frequently())
+        return DataStreamLifecycle.builder()
+            .dataRetention(randomBoolean() ? null : randomTimeValue(1, 365, TimeUnit.DAYS))
+            .downsampling(randomBoolean() ? null : randomDownsampling())
+            .enabled(randomBoolean())
             .build();
     }
 
-    @Nullable
-    private static DataStreamLifecycle.Retention randomRetention() {
-        return switch (randomInt(2)) {
-            case 0 -> null;
-            case 1 -> DataStreamLifecycle.Retention.NULL;
-            default -> new DataStreamLifecycle.Retention(TimeValue.timeValueMillis(randomMillisUpToYear9999()));
-        };
+    static List<DataStreamLifecycle.DownsamplingRound> randomDownsampling() {
+        var count = randomIntBetween(0, 9);
+        List<DataStreamLifecycle.DownsamplingRound> rounds = new ArrayList<>();
+        var previous = new DataStreamLifecycle.DownsamplingRound(
+            randomTimeValue(1, 365, TimeUnit.DAYS),
+            new DownsampleConfig(new DateHistogramInterval(randomIntBetween(1, 24) + "h"))
+        );
+        rounds.add(previous);
+        for (int i = 0; i < count; i++) {
+            DataStreamLifecycle.DownsamplingRound round = nextRound(previous);
+            rounds.add(round);
+            previous = round;
+        }
+        return rounds;
     }
 
-    @Nullable
-    private static DataStreamLifecycle.Downsampling randomDownsampling() {
-        return switch (randomInt(2)) {
-            case 0 -> null;
-            case 1 -> DataStreamLifecycle.Downsampling.NULL;
-            default -> {
-                var count = randomIntBetween(0, 9);
-                List<DataStreamLifecycle.Downsampling.Round> rounds = new ArrayList<>();
-                var previous = new DataStreamLifecycle.Downsampling.Round(
-                    TimeValue.timeValueDays(randomIntBetween(1, 365)),
-                    new DownsampleConfig(new DateHistogramInterval(randomIntBetween(1, 24) + "h"))
-                );
-                rounds.add(previous);
-                for (int i = 0; i < count; i++) {
-                    DataStreamLifecycle.Downsampling.Round round = nextRound(previous);
-                    rounds.add(round);
-                    previous = round;
-                }
-                yield new DataStreamLifecycle.Downsampling(rounds);
-            }
-        };
-    }
-
-    private static DataStreamLifecycle.Downsampling.Round nextRound(DataStreamLifecycle.Downsampling.Round previous) {
+    private static DataStreamLifecycle.DownsamplingRound nextRound(DataStreamLifecycle.DownsamplingRound previous) {
         var after = TimeValue.timeValueDays(previous.after().days() + randomIntBetween(1, 10));
         var fixedInterval = new DownsampleConfig(
             new DateHistogramInterval((previous.config().getFixedInterval().estimateMillis() * randomIntBetween(2, 5)) + "ms")
         );
-        return new DataStreamLifecycle.Downsampling.Round(after, fixedInterval);
+        return new DataStreamLifecycle.DownsamplingRound(after, fixedInterval);
     }
 }

@@ -7,11 +7,13 @@
 
 package org.elasticsearch.compute.data;
 
+import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.core.ReleasableIterator;
 import org.elasticsearch.core.Releasables;
 
 /**
  * Block view of a {@link DoubleVector}. Cannot represent multi-values or nulls.
- * This class is generated. Do not edit it.
+ * This class is generated. Edit {@code X-VectorBlock.java.st} instead.
  */
 public final class DoubleVectorBlock extends AbstractVectorBlock implements DoubleBlock {
 
@@ -47,6 +49,22 @@ public final class DoubleVectorBlock extends AbstractVectorBlock implements Doub
     @Override
     public DoubleBlock filter(int... positions) {
         return vector.filter(positions).asBlock();
+    }
+
+    @Override
+    public DoubleBlock keepMask(BooleanVector mask) {
+        return vector.keepMask(mask);
+    }
+
+    @Override
+    public ReleasableIterator<? extends DoubleBlock> lookup(IntBlock positions, ByteSizeValue targetBlockSize) {
+        return vector.lookup(positions, targetBlockSize);
+    }
+
+    @Override
+    public DoubleBlock expand() {
+        incRef();
+        return this;
     }
 
     @Override

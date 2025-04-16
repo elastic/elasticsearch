@@ -15,9 +15,10 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.LifecycleExecutionState;
-import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.xcontent.ToXContentObject;
@@ -122,14 +123,14 @@ public final class IndexLifecycleTransition {
         PolicyStepsRegistry stepRegistry,
         boolean forcePhaseDefinitionRefresh
     ) {
-        IndexMetadata idxMeta = state.getMetadata().index(index);
+        IndexMetadata idxMeta = state.getMetadata().getProject().index(index);
         Step.StepKey currentStepKey = Step.getCurrentStepKey(idxMeta.getLifecycleExecutionState());
         validateTransition(idxMeta, currentStepKey, newStepKey, stepRegistry);
 
         String policyName = idxMeta.getLifecyclePolicyName();
         logger.info("moving index [{}] from [{}] to [{}] in policy [{}]", index.getName(), currentStepKey, newStepKey, policyName);
 
-        IndexLifecycleMetadata ilmMeta = state.metadata().custom(IndexLifecycleMetadata.TYPE);
+        IndexLifecycleMetadata ilmMeta = state.metadata().getProject().custom(IndexLifecycleMetadata.TYPE);
         LifecyclePolicyMetadata policyMetadata = ilmMeta.getPolicyMetadatas().get(idxMeta.getLifecyclePolicyName());
         LifecycleExecutionState lifecycleState = idxMeta.getLifecycleExecutionState();
         LifecycleExecutionState newLifecycleState = updateExecutionStateToStep(
@@ -137,7 +138,8 @@ public final class IndexLifecycleTransition {
             lifecycleState,
             newStepKey,
             nowSupplier,
-            forcePhaseDefinitionRefresh
+            forcePhaseDefinitionRefresh,
+            true
         );
 
         return LifecycleExecutionStateUtils.newClusterStateWithLifecycleState(state, idxMeta.getIndex(), newLifecycleState);
@@ -154,8 +156,8 @@ public final class IndexLifecycleTransition {
         LongSupplier nowSupplier,
         BiFunction<IndexMetadata, Step.StepKey, Step> stepLookupFunction
     ) {
-        IndexMetadata idxMeta = clusterState.getMetadata().index(index);
-        IndexLifecycleMetadata ilmMeta = clusterState.metadata().custom(IndexLifecycleMetadata.TYPE);
+        IndexMetadata idxMeta = clusterState.getMetadata().getProject().index(index);
+        IndexLifecycleMetadata ilmMeta = clusterState.metadata().getProject().custom(IndexLifecycleMetadata.TYPE);
         LifecyclePolicyMetadata policyMetadata = ilmMeta.getPolicyMetadatas().get(idxMeta.getLifecyclePolicyName());
         LifecycleExecutionState currentState = idxMeta.getLifecycleExecutionState();
         Step.StepKey currentStep;
@@ -175,6 +177,7 @@ public final class IndexLifecycleTransition {
             currentState,
             new Step.StepKey(currentStep.phase(), currentStep.action(), ErrorStep.NAME),
             nowSupplier,
+            false,
             false
         );
 
@@ -216,7 +219,7 @@ public final class IndexLifecycleTransition {
         boolean isAutomaticRetry
     ) {
         ClusterState newState;
-        IndexMetadata indexMetadata = currentState.metadata().index(index);
+        IndexMetadata indexMetadata = currentState.metadata().getProject().index(index);
         if (indexMetadata == null) {
             throw new IllegalArgumentException("index [" + index + "] does not exist");
         }
@@ -226,7 +229,7 @@ public final class IndexLifecycleTransition {
         if (currentStepKey != null && ErrorStep.NAME.equals(currentStepKey.name()) && Strings.isNullOrEmpty(failedStep) == false) {
             Step.StepKey nextStepKey = new Step.StepKey(currentStepKey.phase(), currentStepKey.action(), failedStep);
             validateTransition(indexMetadata, currentStepKey, nextStepKey, stepRegistry);
-            IndexLifecycleMetadata ilmMeta = currentState.metadata().custom(IndexLifecycleMetadata.TYPE);
+            IndexLifecycleMetadata ilmMeta = currentState.metadata().getProject().custom(IndexLifecycleMetadata.TYPE);
 
             LifecyclePolicyMetadata policyMetadata = ilmMeta.getPolicyMetadatas().get(indexMetadata.getLifecyclePolicyName());
 
@@ -243,7 +246,8 @@ public final class IndexLifecycleTransition {
                 lifecycleState,
                 nextStepKey,
                 nowSupplier,
-                forcePhaseDefinitionRefresh
+                forcePhaseDefinitionRefresh,
+                false
             );
 
             LifecycleExecutionState.Builder retryStepState = LifecycleExecutionState.builder(nextStepState);
@@ -277,7 +281,8 @@ public final class IndexLifecycleTransition {
         LifecycleExecutionState existingState,
         Step.StepKey newStep,
         LongSupplier nowSupplier,
-        boolean forcePhaseDefinitionRefresh
+        boolean forcePhaseDefinitionRefresh,
+        boolean allowNullPreviousStepInfo
     ) {
         Step.StepKey currentStep = Step.getCurrentStepKey(existingState);
         long nowAsMillis = nowSupplier.getAsLong();
@@ -289,6 +294,9 @@ public final class IndexLifecycleTransition {
 
         // clear any step info or error-related settings from the current step
         updatedState.setFailedStep(null);
+        if (allowNullPreviousStepInfo || existingState.stepInfo() != null) {
+            updatedState.setPreviousStepInfo(existingState.stepInfo());
+        }
         updatedState.setStepInfo(null);
         updatedState.setIsAutoRetryableError(null);
         updatedState.setFailedStepRetryCount(null);
@@ -389,6 +397,7 @@ public final class IndexLifecycleTransition {
         updatedState.setStep(nextStep.name());
         updatedState.setStepTime(nowAsMillis);
         updatedState.setFailedStep(null);
+        updatedState.setPreviousStepInfo(null);
         updatedState.setStepInfo(null);
         updatedState.setIsAutoRetryableError(null);
         updatedState.setFailedStepRetryCount(null);
@@ -415,7 +424,7 @@ public final class IndexLifecycleTransition {
      * if no changes to step info exist
      */
     static ClusterState addStepInfoToClusterState(Index index, ClusterState clusterState, ToXContentObject stepInfo) {
-        IndexMetadata indexMetadata = clusterState.getMetadata().index(index);
+        IndexMetadata indexMetadata = clusterState.getMetadata().getProject().index(index);
         if (indexMetadata == null) {
             // This index doesn't exist anymore, we can't do anything
             return clusterState;
@@ -435,28 +444,44 @@ public final class IndexLifecycleTransition {
      * any lifecycle execution state that may be present in the index metadata
      */
     public static ClusterState removePolicyForIndexes(final Index[] indices, ClusterState currentState, List<String> failedIndexes) {
-        Metadata.Builder newMetadata = Metadata.builder(currentState.getMetadata());
-        boolean clusterStateChanged = false;
+        final ProjectMetadata currentProject = currentState.metadata().getProject();
+        final ProjectMetadata.Builder updatedProject = removePolicyForIndexes(indices, currentProject, failedIndexes);
+
+        if (updatedProject == null) {
+            return currentState;
+        } else {
+            return ClusterState.builder(currentState).putProjectMetadata(updatedProject).build();
+        }
+    }
+
+    /**
+     * @return If one or more policies were removed, then a new builder representing the changed project state.
+     *         Otherwise {@code null} (if no changes were made)
+     */
+    @Nullable
+    private static ProjectMetadata.Builder removePolicyForIndexes(
+        final Index[] indices,
+        ProjectMetadata currentProject,
+        List<String> failedIndexes
+    ) {
+        ProjectMetadata.Builder newProject = null;
         for (Index index : indices) {
-            IndexMetadata indexMetadata = currentState.getMetadata().index(index);
+            IndexMetadata indexMetadata = currentProject.index(index);
             if (indexMetadata == null) {
                 // Index doesn't exist so fail it
                 failedIndexes.add(index.getName());
             } else {
                 IndexMetadata.Builder newIdxMetadata = removePolicyForIndex(indexMetadata);
                 if (newIdxMetadata != null) {
-                    newMetadata.put(newIdxMetadata);
-                    clusterStateChanged = true;
+                    if (newProject == null) {
+                        newProject = ProjectMetadata.builder(currentProject);
+                    }
+                    newProject.put(newIdxMetadata);
                 }
             }
         }
-        if (clusterStateChanged) {
-            ClusterState.Builder newClusterState = ClusterState.builder(currentState);
-            newClusterState.metadata(newMetadata);
-            return newClusterState.build();
-        } else {
-            return currentState;
-        }
+
+        return newProject;
     }
 
     /**

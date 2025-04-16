@@ -317,22 +317,24 @@
           body:
             text: "a/b/c"
             explain: true
-            tokenizer:
-              type: PathHierarchy
+            tokenizer: path_hierarchy
     - length: { detail.tokenizer.tokens: 3 }
-    - match:  { detail.tokenizer.name: __anonymous__PathHierarchy }
+    - match:  { detail.tokenizer.name: path_hierarchy }
     - match:  { detail.tokenizer.tokens.0.token: a }
     - match:  { detail.tokenizer.tokens.1.token: a/b }
     - match:  { detail.tokenizer.tokens.2.token: a/b/c }
 
+---
+"PathHierarchy":
     - do:
         indices.analyze:
           body:
             text: "a/b/c"
             explain: true
-            tokenizer: path_hierarchy
+            tokenizer:
+              type: PathHierarchy
     - length: { detail.tokenizer.tokens: 3 }
-    - match:  { detail.tokenizer.name: path_hierarchy }
+    - match:  { detail.tokenizer.name: __anonymous__PathHierarchy }
     - match:  { detail.tokenizer.tokens.0.token: a }
     - match:  { detail.tokenizer.tokens.1.token: a/b }
     - match:  { detail.tokenizer.tokens.2.token: a/b/c }

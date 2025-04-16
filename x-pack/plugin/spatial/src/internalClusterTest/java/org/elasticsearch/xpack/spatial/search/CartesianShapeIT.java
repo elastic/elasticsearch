@@ -36,7 +36,7 @@ public class CartesianShapeIT extends CartesianShapeIntegTestCase {
 
     @Override
     protected IndexVersion randomSupportedVersion() {
-        return IndexVersionUtils.randomCompatibleVersion(random());
+        return IndexVersionUtils.randomCompatibleWriteVersion(random());
     }
 
     @Override

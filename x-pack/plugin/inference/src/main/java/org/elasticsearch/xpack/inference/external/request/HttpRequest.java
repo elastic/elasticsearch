@@ -8,6 +8,8 @@
 package org.elasticsearch.xpack.inference.external.request;
 
 import org.apache.http.client.methods.HttpRequestBase;
+import org.apache.http.nio.client.methods.HttpAsyncMethods;
+import org.apache.http.nio.protocol.HttpAsyncRequestProducer;
 
 import java.util.Objects;
 
@@ -18,5 +20,9 @@ public record HttpRequest(HttpRequestBase httpRequestBase, String inferenceEntit
     public HttpRequest {
         Objects.requireNonNull(httpRequestBase);
         Objects.requireNonNull(inferenceEntityId);
+    }
+
+    public HttpAsyncRequestProducer requestProducer() {
+        return HttpAsyncMethods.create(httpRequestBase);
     }
 }

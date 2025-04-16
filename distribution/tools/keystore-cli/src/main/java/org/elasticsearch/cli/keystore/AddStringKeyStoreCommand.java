@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.cli.keystore;
@@ -18,13 +19,10 @@ import org.elasticsearch.common.settings.KeyStoreWrapper;
 import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.env.Environment;
 
-import java.io.BufferedReader;
 import java.io.CharArrayWriter;
 import java.io.Closeable;
 import java.io.IOException;
-import java.io.InputStream;
-import java.io.InputStreamReader;
-import java.nio.charset.StandardCharsets;
+import java.io.Reader;
 import java.util.Arrays;
 import java.util.List;
 
@@ -46,11 +44,6 @@ class AddStringKeyStoreCommand extends BaseKeyStoreCommand {
         this.arguments = parser.nonOptions("setting names");
     }
 
-    // pkg private so tests can manipulate
-    InputStream getStdin() {
-        return System.in;
-    }
-
     @Override
     protected void executeCommand(Terminal terminal, OptionSet options, Environment env) throws Exception {
         final List<String> settings = arguments.values(options);
@@ -63,7 +56,7 @@ class AddStringKeyStoreCommand extends BaseKeyStoreCommand {
         final Closeable closeable;
         final CheckedFunction<String, char[], IOException> valueSupplier;
         if (options.has(stdinOption)) {
-            final BufferedReader stdinReader = new BufferedReader(new InputStreamReader(getStdin(), StandardCharsets.UTF_8));
+            final Reader stdinReader = terminal.getReader();
             valueSupplier = s -> {
                 try (CharArrayWriter writer = new CharArrayWriter()) {
                     int c;
@@ -99,7 +92,7 @@ class AddStringKeyStoreCommand extends BaseKeyStoreCommand {
             }
         }
 
-        keyStore.save(env.configFile(), getKeyStorePassword().getChars());
+        keyStore.save(env.configDir(), getKeyStorePassword().getChars());
     }
 
 }

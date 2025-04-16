@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.fielddata;
@@ -18,6 +19,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.fielddata.IndexFieldData.XFieldComparatorSource.Nested;
 import org.elasticsearch.index.fielddata.fieldcomparator.DoubleValuesComparatorSource;
 import org.elasticsearch.index.fielddata.fieldcomparator.FloatValuesComparatorSource;
+import org.elasticsearch.index.fielddata.fieldcomparator.HalfFloatValuesComparatorSource;
 import org.elasticsearch.index.fielddata.fieldcomparator.LongValuesComparatorSource;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.MultiValueMode;
@@ -45,7 +47,7 @@ public abstract class IndexNumericFieldData implements IndexFieldData<LeafNumeri
         LONG(false, SortField.Type.LONG, CoreValuesSourceType.NUMERIC),
         DATE(false, SortField.Type.LONG, CoreValuesSourceType.DATE),
         DATE_NANOSECONDS(false, SortField.Type.LONG, CoreValuesSourceType.DATE),
-        HALF_FLOAT(true, SortField.Type.LONG, CoreValuesSourceType.NUMERIC),
+        HALF_FLOAT(true, SortField.Type.FLOAT, CoreValuesSourceType.NUMERIC),
         FLOAT(true, SortField.Type.FLOAT, CoreValuesSourceType.NUMERIC),
         DOUBLE(true, SortField.Type.DOUBLE, CoreValuesSourceType.NUMERIC);
 
@@ -94,11 +96,13 @@ public abstract class IndexNumericFieldData implements IndexFieldData<LeafNumeri
          * 3. We Aren't using max or min to resolve the duplicates.
          * 4. We have to cast the results to another type.
          */
-        if (sortRequiresCustomComparator()
-            || nested != null
+        boolean requiresCustomComparator = nested != null
             || (sortMode != MultiValueMode.MAX && sortMode != MultiValueMode.MIN)
-            || targetNumericType != getNumericType()) {
-            return new SortField(getFieldName(), source, reverse);
+            || targetNumericType != getNumericType();
+        if (sortRequiresCustomComparator() || requiresCustomComparator) {
+            SortField sortField = new SortField(getFieldName(), source, reverse);
+            sortField.setOptimizeSortWithPoints(requiresCustomComparator == false && isIndexed());
+            return sortField;
         }
 
         SortedNumericSelector.Type selectorType = sortMode == MultiValueMode.MAX
@@ -107,20 +111,19 @@ public abstract class IndexNumericFieldData implements IndexFieldData<LeafNumeri
         SortField sortField = new SortedNumericSortField(getFieldName(), getNumericType().sortFieldType, reverse, selectorType);
         sortField.setMissingValue(source.missingObject(missingValue, reverse));
 
-        // TODO: Now that numeric sort uses indexed points to skip over non-competitive documents,
-        // Lucene 9 requires that the same data/type is stored in points and doc values.
-        // We break this assumption in ES by using the wider numeric sort type for every field,
-        // (e.g. shorts use longs and floats use doubles). So for now we forbid the usage of
-        // points in numeric sort on field types that use a different sort type.
-        // We could expose these optimizations for all numeric types but that would require
-        // to rewrite the logic to handle types when merging results coming from different
-        // indices.
+        // TODO: enable sort optimization for BYTE, SHORT and INT types
+        // They can use custom comparator logic, similarly to HalfFloatValuesComparatorSource.
+        // The problem comes from the fact that we use SortField.Type.LONG for all these types.
+        // Investigate how to resolve this.
         switch (getNumericType()) {
             case DATE_NANOSECONDS:
             case DATE:
             case LONG:
             case DOUBLE:
-                // longs, doubles and dates use the same type for doc-values and points.
+            case FLOAT:
+                // longs, doubles and dates use the same type for doc-values and points
+                // floats uses longs for doc-values, but Lucene's FloatComparator::getValueForDoc converts long value to float
+                sortField.setOptimizeSortWithPoints(isIndexed());
                 break;
 
             default:
@@ -132,11 +135,17 @@ public abstract class IndexNumericFieldData implements IndexFieldData<LeafNumeri
     }
 
     /**
-     * Does {@link #sortField} require a custom comparator because of the way
-     * the data is stored in doc values ({@code true}) or are the docs values
-     * stored such that they can be sorted without decoding ({@code false}).
+     * Should sorting use a custom comparator source vs. rely on a Lucene {@link SortField}. Using a Lucene {@link SortField} when possible
+     * is important because index sorting cannot be configured with a custom comparator, and because it gives better performance by
+     * dynamically pruning irrelevant hits. On the other hand, Lucene {@link SortField}s are less flexible and make stronger assumptions
+     * about how the data is indexed. Therefore, they cannot be used in all cases.
      */
     protected abstract boolean sortRequiresCustomComparator();
+
+    /**
+     * Return true if, and only if the field is indexed with points that match the content of doc values.
+     */
+    protected abstract boolean isIndexed();
 
     @Override
     public final SortField sortField(Object missingValue, MultiValueMode sortMode, Nested nested, boolean reverse) {
@@ -190,20 +199,17 @@ public abstract class IndexNumericFieldData implements IndexFieldData<LeafNumeri
         MultiValueMode sortMode,
         Nested nested
     ) {
-        switch (targetNumericType) {
-            case HALF_FLOAT:
-            case FLOAT:
-                return new FloatValuesComparatorSource(this, missingValue, sortMode, nested);
-            case DOUBLE:
-                return new DoubleValuesComparatorSource(this, missingValue, sortMode, nested);
-            case DATE:
-                return dateComparatorSource(missingValue, sortMode, nested);
-            case DATE_NANOSECONDS:
-                return dateNanosComparatorSource(missingValue, sortMode, nested);
-            default:
+        return switch (targetNumericType) {
+            case FLOAT -> new FloatValuesComparatorSource(this, missingValue, sortMode, nested);
+            case HALF_FLOAT -> new HalfFloatValuesComparatorSource(this, missingValue, sortMode, nested);
+            case DOUBLE -> new DoubleValuesComparatorSource(this, missingValue, sortMode, nested);
+            case DATE -> dateComparatorSource(missingValue, sortMode, nested);
+            case DATE_NANOSECONDS -> dateNanosComparatorSource(missingValue, sortMode, nested);
+            default -> {
                 assert targetNumericType.isFloatingPoint() == false;
-                return new LongValuesComparatorSource(this, missingValue, sortMode, nested, targetNumericType);
-        }
+                yield new LongValuesComparatorSource(this, missingValue, sortMode, nested, targetNumericType);
+            }
+        };
     }
 
     protected XFieldComparatorSource dateComparatorSource(@Nullable Object missingValue, MultiValueMode sortMode, Nested nested) {

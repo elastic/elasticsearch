@@ -1,14 +1,19 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search;
 
 import org.apache.lucene.document.Document;
+import org.apache.lucene.document.Field;
+import org.apache.lucene.document.IntField;
+import org.apache.lucene.document.LongField;
+import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.document.SortedSetDocValuesField;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexReader;
@@ -18,6 +23,7 @@ import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.Sort;
+import org.apache.lucene.search.SortField;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.tests.store.BaseDirectoryWrapper;
@@ -27,6 +33,8 @@ import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.UUIDs;
+import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -38,7 +46,9 @@ import org.elasticsearch.index.cache.IndexCache;
 import org.elasticsearch.index.cache.query.QueryCache;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
+import org.elasticsearch.index.fielddata.IndexNumericFieldData;
 import org.elasticsearch.index.fielddata.plain.BinaryIndexFieldData;
+import org.elasticsearch.index.fielddata.plain.SortedNumericIndexFieldData;
 import org.elasticsearch.index.fielddata.plain.SortedOrdinalsIndexFieldData;
 import org.elasticsearch.index.mapper.IdLoader;
 import org.elasticsearch.index.mapper.MappedFieldType;
@@ -50,6 +60,7 @@ import org.elasticsearch.index.query.ParsedQuery;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.search.aggregations.bucket.range.DateRangeAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
@@ -74,6 +85,7 @@ import java.io.IOException;
 import java.util.UUID;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.ThreadPoolExecutor;
 import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.function.ToLongFunction;
@@ -89,6 +101,8 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 public class DefaultSearchContextTests extends MapperServiceTestCase {
+
+    private static final long MEMORY_ACCOUNTING_BUFFER_SIZE = 1024 * 1024L;
 
     public void testPreProcess() throws Exception {
         TimeValue timeout = new TimeValue(randomIntBetween(1, 100));
@@ -175,7 +189,8 @@ public class DefaultSearchContextTests extends MapperServiceTestCase {
                 null,
                 randomFrom(SearchService.ResultsType.values()),
                 randomBoolean(),
-                randomInt()
+                randomInt(),
+                MEMORY_ACCOUNTING_BUFFER_SIZE
             );
             contextWithoutScroll.from(300);
             contextWithoutScroll.close();
@@ -196,7 +211,7 @@ public class DefaultSearchContextTests extends MapperServiceTestCase {
             );
 
             // resultWindow greater than maxResultWindow and scrollContext isn't null
-            when(shardSearchRequest.scroll()).thenReturn(new Scroll(TimeValue.timeValueMillis(randomInt(1000))));
+            when(shardSearchRequest.scroll()).thenReturn(TimeValue.timeValueMillis(randomInt(1000)));
             ReaderContext readerContext = new LegacyReaderContext(
                 newContextId(),
                 indexService,
@@ -217,7 +232,9 @@ public class DefaultSearchContextTests extends MapperServiceTestCase {
                     null,
                     randomFrom(SearchService.ResultsType.values()),
                     randomBoolean(),
-                    randomInt()
+                    randomInt(),
+                    MEMORY_ACCOUNTING_BUFFER_SIZE
+
                 )
             ) {
                 context1.from(300);
@@ -237,7 +254,10 @@ public class DefaultSearchContextTests extends MapperServiceTestCase {
                 // resultWindow not greater than maxResultWindow and both rescore and sort are not null
                 context1.from(0);
                 DocValueFormat docValueFormat = mock(DocValueFormat.class);
-                SortAndFormats sortAndFormats = new SortAndFormats(new Sort(), new DocValueFormat[] { docValueFormat });
+                SortAndFormats sortAndFormats = new SortAndFormats(
+                    new Sort(new SortField[] { SortField.FIELD_DOC }),
+                    new DocValueFormat[] { docValueFormat }
+                );
                 context1.sort(sortAndFormats);
 
                 RescoreContext rescoreContext = mock(RescoreContext.class);
@@ -279,7 +299,7 @@ public class DefaultSearchContextTests extends MapperServiceTestCase {
                 @Override
                 public ScrollContext scrollContext() {
                     ScrollContext scrollContext = new ScrollContext();
-                    scrollContext.scroll = new Scroll(TimeValue.timeValueSeconds(5));
+                    scrollContext.scroll = TimeValue.timeValueSeconds(5);
                     return scrollContext;
                 }
             };
@@ -296,7 +316,8 @@ public class DefaultSearchContextTests extends MapperServiceTestCase {
                     null,
                     randomFrom(SearchService.ResultsType.values()),
                     randomBoolean(),
-                    randomInt()
+                    randomInt(),
+                    MEMORY_ACCOUNTING_BUFFER_SIZE
                 )
             ) {
 
@@ -338,7 +359,8 @@ public class DefaultSearchContextTests extends MapperServiceTestCase {
                     null,
                     randomFrom(SearchService.ResultsType.values()),
                     randomBoolean(),
-                    randomInt()
+                    randomInt(),
+                    MEMORY_ACCOUNTING_BUFFER_SIZE
                 )
             ) {
                 context3.sliceBuilder(null).parsedQuery(parsedQuery).preProcess();
@@ -369,7 +391,8 @@ public class DefaultSearchContextTests extends MapperServiceTestCase {
                     null,
                     randomFrom(SearchService.ResultsType.values()),
                     randomBoolean(),
-                    randomInt()
+                    randomInt(),
+                    MEMORY_ACCOUNTING_BUFFER_SIZE
                 )
             ) {
                 context4.sliceBuilder(new SliceBuilder(1, 2)).parsedQuery(parsedQuery).preProcess();
@@ -440,7 +463,8 @@ public class DefaultSearchContextTests extends MapperServiceTestCase {
                 null,
                 randomFrom(SearchService.ResultsType.values()),
                 randomBoolean(),
-                randomInt()
+                randomInt(),
+                MEMORY_ACCOUNTING_BUFFER_SIZE
             );
 
             assertThat(context.searcher().hasCancellations(), is(false));
@@ -500,10 +524,10 @@ public class DefaultSearchContextTests extends MapperServiceTestCase {
         }
     }
 
-    public void testDetermineMaximumNumberOfSlices() {
+    private static ShardSearchRequest createParallelRequest() {
         IndexShard indexShard = mock(IndexShard.class);
         when(indexShard.shardId()).thenReturn(new ShardId("index", "uuid", 0));
-        ShardSearchRequest parallelReq = new ShardSearchRequest(
+        return new ShardSearchRequest(
             OriginalIndices.NONE,
             new SearchRequest().allowPartialSearchResults(randomBoolean()),
             indexShard.shardId(),
@@ -514,6 +538,104 @@ public class DefaultSearchContextTests extends MapperServiceTestCase {
             System.currentTimeMillis(),
             null
         );
+
+    }
+
+    public void testDetermineMaximumNumberOfSlicesNoExecutor() {
+        ToLongFunction<String> fieldCardinality = name -> { throw new UnsupportedOperationException(); };
+        assertEquals(
+            1,
+            DefaultSearchContext.determineMaximumNumberOfSlices(
+                null,
+                createParallelRequest(),
+                SearchService.ResultsType.DFS,
+                randomBoolean(),
+                fieldCardinality
+            )
+        );
+        assertEquals(
+            1,
+            DefaultSearchContext.determineMaximumNumberOfSlices(
+                null,
+                createParallelRequest(),
+                SearchService.ResultsType.QUERY,
+                randomBoolean(),
+                fieldCardinality
+            )
+        );
+    }
+
+    public void testDetermineMaximumNumberOfSlicesNotThreadPoolExecutor() {
+        ExecutorService notThreadPoolExecutor = Executors.newWorkStealingPool();
+        ToLongFunction<String> fieldCardinality = name -> { throw new UnsupportedOperationException(); };
+        assertEquals(
+            1,
+            DefaultSearchContext.determineMaximumNumberOfSlices(
+                notThreadPoolExecutor,
+                createParallelRequest(),
+                SearchService.ResultsType.DFS,
+                randomBoolean(),
+                fieldCardinality
+            )
+        );
+        assertEquals(
+            1,
+            DefaultSearchContext.determineMaximumNumberOfSlices(
+                notThreadPoolExecutor,
+                createParallelRequest(),
+                SearchService.ResultsType.QUERY,
+                randomBoolean(),
+                fieldCardinality
+            )
+        );
+    }
+
+    public void testDetermineMaximumNumberOfSlicesEnableQueryPhaseParallelCollection() {
+        int executorPoolSize = randomIntBetween(1, 100);
+        ThreadPoolExecutor threadPoolExecutor = EsExecutors.newFixed(
+            "test",
+            executorPoolSize,
+            0,
+            Thread::new,
+            new ThreadContext(Settings.EMPTY),
+            EsExecutors.TaskTrackingConfig.DO_NOT_TRACK
+        );
+        ToLongFunction<String> fieldCardinality = name -> -1;
+        assertEquals(
+            executorPoolSize,
+            DefaultSearchContext.determineMaximumNumberOfSlices(
+                threadPoolExecutor,
+                createParallelRequest(),
+                SearchService.ResultsType.QUERY,
+                true,
+                fieldCardinality
+            )
+        );
+        assertEquals(
+            1,
+            DefaultSearchContext.determineMaximumNumberOfSlices(
+                threadPoolExecutor,
+                createParallelRequest(),
+                SearchService.ResultsType.QUERY,
+                false,
+                fieldCardinality
+            )
+        );
+        assertEquals(
+            executorPoolSize,
+            DefaultSearchContext.determineMaximumNumberOfSlices(
+                threadPoolExecutor,
+                createParallelRequest(),
+                SearchService.ResultsType.DFS,
+                randomBoolean(),
+                fieldCardinality
+            )
+        );
+    }
+
+    public void testDetermineMaximumNumberOfSlicesSingleSortByField() {
+        IndexShard indexShard = mock(IndexShard.class);
+        when(indexShard.shardId()).thenReturn(new ShardId("index", "uuid", 0));
         ShardSearchRequest singleSliceReq = new ShardSearchRequest(
             OriginalIndices.NONE,
             new SearchRequest().allowPartialSearchResults(randomBoolean())
@@ -526,8 +648,9 @@ public class DefaultSearchContextTests extends MapperServiceTestCase {
             System.currentTimeMillis(),
             null
         );
+        ToLongFunction<String> fieldCardinality = name -> { throw new UnsupportedOperationException(); };
         int executorPoolSize = randomIntBetween(1, 100);
-        ExecutorService threadPoolExecutor = EsExecutors.newFixed(
+        ThreadPoolExecutor threadPoolExecutor = EsExecutors.newFixed(
             "test",
             executorPoolSize,
             0,
@@ -535,39 +658,13 @@ public class DefaultSearchContextTests extends MapperServiceTestCase {
             new ThreadContext(Settings.EMPTY),
             EsExecutors.TaskTrackingConfig.DO_NOT_TRACK
         );
-        ExecutorService notThreadPoolExecutor = Executors.newWorkStealingPool();
-        ToLongFunction<String> fieldCardinality = name -> -1;
-
-        assertEquals(
-            executorPoolSize,
-            DefaultSearchContext.determineMaximumNumberOfSlices(
-                threadPoolExecutor,
-                parallelReq,
-                SearchService.ResultsType.DFS,
-                true,
-                fieldCardinality
-            )
-        );
+        // DFS concurrency does not rely on slices, hence it kicks in regardless of the request (supportsParallelCollection is not called)
         assertEquals(
             executorPoolSize,
             DefaultSearchContext.determineMaximumNumberOfSlices(
                 threadPoolExecutor,
                 singleSliceReq,
                 SearchService.ResultsType.DFS,
-                true,
-                fieldCardinality
-            )
-        );
-        assertEquals(
-            1,
-            DefaultSearchContext.determineMaximumNumberOfSlices(null, parallelReq, SearchService.ResultsType.DFS, true, fieldCardinality)
-        );
-        assertEquals(
-            executorPoolSize,
-            DefaultSearchContext.determineMaximumNumberOfSlices(
-                threadPoolExecutor,
-                parallelReq,
-                SearchService.ResultsType.QUERY,
                 true,
                 fieldCardinality
             )
@@ -582,55 +679,66 @@ public class DefaultSearchContextTests extends MapperServiceTestCase {
                 fieldCardinality
             )
         );
-        assertEquals(
-            1,
-            DefaultSearchContext.determineMaximumNumberOfSlices(
-                notThreadPoolExecutor,
-                parallelReq,
-                SearchService.ResultsType.DFS,
-                true,
-                fieldCardinality
-            )
-        );
+    }
 
-        assertEquals(
+    public void testDetermineMaximumNumberOfSlicesWithQueue() {
+        int executorPoolSize = randomIntBetween(1, 100);
+        ThreadPoolExecutor threadPoolExecutor = EsExecutors.newFixed(
+            "test",
             executorPoolSize,
-            DefaultSearchContext.determineMaximumNumberOfSlices(
-                threadPoolExecutor,
-                parallelReq,
-                SearchService.ResultsType.DFS,
-                false,
-                fieldCardinality
-            )
+            1000,
+            Thread::new,
+            new ThreadContext(Settings.EMPTY),
+            EsExecutors.TaskTrackingConfig.DO_NOT_TRACK
         );
-        assertEquals(
-            1,
-            DefaultSearchContext.determineMaximumNumberOfSlices(null, parallelReq, SearchService.ResultsType.DFS, false, fieldCardinality)
-        );
-        assertEquals(
-            1,
-            DefaultSearchContext.determineMaximumNumberOfSlices(
-                threadPoolExecutor,
-                parallelReq,
-                SearchService.ResultsType.QUERY,
-                false,
-                fieldCardinality
-            )
-        );
-        assertEquals(
-            1,
-            DefaultSearchContext.determineMaximumNumberOfSlices(null, parallelReq, SearchService.ResultsType.QUERY, false, fieldCardinality)
-        );
-        assertEquals(
-            1,
-            DefaultSearchContext.determineMaximumNumberOfSlices(
-                notThreadPoolExecutor,
-                parallelReq,
-                SearchService.ResultsType.DFS,
-                false,
-                fieldCardinality
-            )
-        );
+        ToLongFunction<String> fieldCardinality = name -> { throw new UnsupportedOperationException(); };
+
+        for (int i = 0; i < executorPoolSize; i++) {
+            assertTrue(threadPoolExecutor.getQueue().offer(() -> {}));
+            assertEquals(
+                executorPoolSize,
+                DefaultSearchContext.determineMaximumNumberOfSlices(
+                    threadPoolExecutor,
+                    createParallelRequest(),
+                    SearchService.ResultsType.DFS,
+                    true,
+                    fieldCardinality
+                )
+            );
+            assertEquals(
+                executorPoolSize,
+                DefaultSearchContext.determineMaximumNumberOfSlices(
+                    threadPoolExecutor,
+                    createParallelRequest(),
+                    SearchService.ResultsType.QUERY,
+                    true,
+                    fieldCardinality
+                )
+            );
+        }
+        for (int i = 0; i < 100; i++) {
+            assertTrue(threadPoolExecutor.getQueue().offer(() -> {}));
+            assertEquals(
+                1,
+                DefaultSearchContext.determineMaximumNumberOfSlices(
+                    threadPoolExecutor,
+                    createParallelRequest(),
+                    SearchService.ResultsType.DFS,
+                    true,
+                    fieldCardinality
+                )
+            );
+            assertEquals(
+                1,
+                DefaultSearchContext.determineMaximumNumberOfSlices(
+                    threadPoolExecutor,
+                    createParallelRequest(),
+                    SearchService.ResultsType.QUERY,
+                    true,
+                    fieldCardinality
+                )
+            );
+        }
     }
 
     public void testIsParallelCollectionSupportedForResults() {
@@ -638,8 +746,8 @@ public class DefaultSearchContextTests extends MapperServiceTestCase {
         ToLongFunction<String> fieldCardinality = name -> -1;
         for (var resultsType : SearchService.ResultsType.values()) {
             switch (resultsType) {
-                case NONE, FETCH -> assertFalse(
-                    "NONE and FETCH phases do not support parallel collection.",
+                case NONE, RANK_FEATURE, FETCH -> assertFalse(
+                    "NONE, RANK_FEATURE, and FETCH phases do not support parallel collection.",
                     DefaultSearchContext.isParallelCollectionSupportedForResults(
                         resultsType,
                         searchSourceBuilderOrNull,
@@ -799,6 +907,58 @@ public class DefaultSearchContextTests extends MapperServiceTestCase {
         }
     }
 
+    public void testGetFieldCardinalityNumeric() throws IOException {
+        try (BaseDirectoryWrapper dir = newDirectory()) {
+            final int numDocs = scaledRandomIntBetween(100, 200);
+            try (RandomIndexWriter w = new RandomIndexWriter(random(), dir, new IndexWriterConfig())) {
+                for (int i = 0; i < numDocs; ++i) {
+                    Document doc = new Document();
+                    doc.add(new LongField("long", i, Field.Store.NO));
+                    doc.add(new IntField("int", i, Field.Store.NO));
+                    doc.add(new SortedNumericDocValuesField("no_index", i));
+                    w.addDocument(doc);
+                }
+            }
+            try (DirectoryReader reader = DirectoryReader.open(dir)) {
+                final SortedNumericIndexFieldData longFieldData = new SortedNumericIndexFieldData(
+                    "long",
+                    IndexNumericFieldData.NumericType.LONG,
+                    IndexNumericFieldData.NumericType.LONG.getValuesSourceType(),
+                    null,
+                    true
+                );
+                assertEquals(numDocs, DefaultSearchContext.getFieldCardinality(longFieldData, reader));
+
+                final SortedNumericIndexFieldData integerFieldData = new SortedNumericIndexFieldData(
+                    "int",
+                    IndexNumericFieldData.NumericType.INT,
+                    IndexNumericFieldData.NumericType.INT.getValuesSourceType(),
+                    null,
+                    true
+                );
+                assertEquals(numDocs, DefaultSearchContext.getFieldCardinality(integerFieldData, reader));
+
+                final SortedNumericIndexFieldData shortFieldData = new SortedNumericIndexFieldData(
+                    "int",
+                    IndexNumericFieldData.NumericType.SHORT,
+                    IndexNumericFieldData.NumericType.SHORT.getValuesSourceType(),
+                    null,
+                    true
+                );
+                assertEquals(numDocs, DefaultSearchContext.getFieldCardinality(shortFieldData, reader));
+
+                final SortedNumericIndexFieldData noIndexFieldata = new SortedNumericIndexFieldData(
+                    "no_index",
+                    IndexNumericFieldData.NumericType.LONG,
+                    IndexNumericFieldData.NumericType.LONG.getValuesSourceType(),
+                    null,
+                    false
+                );
+                assertEquals(-1, DefaultSearchContext.getFieldCardinality(noIndexFieldata, reader));
+            }
+        }
+    }
+
     public void testGetFieldCardinalityUnmappedField() {
         MapperService mapperService = mock(MapperService.class);
         IndexService indexService = mock(IndexService.class);
@@ -813,6 +973,21 @@ public class DefaultSearchContextTests extends MapperServiceTestCase {
         when(indexService.mapperService()).thenReturn(mapperService);
         when(indexService.loadFielddata(any(), any())).thenThrow(new RuntimeException());
         assertEquals(-1, DefaultSearchContext.getFieldCardinality("field", indexService, null));
+    }
+
+    public void testCheckRealMemoryCB() throws Exception {
+        IndexShard indexShard = null;
+        try (DefaultSearchContext context = createDefaultSearchContext(Settings.EMPTY)) {
+            indexShard = context.indexShard();
+            // allocated more than the 1MiB buffer
+            assertThat(context.checkRealMemoryCB(1024 * 1800, "test"), is(true));
+            // allocated less than the 1MiB buffer
+            assertThat(context.checkRealMemoryCB(1024 * 5, "test"), is(false));
+        } finally {
+            if (indexShard != null) {
+                indexShard.getThreadPool().shutdown();
+            }
+        }
     }
 
     private DefaultSearchContext createDefaultSearchContext(Settings providedIndexSettings) throws IOException {
@@ -842,7 +1017,9 @@ public class DefaultSearchContextTests extends MapperServiceTestCase {
         SearchExecutionContext searchExecutionContext = mock(SearchExecutionContext.class);
         when(indexService.newSearchExecutionContext(eq(shardId.id()), eq(shardId.id()), any(), any(), nullable(String.class), any()))
             .thenReturn(searchExecutionContext);
-
+        CircuitBreakerService breakerService = mock(CircuitBreakerService.class);
+        when(indexService.breakerService()).thenReturn(breakerService);
+        when(breakerService.getBreaker(anyString())).thenReturn(new NoopCircuitBreaker(CircuitBreaker.REQUEST));
         IndexMetadata indexMetadata = IndexMetadata.builder("index").settings(settings).build();
         IndexSettings indexSettings;
         MapperService mapperService;
@@ -906,7 +1083,8 @@ public class DefaultSearchContextTests extends MapperServiceTestCase {
                 null,
                 randomFrom(SearchService.ResultsType.values()),
                 randomBoolean(),
-                randomInt()
+                randomInt(),
+                MEMORY_ACCOUNTING_BUFFER_SIZE
             );
         }
     }

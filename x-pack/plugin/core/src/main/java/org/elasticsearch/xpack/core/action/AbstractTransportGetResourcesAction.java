@@ -105,7 +105,7 @@ public abstract class AbstractTransportGetResourcesAction<
             listener.<SearchResponse>delegateFailure((l, response) -> {
                 List<Resource> docs = new ArrayList<>();
                 Set<String> foundResourceIds = new HashSet<>();
-                long totalHitCount = response.getHits().getTotalHits().value;
+                long totalHitCount = response.getHits().getTotalHits().value();
                 for (SearchHit hit : response.getHits().getHits()) {
                     try (
                         XContentParser parser = XContentHelper.createParserNotCompressed(

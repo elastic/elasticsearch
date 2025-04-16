@@ -10,16 +10,15 @@ package org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic;
 import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
-import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.xpack.esql.VerificationException;
-import org.elasticsearch.xpack.esql.expression.function.AbstractFunctionTestCase;
+import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.FoldContext;
+import org.elasticsearch.xpack.esql.core.expression.Literal;
+import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.expression.function.AbstractScalarFunctionTestCase;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
-import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
-import org.elasticsearch.xpack.ql.expression.Expression;
-import org.elasticsearch.xpack.ql.expression.Literal;
-import org.elasticsearch.xpack.ql.tree.Source;
-import org.elasticsearch.xpack.ql.type.DataType;
-import org.elasticsearch.xpack.ql.type.DataTypes;
+import org.hamcrest.Matchers;
 
 import java.time.Duration;
 import java.time.Period;
@@ -27,10 +26,10 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Supplier;
 
-import static org.elasticsearch.compute.data.BlockUtils.toJavaObject;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.randomLiteral;
 import static org.hamcrest.Matchers.equalTo;
 
-public class NegTests extends AbstractFunctionTestCase {
+public class NegTests extends AbstractScalarFunctionTestCase {
 
     public NegTests(@Name("TestCase") Supplier<TestCaseSupplier.TestCase> testCaseSupplier) {
         this.testCase = testCaseSupplier.get();
@@ -42,7 +41,7 @@ public class NegTests extends AbstractFunctionTestCase {
         TestCaseSupplier.forUnaryInt(
             suppliers,
             "NegIntsEvaluator[v=Attribute[channel=0]]",
-            DataTypes.INTEGER,
+            DataType.INTEGER,
             Math::negateExact,
             Integer.MIN_VALUE + 1,
             Integer.MAX_VALUE,
@@ -52,19 +51,19 @@ public class NegTests extends AbstractFunctionTestCase {
         TestCaseSupplier.forUnaryInt(
             suppliers,
             "NegIntsEvaluator[v=Attribute[channel=0]]",
-            DataTypes.INTEGER,
+            DataType.INTEGER,
             z -> null,
             Integer.MIN_VALUE,
             Integer.MIN_VALUE,
             List.of(
-                "Line -1:-1: evaluation of [] failed, treating result as null. Only first 20 failures recorded.",
-                "Line -1:-1: java.lang.ArithmeticException: integer overflow"
+                "Line 1:1: evaluation of [source] failed, treating result as null. Only first 20 failures recorded.",
+                "Line 1:1: java.lang.ArithmeticException: integer overflow"
             )
         );
         TestCaseSupplier.forUnaryLong(
             suppliers,
             "NegLongsEvaluator[v=Attribute[channel=0]]",
-            DataTypes.LONG,
+            DataType.LONG,
             Math::negateExact,
             Long.MIN_VALUE + 1,
             Long.MAX_VALUE,
@@ -74,19 +73,19 @@ public class NegTests extends AbstractFunctionTestCase {
         TestCaseSupplier.forUnaryLong(
             suppliers,
             "NegLongsEvaluator[v=Attribute[channel=0]]",
-            DataTypes.LONG,
+            DataType.LONG,
             z -> null,
             Long.MIN_VALUE,
             Long.MIN_VALUE,
             List.of(
-                "Line -1:-1: evaluation of [] failed, treating result as null. Only first 20 failures recorded.",
-                "Line -1:-1: java.lang.ArithmeticException: long overflow"
+                "Line 1:1: evaluation of [source] failed, treating result as null. Only first 20 failures recorded.",
+                "Line 1:1: java.lang.ArithmeticException: long overflow"
             )
         );
         TestCaseSupplier.forUnaryDouble(
             suppliers,
             "NegDoublesEvaluator[v=Attribute[channel=0]]",
-            DataTypes.DOUBLE,
+            DataType.DOUBLE,
             // TODO: Probably we don't want to allow negative zeros
             d -> -d,
             Double.NEGATIVE_INFINITY,
@@ -95,24 +94,24 @@ public class NegTests extends AbstractFunctionTestCase {
         );
 
         // TODO: Wire up edge case generation functions for these
-        suppliers.addAll(List.of(new TestCaseSupplier("Duration", List.of(EsqlDataTypes.TIME_DURATION), () -> {
-            Duration arg = (Duration) randomLiteral(EsqlDataTypes.TIME_DURATION).value();
+        suppliers.addAll(List.of(new TestCaseSupplier("Duration", List.of(DataType.TIME_DURATION), () -> {
+            Duration arg = (Duration) randomLiteral(DataType.TIME_DURATION).value();
             return new TestCaseSupplier.TestCase(
-                List.of(new TestCaseSupplier.TypedData(arg, EsqlDataTypes.TIME_DURATION, "arg")),
-                "No evaluator since this expression is only folded",
-                EsqlDataTypes.TIME_DURATION,
+                List.of(new TestCaseSupplier.TypedData(arg, DataType.TIME_DURATION, "arg").forceLiteral()),
+                Matchers.startsWith("LiteralsEvaluator[lit="),
+                DataType.TIME_DURATION,
                 equalTo(arg.negated())
-            );
-        }), new TestCaseSupplier("Period", List.of(EsqlDataTypes.DATE_PERIOD), () -> {
-            Period arg = (Period) randomLiteral(EsqlDataTypes.DATE_PERIOD).value();
+            ).withoutEvaluator();
+        }), new TestCaseSupplier("Period", List.of(DataType.DATE_PERIOD), () -> {
+            Period arg = (Period) randomLiteral(DataType.DATE_PERIOD).value();
             return new TestCaseSupplier.TestCase(
-                List.of(new TestCaseSupplier.TypedData(arg, EsqlDataTypes.DATE_PERIOD, "arg")),
-                "No evaluator since this expression is only folded",
-                EsqlDataTypes.DATE_PERIOD,
+                List.of(new TestCaseSupplier.TypedData(arg, DataType.DATE_PERIOD, "arg").forceLiteral()),
+                Matchers.startsWith("LiteralsEvaluator[lit="),
+                DataType.DATE_PERIOD,
                 equalTo(arg.negated())
-            );
+            ).withoutEvaluator();
         })));
-        return parameterSuppliersFromTypedData(errorsForCasesWithoutExamples(anyNullIsNull(false, suppliers)));
+        return parameterSuppliersFromTypedDataWithDefaultChecksNoErrors(false, suppliers);
     }
 
     @Override
@@ -124,28 +123,28 @@ public class NegTests extends AbstractFunctionTestCase {
         // Run the assertions for the current test cases type only to avoid running the same assertions multiple times.
         // TODO: These remaining cases should get rolled into generation functions for periods and durations
         DataType testCaseType = testCase.getData().get(0).type();
-        if (testCaseType == EsqlDataTypes.DATE_PERIOD) {
+        if (testCaseType == DataType.DATE_PERIOD) {
             Period maxPeriod = Period.of(Integer.MAX_VALUE, Integer.MAX_VALUE, Integer.MAX_VALUE);
             Period negatedMaxPeriod = Period.of(-Integer.MAX_VALUE, -Integer.MAX_VALUE, -Integer.MAX_VALUE);
-            assertEquals(negatedMaxPeriod, process(maxPeriod));
+            assertEquals(negatedMaxPeriod, foldTemporalAmount(maxPeriod));
 
             Period minPeriod = Period.of(Integer.MIN_VALUE, Integer.MIN_VALUE, Integer.MIN_VALUE);
             VerificationException e = expectThrows(
                 VerificationException.class,
                 "Expected exception when negating minimal date period.",
-                () -> process(minPeriod)
+                () -> foldTemporalAmount(minPeriod)
             );
             assertEquals(e.getMessage(), "arithmetic exception in expression []: [integer overflow]");
-        } else if (testCaseType == EsqlDataTypes.TIME_DURATION) {
+        } else if (testCaseType == DataType.TIME_DURATION) {
             Duration maxDuration = Duration.ofSeconds(Long.MAX_VALUE, 0);
             Duration negatedMaxDuration = Duration.ofSeconds(-Long.MAX_VALUE, 0);
-            assertEquals(negatedMaxDuration, process(maxDuration));
+            assertEquals(negatedMaxDuration, foldTemporalAmount(maxDuration));
 
             Duration minDuration = Duration.ofSeconds(Long.MIN_VALUE, 0);
             VerificationException e = expectThrows(
                 VerificationException.class,
                 "Expected exception when negating minimal time duration.",
-                () -> process(minDuration)
+                () -> foldTemporalAmount(minDuration)
             );
             assertEquals(
                 e.getMessage(),
@@ -154,33 +153,26 @@ public class NegTests extends AbstractFunctionTestCase {
         }
     }
 
-    private Object process(Object val) {
-        if (testCase.allTypesAreRepresentable()) {
-            Neg neg = new Neg(Source.EMPTY, field("val", typeOf(val)));
-            try (Block block = evaluator(neg).get(driverContext()).eval(row(List.of(val)))) {
-                return toJavaObject(block, 0);
-            }
-        } else { // just fold if type is not representable
-            Neg neg = new Neg(Source.EMPTY, new Literal(Source.EMPTY, val, typeOf(val)));
-            return neg.fold();
-        }
+    private Object foldTemporalAmount(Object val) {
+        Neg neg = new Neg(Source.EMPTY, new Literal(Source.EMPTY, val, typeOf(val)));
+        return neg.fold(FoldContext.small());
     }
 
     private static DataType typeOf(Object val) {
         if (val instanceof Integer) {
-            return DataTypes.INTEGER;
+            return DataType.INTEGER;
         }
         if (val instanceof Long) {
-            return DataTypes.LONG;
+            return DataType.LONG;
         }
         if (val instanceof Double) {
-            return DataTypes.DOUBLE;
+            return DataType.DOUBLE;
         }
         if (val instanceof Duration) {
-            return EsqlDataTypes.TIME_DURATION;
+            return DataType.TIME_DURATION;
         }
         if (val instanceof Period) {
-            return EsqlDataTypes.DATE_PERIOD;
+            return DataType.DATE_PERIOD;
         }
         throw new UnsupportedOperationException("unsupported type [" + val.getClass() + "]");
     }

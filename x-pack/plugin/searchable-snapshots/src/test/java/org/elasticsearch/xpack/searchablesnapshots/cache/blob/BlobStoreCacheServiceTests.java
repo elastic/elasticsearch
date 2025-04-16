@@ -100,7 +100,7 @@ public class BlobStoreCacheServiceTests extends ESTestCase {
             return null;
         }).when(mockClient).execute(eq(TransportGetAction.TYPE), any(GetRequest.class), any(ActionListener.class));
 
-        BlobStoreCacheService blobCacheService = new BlobStoreCacheService(null, mockClient, SNAPSHOT_BLOB_CACHE_INDEX);
+        BlobStoreCacheService blobCacheService = new BlobStoreCacheService(mockClient, SNAPSHOT_BLOB_CACHE_INDEX);
         blobCacheService.start();
 
         PlainActionFuture<CachedBlob> future = new PlainActionFuture<>();
@@ -132,7 +132,7 @@ public class BlobStoreCacheServiceTests extends ESTestCase {
             return null;
         }).when(mockClient).execute(eq(TransportIndexAction.TYPE), any(IndexRequest.class), any(ActionListener.class));
 
-        BlobStoreCacheService blobCacheService = new BlobStoreCacheService(null, mockClient, SNAPSHOT_BLOB_CACHE_INDEX);
+        BlobStoreCacheService blobCacheService = new BlobStoreCacheService(mockClient, SNAPSHOT_BLOB_CACHE_INDEX);
         blobCacheService.start();
 
         PlainActionFuture<Void> future = new PlainActionFuture<>();
@@ -170,7 +170,7 @@ public class BlobStoreCacheServiceTests extends ESTestCase {
             return null;
         }).when(mockClient).execute(eq(TransportIndexAction.TYPE), any(IndexRequest.class), any(ActionListener.class));
 
-        final BlobStoreCacheService blobCacheService = new BlobStoreCacheService(null, mockClient, SNAPSHOT_BLOB_CACHE_INDEX);
+        final BlobStoreCacheService blobCacheService = new BlobStoreCacheService(mockClient, SNAPSHOT_BLOB_CACHE_INDEX);
         blobCacheService.start();
 
         assertThat(blobCacheService.getInFlightCacheFills(), equalTo(0));

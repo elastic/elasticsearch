@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.analysis.common;
@@ -206,7 +207,7 @@ public class ReloadAnalyzerTests extends ESSingleNodeTestCase {
     public void testUpdateableSynonymsRejectedAtIndexTime() throws FileNotFoundException, IOException {
         String synonymsFileName = "synonyms.txt";
         setupResourceFile(synonymsFileName, "foo, baz");
-        Path configDir = node().getEnvironment().configFile();
+        Path configDir = node().getEnvironment().configDir();
         if (Files.exists(configDir) == false) {
             Files.createDirectory(configDir);
         }
@@ -318,7 +319,7 @@ public class ReloadAnalyzerTests extends ESSingleNodeTestCase {
     }
 
     private Path setupResourceFile(String fileName, String... content) throws IOException {
-        Path configDir = node().getEnvironment().configFile();
+        Path configDir = node().getEnvironment().configDir();
         if (Files.exists(configDir) == false) {
             Files.createDirectory(configDir);
         }

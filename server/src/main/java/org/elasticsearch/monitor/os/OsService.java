@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.monitor.os;
@@ -24,7 +25,6 @@ public class OsService implements ReportingService<OsInfo> {
 
     private static final Logger logger = LogManager.getLogger(OsService.class);
 
-    private final OsProbe probe;
     private final OsInfo info;
     private final SingleObjectCache<OsStats> osStatsCache;
 
@@ -36,10 +36,9 @@ public class OsService implements ReportingService<OsInfo> {
     );
 
     public OsService(Settings settings) throws IOException {
-        this.probe = OsProbe.getInstance();
         TimeValue refreshInterval = REFRESH_INTERVAL_SETTING.get(settings);
-        this.info = probe.osInfo(refreshInterval.millis(), EsExecutors.nodeProcessors(settings));
-        this.osStatsCache = new OsStatsCache(refreshInterval, probe.osStats());
+        this.info = OsProbe.getInstance().osInfo(refreshInterval.millis(), EsExecutors.nodeProcessors(settings));
+        this.osStatsCache = new OsStatsCache(refreshInterval);
         logger.debug("using refresh_interval [{}]", refreshInterval);
     }
 
@@ -52,14 +51,28 @@ public class OsService implements ReportingService<OsInfo> {
         return osStatsCache.getOrRefresh();
     }
 
-    private class OsStatsCache extends SingleObjectCache<OsStats> {
-        OsStatsCache(TimeValue interval, OsStats initValue) {
-            super(interval, initValue);
+    private static class OsStatsCache extends SingleObjectCache<OsStats> {
+
+        private static final OsStats MISSING = new OsStats(
+            0L,
+            new OsStats.Cpu((short) 0, new double[0]),
+            new OsStats.Mem(0, 0, 0),
+            new OsStats.Swap(0, 0),
+            null
+        );
+
+        OsStatsCache(TimeValue interval) {
+            super(interval, MISSING);
         }
 
         @Override
         protected OsStats refresh() {
-            return probe.osStats();
+            return OsProbe.getInstance().osStats();
+        }
+
+        @Override
+        protected boolean needsRefresh() {
+            return getNoRefresh() == MISSING || super.needsRefresh();
         }
     }
 }

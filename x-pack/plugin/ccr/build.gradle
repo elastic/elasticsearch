@@ -1,39 +1,23 @@
+import org.elasticsearch.gradle.testclusters.StandaloneRestIntegTestTask
+
 apply plugin: 'elasticsearch.internal-es-plugin'
 apply plugin: 'elasticsearch.internal-cluster-test'
+apply plugin: 'elasticsearch.internal-java-rest-test'
+apply plugin: 'elasticsearch.internal-yaml-rest-test'
+apply plugin: 'elasticsearch.internal-test-artifact'
+
 esplugin {
-  name 'x-pack-ccr'
-  description 'Elasticsearch Expanded Pack Plugin - CCR'
-  classname 'org.elasticsearch.xpack.ccr.Ccr'
-  hasNativeController false
-  requiresKeystore true
+  name = 'x-pack-ccr'
+  description = 'Elasticsearch Expanded Pack Plugin - CCR'
+  classname = 'org.elasticsearch.xpack.ccr.Ccr'
+  hasNativeController = false
+  requiresKeystore = true
   extendedPlugins = ['x-pack-core']
 }
+
 base {
   archivesName = 'x-pack-ccr'
 }
-
-// Integration Test classes that cannot run with the security manager
-String[] noSecurityManagerITClasses = ["**/CloseFollowerIndexIT.class"]
-
-tasks.register('internalClusterTestNoSecurityManager', Test) {
-  testClassesDirs = sourceSets.internalClusterTest.output.classesDirs
-  classpath = sourceSets.internalClusterTest.runtimeClasspath
-  include noSecurityManagerITClasses
-  systemProperty 'tests.security.manager', 'false'
-}
-tasks.named("check").configure { dependsOn 'internalClusterTestNoSecurityManager' }
-
-tasks.named('internalClusterTest').configure {
-  exclude noSecurityManagerITClasses
-}
-
-tasks.named('internalClusterTestTestingConventions').configure {
-  baseClass 'org.elasticsearch.xpack.CcrIntegTestCase'
-  baseClass 'org.elasticsearch.xpack.CcrSingleNodeTestCase'
-  baseClass 'org.elasticsearch.test.ESIntegTestCase'
-}
-
-addQaCheckDependencies(project)
 
 dependencies {
   compileOnly project(":server")
@@ -43,4 +27,42 @@ dependencies {
   testImplementation(testArtifact(project(xpackModule('monitoring'))))
   testImplementation(project(":modules:analysis-common"))
   testImplementation(project(":modules:data-streams"))
+  javaRestTestImplementation(testImplementation(testArtifact(project(xpackModule('core')))))
+
+  clusterModules project(":modules:analysis-common")
+  clusterModules project(":modules:mapper-extras")
+  clusterModules project(":modules:data-streams")
+  clusterModules project(":modules:ingest-common")
+  clusterModules project(xpackModule("monitoring"))
+  clusterModules project(xpackModule("ilm"))
+  clusterModules project(xpackModule("wildcard"))
+  clusterModules project(xpackModule("stack"))
+  clusterModules project(xpackModule("mapper-constant-keyword"))
+  clusterModules project(xpackModule("searchable-snapshots"))
+}
+
+restResources {
+  restApi {
+    include '_common', 'cluster', 'nodes', 'indices', 'index', 'info', 'ccr'
+  }
+}
+
+tasks.named('internalClusterTest') {
+  systemProperty 'tests.security.manager', 'false'
+}
+
+tasks.named('internalClusterTestTestingConventions') {
+  baseClass 'org.elasticsearch.xpack.CcrIntegTestCase'
+  baseClass 'org.elasticsearch.xpack.CcrSingleNodeTestCase'
+  baseClass 'org.elasticsearch.test.ESIntegTestCase'
+}
+
+tasks.named("yamlRestTest") {
+  usesDefaultDistribution("uses _xpack info api")
+}
+
+tasks.withType(StandaloneRestIntegTestTask).configureEach {
+  // These fail in CI but only when run as part of checkPart2 and not individually.
+  // Tracked in : https://github.com/elastic/elasticsearch/issues/66661
+  buildParams.withFipsEnabledOnly(it)
 }

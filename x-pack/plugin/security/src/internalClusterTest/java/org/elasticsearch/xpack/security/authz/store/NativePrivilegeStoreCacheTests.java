@@ -303,14 +303,14 @@ public class NativePrivilegeStoreCacheTests extends SecuritySingleNodeTestCase {
                 "Basic " + Base64.getEncoder().encodeToString((testRoleCacheUser + ":longerpassword").getBytes(StandardCharsets.UTF_8))
             )
         );
-        new ClusterHealthRequestBuilder(testRoleCacheUserClient).get();
+        new ClusterHealthRequestBuilder(testRoleCacheUserClient, TEST_REQUEST_TIMEOUT).get();
 
         // Directly deleted the role document
         final DeleteResponse deleteResponse = client.prepareDelete(SECURITY_MAIN_ALIAS, "role-" + testRole).get();
         assertEquals(DocWriteResponse.Result.DELETED, deleteResponse.getResult());
 
         // The cluster health action can still success since the role is cached
-        new ClusterHealthRequestBuilder(testRoleCacheUserClient).get();
+        new ClusterHealthRequestBuilder(testRoleCacheUserClient, TEST_REQUEST_TIMEOUT).get();
 
         // Change an application privilege which triggers role cache invalidation as well
         if (randomBoolean()) {
@@ -319,7 +319,10 @@ public class NativePrivilegeStoreCacheTests extends SecuritySingleNodeTestCase {
             addApplicationPrivilege("app-3", "read", "r:q:r:s");
         }
         // Since role cache is cleared, the cluster health action is no longer authorized
-        expectThrows(ElasticsearchSecurityException.class, () -> new ClusterHealthRequestBuilder(testRoleCacheUserClient).get());
+        expectThrows(
+            ElasticsearchSecurityException.class,
+            () -> new ClusterHealthRequestBuilder(testRoleCacheUserClient, TEST_REQUEST_TIMEOUT).get()
+        );
     }
 
     private HasPrivilegesResponse checkPrivilege(String applicationName, String privilegeName) {

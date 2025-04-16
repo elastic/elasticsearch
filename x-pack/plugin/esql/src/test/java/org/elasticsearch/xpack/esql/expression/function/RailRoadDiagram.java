@@ -20,7 +20,6 @@ import net.nextencia.rrdiagram.grammar.rrdiagram.RRElement;
 import net.nextencia.rrdiagram.grammar.rrdiagram.RRText;
 
 import org.elasticsearch.common.util.LazyInitializable;
-import org.elasticsearch.xpack.ql.expression.function.FunctionDefinition;
 
 import java.awt.Font;
 import java.awt.FontFormatException;
@@ -50,44 +49,108 @@ public class RailRoadDiagram {
         List<Expression> expressions = new ArrayList<>();
         expressions.add(new SpecialSequence(definition.name().toUpperCase(Locale.ROOT)));
         expressions.add(new Syntax("("));
-        boolean first = true;
-        List<String> args = EsqlFunctionRegistry.description(definition).argNames();
-        for (String arg : args) {
-            if (arg.endsWith("...")) {
-                expressions.add(new Repetition(new Sequence(new Syntax(","), new Literal(arg.substring(0, arg.length() - 3))), 0, null));
-            } else {
-                if (first) {
-                    first = false;
+
+        if (definition.name().equals("case")) {
+            // CASE is so weird let's just hack this together manually
+            Sequence seq = new Sequence(new Literal("condition"), new Syntax(","), new Literal("trueValue"));
+            expressions.add(new Repetition(seq, 1, null));
+            expressions.add(new Repetition(new Literal("elseValue"), 0, 1));
+        } else {
+            List<Expression> argExpressions = new ArrayList<>();
+            List<EsqlFunctionRegistry.ArgSignature> args = EsqlFunctionRegistry.description(definition).args();
+            for (int i = 0; i < args.size(); i++) {
+                EsqlFunctionRegistry.ArgSignature arg = args.get(i);
+                String argName = arg.name();
+                if (arg.variadic) {
+                    if (argName.endsWith("...")) {
+                        argName = argName.substring(0, argName.length() - 3);
+                    }
+                    argExpressions.add(new Repetition(new Sequence(new Syntax(","), new Literal(argName)), arg.optional ? 0 : 1, null));
                 } else {
-                    expressions.add(new Syntax(","));
+                    if (arg.optional) {
+                        if (definition.name().equals("bucket")) {
+                            // BUCKET requires optional args to be optional together, so we need custom code to do that
+                            var nextArg = args.get(++i);
+                            assert nextArg.optional();
+                            Sequence seq = new Sequence(new Literal(argName), new Syntax(","), new Literal(nextArg.name));
+                            argExpressions.add(new Repetition(seq, 0, 1));
+                        } else if (i < args.size() - 1 && args.get(i + 1).optional() == false) {
+                            // Special case with leading optional args
+                            Sequence seq = new Sequence(new Literal(argName), new Syntax(","));
+                            argExpressions.add(new Repetition(seq, 0, 1));
+                        } else {
+                            argExpressions.add(new Repetition(new Literal(argName), 0, 1));
+                        }
+                    } else {
+                        argExpressions.add(new Literal(argName));
+                    }
                 }
-                expressions.add(new Literal(arg));
             }
+            expressions.addAll(injectCommas(argExpressions, new Syntax(",")));
         }
         expressions.add(new Syntax(")"));
         return toSvg(new Sequence(expressions.toArray(Expression[]::new)));
     }
 
+    public static List<Expression> injectCommas(List<Expression> original, Expression comma) {
+        List<Expression> result = new ArrayList<>();
+        for (int i = 0; i < original.size(); i++) {
+            result.add(original.get(i));
+            if (i < original.size() - 1 && hasComma(original.get(i), true) == false && hasComma(original.get(i + 1), false) == false) {
+                result.add(comma);
+            }
+        }
+        return result;
+    }
+
+    private static boolean hasComma(Expression exp, boolean atEnd) {
+        if (exp instanceof Repetition rep && rep.getExpression() instanceof Sequence seq) {
+            Expression[] seqExp = seq.getExpressions();
+            int index = atEnd ? seqExp.length - 1 : 0;
+            return seqExp[index] instanceof Syntax syntax && syntax.text.equals(",");
+        }
+        return false;
+    }
+
     /**
-     * Generate a railroad diagram for binary operator. The output would look like
-     * {@code lhs + rhs}.
+     * Generate a railroad diagram for an infix operator like the binary operators, search operator or cast operator.
+     * Example output would look like:
+     * <dl>
+     *     <dt>Addition (binary operator)</dt>
+     *     <dd>{@code lhs + rhs}</dd>
+     *     <dt>Search</dt>
+     *     <dd>{@code field : query}</dd>
+     *     <dt>Cast</dt>
+     *     <dd>{@code field :: type}</dd>
+     * </dl>
      */
-    static String binaryOperator(String operator) throws IOException {
+    static String infixOperator(String lhs, String operator, String rhs) throws IOException {
         List<Expression> expressions = new ArrayList<>();
-        expressions.add(new Literal("lhs"));
+        expressions.add(new Literal(lhs));
         expressions.add(new Syntax(operator));
-        expressions.add(new Literal("rhs"));
+        expressions.add(new Literal(rhs));
         return toSvg(new Sequence(expressions.toArray(Expression[]::new)));
     }
 
     /**
-     * Generate a railroad diagram for unary operator. The output would look like
-     * {@code -v}.
+     * Generate a railroad diagram for prefix operators like the unary operators.
+     * For example, for negation the output would look like {@code -v}.
      */
-    static String unaryOperator(String operator) throws IOException {
+    static String prefixOperator(String operator, String suffix) throws IOException {
         List<Expression> expressions = new ArrayList<>();
         expressions.add(new Syntax(operator));
-        expressions.add(new Literal("v"));
+        expressions.add(new Literal(suffix));
+        return toSvg(new Sequence(expressions.toArray(Expression[]::new)));
+    }
+
+    /**
+     * Generate a railroad diagram for suffix operators like the NULL predicates.
+     * For example, for null checks the output would look like {@code field IS NOT NULL}.
+     */
+    static String suffixOperator(String prefix, String operator) throws IOException {
+        List<Expression> expressions = new ArrayList<>();
+        expressions.add(new Literal(prefix));
+        expressions.add(new Syntax(operator));
         return toSvg(new Sequence(expressions.toArray(Expression[]::new)));
     }
 
@@ -102,21 +165,7 @@ public class RailRoadDiagram {
         toSvg.setLiteralFont(FONT.getOrCompute());
 
         toSvg.setRuleFont(FONT.getOrCompute());
-        return tightenStyles(toSvg.convert(rrDiagram));
-    }
-
-    /**
-     * "Tighten" the styles in the SVG so they beat the styles sitting in the
-     * main page. We need this because we're embedding the SVG into the page.
-     * We need to embed the SVG into the page so it can get fonts loaded in the
-     * primary stylesheet. We need to load a font so they images are consistent
-     * on all clients.
-     */
-    private static String tightenStyles(String svg) {
-        for (String c : new String[] { "c", "k", "s", "j", "l" }) {
-            svg = svg.replace("." + c, "#guide ." + c);
-        }
-        return svg;
+        return toSvg.convert(rrDiagram);
     }
 
     /**

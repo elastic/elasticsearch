@@ -83,7 +83,7 @@ public class MonitoringBulkRequest extends ActionRequest {
     ) throws IOException {
 
         // MonitoringBulkRequest accepts a body request that has the same format as the BulkRequest
-        new BulkRequestParser(false, RestApiVersion.current()).parse(
+        new BulkRequestParser(false, true, RestApiVersion.current()).parse(
             content,
             null,
             null,

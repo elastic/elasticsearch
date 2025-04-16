@@ -14,7 +14,6 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.rest.FakeRestRequest;
 import org.elasticsearch.xpack.core.XPackSettings;
-import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.security.Security;
 import org.junit.Before;
 
@@ -22,7 +21,6 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.nullValue;
-import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -36,7 +34,6 @@ public class RestProfileHasPrivilegesActionTests extends ESTestCase {
         licenseState = MockLicenseState.createMock();
         restProfileHasPrivilegesAction = new RestProfileHasPrivilegesAction(
             Settings.builder().put(XPackSettings.SECURITY_ENABLED.getKey(), true).build(),
-            mock(SecurityContext.class),
             licenseState
         );
     }

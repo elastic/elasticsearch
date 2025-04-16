@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.ql.expression;
 
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.mapper.IdFieldMapper;
+import org.elasticsearch.index.mapper.IgnoredFieldMapper;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.xpack.ql.tree.NodeInfo;
 import org.elasticsearch.xpack.ql.tree.Source;
@@ -28,6 +29,8 @@ public class MetadataAttribute extends TypedAttribute {
         tuple(DataTypes.KEYWORD, true),
         IdFieldMapper.NAME,
         tuple(DataTypes.KEYWORD, false), // actually searchable, but fielddata access on the _id field is disallowed by default
+        IgnoredFieldMapper.NAME,
+        tuple(DataTypes.KEYWORD, true),
         SourceFieldMapper.NAME,
         tuple(DataTypes.SOURCE, false)
     );

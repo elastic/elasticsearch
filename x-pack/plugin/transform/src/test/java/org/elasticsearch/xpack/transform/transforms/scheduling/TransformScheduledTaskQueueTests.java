@@ -54,6 +54,7 @@ public class TransformScheduledTaskQueueTests extends ESTestCase {
     public void testNonEmptyQueue() {
         queue.add(createTask("task-1", 5));
         assertThat(queue.first(), is(notNullValue()));
+        assertThat(queue.size(), is(equalTo(1)));
     }
 
     public void testAddAndRemove() {
@@ -63,6 +64,7 @@ public class TransformScheduledTaskQueueTests extends ESTestCase {
         assertThat(queue.first(), is(notNullValue()));
         assertThat(queue.getTransformIds(), containsInAnyOrder("task-1", "task-2", "task-3"));
         assertThat(queue.first(), is(equalTo(createTask("task-2", 1))));
+        assertThat(queue.size(), is(equalTo(3)));
 
         queue.remove("task-1");
         queue.remove("task-2");
@@ -86,6 +88,7 @@ public class TransformScheduledTaskQueueTests extends ESTestCase {
         }
         assertThat(queue.first(), is(notNullValue()));
         assertThat(queue.getTransformIds(), hasSize(100));
+        assertThat(queue.size(), is(equalTo(100)));
 
         {
             Set<String> removedTaskIds = new HashSet<>();
@@ -107,11 +110,13 @@ public class TransformScheduledTaskQueueTests extends ESTestCase {
     public void testAddNoOp() {
         queue.add(createTask("task-1", 5));
         assertThat(queue.first(), is(equalTo(createTask("task-1", 5))));
+        assertThat(queue.size(), is(equalTo(1)));
 
         // Try adding a task with a duplicate key
         queue.add(createTask("task-1", 6));
         // Verify that the add operation had no effect
         assertThat(queue.first(), is(equalTo(createTask("task-1", 5))));
+        assertThat(queue.size(), is(equalTo(1)));
     }
 
     public void testRemoveNoOp() {
@@ -121,6 +126,7 @@ public class TransformScheduledTaskQueueTests extends ESTestCase {
         assertThat(queue.first(), is(notNullValue()));
         assertThat(queue.getTransformIds(), containsInAnyOrder("task-1"));
         assertThat(queue.first(), is(equalTo(createTask("task-1", 5))));
+        assertThat(queue.size(), is(equalTo(1)));
     }
 
     public void testUpdateNoOp() {
@@ -130,6 +136,7 @@ public class TransformScheduledTaskQueueTests extends ESTestCase {
         assertThat(queue.first(), is(notNullValue()));
         assertThat(queue.getTransformIds(), containsInAnyOrder("task-1"));
         assertThat(queue.first(), is(equalTo(createTask("task-1", 5))));
+        assertThat(queue.size(), is(equalTo(1)));
     }
 
     public void testUpdateModifiesId() {
@@ -154,6 +161,7 @@ public class TransformScheduledTaskQueueTests extends ESTestCase {
             containsInAnyOrder("task-1", "task-2", "task-3", "task-4", "task-5", "task-6", "task-7", "task-8", "task-9")
         );
         assertThat(queue.first(), is(equalTo(createTask("task-7", 0))));
+        assertThat(queue.size(), is(equalTo(9)));
 
         List<TransformScheduledTask> tasksByPriority = new ArrayList<>();
         while (queue.first() != null) {
@@ -184,15 +192,18 @@ public class TransformScheduledTaskQueueTests extends ESTestCase {
         queue.add(createTask("task-3", 9));
         assertThat(queue.getTransformIds(), containsInAnyOrder("task-1", "task-2", "task-3"));
         assertThat(queue.first(), is(equalTo(createTask("task-2", 1))));
+        assertThat(queue.size(), is(equalTo(3)));
 
         queue.update("task-3", task -> createTask(task.getTransformId(), -999));
         assertThat(queue.getTransformIds(), containsInAnyOrder("task-1", "task-2", "task-3"));
         assertThat(queue.first(), is(equalTo(createTask("task-3", -999))));
+        assertThat(queue.size(), is(equalTo(3)));
 
         queue.update("task-1", task -> createTask(task.getTransformId(), 0));
         queue.remove("task-3");
         assertThat(queue.getTransformIds(), containsInAnyOrder("task-1", "task-2"));
         assertThat(queue.first(), is(equalTo(createTask("task-1", 0))));
+        assertThat(queue.size(), is(equalTo(2)));
     }
 
     private static TransformScheduledTask createTask(String transformId, long nextScheduledTimeMillis) {
@@ -213,5 +224,6 @@ public class TransformScheduledTaskQueueTests extends ESTestCase {
     private void assertThatQueueIsEmpty() {
         assertThat(queue.first(), is(nullValue()));
         assertThat(queue.getTransformIds(), is(empty()));
+        assertThat(queue.size(), is(equalTo(0)));
     }
 }

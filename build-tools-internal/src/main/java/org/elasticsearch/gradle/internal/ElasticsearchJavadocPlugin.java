@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.gradle.internal;
@@ -81,12 +82,15 @@ public class ElasticsearchJavadocPlugin implements Plugin<Project> {
             .sorted(Comparator.comparing(Dependency::getGroup))
             .filter(d -> d instanceof ProjectDependency)
             .map(d -> (ProjectDependency) d)
-            .filter(p -> p.getDependencyProject() != null)
             .forEach(projectDependency -> configureDependency(project, shadow, projectDependency));
     }
 
     private void configureDependency(Project project, boolean shadowed, ProjectDependency dep) {
-        var upstreamProject = dep.getDependencyProject();
+        // we should use variant aware dependency management to resolve artifacts required for javadoc here
+        Project upstreamProject = project.project(dep.getPath());
+        if (upstreamProject == null) {
+            return;
+        }
         if (shadowed) {
             /*
              * Include the source of shadowed upstream projects so we don't

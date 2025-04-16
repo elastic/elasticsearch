@@ -10,12 +10,14 @@ package org.elasticsearch.compute.data;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.core.ReleasableIterator;
 
 import java.io.IOException;
 
 /**
  * Vector that stores int values.
- * This class is generated. Do not edit it.
+ * This class is generated. Edit {@code X-Vector.java.st} instead.
  */
 public sealed interface IntVector extends Vector permits ConstantIntVector, IntArrayVector, IntBigArrayVector, ConstantNullVector {
 
@@ -26,6 +28,22 @@ public sealed interface IntVector extends Vector permits ConstantIntVector, IntA
 
     @Override
     IntVector filter(int... positions);
+
+    @Override
+    IntBlock keepMask(BooleanVector mask);
+
+    @Override
+    ReleasableIterator<? extends IntBlock> lookup(IntBlock positions, ByteSizeValue targetBlockSize);
+
+    /**
+     * The minimum value in the Vector. An empty Vector will return {@link Integer#MAX_VALUE}.
+     */
+    int min();
+
+    /**
+     * The maximum value in the Vector. An empty Vector will return {@link Integer#MIN_VALUE}.
+     */
+    int max();
 
     /**
      * Compares the given object with this vector for equality. Returns {@code true} if and only if the
@@ -80,6 +98,7 @@ public sealed interface IntVector extends Vector permits ConstantIntVector, IntA
             case SERIALIZE_VECTOR_VALUES -> readValues(positions, in, blockFactory);
             case SERIALIZE_VECTOR_CONSTANT -> blockFactory.newConstantIntVector(in.readInt(), positions);
             case SERIALIZE_VECTOR_ARRAY -> IntArrayVector.readArrayVector(positions, in, blockFactory);
+            case SERIALIZE_VECTOR_BIG_ARRAY -> IntBigArrayVector.readArrayVector(positions, in, blockFactory);
             default -> {
                 assert false : "invalid vector serialization type [" + serializationType + "]";
                 throw new IllegalStateException("invalid vector serialization type [" + serializationType + "]");
@@ -95,8 +114,11 @@ public sealed interface IntVector extends Vector permits ConstantIntVector, IntA
         if (isConstant() && positions > 0) {
             out.writeByte(SERIALIZE_VECTOR_CONSTANT);
             out.writeInt(getInt(0));
-        } else if (version.onOrAfter(TransportVersions.ESQL_SERIALIZE_ARRAY_VECTOR) && this instanceof IntArrayVector v) {
+        } else if (version.onOrAfter(TransportVersions.V_8_14_0) && this instanceof IntArrayVector v) {
             out.writeByte(SERIALIZE_VECTOR_ARRAY);
+            v.writeArrayVector(positions, out);
+        } else if (version.onOrAfter(TransportVersions.V_8_14_0) && this instanceof IntBigArrayVector v) {
+            out.writeByte(SERIALIZE_VECTOR_BIG_ARRAY);
             v.writeArrayVector(positions, out);
         } else {
             out.writeByte(SERIALIZE_VECTOR_VALUES);
@@ -107,7 +129,7 @@ public sealed interface IntVector extends Vector permits ConstantIntVector, IntA
     private static IntVector readValues(int positions, StreamInput in, BlockFactory blockFactory) throws IOException {
         try (var builder = blockFactory.newIntVectorFixedBuilder(positions)) {
             for (int i = 0; i < positions; i++) {
-                builder.appendInt(in.readInt());
+                builder.appendInt(i, in.readInt());
             }
             return builder.build();
         }
@@ -150,5 +172,8 @@ public sealed interface IntVector extends Vector permits ConstantIntVector, IntA
          */
         @Override
         FixedBuilder appendInt(int value);
+
+        FixedBuilder appendInt(int index, int value);
+
     }
 }

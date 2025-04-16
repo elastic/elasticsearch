@@ -1,15 +1,15 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.search.aggregations.bucket.range;
 
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.search.DocValueFormat;
-import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 
 import java.io.IOException;
@@ -24,28 +24,8 @@ public class InternalDateRange extends InternalRange<InternalDateRange.Bucket, I
 
     public static class Bucket extends InternalRange.Bucket {
 
-        public Bucket(
-            String key,
-            double from,
-            double to,
-            long docCount,
-            List<InternalAggregation> aggregations,
-            boolean keyed,
-            DocValueFormat formatter
-        ) {
-            super(key, from, to, docCount, InternalAggregations.from(aggregations), keyed, formatter);
-        }
-
-        public Bucket(
-            String key,
-            double from,
-            double to,
-            long docCount,
-            InternalAggregations aggregations,
-            boolean keyed,
-            DocValueFormat formatter
-        ) {
-            super(key, from, to, docCount, aggregations, keyed, formatter);
+        public Bucket(String key, double from, double to, long docCount, InternalAggregations aggregations, DocValueFormat formatter) {
+            super(key, from, to, docCount, aggregations, formatter);
         }
 
         @Override
@@ -98,10 +78,9 @@ public class InternalDateRange extends InternalRange<InternalDateRange.Bucket, I
             double to,
             long docCount,
             InternalAggregations aggregations,
-            boolean keyed,
             DocValueFormat formatter
         ) {
-            return new Bucket(key, from, to, docCount, aggregations, keyed, formatter);
+            return new Bucket(key, from, to, docCount, aggregations, formatter);
         }
 
         @Override
@@ -112,7 +91,6 @@ public class InternalDateRange extends InternalRange<InternalDateRange.Bucket, I
                 prototype.internalGetTo(),
                 prototype.getDocCount(),
                 aggregations,
-                prototype.getKeyed(),
                 prototype.getFormat()
             );
         }

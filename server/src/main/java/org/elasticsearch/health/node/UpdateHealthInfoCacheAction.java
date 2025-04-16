@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.health.node;
@@ -16,12 +17,12 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.health.node.action.HealthNodeRequest;
 import org.elasticsearch.health.node.action.TransportHealthNodeAction;
+import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -71,7 +72,7 @@ public class UpdateHealthInfoCacheAction extends ActionType<AcknowledgedResponse
             if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
                 this.diskHealthInfo = in.readOptionalWriteable(DiskHealthInfo::new);
                 this.dslHealthInfo = in.readOptionalWriteable(DataStreamLifecycleHealthInfo::new);
-                this.repositoriesHealthInfo = in.getTransportVersion().onOrAfter(TransportVersions.HEALTH_INFO_ENRICHED_WITH_REPOS)
+                this.repositoriesHealthInfo = in.getTransportVersion().onOrAfter(TransportVersions.V_8_13_0)
                     ? in.readOptionalWriteable(RepositoriesHealthInfo::new)
                     : null;
             } else {
@@ -113,13 +114,13 @@ public class UpdateHealthInfoCacheAction extends ActionType<AcknowledgedResponse
             if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
                 out.writeOptionalWriteable(diskHealthInfo);
                 out.writeOptionalWriteable(dslHealthInfo);
-                if (out.getTransportVersion().onOrAfter(TransportVersions.HEALTH_INFO_ENRICHED_WITH_REPOS)) {
+                if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_13_0)) {
                     out.writeOptionalWriteable(repositoriesHealthInfo);
                 }
             } else {
                 // BWC for pre-8.12 the disk health info was mandatory. Evolving this request has proven tricky however we've made use of
-                // waiting for all nodes to be on the {@link TransportVersions.HEALTH_INFO_ENRICHED_WITH_DSL_STATUS} transport version
-                // before sending any requests to update the health info that'd break the pre HEALTH_INFO_ENRICHED_WITH_DSL_STATUS
+                // waiting for all nodes to be on the {@link TransportVersions.V_8_12_0} transport version
+                // before sending any requests to update the health info that'd break the pre-8.12
                 // transport invariant of always having a disk health information in the request
                 diskHealthInfo.writeTo(out);
             }

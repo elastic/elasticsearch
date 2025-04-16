@@ -1,0 +1,122 @@
+// Match all queries
+*
+*:*
+(*:*)
+
+// Queries with no field
+200
+foo
+foo bar
+(foo bar)
+foo*
+*foo
+f*oo
+"foo bar"
+
+// Queries with all fields
+ *:200
+ *:foo
+ *:foo bar
+ *:foo*
+ *:f*oo
+ *: *foo
+ *:"foo bar"
+
+// Querying a field
+mapped_int:200
+mapped_string_2:foo
+mapped_string:foo bar
+mapped_string:(foo bar)
+mapped_string:foo*
+mapped_string_2: f*oo
+mapped_string: *foo
+mapped_string:"foo bar"
+mapped_object.subfield:foo
+mapped_str*:foo
+mapped_string:*
+mapped_str_*:*
+
+// Range queries
+mapped_int<200
+mapped_string_2<foo
+mapped_string<"foo bar"
+mapped_double>=200
+mapped_string_alias>=foo
+mapped_string>"foo bar"
+mapped_string<=foo
+mapped_string_2>=foo
+
+// Boolean queries
+NOT foo
+NOT foo bar
+NOT mapped_string:foo
+NOT mapped_string_2<foo
+mapped_string:foo AND mapped_string_2:foo bar
+mapped_string<foo AND mapped_string>bar
+(mapped_string:foo) AND (mapped_string:foo bar)
+mapped_string:foo OR mapped_string_2:foo bar
+NOT(mapped_string:foo OR mapped_string:foo bar)
+NOT(mapped_string:foo AND mapped_string:foo bar)
+NOT mapped_string:foo AND NOT mapped_string_2:foo bar
+(NOT mapped_string_alias:foo) AND (NOT mapped_string:foo bar)
+NOT(mapped_string:foo) AND NOT(mapped_string:foo bar)
+mapped_string:foo AND mapped_string_2:foo bar AND foo bar
+mapped_string:foo AND mapped_string_2:foo bar OR foo bar
+mapped_string:foo OR mapped_string_2:foo bar OR foo bar
+mapped_string:foo OR mapped_string:foo bar AND foo bar
+mapped_string:foo AND (mapped_string_2:foo bar OR foo bar)
+mapped_string:foo AND (mapped_string_2:foo bar OR foo bar)
+mapped_string:foo OR (mapped_string_2:foo bar OR foo bar)
+
+mapped_string:AND
+mapped_string:OR
+mapped_string:NOT
+foo AND
+foo OR
+foo NOT
+AND foo
+OR foo
+NOT
+
+// Nested queries
+mapped_nested: { NOT foo }
+mapped_nested: { NOT foo bar }
+mapped_nested: { NOT mapped_string:foo }
+mapped_nested: { mapped_string:foo AND mapped_string_2:foo bar }
+mapped_nested: { mapped_string<foo AND mapped_int>2 }
+mapped_nested: { (mapped_string:foo) AND (mapped_string_2:foo bar) }
+mapped_nested: { mapped_string:foo OR mapped_string_2:foo bar }
+mapped_nested: { NOT(mapped_string:foo OR mapped_string_2:foo bar) }
+mapped_nested: { NOT(mapped_string:foo AND mapped_string_2:foo bar) }
+mapped_nested: { NOT mapped_string:foo AND NOT mapped_string_2:foo bar }
+mapped_nested: { (NOT mapped_string:foo) AND (NOT mapped_string_2:foo bar) }
+mapped_nested: { NOT(mapped_string:foo) AND NOT(mapped_string_2:foo bar) }
+mapped_nested: { mapped_str*:foo }
+mapped_nested: { mapped_nested : { mapped_string:foo AND mapped_int < 3 } AND mapped_string_2:foo bar }
+mapped_nested: { mapped_nested.mapped_string:foo AND mapped_string_2:foo bar }
+
+// Inline nested queries
+mapped_nested.mapped_string:foo AND mapped_nested.mapped_int < 2
+mapped_nested.mapped_nested.mapped_string:foo AND mapped_nested.mapped_int < 2
+mapped_nested.mapped_str*: foo
+
+
+// Queries with escape sequences
+mapped_string:(foo\(bar\))
+mapped_string:foo\:bar
+mapped_string:(foo \\and bar)
+mapped_string:(foo \\or bar)
+mapped_string:foo \\not bar
+mapped_string:foo \{bar\}
+mapped_string:foo \(bar\)
+mapped_string:foo \\ bar
+mapped_string:foo \"bar\"
+
+mapped_string:"foo and bar"
+mapped_string:"foo not bar"
+mapped_string:"foo or bar"
+mapped_string:"foo : bar"
+mapped_string:"foo { bar }"
+mapped_string:"foo (bar)"
+mapped_string:"foo \\ bar"
+mapped_string:"foo \"bar\""

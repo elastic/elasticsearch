@@ -15,12 +15,12 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.bytes.ReleasableBytesReference;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.ByteArray;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportActionProxy;
@@ -92,7 +92,7 @@ public class GetCcrRestoreFileChunkAction extends ActionType<GetCcrRestoreFileCh
             BytesReference pagedBytesReference = BytesReference.fromByteArray(array, bytesRequested);
             try (ReleasableBytesReference reference = new ReleasableBytesReference(pagedBytesReference, array)) {
                 try (CcrRestoreSourceService.SessionReader sessionReader = restoreSourceService.getSessionReader(sessionUUID)) {
-                    long offsetAfterRead = sessionReader.readFileBytes(fileName, reference);
+                    long offsetAfterRead = sessionReader.readFileBytes(fileName, array);
                     long offsetBeforeRead = offsetAfterRead - reference.length();
                     ActionListener.respondAndRelease(listener, new GetCcrRestoreFileChunkResponse(offsetBeforeRead, reference));
                 }
@@ -143,7 +143,6 @@ public class GetCcrRestoreFileChunkAction extends ActionType<GetCcrRestoreFileCh
         private final ReleasableBytesReference chunk;
 
         GetCcrRestoreFileChunkResponse(StreamInput streamInput) throws IOException {
-            super(streamInput);
             assert ThreadPool.assertCurrentThreadPool(ThreadPool.Names.GENERIC); // large responses must fork before deserialization
             offset = streamInput.readVLong();
             chunk = streamInput.readReleasableBytesReference();

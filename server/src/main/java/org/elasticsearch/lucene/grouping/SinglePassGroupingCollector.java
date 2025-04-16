@@ -36,6 +36,7 @@ import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.TotalHits;
 import org.apache.lucene.search.grouping.GroupSelector;
+import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.mapper.MappedFieldType;
@@ -202,7 +203,7 @@ public class SinglePassGroupingCollector<T> extends SimpleCollector {
 
         if (groupMap.size() <= groupOffset) {
             TotalHits totalHits = new TotalHits(totalHitCount, TotalHits.Relation.EQUAL_TO);
-            return new TopFieldGroups(groupField, totalHits, new ScoreDoc[0], groupSort.getSort(), new Object[0]);
+            return new TopFieldGroups(groupField, totalHits, Lucene.EMPTY_SCORE_DOCS, groupSort.getSort(), new Object[0]);
         }
 
         if (orderedGroups == null) {

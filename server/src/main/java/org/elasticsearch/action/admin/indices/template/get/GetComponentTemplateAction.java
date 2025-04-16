@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.admin.indices.template.get;
@@ -13,11 +14,17 @@ import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.admin.indices.rollover.RolloverConfiguration;
-import org.elasticsearch.action.support.master.MasterNodeReadRequest;
+import org.elasticsearch.action.support.local.LocalClusterStateRequest;
 import org.elasticsearch.cluster.metadata.ComponentTemplate;
+import org.elasticsearch.cluster.metadata.DataStreamGlobalRetention;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.core.UpdateForV10;
+import org.elasticsearch.tasks.CancellableTask;
+import org.elasticsearch.tasks.Task;
+import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -41,19 +48,23 @@ public class GetComponentTemplateAction extends ActionType<GetComponentTemplateA
     /**
      * Request that to retrieve one or more component templates
      */
-    public static class Request extends MasterNodeReadRequest<Request> {
+    public static class Request extends LocalClusterStateRequest {
 
         @Nullable
         private String name;
         private boolean includeDefaults;
 
-        public Request() {}
-
-        public Request(String name) {
+        public Request(TimeValue masterTimeout, String name) {
+            super(masterTimeout);
             this.name = name;
             this.includeDefaults = false;
         }
 
+        /**
+         * NB prior to 9.0 get-component was a TransportMasterNodeReadAction so for BwC we must remain able to read these requests until
+         * we no longer need to support calling this action remotely.
+         */
+        @UpdateForV10(owner = UpdateForV10.Owner.DATA_MANAGEMENT)
         public Request(StreamInput in) throws IOException {
             super(in);
             name = in.readOptionalString();
@@ -65,17 +76,13 @@ public class GetComponentTemplateAction extends ActionType<GetComponentTemplateA
         }
 
         @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            super.writeTo(out);
-            out.writeOptionalString(name);
-            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_9_X)) {
-                out.writeBoolean(includeDefaults);
-            }
+        public ActionRequestValidationException validate() {
+            return null;
         }
 
         @Override
-        public ActionRequestValidationException validate() {
-            return null;
+        public Task createTask(long id, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
+            return new CancellableTask(id, type, action, "", parentTaskId, headers);
         }
 
         /**
@@ -118,19 +125,28 @@ public class GetComponentTemplateAction extends ActionType<GetComponentTemplateA
         @Nullable
         private final RolloverConfiguration rolloverConfiguration;
 
-        public Response(StreamInput in) throws IOException {
-            super(in);
-            componentTemplates = in.readMap(ComponentTemplate::new);
-            if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_9_X)) {
-                rolloverConfiguration = in.readOptionalWriteable(RolloverConfiguration::new);
-            } else {
-                rolloverConfiguration = null;
-            }
+        /**
+         * Please use {@link GetComponentTemplateAction.Response#Response(Map)}
+         */
+        @Deprecated
+        public Response(Map<String, ComponentTemplate> componentTemplates, @Nullable DataStreamGlobalRetention globalRetention) {
+            this(componentTemplates, (RolloverConfiguration) null);
+        }
+
+        /**
+         * Please use {@link GetComponentTemplateAction.Response#Response(Map, RolloverConfiguration)}
+         */
+        @Deprecated
+        public Response(
+            Map<String, ComponentTemplate> componentTemplates,
+            @Nullable RolloverConfiguration rolloverConfiguration,
+            @Nullable DataStreamGlobalRetention ignored
+        ) {
+            this(componentTemplates, rolloverConfiguration);
         }
 
         public Response(Map<String, ComponentTemplate> componentTemplates) {
-            this.componentTemplates = componentTemplates;
-            this.rolloverConfiguration = null;
+            this(componentTemplates, (RolloverConfiguration) null);
         }
 
         public Response(Map<String, ComponentTemplate> componentTemplates, @Nullable RolloverConfiguration rolloverConfiguration) {
@@ -146,11 +162,29 @@ public class GetComponentTemplateAction extends ActionType<GetComponentTemplateA
             return rolloverConfiguration;
         }
 
+        /**
+         * @return null
+         * @deprecated The global retention is not used anymore in the component template response
+         */
+        @Deprecated
+        @Nullable
+        public DataStreamGlobalRetention getGlobalRetention() {
+            return null;
+        }
+
+        /**
+         * NB prior to 9.0 get-component was a TransportMasterNodeReadAction so for BwC we must remain able to write these responses until
+         * we no longer need to support calling this action remotely.
+         */
+        @UpdateForV10(owner = UpdateForV10.Owner.DATA_MANAGEMENT)
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeMap(componentTemplates, StreamOutput::writeWriteable);
             if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_9_X)) {
                 out.writeOptionalWriteable(rolloverConfiguration);
+            }
+            if (out.getTransportVersion().between(TransportVersions.V_8_14_0, TransportVersions.V_8_16_0)) {
+                out.writeOptionalWriteable(null);
             }
         }
 
@@ -185,5 +219,4 @@ public class GetComponentTemplateAction extends ActionType<GetComponentTemplateA
         }
 
     }
-
 }

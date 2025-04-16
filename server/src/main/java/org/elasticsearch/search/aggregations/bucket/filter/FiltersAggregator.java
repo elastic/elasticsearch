@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.aggregations.bucket.filter;
@@ -19,6 +20,7 @@ import org.apache.lucene.search.Scorer;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.util.LongArray;
 import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.search.aggregations.AggregationExecutionContext;
@@ -207,21 +209,15 @@ public abstract class FiltersAggregator extends BucketsAggregator {
     }
 
     @Override
-    public InternalAggregation[] buildAggregations(long[] owningBucketOrds) throws IOException {
+    public InternalAggregation[] buildAggregations(LongArray owningBucketOrds) throws IOException {
         return buildAggregationsForFixedBucketCount(
             owningBucketOrds,
             filters.size() + (otherBucketKey == null ? 0 : 1),
             (offsetInOwningOrd, docCount, subAggregationResults) -> {
                 if (offsetInOwningOrd < filters.size()) {
-                    return new InternalFilters.InternalBucket(
-                        filters.get(offsetInOwningOrd).key(),
-                        docCount,
-                        subAggregationResults,
-                        keyed,
-                        keyedBucket
-                    );
+                    return new InternalFilters.InternalBucket(filters.get(offsetInOwningOrd).key(), docCount, subAggregationResults);
                 }
-                return new InternalFilters.InternalBucket(otherBucketKey, docCount, subAggregationResults, keyed, keyedBucket);
+                return new InternalFilters.InternalBucket(otherBucketKey, docCount, subAggregationResults);
             },
             buckets -> new InternalFilters(name, buckets, keyed, keyedBucket, metadata())
         );
@@ -232,12 +228,12 @@ public abstract class FiltersAggregator extends BucketsAggregator {
         InternalAggregations subAggs = buildEmptySubAggregations();
         List<InternalFilters.InternalBucket> buckets = new ArrayList<>(filters.size() + (otherBucketKey == null ? 0 : 1));
         for (QueryToFilterAdapter filter : filters) {
-            InternalFilters.InternalBucket bucket = new InternalFilters.InternalBucket(filter.key(), 0, subAggs, keyed, keyedBucket);
+            InternalFilters.InternalBucket bucket = new InternalFilters.InternalBucket(filter.key(), 0, subAggs);
             buckets.add(bucket);
         }
 
         if (otherBucketKey != null) {
-            InternalFilters.InternalBucket bucket = new InternalFilters.InternalBucket(otherBucketKey, 0, subAggs, keyed, keyedBucket);
+            InternalFilters.InternalBucket bucket = new InternalFilters.InternalBucket(otherBucketKey, 0, subAggs);
             buckets.add(bucket);
         }
 
@@ -332,7 +328,11 @@ public abstract class FiltersAggregator extends BucketsAggregator {
                     hasOtherBucket
                 );
             }
-            return new MultiFilterLeafCollector(sub, filterWrappers, numFilters, totalNumKeys, usesCompetitiveIterator, hasOtherBucket);
+            if (usesCompetitiveIterator) {
+                return new MultiFilterCompetitiveLeafCollector(sub, filterWrappers, numFilters, totalNumKeys, hasOtherBucket);
+            } else {
+                return new MultiFilterLeafCollector(sub, filterWrappers, numFilters, totalNumKeys, hasOtherBucket);
+            }
         }
     }
 
@@ -404,21 +404,20 @@ public abstract class FiltersAggregator extends BucketsAggregator {
         }
     }
 
-    private class MultiFilterLeafCollector extends AbstractLeafCollector {
+    private final class MultiFilterLeafCollector extends AbstractLeafCollector {
 
         // A DocIdSetIterator heap with one entry for each filter, ordered by doc ID
-        final DisiPriorityQueue filterIterators;
+        DisiPriorityQueue filterIterators;
 
         MultiFilterLeafCollector(
             LeafBucketCollector sub,
             List<FilterMatchingDisiWrapper> filterWrappers,
             int numFilters,
             int totalNumKeys,
-            boolean usesCompetitiveIterator,
             boolean hasOtherBucket
         ) {
-            super(sub, numFilters, totalNumKeys, usesCompetitiveIterator, hasOtherBucket);
-            filterIterators = filterWrappers.isEmpty() ? null : new DisiPriorityQueue(filterWrappers.size());
+            super(sub, numFilters, totalNumKeys, false, hasOtherBucket);
+            filterIterators = filterWrappers.isEmpty() ? null : DisiPriorityQueue.ofMaxSize(filterWrappers.size());
             for (FilterMatchingDisiWrapper wrapper : filterWrappers) {
                 filterIterators.add(wrapper);
             }
@@ -427,7 +426,7 @@ public abstract class FiltersAggregator extends BucketsAggregator {
         public void collect(int doc, long bucket) throws IOException {
             boolean matched = false;
             if (filterIterators != null) {
-                // Advance filters if necessary. Filters will already be advanced if used as a competitive iterator.
+                // Advance filters if necessary.
                 DisiWrapper top = filterIterators.top();
                 while (top.doc < doc) {
                     top.doc = top.approximation.advance(doc);
@@ -452,13 +451,48 @@ public abstract class FiltersAggregator extends BucketsAggregator {
         }
 
         @Override
-        public DocIdSetIterator competitiveIterator() throws IOException {
-            if (usesCompetitiveIterator) {
-                // A DocIdSetIterator view of the filterIterators heap
-                assert filterIterators != null;
-                return new DisjunctionDISIApproximation(filterIterators);
-            }
+        public DocIdSetIterator competitiveIterator() {
             return null;
+        }
+    }
+
+    private final class MultiFilterCompetitiveLeafCollector extends AbstractLeafCollector {
+
+        private final DisjunctionDISIApproximation disjunctionDisi;
+
+        MultiFilterCompetitiveLeafCollector(
+            LeafBucketCollector sub,
+            List<FilterMatchingDisiWrapper> filterWrappers,
+            int numFilters,
+            int totalNumKeys,
+            boolean hasOtherBucket
+        ) {
+            super(sub, numFilters, totalNumKeys, true, hasOtherBucket);
+            assert filterWrappers.isEmpty() == false;
+            disjunctionDisi = DisjunctionDISIApproximation.of(filterWrappers, Long.MAX_VALUE);
+        }
+
+        public void collect(int doc, long bucket) throws IOException {
+            boolean matched = false;
+            int target = disjunctionDisi.advance(doc);
+            if (target == doc) {
+                for (DisiWrapper w = disjunctionDisi.topList(); w != null; w = w.next) {
+                    FilterMatchingDisiWrapper topMatch = (FilterMatchingDisiWrapper) w;
+                    if (topMatch.checkDocForMatch(doc)) {
+                        collectBucket(sub, doc, bucketOrd(bucket, topMatch.filterOrd));
+                        matched = true;
+                    }
+                }
+            }
+
+            if (hasOtherBucket && false == matched) {
+                collectBucket(sub, doc, bucketOrd(bucket, numFilters));
+            }
+        }
+
+        @Override
+        public DocIdSetIterator competitiveIterator() {
+            return disjunctionDisi;
         }
     }
 
@@ -466,7 +500,7 @@ public abstract class FiltersAggregator extends BucketsAggregator {
         final int filterOrd;
 
         FilterMatchingDisiWrapper(Scorer scorer, int ord) {
-            super(scorer);
+            super(scorer, false);
             this.filterOrd = ord;
         }
 

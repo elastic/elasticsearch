@@ -21,14 +21,15 @@ public class SamlInitiateSingleSignOnException extends ElasticsearchSecurityExce
     public SamlInitiateSingleSignOnException(
         String msg,
         RestStatus status,
+        Exception cause,
         SamlInitiateSingleSignOnResponse samlInitiateSingleSignOnResponse
     ) {
-        super(msg, status);
+        super(msg, status, cause);
         this.samlInitiateSingleSignOnResponse = samlInitiateSingleSignOnResponse;
     }
 
-    public SamlInitiateSingleSignOnException(String msg, RestStatus status) {
-        super(msg, status);
+    public SamlInitiateSingleSignOnException(String msg, RestStatus status, Exception cause) {
+        super(msg, status, cause);
     }
 
     @Override

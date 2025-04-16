@@ -1,6 +1,6 @@
 setup:
-  - skip:
-      version: " - 8.9.99"
+  - requires:
+      cluster_features: ["gte_v8.10.0"]
       reason: Introduced in 8.10.0
   - do:
       synonyms.put_synonym:
@@ -11,6 +11,12 @@ setup:
               id: "test-id-1"
             - synonyms: "bye => goodbye"
               id: "test-id-2"
+
+  # This is to ensure that all index shards (write and read) are available. In serverless this can take some time.
+  - do:
+      cluster.health:
+        index: .synonyms
+        wait_for_status: green
 
 ---
 "Delete synonyms set":

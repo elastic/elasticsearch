@@ -56,6 +56,9 @@
               "type": "binary"
             }
           }
+        },
+        "namespaces": {
+          "type": "keyword"
         }
       }
     }

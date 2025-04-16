@@ -53,7 +53,7 @@ public final class LegacySortedSetDocValuesWrapper extends SortedSetDocValues {
         while (docID < maxDoc) {
             values.setDocument(docID);
             ord = values.nextOrd();
-            if (ord != NO_MORE_ORDS) {
+            if (ord != LegacySortedSetDocValues.NO_MORE_ORDS) {
                 return docID;
             }
             docID++;
@@ -81,7 +81,7 @@ public final class LegacySortedSetDocValuesWrapper extends SortedSetDocValues {
         docID = target;
         values.setDocument(docID);
         ord = values.nextOrd();
-        return ord != NO_MORE_ORDS;
+        return ord != LegacySortedSetDocValues.NO_MORE_ORDS;
     }
 
     @Override
@@ -92,7 +92,7 @@ public final class LegacySortedSetDocValuesWrapper extends SortedSetDocValues {
     @Override
     public long nextOrd() {
         long result = ord;
-        if (result != NO_MORE_ORDS) {
+        if (result != LegacySortedSetDocValues.NO_MORE_ORDS) {
             ord = values.nextOrd();
         }
         return result;

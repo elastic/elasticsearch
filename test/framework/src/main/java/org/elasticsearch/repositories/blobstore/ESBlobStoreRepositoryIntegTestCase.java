@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.repositories.blobstore;
 
@@ -11,7 +12,6 @@ import org.apache.lucene.tests.mockfile.ExtrasFS;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
 import org.apache.lucene.util.SetOnce;
-import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotRequestBuilder;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotRequestBuilder;
@@ -48,7 +48,6 @@ import org.hamcrest.CoreMatchers;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.file.NoSuchFileException;
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -70,7 +69,6 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcke
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
-import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
@@ -101,7 +99,12 @@ public abstract class ESBlobStoreRepositoryIntegTestCase extends ESIntegTestCase
 
     protected final String createRepository(final String name, final Settings settings, final boolean verify) {
         logger.info("-->  creating repository [name: {}, verify: {}, settings: {}]", name, verify, settings);
-        assertAcked(clusterAdmin().preparePutRepository(name).setType(repositoryType()).setVerify(verify).setSettings(settings));
+        assertAcked(
+            clusterAdmin().preparePutRepository(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, name)
+                .setType(repositoryType())
+                .setVerify(verify)
+                .setSettings(settings)
+        );
 
         internalCluster().getDataOrMasterNodeInstances(RepositoriesService.class).forEach(repositories -> {
             assertThat(repositories.repository(name), notNullValue());
@@ -116,7 +119,7 @@ public abstract class ESBlobStoreRepositoryIntegTestCase extends ESIntegTestCase
 
     protected final void deleteRepository(final String name) {
         logger.debug("-->  deleting repository [name: {}]", name);
-        assertAcked(clusterAdmin().prepareDeleteRepository(name));
+        assertAcked(clusterAdmin().prepareDeleteRepository(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, name));
         internalCluster().getDataOrMasterNodeInstances(RepositoriesService.class).forEach(repositories -> {
             RepositoryMissingException e = expectThrows(RepositoryMissingException.class, () -> repositories.repository(name));
             assertThat(e.repository(), equalTo(name));
@@ -134,17 +137,27 @@ public abstract class ESBlobStoreRepositoryIntegTestCase extends ESIntegTestCase
         }
     }
 
-    public void testWriteRead() throws IOException {
+    public void testWriteMaybeCopyRead() throws IOException {
         try (BlobStore store = newBlobStore()) {
             final BlobContainer container = store.blobContainer(BlobPath.EMPTY);
             byte[] data = randomBytes(randomIntBetween(10, scaledRandomIntBetween(1024, 1 << 16)));
-            writeBlob(container, "foobar", new BytesArray(data), randomBoolean());
+            final String blobName = randomAlphaOfLengthBetween(8, 12);
+            String readBlobName = blobName;
+            writeBlob(container, blobName, new BytesArray(data), randomBoolean());
             if (randomBoolean()) {
                 // override file, to check if we get latest contents
                 data = randomBytes(randomIntBetween(10, scaledRandomIntBetween(1024, 1 << 16)));
-                writeBlob(container, "foobar", new BytesArray(data), false);
+                writeBlob(container, blobName, new BytesArray(data), false);
             }
-            try (InputStream stream = container.readBlob(randomPurpose(), "foobar")) {
+            if (randomBoolean()) {
+                // server-side copy if supported
+                try {
+                    final var destinationBlobName = blobName + "_copy";
+                    container.copyBlob(randomPurpose(), container, blobName, destinationBlobName, data.length);
+                    readBlobName = destinationBlobName;
+                } catch (UnsupportedOperationException ignored) {}
+            }
+            try (InputStream stream = container.readBlob(randomPurpose(), readBlobName)) {
                 BytesRefBuilder target = new BytesRefBuilder();
                 while (target.length() < data.length) {
                     byte[] buffer = new byte[scaledRandomIntBetween(1, data.length - target.length())];
@@ -231,7 +244,17 @@ public abstract class ESBlobStoreRepositoryIntegTestCase extends ESIntegTestCase
         if (randomBoolean()) {
             container.writeBlob(randomPurpose(), blobName, bytesArray, failIfAlreadyExists);
         } else {
-            container.writeBlobAtomic(randomNonDataPurpose(), blobName, bytesArray, failIfAlreadyExists);
+            if (randomBoolean()) {
+                container.writeBlobAtomic(randomNonDataPurpose(), blobName, bytesArray, failIfAlreadyExists);
+            } else {
+                container.writeBlobAtomic(
+                    randomNonDataPurpose(),
+                    blobName,
+                    bytesArray.streamInput(),
+                    bytesArray.length(),
+                    failIfAlreadyExists
+                );
+            }
         }
     }
 
@@ -287,12 +310,10 @@ public abstract class ESBlobStoreRepositoryIntegTestCase extends ESIntegTestCase
     }
 
     protected BlobStore newBlobStore(String repository) {
-        final BlobStoreRepository blobStoreRepository = (BlobStoreRepository) internalCluster().getAnyMasterNodeInstance(
-            RepositoriesService.class
-        ).repository(repository);
-        return PlainActionFuture.get(
-            f -> blobStoreRepository.threadPool().generic().execute(ActionRunnable.supply(f, blobStoreRepository::blobStore))
-        );
+        return asInstanceOf(
+            BlobStoreRepository.class,
+            internalCluster().getAnyMasterNodeInstance(RepositoriesService.class).repository(repository)
+        ).blobStore();
     }
 
     public void testSnapshotAndRestore() throws Exception {
@@ -316,7 +337,9 @@ public abstract class ESBlobStoreRepositoryIntegTestCase extends ESIntegTestCase
         final String snapshotName = randomName();
         logger.info("-->  create snapshot {}:{}", repoName, snapshotName);
         assertSuccessfulSnapshot(
-            clusterAdmin().prepareCreateSnapshot(repoName, snapshotName).setWaitForCompletion(true).setIndices(indexNames)
+            clusterAdmin().prepareCreateSnapshot(TEST_REQUEST_TIMEOUT, repoName, snapshotName)
+                .setWaitForCompletion(true)
+                .setIndices(indexNames)
         );
 
         List<String> deleteIndices = randomSubsetOf(randomIntBetween(0, indexCount), indexNames);
@@ -351,7 +374,9 @@ public abstract class ESBlobStoreRepositoryIntegTestCase extends ESIntegTestCase
         }
 
         logger.info("--> restore all indices from the snapshot");
-        assertSuccessfulRestore(clusterAdmin().prepareRestoreSnapshot(repoName, snapshotName).setWaitForCompletion(true));
+        assertSuccessfulRestore(
+            clusterAdmin().prepareRestoreSnapshot(TEST_REQUEST_TIMEOUT, repoName, snapshotName).setWaitForCompletion(true)
+        );
 
         // higher timeout since we can have quite a few shards and a little more data here
         ensureGreen(TimeValue.timeValueSeconds(120));
@@ -361,15 +386,23 @@ public abstract class ESBlobStoreRepositoryIntegTestCase extends ESIntegTestCase
         }
 
         logger.info("-->  delete snapshot {}:{}", repoName, snapshotName);
-        assertAcked(clusterAdmin().prepareDeleteSnapshot(repoName, snapshotName).get());
+        assertAcked(clusterAdmin().prepareDeleteSnapshot(TEST_REQUEST_TIMEOUT, repoName, snapshotName).get());
 
-        expectThrows(SnapshotMissingException.class, () -> clusterAdmin().prepareGetSnapshots(repoName).setSnapshots(snapshotName).get());
+        expectThrows(
+            SnapshotMissingException.class,
+            () -> clusterAdmin().prepareGetSnapshots(TEST_REQUEST_TIMEOUT, repoName).setSnapshots(snapshotName).get()
+        );
 
-        expectThrows(SnapshotMissingException.class, () -> clusterAdmin().prepareDeleteSnapshot(repoName, snapshotName).get());
+        expectThrows(
+            SnapshotMissingException.class,
+            () -> clusterAdmin().prepareDeleteSnapshot(TEST_REQUEST_TIMEOUT, repoName, snapshotName).get()
+        );
 
         expectThrows(
             SnapshotRestoreException.class,
-            () -> clusterAdmin().prepareRestoreSnapshot(repoName, snapshotName).setWaitForCompletion(randomBoolean()).get()
+            () -> clusterAdmin().prepareRestoreSnapshot(TEST_REQUEST_TIMEOUT, repoName, snapshotName)
+                .setWaitForCompletion(randomBoolean())
+                .get()
         );
     }
 
@@ -395,7 +428,9 @@ public abstract class ESBlobStoreRepositoryIntegTestCase extends ESIntegTestCase
             docCounts[i] = (int) SearchResponseUtils.getTotalHitsValue(prepareSearch(indexName).setSize(0));
             logger.info("-->  create snapshot {}:{} with {} documents", repoName, snapshotName + "-" + i, docCounts[i]);
             assertSuccessfulSnapshot(
-                clusterAdmin().prepareCreateSnapshot(repoName, snapshotName + "-" + i).setWaitForCompletion(true).setIndices(indexName)
+                clusterAdmin().prepareCreateSnapshot(TEST_REQUEST_TIMEOUT, repoName, snapshotName + "-" + i)
+                    .setWaitForCompletion(true)
+                    .setIndices(indexName)
             );
         }
 
@@ -411,7 +446,8 @@ public abstract class ESBlobStoreRepositoryIntegTestCase extends ESIntegTestCase
 
             logger.info("--> restore index from the snapshot");
             assertSuccessfulRestore(
-                clusterAdmin().prepareRestoreSnapshot(repoName, snapshotName + "-" + iterationToRestore).setWaitForCompletion(true)
+                clusterAdmin().prepareRestoreSnapshot(TEST_REQUEST_TIMEOUT, repoName, snapshotName + "-" + iterationToRestore)
+                    .setWaitForCompletion(true)
             );
 
             ensureGreen();
@@ -420,7 +456,7 @@ public abstract class ESBlobStoreRepositoryIntegTestCase extends ESIntegTestCase
 
         for (int i = 0; i < iterationCount; i++) {
             logger.info("-->  delete snapshot {}:{}", repoName, snapshotName + "-" + i);
-            assertAcked(clusterAdmin().prepareDeleteSnapshot(repoName, snapshotName + "-" + i).get());
+            assertAcked(clusterAdmin().prepareDeleteSnapshot(TEST_REQUEST_TIMEOUT, repoName, snapshotName + "-" + i).get());
         }
     }
 
@@ -451,7 +487,7 @@ public abstract class ESBlobStoreRepositoryIntegTestCase extends ESIntegTestCase
         logger.info("--> take a snapshot");
         CreateSnapshotResponse createSnapshotResponse = client.admin()
             .cluster()
-            .prepareCreateSnapshot(repoName, "test-snap")
+            .prepareCreateSnapshot(TEST_REQUEST_TIMEOUT, repoName, "test-snap")
             .setWaitForCompletion(true)
             .get();
         assertEquals(createSnapshotResponse.getSnapshotInfo().successfulShards(), createSnapshotResponse.getSnapshotInfo().totalShards());
@@ -466,14 +502,14 @@ public abstract class ESBlobStoreRepositoryIntegTestCase extends ESIntegTestCase
         logger.info("--> take another snapshot with only 2 of the 3 indices");
         createSnapshotResponse = client.admin()
             .cluster()
-            .prepareCreateSnapshot(repoName, "test-snap2")
+            .prepareCreateSnapshot(TEST_REQUEST_TIMEOUT, repoName, "test-snap2")
             .setWaitForCompletion(true)
             .setIndices("test-idx-1", "test-idx-2")
             .get();
         assertEquals(createSnapshotResponse.getSnapshotInfo().successfulShards(), createSnapshotResponse.getSnapshotInfo().totalShards());
 
         logger.info("--> delete a snapshot");
-        assertAcked(clusterAdmin().prepareDeleteSnapshot(repoName, "test-snap").get());
+        assertAcked(clusterAdmin().prepareDeleteSnapshot(TEST_REQUEST_TIMEOUT, repoName, "test-snap").get());
 
         logger.info("--> verify index folder deleted from blob container");
         RepositoriesService repositoriesSvc = internalCluster().getInstance(RepositoriesService.class, internalCluster().getMasterName());
@@ -493,40 +529,7 @@ public abstract class ESBlobStoreRepositoryIntegTestCase extends ESIntegTestCase
             }
         }
 
-        assertAcked(clusterAdmin().prepareDeleteSnapshot(repoName, "test-snap2").get());
-    }
-
-    public void testBlobStoreBulkDeletion() throws Exception {
-        Map<BlobPath, List<String>> expectedBlobsPerContainer = new HashMap<>();
-        try (BlobStore store = newBlobStore()) {
-            List<String> blobsToDelete = new ArrayList<>();
-            int numberOfContainers = randomIntBetween(2, 5);
-            for (int i = 0; i < numberOfContainers; i++) {
-                BlobPath containerPath = BlobPath.EMPTY.add(randomIdentifier());
-                final BlobContainer container = store.blobContainer(containerPath);
-                int numberOfBlobsPerContainer = randomIntBetween(5, 10);
-                for (int j = 0; j < numberOfBlobsPerContainer; j++) {
-                    byte[] bytes = randomBytes(randomInt(100));
-                    String blobName = randomAlphaOfLength(10);
-                    container.writeBlob(randomPurpose(), blobName, new BytesArray(bytes), false);
-                    if (randomBoolean()) {
-                        blobsToDelete.add(containerPath.buildAsString() + blobName);
-                    } else {
-                        expectedBlobsPerContainer.computeIfAbsent(containerPath, unused -> new ArrayList<>()).add(blobName);
-                    }
-                }
-            }
-
-            store.deleteBlobsIgnoringIfNotExists(randomPurpose(), blobsToDelete.iterator());
-            for (var containerEntry : expectedBlobsPerContainer.entrySet()) {
-                BlobContainer blobContainer = store.blobContainer(containerEntry.getKey());
-                Map<String, BlobMetadata> blobsInContainer = blobContainer.listBlobs(randomPurpose());
-                for (String expectedBlob : containerEntry.getValue()) {
-                    assertThat(blobsInContainer, hasKey(expectedBlob));
-                }
-                blobContainer.delete(randomPurpose());
-            }
-        }
+        assertAcked(clusterAdmin().prepareDeleteSnapshot(TEST_REQUEST_TIMEOUT, repoName, "test-snap2").get());
     }
 
     public void testDanglingShardLevelBlobCleanup() throws Exception {
@@ -541,7 +544,7 @@ public abstract class ESBlobStoreRepositoryIntegTestCase extends ESIntegTestCase
             SnapshotState.SUCCESS,
             client.admin()
                 .cluster()
-                .prepareCreateSnapshot(repoName, "snapshot-1")
+                .prepareCreateSnapshot(TEST_REQUEST_TIMEOUT, repoName, "snapshot-1")
                 .setWaitForCompletion(true)
                 .get()
                 .getSnapshotInfo()
@@ -571,14 +574,14 @@ public abstract class ESBlobStoreRepositoryIntegTestCase extends ESIntegTestCase
         );
         final var snapshot2Info = client.admin()
             .cluster()
-            .prepareCreateSnapshot(repoName, "snapshot-2")
+            .prepareCreateSnapshot(TEST_REQUEST_TIMEOUT, repoName, "snapshot-2")
             .setWaitForCompletion(true)
             .get()
             .getSnapshotInfo();
         assertEquals(SnapshotState.SUCCESS, snapshot2Info.state());
 
         // Delete the first snapshot, which should leave only the blobs from snapshot-2
-        assertAcked(client.admin().cluster().prepareDeleteSnapshot(repoName, "snapshot-1"));
+        assertAcked(client.admin().cluster().prepareDeleteSnapshot(TEST_REQUEST_TIMEOUT, repoName, "snapshot-1"));
 
         // Retrieve the blobs actually present
         final var actualBlobs = shardContainer.listBlobs(randomPurpose())
@@ -590,7 +593,7 @@ public abstract class ESBlobStoreRepositoryIntegTestCase extends ESIntegTestCase
         // Prepare to compute the expected blobs
         final var shardGeneration = Objects.requireNonNull(getRepositoryData(repo).shardGenerations().getShardGen(indexId, 0));
         final var snapBlob = Strings.format(SNAPSHOT_NAME_FORMAT, snapshot2Info.snapshotId().getUUID());
-        final var indexBlob = Strings.format(SNAPSHOT_INDEX_NAME_FORMAT, shardGeneration.toBlobNamePart());
+        final var indexBlob = Strings.format(SNAPSHOT_INDEX_NAME_FORMAT, shardGeneration.getGenerationUUID());
 
         for (var fileInfos : List.of(
             // The expected blobs according to the BlobStoreIndexShardSnapshot (snap-UUID.dat) blob
@@ -616,7 +619,7 @@ public abstract class ESBlobStoreRepositoryIntegTestCase extends ESIntegTestCase
             );
         }
 
-        assertAcked(client.admin().cluster().prepareDeleteSnapshot(repoName, "snapshot-2"));
+        assertAcked(client.admin().cluster().prepareDeleteSnapshot(TEST_REQUEST_TIMEOUT, repoName, "snapshot-2"));
     }
 
     protected void addRandomDocuments(String name, int numDocs) throws InterruptedException {

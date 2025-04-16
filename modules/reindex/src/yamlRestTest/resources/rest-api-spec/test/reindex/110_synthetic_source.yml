@@ -1,11 +1,16 @@
 setup:
+  - requires:
+      cluster_features: [ "mapper.source.mode_from_index_setting" ]
+      reason: "Source mode configured through index setting"
+
   - do:
       indices.create:
         index: synthetic
         body:
+          settings:
+            index:
+              mapping.source.mode: synthetic
           mappings:
-            _source:
-              mode: synthetic
             properties:
               kwd:
                 type: keyword
@@ -21,8 +26,8 @@ setup:
 
 ---
 from synthetic:
-  - skip:
-      version: " - 8.2.99"
+  - requires:
+      cluster_features: ["gte_v8.3.0"]
       reason: introduced in 8.3.0
 
   - do:
@@ -84,8 +89,8 @@ from synthetic:
 
 ---
 from standard:
-  - skip:
-      version: " - 8.2.99"
+  - requires:
+      cluster_features: ["gte_v8.3.0"]
       reason: introduced in 8.3.0
 
   - do:

@@ -13,6 +13,13 @@ import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import java.io.IOException;
 
 public class TokenizationConfigUpdateTests extends AbstractWireSerializingTestCase<TokenizationConfigUpdate> {
+
+    public static TokenizationConfigUpdate randomUpdate() {
+        Integer maxSequenceLength = randomBoolean() ? null : randomIntBetween(32, 64);
+        int span = randomIntBetween(8, 16);
+        return new TokenizationConfigUpdate(maxSequenceLength, span);
+    }
+
     @Override
     protected Writeable.Reader<TokenizationConfigUpdate> instanceReader() {
         return TokenizationConfigUpdate::new;
@@ -20,9 +27,7 @@ public class TokenizationConfigUpdateTests extends AbstractWireSerializingTestCa
 
     @Override
     protected TokenizationConfigUpdate createTestInstance() {
-        Integer maxSequenceLength = randomBoolean() ? null : randomIntBetween(32, 64);
-        int span = randomIntBetween(8, 16);
-        return new TokenizationConfigUpdate(maxSequenceLength, span);
+        return randomUpdate();
     }
 
     @Override

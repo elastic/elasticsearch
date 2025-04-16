@@ -184,7 +184,7 @@ public class InternalBoxplot extends InternalNumericMetricsAggregation.MultiValu
         DocValueFormat format,
         Map<String, Object> metadata
     ) {
-        return new InternalBoxplot(name, TDigestState.create(compression, executionHint), format, metadata);
+        return new InternalBoxplot(name, TDigestState.createWithoutCircuitBreaking(compression, executionHint), format, metadata);
     }
 
     static final Set<String> METRIC_NAMES = Collections.unmodifiableSet(

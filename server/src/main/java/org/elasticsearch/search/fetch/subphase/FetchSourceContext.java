@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.fetch.subphase;
@@ -84,12 +85,15 @@ public class FetchSourceContext implements Writeable, ToXContentObject {
         return this.excludes;
     }
 
-    public boolean hasFilter() {
+    private boolean hasFilter() {
         return this.includes.length > 0 || this.excludes.length > 0;
     }
 
+    /**
+     * Returns a {@link SourceFilter} if filtering is enabled, {@code null} otherwise.
+     */
     public SourceFilter filter() {
-        return new SourceFilter(includes, excludes);
+        return hasFilter() ? new SourceFilter(includes, excludes) : null;
     }
 
     public static FetchSourceContext parseFromRestRequest(RestRequest request) {

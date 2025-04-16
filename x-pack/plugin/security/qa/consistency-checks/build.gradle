@@ -1,0 +1,27 @@
+apply plugin: 'elasticsearch.standalone-test'
+
+dependencies {
+
+  testImplementation(testArtifact(project(xpackModule('core'))))
+  testImplementation project(path: ':modules:ingest-common')
+  testImplementation project(path: ':modules:data-streams')
+  testImplementation project(path: ':modules:lang-mustache')
+  testImplementation project(path: ':modules:rank-eval')
+  testImplementation project(path: ':modules:reindex')
+  testImplementation project(path: xpackModule('analytics'))
+  testImplementation project(path: xpackModule('async-search'))
+  testImplementation project(path: xpackModule('autoscaling'))
+  testImplementation project(path: xpackModule('ccr'))
+  testImplementation project(path: xpackModule('downsample'))
+  testImplementation project(path: xpackModule('eql'))
+  testImplementation project(path: xpackModule('esql'))
+  testImplementation project(path: xpackModule('esql-core'))
+  testImplementation project(path: xpackModule('frozen-indices'))
+  testImplementation project(path: xpackModule('graph'))
+  testImplementation project(path: xpackModule('ilm'))
+  testImplementation project(path: xpackModule('inference'))
+  testImplementation project(path: xpackModule('profiling'))
+  testImplementation project(path: xpackModule('rollup'))
+  testImplementation project(path: xpackModule('slm'))
+  testImplementation project(path: xpackModule('sql'))
+}

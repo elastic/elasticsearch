@@ -1,5 +1,0 @@
-pr: 105486
-summary: Fix use-after-free at event-loop shutdown
-area: Network
-type: bug
-issues: []

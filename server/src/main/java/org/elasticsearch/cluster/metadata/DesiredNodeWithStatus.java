@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.cluster.metadata;
@@ -43,13 +44,12 @@ public record DesiredNodeWithStatus(DesiredNode desiredNode, Status status)
                 (Processors) args[1],
                 (DesiredNode.ProcessorsRange) args[2],
                 (ByteSizeValue) args[3],
-                (ByteSizeValue) args[4],
-                (String) args[5]
+                (ByteSizeValue) args[4]
             ),
             // An unknown status is expected during upgrades to versions >= STATUS_TRACKING_SUPPORT_VERSION
             // the desired node status would be populated when a node in the newer version is elected as
             // master, the desired nodes status update happens in NodeJoinExecutor.
-            args[6] == null ? Status.PENDING : (Status) args[6]
+            args[5] == null ? Status.PENDING : (Status) args[5]
         )
     );
 

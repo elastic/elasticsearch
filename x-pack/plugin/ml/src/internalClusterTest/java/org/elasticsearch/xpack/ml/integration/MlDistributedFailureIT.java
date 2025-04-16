@@ -135,7 +135,12 @@ public class MlDistributedFailureIT extends BaseMlIntegTestCase {
             Settings masterDataPathSettings = internalCluster().dataPathSettings(internalCluster().getMasterName());
             internalCluster().stopCurrentMasterNode();
             assertBusy(() -> {
-                ClusterState state = client(mlAndDataNode).admin().cluster().prepareState().setLocal(true).get().getState();
+                ClusterState state = client(mlAndDataNode).admin()
+                    .cluster()
+                    .prepareState(TEST_REQUEST_TIMEOUT)
+                    .setLocal(true)
+                    .get()
+                    .getState();
                 assertNull(state.nodes().getMasterNodeId());
             });
             logger.info("Restarting dedicated master node");
@@ -284,7 +289,10 @@ public class MlDistributedFailureIT extends BaseMlIntegTestCase {
         // using externally accessible actions. The only way this situation could occur in reality is through extremely unfortunate
         // timing. Therefore, to simulate this unfortunate timing we cheat and access internal classes to set the datafeed state to
         // stopping.
-        PersistentTasksCustomMetadata tasks = clusterService().state().getMetadata().custom(PersistentTasksCustomMetadata.TYPE);
+        PersistentTasksCustomMetadata tasks = clusterService().state()
+            .getMetadata()
+            .getProject()
+            .custom(PersistentTasksCustomMetadata.TYPE);
         PersistentTasksCustomMetadata.PersistentTask<?> task = MlTasks.getDatafeedTask(datafeedId, tasks);
 
         // It is possible that the datafeed has already detected the job failure and
@@ -303,6 +311,7 @@ public class MlDistributedFailureIT extends BaseMlIntegTestCase {
         }
 
         UpdatePersistentTaskStatusAction.Request updatePersistentTaskStatusRequest = new UpdatePersistentTaskStatusAction.Request(
+            TEST_REQUEST_TIMEOUT,
             task.getId(),
             task.getAllocationId(),
             DatafeedState.STOPPING
@@ -762,7 +771,7 @@ public class MlDistributedFailureIT extends BaseMlIntegTestCase {
             prepareSearch().setIndicesOptions(IndicesOptions.LENIENT_EXPAND_OPEN_CLOSED_HIDDEN)
                 .setQuery(QueryBuilders.idsQuery().addIds(DataCounts.documentId(jobId))),
             searchResponse -> {
-                if (searchResponse.getHits().getTotalHits().value != 1) {
+                if (searchResponse.getHits().getTotalHits().value() != 1) {
                     setOnce.set(new DataCounts(jobId));
                     return;
                 }

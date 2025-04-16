@@ -8,8 +8,8 @@ package org.elasticsearch.xpack.watcher.notification.email;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.inject.Provider;
 import org.elasticsearch.core.SuppressForbidden;
+import org.elasticsearch.injection.guice.Provider;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;

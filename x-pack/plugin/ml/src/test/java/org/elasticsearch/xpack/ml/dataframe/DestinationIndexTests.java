@@ -8,8 +8,8 @@ package org.elasticsearch.xpack.ml.dataframe;
 
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.admin.indices.create.CreateIndexAction;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
+import org.elasticsearch.action.admin.indices.create.TransportCreateIndexAction;
 import org.elasticsearch.action.admin.indices.get.GetIndexResponse;
 import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsAction;
 import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsRequest;
@@ -20,6 +20,7 @@ import org.elasticsearch.action.admin.indices.settings.get.GetSettingsAction;
 import org.elasticsearch.action.admin.indices.settings.get.GetSettingsRequest;
 import org.elasticsearch.action.admin.indices.settings.get.GetSettingsResponse;
 import org.elasticsearch.action.fieldcaps.FieldCapabilities;
+import org.elasticsearch.action.fieldcaps.FieldCapabilitiesBuilder;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesRequest;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesResponse;
 import org.elasticsearch.action.fieldcaps.TransportFieldCapabilitiesAction;
@@ -61,6 +62,7 @@ import java.util.List;
 import java.util.Map;
 
 import static java.util.Collections.singletonMap;
+import static org.elasticsearch.action.support.ActionTestUtils.assertNoSuccessListener;
 import static org.elasticsearch.common.xcontent.support.XContentMapValues.extractValue;
 import static org.elasticsearch.xpack.ml.DefaultMachineLearningExtension.ANALYTICS_DEST_INDEX_ALLOWED_SETTINGS;
 import static org.hamcrest.Matchers.arrayContaining;
@@ -113,7 +115,7 @@ public class DestinationIndexTests extends ESTestCase {
 
         ArgumentCaptor<CreateIndexRequest> createIndexRequestCaptor = ArgumentCaptor.forClass(CreateIndexRequest.class);
         doAnswer(callListenerOnResponse(null)).when(client)
-            .execute(eq(CreateIndexAction.INSTANCE), createIndexRequestCaptor.capture(), any());
+            .execute(eq(TransportCreateIndexAction.TYPE), createIndexRequestCaptor.capture(), any());
 
         Map<String, Object> analysisSettings1 = Map.ofEntries(
             Map.entry("index.analysis.filter.bigram_joiner.max_shingle_size", "2"),
@@ -334,10 +336,7 @@ public class DestinationIndexTests extends ESTestCase {
                 clock,
                 config,
                 ANALYTICS_DEST_INDEX_ALLOWED_SETTINGS,
-                ActionListener.wrap(
-                    response -> fail("should not succeed"),
-                    e -> assertThat(e.getMessage(), Matchers.matchesRegex(finalErrorMessage))
-                )
+                assertNoSuccessListener(e -> assertThat(e.getMessage(), Matchers.matchesRegex(finalErrorMessage)))
             );
 
             return null;
@@ -578,8 +577,7 @@ public class DestinationIndexTests extends ESTestCase {
             clock,
             config,
             ANALYTICS_DEST_INDEX_ALLOWED_SETTINGS,
-            ActionListener.wrap(
-                response -> fail("should not succeed"),
+            assertNoSuccessListener(
                 e -> assertThat(
                     e.getMessage(),
                     equalTo("A field that matches the dest.results_field [ml] already exists; please set a different results_field")
@@ -803,6 +801,6 @@ public class DestinationIndexTests extends ESTestCase {
     }
 
     private static FieldCapabilities createFieldCapabilities(String field, String type) {
-        return new FieldCapabilities(field, type, false, true, true, null, null, null, Collections.emptyMap());
+        return new FieldCapabilitiesBuilder(field, type).build();
     }
 }

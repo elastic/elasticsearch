@@ -2,8 +2,8 @@
 
 set -euo pipefail
 
-if [[ "$BUILDKITE_BRANCH" != "lucene_snapshot" ]]; then
-  echo "Error: This script should only be run on the lucene_snapshot branch"
+if [[ "$BUILDKITE_BRANCH" != "lucene_snapshot"* ]]; then
+  echo "Error: This script should only be run on the lucene_snapshot branches"
   exit 1
 fi
 

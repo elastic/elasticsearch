@@ -7,22 +7,22 @@
 
 package org.elasticsearch.xpack.core.inference.results;
 
+import org.elasticsearch.common.Strings;
+
 import java.util.List;
 
 public class TextEmbeddingUtils {
 
     /**
-     * Returns the first text embedding entry's array size.
-     * @param embeddings the list of embeddings
-     * @return the size of the text embedding
-     * @throws IllegalStateException if the list of embeddings is empty
+     * Throws an exception if the number of elements in the input text list is different than the results in text embedding
+     * response.
      */
-    public static int getFirstEmbeddingSize(List<EmbeddingInt> embeddings) throws IllegalStateException {
-        if (embeddings.isEmpty()) {
-            throw new IllegalStateException("Embeddings list is empty");
+    public static void validateInputSizeAgainstEmbeddings(List<String> inputs, int embeddingSize) {
+        if (inputs.size() != embeddingSize) {
+            throw new IllegalArgumentException(
+                Strings.format("The number of inputs [%s] does not match the embeddings [%s]", inputs.size(), embeddingSize)
+            );
         }
-
-        return embeddings.get(0).getSize();
     }
 
     private TextEmbeddingUtils() {}

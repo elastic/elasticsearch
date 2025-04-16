@@ -6,13 +6,14 @@
  */
 package org.elasticsearch.xpack.core.security.authz.privilege;
 
-import org.apache.lucene.util.automaton.Operations;
+import org.apache.lucene.tests.util.automaton.AutomatonTestUtil;
+import org.apache.lucene.util.automaton.Automaton;
 import org.elasticsearch.action.admin.cluster.health.TransportClusterHealthAction;
-import org.elasticsearch.action.admin.cluster.node.tasks.cancel.CancelTasksAction;
-import org.elasticsearch.action.admin.cluster.reroute.ClusterRerouteAction;
+import org.elasticsearch.action.admin.cluster.node.tasks.cancel.TransportCancelTasksAction;
+import org.elasticsearch.action.admin.cluster.reroute.TransportClusterRerouteAction;
 import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsAction;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateAction;
-import org.elasticsearch.action.admin.cluster.stats.ClusterStatsAction;
+import org.elasticsearch.action.admin.cluster.stats.TransportClusterStatsAction;
 import org.elasticsearch.action.admin.indices.template.get.GetIndexTemplatesAction;
 import org.elasticsearch.action.admin.indices.template.put.TransportPutIndexTemplateAction;
 import org.elasticsearch.common.util.set.Sets;
@@ -66,6 +67,7 @@ import org.elasticsearch.xpack.core.security.support.Automatons;
 import org.junit.Rule;
 import org.junit.rules.ExpectedException;
 
+import java.util.Iterator;
 import java.util.Set;
 import java.util.function.Predicate;
 
@@ -203,29 +205,44 @@ public class PrivilegeTests extends ESTestCase {
 
     public void testIndexAction() throws Exception {
         Set<String> actionName = Sets.newHashSet("indices:admin/mapping/delete");
-        IndexPrivilege index = IndexPrivilege.get(actionName);
+        IndexPrivilege index = IndexPrivilegeTests.resolvePrivilegeAndAssertSingleton(actionName);
         assertThat(index, notNullValue());
         assertThat(index.predicate().test("indices:admin/mapping/delete"), is(true));
         assertThat(index.predicate().test("indices:admin/mapping/dele"), is(false));
         assertThat(IndexPrivilege.READ_CROSS_CLUSTER.predicate().test("internal:transport/proxy/indices:data/read/query"), is(true));
     }
 
-    public void testIndexCollapse() throws Exception {
-        IndexPrivilege[] values = IndexPrivilege.values().values().toArray(new IndexPrivilege[IndexPrivilege.values().size()]);
+    public void testIndexCollapse() {
+        IndexPrivilege[] values = IndexPrivilege.values().values().toArray(new IndexPrivilege[0]);
         IndexPrivilege first = values[randomIntBetween(0, values.length - 1)];
         IndexPrivilege second = values[randomIntBetween(0, values.length - 1)];
 
         Set<String> name = Sets.newHashSet(first.name().iterator().next(), second.name().iterator().next());
-        IndexPrivilege index = IndexPrivilege.get(name);
+        Set<IndexPrivilege> indices = IndexPrivilege.resolveBySelectorAccess(name);
 
-        if (Operations.subsetOf(second.getAutomaton(), first.getAutomaton())) {
-            assertTrue(Operations.sameLanguage(index.getAutomaton(), first.getAutomaton()));
-        } else if (Operations.subsetOf(first.getAutomaton(), second.getAutomaton())) {
-            assertTrue(Operations.sameLanguage(index.getAutomaton(), second.getAutomaton()));
+        Automaton automaton = null;
+        if (indices.size() == 1) {
+            IndexPrivilege index = indices.iterator().next();
+            automaton = index.getAutomaton();
+        } else if (indices.size() == 2) {
+            Iterator<IndexPrivilege> it = indices.iterator();
+            IndexPrivilege index1 = it.next();
+            IndexPrivilege index2 = it.next();
+            automaton = Automatons.unionAndMinimize(Set.of(index1.getAutomaton(), index2.getAutomaton()));
         } else {
-            assertFalse(Operations.sameLanguage(index.getAutomaton(), first.getAutomaton()));
-            assertFalse(Operations.sameLanguage(index.getAutomaton(), second.getAutomaton()));
+            fail("indices.size() must be 1 or 2");
+            assert false;
         }
+
+        if (Automatons.subsetOf(second.getAutomaton(), first.getAutomaton())) {
+            assertTrue(AutomatonTestUtil.sameLanguage(automaton, first.getAutomaton()));
+        } else if (Automatons.subsetOf(first.getAutomaton(), second.getAutomaton())) {
+            assertTrue(AutomatonTestUtil.sameLanguage(automaton, second.getAutomaton()));
+        } else {
+            assertFalse(AutomatonTestUtil.sameLanguage(automaton, first.getAutomaton()));
+            assertFalse(AutomatonTestUtil.sameLanguage(automaton, second.getAutomaton()));
+        }
+
     }
 
     public void testSystem() throws Exception {
@@ -278,6 +295,7 @@ public class PrivilegeTests extends ESTestCase {
             ProfileHasPrivilegesAction.NAME,
             SuggestProfilesAction.NAME,
             GetRolesAction.NAME,
+            ActionTypes.QUERY_ROLE_ACTION.name(),
             GetRoleMappingsAction.NAME,
             GetServiceAccountAction.NAME,
             GetServiceAccountCredentialsAction.NAME,
@@ -285,7 +303,7 @@ public class PrivilegeTests extends ESTestCase {
             ActionTypes.QUERY_USER_ACTION.name(),
             HasPrivilegesAction.NAME,
             GetUserPrivilegesAction.NAME,
-            GetSecuritySettingsAction.NAME
+            GetSecuritySettingsAction.INSTANCE.name()
         );
         verifyClusterActionAllowed(
             ClusterPrivilegeResolver.READ_SECURITY,
@@ -297,6 +315,7 @@ public class PrivilegeTests extends ESTestCase {
             PutUserAction.NAME,
             DeleteUserAction.NAME,
             PutRoleAction.NAME,
+            ActionTypes.BULK_PUT_ROLES.name(),
             DeleteRoleAction.NAME,
             PutRoleMappingAction.NAME,
             DeleteRoleMappingAction.NAME,
@@ -305,12 +324,12 @@ public class PrivilegeTests extends ESTestCase {
             InvalidateApiKeyAction.NAME,
             TransportClusterHealthAction.NAME,
             ClusterStateAction.NAME,
-            ClusterStatsAction.NAME,
+            TransportClusterStatsAction.TYPE.name(),
             NodeEnrollmentAction.NAME,
             KibanaEnrollmentAction.NAME,
             TransportPutIndexTemplateAction.TYPE.name(),
             GetIndexTemplatesAction.NAME,
-            ClusterRerouteAction.NAME,
+            TransportClusterRerouteAction.TYPE.name(),
             ClusterUpdateSettingsAction.NAME,
             ClearRealmCacheAction.NAME,
             ClearSecurityCacheAction.NAME,
@@ -321,7 +340,7 @@ public class PrivilegeTests extends ESTestCase {
             ActivateProfileAction.NAME,
             SetProfileEnabledAction.NAME,
             UpdateProfileDataAction.NAME,
-            UpdateSecuritySettingsAction.NAME
+            UpdateSecuritySettingsAction.INSTANCE.name()
         );
     }
 
@@ -339,6 +358,7 @@ public class PrivilegeTests extends ESTestCase {
             ClusterPrivilegeResolver.MANAGE_USER_PROFILE,
             "cluster:admin/xpack/security/role/put",
             "cluster:admin/xpack/security/role/get",
+            "cluster:admin/xpack/security/role/query",
             "cluster:admin/xpack/security/role/delete"
         );
         verifyClusterActionDenied(
@@ -352,10 +372,10 @@ public class PrivilegeTests extends ESTestCase {
             ClusterPrivilegeResolver.MANAGE_USER_PROFILE,
             TransportClusterHealthAction.NAME,
             ClusterStateAction.NAME,
-            ClusterStatsAction.NAME,
+            TransportClusterStatsAction.TYPE.name(),
             TransportPutIndexTemplateAction.TYPE.name(),
             GetIndexTemplatesAction.NAME,
-            ClusterRerouteAction.NAME,
+            TransportClusterRerouteAction.TYPE.name(),
             ClusterUpdateSettingsAction.NAME
         );
     }
@@ -460,7 +480,12 @@ public class PrivilegeTests extends ESTestCase {
         }
 
         {
-            verifyClusterActionAllowed(ClusterPrivilegeResolver.READ_SLM, "cluster:admin/slm/get", "cluster:admin/ilm/operation_mode/get");
+            verifyClusterActionAllowed(
+                ClusterPrivilegeResolver.READ_SLM,
+                "cluster:admin/slm/get",
+                "cluster:admin/slm/status",
+                "cluster:admin/ilm/operation_mode/get"
+            );
             verifyClusterActionDenied(
                 ClusterPrivilegeResolver.READ_SLM,
                 "cluster:admin/slm/delete",
@@ -531,8 +556,8 @@ public class PrivilegeTests extends ESTestCase {
     }
 
     public void testCancelTasksPrivilege() {
-        verifyClusterActionAllowed(ClusterPrivilegeResolver.CANCEL_TASK, CancelTasksAction.NAME);
-        verifyClusterActionAllowed(ClusterPrivilegeResolver.CANCEL_TASK, CancelTasksAction.NAME + "[n]");
+        verifyClusterActionAllowed(ClusterPrivilegeResolver.CANCEL_TASK, TransportCancelTasksAction.NAME);
+        verifyClusterActionAllowed(ClusterPrivilegeResolver.CANCEL_TASK, TransportCancelTasksAction.NAME + "[n]");
         verifyClusterActionDenied(ClusterPrivilegeResolver.CANCEL_TASK, "cluster:admin/whatever");
     }
 }

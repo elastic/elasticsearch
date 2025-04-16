@@ -76,6 +76,9 @@ public class QuestionAnsweringProcessor extends NlpTask.Processor {
             if (inputs.size() > 1) {
                 throw ExceptionsHelper.badRequestException("Unable to do question answering on more than one text input at a time");
             }
+            if (question == null) {
+                throw ExceptionsHelper.badRequestException("Question is required for question answering");
+            }
             String context = inputs.get(0);
             List<TokenizationResult.Tokens> tokenizations = tokenizer.tokenize(question, context, truncate, span, 0);
             TokenizationResult result = tokenizer.buildTokenizationResult(tokenizations);

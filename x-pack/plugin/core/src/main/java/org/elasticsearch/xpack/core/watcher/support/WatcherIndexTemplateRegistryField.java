@@ -22,8 +22,9 @@ public final class WatcherIndexTemplateRegistryField {
     // version 14: move watch history to data stream
     // version 15: remove watches and triggered watches, these are now system indices
     // version 16: change watch history ILM policy
+    // version 17: exclude input chain from indexing
     // Note: if you change this, also inform the kibana team around the watcher-ui
-    public static final int INDEX_TEMPLATE_VERSION = 16;
+    public static final int INDEX_TEMPLATE_VERSION = 17;
     public static final String HISTORY_TEMPLATE_NAME = ".watch-history-" + INDEX_TEMPLATE_VERSION;
     public static final String HISTORY_TEMPLATE_NAME_NO_ILM = ".watch-history-no-ilm-" + INDEX_TEMPLATE_VERSION;
     public static final String[] TEMPLATE_NAMES = new String[] { HISTORY_TEMPLATE_NAME };

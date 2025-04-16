@@ -12,15 +12,11 @@ import org.elasticsearch.compute.operator.DriverContext;
 
 /**
  * Aggregator state for a single $type$.
- * This class is generated. Do not edit it.
+ * This class is generated. Edit {@code X-State.java.st} instead.
  */
 final class $Type$State implements AggregatorState {
     private $type$ value;
     private boolean seen;
-
-    $Type$State() {
-        this(0);
-    }
 
     $Type$State($type$ init) {
         this.value = init;

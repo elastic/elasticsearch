@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.ingest.common;
@@ -36,7 +37,7 @@ public abstract class AbstractStringProcessorFactoryTestCase extends ESTestCase 
         Map<String, Object> config = new HashMap<>();
         config.put("field", fieldName);
 
-        AbstractStringProcessor<?> processor = factory.create(null, processorTag, null, modifyConfig(config));
+        AbstractStringProcessor<?> processor = factory.create(null, processorTag, null, modifyConfig(config), null);
         assertThat(processor.getTag(), equalTo(processorTag));
         assertThat(processor.getField(), equalTo(fieldName));
         assertThat(processor.isIgnoreMissing(), is(false));
@@ -53,7 +54,7 @@ public abstract class AbstractStringProcessorFactoryTestCase extends ESTestCase 
         config.put("field", fieldName);
         config.put("ignore_missing", true);
 
-        AbstractStringProcessor<?> processor = factory.create(null, processorTag, null, modifyConfig(config));
+        AbstractStringProcessor<?> processor = factory.create(null, processorTag, null, modifyConfig(config), null);
         assertThat(processor.getTag(), equalTo(processorTag));
         assertThat(processor.getField(), equalTo(fieldName));
         assertThat(processor.isIgnoreMissing(), is(true));
@@ -71,7 +72,7 @@ public abstract class AbstractStringProcessorFactoryTestCase extends ESTestCase 
         config.put("field", fieldName);
         config.put("target_field", targetFieldName);
 
-        AbstractStringProcessor<?> processor = factory.create(null, processorTag, null, modifyConfig(config));
+        AbstractStringProcessor<?> processor = factory.create(null, processorTag, null, modifyConfig(config), null);
         assertThat(processor.getTag(), equalTo(processorTag));
         assertThat(processor.getField(), equalTo(fieldName));
         assertThat(processor.isIgnoreMissing(), is(false));
@@ -83,7 +84,7 @@ public abstract class AbstractStringProcessorFactoryTestCase extends ESTestCase 
         AbstractStringProcessor.Factory factory = newFactory();
         Map<String, Object> config = new HashMap<>();
         try {
-            factory.create(null, null, null, config);
+            factory.create(null, null, null, config, null);
             fail("factory create should have failed");
         } catch (ElasticsearchParseException e) {
             assertThat(e.getMessage(), equalTo("[field] required property is missing"));

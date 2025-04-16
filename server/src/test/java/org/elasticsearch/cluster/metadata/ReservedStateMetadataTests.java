@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.cluster.metadata;
@@ -20,6 +21,7 @@ import java.io.IOException;
 import java.util.Collections;
 import java.util.List;
 
+import static org.elasticsearch.cluster.metadata.ReservedStateMetadata.NO_VERSION;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.not;
 
@@ -78,7 +80,7 @@ public class ReservedStateMetadataTests extends ESTestCase {
 
     public void testReservedStateVersionWithError() {
         final ReservedStateMetadata meta = createRandom(false, true);
-        assertEquals(-1L, meta.version().longValue());
+        assertEquals(NO_VERSION.longValue(), meta.version().longValue());
     }
 
     private static ReservedStateMetadata createRandom(boolean addHandlers, boolean addErrors) {

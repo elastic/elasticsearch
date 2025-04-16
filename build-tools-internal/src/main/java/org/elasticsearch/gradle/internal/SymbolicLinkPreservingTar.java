@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.gradle.internal;
@@ -145,7 +146,7 @@ public class SymbolicLinkPreservingTar extends Tar {
                 visitedSymbolicLinks.add(details.getFile());
                 final TarArchiveEntry entry = new TarArchiveEntry(details.getRelativePath().getPathString(), TarConstants.LF_SYMLINK);
                 entry.setModTime(getModTime(details));
-                entry.setMode(UnixStat.LINK_FLAG | details.getMode());
+                entry.setMode(UnixStat.LINK_FLAG | details.getPermissions().toUnixNumeric());
                 try {
                     entry.setLinkName(Files.readSymbolicLink(details.getFile().toPath()).toString());
                     tar.putArchiveEntry(entry);
@@ -158,7 +159,7 @@ public class SymbolicLinkPreservingTar extends Tar {
             private void visitDirectory(final FileCopyDetailsInternal details) {
                 final TarArchiveEntry entry = new TarArchiveEntry(details.getRelativePath().getPathString() + "/");
                 entry.setModTime(getModTime(details));
-                entry.setMode(UnixStat.DIR_FLAG | details.getMode());
+                entry.setMode(UnixStat.DIR_FLAG | details.getPermissions().toUnixNumeric());
                 try {
                     tar.putArchiveEntry(entry);
                     tar.closeArchiveEntry();
@@ -170,7 +171,7 @@ public class SymbolicLinkPreservingTar extends Tar {
             private void visitFile(final FileCopyDetailsInternal details) {
                 final TarArchiveEntry entry = new TarArchiveEntry(details.getRelativePath().getPathString());
                 entry.setModTime(getModTime(details));
-                entry.setMode(UnixStat.FILE_FLAG | details.getMode());
+                entry.setMode(UnixStat.FILE_FLAG | details.getPermissions().toUnixNumeric());
                 entry.setSize(details.getSize());
                 try {
                     tar.putArchiveEntry(entry);

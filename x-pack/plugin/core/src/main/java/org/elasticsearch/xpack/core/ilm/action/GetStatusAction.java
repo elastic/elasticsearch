@@ -29,10 +29,9 @@ public class GetStatusAction extends ActionType<GetStatusAction.Response> {
 
     public static class Response extends ActionResponse implements ToXContentObject {
 
-        private OperationMode mode;
+        private final OperationMode mode;
 
         public Response(StreamInput in) throws IOException {
-            super(in);
             mode = in.readEnum(OperationMode.class);
         }
 

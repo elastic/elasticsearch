@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.query;
@@ -27,9 +28,9 @@ import org.elasticsearch.search.aggregations.InternalAggregationsTests;
 import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.search.internal.ShardSearchContextId;
 import org.elasticsearch.search.internal.ShardSearchRequest;
+import org.elasticsearch.search.rank.RankDoc;
 import org.elasticsearch.search.rank.RankShardResult;
 import org.elasticsearch.search.rank.TestRankBuilder;
-import org.elasticsearch.search.rank.TestRankDoc;
 import org.elasticsearch.search.rank.TestRankShardResult;
 import org.elasticsearch.search.suggest.SuggestTests;
 import org.elasticsearch.test.ESTestCase;
@@ -80,9 +81,9 @@ public class QuerySearchResultTests extends ESTestCase {
         result.from(randomInt());
         if (randomBoolean()) {
             int queryCount = randomIntBetween(2, 4);
-            TestRankDoc[] docs = new TestRankDoc[randomIntBetween(5, 20)];
+            RankDoc[] docs = new RankDoc[randomIntBetween(5, 20)];
             for (int di = 0; di < docs.length; ++di) {
-                docs[di] = new TestRankDoc(di, -1, queryCount);
+                docs[di] = new RankDoc(di, -1, queryCount);
             }
             result.setRankShardResult(new TestRankShardResult(docs));
         }

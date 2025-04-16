@@ -52,7 +52,7 @@ public class NativeStorageProvider {
      */
     public void cleanupLocalTmpStorageInCaseOfUncleanShutdown() {
         try {
-            for (Path p : environment.dataFiles()) {
+            for (Path p : environment.dataDirs()) {
                 IOUtils.rm(p.resolve(LOCAL_STORAGE_SUBFOLDER).resolve(LOCAL_STORAGE_TMP_FOLDER));
             }
         } catch (Exception e) {
@@ -79,7 +79,7 @@ public class NativeStorageProvider {
     }
 
     private Path tryAllocateStorage(String uniqueIdentifier, ByteSizeValue requestedSize) {
-        for (Path path : environment.dataFiles()) {
+        for (Path path : environment.dataDirs()) {
             try {
                 if (getUsableSpace(path) >= requestedSize.getBytes() + minLocalStorageAvailable.getBytes()) {
                     Path tmpDirectory = path.resolve(LOCAL_STORAGE_SUBFOLDER).resolve(LOCAL_STORAGE_TMP_FOLDER).resolve(uniqueIdentifier);
@@ -97,7 +97,7 @@ public class NativeStorageProvider {
 
     public boolean localTmpStorageHasEnoughSpace(Path path, ByteSizeValue requestedSize) {
         Path realPath = path.toAbsolutePath();
-        for (Path p : environment.dataFiles()) {
+        for (Path p : environment.dataDirs()) {
             try {
                 if (realPath.startsWith(p.resolve(LOCAL_STORAGE_SUBFOLDER).resolve(LOCAL_STORAGE_TMP_FOLDER))) {
                     return getUsableSpace(p) >= requestedSize.getBytes() + minLocalStorageAvailable.getBytes();
@@ -122,7 +122,7 @@ public class NativeStorageProvider {
         if (path != null) {
             // do not allow to breakout from the tmp storage provided
             Path realPath = path.toAbsolutePath();
-            for (Path p : environment.dataFiles()) {
+            for (Path p : environment.dataDirs()) {
                 if (realPath.startsWith(p.resolve(LOCAL_STORAGE_SUBFOLDER).resolve(LOCAL_STORAGE_TMP_FOLDER))) {
                     IOUtils.rm(path);
                 }

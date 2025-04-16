@@ -9,8 +9,9 @@ package org.elasticsearch.compute.data;
 
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.RamUsageEstimator;
-import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.core.ReleasableIterator;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -23,6 +24,7 @@ final class ConstantNullBlock extends AbstractNonThreadSafeRefCounted
         BooleanBlock,
         IntBlock,
         LongBlock,
+        FloatBlock,
         DoubleBlock,
         BytesRefBlock {
 
@@ -41,13 +43,18 @@ final class ConstantNullBlock extends AbstractNonThreadSafeRefCounted
     }
 
     @Override
-    public boolean isNull(int position) {
-        return true;
+    public OrdinalBytesRefBlock asOrdinals() {
+        return null;
     }
 
     @Override
-    public int nullValuesCount() {
-        return getPositionCount();
+    public ToMask toMask() {
+        return new ToMask(blockFactory.newConstantBooleanVector(false, positionCount), false);
+    }
+
+    @Override
+    public boolean isNull(int position) {
+        return true;
     }
 
     @Override
@@ -66,6 +73,11 @@ final class ConstantNullBlock extends AbstractNonThreadSafeRefCounted
     }
 
     @Override
+    public boolean doesHaveMultivaluedFields() {
+        return false;
+    }
+
+    @Override
     public ElementType elementType() {
         return ElementType.NULL;
     }
@@ -75,15 +87,14 @@ final class ConstantNullBlock extends AbstractNonThreadSafeRefCounted
         return (ConstantNullBlock) blockFactory().newConstantNullBlock(positions.length);
     }
 
-    public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
-        Block.class,
-        "ConstantNullBlock",
-        in -> ((BlockStreamInput) in).readConstantNullBlock()
-    );
+    @Override
+    public ConstantNullBlock keepMask(BooleanVector mask) {
+        return (ConstantNullBlock) blockFactory().newConstantNullBlock(getPositionCount());
+    }
 
     @Override
-    public String getWriteableName() {
-        return "ConstantNullBlock";
+    public ReleasableIterator<ConstantNullBlock> lookup(IntBlock positions, ByteSizeValue targetBlockSize) {
+        return ReleasableIterator.single((ConstantNullBlock) positions.blockFactory().newConstantNullBlock(positions.getPositionCount()));
     }
 
     @Override
@@ -97,7 +108,7 @@ final class ConstantNullBlock extends AbstractNonThreadSafeRefCounted
     }
 
     @Override
-    public Block expand() {
+    public ConstantNullBlock expand() {
         incRef();
         return this;
     }
@@ -173,11 +184,6 @@ final class ConstantNullBlock extends AbstractNonThreadSafeRefCounted
         }
 
         @Override
-        public Block.Builder appendAllValuesToCurrentPosition(Block block) {
-            return appendNull();
-        }
-
-        @Override
         public Block.Builder mvOrdering(MvOrdering mvOrdering) {
             /*
              * This is called when copying but otherwise doesn't do
@@ -185,6 +191,11 @@ final class ConstantNullBlock extends AbstractNonThreadSafeRefCounted
              * block containing only nulls.
              */
             return this;
+        }
+
+        @Override
+        public long estimatedBytes() {
+            return BASE_RAM_BYTES_USED;
         }
 
         @Override
@@ -210,6 +221,12 @@ final class ConstantNullBlock extends AbstractNonThreadSafeRefCounted
 
     @Override
     public BytesRef getBytesRef(int valueIndex, BytesRef dest) {
+        assert false : "null block";
+        throw new UnsupportedOperationException("null block");
+    }
+
+    @Override
+    public float getFloat(int valueIndex) {
         assert false : "null block";
         throw new UnsupportedOperationException("null block");
     }

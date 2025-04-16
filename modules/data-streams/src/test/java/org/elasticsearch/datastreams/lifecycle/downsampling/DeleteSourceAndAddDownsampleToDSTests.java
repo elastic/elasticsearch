@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.datastreams.lifecycle.downsampling;
@@ -15,7 +16,7 @@ import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.DataStreamLifecycle;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexSettings;
@@ -45,21 +46,22 @@ public class DeleteSourceAndAddDownsampleToDSTests extends ESTestCase {
     public void testDownsampleIndexMissingIsNoOp() {
         String dataStreamName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
         int numBackingIndices = 3;
-        Metadata.Builder builder = Metadata.builder();
+        ProjectMetadata.Builder builder = ProjectMetadata.builder(randomProjectIdOrDefault());
         DataStream dataStream = createDataStream(
             builder,
             dataStreamName,
             numBackingIndices,
             settings(IndexVersion.current()),
-            DataStreamLifecycle.newBuilder().dataRetention(TimeValue.MAX_VALUE).build(),
+            DataStreamLifecycle.builder().dataRetention(TimeValue.MAX_VALUE).build(),
             now
         );
         builder.put(dataStream);
-        ClusterState previousState = ClusterState.builder(ClusterName.DEFAULT).metadata(builder).build();
+        ClusterState previousState = ClusterState.builder(ClusterName.DEFAULT).putProjectMetadata(builder).build();
 
         String firstGeneration = DataStream.getDefaultBackingIndexName(dataStreamName, 1);
         ClusterState newState = new DeleteSourceAndAddDownsampleToDS(
             Settings.EMPTY,
+            builder.getId(),
             dataStreamName,
             firstGeneration,
             "downsample-1s-" + firstGeneration,
@@ -72,13 +74,13 @@ public class DeleteSourceAndAddDownsampleToDSTests extends ESTestCase {
     public void testDownsampleIsAddedToDSEvenIfSourceDeleted() {
         String dataStreamName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
         int numBackingIndices = 3;
-        Metadata.Builder builder = Metadata.builder();
+        ProjectMetadata.Builder builder = ProjectMetadata.builder(randomProjectIdOrDefault());
         DataStream dataStream = createDataStream(
             builder,
             dataStreamName,
             numBackingIndices,
             settings(IndexVersion.current()),
-            DataStreamLifecycle.newBuilder().dataRetention(TimeValue.MAX_VALUE).build(),
+            DataStreamLifecycle.builder().dataRetention(TimeValue.MAX_VALUE).build(),
             now
         );
         String firstGenIndex = DataStream.getDefaultBackingIndexName(dataStreamName, 1);
@@ -93,12 +95,21 @@ public class DeleteSourceAndAddDownsampleToDSTests extends ESTestCase {
         // delete the first gen altogether
         builder.remove(firstGenIndex);
         builder.put(dataStream);
-        ClusterState previousState = ClusterState.builder(ClusterName.DEFAULT).metadata(builder).build();
+        ClusterState previousState = ClusterState.builder(ClusterName.DEFAULT).putProjectMetadata(builder).build();
 
-        ClusterState newState = new DeleteSourceAndAddDownsampleToDS(Settings.EMPTY, dataStreamName, firstGenIndex, downsampleIndex, null)
-            .execute(previousState);
+        ClusterState newState = new DeleteSourceAndAddDownsampleToDS(
+            Settings.EMPTY,
+            builder.getId(),
+            dataStreamName,
+            firstGenIndex,
+            downsampleIndex,
+            null
+        ).execute(previousState);
 
-        IndexAbstraction downsampleIndexAbstraction = newState.metadata().getIndicesLookup().get(downsampleIndex);
+        IndexAbstraction downsampleIndexAbstraction = newState.metadata()
+            .getProject(builder.getId())
+            .getIndicesLookup()
+            .get(downsampleIndex);
         assertThat(downsampleIndexAbstraction, is(notNullValue()));
         assertThat(downsampleIndexAbstraction.getParentDataStream(), is(notNullValue()));
         // the downsample index is part of the data stream
@@ -108,13 +119,13 @@ public class DeleteSourceAndAddDownsampleToDSTests extends ESTestCase {
     public void testSourceIndexIsWriteIndexThrowsException() {
         String dataStreamName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
         int numBackingIndices = 3;
-        Metadata.Builder builder = Metadata.builder();
+        ProjectMetadata.Builder builder = ProjectMetadata.builder(randomProjectIdOrDefault());
         DataStream dataStream = createDataStream(
             builder,
             dataStreamName,
             numBackingIndices,
             settings(IndexVersion.current()),
-            DataStreamLifecycle.newBuilder().dataRetention(TimeValue.MAX_VALUE).build(),
+            DataStreamLifecycle.builder().dataRetention(TimeValue.MAX_VALUE).build(),
             now
         );
         builder.put(dataStream);
@@ -125,13 +136,12 @@ public class DeleteSourceAndAddDownsampleToDSTests extends ESTestCase {
             .numberOfShards(1)
             .numberOfReplicas(0);
         builder.put(downsampleIndexMeta);
-        ClusterState previousState = ClusterState.builder(ClusterName.DEFAULT).metadata(builder).build();
+        ClusterState previousState = ClusterState.builder(ClusterName.DEFAULT).putProjectMetadata(builder).build();
 
         IllegalStateException illegalStateException = expectThrows(
             IllegalStateException.class,
-            () -> new DeleteSourceAndAddDownsampleToDS(Settings.EMPTY, dataStreamName, writeIndex, downsampleIndex, null).execute(
-                previousState
-            )
+            () -> new DeleteSourceAndAddDownsampleToDS(Settings.EMPTY, builder.getId(), dataStreamName, writeIndex, downsampleIndex, null)
+                .execute(previousState)
         );
 
         assertThat(
@@ -143,13 +153,13 @@ public class DeleteSourceAndAddDownsampleToDSTests extends ESTestCase {
     public void testSourceIsDeleteAndDownsampleOriginationDateIsConfigured() {
         String dataStreamName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
         int numBackingIndices = 3;
-        Metadata.Builder builder = Metadata.builder();
+        ProjectMetadata.Builder builder = ProjectMetadata.builder(randomProjectIdOrDefault());
         DataStream dataStream = createDataStream(
             builder,
             dataStreamName,
             numBackingIndices,
             settings(IndexVersion.current()),
-            DataStreamLifecycle.newBuilder().dataRetention(TimeValue.MAX_VALUE).build(),
+            DataStreamLifecycle.builder().dataRetention(TimeValue.MAX_VALUE).build(),
             now
         );
         String firstGenIndex = DataStream.getDefaultBackingIndexName(dataStreamName, 1);
@@ -160,31 +170,40 @@ public class DeleteSourceAndAddDownsampleToDSTests extends ESTestCase {
             .numberOfReplicas(0);
         builder.put(downsampleIndexMeta);
         builder.put(dataStream);
-        ClusterState previousState = ClusterState.builder(ClusterName.DEFAULT).metadata(builder).build();
+        ClusterState previousState = ClusterState.builder(ClusterName.DEFAULT).putProjectMetadata(builder).build();
 
         // let's add some lifecycle custom metadata to the first generation index
-        IndexMetadata indexMetadata = previousState.metadata().index(firstGenIndex);
+        IndexMetadata indexMetadata = previousState.metadata().getProject(builder.getId()).index(firstGenIndex);
         RolloverInfo rolloverInfo = indexMetadata.getRolloverInfos().get(dataStreamName);
 
         IndexMetadata.Builder firstGenBuilder = IndexMetadata.builder(indexMetadata)
             .putCustom(LIFECYCLE_CUSTOM_INDEX_METADATA_KEY, Map.of(FORCE_MERGE_COMPLETED_TIMESTAMP_METADATA_KEY, String.valueOf(now)));
-        Metadata.Builder metaBuilder = Metadata.builder(previousState.metadata()).put(firstGenBuilder);
-        previousState = ClusterState.builder(previousState).metadata(metaBuilder).build();
-        ClusterState newState = new DeleteSourceAndAddDownsampleToDS(Settings.EMPTY, dataStreamName, firstGenIndex, downsampleIndex, null)
-            .execute(previousState);
+        final var projectBuilder = ProjectMetadata.builder(previousState.metadata().getProject(builder.getId()));
+        previousState = ClusterState.builder(previousState).putProjectMetadata(projectBuilder.put(firstGenBuilder)).build();
+        ClusterState newState = new DeleteSourceAndAddDownsampleToDS(
+            Settings.EMPTY,
+            builder.getId(),
+            dataStreamName,
+            firstGenIndex,
+            downsampleIndex,
+            null
+        ).execute(previousState);
 
-        IndexAbstraction downsampleIndexAbstraction = newState.metadata().getIndicesLookup().get(downsampleIndex);
+        IndexAbstraction downsampleIndexAbstraction = newState.metadata()
+            .getProject(builder.getId())
+            .getIndicesLookup()
+            .get(downsampleIndex);
         assertThat(downsampleIndexAbstraction, is(notNullValue()));
         assertThat(downsampleIndexAbstraction.getParentDataStream(), is(notNullValue()));
         // the downsample index is part of the data stream
         assertThat(downsampleIndexAbstraction.getParentDataStream().getName(), is(dataStreamName));
 
         // the source index is deleted
-        IndexAbstraction sourceIndexAbstraction = newState.metadata().getIndicesLookup().get(firstGenIndex);
+        IndexAbstraction sourceIndexAbstraction = newState.metadata().getProject(builder.getId()).getIndicesLookup().get(firstGenIndex);
         assertThat(sourceIndexAbstraction, is(nullValue()));
 
         // let's check the downsample index has the origination date configured to the source index rollover time
-        IndexMetadata downsampleMeta = newState.metadata().index(downsampleIndex);
+        IndexMetadata downsampleMeta = newState.metadata().getProject(builder.getId()).index(downsampleIndex);
         assertThat(IndexSettings.LIFECYCLE_ORIGINATION_DATE_SETTING.get(downsampleMeta.getSettings()), is(rolloverInfo.getTime()));
         assertThat(downsampleMeta.getCustomData(LIFECYCLE_CUSTOM_INDEX_METADATA_KEY), notNullValue());
         assertThat(
@@ -196,13 +215,13 @@ public class DeleteSourceAndAddDownsampleToDSTests extends ESTestCase {
     public void testSourceWithoutLifecycleMetaAndDestWithOriginationDateAlreadyConfigured() {
         String dataStreamName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
         int numBackingIndices = 3;
-        Metadata.Builder builder = Metadata.builder();
+        ProjectMetadata.Builder builder = ProjectMetadata.builder(randomProjectIdOrDefault());
         DataStream dataStream = createDataStream(
             builder,
             dataStreamName,
             numBackingIndices,
             settings(IndexVersion.current()),
-            DataStreamLifecycle.newBuilder().dataRetention(TimeValue.MAX_VALUE).build(),
+            DataStreamLifecycle.builder().dataRetention(TimeValue.MAX_VALUE).build(),
             now
         );
         String firstGenIndex = DataStream.getDefaultBackingIndexName(dataStreamName, 1);
@@ -216,35 +235,44 @@ public class DeleteSourceAndAddDownsampleToDSTests extends ESTestCase {
             .numberOfReplicas(0);
         builder.put(downsampleIndexMeta);
         builder.put(dataStream);
-        ClusterState previousState = ClusterState.builder(ClusterName.DEFAULT).metadata(builder).build();
+        ClusterState previousState = ClusterState.builder(ClusterName.DEFAULT).putProjectMetadata(builder).build();
 
-        ClusterState newState = new DeleteSourceAndAddDownsampleToDS(Settings.EMPTY, dataStreamName, firstGenIndex, downsampleIndex, null)
-            .execute(previousState);
+        ClusterState newState = new DeleteSourceAndAddDownsampleToDS(
+            Settings.EMPTY,
+            builder.getId(),
+            dataStreamName,
+            firstGenIndex,
+            downsampleIndex,
+            null
+        ).execute(previousState);
 
-        IndexAbstraction downsampleIndexAbstraction = newState.metadata().getIndicesLookup().get(downsampleIndex);
+        IndexAbstraction downsampleIndexAbstraction = newState.metadata()
+            .getProject(builder.getId())
+            .getIndicesLookup()
+            .get(downsampleIndex);
         assertThat(downsampleIndexAbstraction, is(notNullValue()));
         assertThat(downsampleIndexAbstraction.getParentDataStream(), is(notNullValue()));
         // the downsample index is part of the data stream
         assertThat(downsampleIndexAbstraction.getParentDataStream().getName(), is(dataStreamName));
 
         // the source index was deleted
-        IndexAbstraction sourceIndexAbstraction = newState.metadata().getIndicesLookup().get(firstGenIndex);
+        IndexAbstraction sourceIndexAbstraction = newState.metadata().getProject(builder.getId()).getIndicesLookup().get(firstGenIndex);
         assertThat(sourceIndexAbstraction, is(nullValue()));
 
-        IndexMetadata downsampleMeta = newState.metadata().index(downsampleIndex);
+        IndexMetadata downsampleMeta = newState.metadata().getProject(builder.getId()).index(downsampleIndex);
         assertThat(IndexSettings.LIFECYCLE_ORIGINATION_DATE_SETTING.get(downsampleMeta.getSettings()), is(downsampleOriginationDate));
     }
 
     public void testSourceIndexIsDeleteEvenIfNotPartOfDSAnymore() {
         String dataStreamName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
         int numBackingIndices = 3;
-        Metadata.Builder builder = Metadata.builder();
+        ProjectMetadata.Builder builder = ProjectMetadata.builder(randomProjectIdOrDefault());
         DataStream dataStream = createDataStream(
             builder,
             dataStreamName,
             numBackingIndices,
             settings(IndexVersion.current()),
-            DataStreamLifecycle.newBuilder().dataRetention(TimeValue.MAX_VALUE).build(),
+            DataStreamLifecycle.builder().dataRetention(TimeValue.MAX_VALUE).build(),
             now
         );
         String firstGenIndex = DataStream.getDefaultBackingIndexName(dataStreamName, 1);
@@ -257,17 +285,26 @@ public class DeleteSourceAndAddDownsampleToDSTests extends ESTestCase {
         // let's remove the first generation index
         dataStream = dataStream.removeBackingIndex(builder.get(firstGenIndex).getIndex());
         builder.put(dataStream);
-        ClusterState previousState = ClusterState.builder(ClusterName.DEFAULT).metadata(builder).build();
+        ClusterState previousState = ClusterState.builder(ClusterName.DEFAULT).putProjectMetadata(builder).build();
 
-        ClusterState newState = new DeleteSourceAndAddDownsampleToDS(Settings.EMPTY, dataStreamName, firstGenIndex, downsampleIndex, null)
-            .execute(previousState);
+        ClusterState newState = new DeleteSourceAndAddDownsampleToDS(
+            Settings.EMPTY,
+            builder.getId(),
+            dataStreamName,
+            firstGenIndex,
+            downsampleIndex,
+            null
+        ).execute(previousState);
 
-        IndexAbstraction downsampleIndexAbstraction = newState.metadata().getIndicesLookup().get(downsampleIndex);
+        IndexAbstraction downsampleIndexAbstraction = newState.metadata()
+            .getProject(builder.getId())
+            .getIndicesLookup()
+            .get(downsampleIndex);
         assertThat(downsampleIndexAbstraction, is(notNullValue()));
         assertThat(downsampleIndexAbstraction.getParentDataStream(), is(notNullValue()));
         // the downsample index is part of the data stream
         assertThat(downsampleIndexAbstraction.getParentDataStream().getName(), is(dataStreamName));
 
-        assertThat(newState.metadata().getIndicesLookup().get(firstGenIndex), is(nullValue()));
+        assertThat(newState.metadata().getProject(builder.getId()).getIndicesLookup().get(firstGenIndex), is(nullValue()));
     }
 }

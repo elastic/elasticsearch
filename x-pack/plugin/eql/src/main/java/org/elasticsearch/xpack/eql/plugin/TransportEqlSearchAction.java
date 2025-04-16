@@ -10,11 +10,11 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
+import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
@@ -24,6 +24,7 @@ import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.search.fetch.subphase.FieldAndFormat;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
@@ -59,7 +60,6 @@ import java.util.StringJoiner;
 import static org.elasticsearch.action.ActionListener.wrap;
 import static org.elasticsearch.transport.RemoteClusterAware.buildRemoteIndexName;
 import static org.elasticsearch.xpack.core.ClientHelper.ASYNC_SEARCH_ORIGIN;
-import static org.elasticsearch.xpack.ql.plugin.TransportActionUtils.executeRequestWithRetryAttempt;
 
 public final class TransportEqlSearchAction extends HandledTransportAction<EqlSearchRequest, EqlSearchResponse>
     implements
@@ -69,7 +69,6 @@ public final class TransportEqlSearchAction extends HandledTransportAction<EqlSe
     private final SecurityContext securityContext;
     private final ClusterService clusterService;
     private final PlanExecutor planExecutor;
-    private final ThreadPool threadPool;
     private final TransportService transportService;
     private final AsyncTaskManagementService<EqlSearchRequest, EqlSearchResponse, EqlSearchTask> asyncTaskManagementService;
 
@@ -92,7 +91,6 @@ public final class TransportEqlSearchAction extends HandledTransportAction<EqlSe
             : null;
         this.clusterService = clusterService;
         this.planExecutor = planExecutor;
-        this.threadPool = threadPool;
         this.transportService = transportService;
 
         this.asyncTaskManagementService = new AsyncTaskManagementService<>(
@@ -147,7 +145,8 @@ public final class TransportEqlSearchAction extends HandledTransportAction<EqlSe
             false,
             task.getExecutionId().getEncoded(),
             true,
-            true
+            true,
+            ShardSearchFailure.EMPTY_ARRAY
         );
     }
 
@@ -234,36 +233,53 @@ public final class TransportEqlSearchAction extends HandledTransportAction<EqlSe
                 request.indicesOptions(),
                 request.fetchSize(),
                 request.maxSamplesPerKey(),
+                request.allowPartialSearchResults() == null
+                    ? defaultAllowPartialSearchResults(clusterService)
+                    : request.allowPartialSearchResults(),
+                request.allowPartialSequenceResults() == null
+                    ? defaultAllowPartialSequenceResults(clusterService)
+                    : request.allowPartialSequenceResults(),
                 clientId,
                 new TaskId(nodeId, task.getId()),
                 task
             );
-            executeRequestWithRetryAttempt(
-                clusterService,
-                listener::onFailure,
-                onFailure -> planExecutor.eql(
-                    cfg,
-                    request.query(),
-                    params,
-                    wrap(r -> listener.onResponse(createResponse(r, task.getExecutionId())), onFailure)
-                ),
-                node -> transportService.sendRequest(
-                    node,
-                    EqlSearchAction.NAME,
-                    request,
-                    new ActionListenerResponseHandler<>(listener, EqlSearchResponse::new, EsExecutors.DIRECT_EXECUTOR_SERVICE)
-                ),
-                log
+            planExecutor.eql(
+                cfg,
+                request.query(),
+                params,
+                wrap(r -> listener.onResponse(createResponse(r, task.getExecutionId())), listener::onFailure)
             );
         }
+    }
+
+    private static boolean defaultAllowPartialSearchResults(ClusterService clusterService) {
+        if (clusterService.getClusterSettings() == null) {
+            return EqlPlugin.DEFAULT_ALLOW_PARTIAL_SEARCH_RESULTS.getDefault(Settings.EMPTY);
+        }
+        return clusterService.getClusterSettings().get(EqlPlugin.DEFAULT_ALLOW_PARTIAL_SEARCH_RESULTS);
+    }
+
+    private static boolean defaultAllowPartialSequenceResults(ClusterService clusterService) {
+        if (clusterService.getClusterSettings() == null) {
+            return EqlPlugin.DEFAULT_ALLOW_PARTIAL_SEQUENCE_RESULTS.getDefault(Settings.EMPTY);
+        }
+        return clusterService.getClusterSettings().get(EqlPlugin.DEFAULT_ALLOW_PARTIAL_SEQUENCE_RESULTS);
     }
 
     static EqlSearchResponse createResponse(Results results, AsyncExecutionId id) {
         EqlSearchResponse.Hits hits = new EqlSearchResponse.Hits(results.events(), results.sequences(), results.totalHits());
         if (id != null) {
-            return new EqlSearchResponse(hits, results.tookTime().getMillis(), results.timedOut(), id.getEncoded(), false, false);
+            return new EqlSearchResponse(
+                hits,
+                results.tookTime().getMillis(),
+                results.timedOut(),
+                id.getEncoded(),
+                false,
+                false,
+                results.shardFailures()
+            );
         } else {
-            return new EqlSearchResponse(hits, results.tookTime().getMillis(), results.timedOut());
+            return new EqlSearchResponse(hits, results.tookTime().getMillis(), results.timedOut(), results.shardFailures());
         }
     }
 

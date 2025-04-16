@@ -56,10 +56,14 @@ public final class RuntimeUtils {
 
     private RuntimeUtils() {}
 
-    public static ActionListener<SearchResponse> searchLogListener(ActionListener<SearchResponse> listener, Logger log) {
+    public static ActionListener<SearchResponse> searchLogListener(
+        ActionListener<SearchResponse> listener,
+        Logger log,
+        boolean allowPartialResults
+    ) {
         return listener.delegateFailureAndWrap((delegate, response) -> {
             ShardSearchFailure[] failures = response.getShardFailures();
-            if (CollectionUtils.isEmpty(failures) == false) {
+            if (CollectionUtils.isEmpty(failures) == false && allowPartialResults == false) {
                 delegate.onFailure(new EqlIllegalArgumentException(failures[0].reason(), failures[0].getCause()));
                 return;
             }
@@ -70,16 +74,22 @@ public final class RuntimeUtils {
         });
     }
 
-    public static ActionListener<MultiSearchResponse> multiSearchLogListener(ActionListener<MultiSearchResponse> listener, Logger log) {
+    public static ActionListener<MultiSearchResponse> multiSearchLogListener(
+        ActionListener<MultiSearchResponse> listener,
+        boolean allowPartialSearchResults,
+        Logger log
+    ) {
         return listener.delegateFailureAndWrap((delegate, items) -> {
             for (MultiSearchResponse.Item item : items) {
                 Exception failure = item.getFailure();
                 SearchResponse response = item.getResponse();
 
                 if (failure == null) {
-                    ShardSearchFailure[] failures = response.getShardFailures();
-                    if (CollectionUtils.isEmpty(failures) == false) {
-                        failure = new EqlIllegalArgumentException(failures[0].reason(), failures[0].getCause());
+                    if (allowPartialSearchResults == false) {
+                        ShardSearchFailure[] failures = response.getShardFailures();
+                        if (CollectionUtils.isEmpty(failures) == false) {
+                            failure = new EqlIllegalArgumentException(failures[0].reason(), failures[0].getCause());
+                        }
                     }
                 }
                 if (failure != null) {
@@ -170,11 +180,16 @@ public final class RuntimeUtils {
         throw new EqlIllegalArgumentException("Unexpected value reference {}", ref.getClass());
     }
 
-    public static SearchRequest prepareRequest(SearchSourceBuilder source, boolean includeFrozen, String... indices) {
+    public static SearchRequest prepareRequest(
+        SearchSourceBuilder source,
+        boolean includeFrozen,
+        boolean allowPartialSearchResults,
+        String... indices
+    ) {
         SearchRequest searchRequest = new SearchRequest();
         searchRequest.indices(indices);
         searchRequest.source(source);
-        searchRequest.allowPartialSearchResults(false);
+        searchRequest.allowPartialSearchResults(allowPartialSearchResults);
         searchRequest.indicesOptions(
             includeFrozen ? IndexResolver.FIELD_CAPS_FROZEN_INDICES_OPTIONS : IndexResolver.FIELD_CAPS_INDICES_OPTIONS
         );

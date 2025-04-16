@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.slice;
@@ -15,6 +16,7 @@ import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Scorer;
+import org.apache.lucene.search.ScorerSupplier;
 import org.apache.lucene.search.Weight;
 import org.elasticsearch.search.sort.FieldSortBuilder;
 
@@ -57,9 +59,10 @@ public final class DocIdSliceQuery extends SliceQuery {
 
         return new ConstantScoreWeight(this, boost) {
             @Override
-            public Scorer scorer(LeafReaderContext context) {
+            public ScorerSupplier scorerSupplier(LeafReaderContext context) throws IOException {
                 DocIdSetIterator iterator = createIterator(context, sliceStart, sliceStart + sliceSize);
-                return new ConstantScoreScorer(this, boost, scoreMode, iterator);
+                Scorer scorer = new ConstantScoreScorer(boost, scoreMode, iterator);
+                return new DefaultScorerSupplier(scorer);
             }
 
             private static DocIdSetIterator createIterator(LeafReaderContext context, int sliceStart, int sliceEnd) {

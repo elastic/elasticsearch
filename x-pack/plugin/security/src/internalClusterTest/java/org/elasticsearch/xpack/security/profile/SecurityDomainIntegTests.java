@@ -336,7 +336,7 @@ public class SecurityDomainIntegTests extends AbstractProfileIntegTestCase {
                             (createApiKeyResponse.getId() + ":" + createApiKeyResponse.getKey()).getBytes(StandardCharsets.UTF_8)
                         )
             )
-        ).admin().cluster().prepareHealth().get();
+        ).admin().cluster().prepareHealth(TEST_REQUEST_TIMEOUT).get();
     }
 
     public void testDomainCaptureForServiceToken() throws IOException {
@@ -364,7 +364,7 @@ public class SecurityDomainIntegTests extends AbstractProfileIntegTestCase {
         client().filterWithHeader(Map.of("Authorization", "Bearer " + createServiceTokenResponse.getValue()))
             .admin()
             .cluster()
-            .prepareHealth()
+            .prepareHealth(TEST_REQUEST_TIMEOUT)
             .get();
     }
 
@@ -372,7 +372,7 @@ public class SecurityDomainIntegTests extends AbstractProfileIntegTestCase {
         client().filterWithHeader(Map.of("Authorization", "Bearer " + createTokenResponse.getTokenString()))
             .admin()
             .cluster()
-            .prepareHealth()
+            .prepareHealth(TEST_REQUEST_TIMEOUT)
             .get();
         assertResponse(prepareSearch(SecuritySystemIndices.SECURITY_TOKENS_ALIAS), searchResponse -> {
             final String encodedAuthentication;

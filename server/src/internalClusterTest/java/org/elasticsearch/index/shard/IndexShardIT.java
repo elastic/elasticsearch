@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.index.shard;
 
@@ -30,6 +31,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.lucene.uid.Versions;
+import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -49,6 +51,7 @@ import org.elasticsearch.index.engine.CommitStats;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.NoOpEngine;
 import org.elasticsearch.index.flush.FlushStats;
+import org.elasticsearch.index.mapper.MapperMetrics;
 import org.elasticsearch.index.mapper.SourceToParse;
 import org.elasticsearch.index.seqno.RetentionLeaseSyncer;
 import org.elasticsearch.index.seqno.SequenceNumbers;
@@ -93,6 +96,7 @@ import static java.util.Collections.emptySet;
 import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.IMMEDIATE;
 import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.NONE;
 import static org.elasticsearch.cluster.routing.TestShardRouting.shardRoutingBuilder;
+import static org.elasticsearch.index.shard.IndexShardTestCase.closeShardNoCheck;
 import static org.elasticsearch.index.shard.IndexShardTestCase.getTranslog;
 import static org.elasticsearch.index.shard.IndexShardTestCase.recoverFromStore;
 import static org.elasticsearch.test.LambdaMatchers.falseWith;
@@ -120,7 +124,7 @@ public class IndexShardIT extends ESSingleNodeTestCase {
         NodeEnvironment env = getInstanceFromNode(NodeEnvironment.class);
 
         ClusterService cs = getInstanceFromNode(ClusterService.class);
-        final Index index = cs.state().metadata().index("test").getIndex();
+        final Index index = cs.state().metadata().getProject().index("test").getIndex();
         Path[] shardPaths = env.availableShardPaths(new ShardId(index, 0));
         logger.info("--> paths: [{}]", (Object) shardPaths);
         // Should not be able to acquire the lock because it's already open
@@ -161,7 +165,7 @@ public class IndexShardIT extends ESSingleNodeTestCase {
             try {
                 // the lastWriteLocaltion has a Integer.MAX_VALUE size so we have to create a new one
                 return tlog.ensureSynced(
-                    new Translog.Location(lastWriteLocation.generation, lastWriteLocation.translogLocation, 0),
+                    new Translog.Location(lastWriteLocation.generation(), lastWriteLocation.translogLocation(), 0),
                     SequenceNumbers.UNASSIGNED_SEQ_NO
                 );
             } catch (IOException e) {
@@ -217,7 +221,7 @@ public class IndexShardIT extends ESSingleNodeTestCase {
 
     public void testIndexDirIsDeletedWhenShardRemoved() throws Exception {
         Environment env = getInstanceFromNode(Environment.class);
-        Path idxPath = env.sharedDataFile().resolve(randomAlphaOfLength(10));
+        Path idxPath = env.sharedDataDir().resolve(randomAlphaOfLength(10));
         logger.info("--> idxPath: [{}]", idxPath);
         Settings idxSettings = Settings.builder().put(IndexMetadata.SETTING_DATA_PATH, idxPath).build();
         createIndex("test", idxSettings);
@@ -225,6 +229,7 @@ public class IndexShardIT extends ESSingleNodeTestCase {
         prepareIndex("test").setId("1").setSource("{}", XContentType.JSON).setRefreshPolicy(IMMEDIATE).get();
         assertHitCount(client().prepareSearch("test"), 1L);
         indicesAdmin().prepareDelete("test").get();
+        awaitIndexShardCloseAsyncTasks();
         assertAllIndicesRemovedAndDeletionCompleted(Collections.singleton(getInstanceFromNode(IndicesService.class)));
         assertPathHasBeenCleared(idxPath);
     }
@@ -250,7 +255,7 @@ public class IndexShardIT extends ESSingleNodeTestCase {
 
     public void testIndexCanChangeCustomDataPath() throws Exception {
         final String index = "test-custom-data-path";
-        final Path sharedDataPath = getInstanceFromNode(Environment.class).sharedDataFile().resolve(randomAsciiLettersOfLength(10));
+        final Path sharedDataPath = getInstanceFromNode(Environment.class).sharedDataDir().resolve(randomAsciiLettersOfLength(10));
         final Path indexDataPath = sharedDataPath.resolve("start-" + randomAsciiLettersOfLength(10));
 
         logger.info("--> creating index [{}] with data_path [{}]", index, indexDataPath);
@@ -272,6 +277,7 @@ public class IndexShardIT extends ESSingleNodeTestCase {
         // Now, try closing and changing the settings
         logger.info("--> closing the index [{}] before updating data_path", index);
         assertAcked(indicesAdmin().prepareClose(index));
+        awaitIndexShardCloseAsyncTasks();
 
         final Path newIndexDataPath = sharedDataPath.resolve("end-" + randomAlphaOfLength(10));
         IOUtils.rm(newIndexDataPath);
@@ -306,6 +312,7 @@ public class IndexShardIT extends ESSingleNodeTestCase {
         assertHitCount(client().prepareSearch(index).setSize(0), 1L);
 
         assertAcked(indicesAdmin().prepareDelete(index));
+        awaitIndexShardCloseAsyncTasks();
         assertAllIndicesRemovedAndDeletionCompleted(Collections.singleton(getInstanceFromNode(IndicesService.class)));
         assertPathHasBeenCleared(newIndexDataPath.toAbsolutePath());
     }
@@ -325,7 +332,7 @@ public class IndexShardIT extends ESSingleNodeTestCase {
                 Settings.builder()
                     .put(
                         IndexSettings.INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING.getKey(),
-                        new ByteSizeValue(135 /* size of the operation + one generation header&footer*/, ByteSizeUnit.BYTES)
+                        ByteSizeValue.of(135 /* size of the operation + one generation header&footer*/, ByteSizeUnit.BYTES)
                     )
                     .build()
             )
@@ -365,7 +372,7 @@ public class IndexShardIT extends ESSingleNodeTestCase {
         indicesAdmin().prepareUpdateSettings("test")
             .setSettings(
                 Settings.builder()
-                    .put(IndexSettings.INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING.getKey(), new ByteSizeValue(size, ByteSizeUnit.BYTES))
+                    .put(IndexSettings.INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING.getKey(), ByteSizeValue.of(size, ByteSizeUnit.BYTES))
                     .build()
             )
             .get();
@@ -383,7 +390,7 @@ public class IndexShardIT extends ESSingleNodeTestCase {
             logger.info(
                 "--> translog stats [{}] gen [{}] commit_stats [{}] flush_stats [{}/{}]",
                 Strings.toString(translogStats),
-                translog.getGeneration().translogFileGeneration,
+                translog.getGeneration().translogFileGeneration(),
                 commitStats.getUserData(),
                 flushStats.getPeriodic(),
                 flushStats.getTotal()
@@ -422,7 +429,7 @@ public class IndexShardIT extends ESSingleNodeTestCase {
             );
             final Translog.Location location = result.getTranslogLocation();
             shard.afterWriteOperation();
-            if (location.translogLocation + location.size > generationThreshold) {
+            if (location.translogLocation() + location.size() > generationThreshold) {
                 // wait until the roll completes
                 assertBusy(() -> assertFalse(shard.shouldRollTranslogGeneration()));
                 rolls++;
@@ -545,7 +552,7 @@ public class IndexShardIT extends ESSingleNodeTestCase {
         prepareIndex("test").setId("1").setSource("{\"foo\" : \"bar\"}", XContentType.JSON).setRefreshPolicy(IMMEDIATE).get();
 
         CheckedFunction<DirectoryReader, DirectoryReader, IOException> wrapper = directoryReader -> directoryReader;
-        shard.close("simon says", false);
+        closeShardNoCheck(shard);
         AtomicReference<IndexShard> shardRef = new AtomicReference<>();
         List<Exception> failures = new ArrayList<>();
         IndexingOperationListener listener = new IndexingOperationListener() {
@@ -583,7 +590,7 @@ public class IndexShardIT extends ESSingleNodeTestCase {
         try {
             ExceptionsHelper.rethrowAndSuppress(failures);
         } finally {
-            newShard.close("just do it", randomBoolean());
+            closeShardNoCheck(newShard, randomBoolean());
         }
     }
 
@@ -619,6 +626,7 @@ public class IndexShardIT extends ESSingleNodeTestCase {
             indexService.getIndexEventListener(),
             wrapper,
             indexService.getThreadPool(),
+            indexService.getThreadPoolMergeExecutorService(),
             indexService.getBigArrays(),
             null,
             Collections.emptyList(),
@@ -628,7 +636,9 @@ public class IndexShardIT extends ESSingleNodeTestCase {
             cbs,
             IndexModule.DEFAULT_SNAPSHOT_COMMIT_SUPPLIER,
             System::nanoTime,
-            null
+            null,
+            MapperMetrics.NOOP,
+            new IndexingStatsSettings(ClusterSettings.createBuiltInClusterSettings())
         );
     }
 
@@ -666,7 +676,7 @@ public class IndexShardIT extends ESSingleNodeTestCase {
         final CountDownLatch engineResetLatch = new CountDownLatch(1);
         shard.acquireAllPrimaryOperationsPermits(ActionListener.wrap(r -> {
             try {
-                shard.resetEngineToGlobalCheckpoint();
+                shard.rollbackEngineToGlobalCheckpoint();
             } finally {
                 r.close();
                 engineResetLatch.countDown();
@@ -707,7 +717,15 @@ public class IndexShardIT extends ESSingleNodeTestCase {
         }
         IndexShard shard = indexService.getShard(0);
         try (
-            Translog.Snapshot luceneSnapshot = shard.newChangesSnapshot("test", 0, numOps - 1, true, randomBoolean(), randomBoolean());
+            Translog.Snapshot luceneSnapshot = shard.newChangesSnapshot(
+                "test",
+                0,
+                numOps - 1,
+                true,
+                randomBoolean(),
+                randomBoolean(),
+                randomLongBetween(1, ByteSizeValue.ofMb(32).getBytes())
+            );
             Translog.Snapshot translogSnapshot = getTranslog(shard).newSnapshot()
         ) {
             List<Translog.Operation> opsFromLucene = TestTranslog.drainSnapshot(luceneSnapshot, true);
@@ -730,7 +748,7 @@ public class IndexShardIT extends ESSingleNodeTestCase {
         final ClusterService clusterService = getInstanceFromNode(ClusterService.class);
         final ClusterState clusterState = clusterService.state();
 
-        final IndexMetadata indexMetadata = clusterState.metadata().index(indexName);
+        final IndexMetadata indexMetadata = clusterState.metadata().getProject().index(indexName);
         final IndicesService indicesService = getInstanceFromNode(IndicesService.class);
         final IndexService indexService = indicesService.indexServiceSafe(indexMetadata.getIndex());
 

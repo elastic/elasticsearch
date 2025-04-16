@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.secure_sm;
@@ -156,7 +157,9 @@ public class SecureSM extends SecurityManager {
     // Returns true if the given thread is an instance of the JDK's InnocuousThread.
     private static boolean isInnocuousThread(Thread t) {
         final Class<?> c = t.getClass();
-        return c.getModule() == Object.class.getModule() && c.getName().equals("jdk.internal.misc.InnocuousThread");
+        return c.getModule() == Object.class.getModule()
+            && (c.getName().equals("jdk.internal.misc.InnocuousThread")
+                || c.getName().equals("java.util.concurrent.ForkJoinWorkerThread$InnocuousForkJoinWorkerThread"));
     }
 
     protected void checkThreadAccess(Thread t) {
@@ -183,11 +186,21 @@ public class SecureSM extends SecurityManager {
     private static final Permission MODIFY_THREADGROUP_PERMISSION = new RuntimePermission("modifyThreadGroup");
     private static final Permission MODIFY_ARBITRARY_THREADGROUP_PERMISSION = new ThreadPermission("modifyArbitraryThreadGroup");
 
+    // Returns true if the given thread is an instance of the JDK's InnocuousThread.
+    private static boolean isInnocuousThreadGroup(ThreadGroup t) {
+        final Class<?> c = t.getClass();
+        return c.getModule() == Object.class.getModule() && t.getName().equals("InnocuousForkJoinWorkerThreadGroup");
+    }
+
     protected void checkThreadGroupAccess(ThreadGroup g) {
         Objects.requireNonNull(g);
 
+        boolean targetThreadGroupIsInnocuous = isInnocuousThreadGroup(g);
+
         // first, check if we can modify thread groups at all.
-        checkPermission(MODIFY_THREADGROUP_PERMISSION);
+        if (targetThreadGroupIsInnocuous == false) {
+            checkPermission(MODIFY_THREADGROUP_PERMISSION);
+        }
 
         // check the threadgroup, if its our thread group or an ancestor, its fine.
         final ThreadGroup source = Thread.currentThread().getThreadGroup();
@@ -195,7 +208,7 @@ public class SecureSM extends SecurityManager {
 
         if (source == null) {
             return; // we are a dead thread, do nothing
-        } else if (source.parentOf(target) == false) {
+        } else if (source.parentOf(target) == false && targetThreadGroupIsInnocuous == false) {
             checkPermission(MODIFY_ARBITRARY_THREADGROUP_PERMISSION);
         }
     }

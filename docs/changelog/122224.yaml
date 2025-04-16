@@ -1,0 +1,6 @@
+pr: 122224
+summary: Enable the use of nested field type with index.mode=time_series
+area: Mapping
+type: enhancement
+issues:
+ - 120874

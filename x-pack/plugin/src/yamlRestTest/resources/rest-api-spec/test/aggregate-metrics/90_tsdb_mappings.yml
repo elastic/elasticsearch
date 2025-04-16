@@ -1,6 +1,6 @@
 aggregate_double_metric with time series mappings:
-  - skip:
-      version: " - 7.15.99"
+  - requires:
+      cluster_features: ["gte_v7.16.0"]
       reason: introduced in 7.16.0
 
   - do:
@@ -38,8 +38,8 @@ aggregate_double_metric with time series mappings:
 
 ---
 aggregate_double_metric with wrong time series mappings:
-  - skip:
-      version: " - 7.15.99"
+  - requires:
+      cluster_features: ["gte_v7.16.0"]
       reason: introduced in 7.16.0
 
   - do:
@@ -78,8 +78,8 @@ aggregate_double_metric with wrong time series mappings:
 
 ---
 "Field caps with tsdb":
-  - skip:
-      version: " - 8.7.99"
+  - requires:
+      cluster_features: ["gte_v8.8.0"]
       reason: "Field caps fix in 8.9"
 
   - do:

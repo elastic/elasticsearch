@@ -11,6 +11,7 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.xpack.core.ml.action.StartTrainedModelDeploymentAction;
+import org.elasticsearch.xpack.core.ml.inference.assignment.AdaptiveAllocationsSettings;
 import org.elasticsearch.xpack.core.ml.inference.assignment.Priority;
 
 import java.util.ArrayList;
@@ -30,39 +31,59 @@ import java.util.stream.Collectors;
  */
 public class AssignmentPlan implements Comparable<AssignmentPlan> {
 
+    /**
+     *
+     * @param deploymentId
+     * @param memoryBytes
+     * @param allocations
+     * @param threadsPerAllocation
+     * @param currentAllocationsByNodeId
+     * @param maxAssignedAllocations this value is used by the ZoneAwareAssignmentPlan and AssignmentPlanner to keep track of the
+     *                               maximum number of allocations which have been assigned. It is mainly for assigning over AZs.
+     * @param adaptiveAllocationsSettings
+     * @param priority
+     * @param perDeploymentMemoryBytes
+     * @param perAllocationMemoryBytes
+     */
     public record Deployment(
-        String id,
+        String deploymentId,
         long memoryBytes,
         int allocations,
         int threadsPerAllocation,
         Map<String, Integer> currentAllocationsByNodeId,
         int maxAssignedAllocations,
+        AdaptiveAllocationsSettings adaptiveAllocationsSettings,
         Priority priority,
         long perDeploymentMemoryBytes,
         long perAllocationMemoryBytes
     ) {
-
         public Deployment(
-            String id,
+            String deploymentId,
             long modelBytes,
             int allocations,
             int threadsPerAllocation,
             Map<String, Integer> currentAllocationsByNodeId,
             int maxAssignedAllocations,
+            AdaptiveAllocationsSettings adaptiveAllocationsSettings,
             long perDeploymentMemoryBytes,
             long perAllocationMemoryBytes
         ) {
             this(
-                id,
+                deploymentId,
                 modelBytes,
                 allocations,
                 threadsPerAllocation,
                 currentAllocationsByNodeId,
                 maxAssignedAllocations,
+                adaptiveAllocationsSettings,
                 Priority.NORMAL,
                 perDeploymentMemoryBytes,
                 perAllocationMemoryBytes
             );
+        }
+
+        public AdaptiveAllocationsSettings getAdaptiveAllocationsSettings() {
+            return adaptiveAllocationsSettings;
         }
 
         int getCurrentAssignedAllocations() {
@@ -75,7 +96,7 @@ public class AssignmentPlan implements Comparable<AssignmentPlan> {
 
         public long estimateMemoryUsageBytes(int allocations) {
             return StartTrainedModelDeploymentAction.estimateMemoryUsageBytes(
-                id,
+                deploymentId,
                 memoryBytes,
                 perDeploymentMemoryBytes,
                 perAllocationMemoryBytes,
@@ -85,13 +106,13 @@ public class AssignmentPlan implements Comparable<AssignmentPlan> {
 
         long estimateAdditionalMemoryUsageBytes(int allocationsOld, int allocationsNew) {
             return StartTrainedModelDeploymentAction.estimateMemoryUsageBytes(
-                id,
+                deploymentId,
                 memoryBytes,
                 perDeploymentMemoryBytes,
                 perAllocationMemoryBytes,
                 allocationsNew
             ) - StartTrainedModelDeploymentAction.estimateMemoryUsageBytes(
-                id,
+                deploymentId,
                 memoryBytes,
                 perDeploymentMemoryBytes,
                 perAllocationMemoryBytes,
@@ -102,7 +123,7 @@ public class AssignmentPlan implements Comparable<AssignmentPlan> {
 
         long minimumMemoryRequiredBytes() {
             return StartTrainedModelDeploymentAction.estimateMemoryUsageBytes(
-                id,
+                deploymentId,
                 memoryBytes,
                 perDeploymentMemoryBytes,
                 perAllocationMemoryBytes,
@@ -129,7 +150,7 @@ public class AssignmentPlan implements Comparable<AssignmentPlan> {
 
         @Override
         public String toString() {
-            return id
+            return deploymentId
                 + " (mem = "
                 + ByteSizeValue.ofBytes(memoryBytes)
                 + ") (allocations = "
@@ -179,7 +200,7 @@ public class AssignmentPlan implements Comparable<AssignmentPlan> {
         this.remainingModelAllocations = Objects.requireNonNull(remainingModelAllocations);
     }
 
-    public Set<Deployment> models() {
+    public Set<Deployment> deployments() {
         return assignments.keySet();
     }
 
@@ -201,7 +222,7 @@ public class AssignmentPlan implements Comparable<AssignmentPlan> {
     }
 
     public boolean satisfiesCurrentAssignments() {
-        return models().stream().allMatch(this::isSatisfyingCurrentAssignmentsForModel);
+        return deployments().stream().allMatch(this::isSatisfyingCurrentAssignmentsForModel);
     }
 
     private boolean isSatisfyingCurrentAssignmentsForModel(Deployment m) {
@@ -218,18 +239,18 @@ public class AssignmentPlan implements Comparable<AssignmentPlan> {
     }
 
     public boolean satisfiesAllModels() {
-        return models().stream().allMatch(this::satisfiesAllocations);
+        return deployments().stream().allMatch(this::satisfiesAllocations);
     }
 
     public boolean arePreviouslyAssignedModelsAssigned() {
-        return models().stream()
+        return deployments().stream()
             .filter(Deployment::hasEverBeenAllocated)
             .map(this::totalAllocations)
             .allMatch(totalAllocations -> totalAllocations > 0);
     }
 
     public long countPreviouslyAssignedModelsThatAreStillAssigned() {
-        return models().stream()
+        return deployments().stream()
             .filter(Deployment::hasEverBeenAllocated)
             .map(this::totalAllocations)
             .filter(totalAllocations -> totalAllocations > 0)
@@ -294,11 +315,11 @@ public class AssignmentPlan implements Comparable<AssignmentPlan> {
             msg.append(" ->");
             for (Tuple<Deployment, Integer> modelAllocations : nodeToModel.get(n)
                 .stream()
-                .sorted(Comparator.comparing(x -> x.v1().id()))
+                .sorted(Comparator.comparing(x -> x.v1().deploymentId()))
                 .toList()) {
                 if (modelAllocations.v2() > 0) {
                     msg.append(" ");
-                    msg.append(modelAllocations.v1().id());
+                    msg.append(modelAllocations.v1().deploymentId());
                     msg.append(" (mem = ");
                     msg.append(ByteSizeValue.ofBytes(modelAllocations.v1().memoryBytes()));
                     msg.append(")");
@@ -408,7 +429,7 @@ public class AssignmentPlan implements Comparable<AssignmentPlan> {
                         + "] to assign ["
                         + allocations
                         + "] allocations to deployment ["
-                        + deployment.id()
+                        + deployment.deploymentId()
                         + "]"
                 );
             }
@@ -419,7 +440,7 @@ public class AssignmentPlan implements Comparable<AssignmentPlan> {
                         + "] to assign ["
                         + allocations
                         + "] allocations to deployment ["
-                        + deployment.id()
+                        + deployment.deploymentId()
                         + "]; required threads per allocation ["
                         + deployment.threadsPerAllocation()
                         + "]"
@@ -457,7 +478,7 @@ public class AssignmentPlan implements Comparable<AssignmentPlan> {
         private void accountMemory(Deployment m, Node n, long requiredMemory) {
             remainingNodeMemory.computeIfPresent(n, (k, v) -> v - requiredMemory);
             if (remainingNodeMemory.containsKey(n) && remainingNodeMemory.get(n) < 0) {
-                throw new IllegalArgumentException("not enough memory on node [" + n.id() + "] to assign model [" + m.id() + "]");
+                throw new IllegalArgumentException("not enough memory on node [" + n.id() + "] to assign model [" + m.deploymentId() + "]");
             }
         }
 

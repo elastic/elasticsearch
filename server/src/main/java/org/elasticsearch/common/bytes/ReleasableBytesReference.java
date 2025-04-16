@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.common.bytes;
@@ -75,11 +76,19 @@ public final class ReleasableBytesReference implements RefCounted, Releasable, B
         return this;
     }
 
+    /**
+     * Same as {@link #slice} except that the slice is not guaranteed to share the same underlying reference count as this instance.
+     * This method is equivalent to calling {@code .slice(from, length).retain()} but might be more efficient through the avoidance of
+     * retaining unnecessary buffers.
+     */
     public ReleasableBytesReference retainedSlice(int from, int length) {
         if (from == 0 && length() == length) {
             return retain();
         }
         final BytesReference slice = delegate.slice(from, length);
+        if (slice instanceof ReleasableBytesReference releasable) {
+            return releasable.retain();
+        }
         refCounted.incRef();
         return new ReleasableBytesReference(slice, refCounted);
     }
@@ -130,10 +139,17 @@ public final class ReleasableBytesReference implements RefCounted, Releasable, B
         return delegate.length();
     }
 
+    /**
+     * {@inheritDoc}
+     *
+     * The returned bytes reference will share the reference count of this instance and as such any ref-counting operations on the return
+     * are shared with this instance and vice versa. Using {@link #retainedSlice(int, int)} might be more efficient in situations where the
+     * return of this method is subsequently retained by increasing its ref-count.
+     */
     @Override
-    public BytesReference slice(int from, int length) {
+    public ReleasableBytesReference slice(int from, int length) {
         assert hasReferences();
-        return delegate.slice(from, length);
+        return new ReleasableBytesReference(delegate.slice(from, length), refCounted);
     }
 
     @Override

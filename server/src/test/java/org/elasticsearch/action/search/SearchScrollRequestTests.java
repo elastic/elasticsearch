@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.search;
@@ -77,7 +78,7 @@ public class SearchScrollRequestTests extends ESTestCase {
             searchScrollRequest.fromXContent(parser);
         }
         assertEquals("SCROLL_ID", searchScrollRequest.scrollId());
-        assertEquals(TimeValue.parseTimeValue("1m", null, "scroll"), searchScrollRequest.scroll().keepAlive());
+        assertEquals(TimeValue.parseTimeValue("1m", null, "scroll"), searchScrollRequest.scroll());
     }
 
     public void testFromXContentWithUnknownParamThrowsException() throws Exception {
@@ -93,7 +94,7 @@ public class SearchScrollRequestTests extends ESTestCase {
     public void testToXContent() throws IOException {
         SearchScrollRequest searchScrollRequest = new SearchScrollRequest();
         searchScrollRequest.scrollId("SCROLL_ID");
-        searchScrollRequest.scroll("1m");
+        searchScrollRequest.scroll(TimeValue.timeValueMinutes(1));
         try (XContentBuilder builder = JsonXContent.contentBuilder()) {
             searchScrollRequest.toXContent(builder, ToXContent.EMPTY_PARAMS);
             assertEquals("""
@@ -137,7 +138,7 @@ public class SearchScrollRequestTests extends ESTestCase {
         if (randomBoolean()) {
             return copy.scrollId(original.scrollId() + "xyz");
         } else {
-            return copy.scroll(new TimeValue(original.scroll().keepAlive().getMillis() + 1));
+            return copy.scroll(new TimeValue(original.scroll().getMillis() + 1));
         }
     }
 }

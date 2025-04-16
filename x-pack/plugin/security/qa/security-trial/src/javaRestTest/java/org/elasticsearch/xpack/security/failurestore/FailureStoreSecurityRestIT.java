@@ -2731,7 +2731,7 @@ public class FailureStoreSecurityRestIT extends ESRestTestCase {
         assertOK(deleteScrollResponse);
     }
 
-    private String performScrollSearchRequestAndAssertDocs(String indexExpression, String dataDocId) throws IOException {
+    private String performScrollSearchRequestAndAssertDocs(String indexExpression, String docId) throws IOException {
         Response scrollResponse = performRequest("user", new Request("POST", Strings.format("/%s/_search?scroll=1m", indexExpression)));
         assertOK(scrollResponse);
 
@@ -2739,7 +2739,7 @@ public class FailureStoreSecurityRestIT extends ESRestTestCase {
         final String scrollId = searchResponse.getScrollId();
         assertThat(scrollId, notNullValue());
         try {
-            assertSearchContainsDocs(searchResponse, dataDocId);
+            assertSearchContainsDocs(searchResponse, docId);
         } finally {
             searchResponse.decRef();
         }
@@ -2759,11 +2759,11 @@ public class FailureStoreSecurityRestIT extends ESRestTestCase {
         return SearchResponseUtils.parseSearchResponse(responseAsParser(response));
     }
 
-    private static void assertSearchContainsDocs(SearchResponse searchResponse, String... dataDocIds) {
+    private static void assertSearchContainsDocs(SearchResponse searchResponse, String... docIds) {
         SearchHit[] hits = searchResponse.getHits().getHits();
-        assertThat(hits.length, equalTo(dataDocIds.length));
+        assertThat(hits.length, equalTo(docIds.length));
         List<String> actualDocIds = Arrays.stream(hits).map(SearchHit::getId).toList();
-        assertThat(actualDocIds, containsInAnyOrder(dataDocIds));
+        assertThat(actualDocIds, containsInAnyOrder(docIds));
     }
 
     private static void assertSearchHasNoHits(SearchResponse searchResponse) {

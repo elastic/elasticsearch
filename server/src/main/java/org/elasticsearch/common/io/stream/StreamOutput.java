@@ -146,7 +146,7 @@ public abstract class StreamOutput extends OutputStream {
      *
      * @param writeable {@link Writeable} to serialize
      */
-    public void writeWithSizePrefixAndCompressed(Writeable writeable) throws IOException {
+    public void writeWithSizePrefix2(Writeable writeable) throws IOException {
         final BytesStreamOutput tmp = new BytesStreamOutput();
         try (var o = new OutputStreamStreamOutput(CompressorFactory.COMPRESSOR.threadLocalOutputStream(tmp))) {
             o.setTransportVersion(version);

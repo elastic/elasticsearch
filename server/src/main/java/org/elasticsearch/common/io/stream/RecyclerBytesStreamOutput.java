@@ -13,9 +13,11 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.bytes.CompositeBytesReference;
+import org.elasticsearch.common.compress.CompressorFactory;
 import org.elasticsearch.common.recycler.Recycler;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
+import org.elasticsearch.core.Streams;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
@@ -175,6 +177,20 @@ public class RecyclerBytesStreamOutput extends BytesStream implements Releasable
                 tmpPage++;
             }
         }
+    }
+
+    @Override
+    public void writeWithSizePrefix2(Writeable writeable) throws IOException {
+        long pos = position();
+        skip(Integer.BYTES);
+        try (var out = new OutputStreamStreamOutput(CompressorFactory.COMPRESSOR.threadLocalOutputStream(Streams.noCloseStream(this)))) {
+            out.setTransportVersion(getTransportVersion());
+            writeable.writeTo(out);
+        }
+        long newPos = position();
+        seek(pos);
+        writeInt(Math.toIntExact(newPos - pos - Integer.BYTES));
+        seek(newPos);
     }
 
     // overridden with some code duplication the same way other write methods in this class are overridden to bypass StreamOutput's

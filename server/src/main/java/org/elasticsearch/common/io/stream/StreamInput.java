@@ -142,6 +142,10 @@ public abstract class StreamInput extends InputStream {
         return readBytesReference();
     }
 
+    public BytesReference readSlicedBytesReference(int bytes) throws IOException {
+        return readBytesReference(bytes);
+    }
+
     /**
      * Checks if this {@link InputStream} supports {@link #readAllToReleasableBytesReference()}.
      */

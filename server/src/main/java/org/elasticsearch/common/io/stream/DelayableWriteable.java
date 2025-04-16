@@ -109,7 +109,7 @@ public abstract class DelayableWriteable<T extends Writeable> implements Writeab
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             if (out.getTransportVersion().onOrAfter(TransportVersions.COMPRESS_DELAYABLE_WRITEABLE)) {
-                out.writeWithSizePrefixAndCompressed(reference);
+                out.writeWithSizePrefix2(reference);
             } else {
                 out.writeWithSizePrefix(reference);
             }

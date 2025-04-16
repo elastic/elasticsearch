@@ -133,18 +133,26 @@ public class TransportSnapshotsStatusActionTests extends ESTestCase {
             assertNotNull(rsp);
             final var snapshotStatuses = rsp.getSnapshots();
             assertNotNull(snapshotStatuses);
-            assertEquals("expected a single snapshot status instead of " + snapshotStatuses, 1, snapshotStatuses.size());
+            assertEquals(
+                "expected 1 snapshot status, got " + snapshotStatuses.size() + ": " + snapshotStatuses,
+                1,
+                snapshotStatuses.size()
+            );
             final var snapshotStatus = snapshotStatuses.getFirst();
             assertNotNull(snapshotStatus.getSnapshot());
             assertEquals(expectedSnapshot, snapshotStatus.getSnapshot());
             assertEquals(expectedState, snapshotStatus.getState());
             final var snapshotStatusShards = snapshotStatus.getShards();
             assertNotNull(snapshotStatusShards);
-            assertEquals(1, snapshotStatusShards.size());
+            assertEquals(
+                "expected 1 index shard status, got " + snapshotStatusShards.size() + ": " + snapshotStatusShards,
+                1,
+                snapshotStatusShards.size()
+            );
             final var snapshotStatusIndices = snapshotStatus.getIndices();
             assertNotNull(snapshotStatusIndices);
             assertEquals(
-                "expected a single entry in snapshotStatusIndices instead of " + snapshotStatusIndices,
+                "expected 1 entry in snapshotStatusIndices, got " + snapshotStatusIndices.size() + ": " + snapshotStatusIndices,
                 1,
                 snapshotStatusIndices.size()
             );
@@ -159,11 +167,7 @@ public class TransportSnapshotsStatusActionTests extends ESTestCase {
             @Override
             public void onResponse(SnapshotsStatusResponse rsp) {
                 if (shouldCancelTask) {
-                    fail(
-                        "expected detection of task cancellation and onFailure() instead of onResponse("
-                            + (rsp == null ? "null" : rsp.getSnapshots())
-                            + ")"
-                    );
+                    fail("expected detection of task cancellation and onFailure() instead of onResponse(" + rsp + ")");
                 } else {
                     verifyResponse.accept(rsp);
                 }

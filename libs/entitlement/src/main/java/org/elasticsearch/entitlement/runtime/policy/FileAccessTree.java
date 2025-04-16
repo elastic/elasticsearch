@@ -170,7 +170,10 @@ public final class FileAccessTree {
         // TODO: this grants read access to the config dir for all modules until explicit read entitlements can be added
         addPathAndMaybeLink.accept(pathLookup.configDir(), Mode.READ);
         if (componentPath != null) {
+            System.err.println("PD - component path is [" + componentPath + "] for " + componentName);
             addPathAndMaybeLink.accept(componentPath, Mode.READ);
+        } else {
+            System.err.println("PD - component path is null for " + componentName);
         }
 
         // TODO: watcher uses javax.activation which looks for known mime types configuration, should this be global or explicit in watcher?

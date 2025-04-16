@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.security.failurestore;
 
 import org.apache.http.client.methods.HttpPost;
 import org.apache.http.client.methods.HttpPut;
+import org.elasticsearch.Build;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
@@ -30,6 +31,7 @@ import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.cluster.FeatureFlag;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.test.rest.ObjectPath;
+import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.security.SecurityOnTrialLicenseRestTestCase;
@@ -44,9 +46,11 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
@@ -1129,16 +1133,18 @@ public class FailureStoreSecurityRestIT extends ESRestTestCase {
                 switch (user) {
                     case ADMIN_USER, DATA_ACCESS, STAR_READ_ONLY_ACCESS, BOTH_ACCESS:
                         expectSearch(user, request, dataDocId);
+                        expectEsql(user, request, dataDocId);
                         break;
                     case FAILURE_STORE_ACCESS, BACKING_INDEX_DATA_ACCESS, BACKING_INDEX_FAILURE_ACCESS, FAILURE_INDEX_DATA_ACCESS,
                         FAILURE_INDEX_FAILURE_ACCESS:
-                        expectThrows(user, request, 403);
+                        expectSearchThrows(user, request, 403);
                         // also check authz message
                         expectThrowsUnauthorized(
                             user,
                             request,
                             containsString("this action is granted by the index privileges [read,all]")
                         );
+                        expectEsqlThrows(user, request, 400);
                         break;
                     default:
                         fail("must cover user: " + user);
@@ -1151,9 +1157,11 @@ public class FailureStoreSecurityRestIT extends ESRestTestCase {
                 switch (user) {
                     case ADMIN_USER, DATA_ACCESS, STAR_READ_ONLY_ACCESS, BOTH_ACCESS:
                         expectSearch(user, request, dataDocId);
+                        // es|ql does not support ignore_unavailable
                         break;
                     case FAILURE_STORE_ACCESS, BACKING_INDEX_DATA_ACCESS, BACKING_INDEX_FAILURE_ACCESS, FAILURE_INDEX_DATA_ACCESS,
                         FAILURE_INDEX_FAILURE_ACCESS:
+                        // es|ql does not support ignore_unavailable
                         expectSearch(user, request);
                         break;
                     default:
@@ -1167,10 +1175,12 @@ public class FailureStoreSecurityRestIT extends ESRestTestCase {
                 switch (user) {
                     case ADMIN_USER, DATA_ACCESS, STAR_READ_ONLY_ACCESS, BOTH_ACCESS:
                         expectSearch(user, request, dataDocId);
+                        expectEsql(user, request, dataDocId);
                         break;
                     case FAILURE_STORE_ACCESS, BACKING_INDEX_DATA_ACCESS, BACKING_INDEX_FAILURE_ACCESS, FAILURE_INDEX_DATA_ACCESS,
                         FAILURE_INDEX_FAILURE_ACCESS:
-                        expectThrows(user, request, 403);
+                        expectSearchThrows(user, request, 403);
+                        expectEsqlThrows(user, request, 400);
                         break;
                     default:
                         fail("must cover user: " + user);
@@ -1183,10 +1193,12 @@ public class FailureStoreSecurityRestIT extends ESRestTestCase {
                 switch (user) {
                     case ADMIN_USER, DATA_ACCESS, STAR_READ_ONLY_ACCESS, BOTH_ACCESS:
                         expectSearch(user, request, dataDocId);
+                        // es|ql does not support ignore_unavailable
                         break;
                     case FAILURE_STORE_ACCESS, BACKING_INDEX_DATA_ACCESS, BACKING_INDEX_FAILURE_ACCESS, FAILURE_INDEX_DATA_ACCESS,
                         FAILURE_INDEX_FAILURE_ACCESS:
                         expectSearch(user, request);
+                        // es|ql does not support ignore_unavailable
                         break;
                     default:
                         fail("must cover user: " + user);
@@ -1199,10 +1211,12 @@ public class FailureStoreSecurityRestIT extends ESRestTestCase {
                 switch (user) {
                     case ADMIN_USER, DATA_ACCESS, STAR_READ_ONLY_ACCESS, BOTH_ACCESS:
                         expectSearch(user, request, dataDocId);
+                        expectEsql(user, request, dataDocId);
                         break;
                     case FAILURE_STORE_ACCESS, BACKING_INDEX_DATA_ACCESS, BACKING_INDEX_FAILURE_ACCESS, FAILURE_INDEX_DATA_ACCESS,
                         FAILURE_INDEX_FAILURE_ACCESS:
                         expectSearch(user, request);
+                        expectEsqlThrows(user, request, 400);
                         break;
                     default:
                         fail("must cover user: " + user);
@@ -1215,10 +1229,12 @@ public class FailureStoreSecurityRestIT extends ESRestTestCase {
                 switch (user) {
                     case ADMIN_USER, DATA_ACCESS, STAR_READ_ONLY_ACCESS, BOTH_ACCESS:
                         expectSearch(user, request, dataDocId);
+                        expectEsql(user, request, dataDocId);
                         break;
                     case FAILURE_STORE_ACCESS, BACKING_INDEX_DATA_ACCESS, BACKING_INDEX_FAILURE_ACCESS, FAILURE_INDEX_DATA_ACCESS,
                         FAILURE_INDEX_FAILURE_ACCESS:
                         expectSearch(user, request);
+                        expectEsqlThrows(user, request, 400);
                         break;
                     default:
                         fail("must cover user: " + user);
@@ -1231,10 +1247,15 @@ public class FailureStoreSecurityRestIT extends ESRestTestCase {
                 switch (user) {
                     case ADMIN_USER, DATA_ACCESS, STAR_READ_ONLY_ACCESS, BOTH_ACCESS:
                         expectSearch(user, request, dataDocId);
+                        // es|ql does not support _all or empty target
+                        if (request.searchTarget.equals("*")) {
+                            expectEsql(user, request, dataDocId);
+                        }
                         break;
                     case FAILURE_STORE_ACCESS, BACKING_INDEX_FAILURE_ACCESS, FAILURE_INDEX_FAILURE_ACCESS, FAILURE_INDEX_DATA_ACCESS,
                         BACKING_INDEX_DATA_ACCESS:
                         expectSearch(user, request);
+                        expectEsqlThrows(user, request, 400);
                         break;
                     default:
                         fail("must cover user: " + user);
@@ -1247,9 +1268,11 @@ public class FailureStoreSecurityRestIT extends ESRestTestCase {
                 switch (user) {
                     case ADMIN_USER, DATA_ACCESS, STAR_READ_ONLY_ACCESS, BOTH_ACCESS, BACKING_INDEX_DATA_ACCESS:
                         expectSearch(user, request, dataDocId);
+                        expectEsql(user, request, dataDocId);
                         break;
                     case FAILURE_STORE_ACCESS, BACKING_INDEX_FAILURE_ACCESS, FAILURE_INDEX_FAILURE_ACCESS, FAILURE_INDEX_DATA_ACCESS:
                         expectSearch(user, request);
+                        expectEsqlThrows(user, request, 400);
                         break;
                     default:
                         fail("must cover user: " + user);
@@ -1262,9 +1285,11 @@ public class FailureStoreSecurityRestIT extends ESRestTestCase {
                 switch (user) {
                     case ADMIN_USER, DATA_ACCESS, STAR_READ_ONLY_ACCESS, BOTH_ACCESS, BACKING_INDEX_DATA_ACCESS:
                         expectSearch(user, request, dataDocId);
+                        expectEsql(user, request, dataDocId);
                         break;
                     case FAILURE_STORE_ACCESS, BACKING_INDEX_FAILURE_ACCESS, FAILURE_INDEX_FAILURE_ACCESS, FAILURE_INDEX_DATA_ACCESS:
-                        expectThrows(user, request, 403);
+                        expectSearchThrows(user, request, 403);
+                        expectEsqlThrows(user, request, 400);
                         break;
                     default:
                         fail("must cover user: " + user);
@@ -1277,9 +1302,11 @@ public class FailureStoreSecurityRestIT extends ESRestTestCase {
                 switch (user) {
                     case ADMIN_USER, DATA_ACCESS, STAR_READ_ONLY_ACCESS, BOTH_ACCESS, BACKING_INDEX_DATA_ACCESS:
                         expectSearch(user, request, dataDocId);
+                        // es|ql does not support ignore_unavailable
                         break;
                     case FAILURE_STORE_ACCESS, BACKING_INDEX_FAILURE_ACCESS, FAILURE_INDEX_FAILURE_ACCESS, FAILURE_INDEX_DATA_ACCESS:
                         expectSearch(user, request);
+                        // es|ql does not support ignore_unavailable
                         break;
                     default:
                         fail("must cover user: " + user);
@@ -1291,11 +1318,13 @@ public class FailureStoreSecurityRestIT extends ESRestTestCase {
             for (var user : users) {
                 switch (user) {
                     case ADMIN_USER, DATA_ACCESS, STAR_READ_ONLY_ACCESS, BOTH_ACCESS:
-                        expectThrows(user, request, 404);
+                        expectSearchThrows(user, request, 404);
+                        expectEsqlThrows(user, request, 400);
                         break;
                     case FAILURE_STORE_ACCESS, BACKING_INDEX_DATA_ACCESS, BACKING_INDEX_FAILURE_ACCESS, FAILURE_INDEX_FAILURE_ACCESS,
                         FAILURE_INDEX_DATA_ACCESS:
-                        expectThrows(user, request, 403);
+                        expectSearchThrows(user, request, 403);
+                        expectEsqlThrows(user, request, 400);
                         break;
                     default:
                         fail("must cover user: " + user);
@@ -1309,6 +1338,7 @@ public class FailureStoreSecurityRestIT extends ESRestTestCase {
                     case ADMIN_USER, DATA_ACCESS, STAR_READ_ONLY_ACCESS, BOTH_ACCESS, FAILURE_STORE_ACCESS, BACKING_INDEX_DATA_ACCESS,
                         BACKING_INDEX_FAILURE_ACCESS, FAILURE_INDEX_FAILURE_ACCESS, FAILURE_INDEX_DATA_ACCESS:
                         expectSearch(user, request);
+                        // es|ql does not support ignore_unavailable
                         break;
                     default:
                         fail("must cover user: " + user);
@@ -1323,7 +1353,7 @@ public class FailureStoreSecurityRestIT extends ESRestTestCase {
                 switch (user) {
                     case DATA_ACCESS, STAR_READ_ONLY_ACCESS, BACKING_INDEX_DATA_ACCESS, BACKING_INDEX_FAILURE_ACCESS,
                         FAILURE_INDEX_FAILURE_ACCESS, FAILURE_INDEX_DATA_ACCESS:
-                        expectThrows(user, request, 403);
+                        expectSearchThrows(user, request, 403);
                         // also check authz message
                         expectThrowsUnauthorized(
                             user,
@@ -1333,9 +1363,11 @@ public class FailureStoreSecurityRestIT extends ESRestTestCase {
                                     + "or by [read_failure_store] for access with the [::failures] selector"
                             )
                         );
+                        expectEsqlThrows(user, request, 400);
                         break;
                     case ADMIN_USER, FAILURE_STORE_ACCESS, BOTH_ACCESS:
                         expectSearch(user, request, failuresDocId);
+                        expectEsql(user, request, failuresDocId);
                         break;
                     default:
                         fail("must cover user: " + user);
@@ -1349,9 +1381,11 @@ public class FailureStoreSecurityRestIT extends ESRestTestCase {
                     case DATA_ACCESS, STAR_READ_ONLY_ACCESS, BACKING_INDEX_DATA_ACCESS, BACKING_INDEX_FAILURE_ACCESS,
                         FAILURE_INDEX_FAILURE_ACCESS, FAILURE_INDEX_DATA_ACCESS:
                         expectSearch(user, request);
+                        // es|ql does not support ignore_unavailable
                         break;
                     case ADMIN_USER, FAILURE_STORE_ACCESS, BOTH_ACCESS:
                         expectSearch(user, request, failuresDocId);
+                        // es|ql does not support ignore_unavailable
                         break;
                     default:
                         fail("must cover user: " + user);
@@ -1364,10 +1398,12 @@ public class FailureStoreSecurityRestIT extends ESRestTestCase {
                 switch (user) {
                     case DATA_ACCESS, STAR_READ_ONLY_ACCESS, BACKING_INDEX_DATA_ACCESS, BACKING_INDEX_FAILURE_ACCESS,
                         FAILURE_INDEX_FAILURE_ACCESS, FAILURE_INDEX_DATA_ACCESS:
-                        expectThrows(user, request, 403);
+                        expectSearchThrows(user, request, 403);
+                        expectEsqlThrows(user, request, 400);
                         break;
                     case ADMIN_USER, FAILURE_STORE_ACCESS, BOTH_ACCESS:
                         expectSearch(user, request, failuresDocId);
+                        expectEsql(user, request, failuresDocId);
                         break;
                     default:
                         fail("must cover user: " + user);
@@ -1381,9 +1417,11 @@ public class FailureStoreSecurityRestIT extends ESRestTestCase {
                     case DATA_ACCESS, STAR_READ_ONLY_ACCESS, BACKING_INDEX_DATA_ACCESS, BACKING_INDEX_FAILURE_ACCESS,
                         FAILURE_INDEX_FAILURE_ACCESS, FAILURE_INDEX_DATA_ACCESS:
                         expectSearch(user, request);
+                        // es|ql does not support ignore_unavailable
                         break;
                     case ADMIN_USER, FAILURE_STORE_ACCESS, BOTH_ACCESS:
                         expectSearch(user, request, failuresDocId);
+                        // es|ql does not support ignore_unavailable
                         break;
                     default:
                         fail("must cover user: " + user);
@@ -1397,9 +1435,11 @@ public class FailureStoreSecurityRestIT extends ESRestTestCase {
                     case DATA_ACCESS, STAR_READ_ONLY_ACCESS, BACKING_INDEX_DATA_ACCESS, BACKING_INDEX_FAILURE_ACCESS,
                         FAILURE_INDEX_FAILURE_ACCESS, FAILURE_INDEX_DATA_ACCESS:
                         expectSearch(user, request);
+                        expectEsqlThrows(user, request, 400);
                         break;
                     case ADMIN_USER, FAILURE_STORE_ACCESS, BOTH_ACCESS:
                         expectSearch(user, request, failuresDocId);
+                        expectEsql(user, request, failuresDocId);
                         break;
                     default:
                         fail("must cover user: " + user);
@@ -1413,9 +1453,11 @@ public class FailureStoreSecurityRestIT extends ESRestTestCase {
                     case DATA_ACCESS, STAR_READ_ONLY_ACCESS, BACKING_INDEX_DATA_ACCESS, BACKING_INDEX_FAILURE_ACCESS,
                         FAILURE_INDEX_FAILURE_ACCESS, FAILURE_INDEX_DATA_ACCESS:
                         expectSearch(user, request);
+                        expectEsqlThrows(user, request, 400);
                         break;
                     case ADMIN_USER, FAILURE_STORE_ACCESS, BOTH_ACCESS:
                         expectSearch(user, request, failuresDocId);
+                        expectEsql(user, request, failuresDocId);
                         break;
                     default:
                         fail("must cover user: " + user);
@@ -1429,9 +1471,11 @@ public class FailureStoreSecurityRestIT extends ESRestTestCase {
                     case DATA_ACCESS, STAR_READ_ONLY_ACCESS, BACKING_INDEX_DATA_ACCESS, BACKING_INDEX_FAILURE_ACCESS,
                         FAILURE_INDEX_FAILURE_ACCESS, FAILURE_INDEX_DATA_ACCESS:
                         expectSearch(user, request);
+                        expectEsqlThrows(user, request, 400);
                         break;
                     case ADMIN_USER, FAILURE_STORE_ACCESS, BOTH_ACCESS:
                         expectSearch(user, request, failuresDocId);
+                        expectEsql(user, request, failuresDocId);
                         break;
                     default:
                         fail("must cover user: " + user);
@@ -1444,9 +1488,11 @@ public class FailureStoreSecurityRestIT extends ESRestTestCase {
                 switch (user) {
                     case DATA_ACCESS, BACKING_INDEX_DATA_ACCESS, BACKING_INDEX_FAILURE_ACCESS, FAILURE_INDEX_FAILURE_ACCESS:
                         expectSearch(user, request);
+                        expectEsqlThrows(user, request, 400);
                         break;
                     case ADMIN_USER, FAILURE_STORE_ACCESS, STAR_READ_ONLY_ACCESS, BOTH_ACCESS, FAILURE_INDEX_DATA_ACCESS:
                         expectSearch(user, request, failuresDocId);
+                        expectEsql(user, request, failuresDocId);
                         break;
                     default:
                         fail("must cover user: " + user);
@@ -1458,10 +1504,12 @@ public class FailureStoreSecurityRestIT extends ESRestTestCase {
             for (var user : users) {
                 switch (user) {
                     case DATA_ACCESS, BACKING_INDEX_DATA_ACCESS, BACKING_INDEX_FAILURE_ACCESS, FAILURE_INDEX_FAILURE_ACCESS:
-                        expectThrows(user, request, 403);
+                        expectSearchThrows(user, request, 403);
+                        expectEsqlThrows(user, request, 400);
                         break;
                     case ADMIN_USER, FAILURE_STORE_ACCESS, STAR_READ_ONLY_ACCESS, BOTH_ACCESS, FAILURE_INDEX_DATA_ACCESS:
                         expectSearch(user, request, failuresDocId);
+                        expectEsql(user, request, failuresDocId);
                         break;
                     default:
                         fail("must cover user: " + user);
@@ -1474,9 +1522,11 @@ public class FailureStoreSecurityRestIT extends ESRestTestCase {
                 switch (user) {
                     case DATA_ACCESS, BACKING_INDEX_DATA_ACCESS, BACKING_INDEX_FAILURE_ACCESS, FAILURE_INDEX_FAILURE_ACCESS:
                         expectSearch(user, request);
+                        // es|ql does not support ignore_unavailable
                         break;
                     case ADMIN_USER, FAILURE_STORE_ACCESS, STAR_READ_ONLY_ACCESS, BOTH_ACCESS, FAILURE_INDEX_DATA_ACCESS:
                         expectSearch(user, request, failuresDocId);
+                        // es|ql does not support ignore_unavailable
                         break;
                     default:
                         fail("must cover user: " + user);
@@ -1489,10 +1539,12 @@ public class FailureStoreSecurityRestIT extends ESRestTestCase {
                 switch (user) {
                     case DATA_ACCESS, STAR_READ_ONLY_ACCESS, BACKING_INDEX_DATA_ACCESS, BACKING_INDEX_FAILURE_ACCESS,
                         FAILURE_INDEX_DATA_ACCESS:
-                        expectThrows(user, request, 403);
+                        expectSearchThrows(user, request, 403);
+                        expectEsqlThrows(user, request, 400);
                         break;
                     case FAILURE_STORE_ACCESS, BOTH_ACCESS, ADMIN_USER, FAILURE_INDEX_FAILURE_ACCESS:
-                        expectThrows(user, request, 404);
+                        expectSearchThrows(user, request, 404);
+                        expectEsqlThrows(user, request, 400);
                         break;
                     default:
                         fail("must cover user: " + user);
@@ -1506,6 +1558,7 @@ public class FailureStoreSecurityRestIT extends ESRestTestCase {
                     case DATA_ACCESS, FAILURE_STORE_ACCESS, ADMIN_USER, STAR_READ_ONLY_ACCESS, BOTH_ACCESS, BACKING_INDEX_DATA_ACCESS,
                         BACKING_INDEX_FAILURE_ACCESS, FAILURE_INDEX_DATA_ACCESS, FAILURE_INDEX_FAILURE_ACCESS:
                         expectSearch(user, request);
+                        // es|ql does not support ignore_unavailable
                         break;
                     default:
                         fail("must cover user: " + user);
@@ -1518,10 +1571,12 @@ public class FailureStoreSecurityRestIT extends ESRestTestCase {
                 switch (user) {
                     case STAR_READ_ONLY_ACCESS, BOTH_ACCESS, DATA_ACCESS, FAILURE_STORE_ACCESS, FAILURE_INDEX_DATA_ACCESS,
                         FAILURE_INDEX_FAILURE_ACCESS, BACKING_INDEX_DATA_ACCESS:
-                        expectThrows(user, request, 403);
+                        expectSearchThrows(user, request, 403);
+                        expectEsqlThrows(user, request, 400);
                         break;
                     case ADMIN_USER, BACKING_INDEX_FAILURE_ACCESS:
-                        expectThrows(user, request, 404);
+                        expectSearchThrows(user, request, 404);
+                        expectEsqlThrows(user, request, 400);
                         break;
                     default:
                         fail("must cover user: " + user);
@@ -1535,6 +1590,7 @@ public class FailureStoreSecurityRestIT extends ESRestTestCase {
                     case DATA_ACCESS, FAILURE_STORE_ACCESS, ADMIN_USER, STAR_READ_ONLY_ACCESS, BOTH_ACCESS, BACKING_INDEX_DATA_ACCESS,
                         BACKING_INDEX_FAILURE_ACCESS, FAILURE_INDEX_DATA_ACCESS, FAILURE_INDEX_FAILURE_ACCESS:
                         expectSearch(user, request);
+                        // es|ql does not support ignore_unavailable
                         break;
                     default:
                         fail("must cover user: " + user);
@@ -1548,6 +1604,7 @@ public class FailureStoreSecurityRestIT extends ESRestTestCase {
                     case DATA_ACCESS, FAILURE_STORE_ACCESS, ADMIN_USER, STAR_READ_ONLY_ACCESS, BOTH_ACCESS, BACKING_INDEX_DATA_ACCESS,
                         BACKING_INDEX_FAILURE_ACCESS, FAILURE_INDEX_DATA_ACCESS, FAILURE_INDEX_FAILURE_ACCESS:
                         expectSearch(user, request);
+                        expectEsqlThrows(user, request, 400);
                         break;
                     default:
                         fail("must cover user: " + user);
@@ -1561,6 +1618,7 @@ public class FailureStoreSecurityRestIT extends ESRestTestCase {
                     case DATA_ACCESS, FAILURE_STORE_ACCESS, ADMIN_USER, STAR_READ_ONLY_ACCESS, BOTH_ACCESS, BACKING_INDEX_DATA_ACCESS,
                         BACKING_INDEX_FAILURE_ACCESS, FAILURE_INDEX_DATA_ACCESS, FAILURE_INDEX_FAILURE_ACCESS:
                         expectSearch(user, request);
+                        expectEsqlThrows(user, request, 400);
                         break;
                     default:
                         fail("must cover user: " + user);
@@ -1573,10 +1631,12 @@ public class FailureStoreSecurityRestIT extends ESRestTestCase {
                 switch (user) {
                     case DATA_ACCESS, STAR_READ_ONLY_ACCESS, BACKING_INDEX_DATA_ACCESS, BACKING_INDEX_FAILURE_ACCESS,
                         FAILURE_INDEX_DATA_ACCESS, FAILURE_INDEX_FAILURE_ACCESS:
-                        expectThrows(user, request, 403);
+                        expectSearchThrows(user, request, 403);
+                        expectEsqlThrows(user, request, 400);
                         break;
                     case ADMIN_USER, FAILURE_STORE_ACCESS, BOTH_ACCESS:
-                        expectThrows(user, request, 404);
+                        expectSearchThrows(user, request, 404);
+                        expectEsqlThrows(user, request, 400);
                         break;
                     default:
                         fail("must cover user: " + user);
@@ -1590,6 +1650,7 @@ public class FailureStoreSecurityRestIT extends ESRestTestCase {
                     case ADMIN_USER, DATA_ACCESS, STAR_READ_ONLY_ACCESS, BOTH_ACCESS, FAILURE_STORE_ACCESS, BACKING_INDEX_DATA_ACCESS,
                         BACKING_INDEX_FAILURE_ACCESS, FAILURE_INDEX_DATA_ACCESS, FAILURE_INDEX_FAILURE_ACCESS:
                         expectSearch(user, request);
+                        // es|ql does not support ignore_unavailable
                         break;
                     default:
                         fail("must cover user: " + user);
@@ -1602,12 +1663,17 @@ public class FailureStoreSecurityRestIT extends ESRestTestCase {
             var request = new Search("test1,test1::failures");
             for (var user : users) {
                 switch (user) {
-                    case DATA_ACCESS, FAILURE_STORE_ACCESS, STAR_READ_ONLY_ACCESS, BACKING_INDEX_DATA_ACCESS, BACKING_INDEX_FAILURE_ACCESS,
-                        FAILURE_INDEX_DATA_ACCESS, FAILURE_INDEX_FAILURE_ACCESS:
-                        expectThrows(user, request, 403);
+                    case DATA_ACCESS, FAILURE_STORE_ACCESS, STAR_READ_ONLY_ACCESS:
+                        expectSearchThrows(user, request, 403);
+                        expectEsqlThrows(user, request, 403);
+                        break;
+                    case BACKING_INDEX_DATA_ACCESS, BACKING_INDEX_FAILURE_ACCESS, FAILURE_INDEX_DATA_ACCESS, FAILURE_INDEX_FAILURE_ACCESS:
+                        expectSearchThrows(user, request, 403);
+                        expectEsqlThrows(user, request, 400);
                         break;
                     case ADMIN_USER, BOTH_ACCESS:
                         expectSearch(user, request, dataDocId, failuresDocId);
+                        expectEsql(user, request, dataDocId, failuresDocId);
                         break;
                     default:
                         fail("must cover user: " + user);
@@ -1620,15 +1686,19 @@ public class FailureStoreSecurityRestIT extends ESRestTestCase {
                 switch (user) {
                     case DATA_ACCESS, STAR_READ_ONLY_ACCESS:
                         expectSearch(user, request, dataDocId);
+                        // es|ql does not support ignore_unavailable
                         break;
                     case FAILURE_STORE_ACCESS:
                         expectSearch(user, request, failuresDocId);
+                        // es|ql does not support ignore_unavailable
                         break;
                     case ADMIN_USER, BOTH_ACCESS:
                         expectSearch(user, request, dataDocId, failuresDocId);
+                        // es|ql does not support ignore_unavailable
                         break;
                     case BACKING_INDEX_DATA_ACCESS, BACKING_INDEX_FAILURE_ACCESS, FAILURE_INDEX_DATA_ACCESS, FAILURE_INDEX_FAILURE_ACCESS:
                         expectSearch(user, request);
+                        // es|ql does not support ignore_unavailable
                         break;
                     default:
                         fail("must cover user: " + user);
@@ -1639,12 +1709,17 @@ public class FailureStoreSecurityRestIT extends ESRestTestCase {
             var request = new Search("test1," + failureIndexName);
             for (var user : users) {
                 switch (user) {
-                    case DATA_ACCESS, FAILURE_STORE_ACCESS, BACKING_INDEX_DATA_ACCESS, BACKING_INDEX_FAILURE_ACCESS,
-                        FAILURE_INDEX_DATA_ACCESS, FAILURE_INDEX_FAILURE_ACCESS:
-                        expectThrows(user, request, 403);
+                    case DATA_ACCESS, FAILURE_STORE_ACCESS, FAILURE_INDEX_DATA_ACCESS:
+                        expectSearchThrows(user, request, 403);
+                        expectEsqlThrows(user, request, 403);
+                        break;
+                    case BACKING_INDEX_DATA_ACCESS, FAILURE_INDEX_FAILURE_ACCESS, BACKING_INDEX_FAILURE_ACCESS:
+                        expectSearchThrows(user, request, 403);
+                        expectEsqlThrows(user, request, 400);
                         break;
                     case ADMIN_USER, BOTH_ACCESS, STAR_READ_ONLY_ACCESS:
                         expectSearch(user, request, dataDocId, failuresDocId);
+                        expectEsql(user, request, dataDocId, failuresDocId);
                         break;
                     default:
                         fail("must cover user: " + user);
@@ -1660,12 +1735,15 @@ public class FailureStoreSecurityRestIT extends ESRestTestCase {
                         break;
                     case FAILURE_STORE_ACCESS, FAILURE_INDEX_DATA_ACCESS:
                         expectSearch(user, request, failuresDocId);
+                        // es|ql does not support ignore_unavailable
                         break;
                     case ADMIN_USER, BOTH_ACCESS, STAR_READ_ONLY_ACCESS:
                         expectSearch(user, request, dataDocId, failuresDocId);
+                        // es|ql does not support ignore_unavailable
                         break;
                     case BACKING_INDEX_DATA_ACCESS, BACKING_INDEX_FAILURE_ACCESS, FAILURE_INDEX_FAILURE_ACCESS:
                         expectSearch(user, request);
+                        // es|ql does not support ignore_unavailable
                         break;
                     default:
                         fail("must cover user: " + user);
@@ -1676,12 +1754,17 @@ public class FailureStoreSecurityRestIT extends ESRestTestCase {
             var request = new Search("test1::failures," + dataIndexName);
             for (var user : users) {
                 switch (user) {
-                    case DATA_ACCESS, FAILURE_STORE_ACCESS, STAR_READ_ONLY_ACCESS, BACKING_INDEX_DATA_ACCESS, BACKING_INDEX_FAILURE_ACCESS,
-                        FAILURE_INDEX_DATA_ACCESS, FAILURE_INDEX_FAILURE_ACCESS:
-                        expectThrows(user, request, 403);
+                    case DATA_ACCESS, FAILURE_STORE_ACCESS, STAR_READ_ONLY_ACCESS, BACKING_INDEX_DATA_ACCESS:
+                        expectSearchThrows(user, request, 403);
+                        expectEsqlThrows(user, request, 403);
+                        break;
+                    case BACKING_INDEX_FAILURE_ACCESS, FAILURE_INDEX_DATA_ACCESS, FAILURE_INDEX_FAILURE_ACCESS:
+                        expectSearchThrows(user, request, 403);
+                        expectEsqlThrows(user, request, 400);
                         break;
                     case ADMIN_USER, BOTH_ACCESS:
                         expectSearch(user, request, dataDocId, failuresDocId);
+                        expectEsql(user, request, dataDocId, failuresDocId);
                         break;
                     default:
                         fail("must cover user: " + user);
@@ -1694,15 +1777,19 @@ public class FailureStoreSecurityRestIT extends ESRestTestCase {
                 switch (user) {
                     case DATA_ACCESS, BACKING_INDEX_DATA_ACCESS, STAR_READ_ONLY_ACCESS:
                         expectSearch(user, request, dataDocId);
+                        // es|ql does not support ignore_unavailable
                         break;
                     case FAILURE_STORE_ACCESS:
                         expectSearch(user, request, failuresDocId);
+                        // es|ql does not support ignore_unavailable
                         break;
                     case ADMIN_USER, BOTH_ACCESS:
                         expectSearch(user, request, dataDocId, failuresDocId);
+                        // es|ql does not support ignore_unavailable
                         break;
                     case BACKING_INDEX_FAILURE_ACCESS, FAILURE_INDEX_DATA_ACCESS, FAILURE_INDEX_FAILURE_ACCESS:
                         expectSearch(user, request);
+                        // es|ql does not support ignore_unavailable
                         break;
                     default:
                         fail("must cover user: " + user);
@@ -1713,15 +1800,21 @@ public class FailureStoreSecurityRestIT extends ESRestTestCase {
             var request = new Search("test1,*::failures");
             for (var user : users) {
                 switch (user) {
-                    case FAILURE_STORE_ACCESS, BACKING_INDEX_DATA_ACCESS, BACKING_INDEX_FAILURE_ACCESS, FAILURE_INDEX_DATA_ACCESS,
-                        FAILURE_INDEX_FAILURE_ACCESS:
-                        expectThrows(user, request, 403);
+                    case FAILURE_STORE_ACCESS:
+                        expectSearchThrows(user, request, 403);
+                        expectEsqlThrows(user, request, 403);
+                        break;
+                    case BACKING_INDEX_DATA_ACCESS, FAILURE_INDEX_DATA_ACCESS, BACKING_INDEX_FAILURE_ACCESS, FAILURE_INDEX_FAILURE_ACCESS:
+                        expectSearchThrows(user, request, 403);
+                        expectEsqlThrows(user, request, 400);
                         break;
                     case DATA_ACCESS, STAR_READ_ONLY_ACCESS:
                         expectSearch(user, request, dataDocId);
+                        expectEsql(user, request, dataDocId);
                         break;
                     case ADMIN_USER, BOTH_ACCESS:
                         expectSearch(user, request, dataDocId, failuresDocId);
+                        expectEsql(user, request, dataDocId, failuresDocId);
                         break;
                     default:
                         fail("must cover user: " + user);
@@ -1734,15 +1827,19 @@ public class FailureStoreSecurityRestIT extends ESRestTestCase {
                 switch (user) {
                     case FAILURE_STORE_ACCESS:
                         expectSearch(user, request, failuresDocId);
+                        // es|ql does not support ignore_unavailable
                         break;
                     case DATA_ACCESS, STAR_READ_ONLY_ACCESS:
                         expectSearch(user, request, dataDocId);
+                        // es|ql does not support ignore_unavailable
                         break;
                     case ADMIN_USER, BOTH_ACCESS:
                         expectSearch(user, request, dataDocId, failuresDocId);
+                        // es|ql does not support ignore_unavailable
                         break;
                     case BACKING_INDEX_DATA_ACCESS, BACKING_INDEX_FAILURE_ACCESS, FAILURE_INDEX_DATA_ACCESS, FAILURE_INDEX_FAILURE_ACCESS:
                         expectSearch(user, request);
+                        // es|ql does not support ignore_unavailable
                         break;
                     default:
                         fail("must cover user: " + user);
@@ -1755,13 +1852,19 @@ public class FailureStoreSecurityRestIT extends ESRestTestCase {
                 switch (user) {
                     case FAILURE_STORE_ACCESS:
                         expectSearch(user, request, failuresDocId);
+                        expectEsql(user, request, failuresDocId);
                         break;
-                    case DATA_ACCESS, STAR_READ_ONLY_ACCESS, BACKING_INDEX_DATA_ACCESS, BACKING_INDEX_FAILURE_ACCESS,
-                        FAILURE_INDEX_DATA_ACCESS, FAILURE_INDEX_FAILURE_ACCESS:
-                        expectThrows(user, request, 403);
+                    case BACKING_INDEX_DATA_ACCESS, BACKING_INDEX_FAILURE_ACCESS, FAILURE_INDEX_DATA_ACCESS, FAILURE_INDEX_FAILURE_ACCESS:
+                        expectSearchThrows(user, request, 403);
+                        expectEsqlThrows(user, request, 400);
+                        break;
+                    case DATA_ACCESS, STAR_READ_ONLY_ACCESS:
+                        expectSearchThrows(user, request, 403);
+                        expectEsqlThrows(user, request, 403);
                         break;
                     case ADMIN_USER, BOTH_ACCESS:
                         expectSearch(user, request, dataDocId, failuresDocId);
+                        expectEsql(user, request, dataDocId, failuresDocId);
                         break;
                     default:
                         fail("must cover user: " + user);
@@ -1774,15 +1877,19 @@ public class FailureStoreSecurityRestIT extends ESRestTestCase {
                 switch (user) {
                     case FAILURE_STORE_ACCESS:
                         expectSearch(user, request, failuresDocId);
+                        // es|ql does not support ignore_unavailable
                         break;
                     case DATA_ACCESS, STAR_READ_ONLY_ACCESS:
                         expectSearch(user, request, dataDocId);
+                        // es|ql does not support ignore_unavailable
                         break;
                     case ADMIN_USER, BOTH_ACCESS:
                         expectSearch(user, request, dataDocId, failuresDocId);
+                        // es|ql does not support ignore_unavailable
                         break;
                     case BACKING_INDEX_DATA_ACCESS, BACKING_INDEX_FAILURE_ACCESS, FAILURE_INDEX_DATA_ACCESS, FAILURE_INDEX_FAILURE_ACCESS:
                         expectSearch(user, request);
+                        // es|ql does not support ignore_unavailable
                         break;
                     default:
                         fail("must cover user: " + user);
@@ -1795,21 +1902,43 @@ public class FailureStoreSecurityRestIT extends ESRestTestCase {
                 switch (user) {
                     case FAILURE_STORE_ACCESS:
                         expectSearch(user, request, failuresDocId);
+                        expectEsql(user, request, failuresDocId);
                         break;
                     case DATA_ACCESS, STAR_READ_ONLY_ACCESS:
                         expectSearch(user, request, dataDocId);
+                        expectEsql(user, request, dataDocId);
                         break;
                     case ADMIN_USER, BOTH_ACCESS:
                         expectSearch(user, request, dataDocId, failuresDocId);
+                        expectEsql(user, request, dataDocId, failuresDocId);
                         break;
                     case BACKING_INDEX_FAILURE_ACCESS, FAILURE_INDEX_FAILURE_ACCESS, BACKING_INDEX_DATA_ACCESS, FAILURE_INDEX_DATA_ACCESS:
                         expectSearch(user, request);
+                        expectEsqlThrows(user, request, 400);
                         break;
                     default:
                         fail("must cover user: " + user);
                 }
             }
         }
+    }
+
+    @SuppressWarnings("unchecked")
+    private void expectEsql(String user, Search search, String... docIds) throws Exception {
+        var response = performRequestMaybeUsingApiKey(user, search.toEsqlRequest());
+        Map<String, Object> responseAsMap = entityAsMap(response);
+        List<?> columns = (List<?>) responseAsMap.get("columns");
+        List<?> values = (List<?>) responseAsMap.get("values");
+        assertEquals(1, columns.size());
+        assertEquals(docIds.length, values.size());
+        List<String> flatList = values.stream()
+            .flatMap(innerList -> innerList instanceof List ? ((List<String>) innerList).stream() : Stream.empty())
+            .collect(Collectors.toList());
+        assertThat(flatList, containsInAnyOrder(docIds));
+    }
+
+    private void expectEsqlThrows(String user, Search search, int statusCode) {
+        expectThrows(() -> performRequestMaybeUsingApiKey(user, search.toEsqlRequest()), statusCode);
     }
 
     public void testWriteAndManageOperations() throws IOException {
@@ -2360,9 +2489,9 @@ public class FailureStoreSecurityRestIT extends ESRestTestCase {
         assertThat(ex.getMessage(), errorMatcher);
     }
 
-    private void expectThrows(String user, Search search, int statusCode) {
-        expectThrows(() -> performRequest(user, search.toSearchRequest()), statusCode);
-        expectThrows(() -> performRequest(user, search.toAsyncSearchRequest()), statusCode);
+    private void expectSearchThrows(String user, Search search, int statusCode) {
+        expectThrows(() -> performRequestMaybeUsingApiKey(user, search.toSearchRequest()), statusCode);
+        expectThrows(() -> performRequestMaybeUsingApiKey(user, search.toAsyncSearchRequest()), statusCode);
     }
 
     private void expectSearch(String user, Search search, String... docIds) throws Exception {
@@ -2422,6 +2551,22 @@ public class FailureStoreSecurityRestIT extends ESRestTestCase {
                 ? "?wait_for_completion_timeout=" + ASYNC_SEARCH_TIMEOUT
                 : pathParamString + "&wait_for_completion_timeout=" + ASYNC_SEARCH_TIMEOUT;
             return new Request("POST", Strings.format("/%s/_async_search%s", searchTarget, pathParam));
+        }
+
+        Request toEsqlRequest() throws IOException {
+            String command = "from " + searchTarget + " METADATA _id | KEEP _id";
+            if (command.toLowerCase(Locale.ROOT).contains("limit") == false) {
+                // add a (high) limit to avoid warnings on default limit
+                command += " | limit 10000000";
+            }
+            XContentBuilder json = JsonXContent.contentBuilder();
+            json.startObject();
+            json.field("query", command);
+            addRandomPragmas(json);
+            json.endObject();
+            var request = new Request("POST", "_query");
+            request.setJsonEntity(Strings.toString(json));
+            return request;
         }
     }
 
@@ -2669,6 +2814,37 @@ public class FailureStoreSecurityRestIT extends ESRestTestCase {
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         }
+    }
+
+    static void addRandomPragmas(XContentBuilder builder) throws IOException {
+        if (Build.current().isSnapshot()) {
+            Settings pragmas = randomPragmas();
+            if (pragmas != Settings.EMPTY) {
+                builder.startObject("pragma");
+                builder.value(pragmas);
+                builder.endObject();
+            }
+        }
+    }
+
+    static Settings randomPragmas() {
+        Settings.Builder settings = Settings.builder();
+        if (randomBoolean()) {
+            settings.put("page_size", between(1, 5));
+        }
+        if (randomBoolean()) {
+            settings.put("exchange_buffer_size", between(1, 2));
+        }
+        if (randomBoolean()) {
+            settings.put("data_partitioning", randomFrom("shard", "segment", "doc"));
+        }
+        if (randomBoolean()) {
+            settings.put("enrich_max_workers", between(1, 5));
+        }
+        if (randomBoolean()) {
+            settings.put("node_level_reduction", randomBoolean());
+        }
+        return settings.build();
     }
 
     @SuppressWarnings("unchecked")

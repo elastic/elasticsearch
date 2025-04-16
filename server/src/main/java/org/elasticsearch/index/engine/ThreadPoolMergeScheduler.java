@@ -48,6 +48,14 @@ public class ThreadPoolMergeScheduler extends MergeScheduler implements Elastics
         true,
         Setting.Property.NodeScope
     );
+    /**
+     * Placeholder value used when max segments count of merge tasks is unspecified (which is the case of regular, non-forced, merges)
+     */
+    private static final int UNBOUNDED_MAX_MERGE_SEGMENTS = -1;
+    /**
+     * Merges below this size are never IO throttled.
+     */
+    private static final ByteSizeValue MIN_BIG_MERGE_SIZE = ByteSizeValue.ofMb(50L);
     private final ShardId shardId;
     private final MergeSchedulerConfig config;
     protected final Logger logger;
@@ -173,8 +181,10 @@ public class ThreadPoolMergeScheduler extends MergeScheduler implements Elastics
 
     // package-private for tests
     MergeTask newMergeTask(MergeSource mergeSource, MergePolicy.OneMerge merge, MergeTrigger mergeTrigger) {
-        // forced merges, as well as merges triggered when closing a shard, always run un-IO-throttled
-        boolean isAutoThrottle = mergeTrigger != MergeTrigger.CLOSING && merge.getStoreMergeInfo().mergeMaxNumSegments() == -1;
+        // forced merges, small merges, as well as merges triggered when closing a shard always run un-IO-throttled
+        boolean isAutoThrottle = mergeTrigger != MergeTrigger.CLOSING
+            && merge.getStoreMergeInfo().estimatedMergeBytes() > MIN_BIG_MERGE_SIZE.getBytes()
+            && merge.getStoreMergeInfo().mergeMaxNumSegments() == UNBOUNDED_MAX_MERGE_SEGMENTS;
         // IO throttling cannot be toggled for existing merge tasks, only new merge tasks pick up the updated IO throttling setting
         return new MergeTask(
             mergeSource,

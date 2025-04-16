@@ -39,10 +39,10 @@ public class DriverStatusTests extends AbstractWireSerializingTestCase<DriverSta
             55L,
             DriverStatus.Status.RUNNING,
             List.of(
-                new DriverStatus.OperatorStatus("LuceneSource", LuceneSourceOperatorStatusTests.simple()),
-                new DriverStatus.OperatorStatus("ValuesSourceReader", ValuesSourceReaderOperatorStatusTests.simple())
+                new OperatorStatus("LuceneSource", LuceneSourceOperatorStatusTests.simple()),
+                new OperatorStatus("ValuesSourceReader", ValuesSourceReaderOperatorStatusTests.simple())
             ),
-            List.of(new DriverStatus.OperatorStatus("ExchangeSink", ExchangeSinkOperatorStatusTests.simple())),
+            List.of(new OperatorStatus("ExchangeSink", ExchangeSinkOperatorStatusTests.simple())),
             new DriverSleeps(
                 Map.of("driver time", 1L),
                 List.of(new DriverSleeps.Sleep("driver time", 1, 1)),
@@ -57,6 +57,8 @@ public class DriverStatusTests extends AbstractWireSerializingTestCase<DriverSta
               "last_updated" : "1973-11-29T09:27:23.214Z",
               "cpu_nanos" : 123213,
               "cpu_time" : "123.2micros",
+              "documents_found" : 222,
+              "values_loaded" : 1000,
               "iterations" : 55,
               "status" : "running",
               "completed_operators" : [
@@ -140,18 +142,18 @@ public class DriverStatusTests extends AbstractWireSerializingTestCase<DriverSta
         return randomFrom(DriverStatus.Status.values());
     }
 
-    static List<DriverStatus.OperatorStatus> randomOperatorStatuses() {
+    static List<OperatorStatus> randomOperatorStatuses() {
         return randomList(0, 5, DriverStatusTests::randomOperatorStatus);
     }
 
-    private static DriverStatus.OperatorStatus randomOperatorStatus() {
+    private static OperatorStatus randomOperatorStatus() {
         Supplier<Operator.Status> status = randomFrom(
             new LuceneSourceOperatorStatusTests()::createTestInstance,
             new ValuesSourceReaderOperatorStatusTests()::createTestInstance,
             new ExchangeSinkOperatorStatusTests()::createTestInstance,
             () -> null
         );
-        return new DriverStatus.OperatorStatus(randomAlphaOfLength(3), status.get());
+        return new OperatorStatus(randomAlphaOfLength(3), status.get());
     }
 
     @Override

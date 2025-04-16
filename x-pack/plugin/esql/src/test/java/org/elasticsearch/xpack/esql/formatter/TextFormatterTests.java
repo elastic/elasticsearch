@@ -79,6 +79,8 @@ public class TextFormatterTests extends ESTestCase {
                 blockFactory.newConstantNullBlock(2)
             )
         ),
+        0,
+        0,
         null,
         randomBoolean(),
         randomBoolean(),
@@ -181,6 +183,8 @@ public class TextFormatterTests extends ESTestCase {
                     blockFactory.newConstantNullBlock(2)
                 )
             ),
+            0,
+            0,
             null,
             randomBoolean(),
             randomBoolean(),
@@ -222,6 +226,8 @@ public class TextFormatterTests extends ESTestCase {
                                     .build()
                             )
                         ),
+                        0,
+                        0,
                         null,
                         randomBoolean(),
                         randomBoolean(),

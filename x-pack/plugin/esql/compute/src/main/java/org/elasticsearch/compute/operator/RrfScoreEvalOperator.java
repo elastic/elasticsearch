@@ -68,8 +68,11 @@ public class RrfScoreEvalOperator extends AbstractPageMappingOperator {
         for (int i = 0; i < page.getBlockCount() - 1; i++) {
             projections[i] = i == scorePosition ? page.getBlockCount() - 1 : i;
         }
-
-        return page.projectBlocks(projections);
+        try {
+            return page.projectBlocks(projections);
+        } finally {
+            page.releaseBlocks();
+        }
     }
 
     @Override

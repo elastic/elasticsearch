@@ -9,6 +9,7 @@
 
 package org.elasticsearch.repositories.s3;
 
+import fixture.aws.DynamicRegionSupplier;
 import fixture.s3.S3HttpFixture;
 
 import org.elasticsearch.client.Request;
@@ -24,8 +25,8 @@ import org.junit.rules.RuleChain;
 import org.junit.rules.TestRule;
 
 import java.io.IOException;
+import java.util.function.Supplier;
 
-import static fixture.aws.AwsCredentialsUtils.ANY_REGION;
 import static fixture.aws.AwsCredentialsUtils.mutableAccessKey;
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.Matchers.allOf;
@@ -39,17 +40,19 @@ public class RepositoryS3RestReloadCredentialsIT extends ESRestTestCase {
 
     private static volatile String repositoryAccessKey;
 
+    private static final Supplier<String> regionSupplier = new DynamicRegionSupplier();
     public static final S3HttpFixture s3Fixture = new S3HttpFixture(
         true,
         BUCKET,
         BASE_PATH,
-        mutableAccessKey(() -> repositoryAccessKey, ANY_REGION, "s3")
+        mutableAccessKey(() -> repositoryAccessKey, regionSupplier, "s3")
     );
 
     private static final MutableSettingsProvider keystoreSettings = new MutableSettingsProvider();
 
     public static ElasticsearchCluster cluster = ElasticsearchCluster.local()
         .module("repository-s3")
+        .systemProperty("aws.region", regionSupplier)
         .keystore(keystoreSettings)
         .setting("s3.client.default.endpoint", s3Fixture::getAddress)
         .build();

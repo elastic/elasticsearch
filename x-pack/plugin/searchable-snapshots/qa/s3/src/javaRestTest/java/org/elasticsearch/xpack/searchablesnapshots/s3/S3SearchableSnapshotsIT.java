@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.xpack.searchablesnapshots.s3;
 
+import fixture.aws.DynamicRegionSupplier;
 import fixture.s3.S3HttpFixture;
 
 import org.elasticsearch.common.settings.Settings;
@@ -16,16 +17,20 @@ import org.junit.ClassRule;
 import org.junit.rules.RuleChain;
 import org.junit.rules.TestRule;
 
+import java.util.function.Supplier;
+
 import static org.hamcrest.Matchers.blankOrNullString;
 import static org.hamcrest.Matchers.not;
 
 public class S3SearchableSnapshotsIT extends AbstractSearchableSnapshotsRestTestCase {
     static final boolean USE_FIXTURE = Boolean.parseBoolean(System.getProperty("tests.use.fixture", "true"));
 
-    public static final S3HttpFixture s3Fixture = new S3HttpFixture(USE_FIXTURE);
+    private static final Supplier<String> regionSupplier = new DynamicRegionSupplier();
+    public static final S3HttpFixture s3Fixture = new S3HttpFixture(USE_FIXTURE, regionSupplier);
 
     public static ElasticsearchCluster cluster = ElasticsearchCluster.local()
         .distribution(DistributionType.DEFAULT)
+        .systemProperty("aws.region", regionSupplier)
         .keystore("s3.client.searchable_snapshots.access_key", System.getProperty("s3AccessKey"))
         .keystore("s3.client.searchable_snapshots.secret_key", System.getProperty("s3SecretKey"))
         .setting("xpack.license.self_generated.type", "trial")

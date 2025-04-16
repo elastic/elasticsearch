@@ -9,6 +9,8 @@ package org.elasticsearch.xpack.repositories.metering.s3;
 import fixture.s3.S3HttpFixture;
 
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.LazyInitializable;
+import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.cluster.local.distribution.DistributionType;
 import org.elasticsearch.xpack.repositories.metering.AbstractRepositoriesMeteringAPIRestTestCase;
@@ -18,15 +20,18 @@ import org.junit.rules.TestRule;
 
 import java.util.List;
 import java.util.Map;
+import java.util.function.Supplier;
 
 public class S3RepositoriesMeteringIT extends AbstractRepositoriesMeteringAPIRestTestCase {
 
     static final boolean USE_FIXTURE = Boolean.parseBoolean(System.getProperty("tests.use.fixture", "true"));
 
-    public static final S3HttpFixture s3Fixture = new S3HttpFixture(USE_FIXTURE);
+    private static final Supplier<String> regionSupplier = new LazyInitializable<>(ESTestCase::randomIdentifier)::getOrCompute;
+    public static final S3HttpFixture s3Fixture = new S3HttpFixture(USE_FIXTURE, regionSupplier);
 
     public static ElasticsearchCluster cluster = ElasticsearchCluster.local()
         .distribution(DistributionType.DEFAULT)
+        .systemProperty("aws.region", regionSupplier)
         .keystore("s3.client.repositories_metering.access_key", System.getProperty("s3AccessKey"))
         .keystore("s3.client.repositories_metering.secret_key", System.getProperty("s3SecretKey"))
         .setting("xpack.license.self_generated.type", "trial")

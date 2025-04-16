@@ -83,7 +83,6 @@ import static org.elasticsearch.entitlement.runtime.policy.entitlements.FilesEnt
  */
 public class EntitlementInitialization {
 
-    private static final String AGENTS_PACKAGE_NAME = "co.elastic.apm.agent";
     private static final Module ENTITLEMENTS_MODULE = PolicyManager.class.getModule();
 
     private static ElasticsearchEntitlementChecker manager;
@@ -321,9 +320,8 @@ public class EntitlementInitialization {
             serverPolicy,
             agentEntitlements,
             pluginPolicies,
-            EntitlementBootstrap.bootstrapArgs().pluginResolver(),
+            EntitlementBootstrap.bootstrapArgs().scopeResolver(),
             EntitlementBootstrap.bootstrapArgs().sourcePaths(),
-            AGENTS_PACKAGE_NAME,
             ENTITLEMENTS_MODULE,
             pathLookup,
             bootstrapArgs.suppressFailureLogClasses()

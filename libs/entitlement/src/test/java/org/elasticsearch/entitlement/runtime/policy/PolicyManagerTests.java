@@ -9,9 +9,11 @@
 
 package org.elasticsearch.entitlement.runtime.policy;
 
+import org.elasticsearch.bootstrap.ScopeResolver;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.entitlement.runtime.policy.PolicyManager.ModuleEntitlements;
+import org.elasticsearch.entitlement.runtime.policy.PolicyManager.ScopeInfo;
 import org.elasticsearch.entitlement.runtime.policy.agent.TestAgent;
 import org.elasticsearch.entitlement.runtime.policy.agent.inner.TestInnerAgent;
 import org.elasticsearch.entitlement.runtime.policy.entitlements.CreateClassLoaderEntitlement;
@@ -37,6 +39,7 @@ import java.util.stream.Stream;
 
 import static java.util.Map.entry;
 import static org.elasticsearch.entitlement.runtime.policy.PolicyManager.ALL_UNNAMED;
+import static org.elasticsearch.entitlement.runtime.policy.PolicyManager.APM_AGENT_COMPONENT_NAME;
 import static org.elasticsearch.entitlement.runtime.policy.PolicyManager.SERVER_COMPONENT_NAME;
 import static org.hamcrest.Matchers.aMapWithSize;
 import static org.hamcrest.Matchers.allOf;
@@ -88,9 +91,8 @@ public class PolicyManagerTests extends ESTestCase {
             createEmptyTestServerPolicy(),
             List.of(),
             Map.of("plugin1", createPluginPolicy("plugin.module")),
-            c -> "plugin1",
+            c -> new ScopeInfo("plugin1", moduleName(c)),
             Map.of("plugin1", plugin1SourcePath),
-            TEST_AGENTS_PACKAGE_NAME,
             NO_ENTITLEMENTS_MODULE,
             TEST_PATH_LOOKUP,
             Set.of()
@@ -118,9 +120,8 @@ public class PolicyManagerTests extends ESTestCase {
             createEmptyTestServerPolicy(),
             List.of(),
             Map.of(),
-            c -> "plugin1",
+            c -> new ScopeInfo("plugin1", moduleName(c)),
             Map.of("plugin1", plugin1SourcePath),
-            TEST_AGENTS_PACKAGE_NAME,
             NO_ENTITLEMENTS_MODULE,
             TEST_PATH_LOOKUP,
             Set.of()
@@ -148,9 +149,8 @@ public class PolicyManagerTests extends ESTestCase {
             createEmptyTestServerPolicy(),
             List.of(),
             Map.of(),
-            c -> "plugin1",
+            c -> new ScopeInfo("plugin1", moduleName(c)),
             Map.of("plugin1", plugin1SourcePath),
-            TEST_AGENTS_PACKAGE_NAME,
             NO_ENTITLEMENTS_MODULE,
             TEST_PATH_LOOKUP,
             Set.of()
@@ -187,9 +187,8 @@ public class PolicyManagerTests extends ESTestCase {
             createEmptyTestServerPolicy(),
             List.of(),
             Map.ofEntries(entry("plugin2", createPluginPolicy(ALL_UNNAMED))),
-            c -> "plugin2",
+            c -> new ScopeInfo("plugin2", moduleName(c)),
             Map.of("plugin2", Path.of("modules", "plugin2")),
-            TEST_AGENTS_PACKAGE_NAME,
             NO_ENTITLEMENTS_MODULE,
             TEST_PATH_LOOKUP,
             Set.of()
@@ -207,9 +206,8 @@ public class PolicyManagerTests extends ESTestCase {
             createTestServerPolicy("example"),
             List.of(),
             Map.of(),
-            c -> null,
+            c -> new ScopeInfo(SERVER_COMPONENT_NAME, moduleName(c)),
             Map.of(),
-            TEST_AGENTS_PACKAGE_NAME,
             NO_ENTITLEMENTS_MODULE,
             TEST_PATH_LOOKUP,
             Set.of()
@@ -243,9 +241,8 @@ public class PolicyManagerTests extends ESTestCase {
             createTestServerPolicy("jdk.httpserver"),
             List.of(),
             Map.of(),
-            c -> null,
+            c -> new ScopeInfo(SERVER_COMPONENT_NAME, moduleName(c)),
             Map.of(),
-            TEST_AGENTS_PACKAGE_NAME,
             NO_ENTITLEMENTS_MODULE,
             TEST_PATH_LOOKUP,
             Set.of()
@@ -271,9 +268,8 @@ public class PolicyManagerTests extends ESTestCase {
             createEmptyTestServerPolicy(),
             List.of(),
             Map.of("mock-plugin", createPluginPolicy("org.example.plugin")),
-            c -> "mock-plugin",
+            c -> new ScopeInfo("mock-plugin", moduleName(c)),
             Map.of("mock-plugin", Path.of("modules", "mock-plugin")),
-            TEST_AGENTS_PACKAGE_NAME,
             NO_ENTITLEMENTS_MODULE,
             TEST_PATH_LOOKUP,
             Set.of()
@@ -292,9 +288,8 @@ public class PolicyManagerTests extends ESTestCase {
             createEmptyTestServerPolicy(),
             List.of(),
             Map.ofEntries(entry("plugin2", createPluginPolicy(ALL_UNNAMED))),
-            c -> "plugin2",
+            c -> new ScopeInfo("plugin2", moduleName(c)),
             Map.of("plugin2", Path.of("modules", "plugin2")),
-            TEST_AGENTS_PACKAGE_NAME,
             NO_ENTITLEMENTS_MODULE,
             TEST_PATH_LOOKUP,
             Set.of()
@@ -316,7 +311,7 @@ public class PolicyManagerTests extends ESTestCase {
 
     public void testRequestingClassFastPath() throws IOException, ClassNotFoundException {
         var callerClass = makeClassInItsOwnModule();
-        assertEquals(callerClass, policyManager(TEST_AGENTS_PACKAGE_NAME, NO_ENTITLEMENTS_MODULE).requestingClass(callerClass));
+        assertEquals(callerClass, policyManager(NO_ENTITLEMENTS_MODULE).requestingClass(callerClass));
     }
 
     public void testRequestingModuleWithStackWalk() throws IOException, ClassNotFoundException {
@@ -325,7 +320,7 @@ public class PolicyManagerTests extends ESTestCase {
         var instrumentedClass = makeClassInItsOwnModule();    // The class that called the check method
         var ignorableClass = makeClassInItsOwnModule();
 
-        var policyManager = policyManager(TEST_AGENTS_PACKAGE_NAME, entitlementsClass.getModule());
+        var policyManager = policyManager(entitlementsClass.getModule());
 
         assertEquals(
             "Skip entitlement library and the instrumented method",
@@ -356,9 +351,10 @@ public class PolicyManagerTests extends ESTestCase {
             createEmptyTestServerPolicy(),
             List.of(new CreateClassLoaderEntitlement()),
             Map.of(),
-            c -> c.getPackageName().startsWith(TEST_AGENTS_PACKAGE_NAME) ? null : "test",
+            c -> c.getPackageName().startsWith(TEST_AGENTS_PACKAGE_NAME)
+                ? new ScopeInfo(APM_AGENT_COMPONENT_NAME, "test.agent.module")
+                : new ScopeInfo("test", "test.plugin.module"),
             Map.of(),
-            TEST_AGENTS_PACKAGE_NAME,
             NO_ENTITLEMENTS_MODULE,
             TEST_PATH_LOOKUP,
             Set.of()
@@ -386,9 +382,8 @@ public class PolicyManagerTests extends ESTestCase {
                 ),
                 List.of(),
                 Map.of(),
-                c -> "test",
+                c -> new ScopeInfo("test", moduleName(c)),
                 Map.of(),
-                TEST_AGENTS_PACKAGE_NAME,
                 NO_ENTITLEMENTS_MODULE,
                 TEST_PATH_LOOKUP,
                 Set.of()
@@ -405,9 +400,8 @@ public class PolicyManagerTests extends ESTestCase {
                 createEmptyTestServerPolicy(),
                 List.of(new CreateClassLoaderEntitlement(), new CreateClassLoaderEntitlement()),
                 Map.of(),
-                c -> "test",
+                c -> new ScopeInfo("test", moduleName(c)),
                 Map.of(),
-                TEST_AGENTS_PACKAGE_NAME,
                 NO_ENTITLEMENTS_MODULE,
                 TEST_PATH_LOOKUP,
                 Set.of()
@@ -444,9 +438,8 @@ public class PolicyManagerTests extends ESTestCase {
                         )
                     )
                 ),
-                c -> "plugin1",
+                c -> new ScopeInfo("plugin1", moduleName(c)),
                 Map.of("plugin1", Path.of("modules", "plugin1")),
-                TEST_AGENTS_PACKAGE_NAME,
                 NO_ENTITLEMENTS_MODULE,
                 TEST_PATH_LOOKUP,
                 Set.of()
@@ -497,9 +490,8 @@ public class PolicyManagerTests extends ESTestCase {
                         )
                     )
                 ),
-                c -> "",
+                c -> new ScopeInfo("", moduleName(c)),
                 Map.of("plugin1", Path.of("modules", "plugin1"), "plugin2", Path.of("modules", "plugin2")),
-                TEST_AGENTS_PACKAGE_NAME,
                 NO_ENTITLEMENTS_MODULE,
                 TEST_PATH_LOOKUP,
                 Set.of()
@@ -551,9 +543,8 @@ public class PolicyManagerTests extends ESTestCase {
                         )
                     )
                 ),
-                c -> "",
+                c -> new ScopeInfo("", moduleName(c)),
                 Map.of(),
-                TEST_AGENTS_PACKAGE_NAME,
                 NO_ENTITLEMENTS_MODULE,
                 TEST_PATH_LOOKUP,
                 Set.of()
@@ -578,9 +569,8 @@ public class PolicyManagerTests extends ESTestCase {
             createEmptyTestServerPolicy(),
             List.of(new CreateClassLoaderEntitlement()),
             Map.of(),
-            c -> "test", // Insist that the class is in a plugin
+            c -> new ScopeInfo("test", moduleName(c)), // Insist that the class is in a plugin
             Map.of(),
-            TEST_AGENTS_PACKAGE_NAME,
             NO_ENTITLEMENTS_MODULE,
             TEST_PATH_LOOKUP,
             Set.of()
@@ -596,14 +586,13 @@ public class PolicyManagerTests extends ESTestCase {
         return layer.findLoader("org.example.plugin").loadClass("q.B");
     }
 
-    private static PolicyManager policyManager(String agentsPackageName, Module entitlementsModule) {
+    private static PolicyManager policyManager(Module entitlementsModule) {
         return new PolicyManager(
             createEmptyTestServerPolicy(),
             List.of(),
             Map.of(),
-            c -> "test",
+            c -> new ScopeInfo("test", moduleName(c)),
             Map.of(),
-            agentsPackageName,
             entitlementsModule,
             TEST_PATH_LOOKUP,
             Set.of()
@@ -711,6 +700,10 @@ public class PolicyManagerTests extends ESTestCase {
         public StackTraceElement toStackTraceElement() {
             throw new UnsupportedOperationException();
         }
+    }
+
+    private static String moduleName(Class<?> c) {
+        return ScopeResolver.getScopeName(c.getModule());
     }
 
 }

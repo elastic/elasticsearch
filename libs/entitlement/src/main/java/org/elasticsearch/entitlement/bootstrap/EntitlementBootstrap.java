@@ -18,6 +18,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.entitlement.initialization.EntitlementInitialization;
 import org.elasticsearch.entitlement.runtime.policy.Policy;
+import org.elasticsearch.entitlement.runtime.policy.PolicyManager;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 
@@ -36,7 +37,7 @@ public class EntitlementBootstrap {
     public record BootstrapArgs(
         @Nullable Policy serverPolicyPatch,
         Map<String, Policy> pluginPolicies,
-        Function<Class<?>, String> pluginResolver,
+        Function<Class<?>, PolicyManager.ScopeInfo> scopeResolver,
         Function<String, Stream<String>> settingResolver,
         Path[] dataDirs,
         Path[] sharedRepoDirs,
@@ -52,7 +53,7 @@ public class EntitlementBootstrap {
     ) {
         public BootstrapArgs {
             requireNonNull(pluginPolicies);
-            requireNonNull(pluginResolver);
+            requireNonNull(scopeResolver);
             requireNonNull(settingResolver);
             requireNonNull(dataDirs);
             if (dataDirs.length == 0) {
@@ -82,7 +83,7 @@ public class EntitlementBootstrap {
      *
      * @param serverPolicyPatch a policy with additional entitlements to patch the embedded server layer policy
      * @param pluginPolicies a map holding policies for plugins (and modules), by plugin (or module) name.
-     * @param pluginResolver a functor to map a Java Class to the plugin it belongs to (the plugin name).
+     * @param scopeResolver a functor to map a Java Class to the component and module it belongs to.
      * @param settingResolver a functor to resolve a setting name pattern for one or more Elasticsearch settings.
      * @param dataDirs       data directories for Elasticsearch
      * @param sharedRepoDirs shared repository directories for Elasticsearch
@@ -99,7 +100,7 @@ public class EntitlementBootstrap {
     public static void bootstrap(
         Policy serverPolicyPatch,
         Map<String, Policy> pluginPolicies,
-        Function<Class<?>, String> pluginResolver,
+        Function<Class<?>, PolicyManager.ScopeInfo> scopeResolver,
         Function<String, Stream<String>> settingResolver,
         Path[] dataDirs,
         Path[] sharedRepoDirs,
@@ -120,7 +121,7 @@ public class EntitlementBootstrap {
         EntitlementBootstrap.bootstrapArgs = new BootstrapArgs(
             serverPolicyPatch,
             pluginPolicies,
-            pluginResolver,
+            scopeResolver,
             settingResolver,
             dataDirs,
             sharedRepoDirs,

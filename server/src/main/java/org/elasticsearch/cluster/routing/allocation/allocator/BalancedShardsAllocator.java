@@ -35,7 +35,6 @@ import org.elasticsearch.cluster.routing.allocation.WriteLoadForecaster;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision.Type;
-import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
@@ -60,7 +59,6 @@ import java.util.stream.StreamSupport;
 import static org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata.Type.REPLACE;
 import static org.elasticsearch.cluster.routing.ExpectedShardSizeEstimator.getExpectedShardSize;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.RELOCATING;
-import static org.elasticsearch.common.settings.ClusterSettings.createBuiltInClusterSettings;
 
 /**
  * The {@link BalancedShardsAllocator} allocates and balances shards on the cluster nodes using {@link WeightFunction}.
@@ -114,13 +112,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
         Property.NodeScope
     );
 
-    // TODO: deduplicate these fields, use the fields in NodeAllocationStatsAndWeightsCalculator instead.
-    private volatile float indexBalanceFactor;
-    private volatile float shardBalanceFactor;
-    private volatile float writeLoadBalanceFactor;
-    private volatile float diskUsageBalanceFactor;
-    private volatile float threshold;
-
+    private final BalancerSettings balancerSettings;
     private final WriteLoadForecaster writeLoadForecaster;
 
     public BalancedShardsAllocator() {
@@ -128,20 +120,12 @@ public class BalancedShardsAllocator implements ShardsAllocator {
     }
 
     public BalancedShardsAllocator(Settings settings) {
-        this(createBuiltInClusterSettings(settings), WriteLoadForecaster.DEFAULT);
-    }
-
-    public BalancedShardsAllocator(ClusterSettings clusterSettings) {
-        this(clusterSettings, WriteLoadForecaster.DEFAULT);
+        this(new BalancerSettings(settings), WriteLoadForecaster.DEFAULT);
     }
 
     @Inject
-    public BalancedShardsAllocator(ClusterSettings clusterSettings, WriteLoadForecaster writeLoadForecaster) {
-        clusterSettings.initializeAndWatch(SHARD_BALANCE_FACTOR_SETTING, value -> this.shardBalanceFactor = value);
-        clusterSettings.initializeAndWatch(INDEX_BALANCE_FACTOR_SETTING, value -> this.indexBalanceFactor = value);
-        clusterSettings.initializeAndWatch(WRITE_LOAD_BALANCE_FACTOR_SETTING, value -> this.writeLoadBalanceFactor = value);
-        clusterSettings.initializeAndWatch(DISK_USAGE_BALANCE_FACTOR_SETTING, value -> this.diskUsageBalanceFactor = value);
-        clusterSettings.initializeAndWatch(THRESHOLD_SETTING, value -> this.threshold = value);
+    public BalancedShardsAllocator(BalancerSettings balancerSettings, WriteLoadForecaster writeLoadForecaster) {
+        this.balancerSettings = balancerSettings;
         this.writeLoadForecaster = writeLoadForecaster;
     }
 
@@ -159,12 +143,12 @@ public class BalancedShardsAllocator implements ShardsAllocator {
             return;
         }
         final WeightFunction weightFunction = new WeightFunction(
-            shardBalanceFactor,
-            indexBalanceFactor,
-            writeLoadBalanceFactor,
-            diskUsageBalanceFactor
+            balancerSettings.getShardBalanceFactor(),
+            balancerSettings.getIndexBalanceFactor(),
+            balancerSettings.getWriteLoadBalanceFactor(),
+            balancerSettings.getDiskUsageBalanceFactor()
         );
-        final Balancer balancer = new Balancer(writeLoadForecaster, allocation, weightFunction, threshold);
+        final Balancer balancer = new Balancer(writeLoadForecaster, allocation, weightFunction, balancerSettings.getThreshold());
         balancer.allocateUnassigned();
         balancer.moveShards();
         balancer.balance();
@@ -196,12 +180,12 @@ public class BalancedShardsAllocator implements ShardsAllocator {
     @Override
     public ShardAllocationDecision decideShardAllocation(final ShardRouting shard, final RoutingAllocation allocation) {
         WeightFunction weightFunction = new WeightFunction(
-            shardBalanceFactor,
-            indexBalanceFactor,
-            writeLoadBalanceFactor,
-            diskUsageBalanceFactor
+            balancerSettings.getShardBalanceFactor(),
+            balancerSettings.getIndexBalanceFactor(),
+            balancerSettings.getWriteLoadBalanceFactor(),
+            balancerSettings.getDiskUsageBalanceFactor()
         );
-        Balancer balancer = new Balancer(writeLoadForecaster, allocation, weightFunction, threshold);
+        Balancer balancer = new Balancer(writeLoadForecaster, allocation, weightFunction, balancerSettings.getThreshold());
         AllocateUnassignedDecision allocateUnassignedDecision = AllocateUnassignedDecision.NOT_TAKEN;
         MoveDecision moveDecision = MoveDecision.NOT_TAKEN;
         final ProjectIndex index = new ProjectIndex(allocation, shard);
@@ -242,27 +226,6 @@ public class BalancedShardsAllocator implements ShardsAllocator {
                 );
             }
         }
-    }
-
-    /**
-     * Returns the currently configured delta threshold
-     */
-    public float getThreshold() {
-        return threshold;
-    }
-
-    /**
-     * Returns the index related weight factor.
-     */
-    public float getIndexBalance() {
-        return indexBalanceFactor;
-    }
-
-    /**
-     * Returns the shard related weight factor.
-     */
-    public float getShardBalance() {
-        return shardBalanceFactor;
     }
 
     /**

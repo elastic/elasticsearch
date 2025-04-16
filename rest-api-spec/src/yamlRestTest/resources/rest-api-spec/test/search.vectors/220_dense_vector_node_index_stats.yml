@@ -716,8 +716,16 @@
       indices.refresh: {}
 
    - do:
-      nodes.stats:
-        metric: [ indices ]
+       cat.shards:
+         format: "json"
+         h: [ id ]
+         index: "bbq_quantized2"
+
+   - do:
+       nodes.stats:
+         metric: [ indices ]
+         node_id: $body.0.id
+
    - set:
       nodes._arbitrary_key_: node_id
 

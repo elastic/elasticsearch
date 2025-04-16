@@ -10,18 +10,23 @@
 package org.elasticsearch.index.codec.tsdb.es819;
 
 import org.apache.lucene.search.DocIdSetIterator;
+import org.apache.lucene.store.Directory;
+import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.BitSetIterator;
 import org.apache.lucene.util.FixedBitSet;
+import org.apache.lucene.util.IOUtils;
+import org.elasticsearch.core.SuppressForbidden;
 
+import java.io.Closeable;
 import java.io.IOException;
 
 /**
  * Fork of {@link org.apache.lucene.codecs.lucene90.IndexedDISI#writeBitSet(DocIdSetIterator, IndexOutput)} but that allows
  * building jump list iteratively by one docid at a time instead of relying on docidset iterator.
  */
-final class IndexedDISIBuilder {
+final class DISIAccumulator implements Closeable {
 
     private static final int BLOCK_SIZE = 65536; // The number of docIDs that a single block represents
 
@@ -30,7 +35,9 @@ final class IndexedDISIBuilder {
 
     static final int MAX_ARRAY_LENGTH = (1 << 12) - 1;
 
-    final IndexOutput out;
+    final Directory dir;
+    final String skipListTempFileName;
+    final IndexOutput disiTempOutput;
     final byte denseRankPower;
     final long origo;
 
@@ -41,11 +48,14 @@ final class IndexedDISIBuilder {
     int prevBlock = -1;
     int jumpBlockIndex = 0;
 
-    IndexedDISIBuilder(IndexOutput out, byte denseRankPower) {
-        this.out = out;
+    DISIAccumulator(Directory dir, IndexOutput data, byte denseRankPower) throws IOException {
+        this.dir = dir;
+        // TODO: which IOContext should be used here?
+        this.disiTempOutput = dir.createTempOutput(data.getName(), "disi", IOContext.DEFAULT);
+        this.skipListTempFileName = disiTempOutput.getName();
         this.denseRankPower = denseRankPower;
 
-        this.origo = out.getFilePointer(); // All jumps are relative to the origo
+        this.origo = disiTempOutput.getFilePointer(); // All jumps are relative to the origo
         if ((denseRankPower < 7 || denseRankPower > 15) && denseRankPower != -1) {
             throw new IllegalArgumentException(
                 "Acceptable values for denseRankPower are 7-15 (every 128-32768 docIDs). "
@@ -62,10 +72,10 @@ final class IndexedDISIBuilder {
         final int block = doc >>> 16;
         if (prevBlock != -1 && block != prevBlock) {
             // Track offset+index from previous block up to current
-            jumps = addJumps(jumps, out.getFilePointer() - origo, totalCardinality, jumpBlockIndex, prevBlock + 1);
+            jumps = addJumps(jumps, disiTempOutput.getFilePointer() - origo, totalCardinality, jumpBlockIndex, prevBlock + 1);
             jumpBlockIndex = prevBlock + 1;
             // Flush block
-            flush(prevBlock, buffer, blockCardinality, denseRankPower, out);
+            flush(prevBlock, buffer, blockCardinality, denseRankPower, disiTempOutput);
             // Reset for next block
             buffer.clear();
             totalCardinality += blockCardinality;
@@ -76,11 +86,11 @@ final class IndexedDISIBuilder {
         prevBlock = block;
     }
 
-    short build() throws IOException {
+    short build(IndexOutput data) throws IOException {
         if (blockCardinality > 0) {
-            jumps = addJumps(jumps, out.getFilePointer() - origo, totalCardinality, jumpBlockIndex, prevBlock + 1);
+            jumps = addJumps(jumps, disiTempOutput.getFilePointer() - origo, totalCardinality, jumpBlockIndex, prevBlock + 1);
             totalCardinality += blockCardinality;
-            flush(prevBlock, buffer, blockCardinality, denseRankPower, out);
+            flush(prevBlock, buffer, blockCardinality, denseRankPower, disiTempOutput);
             buffer.clear();
             prevBlock++;
         }
@@ -91,11 +101,19 @@ final class IndexedDISIBuilder {
         // offset of the
         // NO_MORE_DOCS block, with the jumpBlockIndex set to the logical EMPTY block after all real
         // blocks.
-        jumps = addJumps(jumps, out.getFilePointer() - origo, totalCardinality, lastBlock, lastBlock + 1);
+        jumps = addJumps(jumps, disiTempOutput.getFilePointer() - origo, totalCardinality, lastBlock, lastBlock + 1);
         buffer.set(DocIdSetIterator.NO_MORE_DOCS & 0xFFFF);
-        flush(DocIdSetIterator.NO_MORE_DOCS >>> 16, buffer, 1, denseRankPower, out);
+        flush(DocIdSetIterator.NO_MORE_DOCS >>> 16, buffer, 1, denseRankPower, disiTempOutput);
         // offset+index jump-table stored at the end
-        return flushBlockJumps(jumps, lastBlock + 1, out);
+        short blockCount = flushBlockJumps(jumps, lastBlock + 1, disiTempOutput);
+        disiTempOutput.close();
+        try (
+            // TODO: which IOContext should be used here?
+            var addressDataInput = dir.openInput(skipListTempFileName, IOContext.DEFAULT)
+        ) {
+            data.copyBytes(addressDataInput, addressDataInput.length());
+        }
+        return blockCount;
     }
 
     // Adds entries to the offset & index jump-table for blocks
@@ -167,6 +185,15 @@ final class IndexedDISIBuilder {
             bitCount += Long.bitCount(bits[word]);
         }
         return rank;
+    }
+
+    @Override
+    @SuppressForbidden(reason = "require usage of Lucene's IOUtils#deleteFilesIgnoringExceptions(...)")
+    public void close() throws IOException {
+        IOUtils.close(disiTempOutput);
+        if (skipListTempFileName != null) {
+            IOUtils.deleteFilesIgnoringExceptions(dir, skipListTempFileName);
+        }
     }
 
 }

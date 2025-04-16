@@ -30,7 +30,6 @@ import org.apache.lucene.store.ByteArrayDataOutput;
 import org.apache.lucene.store.ByteBuffersDataOutput;
 import org.apache.lucene.store.ByteBuffersIndexOutput;
 import org.apache.lucene.store.Directory;
-import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.BytesRef;
@@ -41,7 +40,6 @@ import org.apache.lucene.util.compress.LZ4;
 import org.apache.lucene.util.packed.DirectMonotonicWriter;
 import org.apache.lucene.util.packed.PackedInts;
 import org.elasticsearch.core.IOUtils;
-import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.index.codec.tsdb.TSDBDocValuesEncoder;
 
 import java.io.IOException;
@@ -143,9 +141,7 @@ final class ES819TSDBDocValuesConsumer extends XDocValuesConsumer {
         meta.writeLong(numValues);
         meta.writeInt(numDocsWithValue);
 
-        IndexOutput disiTempOutput = null;
-        String skipListTempFileName = null;
-        IndexedDISIBuilder docIdSetBuilder = null;
+        DISIAccumulator disiAccumulator = null;
         try {
             if (numValues > 0) {
                 assert numDocsWithValue > 0;
@@ -168,14 +164,11 @@ final class ES819TSDBDocValuesConsumer extends XDocValuesConsumer {
                     values = valuesProducer.getSortedNumeric(field);
                     final int bitsPerOrd = maxOrd >= 0 ? PackedInts.bitsRequired(maxOrd - 1) : -1;
                     if (enableOptimizedMerge && numDocsWithValue < maxDoc) {
-                        // TODO: which IOContext should be used here?
-                        disiTempOutput = dir.createTempOutput(data.getName(), "disi", IOContext.DEFAULT);
-                        skipListTempFileName = disiTempOutput.getName();
-                        docIdSetBuilder = new IndexedDISIBuilder(disiTempOutput, IndexedDISI.DEFAULT_DENSE_RANK_POWER);
+                        disiAccumulator = new DISIAccumulator(dir, data, IndexedDISI.DEFAULT_DENSE_RANK_POWER);
                     }
                     for (int doc = values.nextDoc(); doc != DocIdSetIterator.NO_MORE_DOCS; doc = values.nextDoc()) {
-                        if (docIdSetBuilder != null) {
-                            docIdSetBuilder.addDocId(doc);
+                        if (disiAccumulator != null) {
+                            disiAccumulator.addDocId(doc);
                         }
                         final int count = values.docValueCount();
                         for (int i = 0; i < count; ++i) {
@@ -231,15 +224,8 @@ final class ES819TSDBDocValuesConsumer extends XDocValuesConsumer {
                 long offset = data.getFilePointer();
                 meta.writeLong(offset); // docsWithFieldOffset
                 final short jumpTableEntryCount;
-                if (maxOrd != 1 && docIdSetBuilder != null) {
-                    jumpTableEntryCount = docIdSetBuilder.build();
-                    disiTempOutput.close();
-                    try (
-                        // TODO: which IOContext should be used here?
-                        var addressDataInput = dir.openInput(skipListTempFileName, IOContext.DEFAULT)
-                    ) {
-                        data.copyBytes(addressDataInput, addressDataInput.length());
-                    }
+                if (maxOrd != 1 && disiAccumulator != null) {
+                    jumpTableEntryCount = disiAccumulator.build(data);
                 } else {
                     values = valuesProducer.getSortedNumeric(field);
                     jumpTableEntryCount = IndexedDISI.writeBitSet(values, data, IndexedDISI.DEFAULT_DENSE_RANK_POWER);
@@ -249,18 +235,10 @@ final class ES819TSDBDocValuesConsumer extends XDocValuesConsumer {
                 meta.writeByte(IndexedDISI.DEFAULT_DENSE_RANK_POWER);
             }
         } finally {
-            IOUtils.close(disiTempOutput);
-            if (skipListTempFileName != null) {
-                deleteFilesIgnoringExceptions(skipListTempFileName);
-            }
+            IOUtils.close(disiAccumulator);
         }
 
         return new long[] { numDocsWithValue, numValues };
-    }
-
-    @SuppressForbidden(reason = "require usage of Lucene's IOUtils#deleteFilesIgnoringExceptions(...)")
-    private void deleteFilesIgnoringExceptions(String skipListTempFileName) {
-        org.apache.lucene.util.IOUtils.deleteFilesIgnoringExceptions(dir, skipListTempFileName);
     }
 
     @Override

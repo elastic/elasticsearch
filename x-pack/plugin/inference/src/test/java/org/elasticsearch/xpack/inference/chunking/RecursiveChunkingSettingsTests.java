@@ -21,42 +21,65 @@ import java.util.Optional;
 
 public class RecursiveChunkingSettingsTests extends AbstractWireSerializingTestCase<RecursiveChunkingSettings> {
 
-    public void testFromMapValidSettings() {
-        Map<String, Object> validSettings = buildChunkingSettingsMap(50, Optional.empty(), Optional.of(List.of("\n\n", "\n")));
+    public void testFromMapValidSettingsWithSeparators() {
+        var maxChunkSize = randomIntBetween(10, 300);
+        var separators = randomList(1, 10, () -> randomAlphaOfLength(1));
+        Map<String, Object> validSettings = buildChunkingSettingsMap(maxChunkSize, Optional.empty(), Optional.of(separators));
 
         RecursiveChunkingSettings settings = RecursiveChunkingSettings.fromMap(validSettings);
 
-        assertEquals(50, settings.getMaxChunkSize());
-        assertEquals(List.of("\n\n", "\n"), settings.getSeparators());
+        assertEquals(maxChunkSize, settings.getMaxChunkSize());
+        assertEquals(separators, settings.getSeparators());
+    }
+
+    public void testFromMapValidSettingsWithSeparatorSet() {
+        var maxChunkSize = randomIntBetween(10, 300);
+        var separatorSet = randomFrom(SeparatorSet.values());
+        Map<String, Object> validSettings = buildChunkingSettingsMap(maxChunkSize, Optional.of(separatorSet.name()), Optional.empty());
+
+        RecursiveChunkingSettings settings = RecursiveChunkingSettings.fromMap(validSettings);
+
+        assertEquals(maxChunkSize, settings.getMaxChunkSize());
+        assertEquals(separatorSet.getSeparators(), settings.getSeparators());
     }
 
     public void testFromMapMaxChunkSizeTooSmall() {
-        Map<String, Object> invalidSettings = buildChunkingSettingsMap(5, Optional.empty(), Optional.empty());
+        Map<String, Object> invalidSettings = buildChunkingSettingsMap(randomIntBetween(0, 9), Optional.empty(), Optional.empty());
 
         assertThrows(ValidationException.class, () -> RecursiveChunkingSettings.fromMap(invalidSettings));
     }
 
     public void testFromMapMaxChunkSizeTooLarge() {
-        Map<String, Object> invalidSettings = buildChunkingSettingsMap(500, Optional.empty(), Optional.empty());
+        Map<String, Object> invalidSettings = buildChunkingSettingsMap(randomIntBetween(301, 500), Optional.empty(), Optional.empty());
 
         assertThrows(ValidationException.class, () -> RecursiveChunkingSettings.fromMap(invalidSettings));
     }
 
     public void testFromMapInvalidSeparatorSet() {
-        Map<String, Object> invalidSettings = buildChunkingSettingsMap(50, Optional.of("invalid"), Optional.empty());
+        Map<String, Object> invalidSettings = buildChunkingSettingsMap(randomIntBetween(10, 300), Optional.of("invalid"), Optional.empty());
 
         assertThrows(ValidationException.class, () -> RecursiveChunkingSettings.fromMap(invalidSettings));
     }
 
     public void testFromMapInvalidSettingKey() {
-        Map<String, Object> invalidSettings = buildChunkingSettingsMap(50, Optional.empty(), Optional.empty());
+        Map<String, Object> invalidSettings = buildChunkingSettingsMap(randomIntBetween(10, 300), Optional.empty(), Optional.empty());
         invalidSettings.put("invalid_key", "invalid_value");
 
         assertThrows(ValidationException.class, () -> RecursiveChunkingSettings.fromMap(invalidSettings));
     }
 
     public void testFromMapBothSeparatorsAndSeparatorSet() {
-        Map<String, Object> invalidSettings = buildChunkingSettingsMap(50, Optional.of("default"), Optional.of(List.of("\n\n", "\n")));
+        Map<String, Object> invalidSettings = buildChunkingSettingsMap(
+            randomIntBetween(10, 300),
+            Optional.of("default"),
+            Optional.of(List.of("\n\n", "\n"))
+        );
+
+        assertThrows(ValidationException.class, () -> RecursiveChunkingSettings.fromMap(invalidSettings));
+    }
+
+    public void testFromMapEmptySeparators() {
+        Map<String, Object> invalidSettings = buildChunkingSettingsMap(randomIntBetween(10, 300), Optional.empty(), Optional.of(List.of()));
 
         assertThrows(ValidationException.class, () -> RecursiveChunkingSettings.fromMap(invalidSettings));
     }

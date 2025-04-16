@@ -22,6 +22,7 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.EnumSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
@@ -39,19 +40,12 @@ public class RecursiveChunkingSettings implements ChunkingSettings {
         ChunkingSettingsOptions.SEPARATORS.toString()
     );
 
-    protected static final Map<SeparatorSet, List<String>> SEPARATOR_SETS = Map.of(
-        SeparatorSet.DEFAULT,
-        List.of("(?<!\n)\n\n(?!\n)", "(?<!\n)\n(?!\n)"),
-        SeparatorSet.MARKDOWN,
-        List.of("(?<!#)###(?!#)", "(?<!#)##(?!#)", "(?<!#)#(?!#)") // TODO: What other ones do we want here?
-    );
-
     private final int maxChunkSize;
     private final List<String> separators;
 
     public RecursiveChunkingSettings(int maxChunkSize, List<String> separators) {
         this.maxChunkSize = maxChunkSize;
-        this.separators = separators == null ? SEPARATOR_SETS.get(SeparatorSet.DEFAULT) : separators;
+        this.separators = separators == null ? SeparatorSet.PLAINTEXT.getSeparators() : separators;
     }
 
     public RecursiveChunkingSettings(StreamInput in) throws IOException {
@@ -99,7 +93,9 @@ public class RecursiveChunkingSettings implements ChunkingSettings {
         }
 
         if (separatorSet != null) {
-            separators = SEPARATOR_SETS.get(separatorSet);
+            separators = separatorSet.getSeparators();
+        } else if (separators != null && separators.isEmpty()) {
+            validationException.addValidationError("Recursive chunking settings can not have an empty list of separators");
         }
 
         if (validationException.validationErrors().isEmpty() == false) {
@@ -120,6 +116,18 @@ public class RecursiveChunkingSettings implements ChunkingSettings {
     @Override
     public ChunkingStrategy getChunkingStrategy() {
         return STRATEGY;
+    }
+
+    @Override
+    public Map<String, Object> asMap() {
+        return Map.of(
+            ChunkingSettingsOptions.STRATEGY.toString(),
+            STRATEGY.toString().toLowerCase(Locale.ROOT),
+            ChunkingSettingsOptions.MAX_CHUNK_SIZE.toString(),
+            maxChunkSize,
+            ChunkingSettingsOptions.SEPARATORS.toString(),
+            separators
+        );
     }
 
     @Override
@@ -161,24 +169,5 @@ public class RecursiveChunkingSettings implements ChunkingSettings {
     @Override
     public int hashCode() {
         return Objects.hash(maxChunkSize, separators);
-    }
-
-    protected enum SeparatorSet {
-        DEFAULT("default"),
-        MARKDOWN("markdown");
-
-        private final String name;
-
-        SeparatorSet(String name) {
-            this.name = name;
-        }
-
-        public static SeparatorSet fromString(String name) {
-            return EnumSet.allOf(SeparatorSet.class)
-                .stream()
-                .filter(ss -> ss.name.equals(name))
-                .findFirst()
-                .orElseThrow(() -> new IllegalArgumentException(Strings.format("Invalid separator set %s", name)));
-        }
     }
 }

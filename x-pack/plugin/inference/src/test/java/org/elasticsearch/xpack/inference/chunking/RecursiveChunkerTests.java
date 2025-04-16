@@ -10,12 +10,11 @@ package org.elasticsearch.xpack.inference.chunking;
 import org.elasticsearch.inference.ChunkingSettings;
 import org.elasticsearch.test.ESTestCase;
 
-import java.util.ArrayList;
 import java.util.List;
 
 public class RecursiveChunkerTests extends ESTestCase {
 
-    private final List<String> TEST_SEPARATORS = List.of("\n\n", "\n", "\f", "\t", "###", "##", "#");
+    private final List<String> TEST_SEPARATORS = List.of("\n\n", "\n", "\f", "\t", "#");
     private final String TEST_SENTENCE = "This is a test sentence that has ten total words. ";
 
     public void testChunkWithInvalidChunkingSettings() {
@@ -81,7 +80,7 @@ public class RecursiveChunkerTests extends ESTestCase {
 
         var expectedFirstChunkOffsetEnd = TEST_SENTENCE.length();
         var expectedSecondChunkOffsetEnd = TEST_SENTENCE.length() * 2 + separators.get(1).length();
-        var expectedThirdChunkOffsetEnd = TEST_SENTENCE.length() * 3 + +separators.getFirst().length() + separators.get(1).length();
+        var expectedThirdChunkOffsetEnd = TEST_SENTENCE.length() * 3 + separators.getFirst().length() + separators.get(1).length();
         assertExpectedChunksGenerated(
             input,
             settings,
@@ -154,13 +153,6 @@ public class RecursiveChunkerTests extends ESTestCase {
     }
 
     private RecursiveChunkingSettings generateChunkingSettings(int maxChunkSize, List<String> separators) {
-        // Convert separators to regex with lookbehind and lookahead assertions to avoid splitting separators that are subsets of other
-        // separators (ex. if \n is a separator, then \n\n should not be split into two \n).
-        var separatorRegexList = new ArrayList<String>();
-        for (var separator : separators) {
-            separatorRegexList.add("(?<!" + separator + ")" + separator + "(?!" + separator + ")");
-        }
-
-        return new RecursiveChunkingSettings(maxChunkSize, separatorRegexList);
+        return new RecursiveChunkingSettings(maxChunkSize, separators);
     }
 }

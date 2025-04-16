@@ -420,6 +420,9 @@ tests:
 - class: org.elasticsearch.repositories.gcs.GoogleCloudStorageBlobStoreRepositoryTests
   method: testSnapshotWithLargeSegmentFiles
   issue: https://github.com/elastic/elasticsearch/issues/126909
+- class: org.elasticsearch.index.engine.CompletionStatsCacheTests
+  method: testCompletionStatsCache
+  issue: https://github.com/elastic/elasticsearch/issues/126910
 
 # Examples:
 #

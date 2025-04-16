@@ -204,49 +204,49 @@ public class ComputeService {
         );
 
         exchangeService.addExchangeSourceHandler(mainSessionId, mainExchangeSource);
-        var finalListener = ActionListener.runBefore(listener, () -> exchangeService.removeExchangeSourceHandler(sessionId));
+        try (var ignored = mainExchangeSource.addEmptySink()) {
+            var finalListener = ActionListener.runBefore(listener, () -> exchangeService.removeExchangeSourceHandler(sessionId));
+            var computeContext = new ComputeContext(
+                mainSessionId,
+                "single",
+                LOCAL_CLUSTER,
+                List.of(),
+                configuration,
+                foldContext,
+                mainExchangeSource::createExchangeSource,
+                null
+            );
 
-        for (PhysicalPlan subplan : subplans) {
-            var childSessionId = newChildSession(sessionId);
-            ExchangeSinkHandler exchangeSink = exchangeService.createSinkHandler(childSessionId, queryPragmas.exchangeBufferSize());
-            // funnel sub plan pages into the main plan exchange source
-            mainExchangeSource.addRemoteSink(exchangeSink::fetchPageAsync, true, () -> {}, 1, ActionListener.noop());
-            executePlan(childSessionId, rootTask, subplan, configuration, foldContext, execInfo, ActionListener.wrap(result -> {
-                exchangeSink.addCompletionListener(
-                    ActionListener.running(() -> { exchangeService.finishSinkHandler(childSessionId, null); })
-                );
-            }, e -> {
-                exchangeService.finishSinkHandler(childSessionId, e);
-                finalListener.onFailure(e);
-            }), () -> exchangeSink.createExchangeSink(() -> {}));
-        }
+            Runnable cancelQueryOnFailure = cancelQueryOnFailure(rootTask);
+            PhysicalPlan finalMainPlan = mainPlan;
 
-        var computeContext = new ComputeContext(
-            newChildSession(sessionId),
-            "single",
-            LOCAL_CLUSTER,
-            List.of(),
-            configuration,
-            foldContext,
-            mainExchangeSource::createExchangeSource,
-            null
-        );
+            try (
+                ComputeListener localListener = new ComputeListener(
+                    transportService.getThreadPool(),
+                    cancelQueryOnFailure,
+                    finalListener.map(profiles -> {
+                        execInfo.markEndQuery();
+                        return new Result(finalMainPlan.output(), collectedPages, profiles, execInfo);
+                    })
+                )
+            ) {
+                runCompute(rootTask, computeContext, finalMainPlan, localListener.acquireCompute());
+            }
 
-        Runnable cancelQueryOnFailure = cancelQueryOnFailure(rootTask);
-
-        PhysicalPlan finalMainPlan = mainPlan;
-
-        try (
-            ComputeListener localListener = new ComputeListener(
-                transportService.getThreadPool(),
-                cancelQueryOnFailure,
-                finalListener.map(profiles -> {
-                    execInfo.markEndQuery();
-                    return new Result(finalMainPlan.output(), collectedPages, profiles, execInfo);
-                })
-            )
-        ) {
-            runCompute(rootTask, computeContext, finalMainPlan, localListener.acquireCompute());
+            for (PhysicalPlan subplan : subplans) {
+                var childSessionId = newChildSession(sessionId);
+                ExchangeSinkHandler exchangeSink = exchangeService.createSinkHandler(childSessionId, queryPragmas.exchangeBufferSize());
+                // funnel sub plan pages into the main plan exchange source
+                mainExchangeSource.addRemoteSink(exchangeSink::fetchPageAsync, true, () -> {}, 1, ActionListener.noop());
+                executePlan(childSessionId, rootTask, subplan, configuration, foldContext, execInfo, ActionListener.wrap(result -> {
+                    exchangeSink.addCompletionListener(
+                        ActionListener.running(() -> { exchangeService.finishSinkHandler(childSessionId, null); })
+                    );
+                }, e -> {
+                    exchangeService.finishSinkHandler(childSessionId, e);
+                    finalListener.onFailure(e);
+                }), () -> exchangeSink.createExchangeSink(() -> {}));
+            }
         }
     }
 

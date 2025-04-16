@@ -348,14 +348,6 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
         return mergeSettingsIntoTemplate(lookupTemplateForDataStream(name, projectMetadata), settings);
     }
 
-    public static ComposableIndexTemplate getEffectiveIndexTemplate(
-        String dataStreamName,
-        ProjectMetadata projectMetadata,
-        Settings settingsOverrides
-    ) {
-        return mergeSettingsIntoTemplate(lookupTemplateForDataStream(dataStreamName, projectMetadata), settingsOverrides);
-    }
-
     public Settings getEffectiveSettings(ProjectMetadata projectMetadata) {
         ComposableIndexTemplate template = getMatchingIndexTemplate(projectMetadata);
         return mergeSettings(template.template() == null ? Settings.EMPTY : template.template().settings(), settings);

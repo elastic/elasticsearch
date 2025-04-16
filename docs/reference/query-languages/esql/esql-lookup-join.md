@@ -35,7 +35,7 @@ The `LOOKUP JOIN` command adds new columns to a table, with data from {{es}} ind
 :::
 
 `<lookup_index>`
-: The name of the lookup index. This must be a specific index name - wildcards, aliases, and remote cluster references are not supported.  Indices used for lookups must be configured with the [`lookup` index mode](https://claude.ai/reference/elasticsearch/index-settings/index-modules.md#index-mode-setting).
+: The name of the lookup index. This must be a specific index name - wildcards, aliases, and remote cluster references are not supported. Indices used for lookups must be configured with the [`lookup` index mode](/reference/elasticsearch/index-settings/index-modules.md#index-mode-setting).
 
 `<field_name>`
 : The field to join on. This field must exist in both your current query results and in the lookup index. If the field contains multi-valued entries, those entries will not match anything (the added fields will contain `null` for those rows).

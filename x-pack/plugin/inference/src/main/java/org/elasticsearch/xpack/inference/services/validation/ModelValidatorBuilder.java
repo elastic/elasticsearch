@@ -11,7 +11,15 @@ import org.elasticsearch.core.Strings;
 import org.elasticsearch.inference.TaskType;
 
 public class ModelValidatorBuilder {
-    public static ModelValidator buildModelValidator(TaskType taskType) {
+    public static ModelValidator buildModelValidator(TaskType taskType, boolean isElasticsearchInternalService) {
+        if (isElasticsearchInternalService) {
+            return new ElasticsearchInternalServiceModelValidator(new SimpleServiceIntegrationValidator());
+        } else {
+            return buildModelValidatorForTaskType(taskType);
+        }
+    }
+
+    private static ModelValidator buildModelValidatorForTaskType(TaskType taskType) {
         if (taskType == null) {
             throw new IllegalArgumentException("Task type can't be null");
         }

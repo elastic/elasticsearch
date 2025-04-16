@@ -19,7 +19,7 @@ public class StreamingInferenceTestUtils {
 
     public static Deque<ServerSentEvent> events(String... data) {
         var item = new ArrayDeque<ServerSentEvent>();
-        Arrays.stream(data).map(datum -> new ServerSentEvent(ServerSentEventField.DATA, datum)).forEach(item::offer);
+        Arrays.stream(data).map(ServerSentEvent::new).forEach(item::offer);
         return item;
     }
 

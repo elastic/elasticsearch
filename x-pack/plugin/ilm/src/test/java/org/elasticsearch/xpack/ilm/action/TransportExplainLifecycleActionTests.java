@@ -9,7 +9,7 @@ package org.elasticsearch.xpack.ilm.action;
 
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.LifecycleExecutionState;
-import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
@@ -63,165 +63,158 @@ public class TransportExplainLifecycleActionTests extends ESTestCase {
         );
     }
 
-    public void testGetIndexLifecycleExplainResponse() throws IOException {
-        {
-            // only errors index
-            LifecycleExecutionState.Builder errorStepState = LifecycleExecutionState.builder()
-                .setPhase("hot")
-                .setAction("rollover")
-                .setStep(ErrorStep.NAME)
-                .setPhaseDefinition(PHASE_DEFINITION);
-            String indexInErrorStep = "index_in_error";
-            IndexMetadata indexMetadata = IndexMetadata.builder(indexInErrorStep)
-                .settings(settings(IndexVersion.current()).put(LifecycleSettings.LIFECYCLE_NAME, POLICY_NAME))
-                .numberOfShards(randomIntBetween(1, 5))
-                .numberOfReplicas(randomIntBetween(0, 5))
-                .putCustom(ILM_CUSTOM_METADATA_KEY, errorStepState.build().asMap())
-                .build();
-            Metadata metadata = Metadata.builder()
-                .put(indexMetadata, true)
-                .putCustom(IndexLifecycleMetadata.TYPE, createIndexLifecycleMetadata())
-                .build();
+    public void testGetIndexLifecycleExplainResponse_onlyErrors() throws IOException {
+        LifecycleExecutionState.Builder errorStepState = LifecycleExecutionState.builder()
+            .setPhase("hot")
+            .setAction("rollover")
+            .setStep(ErrorStep.NAME)
+            .setPhaseDefinition(PHASE_DEFINITION);
+        String indexInErrorStep = "index_in_error";
+        IndexMetadata indexMetadata = IndexMetadata.builder(indexInErrorStep)
+            .settings(settings(IndexVersion.current()).put(LifecycleSettings.LIFECYCLE_NAME, POLICY_NAME))
+            .numberOfShards(randomIntBetween(1, 5))
+            .numberOfReplicas(randomIntBetween(0, 5))
+            .putCustom(ILM_CUSTOM_METADATA_KEY, errorStepState.build().asMap())
+            .build();
+        ProjectMetadata project = ProjectMetadata.builder(randomProjectIdOrDefault())
+            .put(indexMetadata, true)
+            .putCustom(IndexLifecycleMetadata.TYPE, createIndexLifecycleMetadata())
+            .build();
 
-            IndexLifecycleExplainResponse onlyErrorsResponse = getIndexLifecycleExplainResponse(
-                indexInErrorStep,
-                metadata,
-                true,
-                true,
-                REGISTRY,
-                randomBoolean()
-            );
-            assertThat(onlyErrorsResponse, notNullValue());
-            assertThat(onlyErrorsResponse.getIndex(), is(indexInErrorStep));
-            assertThat(onlyErrorsResponse.getStep(), is(ErrorStep.NAME));
-        }
+        IndexLifecycleExplainResponse onlyErrorsResponse = getIndexLifecycleExplainResponse(
+            indexInErrorStep,
+            project,
+            true,
+            true,
+            REGISTRY,
+            randomBoolean()
+        );
+        assertThat(onlyErrorsResponse, notNullValue());
+        assertThat(onlyErrorsResponse.getIndex(), is(indexInErrorStep));
+        assertThat(onlyErrorsResponse.getStep(), is(ErrorStep.NAME));
+    }
 
-        {
-            // only managed index
-            LifecycleExecutionState.Builder checkRolloverReadyStepState = LifecycleExecutionState.builder()
-                .setPhase("hot")
-                .setAction("rollover")
-                .setStep(WaitForRolloverReadyStep.NAME)
-                .setPhaseDefinition(PHASE_DEFINITION);
+    public void testGetIndexLifecycleExplainResponse_onlyManagedIndex() throws IOException {
+        LifecycleExecutionState.Builder checkRolloverReadyStepState = LifecycleExecutionState.builder()
+            .setPhase("hot")
+            .setAction("rollover")
+            .setStep(WaitForRolloverReadyStep.NAME)
+            .setPhaseDefinition(PHASE_DEFINITION);
 
-            String indexInCheckRolloverStep = "index_in_check_rollover";
-            IndexMetadata indexMetadata = IndexMetadata.builder(indexInCheckRolloverStep)
-                .settings(settings(IndexVersion.current()).put(LifecycleSettings.LIFECYCLE_NAME, POLICY_NAME))
-                .numberOfShards(randomIntBetween(1, 5))
-                .numberOfReplicas(randomIntBetween(0, 5))
-                .putCustom(ILM_CUSTOM_METADATA_KEY, checkRolloverReadyStepState.build().asMap())
-                .build();
-            Metadata metadata = Metadata.builder()
-                .put(indexMetadata, true)
-                .putCustom(IndexLifecycleMetadata.TYPE, createIndexLifecycleMetadata())
-                .build();
+        String indexInCheckRolloverStep = "index_in_check_rollover";
+        IndexMetadata indexMetadata = IndexMetadata.builder(indexInCheckRolloverStep)
+            .settings(settings(IndexVersion.current()).put(LifecycleSettings.LIFECYCLE_NAME, POLICY_NAME))
+            .numberOfShards(randomIntBetween(1, 5))
+            .numberOfReplicas(randomIntBetween(0, 5))
+            .putCustom(ILM_CUSTOM_METADATA_KEY, checkRolloverReadyStepState.build().asMap())
+            .build();
+        ProjectMetadata project = ProjectMetadata.builder(randomProjectIdOrDefault())
+            .put(indexMetadata, true)
+            .putCustom(IndexLifecycleMetadata.TYPE, createIndexLifecycleMetadata())
+            .build();
 
-            IndexLifecycleExplainResponse onlyErrorsResponse = getIndexLifecycleExplainResponse(
-                indexInCheckRolloverStep,
-                metadata,
-                true,
-                true,
-                REGISTRY,
-                randomBoolean()
-            );
-            assertThat(onlyErrorsResponse, nullValue());
+        IndexLifecycleExplainResponse onlyErrorsResponse = getIndexLifecycleExplainResponse(
+            indexInCheckRolloverStep,
+            project,
+            true,
+            true,
+            REGISTRY,
+            randomBoolean()
+        );
+        assertThat(onlyErrorsResponse, nullValue());
 
-            IndexLifecycleExplainResponse allManagedResponse = getIndexLifecycleExplainResponse(
-                indexInCheckRolloverStep,
-                metadata,
-                false,
-                true,
-                REGISTRY,
-                randomBoolean()
-            );
-            assertThat(allManagedResponse, notNullValue());
-            assertThat(allManagedResponse.getIndex(), is(indexInCheckRolloverStep));
-            assertThat(allManagedResponse.getStep(), is(WaitForRolloverReadyStep.NAME));
-        }
+        IndexLifecycleExplainResponse allManagedResponse = getIndexLifecycleExplainResponse(
+            indexInCheckRolloverStep,
+            project,
+            false,
+            true,
+            REGISTRY,
+            randomBoolean()
+        );
+        assertThat(allManagedResponse, notNullValue());
+        assertThat(allManagedResponse.getIndex(), is(indexInCheckRolloverStep));
+        assertThat(allManagedResponse.getStep(), is(WaitForRolloverReadyStep.NAME));
+    }
 
-        {
-            // index with missing policy
-            IndexLifecycleService indexLifecycleService = mock(IndexLifecycleService.class);
-            when(indexLifecycleService.policyExists("random-policy")).thenReturn(false);
+    public void testGetIndexLifecycleExplainResponse_indexWithMissingPolicy() throws IOException {
+        IndexLifecycleService indexLifecycleService = mock(IndexLifecycleService.class);
+        when(indexLifecycleService.policyExists("random-policy")).thenReturn(false);
 
-            String indexWithMissingPolicy = "index_with_missing_policy";
-            IndexMetadata indexMetadata = IndexMetadata.builder(indexWithMissingPolicy)
-                .settings(settings(IndexVersion.current()).put(LifecycleSettings.LIFECYCLE_NAME, "random-policy"))
-                .numberOfShards(randomIntBetween(1, 5))
-                .numberOfReplicas(randomIntBetween(0, 5))
-                .build();
-            Metadata metadata = Metadata.builder()
-                .put(indexMetadata, true)
-                .putCustom(IndexLifecycleMetadata.TYPE, createIndexLifecycleMetadata())
-                .build();
+        String indexWithMissingPolicy = "index_with_missing_policy";
+        IndexMetadata indexMetadata = IndexMetadata.builder(indexWithMissingPolicy)
+            .settings(settings(IndexVersion.current()).put(LifecycleSettings.LIFECYCLE_NAME, "random-policy"))
+            .numberOfShards(randomIntBetween(1, 5))
+            .numberOfReplicas(randomIntBetween(0, 5))
+            .build();
+        ProjectMetadata project = ProjectMetadata.builder(randomProjectIdOrDefault())
+            .put(indexMetadata, true)
+            .putCustom(IndexLifecycleMetadata.TYPE, createIndexLifecycleMetadata())
+            .build();
 
-            IndexLifecycleExplainResponse onlyErrorsResponse = getIndexLifecycleExplainResponse(
-                indexWithMissingPolicy,
-                metadata,
-                true,
-                true,
-                REGISTRY,
-                randomBoolean()
-            );
-            assertThat(onlyErrorsResponse, notNullValue());
-            assertThat(onlyErrorsResponse.getPolicyName(), is("random-policy"));
-            assertThat(onlyErrorsResponse.getStep(), is(ErrorStep.NAME));
-        }
+        IndexLifecycleExplainResponse onlyErrorsResponse = getIndexLifecycleExplainResponse(
+            indexWithMissingPolicy,
+            project,
+            true,
+            true,
+            REGISTRY,
+            randomBoolean()
+        );
+        assertThat(onlyErrorsResponse, notNullValue());
+        assertThat(onlyErrorsResponse.getPolicyName(), is("random-policy"));
+        assertThat(onlyErrorsResponse.getStep(), is(ErrorStep.NAME));
+    }
 
-        {
-            // not managed index
-            IndexMetadata indexMetadata = IndexMetadata.builder("index")
-                .settings(settings(IndexVersion.current()))
-                .numberOfShards(randomIntBetween(1, 5))
-                .numberOfReplicas(randomIntBetween(0, 5))
-                .build();
-            Metadata metadata = Metadata.builder()
-                .put(indexMetadata, true)
-                .putCustom(IndexLifecycleMetadata.TYPE, createIndexLifecycleMetadata())
-                .build();
+    public void testGetIndexLifecycleExplainResponse_notManagedIndex() throws IOException {
+        IndexMetadata indexMetadata = IndexMetadata.builder("index")
+            .settings(settings(IndexVersion.current()))
+            .numberOfShards(randomIntBetween(1, 5))
+            .numberOfReplicas(randomIntBetween(0, 5))
+            .build();
+        ProjectMetadata project = ProjectMetadata.builder(randomProjectIdOrDefault())
+            .put(indexMetadata, true)
+            .putCustom(IndexLifecycleMetadata.TYPE, createIndexLifecycleMetadata())
+            .build();
 
-            IndexLifecycleExplainResponse onlyManaged = getIndexLifecycleExplainResponse(
-                "index",
-                metadata,
-                false,
-                true,
-                REGISTRY,
-                randomBoolean()
-            );
-            assertThat(onlyManaged, nullValue());
-        }
+        IndexLifecycleExplainResponse onlyManaged = getIndexLifecycleExplainResponse(
+            "index",
+            project,
+            false,
+            true,
+            REGISTRY,
+            randomBoolean()
+        );
+        assertThat(onlyManaged, nullValue());
+    }
 
-        {
-            // validate addition of default condition with `rolloverOnlyIfHasDocuments` true
-            LifecycleExecutionState.Builder checkRolloverReadyStepState = LifecycleExecutionState.builder()
-                .setPhase("hot")
-                .setAction("rollover")
-                .setStep(WaitForRolloverReadyStep.NAME)
-                .setPhaseDefinition(PHASE_DEFINITION);
-            String indexInCheckRolloverStep = "index_in_check_rollover";
-            IndexMetadata indexMetadata = IndexMetadata.builder(indexInCheckRolloverStep)
-                .settings(settings(IndexVersion.current()).put(LifecycleSettings.LIFECYCLE_NAME, POLICY_NAME))
-                .numberOfShards(randomIntBetween(1, 5))
-                .numberOfReplicas(randomIntBetween(0, 5))
-                .putCustom(ILM_CUSTOM_METADATA_KEY, checkRolloverReadyStepState.build().asMap())
-                .build();
-            Metadata metadata = Metadata.builder()
-                .put(indexMetadata, true)
-                .putCustom(IndexLifecycleMetadata.TYPE, createIndexLifecycleMetadata())
-                .build();
+    public void testGetIndexLifecycleExplainResponse_rolloverOnlyIfHasDocuments_addsCondition() throws IOException {
+        LifecycleExecutionState.Builder checkRolloverReadyStepState = LifecycleExecutionState.builder()
+            .setPhase("hot")
+            .setAction("rollover")
+            .setStep(WaitForRolloverReadyStep.NAME)
+            .setPhaseDefinition(PHASE_DEFINITION);
+        String indexInCheckRolloverStep = "index_in_check_rollover";
+        IndexMetadata indexMetadata = IndexMetadata.builder(indexInCheckRolloverStep)
+            .settings(settings(IndexVersion.current()).put(LifecycleSettings.LIFECYCLE_NAME, POLICY_NAME))
+            .numberOfShards(randomIntBetween(1, 5))
+            .numberOfReplicas(randomIntBetween(0, 5))
+            .putCustom(ILM_CUSTOM_METADATA_KEY, checkRolloverReadyStepState.build().asMap())
+            .build();
+        ProjectMetadata project = ProjectMetadata.builder(randomProjectIdOrDefault())
+            .put(indexMetadata, true)
+            .putCustom(IndexLifecycleMetadata.TYPE, createIndexLifecycleMetadata())
+            .build();
 
-            IndexLifecycleExplainResponse response = getIndexLifecycleExplainResponse(
-                indexInCheckRolloverStep,
-                metadata,
-                false,
-                true,
-                REGISTRY,
-                true
-            );
-            var rolloverAction = ((RolloverAction) response.getPhaseExecutionInfo().getPhase().getActions().get(RolloverAction.NAME));
-            assertThat(rolloverAction, notNullValue());
-            assertThat(rolloverAction.getConditions().getMinDocs(), is(1L));
-        }
+        IndexLifecycleExplainResponse response = getIndexLifecycleExplainResponse(
+            indexInCheckRolloverStep,
+            project,
+            false,
+            true,
+            REGISTRY,
+            true
+        );
+        var rolloverAction = ((RolloverAction) response.getPhaseExecutionInfo().getPhase().getActions().get(RolloverAction.NAME));
+        assertThat(rolloverAction, notNullValue());
+        assertThat(rolloverAction.getConditions().getMinDocs(), is(1L));
     }
 
     private static IndexLifecycleMetadata createIndexLifecycleMetadata() {

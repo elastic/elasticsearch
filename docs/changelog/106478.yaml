@@ -1,0 +1,6 @@
+pr: 106478
+summary: TransportMountSearchableSnapshotAction-set-parentTaskId
+area: Snapshot/Restore
+type: enhancement
+issues:
+ - 105830

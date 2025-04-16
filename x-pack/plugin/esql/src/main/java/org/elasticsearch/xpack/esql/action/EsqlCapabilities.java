@@ -905,6 +905,11 @@ public class EsqlCapabilities {
         FULL_TEXT_FUNCTIONS_DISJUNCTIONS_SCORE,
 
         /**
+         * Support for multi-match function.
+         */
+        MULTI_MATCH_FUNCTION(Build.current().isSnapshot()),
+
+        /**
          * Do {@code TO_LOWER} and {@code TO_UPPER} process all field values?
          */
         TO_LOWER_MV,
@@ -978,9 +983,9 @@ public class EsqlCapabilities {
         MAX_OVER_TIME(Build.current().isSnapshot()),
 
         /**
-         * Support STATS/EVAL/DISSECT in Fork branches
+         * Support streaming of sub plan results
          */
-        FORK_V2(Build.current().isSnapshot()),
+        FORK_V3(Build.current().isSnapshot()),
 
         /**
          * Support for the {@code leading_zeros} named parameter.
@@ -1000,7 +1005,13 @@ public class EsqlCapabilities {
         /**
          * Support loading of ip fields if they are not indexed.
          */
-        LOADING_NON_INDEXED_IP_FIELDS;
+        LOADING_NON_INDEXED_IP_FIELDS,
+
+        /**
+         * During resolution (pre-analysis) we have to consider that joins or enriches can override EVALuated values
+         * https://github.com/elastic/elasticsearch/issues/126419
+         */
+        FIX_JOIN_MASKING_EVAL;
 
         private final boolean enabled;
 

@@ -153,14 +153,14 @@ public final class SearchPhaseController {
         final TopDocs mergedTopDocs;
         if (topDocs instanceof TopFieldGroups firstTopDocs) {
             final Sort sort = new Sort(firstTopDocs.fields);
-            TopFieldGroups[] shardTopDocs = topDocsList.toArray(TopFieldGroups[]::new);
+            TopFieldGroups[] shardTopDocs = topDocsList.toArray(new TopFieldGroups[0]);
             mergedTopDocs = TopFieldGroups.merge(sort, from, topN, shardTopDocs, false);
         } else if (topDocs instanceof TopFieldDocs firstTopDocs) {
-            TopFieldDocs[] shardTopDocs = topDocsList.toArray(TopFieldDocs[]::new);
+            TopFieldDocs[] shardTopDocs = topDocsList.toArray(new TopFieldDocs[0]);
             final Sort sort = checkSameSortTypes(topDocsList, firstTopDocs.fields);
             mergedTopDocs = TopDocs.merge(sort, from, topN, shardTopDocs);
         } else {
-            final TopDocs[] shardTopDocs = topDocsList.toArray(new TopDocs[numShards]);
+            final TopDocs[] shardTopDocs = topDocsList.toArray(new TopDocs[0]);
             mergedTopDocs = TopDocs.merge(from, topN, shardTopDocs);
         }
         return mergedTopDocs;

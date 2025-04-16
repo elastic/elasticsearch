@@ -648,15 +648,34 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
             // no need to allocate a new capturing lambda if the offset isn't adjusted
             return writer;
         }
-        return (channel, channelPos, streamFactory, relativePos, len, progressUpdater, completionListener) -> writer.fillCacheRange(
-            channel,
-            channelPos,
-            streamFactory,
-            relativePos - writeOffset,
-            len,
-            progressUpdater,
-            completionListener
-        );
+
+        return new RangeMissingHandler() {
+            @Override
+            public void fillCacheRange(
+                SharedBytes.IO channel,
+                int channelPos,
+                SourceInputStreamFactory streamFactory,
+                int relativePos,
+                int length,
+                IntConsumer progressUpdater,
+                ActionListener<Void> completionListener
+            ) throws IOException {
+                writer.fillCacheRange(
+                    channel,
+                    channelPos,
+                    streamFactory,
+                    relativePos - writeOffset,
+                    length,
+                    progressUpdater,
+                    completionListener
+                );
+            }
+
+            @Override
+            public SourceInputStreamFactory sharedInputStreamFactory(List<SparseFileTracker.Gap> gaps) {
+                return writer.sharedInputStreamFactory(gaps);
+            }
+        };
     }
 
     // used by tests

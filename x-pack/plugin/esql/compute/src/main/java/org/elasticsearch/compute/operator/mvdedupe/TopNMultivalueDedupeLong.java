@@ -203,6 +203,8 @@ public class TopNMultivalueDedupeLong {
                         if (hasNull) {
                             sawNull = true;
                             builder.appendInt(0);
+                        } else {
+                            builder.appendNull();
                         }
                     }
                     case 1 -> {
@@ -326,7 +328,10 @@ public class TopNMultivalueDedupeLong {
 
         w = 0;
         for (int i = first; i < end; i++) {
-            work[w++] = block.getLong(i);
+            long value = block.getLong(i);
+            if (isAcceptable.test(value)) {
+                work[w++] = value;
+            }
         }
 
         Arrays.sort(work, 0, w);
@@ -344,12 +349,14 @@ public class TopNMultivalueDedupeLong {
         w = 1;
         i: for (int i = first + 1; i < end; i++) {
             long v = block.getLong(i);
-            for (int j = 0; j < w; j++) {
-                if (v == work[j]) {
-                    continue i;
+            if (isAcceptable.test(v)) {
+                for (int j = 0; j < w; j++) {
+                    if (v == work[j]) {
+                        continue i;
+                    }
                 }
+                work[w++] = v;
             }
-            work[w++] = v;
         }
     }
 
@@ -403,67 +410,47 @@ public class TopNMultivalueDedupeLong {
      * Writes an already deduplicated {@link #work} to a hash.
      */
     private void hashAddUniquedWork(LongHash hash, IntBlock.Builder builder) {
+        if (w == 0) {
+            builder.appendNull();
+            return;
+        }
+
         if (w == 1) {
-            hashAdd(builder, hash, work[0]);
+            hashAddNoCheck(builder, hash, work[0]);
             return;
         }
 
-        int totalAcceptableValues = 0;
+        builder.beginPositionEntry();
         for (int i = 0; i < w; i++) {
-            if (isAcceptable.test(work[i])) {
-                totalAcceptableValues++;
-            }
+            hashAddNoCheck(builder, hash, work[i]);
         }
-
-        if (totalAcceptableValues == 0) {
-            return;
-        }
-
-        if (totalAcceptableValues > 1) {
-            builder.beginPositionEntry();
-        }
-        for (int i = 0; i < w; i++) {
-            hashAdd(builder, hash, work[i]);
-        }
-        if (totalAcceptableValues > 1) {
-            builder.endPositionEntry();
-        }
+        builder.endPositionEntry();
     }
 
     /**
      * Writes a sorted {@link #work} to a hash, skipping duplicates.
      */
     private void hashAddSortedWork(LongHash hash, IntBlock.Builder builder) {
+        if (w == 0) {
+            builder.appendNull();
+            return;
+        }
+
         if (w == 1) {
-            hashAdd(builder, hash, work[0]);
+            hashAddNoCheck(builder, hash, work[0]);
             return;
         }
 
-        int totalAcceptableValues = 0;
-        for (int i = 0; i < w; i++) {
-            if (isAcceptable.test(work[i])) {
-                totalAcceptableValues++;
-            }
-        }
-
-        if (totalAcceptableValues == 0) {
-            return;
-        }
-
-        if (totalAcceptableValues > 1) {
-            builder.beginPositionEntry();
-        }
+        builder.beginPositionEntry();
         long prev = work[0];
-        hashAdd(builder, hash, prev);
+        hashAddNoCheck(builder, hash, prev);
         for (int i = 1; i < w; i++) {
             if (false == valuesEqual(prev, work[i])) {
                 prev = work[i];
-                hashAdd(builder, hash, prev);
+                hashAddNoCheck(builder, hash, prev);
             }
         }
-        if (totalAcceptableValues > 1) {
-            builder.endPositionEntry();
-        }
+        builder.endPositionEntry();
     }
 
     /**
@@ -628,8 +615,14 @@ public class TopNMultivalueDedupeLong {
 
     private void hashAdd(IntBlock.Builder builder, LongHash hash, long v) {
         if (isAcceptable.test(v)) {
-            appendFound(builder, hash.add(v));
+            hashAddNoCheck(builder, hash, v);
+        } else {
+            builder.appendNull();
         }
+    }
+
+    private void hashAddNoCheck(IntBlock.Builder builder, LongHash hash, long v) {
+        appendFound(builder, hash.add(v));
     }
 
     private long hashLookup(LongHash hash, long v) {

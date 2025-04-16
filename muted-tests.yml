@@ -253,9 +253,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.expression.function.scalar.convert.ParseIpTests
   method: testLeadingZerosAreOctal {TestCase[str=v4, validLeadingZerosRejected=true, validLeadingZerosAreDecimal=true, validLeadingZerosAreOctal=true]}
   issue: https://github.com/elastic/elasticsearch/issues/126496
-- class: org.elasticsearch.xpack.test.rest.XPackRestIT
-  method: test {p0=migrate/20_reindex_status/Test Reindex With Existing Data Stream}
-  issue: https://github.com/elastic/elasticsearch/issues/126769
 - class: org.elasticsearch.upgrades.LogsIndexModeFullClusterRestartIT
   method: testLogsIndexing {cluster=UPGRADED}
   issue: https://github.com/elastic/elasticsearch/issues/126967

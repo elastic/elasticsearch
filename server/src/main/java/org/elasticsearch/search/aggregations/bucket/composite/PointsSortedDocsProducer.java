@@ -58,7 +58,7 @@ class PointsSortedDocsProducer extends SortedDocsProducer {
             }
             upperBucket = (Long) upperValue;
         }
-        DocIdSetBuilder builder = fillDocIdSet ? new DocIdSetBuilder(context.reader().maxDoc(), values, field) : null;
+        DocIdSetBuilder builder = fillDocIdSet ? new DocIdSetBuilder(context.reader().maxDoc(), values) : null;
         Visitor visitor = new Visitor(context, queue, builder, values.getBytesPerDimension(), lowerBucket, upperBucket);
         try {
             values.intersect(visitor);

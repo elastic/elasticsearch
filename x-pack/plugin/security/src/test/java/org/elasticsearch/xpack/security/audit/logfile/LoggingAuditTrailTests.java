@@ -39,9 +39,9 @@ import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.rest.FakeRestRequest;
 import org.elasticsearch.test.rest.FakeRestRequest.Builder;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.AbstractTransportRequest;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -2981,7 +2981,7 @@ public class LoggingAuditTrailTests extends ESTestCase {
 
     private Tuple<Channel, RestRequest> prepareRestContent(String uri, InetSocketAddress remoteAddress, Map<String, String> params) {
         final RestContent content = randomFrom(RestContent.values());
-        final FakeRestRequest.Builder builder = new Builder(NamedXContentRegistry.EMPTY);
+        final Builder builder = new Builder(NamedXContentRegistry.EMPTY);
         if (content.hasContent()) {
             builder.withContent(content.content(), XContentType.JSON);
         }
@@ -3005,7 +3005,9 @@ public class LoggingAuditTrailTests extends ESTestCase {
         return new Tuple<>(channel, builder.build());
     }
 
-    /** creates address without any lookups. hostname can be null, for missing */
+    /**
+     * creates address without any lookups. hostname can be null, for missing
+     */
     protected static InetAddress forge(String hostname, String address) throws IOException {
         final byte bytes[] = InetAddress.getByName(address).getAddress();
         return InetAddress.getByAddress(hostname, bytes);
@@ -3054,7 +3056,7 @@ public class LoggingAuditTrailTests extends ESTestCase {
         return authentication;
     }
 
-    static class MockRequest extends TransportRequest {
+    static class MockRequest extends AbstractTransportRequest {
 
         MockRequest(ThreadContext threadContext) throws IOException {
             if (randomBoolean()) {
@@ -3265,7 +3267,9 @@ public class LoggingAuditTrailTests extends ESTestCase {
         }
     }
 
-    private record ApiKeyMetadataWithSerialization(Map<String, Object> metadata, String serialization) {};
+    private record ApiKeyMetadataWithSerialization(Map<String, Object> metadata, String serialization) {}
+
+    ;
 
     private ApiKeyMetadataWithSerialization randomApiKeyMetadataWithSerialization() {
         final int metadataCase = randomInt(3);
@@ -3288,7 +3292,9 @@ public class LoggingAuditTrailTests extends ESTestCase {
         };
     }
 
-    private record CrossClusterApiKeyAccessWithSerialization(String access, String serialization) {};
+    private record CrossClusterApiKeyAccessWithSerialization(String access, String serialization) {}
+
+    ;
 
     private CrossClusterApiKeyAccessWithSerialization randomCrossClusterApiKeyAccessWithSerialization() {
         return randomFrom(

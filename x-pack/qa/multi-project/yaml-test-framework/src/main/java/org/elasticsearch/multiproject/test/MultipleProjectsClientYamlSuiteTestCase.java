@@ -35,14 +35,7 @@ public abstract class MultipleProjectsClientYamlSuiteTestCase extends ESClientYa
 
     @Override
     protected Settings restClientSettings() {
-        return clientSettings();
-    }
-
-    private Settings clientSettings() {
         String token = basicAuthHeaderValue(USER, new SecureString(PASS.toCharArray()));
-        final Settings.Builder builder = Settings.builder()
-            .put(super.restClientSettings())
-            .put(ThreadContext.PREFIX + ".Authorization", token);
-        return builder.build();
+        return Settings.builder().put(super.restClientSettings()).put(ThreadContext.PREFIX + ".Authorization", token).build();
     }
 }

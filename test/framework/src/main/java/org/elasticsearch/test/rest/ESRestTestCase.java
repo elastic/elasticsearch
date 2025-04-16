@@ -2794,7 +2794,7 @@ public abstract class ESRestTestCase extends ESTestCase {
     protected void cleanUpProjects() throws IOException {
         final var projectIds = getProjectIds(adminClient());
         for (String projectId : projectIds) {
-            if (projectId.equals(ProjectId.DEFAULT.id())) {
+            if (projectId.equals(ProjectId.DEFAULT.id()) || projectId.equals(activeProject) || extraProjects.contains(projectId)) {
                 continue;
             }
             deleteProject(projectId);

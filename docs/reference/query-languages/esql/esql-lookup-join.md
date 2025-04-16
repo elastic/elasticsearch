@@ -1,7 +1,7 @@
 ---
 navigation_title: "Correlate data with LOOKUP JOIN"
 mapped_pages:
- - https://www.elastic.co/guide/en/elasticsearch/reference/current/esql-enrich-data.html
+ - https://www.elastic.co/guide/en/elasticsearch/reference/8.18/_lookup_join.html
 ---
 
 # LOOKUP JOIN [esql-lookup-join-reference]
@@ -35,7 +35,7 @@ The `LOOKUP JOIN` command adds new columns to a table, with data from {{es}} ind
 :::
 
 `<lookup_index>`
-: The name of the lookup index. This must be a specific index name - wildcards, aliases, and remote cluster references are not supported.
+: The name of the lookup index. This must be a specific index name - wildcards, aliases, and remote cluster references are not supported. Indices used for lookups must be configured with the [`lookup` index mode](/reference/elasticsearch/index-settings/index-modules.md#index-mode-setting).
 
 `<field_name>`
 : The field to join on. This field must exist in both your current query results and in the lookup index. If the field contains multi-valued entries, those entries will not match anything (the added fields will contain `null` for those rows).
@@ -107,6 +107,7 @@ FROM employees
 
 To use `LOOKUP JOIN`, the following requirements must be met:
 
+* Indices used for lookups must be configured with the [`lookup` index mode](/reference/elasticsearch/index-settings/index-modules.md#index-mode-setting)
 * **Compatible data types**: The join key and join field in the lookup index must have compatible data types. This means:
   * The data types must either be identical or be internally represented as the same type in {{esql}}
   * Numeric types follow these compatibility rules:
@@ -122,7 +123,7 @@ For a complete list of supported data types and their internal representations, 
 
 The following are the current limitations with `LOOKUP JOIN`
 
-* Indices in [lookup](/reference/elasticsearch/index-settings/index-modules.md#index-mode-setting) mode are always single-sharded.
+* Indices in [`lookup` mode](/reference/elasticsearch/index-settings/index-modules.md#index-mode-setting) are always single-sharded.
 * Cross cluster search is unsupported initially. Both source and lookup indices must be local.
 * Currently, only matching on equality is supported.
 * `LOOKUP JOIN` can only use a single match field and a single index. Wildcards, aliases, datemath, and datastreams are not supported.

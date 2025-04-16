@@ -44,12 +44,12 @@ public class StGeohex extends SpatialGridFunction implements EvaluatorMapper {
      * This uses GeoHexBoundedPredicate to check if the cell is valid.
      */
     protected static class GeoHexBoundedGrid implements BoundedGrid {
-        private final GeoHexBoundedPredicate bounds;
         private final int precision;
+        private final GeoHexBoundedPredicate bounds;
 
         public GeoHexBoundedGrid(int precision, GeoBoundingBox bbox) {
+            this.precision = checkPrecisionRange(precision);
             this.bounds = new GeoHexBoundedPredicate(bbox);
-            this.precision = precision;
         }
 
         public long calculateGridId(Point point) {
@@ -72,18 +72,33 @@ public class StGeohex extends SpatialGridFunction implements EvaluatorMapper {
      * For unbounded grids, we don't need to check if the tile is valid,
      * just calculate the encoded long intersecting the point at that precision.
      */
-    protected static final UnboundedGrid unboundedGrid = new UnboundedGrid() {
-        @Override
-        public long calculateGridId(Point point, int precision) {
-            return H3.geoToH3(point.getLat(), point.getLon(), precision);
-        }
-    };
+    protected static final UnboundedGrid unboundedGrid = (point, precision) -> H3.geoToH3(
+        point.getLat(),
+        point.getLon(),
+        checkPrecisionRange(precision)
+    );
 
-    @FunctionInfo(returnType = "long", description = """
-        Calculates the `geohex`, the H3 cell-id, of the supplied geo_point at the specified precision.
-        The result is long encoded. Use [ST_GEOHEX_TO_STRING](#esql-st_geohex_to_string) to convert the result to a string.
-        Or use [ST_GEOHEX_TO_GEOSHAPE](#esql-st_geohex_to_geoshape) to convert either the long or string `geohex` to a
-        POLYGON geo_shape.""", examples = @Example(file = "spatial-grid", tag = "st_geohex-grid"))
+    private static int checkPrecisionRange(int precision) {
+        if (precision < 1 || precision > H3.MAX_H3_RES) {
+            throw new IllegalArgumentException(
+                "Invalid geohex precision of " + precision + ". Must be between 0 and " + H3.MAX_H3_RES + "."
+            );
+        }
+        return precision;
+    }
+
+    @FunctionInfo(
+        returnType = "long",
+        description = """
+            Calculates the `geohex`, the H3 cell-id, of the supplied geo_point at the specified precision.
+            The result is long encoded. Use [ST_GEOHEX_TO_STRING](#esql-st_geohex_to_string) to convert the result to a string.
+            Or use [ST_GEOHEX_TO_GEOSHAPE](#esql-st_geohex_to_geoshape) to convert either the long or string `geohex` to a
+            POLYGON geo_shape.
+
+            These functions are related to the [`geo_grid` query](/reference/query-languages/query-dsl/query-dsl-geo-grid-query)
+            and the [`geohex_grid` aggregation](/reference/aggregations/search-aggregations-bucket-geohexgrid-aggregation).""",
+        examples = @Example(file = "spatial-grid", tag = "st_geohex-grid")
+    )
     public StGeohex(
         Source source,
         @Param(
@@ -91,17 +106,12 @@ public class StGeohex extends SpatialGridFunction implements EvaluatorMapper {
             type = { "geo_point" },
             description = "Expression of type `geo_point`. If `null`, the function returns `null`."
         ) Expression field,
-        @Param(
-            name = "precision",
-            type = { "integer" },
-            description = "Expression of type `integer`. If `null`, the function returns `null`."
-        ) Expression precision,
-        @Param(
-            name = "bounds",
-            type = { "geo_shape", "geo_point" },
-            description = "Bounds to filter the grid tiles, either a geo_shape BBOX or an array of two points",
-            optional = true
-        ) Expression bounds
+        @Param(name = "precision", type = { "integer" }, description = """
+            Expression of type `integer`. If `null`, the function returns `null`.
+            Valid values are between [0 and 15](https://h3geo.org/docs/core-library/restable/).""") Expression precision,
+        @Param(name = "bounds", type = { "geo_shape", "geo_point" }, description = """
+            Optional bounds to filter the grid tiles, either a `geo_shape` or an array of at least two `geo_point`s.
+            The envelope of the `geo_shape` is used as bounds.""", optional = true) Expression bounds
     ) {
         this(source, field, precision, bounds, false);
     }
@@ -147,7 +157,7 @@ public class StGeohex extends SpatialGridFunction implements EvaluatorMapper {
             if (bounds.foldable() == false) {
                 throw new IllegalArgumentException("bounds must be foldable");
             }
-            GeoBoundingBox bbox = asGeoBoundingBox((BytesRef) bounds.fold(toEvaluator.foldCtx()));
+            GeoBoundingBox bbox = asGeoBoundingBox(bounds.fold(toEvaluator.foldCtx()));
             if (spatialField().foldable()) {
                 // Assume right is not foldable, since that would be dealt with in isFoldable() and fold()
                 var point = (BytesRef) spatialField.fold(toEvaluator.foldCtx());
@@ -186,7 +196,7 @@ public class StGeohex extends SpatialGridFunction implements EvaluatorMapper {
                 return new StGeohexFromLiteralAndFieldEvaluator.Factory(source(), point, toEvaluator.apply(parameter()));
             } else if (parameter().foldable()) {
                 // Assume left is not foldable, since that would be dealt with in isFoldable() and fold()
-                int precision = (int) parameter.fold(toEvaluator.foldCtx());
+                int precision = checkPrecisionRange((int) parameter.fold(toEvaluator.foldCtx()));
                 return spatialDocsValues
                     ? new StGeohexFromFieldDocValuesAndLiteralEvaluator.Factory(source(), toEvaluator.apply(spatialField()), precision)
                     : new StGeohexFromFieldAndLiteralEvaluator.Factory(source(), toEvaluator.apply(spatialField), precision);
@@ -210,7 +220,7 @@ public class StGeohex extends SpatialGridFunction implements EvaluatorMapper {
     @Override
     public Object fold(FoldContext ctx) {
         var point = (BytesRef) spatialField().fold(ctx);
-        int precision = (int) parameter().fold(ctx);
+        int precision = checkPrecisionRange((int) parameter().fold(ctx));
         if (bounds() == null) {
             return fromLiteralAndField(point, precision);
         } else {
@@ -230,12 +240,12 @@ public class StGeohex extends SpatialGridFunction implements EvaluatorMapper {
 
     @Evaluator(extraName = "FromFieldAndField", warnExceptions = { IllegalArgumentException.class })
     static void fromFieldAndField(LongBlock.Builder results, int p, BytesRefBlock in, int precision) {
-        fromWKB(results, p, in, precision, unboundedGrid);
+        fromWKB(results, p, in, checkPrecisionRange(precision), unboundedGrid);
     }
 
     @Evaluator(extraName = "FromFieldDocValuesAndField", warnExceptions = { IllegalArgumentException.class })
     static void fromFieldDocValuesAndField(LongBlock.Builder results, int p, LongBlock encoded, int precision) {
-        fromEncodedLong(results, p, encoded, precision, unboundedGrid);
+        fromEncodedLong(results, p, encoded, checkPrecisionRange(precision), unboundedGrid);
     }
 
     @Evaluator(extraName = "FromLiteralAndField", warnExceptions = { IllegalArgumentException.class })

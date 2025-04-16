@@ -31,6 +31,7 @@ import org.elasticsearch.xpack.esql.expression.function.Param;
 
 import java.io.IOException;
 
+import static org.elasticsearch.search.aggregations.bucket.geogrid.GeoTileUtils.checkPrecisionRange;
 import static org.elasticsearch.xpack.esql.core.type.DataType.LONG;
 import static org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes.GEO;
 
@@ -49,16 +50,16 @@ public class StGeotile extends SpatialGridFunction implements EvaluatorMapper {
      * This uses GeoTileBoundedPredicate to check if the tile is valid.
      */
     protected static class GeoTileBoundedGrid implements BoundedGrid {
-        private final GeoTileBoundedPredicate bounds;
         private final int precision;
+        private final GeoTileBoundedPredicate bounds;
 
         public GeoTileBoundedGrid(int precision, GeoBoundingBox bbox) {
+            this.precision = checkPrecisionRange(precision);
             this.bounds = new GeoTileBoundedPredicate(precision, bbox);
-            this.precision = precision;
         }
 
         public long calculateGridId(Point point) {
-            final int tiles = 1 << GeoTileUtils.checkPrecisionRange(precision);
+            final int tiles = 1 << precision;
             final int x = GeoTileUtils.getXTile(point.getX(), tiles);
             final int y = GeoTileUtils.getYTile(point.getY(), tiles);
             if (bounds.validTile(x, y, precision)) {
@@ -78,18 +79,24 @@ public class StGeotile extends SpatialGridFunction implements EvaluatorMapper {
      * For unbounded grids, we don't need to check if the tile is valid,
      * just calculate the encoded long intersecting the point at that precision.
      */
-    protected static final UnboundedGrid unboundedGrid = new UnboundedGrid() {
-        @Override
-        public long calculateGridId(Point point, int precision) {
-            return GeoTileUtils.longEncode(point.getX(), point.getY(), precision);
-        }
-    };
+    protected static final UnboundedGrid unboundedGrid = (point, precision) -> GeoTileUtils.longEncode(
+        point.getX(),
+        point.getY(),
+        checkPrecisionRange(precision)
+    );
 
-    @FunctionInfo(returnType = "long", description = """
-        Calculates the `geotile` of the supplied geo_point at the specified precision.
-        The result is long encoded. Use [ST_GEOTILE_TO_STRING](#esql-st_geotile_to_string) to convert the result to a string.
-        Or use [ST_GEOTILE_TO_GEOSHAPE](#esql-st_geotile_to_geoshape) to convert either the long or string `geotile` to a
-        POLYGON geo_shape.""", examples = @Example(file = "spatial-grid", tag = "st_geotile-grid"))
+    @FunctionInfo(
+        returnType = "long",
+        description = """
+            Calculates the `geotile` of the supplied geo_point at the specified precision.
+            The result is long encoded. Use [ST_GEOTILE_TO_STRING](#esql-st_geotile_to_string) to convert the result to a string.
+            Or use [ST_GEOTILE_TO_GEOSHAPE](#esql-st_geotile_to_geoshape) to convert either the long or string `geotile` to a
+            POLYGON geo_shape.
+
+            These functions are related to the [`geo_grid` query](/reference/query-languages/query-dsl/query-dsl-geo-grid-query)
+            and the [`geotile_grid` aggregation](/reference/aggregations/search-aggregations-bucket-geotilegrid-aggregation).""",
+        examples = @Example(file = "spatial-grid", tag = "st_geotile-grid")
+    )
     public StGeotile(
         Source source,
         @Param(
@@ -97,17 +104,12 @@ public class StGeotile extends SpatialGridFunction implements EvaluatorMapper {
             type = { "geo_point" },
             description = "Expression of type `geo_point`. If `null`, the function returns `null`."
         ) Expression field,
-        @Param(
-            name = "precision",
-            type = { "integer" },
-            description = "Expression of type `integer`. If `null`, the function returns `null`."
-        ) Expression precision,
-        @Param(
-            name = "bounds",
-            type = { "geo_shape", "geo_point" },
-            description = "Bounds to filter the grid tiles, either a geo_shape BBOX or an array of two points",
-            optional = true
-        ) Expression bounds
+        @Param(name = "precision", type = { "integer" }, description = """
+            Expression of type `integer`. If `null`, the function returns `null`.
+            Valid values are between [0 and 29](https://wiki.openstreetmap.org/wiki/Zoom_levels).""") Expression precision,
+        @Param(name = "bounds", type = { "geo_shape", "geo_point" }, description = """
+            Optional bounds to filter the grid tiles, either a `geo_shape` or an array of at least two `geo_point`s.
+            The envelope of the `geo_shape` is used as bounds.""", optional = true) Expression bounds
     ) {
         this(source, field, precision, bounds, false);
     }
@@ -153,7 +155,7 @@ public class StGeotile extends SpatialGridFunction implements EvaluatorMapper {
             if (bounds.foldable() == false) {
                 throw new IllegalArgumentException("bounds must be foldable");
             }
-            GeoBoundingBox bbox = asGeoBoundingBox((BytesRef) bounds.fold(toEvaluator.foldCtx()));
+            GeoBoundingBox bbox = asGeoBoundingBox(bounds.fold(toEvaluator.foldCtx()));
             if (spatialField().foldable()) {
                 // Assume right is not foldable, since that would be dealt with in isFoldable() and fold()
                 var point = (BytesRef) spatialField.fold(toEvaluator.foldCtx());
@@ -192,7 +194,7 @@ public class StGeotile extends SpatialGridFunction implements EvaluatorMapper {
                 return new StGeotileFromLiteralAndFieldEvaluator.Factory(source(), point, toEvaluator.apply(parameter()));
             } else if (parameter().foldable()) {
                 // Assume left is not foldable, since that would be dealt with in isFoldable() and fold()
-                int precision = (int) parameter.fold(toEvaluator.foldCtx());
+                int precision = checkPrecisionRange((int) parameter.fold(toEvaluator.foldCtx()));
                 return spatialDocsValues
                     ? new StGeotileFromFieldDocValuesAndLiteralEvaluator.Factory(source(), toEvaluator.apply(spatialField()), precision)
                     : new StGeotileFromFieldAndLiteralEvaluator.Factory(source(), toEvaluator.apply(spatialField), precision);
@@ -216,7 +218,7 @@ public class StGeotile extends SpatialGridFunction implements EvaluatorMapper {
     @Override
     public Object fold(FoldContext ctx) {
         var point = (BytesRef) spatialField().fold(ctx);
-        int precision = (int) parameter().fold(ctx);
+        int precision = checkPrecisionRange((int) parameter().fold(ctx));
         if (bounds() == null) {
             return fromLiteralAndField(point, precision);
         } else {
@@ -236,12 +238,12 @@ public class StGeotile extends SpatialGridFunction implements EvaluatorMapper {
 
     @Evaluator(extraName = "FromFieldAndField", warnExceptions = { IllegalArgumentException.class })
     static void fromFieldAndField(LongBlock.Builder results, int p, BytesRefBlock in, int precision) {
-        fromWKB(results, p, in, precision, unboundedGrid);
+        fromWKB(results, p, in, checkPrecisionRange(precision), unboundedGrid);
     }
 
     @Evaluator(extraName = "FromFieldDocValuesAndField", warnExceptions = { IllegalArgumentException.class })
     static void fromFieldDocValuesAndField(LongBlock.Builder results, int p, LongBlock encoded, int precision) {
-        fromEncodedLong(results, p, encoded, precision, unboundedGrid);
+        fromEncodedLong(results, p, encoded, checkPrecisionRange(precision), unboundedGrid);
     }
 
     @Evaluator(extraName = "FromLiteralAndField", warnExceptions = { IllegalArgumentException.class })

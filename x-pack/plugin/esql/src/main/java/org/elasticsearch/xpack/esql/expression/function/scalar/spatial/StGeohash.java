@@ -49,12 +49,12 @@ public class StGeohash extends SpatialGridFunction implements EvaluatorMapper {
      * This uses GeoHashBoundedPredicate to check if the grid cell is valid.
      */
     protected static class GeoHashBoundedGrid implements BoundedGrid {
-        private final GeoHashBoundedPredicate bounds;
         private final int precision;
+        private final GeoHashBoundedPredicate bounds;
 
         public GeoHashBoundedGrid(int precision, GeoBoundingBox bbox) {
+            this.precision = checkPrecisionRange(precision);
             this.bounds = new GeoHashBoundedPredicate(precision, bbox);
-            this.precision = precision;
         }
 
         public long calculateGridId(Point point) {
@@ -76,13 +76,32 @@ public class StGeohash extends SpatialGridFunction implements EvaluatorMapper {
      * For unbounded grids, we don't need to check if the grid cell is valid,
      * just calculate the encoded long intersecting the point at that precision.
      */
-    protected static final UnboundedGrid unboundedGrid = (point, precision) -> Geohash.longEncode(point.getX(), point.getY(), precision);
+    protected static final UnboundedGrid unboundedGrid = (point, precision) -> Geohash.longEncode(
+        point.getX(),
+        point.getY(),
+        checkPrecisionRange(precision)
+    );
 
-    @FunctionInfo(returnType = "long", description = """
-        Calculates the `geohash` of the supplied geo_point at the specified precision.
-        The result is long encoded. Use [ST_GEOHASH_TO_STRING](#esql-st_geohash_to_string) to convert the result to a string.
-        Or use [ST_GEOHASH_TO_GEOSHAPE](#esql-st_geohash_to_geoshape) to convert either the long or string `geohash` to a
-        POLYGON geo_shape.""", examples = @Example(file = "spatial-grid", tag = "st_geohash-grid"))
+    private static int checkPrecisionRange(int precision) {
+        if (precision < 1 || precision > Geohash.PRECISION) {
+            throw new IllegalArgumentException(
+                "Invalid geohash precision of " + precision + ". Must be between 1 and " + Geohash.PRECISION + "."
+            );
+        }
+        return precision;
+    }
+
+    @FunctionInfo(
+        returnType = "long",
+        description = """
+            Calculates the `geohash` of the supplied geo_point at the specified precision.
+            The result is long encoded. Use [ST_GEOHASH_TO_STRING](#esql-st_geohash_to_string) to convert the result to a string.
+            Or use [ST_GEOHASH_TO_GEOSHAPE](#esql-st_geohash_to_geoshape) to convert either the long or string `geohash` to a
+
+            These functions are related to the [`geo_grid` query](/reference/query-languages/query-dsl/query-dsl-geo-grid-query)
+            and the [`geohash_grid` aggregation](/reference/aggregations/search-aggregations-bucket-geohashgrid-aggregation).""",
+        examples = @Example(file = "spatial-grid", tag = "st_geohash-grid")
+    )
     public StGeohash(
         Source source,
         @Param(
@@ -90,17 +109,12 @@ public class StGeohash extends SpatialGridFunction implements EvaluatorMapper {
             type = { "geo_point" },
             description = "Expression of type `geo_point`. If `null`, the function returns `null`."
         ) Expression field,
-        @Param(
-            name = "precision",
-            type = { "integer" },
-            description = "Expression of type `integer`. If `null`, the function returns `null`."
-        ) Expression precision,
-        @Param(
-            name = "bounds",
-            type = { "geo_shape", "geo_point" },
-            description = "Bounds to filter the grid tiles, either a geo_shape BBOX or an array of two points",
-            optional = true
-        ) Expression bounds
+        @Param(name = "precision", type = { "integer" }, description = """
+            Expression of type `integer`. If `null`, the function returns `null`.
+            Valid values are between [1 and 12](https://en.wikipedia.org/wiki/Geohash).""") Expression precision,
+        @Param(name = "bounds", type = { "geo_shape", "geo_point" }, description = """
+            Optional bounds to filter the grid tiles, either a `geo_shape` or an array of at least two `geo_point`s.
+            The envelope of the `geo_shape` is used as bounds.""", optional = true) Expression bounds
     ) {
         this(source, field, precision, bounds, false);
     }
@@ -146,7 +160,7 @@ public class StGeohash extends SpatialGridFunction implements EvaluatorMapper {
             if (bounds.foldable() == false) {
                 throw new IllegalArgumentException("bounds must be foldable");
             }
-            GeoBoundingBox bbox = asGeoBoundingBox((BytesRef) bounds.fold(toEvaluator.foldCtx()));
+            GeoBoundingBox bbox = asGeoBoundingBox(bounds.fold(toEvaluator.foldCtx()));
             if (spatialField().foldable()) {
                 // Assume right is not foldable, since that would be dealt with in isFoldable() and fold()
                 var point = (BytesRef) spatialField.fold(toEvaluator.foldCtx());
@@ -185,7 +199,7 @@ public class StGeohash extends SpatialGridFunction implements EvaluatorMapper {
                 return new StGeohashFromLiteralAndFieldEvaluator.Factory(source(), point, toEvaluator.apply(parameter()));
             } else if (parameter().foldable()) {
                 // Assume left is not foldable, since that would be dealt with in isFoldable() and fold()
-                int precision = (int) parameter.fold(toEvaluator.foldCtx());
+                int precision = checkPrecisionRange((int) parameter.fold(toEvaluator.foldCtx()));
                 return spatialDocsValues
                     ? new StGeohashFromFieldDocValuesAndLiteralEvaluator.Factory(source(), toEvaluator.apply(spatialField()), precision)
                     : new StGeohashFromFieldAndLiteralEvaluator.Factory(source(), toEvaluator.apply(spatialField), precision);
@@ -229,12 +243,12 @@ public class StGeohash extends SpatialGridFunction implements EvaluatorMapper {
 
     @Evaluator(extraName = "FromFieldAndField", warnExceptions = { IllegalArgumentException.class })
     static void fromFieldAndField(LongBlock.Builder results, int p, BytesRefBlock in, int precision) {
-        fromWKB(results, p, in, precision, unboundedGrid);
+        fromWKB(results, p, in, checkPrecisionRange(precision), unboundedGrid);
     }
 
     @Evaluator(extraName = "FromFieldDocValuesAndField", warnExceptions = { IllegalArgumentException.class })
     static void fromFieldDocValuesAndField(LongBlock.Builder results, int p, LongBlock encoded, int precision) {
-        fromEncodedLong(results, p, encoded, precision, unboundedGrid);
+        fromEncodedLong(results, p, encoded, checkPrecisionRange(precision), unboundedGrid);
     }
 
     @Evaluator(extraName = "FromLiteralAndField", warnExceptions = { IllegalArgumentException.class })

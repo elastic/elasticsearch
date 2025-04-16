@@ -104,6 +104,9 @@ final class $Type$BlockHash extends BlockHash {
         }
     }
 
+    /**
+     *  Adds the vector values to the hash, and returns a new vector with the group IDs for those positions.
+     */
     IntVector add($Type$Vector vector) {
 $if(BytesRef)$
         var ordinals = vector.asOrdinals();
@@ -128,6 +131,12 @@ $endif$
         }
     }
 
+    /**
+     *  Adds the block values to the hash, and returns a new vector with the group IDs for those positions.
+     * <p>
+     *     For nulls, a 0 group ID is used. For multivalues, a multivalue is used with all the group IDs.
+     * </p>
+     */
     IntBlock add($Type$Block block) {
 $if(BytesRef)$
         var ordinals = block.asOrdinals();

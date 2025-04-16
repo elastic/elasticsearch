@@ -15,11 +15,14 @@ import org.elasticsearch.compute.aggregation.SumLongAggregatorFunction;
 import org.elasticsearch.compute.aggregation.SumLongAggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.SumLongGroupingAggregatorFunctionTests;
 import org.elasticsearch.compute.aggregation.blockhash.BlockHash;
+import org.elasticsearch.compute.aggregation.blockhash.LongTopNBlockHash;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
+import org.elasticsearch.compute.data.BlockUtils;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.test.BlockTestUtils;
 import org.elasticsearch.core.Tuple;
 import org.hamcrest.Matcher;
 
@@ -95,5 +98,68 @@ public class HashAggregationOperatorTests extends ForkingOperatorTestCase {
             sum.assertSimpleGroup(input, sums, i, group);
             max.assertSimpleGroup(input, maxs, i, group);
         }
+    }
+
+    public void testTopN() {
+        var mode = AggregatorMode.SINGLE;
+        var aggregatorChannels = List.of(1);
+        try (
+            var operator = new HashAggregationOperator(
+                List.of(
+                    new SumLongAggregatorFunctionSupplier().groupingAggregatorFactory(mode, aggregatorChannels),
+                    new MaxLongAggregatorFunctionSupplier().groupingAggregatorFactory(mode, aggregatorChannels)
+                ),
+                () -> new LongTopNBlockHash(0, false, true, 3, blockFactory()),
+                driverContext()
+            )
+        ) {
+
+            var page = new Page(
+                BlockUtils.fromList(blockFactory(), List.of(List.of(10L, 2L), List.of(20L, 4L), List.of(30L, 8L), List.of(30L, 16L)))
+            );
+            operator.addInput(page);
+            page.releaseBlocks();
+
+            page = new Page(
+                BlockUtils.fromList(
+                    blockFactory(),
+                    List.of(
+                        List.of(50L, 64L),
+                        List.of(40L, 32L),
+                        List.of(List.of(10L, 50L), 128L),
+                        List.of(0L, 256L)
+
+                    )
+                )
+            );
+            operator.addInput(page);
+            page.releaseBlocks();
+
+            operator.finish();
+
+            var outputPage = operator.getOutput();
+
+            var groups = (LongBlock) outputPage.getBlock(0);
+            var sumBlock = (LongBlock) outputPage.getBlock(1);
+            var maxBlock = (LongBlock) outputPage.getBlock(2);
+
+            assertThat(groups.getPositionCount(), equalTo(3));
+            assertThat(sumBlock.getPositionCount(), equalTo(3));
+            assertThat(maxBlock.getPositionCount(), equalTo(3));
+
+            assertThat(groups.getTotalValueCount(), equalTo(3));
+            assertThat(sumBlock.getTotalValueCount(), equalTo(3));
+            assertThat(maxBlock.getTotalValueCount(), equalTo(3));
+
+            assertThat(BlockTestUtils.valuesAtPositions(groups, 0, 3), equalTo(List.of(List.of(30L), List.of(50L), List.of(40L))));
+            assertThat(BlockTestUtils.valuesAtPositions(sumBlock, 0, 3), equalTo(List.of(List.of(24L), List.of(192L), List.of(32L))));
+            assertThat(BlockTestUtils.valuesAtPositions(maxBlock, 0, 3), equalTo(List.of(List.of(16L), List.of(128L), List.of(32L))));
+
+            outputPage.releaseBlocks();
+        }
+    }
+
+    public void testTopNWithNulls() {
+        // TODO: To be implemented
     }
 }

@@ -61,6 +61,7 @@ import org.elasticsearch.xpack.esql.expression.function.aggregate.Sum;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.ToPartial;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Values;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.Match;
+import org.elasticsearch.xpack.esql.expression.function.fulltext.MultiMatch;
 import org.elasticsearch.xpack.esql.expression.function.grouping.Bucket;
 import org.elasticsearch.xpack.esql.expression.function.grouping.Categorize;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDouble;
@@ -99,6 +100,7 @@ import org.elasticsearch.xpack.esql.optimizer.rules.logical.LiteralsOnTheRight;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.OptimizerRules;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.PruneRedundantOrderBy;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.PushDownAndCombineLimits;
+import org.elasticsearch.xpack.esql.optimizer.rules.logical.PushDownCompletion;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.PushDownEnrich;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.PushDownEval;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.PushDownRegexExtract;
@@ -122,6 +124,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Row;
 import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesAggregate;
 import org.elasticsearch.xpack.esql.plan.logical.TopN;
 import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
+import org.elasticsearch.xpack.esql.plan.logical.inference.Completion;
 import org.elasticsearch.xpack.esql.plan.logical.join.InlineJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.Join;
 import org.elasticsearch.xpack.esql.plan.logical.join.JoinConfig;
@@ -155,11 +158,13 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.THREE;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TWO;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.asLimit;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.emptyInferenceResolution;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.emptySource;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.fieldAttribute;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.getFieldAttribute;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.loadMapping;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.localSource;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.randomLiteral;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.referenceAttribute;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.singleValue;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.unboundLogicalOptimizerContext;
@@ -174,6 +179,7 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.GEO_POINT;
 import static org.elasticsearch.xpack.esql.core.type.DataType.INTEGER;
 import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
 import static org.elasticsearch.xpack.esql.core.type.DataType.LONG;
+import static org.elasticsearch.xpack.esql.core.type.DataType.TEXT;
 import static org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.EsqlBinaryComparison.BinaryComparisonOperation.EQ;
 import static org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.EsqlBinaryComparison.BinaryComparisonOperation.GT;
 import static org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.EsqlBinaryComparison.BinaryComparisonOperation.GTE;
@@ -248,7 +254,8 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
                 new EsqlFunctionRegistry(),
                 getIndexResult,
                 defaultLookupResolution(),
-                enrichResolution
+                enrichResolution,
+                emptyInferenceResolution()
             ),
             TEST_VERIFIER
         );
@@ -258,7 +265,13 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         EsIndex airports = new EsIndex("airports", mappingAirports, Map.of("airports", IndexMode.STANDARD));
         IndexResolution getIndexResultAirports = IndexResolution.valid(airports);
         analyzerAirports = new Analyzer(
-            new AnalyzerContext(EsqlTestUtils.TEST_CFG, new EsqlFunctionRegistry(), getIndexResultAirports, enrichResolution),
+            new AnalyzerContext(
+                EsqlTestUtils.TEST_CFG,
+                new EsqlFunctionRegistry(),
+                getIndexResultAirports,
+                enrichResolution,
+                emptyInferenceResolution()
+            ),
             TEST_VERIFIER
         );
 
@@ -267,7 +280,13 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         EsIndex types = new EsIndex("types", mappingTypes, Map.of("types", IndexMode.STANDARD));
         IndexResolution getIndexResultTypes = IndexResolution.valid(types);
         analyzerTypes = new Analyzer(
-            new AnalyzerContext(EsqlTestUtils.TEST_CFG, new EsqlFunctionRegistry(), getIndexResultTypes, enrichResolution),
+            new AnalyzerContext(
+                EsqlTestUtils.TEST_CFG,
+                new EsqlFunctionRegistry(),
+                getIndexResultTypes,
+                enrichResolution,
+                emptyInferenceResolution()
+            ),
             TEST_VERIFIER
         );
 
@@ -276,14 +295,26 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         EsIndex extra = new EsIndex("extra", mappingExtra, Map.of("extra", IndexMode.STANDARD));
         IndexResolution getIndexResultExtra = IndexResolution.valid(extra);
         analyzerExtra = new Analyzer(
-            new AnalyzerContext(EsqlTestUtils.TEST_CFG, new EsqlFunctionRegistry(), getIndexResultExtra, enrichResolution),
+            new AnalyzerContext(
+                EsqlTestUtils.TEST_CFG,
+                new EsqlFunctionRegistry(),
+                getIndexResultExtra,
+                enrichResolution,
+                emptyInferenceResolution()
+            ),
             TEST_VERIFIER
         );
 
         metricMapping = loadMapping("k8s-mappings.json");
         var metricsIndex = IndexResolution.valid(new EsIndex("k8s", metricMapping, Map.of("k8s", IndexMode.TIME_SERIES)));
         metricsAnalyzer = new Analyzer(
-            new AnalyzerContext(EsqlTestUtils.TEST_CFG, new EsqlFunctionRegistry(), metricsIndex, enrichResolution),
+            new AnalyzerContext(
+                EsqlTestUtils.TEST_CFG,
+                new EsqlFunctionRegistry(),
+                metricsIndex,
+                enrichResolution,
+                emptyInferenceResolution()
+            ),
             TEST_VERIFIER
         );
 
@@ -298,7 +329,13 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
             )
         );
         multiIndexAnalyzer = new Analyzer(
-            new AnalyzerContext(EsqlTestUtils.TEST_CFG, new EsqlFunctionRegistry(), multiIndex, enrichResolution),
+            new AnalyzerContext(
+                EsqlTestUtils.TEST_CFG,
+                new EsqlFunctionRegistry(),
+                multiIndex,
+                enrichResolution,
+                emptyInferenceResolution()
+            ),
             TEST_VERIFIER
         );
     }
@@ -4381,11 +4418,11 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
 
     /**
      * Expects
-     * Limit[1000[INTEGER]]
-     * \_Aggregate[STANDARD,[CATEGORIZE(CATEGORIZE(CONCAT(first_name, "abc")){r$}#18) AS CATEGORIZE(CONCAT(first_name, "abc"))],[CO
-     * UNT(salary{f}#13,true[BOOLEAN]) AS c, CATEGORIZE(CONCAT(first_name, "abc")){r}#3]]
-     *   \_Eval[[CONCAT(first_name{f}#9,[61 62 63][KEYWORD]) AS CATEGORIZE(CONCAT(first_name, "abc"))]]
-     *     \_EsRelation[test][_meta_field{f}#14, emp_no{f}#8, first_name{f}#9, ge..]
+     * Limit[1000[INTEGER],false]
+     * \_Aggregate[[CATEGORIZE($$CONCAT(first_na>$CATEGORIZE(CONC>$0{r$}#1590) AS CATEGORIZE(CONCAT(first_name, "abc"))],[COUNT(sa
+     * lary{f}#1584,true[BOOLEAN]) AS c, CATEGORIZE(CONCAT(first_name, "abc")){r}#1574]]
+     *   \_Eval[[CONCAT(first_name{f}#1580,[61 62 63][KEYWORD]) AS $$CONCAT(first_na>$CATEGORIZE(CONC>$0]]
+     *     \_EsRelation[test][_meta_field{f}#1585, emp_no{f}#1579, first_name{f}#..]
      */
     public void testNestedExpressionsInGroupsWithCategorize() {
         var plan = optimizedPlan("""
@@ -4406,10 +4443,10 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         var evalFieldAlias = as(eval.fields().get(0), Alias.class);
         var evalField = as(evalFieldAlias.child(), Concat.class);
 
-        assertThat(evalFieldAlias.name(), is("CATEGORIZE(CONCAT(first_name, \"abc\"))"));
+        assertThat(evalFieldAlias.name(), is("$$CONCAT(first_na>$CATEGORIZE(CONC>$0"));
         assertThat(categorize.field(), is(evalFieldAlias.toAttribute()));
         assertThat(evalField.source().text(), is("CONCAT(first_name, \"abc\")"));
-        assertThat(categorizeAlias.source(), is(evalFieldAlias.source()));
+        assertThat(categorizeAlias.source(), is(categorize.source()));
     }
 
     /**
@@ -5268,7 +5305,13 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         EsIndex empty = new EsIndex("empty_test", emptyMap(), Map.of());
         IndexResolution getIndexResultAirports = IndexResolution.valid(empty);
         var analyzer = new Analyzer(
-            new AnalyzerContext(EsqlTestUtils.TEST_CFG, new EsqlFunctionRegistry(), getIndexResultAirports, enrichResolution),
+            new AnalyzerContext(
+                EsqlTestUtils.TEST_CFG,
+                new EsqlFunctionRegistry(),
+                getIndexResultAirports,
+                enrichResolution,
+                emptyInferenceResolution()
+            ),
             TEST_VERIFIER
         );
 
@@ -5517,6 +5560,17 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
                 )
             ),
             new PushDownEnrich()
+        ),
+        // | COMPLETION CONCAT(some text, x) WITH inferenceID AS y
+        new PushdownShadowingGeneratingPlanTestCase(
+            (plan, attr) -> new Completion(
+                EMPTY,
+                plan,
+                randomLiteral(TEXT),
+                new Concat(EMPTY, randomLiteral(TEXT), List.of(attr)),
+                new ReferenceAttribute(EMPTY, "y", KEYWORD)
+            ),
+            new PushDownCompletion()
         ) };
 
     /**
@@ -7034,6 +7088,65 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         assertThat(Expressions.attribute(values.field()).name(), equalTo("cluster"));
     }
 
+    public void testTranslateMaxOverTime() {
+        assumeTrue("requires snapshot builds", Build.current().isSnapshot());
+        var query = "TS k8s | STATS sum(max_over_time(network.bytes_in)) BY bucket(@timestamp, 1h)";
+        var plan = logicalOptimizer.optimize(metricsAnalyzer.analyze(parser.createStatement(query)));
+        Limit limit = as(plan, Limit.class);
+        Aggregate finalAgg = as(limit.child(), Aggregate.class);
+        assertThat(finalAgg, not(instanceOf(TimeSeriesAggregate.class)));
+        assertThat(finalAgg.aggregates(), hasSize(2));
+        TimeSeriesAggregate aggsByTsid = as(finalAgg.child(), TimeSeriesAggregate.class);
+        assertThat(aggsByTsid.aggregates(), hasSize(2)); // _tsid is dropped
+        assertNotNull(aggsByTsid.timeBucket());
+        assertThat(aggsByTsid.timeBucket().buckets().fold(FoldContext.small()), equalTo(Duration.ofHours(1)));
+        Eval eval = as(aggsByTsid.child(), Eval.class);
+        assertThat(eval.fields(), hasSize(1));
+        as(eval.child(), EsRelation.class);
+
+        Sum sum = as(Alias.unwrap(finalAgg.aggregates().get(0)), Sum.class);
+        assertThat(Expressions.attribute(sum.field()).id(), equalTo(aggsByTsid.aggregates().get(0).id()));
+        assertThat(finalAgg.groupings(), hasSize(1));
+        assertThat(Expressions.attribute(finalAgg.groupings().get(0)).id(), equalTo(aggsByTsid.aggregates().get(1).id()));
+
+        Max max = as(Alias.unwrap(aggsByTsid.aggregates().get(0)), Max.class);
+        assertThat(Expressions.attribute(max.field()).name(), equalTo("network.bytes_in"));
+        assertThat(Expressions.attribute(aggsByTsid.groupings().get(1)).id(), equalTo(eval.fields().get(0).id()));
+        Bucket bucket = as(Alias.unwrap(eval.fields().get(0)), Bucket.class);
+        assertThat(Expressions.attribute(bucket.field()).name(), equalTo("@timestamp"));
+    }
+
+    public void testTranslateAvgOverTime() {
+        assumeTrue("requires snapshot builds", Build.current().isSnapshot());
+        var query = "TS k8s | STATS sum(avg_over_time(network.bytes_in)) BY bucket(@timestamp, 1h)";
+        var plan = logicalOptimizer.optimize(metricsAnalyzer.analyze(parser.createStatement(query)));
+        Limit limit = as(plan, Limit.class);
+        Aggregate finalAgg = as(limit.child(), Aggregate.class);
+        assertThat(finalAgg, not(instanceOf(TimeSeriesAggregate.class)));
+        assertThat(finalAgg.aggregates(), hasSize(2));
+        Eval evalAvg = as(finalAgg.child(), Eval.class);
+        TimeSeriesAggregate aggsByTsid = as(evalAvg.child(), TimeSeriesAggregate.class);
+        assertThat(aggsByTsid.aggregates(), hasSize(3)); // _tsid is dropped
+        assertNotNull(aggsByTsid.timeBucket());
+        assertThat(aggsByTsid.timeBucket().buckets().fold(FoldContext.small()), equalTo(Duration.ofHours(1)));
+        Eval evalBucket = as(aggsByTsid.child(), Eval.class);
+        assertThat(evalBucket.fields(), hasSize(1));
+        as(evalBucket.child(), EsRelation.class);
+
+        Sum sum = as(Alias.unwrap(finalAgg.aggregates().get(0)), Sum.class);
+        assertThat(Expressions.attribute(sum.field()).id(), equalTo(evalAvg.fields().get(0).id()));
+        assertThat(finalAgg.groupings(), hasSize(1));
+        assertThat(Expressions.attribute(finalAgg.groupings().get(0)).id(), equalTo(aggsByTsid.aggregates().get(2).id()));
+
+        Sum sumTs = as(Alias.unwrap(aggsByTsid.aggregates().get(0)), Sum.class);
+        assertThat(Expressions.attribute(sumTs.field()).name(), equalTo("network.bytes_in"));
+        Count countTs = as(Alias.unwrap(aggsByTsid.aggregates().get(1)), Count.class);
+        assertThat(Expressions.attribute(countTs.field()).name(), equalTo("network.bytes_in"));
+        assertThat(Expressions.attribute(aggsByTsid.groupings().get(1)).id(), equalTo(evalBucket.fields().get(0).id()));
+        Bucket bucket = as(Alias.unwrap(evalBucket.fields().get(0)), Bucket.class);
+        assertThat(Expressions.attribute(bucket.field()).name(), equalTo("@timestamp"));
+    }
+
     public void testMetricsWithoutRate() {
         assumeTrue("requires snapshot builds", Build.current().isSnapshot());
         List<String> queries = List.of("""
@@ -7272,6 +7385,24 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         Limit limit = as(plan, Limit.class);
         Filter filter = as(limit.child(), Filter.class);
         Match match = as(filter.condition(), Match.class);
+        MapExpression me = as(match.options(), MapExpression.class);
+        assertEquals(1, me.entryExpressions().size());
+        EntryExpression ee = as(me.entryExpressions().get(0), EntryExpression.class);
+        BytesRef key = as(ee.key().fold(FoldContext.small()), BytesRef.class);
+        assertEquals("minimum_should_match", key.utf8ToString());
+        assertEquals(new Literal(EMPTY, 2.0, DataType.DOUBLE), ee.value());
+        assertEquals(DataType.DOUBLE, ee.dataType());
+    }
+
+    public void testFunctionNamedParamsAsFunctionArgument1() {
+        var query = """
+            from test
+            | WHERE MULTI_MATCH("Anna Smith", first_name, last_name, {"minimum_should_match": 2.0})
+            """;
+        var plan = optimizedPlan(query);
+        Limit limit = as(plan, Limit.class);
+        Filter filter = as(limit.child(), Filter.class);
+        MultiMatch match = as(filter.condition(), MultiMatch.class);
         MapExpression me = as(match.options(), MapExpression.class);
         assertEquals(1, me.entryExpressions().size());
         EntryExpression ee = as(me.entryExpressions().get(0), EntryExpression.class);

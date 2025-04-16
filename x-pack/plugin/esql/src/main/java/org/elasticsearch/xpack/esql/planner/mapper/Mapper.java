@@ -23,6 +23,7 @@ import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.OrderBy;
 import org.elasticsearch.xpack.esql.plan.logical.TopN;
 import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
+import org.elasticsearch.xpack.esql.plan.logical.inference.Rerank;
 import org.elasticsearch.xpack.esql.plan.logical.join.InlineJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.Join;
 import org.elasticsearch.xpack.esql.plan.logical.join.JoinConfig;
@@ -38,8 +39,8 @@ import org.elasticsearch.xpack.esql.plan.physical.MergeExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.plan.physical.TopNExec;
 import org.elasticsearch.xpack.esql.plan.physical.UnaryExec;
+import org.elasticsearch.xpack.esql.plan.physical.inference.RerankExec;
 
-import java.util.ArrayList;
 import java.util.List;
 
 /**
@@ -173,6 +174,18 @@ public class Mapper {
             return new TopNExec(topN.source(), mappedChild, topN.order(), topN.limit(), null);
         }
 
+        if (unary instanceof Rerank rerank) {
+            mappedChild = addExchangeForFragment(rerank, mappedChild);
+            return new RerankExec(
+                rerank.source(),
+                mappedChild,
+                rerank.inferenceId(),
+                rerank.queryText(),
+                rerank.rerankFields(),
+                rerank.scoreAttribute()
+            );
+        }
+
         //
         // Pipeline operators
         //
@@ -221,12 +234,7 @@ public class Mapper {
     }
 
     private PhysicalPlan mapFork(Fork fork) {
-        List<PhysicalPlan> physicalChildren = new ArrayList<>();
-        for (var child : fork.children()) {
-            var mappedChild = new FragmentExec(child);
-            physicalChildren.add(mappedChild);
-        }
-        return new MergeExec(fork.source(), physicalChildren, fork.output());
+        return new MergeExec(fork.source(), fork.children().stream().map(child -> map(child)).toList(), fork.output());
     }
 
     public static boolean isPipelineBreaker(LogicalPlan p) {

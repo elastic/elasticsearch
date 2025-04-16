@@ -237,7 +237,7 @@ public class InternalUsers {
                         ModifyDataStreamsAction.NAME,
                         ILMActions.RETRY.name()
                     )
-                    .allowRestrictedIndices(false)
+                    .allowRestrictedIndices(true)
                     .build() },
             null,
             null,

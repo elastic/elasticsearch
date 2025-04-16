@@ -92,7 +92,7 @@ public class ExplainDataStreamLifecycleIT extends ESIntegTestCase {
 
     public void testExplainLifecycle() throws Exception {
         // empty lifecycle contains the default rollover
-        DataStreamLifecycle.Template lifecycle = DataStreamLifecycle.Template.DEFAULT;
+        DataStreamLifecycle.Template lifecycle = DataStreamLifecycle.Template.DATA_DEFAULT;
 
         putComposableIndexTemplate("id1", null, List.of("metrics-foo*"), null, null, lifecycle);
         String dataStreamName = "metrics-foo";
@@ -264,7 +264,7 @@ public class ExplainDataStreamLifecycleIT extends ESIntegTestCase {
             List.of("metrics-foo*"),
             null,
             null,
-            DataStreamLifecycle.Template.DEFAULT,
+            DataStreamLifecycle.Template.DATA_DEFAULT,
             new DataStreamOptions.Template(new DataStreamFailureStore.Template(true))
         );
         String dataStreamName = "metrics-foo";
@@ -381,7 +381,7 @@ public class ExplainDataStreamLifecycleIT extends ESIntegTestCase {
 
     public void testExplainLifecycleForIndicesWithErrors() throws Exception {
         // empty lifecycle contains the default rollover
-        DataStreamLifecycle.Template lifecycle = DataStreamLifecycle.Template.DEFAULT;
+        DataStreamLifecycle.Template lifecycle = DataStreamLifecycle.Template.DATA_DEFAULT;
 
         putComposableIndexTemplate(
             "id1",
@@ -486,7 +486,9 @@ public class ExplainDataStreamLifecycleIT extends ESIntegTestCase {
                  * succeed, and there will always be an error in the error store. This behavior is subject to change in the future.
                  */
                 assertThat(response.getIndices().get(0).getError(), is(notNullValue()));
-                assertThat(response.getIndices().get(1).getError(), is(nullValue()));
+                assertThat(response.getIndices().get(0).getError().error(), containsString("Force merge request "));
+                assertThat(response.getIndices().get(1).getError(), is(notNullValue()));
+                assertThat(response.getIndices().get(1).getError().error(), containsString("Force merge request "));
             }
         });
     }

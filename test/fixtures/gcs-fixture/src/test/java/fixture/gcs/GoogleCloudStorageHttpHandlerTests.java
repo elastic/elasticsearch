@@ -102,9 +102,10 @@ public class GoogleCloudStorageHttpHandlerTests extends ESTestCase {
         assertEquals(new TestHttpResponse(RestStatus.OK, """
             {"kind":"storage#objects","items":[],"prefixes":[]}"""), listBlobs(handler, bucket, "some/other/path", null));
 
+        var boundary = newMultipartBoundary();
         assertEquals(
             new TestHttpResponse(RestStatus.OK, """
-                --__END_OF_PART__d8b50acb-87dc-4630-a3d3-17d187132ebc__
+                --$boundary
                 Content-Length: 168
                 Content-Type: application/http
                 content-id: 1
@@ -115,13 +116,13 @@ public class GoogleCloudStorageHttpHandlerTests extends ESTestCase {
 
 
 
-                --__END_OF_PART__d8b50acb-87dc-4630-a3d3-17d187132ebc__
-                """.replaceAll("\n", "\r\n")),
+                --$boundary--
+                """.replace("\n", "\r\n").replace("$boundary", boundary)),
             handleRequest(
                 handler,
                 "POST",
                 "/batch/storage/v1",
-                createBatchDeleteRequest(bucket, blobName),
+                createBatchDeleteRequest(bucket, boundary, blobName),
                 Headers.of("Content-Type", "mixed/multipart")
             )
         );
@@ -131,7 +132,7 @@ public class GoogleCloudStorageHttpHandlerTests extends ESTestCase {
                 handler,
                 "POST",
                 "/batch/storage/v1",
-                createBatchDeleteRequest(bucket, blobName),
+                createBatchDeleteRequest(bucket, boundary, blobName),
                 Headers.of("Content-Type", "mixed/multipart")
             ).restStatus()
         );
@@ -615,11 +616,16 @@ public class GoogleCloudStorageHttpHandlerTests extends ESTestCase {
         BytesReference bytes,
         Long ifGenerationMatch
     ) {
+        var headers = new Headers();
+        // multipart upload is required to provide boundary header
+        var boundary = newMultipartBoundary();
+        headers.put("Content-Type", List.of("multipart/related; boundary=" + boundary));
         return handleRequest(
             handler,
             "POST",
             "/upload/storage/v1/b/" + bucket + "/" + generateQueryString("uploadType", "multipart", "ifGenerationMatch", ifGenerationMatch),
-            createGzipCompressedMultipartUploadBody(bucket, blobName, bytes)
+            createGzipCompressedMultipartUploadBody(bucket, blobName, bytes, boundary),
+            headers
         );
     }
 
@@ -785,25 +791,37 @@ public class GoogleCloudStorageHttpHandlerTests extends ESTestCase {
         return Headers.of("Range", Strings.format("bytes=%d-%d", start, end));
     }
 
-    private static BytesReference createGzipCompressedMultipartUploadBody(String bucketName, String path, BytesReference content) {
+    private static String newMultipartBoundary() {
+        return "__END_OF_PART__" + randomUUID();
+    }
+
+    private static BytesReference createGzipCompressedMultipartUploadBody(
+        String bucketName,
+        String path,
+        BytesReference content,
+        String boundary
+    ) {
         final String metadataString = Strings.format("{\"bucket\":\"%s\", \"name\":\"%s\"}", bucketName, path);
-        final BytesReference header = new BytesArray(Strings.format("""
-            --__END_OF_PART__a607a67c-6df7-4b87-b8a1-81f639a75a97__
-            Content-Length: %d
+        final String headerStr = """
+            --$boundary
+            Content-Length: $metadata-length
             Content-Type: application/json; charset=UTF-8
             content-transfer-encoding: binary
 
-            %s
-            --__END_OF_PART__a607a67c-6df7-4b87-b8a1-81f639a75a97__
+            $metadata
+            --$boundary
             Content-Type: application/octet-stream
             content-transfer-encoding: binary
 
-            """.replaceAll("\n", "\r\n"), metadataString.length(), metadataString).getBytes(StandardCharsets.UTF_8));
-
+            """.replace("\n", "\r\n")
+            .replace("$boundary", boundary)
+            .replace("$metadata-length", Integer.toString(metadataString.length()))
+            .replace("$metadata", metadataString);
+        final BytesReference header = new BytesArray(headerStr.getBytes(StandardCharsets.UTF_8));
         final BytesReference footer = new BytesArray("""
 
-            --__END_OF_PART__a607a67c-6df7-4b87-b8a1-81f639a75a97__--
-            """.replaceAll("\n", "\r\n"));
+            --$boundary--
+            """.replace("\n", "\r\n").replace("$boundary", boundary));
         final ByteArrayOutputStream out = new ByteArrayOutputStream();
         try (GZIPOutputStream gzipOutputStream = new GZIPOutputStream(out)) {
             gzipOutputStream.write(BytesReference.toBytes(CompositeBytesReference.of(header, content, footer)));
@@ -813,7 +831,7 @@ public class GoogleCloudStorageHttpHandlerTests extends ESTestCase {
         return new BytesArray(out.toByteArray());
     }
 
-    private static String createBatchDeleteRequest(String bucketName, String... paths) {
+    private static String createBatchDeleteRequest(String bucketName, String boundary, String... paths) {
         final String deleteRequestTemplate = """
             DELETE %s/storage/v1/b/%s/o/%s HTTP/1.1
             Authorization: Bearer foo
@@ -822,14 +840,14 @@ public class GoogleCloudStorageHttpHandlerTests extends ESTestCase {
 
             """;
         final String partTemplate = """
-            --__END_OF_PART__d8b50acb-87dc-4630-a3d3-17d187132ebc__
+            --$boundary
             Content-Length: %d
             Content-Type: application/http
             content-id: %d
             content-transfer-encoding: binary
 
             %s
-            """;
+            """.replace("$boundary", boundary);
         StringBuilder builder = new StringBuilder();
         AtomicInteger contentId = new AtomicInteger();
         Arrays.stream(paths).forEach(p -> {
@@ -837,7 +855,7 @@ public class GoogleCloudStorageHttpHandlerTests extends ESTestCase {
             final String part = Strings.format(partTemplate, deleteRequest.length(), contentId.incrementAndGet(), deleteRequest);
             builder.append(part);
         });
-        builder.append("--__END_OF_PART__d8b50acb-87dc-4630-a3d3-17d187132ebc__");
+        builder.append("--").append(boundary).append("--");
         return builder.toString();
     }
 

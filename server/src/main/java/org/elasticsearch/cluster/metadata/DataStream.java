@@ -380,7 +380,7 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
 
     private static Settings mergeSettings(Settings originalSettings, Settings newSettings) {
         if (Settings.EMPTY.equals(newSettings)) {
-            return originalSettings;
+            return Objects.requireNonNullElse(originalSettings, Settings.EMPTY);
         }
         Settings.Builder settingsBuilder = Settings.builder().put(originalSettings).put(newSettings);
         for (String settingName : new HashSet<>(settingsBuilder.keys())) {

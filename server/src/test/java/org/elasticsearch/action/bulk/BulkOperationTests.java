@@ -1222,7 +1222,7 @@ public class BulkOperationTests extends ESTestCase {
             failureStoreDocumentConverter,
             FailureStoreMetrics.NOOP,
             dataStreamFailureStoreSettings,
-            (clusterState) -> true // Feature enabled
+            true
         );
     }
 

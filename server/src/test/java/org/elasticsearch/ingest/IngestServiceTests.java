@@ -56,6 +56,8 @@ import org.elasticsearch.core.FixForMultiProject;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.features.FeatureService;
+import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
@@ -160,7 +162,13 @@ public class IngestServiceTests extends ESTestCase {
             client,
             null,
             FailureStoreMetrics.NOOP,
-            TestProjectResolvers.alwaysThrow()
+            TestProjectResolvers.alwaysThrow(),
+            new FeatureService(List.of()) {
+                @Override
+                public boolean clusterHasFeature(ClusterState state, NodeFeature feature) {
+                    return DataStream.DATA_STREAM_FAILURE_STORE_FEATURE.equals(feature);
+                }
+            }
         );
         Map<String, Processor.Factory> factories = ingestService.getProcessorFactories();
         assertTrue(factories.containsKey("foo"));
@@ -181,7 +189,13 @@ public class IngestServiceTests extends ESTestCase {
                 client,
                 null,
                 FailureStoreMetrics.NOOP,
-                TestProjectResolvers.alwaysThrow()
+                TestProjectResolvers.alwaysThrow(),
+                new FeatureService(List.of()) {
+                    @Override
+                    public boolean clusterHasFeature(ClusterState state, NodeFeature feature) {
+                        return DataStream.DATA_STREAM_FAILURE_STORE_FEATURE.equals(feature);
+                    }
+                }
             )
         );
         assertTrue(e.getMessage(), e.getMessage().contains("already registered"));
@@ -199,7 +213,13 @@ public class IngestServiceTests extends ESTestCase {
             client,
             null,
             FailureStoreMetrics.NOOP,
-            TestProjectResolvers.alwaysThrow()
+            TestProjectResolvers.alwaysThrow(),
+            new FeatureService(List.of()) {
+                @Override
+                public boolean clusterHasFeature(ClusterState state, NodeFeature feature) {
+                    return DataStream.DATA_STREAM_FAILURE_STORE_FEATURE.equals(feature);
+                }
+            }
         );
         final IndexRequest indexRequest = new IndexRequest("_index").id("_id")
             .source(Map.of())
@@ -2440,7 +2460,13 @@ public class IngestServiceTests extends ESTestCase {
             client,
             null,
             FailureStoreMetrics.NOOP,
-            TestProjectResolvers.alwaysThrow()
+            TestProjectResolvers.alwaysThrow(),
+            new FeatureService(List.of()) {
+                @Override
+                public boolean clusterHasFeature(ClusterState state, NodeFeature feature) {
+                    return DataStream.DATA_STREAM_FAILURE_STORE_FEATURE.equals(feature);
+                }
+            }
         );
         ingestService.addIngestClusterStateListener(ingestClusterStateListener);
 
@@ -2929,7 +2955,13 @@ public class IngestServiceTests extends ESTestCase {
             client,
             null,
             FailureStoreMetrics.NOOP,
-            TestProjectResolvers.alwaysThrow()
+            TestProjectResolvers.alwaysThrow(),
+            new FeatureService(List.of()) {
+                @Override
+                public boolean clusterHasFeature(ClusterState state, NodeFeature feature) {
+                    return DataStream.DATA_STREAM_FAILURE_STORE_FEATURE.equals(feature);
+                }
+            }
         );
         ingestService.applyClusterState(new ClusterChangedEvent("", clusterState, clusterState));
 
@@ -3263,7 +3295,13 @@ public class IngestServiceTests extends ESTestCase {
             client,
             null,
             FailureStoreMetrics.NOOP,
-            TestProjectResolvers.alwaysThrow()
+            TestProjectResolvers.alwaysThrow(),
+            new FeatureService(List.of()) {
+                @Override
+                public boolean clusterHasFeature(ClusterState state, NodeFeature feature) {
+                    return DataStream.DATA_STREAM_FAILURE_STORE_FEATURE.equals(feature);
+                }
+            }
         );
         if (randomBoolean()) {
             /*

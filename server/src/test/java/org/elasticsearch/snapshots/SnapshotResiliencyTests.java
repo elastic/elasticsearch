@@ -2404,7 +2404,13 @@ public class SnapshotResiliencyTests extends ESTestCase {
                             client,
                             null,
                             FailureStoreMetrics.NOOP,
-                            TestProjectResolvers.alwaysThrow()
+                            TestProjectResolvers.alwaysThrow(),
+                            new FeatureService(List.of()) {
+                                @Override
+                                public boolean clusterHasFeature(ClusterState state, NodeFeature feature) {
+                                    return DataStream.DATA_STREAM_FAILURE_STORE_FEATURE.equals(feature);
+                                }
+                            }
                         ),
                         client,
                         actionFilters,

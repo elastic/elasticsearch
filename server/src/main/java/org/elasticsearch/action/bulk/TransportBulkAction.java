@@ -598,6 +598,11 @@ public class TransportBulkAction extends TransportAbstractBulkAction {
         Executor executor,
         AtomicArray<BulkItemResponse> responses
     ) {
+        // Determine if we have the feature enabled once for entire bulk operation
+        final boolean clusterSupportsFailureStore = featureService.clusterHasFeature(
+            clusterService.state(),
+            DataStream.DATA_STREAM_FAILURE_STORE_FEATURE
+        );
         new BulkOperation(
             task,
             threadPool,
@@ -613,7 +618,7 @@ public class TransportBulkAction extends TransportAbstractBulkAction {
             listener,
             failureStoreMetrics,
             dataStreamFailureStoreSettings,
-            (clusterState) -> featureService.clusterHasFeature(clusterState, DataStream.DATA_STREAM_FAILURE_STORE_FEATURE)
+            clusterSupportsFailureStore
         ).run();
     }
 
@@ -626,16 +631,10 @@ public class TransportBulkAction extends TransportAbstractBulkAction {
             return null;
         }
         var resolution = resolveFailureStoreFromMetadata(indexName, projectMetadata, epochMillis);
-        if (resolution == null) {
-            resolution = resolveFailureStoreFromTemplate(indexName, projectMetadata, epochMillis);
-        }
-        if (resolution == null || featureService.clusterHasFeature(clusterService.state(), DataStream.DATA_STREAM_FAILURE_STORE_FEATURE)) {
+        if (resolution != null) {
             return resolution;
-        } else {
-            // If we get a non-null result but the cluster is not yet fully updated with failure stores,
-            // force the result false to keep from redirecting until all nodes are updated
-            return false;
         }
+        return resolveFailureStoreFromTemplate(indexName, projectMetadata, epochMillis);
     }
 
     @Override

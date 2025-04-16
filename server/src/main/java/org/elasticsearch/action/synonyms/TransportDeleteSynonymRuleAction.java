@@ -41,7 +41,6 @@ public class TransportDeleteSynonymRuleAction extends HandledTransportAction<Del
         synonymsManagementAPIService.deleteSynonymRule(
             request.synonymsSetId(),
             request.synonymRuleId(),
-            request.refresh(),
             listener.map(SynonymUpdateResponse::new)
         );
     }

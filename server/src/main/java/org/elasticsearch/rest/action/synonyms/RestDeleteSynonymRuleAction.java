@@ -40,8 +40,7 @@ public class RestDeleteSynonymRuleAction extends BaseRestHandler {
     protected RestChannelConsumer prepareRequest(RestRequest restRequest, NodeClient client) throws IOException {
         DeleteSynonymRuleAction.Request request = new DeleteSynonymRuleAction.Request(
             restRequest.param("synonymsSet"),
-            restRequest.param("synonymRuleId"),
-            restRequest.paramAsBoolean("refresh", true)
+            restRequest.param("synonymRuleId")
         );
         return channel -> client.execute(DeleteSynonymRuleAction.INSTANCE, request, new RestToXContentListener<>(channel));
     }

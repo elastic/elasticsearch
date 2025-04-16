@@ -354,7 +354,7 @@ public class SynonymsManagementAPIService {
                         ? UpdateSynonymsResultStatus.CREATED
                         : UpdateSynonymsResultStatus.UPDATED;
 
-                    maybeReloadAnalyzers(synonymSetId, refresh, false, updateSynonymsResultStatus, bulkInsertResponseListener);
+                    checkIndexSearchableAndReloadAnalyzers(synonymSetId, refresh, false, updateSynonymsResultStatus, bulkInsertResponseListener);
                 })
             );
         }));
@@ -424,7 +424,7 @@ public class SynonymsManagementAPIService {
                 ? UpdateSynonymsResultStatus.CREATED
                 : UpdateSynonymsResultStatus.UPDATED;
 
-            maybeReloadAnalyzers(synonymsSetId, refresh, false, updateStatus, l2);
+            checkIndexSearchableAndReloadAnalyzers(synonymsSetId, refresh, false, updateStatus, l2);
         }));
     }
 
@@ -444,12 +444,7 @@ public class SynonymsManagementAPIService {
         );
     }
 
-    public void deleteSynonymRule(
-        String synonymsSetId,
-        String synonymRuleId,
-        boolean refresh,
-        ActionListener<SynonymsReloadResult> listener
-    ) {
+    public void deleteSynonymRule(String synonymsSetId, String synonymRuleId, ActionListener<SynonymsReloadResult> listener) {
         client.prepareDelete(SYNONYMS_ALIAS_NAME, internalSynonymRuleId(synonymsSetId, synonymRuleId))
             .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
             .execute(new DelegatingIndexNotFoundActionListener<>(synonymsSetId, listener, (l, deleteResponse) -> {
@@ -468,7 +463,7 @@ public class SynonymsManagementAPIService {
                     return;
                 }
 
-                maybeReloadAnalyzers(synonymsSetId, refresh, false, UpdateSynonymsResultStatus.DELETED, listener);
+                reloadAnalyzers(synonymsSetId, false, UpdateSynonymsResultStatus.DELETED, listener);
             }));
     }
 
@@ -525,8 +520,8 @@ public class SynonymsManagementAPIService {
 
     public void deleteSynonymsSet(String synonymSetId, ActionListener<AcknowledgedResponse> listener) {
 
-        // Previews reloading the resource to understand its usage on indices
-        maybeReloadAnalyzers(synonymSetId, true, true, null, listener.delegateFailure((reloadListener, reloadResult) -> {
+        // Previews reloading the resource to understand its usage on indices. It's OK to reload as we're doing preview mode
+        reloadAnalyzers(synonymSetId, true, null, listener.delegateFailure((reloadListener, reloadResult) -> {
             Map<String, ReloadAnalyzersResponse.ReloadDetails> reloadDetails = reloadResult.reloadAnalyzersResponse.getReloadDetails();
             if (reloadDetails.isEmpty() == false) {
                 Set<String> indices = reloadDetails.entrySet()
@@ -566,7 +561,7 @@ public class SynonymsManagementAPIService {
         }));
     }
 
-    private <T> void maybeReloadAnalyzers(
+    private <T> void checkIndexSearchableAndReloadAnalyzers(
         String synonymSetId,
         boolean refresh,
         boolean preview,
@@ -596,14 +591,18 @@ public class SynonymsManagementAPIService {
                 return;
             }
 
-            // auto-reload all reloadable analyzers (currently only those that use updateable synonym or keyword_marker filters)
-            ReloadAnalyzersRequest reloadAnalyzersRequest = new ReloadAnalyzersRequest(synonymSetId, preview, "*");
-            client.execute(
-                TransportReloadAnalyzersAction.TYPE,
-                reloadAnalyzersRequest,
-                listener.safeMap(reloadResponse -> new SynonymsReloadResult(synonymsOperationResult, reloadResponse))
-            );
+            reloadAnalyzers(synonymSetId, preview, synonymsOperationResult, listener);
         }));
+    }
+
+    private void reloadAnalyzers(String synonymSetId, boolean preview, UpdateSynonymsResultStatus synonymsOperationResult, ActionListener<SynonymsReloadResult> listener) {
+        // auto-reload all reloadable analyzers (currently only those that use updateable synonym or keyword_marker filters)
+        ReloadAnalyzersRequest reloadAnalyzersRequest = new ReloadAnalyzersRequest(synonymSetId, preview, "*");
+        client.execute(
+            TransportReloadAnalyzersAction.TYPE,
+            reloadAnalyzersRequest,
+            listener.safeMap(reloadResponse -> new SynonymsReloadResult(synonymsOperationResult, reloadResponse))
+        );
     }
 
     // Allows checking failures in tests

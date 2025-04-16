@@ -369,7 +369,6 @@ public abstract class ESRestTestCase extends ESTestCase {
         // The active project-id is slightly longer, and has a fixed prefix so that it's easier to pick in error messages etc.
         activeProject = "active00" + randomAlphaOfLength(8).toLowerCase(Locale.ROOT);
         extraProjects = randomSet(1, 3, () -> randomAlphaOfLength(12).toLowerCase(Locale.ROOT));
-        // TODO do this in a different way
         multiProjectEnabled = Boolean.parseBoolean(System.getProperty("test.multi_project.enabled"));
     }
 
@@ -383,6 +382,8 @@ public abstract class ESRestTestCase extends ESTestCase {
             assert testFeatureServiceInitialized() == false;
             clusterHosts = parseClusterHosts(getTestRestCluster());
             logger.info("initializing REST clients against {}", clusterHosts);
+            // We add the project ID to the client settings afterward because a lot of subclasses don't call super.restClientSettings(),
+            // meaning the project ID would be removed from the settings.
             var clientSettings = addProjectIdToSettings(restClientSettings());
             var adminSettings = restAdminSettings();
             var cleanupSettings = cleanupClientSettings();
@@ -444,9 +445,9 @@ public abstract class ESRestTestCase extends ESTestCase {
                 .collect(Collectors.toSet());
             assert semanticNodeVersions.isEmpty() == false || serverless;
             testFeatureService = createTestFeatureService(getClusterStateFeatures(adminClient), semanticNodeVersions);
-        }
 
-        configureProjects();
+            configureProjects();
+        }
 
         assert testFeatureServiceInitialized();
         assert client != null;

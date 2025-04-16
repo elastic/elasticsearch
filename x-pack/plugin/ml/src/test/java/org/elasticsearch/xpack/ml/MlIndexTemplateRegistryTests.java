@@ -20,6 +20,7 @@ import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.cluster.project.TestProjectResolvers;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.CollectionUtils;
@@ -91,7 +92,8 @@ public class MlIndexTemplateRegistryTests extends ESTestCase {
             threadPool,
             client,
             true,
-            xContentRegistry
+            xContentRegistry,
+            TestProjectResolvers.mustExecuteFirst()
         );
 
         registry.clusterChanged(createClusterChangedEvent(nodes));
@@ -119,7 +121,8 @@ public class MlIndexTemplateRegistryTests extends ESTestCase {
             threadPool,
             client,
             false,
-            xContentRegistry
+            xContentRegistry,
+            TestProjectResolvers.mustExecuteFirst()
         );
 
         registry.clusterChanged(createClusterChangedEvent(nodes));

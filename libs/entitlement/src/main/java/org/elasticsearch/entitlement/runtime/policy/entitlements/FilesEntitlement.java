@@ -41,13 +41,6 @@ public record FilesEntitlement(List<FileData> filesData) implements Entitlement 
         READ_WRITE
     }
 
-    public enum BaseDir {
-        CONFIG,
-        DATA,
-        SHARED_REPO,
-        HOME
-    }
-
     public sealed interface FileData {
 
         Stream<Path> resolvePaths(PathLookup pathLookup);
@@ -68,17 +61,17 @@ public record FilesEntitlement(List<FileData> filesData) implements Entitlement 
             return new AbsolutePathFileData(path, mode, null, false);
         }
 
-        static FileData ofRelativePath(Path relativePath, BaseDir baseDir, Mode mode) {
+        static FileData ofRelativePath(Path relativePath, PathLookup.BaseDir baseDir, Mode mode) {
             return new RelativePathFileData(relativePath, baseDir, mode, null, false);
         }
 
-        static FileData ofPathSetting(String setting, BaseDir baseDir, Mode mode) {
+        static FileData ofPathSetting(String setting, PathLookup.BaseDir baseDir, Mode mode) {
             return new PathSettingFileData(setting, baseDir, mode, null, false);
         }
     }
 
     private sealed interface RelativeFileData extends FileData {
-        BaseDir baseDir();
+        PathLookup.BaseDir baseDir();
 
         Stream<Path> resolveRelativePaths(PathLookup pathLookup);
 
@@ -138,7 +131,7 @@ public record FilesEntitlement(List<FileData> filesData) implements Entitlement 
         }
     }
 
-    private record RelativePathFileData(Path relativePath, BaseDir baseDir, Mode mode, Platform platform, boolean exclusive)
+    private record RelativePathFileData(Path relativePath, PathLookup.BaseDir baseDir, Mode mode, Platform platform, boolean exclusive)
         implements
             FileData,
             RelativeFileData {
@@ -167,7 +160,7 @@ public record FilesEntitlement(List<FileData> filesData) implements Entitlement 
         }
     }
 
-    private record PathSettingFileData(String setting, BaseDir baseDir, Mode mode, Platform platform, boolean exclusive)
+    private record PathSettingFileData(String setting, PathLookup.BaseDir baseDir, Mode mode, Platform platform, boolean exclusive)
         implements
             RelativeFileData {
 
@@ -178,8 +171,7 @@ public record FilesEntitlement(List<FileData> filesData) implements Entitlement 
 
         @Override
         public Stream<Path> resolveRelativePaths(PathLookup pathLookup) {
-            Stream<String> result = pathLookup.settingResolver()
-                .apply(setting)
+            Stream<String> result = pathLookup.resolveSetting(setting)
                 .filter(s -> s.toLowerCase(Locale.ROOT).startsWith("https://") == false)
                 .distinct();
             return result.map(Path::of);
@@ -221,11 +213,11 @@ public record FilesEntitlement(List<FileData> filesData) implements Entitlement 
         }
     }
 
-    private static BaseDir parseBaseDir(String baseDir) {
+    private static PathLookup.BaseDir parseBaseDir(String baseDir) {
         return switch (baseDir) {
-            case "config" -> BaseDir.CONFIG;
-            case "data" -> BaseDir.DATA;
-            case "home" -> BaseDir.HOME;
+            case "config" -> PathLookup.BaseDir.CONFIG;
+            case "data" -> PathLookup.BaseDir.DATA;
+            case "home" -> PathLookup.BaseDir.HOME;
             // NOTE: shared_repo is _not_ accessible to policy files, only internally
             default -> throw new PolicyValidationException(
                 "invalid relative directory: " + baseDir + ", valid values: [config, data, home]"
@@ -318,7 +310,7 @@ public record FilesEntitlement(List<FileData> filesData) implements Entitlement 
                 if (relativeTo == null) {
                     throw new PolicyValidationException("files entitlement with a 'relative_path' must specify 'relative_to'");
                 }
-                BaseDir baseDir = parseBaseDir(relativeTo);
+                PathLookup.BaseDir baseDir = parseBaseDir(relativeTo);
                 Path relativePath = Path.of(relativePathAsString);
                 if (FileUtils.isAbsolutePath(relativePathAsString)) {
                     throw new PolicyValidationException("'relative_path' [" + relativePathAsString + "] must be relative");
@@ -334,7 +326,7 @@ public record FilesEntitlement(List<FileData> filesData) implements Entitlement 
                 if (settingBaseDirAsString == null) {
                     throw new PolicyValidationException("files entitlement with a 'path_setting' must specify 'basedir_if_relative'");
                 }
-                BaseDir baseDir = parseBaseDir(settingBaseDirAsString);
+                PathLookup.BaseDir baseDir = parseBaseDir(settingBaseDirAsString);
                 fileData = FileData.ofPathSetting(pathSetting, baseDir, mode);
             } else {
                 throw new AssertionError("File entry validation error");

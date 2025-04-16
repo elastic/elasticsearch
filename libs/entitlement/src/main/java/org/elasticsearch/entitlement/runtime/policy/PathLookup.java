@@ -10,14 +10,25 @@
 package org.elasticsearch.entitlement.runtime.policy;
 
 import java.nio.file.Path;
-import java.util.function.Function;
 import java.util.stream.Stream;
 
-public record PathLookup(
-    Path homeDir,
-    Path configDir,
-    Path[] dataDirs,
-    Path[] sharedRepoDirs,
-    Path tempDir,
-    Function<String, Stream<String>> settingResolver
-) {}
+// TODO: (jack) new a need interface, but can still be a record
+// interface should be a single method that takes in an enum and returns
+// a stream of paths
+public interface PathLookup {
+    enum BaseDir {
+        HOME,
+        DATA,
+        SHARED_REPO,
+        CONFIG,
+        LIB,
+        MODULES,
+        PLUGINS,
+        LOGS,
+        TEMP,
+        PID
+    }
+
+    Stream<Path> resolveRelativePath(BaseDir baseDir, Path relativePath);
+    Stream<Path> resolveSettingPaths(BaseDir baseDir, String settingName);
+}

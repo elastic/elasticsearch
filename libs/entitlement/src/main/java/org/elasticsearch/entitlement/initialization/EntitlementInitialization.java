@@ -68,9 +68,9 @@ import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
 
 import static org.elasticsearch.entitlement.runtime.policy.Platform.LINUX;
-import static org.elasticsearch.entitlement.runtime.policy.entitlements.FilesEntitlement.BaseDir.CONFIG;
-import static org.elasticsearch.entitlement.runtime.policy.entitlements.FilesEntitlement.BaseDir.DATA;
-import static org.elasticsearch.entitlement.runtime.policy.entitlements.FilesEntitlement.BaseDir.SHARED_REPO;
+import static org.elasticsearch.entitlement.runtime.policy.PathLookup.BaseDir.CONFIG;
+import static org.elasticsearch.entitlement.runtime.policy.PathLookup.BaseDir.DATA;
+import static org.elasticsearch.entitlement.runtime.policy.PathLookup.BaseDir.SHARED_REPO;
 import static org.elasticsearch.entitlement.runtime.policy.entitlements.FilesEntitlement.Mode.READ;
 import static org.elasticsearch.entitlement.runtime.policy.entitlements.FilesEntitlement.Mode.READ_WRITE;
 
@@ -326,14 +326,6 @@ public class EntitlementInitialization {
             pathLookup,
             bootstrapArgs.suppressFailureLogClasses()
         );
-    }
-
-    private static Path getUserHome() {
-        String userHome = System.getProperty("user.home");
-        if (userHome == null) {
-            throw new IllegalStateException("user.home system property is required");
-        }
-        return PathUtils.get(userHome);
     }
 
     private static Stream<InstrumentationService.InstrumentationInfo> fileSystemProviderChecks() throws ClassNotFoundException,

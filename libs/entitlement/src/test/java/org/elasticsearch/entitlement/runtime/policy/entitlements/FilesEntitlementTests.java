@@ -25,7 +25,7 @@ import java.nio.file.Path;
 import java.util.List;
 import java.util.Map;
 
-import static org.elasticsearch.entitlement.runtime.policy.entitlements.FilesEntitlement.BaseDir.CONFIG;
+import static org.elasticsearch.entitlement.runtime.policy.PathLookup.BaseDir.CONFIG;
 import static org.elasticsearch.entitlement.runtime.policy.entitlements.FilesEntitlement.Mode.READ;
 import static org.elasticsearch.entitlement.runtime.policy.entitlements.FilesEntitlement.Mode.READ_WRITE;
 import static org.hamcrest.Matchers.contains;
@@ -67,7 +67,7 @@ public class FilesEntitlementTests extends ESTestCase {
     }
 
     public void testFileDataRelativeWithAbsoluteDirectoryFails() {
-        var fileData = FileData.ofRelativePath(Path.of(""), FilesEntitlement.BaseDir.DATA, READ_WRITE);
+        var fileData = FileData.ofRelativePath(Path.of(""), PathLookup.BaseDir.DATA, READ_WRITE);
         var dataDirs = fileData.resolvePaths(TEST_PATH_LOOKUP);
         assertThat(dataDirs.toList(), contains(Path.of("/data1/"), Path.of("/data2")));
     }

@@ -23,6 +23,8 @@ import org.elasticsearch.compute.operator.DriverProfile;
 import org.elasticsearch.compute.operator.DriverTaskRunner;
 import org.elasticsearch.compute.operator.FailureCollector;
 import org.elasticsearch.compute.operator.exchange.ExchangeService;
+import org.elasticsearch.compute.operator.exchange.ExchangeSink;
+import org.elasticsearch.compute.operator.exchange.ExchangeSinkHandler;
 import org.elasticsearch.compute.operator.exchange.ExchangeSourceHandler;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
@@ -175,6 +177,89 @@ public class ComputeService {
         EsqlExecutionInfo execInfo,
         ActionListener<Result> listener
     ) {
+        Tuple<List<PhysicalPlan>, PhysicalPlan> subplansAndMainPlan = PlannerUtils.breakPlanIntoSubPlansAndMainPlan(physicalPlan);
+
+        List<PhysicalPlan> subplans = subplansAndMainPlan.v1();
+
+        // we have no sub plans, so we can just execute the given plan
+        if (subplans == null || subplans.size() == 0) {
+            executePlan(sessionId, rootTask, physicalPlan, configuration, foldContext, execInfo, listener, null);
+            return;
+        }
+
+        final List<Page> collectedPages = Collections.synchronizedList(new ArrayList<>());
+        PhysicalPlan mainPlan = new OutputExec(subplansAndMainPlan.v2(), collectedPages::add);
+
+        listener = listener.delegateResponse((l, e) -> {
+            collectedPages.forEach(p -> Releasables.closeExpectNoException(p::releaseBlocks));
+            l.onFailure(e);
+        });
+
+        var mainSessionId = newChildSession(sessionId);
+        QueryPragmas queryPragmas = configuration.pragmas();
+
+        ExchangeSourceHandler mainExchangeSource = new ExchangeSourceHandler(
+            queryPragmas.exchangeBufferSize(),
+            transportService.getThreadPool().executor(ThreadPool.Names.SEARCH)
+        );
+
+        exchangeService.addExchangeSourceHandler(mainSessionId, mainExchangeSource);
+        try (var ignored = mainExchangeSource.addEmptySink()) {
+            var finalListener = ActionListener.runBefore(listener, () -> exchangeService.removeExchangeSourceHandler(sessionId));
+            var computeContext = new ComputeContext(
+                mainSessionId,
+                "single",
+                LOCAL_CLUSTER,
+                List.of(),
+                configuration,
+                foldContext,
+                mainExchangeSource::createExchangeSource,
+                null
+            );
+
+            Runnable cancelQueryOnFailure = cancelQueryOnFailure(rootTask);
+            PhysicalPlan finalMainPlan = mainPlan;
+
+            try (
+                ComputeListener localListener = new ComputeListener(
+                    transportService.getThreadPool(),
+                    cancelQueryOnFailure,
+                    finalListener.map(profiles -> {
+                        execInfo.markEndQuery();
+                        return new Result(finalMainPlan.output(), collectedPages, profiles, execInfo);
+                    })
+                )
+            ) {
+                runCompute(rootTask, computeContext, finalMainPlan, localListener.acquireCompute());
+            }
+
+            for (PhysicalPlan subplan : subplans) {
+                var childSessionId = newChildSession(sessionId);
+                ExchangeSinkHandler exchangeSink = exchangeService.createSinkHandler(childSessionId, queryPragmas.exchangeBufferSize());
+                // funnel sub plan pages into the main plan exchange source
+                mainExchangeSource.addRemoteSink(exchangeSink::fetchPageAsync, true, () -> {}, 1, ActionListener.noop());
+                executePlan(childSessionId, rootTask, subplan, configuration, foldContext, execInfo, ActionListener.wrap(result -> {
+                    exchangeSink.addCompletionListener(
+                        ActionListener.running(() -> { exchangeService.finishSinkHandler(childSessionId, null); })
+                    );
+                }, e -> {
+                    exchangeService.finishSinkHandler(childSessionId, e);
+                    finalListener.onFailure(e);
+                }), () -> exchangeSink.createExchangeSink(() -> {}));
+            }
+        }
+    }
+
+    public void executePlan(
+        String sessionId,
+        CancellableTask rootTask,
+        PhysicalPlan physicalPlan,
+        Configuration configuration,
+        FoldContext foldContext,
+        EsqlExecutionInfo execInfo,
+        ActionListener<Result> listener,
+        Supplier<ExchangeSink> exchangeSinkSupplier
+    ) {
         Tuple<PhysicalPlan, PhysicalPlan> coordinatorAndDataNodePlan = PlannerUtils.breakPlanBetweenCoordinatorAndDataNode(
             physicalPlan,
             configuration
@@ -184,7 +269,12 @@ public class ComputeService {
             collectedPages.forEach(p -> Releasables.closeExpectNoException(p::releaseBlocks));
             l.onFailure(e);
         });
-        PhysicalPlan coordinatorPlan = new OutputExec(coordinatorAndDataNodePlan.v1(), collectedPages::add);
+        PhysicalPlan coordinatorPlan = coordinatorAndDataNodePlan.v1();
+
+        if (exchangeSinkSupplier == null) {
+            coordinatorPlan = new OutputExec(coordinatorAndDataNodePlan.v1(), collectedPages::add);
+        }
+
         PhysicalPlan dataNodePlan = coordinatorAndDataNodePlan.v2();
         if (dataNodePlan != null && dataNodePlan instanceof ExchangeSinkExec == false) {
             assert false : "expected data node plan starts with an ExchangeSink; got " + dataNodePlan;
@@ -210,7 +300,7 @@ public class ComputeService {
                 configuration,
                 foldContext,
                 null,
-                null
+                exchangeSinkSupplier
             );
             updateShardCountForCoordinatorOnlyQuery(execInfo);
             try (
@@ -286,7 +376,7 @@ public class ComputeService {
                             configuration,
                             foldContext,
                             exchangeSource::createExchangeSource,
-                            null
+                            exchangeSinkSupplier
                         ),
                         coordinatorPlan,
                         localListener.acquireCompute()

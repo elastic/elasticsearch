@@ -35,9 +35,9 @@
       ]
     },
     "params": {
-      "timeout": {
-        "type": "time",
-        "description": "Explicit timeout for the operation to complete"
+      "refresh": {
+        "type": "boolean",
+        "description": "Refresh search analyzers to update synonyms"
       }
     },
     "body": {

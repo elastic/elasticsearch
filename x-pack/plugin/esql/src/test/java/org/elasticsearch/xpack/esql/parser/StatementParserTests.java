@@ -484,14 +484,14 @@ public class StatementParserTests extends AbstractStatementParserTests {
             assertStringAsIndexPattern("`backtick`,``multiple`back``ticks```", command + " `backtick`, ``multiple`back``ticks```");
             assertStringAsIndexPattern("test,metadata,metaata,.metadata", command + " test,\"metadata\", metaata, .metadata");
             assertStringAsIndexPattern(".dot", command + " .dot");
-            assertStringAsIndexPattern("cluster:index|pattern", command + " cluster:\"index|pattern\"");
-            assertStringAsIndexPattern("*:index|pattern", command + " \"*:index|pattern\"");
             clusterAndIndexAsIndexPattern(command, "cluster:index");
             clusterAndIndexAsIndexPattern(command, "cluster:.index");
             clusterAndIndexAsIndexPattern(command, "cluster*:index*");
             clusterAndIndexAsIndexPattern(command, "cluster*:*");
             clusterAndIndexAsIndexPattern(command, "*:index*");
             clusterAndIndexAsIndexPattern(command, "*:*");
+            expectError("FROM \"cluster:index|pattern\"", "Invalid index name [index|pattern], must not contain the following characters");
+            expectError("FROM *:\"index|pattern\"", "Invalid index name [index|pattern], must not contain the following characters");
             if (EsqlCapabilities.Cap.INDEX_COMPONENT_SELECTORS.isEnabled()) {
                 assertStringAsIndexPattern("foo::data", command + " foo::data");
                 assertStringAsIndexPattern("foo::failures", command + " foo::failures");
@@ -692,6 +692,10 @@ public class StatementParserTests extends AbstractStatementParserTests {
             }
             lineNumber = command.contains("FROM") ? "line 1:9: " : "line 1:12: ";
             String indexStarLineNumber = command.contains("FROM") ? "line 1:14: " : "line 1:17: ";
+            clustersAndIndices(command, "*", "-index#pattern");
+            clustersAndIndices(command, "index*", "-index#pattern");
+            clustersAndIndices(command, "*", "-<--logstash-{now/M{yyyy.MM}}>");
+            clustersAndIndices(command, "index*", "-<--logstash#-{now/M{yyyy.MM}}>");
             expectInvalidIndexNameErrorWithLineNumber(command, "*, index#pattern", lineNumber, "index#pattern", "must not contain '#'");
             expectInvalidIndexNameErrorWithLineNumber(
                 command,
@@ -782,8 +786,6 @@ public class StatementParserTests extends AbstractStatementParserTests {
 
         expectError("FROM \"\"\"foo\"\"\"bar\"\"\"", ": mismatched input 'bar' expecting {<EOF>, '|', ',', 'metadata'}");
         expectError("FROM \"\"\"foo\"\"\"\"\"\"bar\"\"\"", ": mismatched input '\"bar\"' expecting {<EOF>, '|', ',', 'metadata'}");
-        expectError("FROM remote:\"foo:bar\"", "Index pattern [foo:bar] contains a cluster alias despite specifying one [remote]");
-        expectError("FROM \"remote:foo:bar:baz\"", "Invalid index name [foo:bar:baz], must not contain ':'");
     }
 
     public void testInvalidQuotingAsLookupIndexPattern() {

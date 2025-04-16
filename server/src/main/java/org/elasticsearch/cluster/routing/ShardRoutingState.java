@@ -39,7 +39,7 @@ public enum ShardRoutingState {
 
     /**
      * The shard is being reassigned away from one node to another node. This is the state of the shard on a source node when the shard is
-     * being moved away to a new target node. The target node will be initializing the shard and running recovery ({@link #INITIALIZING}).
+     * being moved away to a new target node. The target shard copy will be {@link #INITIALIZING}.
      */
     RELOCATING((byte) 4);
 

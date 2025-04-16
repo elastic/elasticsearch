@@ -564,7 +564,7 @@ To use `text_similarity_reranker`, you can rely on the preconfigured `.rerank-v1
 
 You have the following options:
 
-* Use the the built-in [Elastic Rerank](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-inference-put) cross-encoder model via the inference API’s {{es}} service. For an example of creating an endpoint using the Elastic Rerank model, refer to [this guide](https://www.elastic.co/guide/en/elasticsearch/reference/current/infer-service-elasticsearch.html#inference-example-elastic-reranker).
+* Use the built-in [Elastic Rerank](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-inference-put) cross-encoder model via the inference API’s {{es}} service. For an example of creating an endpoint using the Elastic Rerank model, refer to [this guide](https://www.elastic.co/guide/en/elasticsearch/reference/current/infer-service-elasticsearch.html#inference-example-elastic-reranker).
 * Use the [Cohere Rerank inference endpoint](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-inference-put) with the `rerank` task type.
 * Use the [Google Vertex AI inference endpoint](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-inference-put) with the `rerank` task type.
 * Upload a model to {{es}} with [Eland](eland://reference/machine-learning.md#ml-nlp-pytorch) using the `text_similarity` NLP task type.

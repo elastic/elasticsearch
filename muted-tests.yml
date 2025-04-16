@@ -414,6 +414,15 @@ tests:
 - class: org.elasticsearch.repositories.gcs.GoogleCloudStorageBlobStoreRepositoryTests
   method: testWriteReadLarge
   issue: https://github.com/elastic/elasticsearch/issues/126903
+- class: org.elasticsearch.repositories.gcs.GoogleCloudStorageBlobStoreRepositoryTests
+  method: testWriteFileMultipleOfChunkSize
+  issue: https://github.com/elastic/elasticsearch/issues/126908
+- class: org.elasticsearch.repositories.gcs.GoogleCloudStorageBlobStoreRepositoryTests
+  method: testSnapshotWithLargeSegmentFiles
+  issue: https://github.com/elastic/elasticsearch/issues/126909
+- class: org.elasticsearch.index.engine.CompletionStatsCacheTests
+  method: testCompletionStatsCache
+  issue: https://github.com/elastic/elasticsearch/issues/126910
 
 # Examples:
 #

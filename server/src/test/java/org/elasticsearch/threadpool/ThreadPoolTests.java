@@ -17,6 +17,7 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
+import org.elasticsearch.common.util.concurrent.EsThreadPoolExecutor;
 import org.elasticsearch.common.util.concurrent.FutureUtils;
 import org.elasticsearch.common.util.concurrent.TaskExecutionTimeTrackingEsThreadPoolExecutor;
 import org.elasticsearch.core.TimeValue;
@@ -559,7 +560,7 @@ public class ThreadPoolTests extends ESTestCase {
         }
     }
 
-    public void testThreadCountMetrics() {
+    public void testThreadCountMetrics() throws Exception {
         final RecordingMeterRegistry meterRegistry = new RecordingMeterRegistry();
         final BuiltInExecutorBuilders builtInExecutorBuilders = new DefaultBuiltInExecutorBuilders();
         final ThreadPool threadPool = new ThreadPool(
@@ -590,8 +591,9 @@ public class ThreadPoolTests extends ESTestCase {
             final int numThreads = randomIntBetween(1, Math.min(10, threadPoolInfo.getMax()));
             final CyclicBarrier barrier = new CyclicBarrier(numThreads + 1);
             final List<Future<?>> futures = new ArrayList<>();
+            final EsThreadPoolExecutor executor = asInstanceOf(EsThreadPoolExecutor.class, threadPool.executor(threadPoolName));
             for (int i = 0; i < numThreads; i++) {
-                futures.add(threadPool.executor(threadPoolName).submit(() -> {
+                futures.add(executor.submit(() -> {
                     safeAwait(barrier);
                     safeAwait(barrier);
                 }));
@@ -624,6 +626,8 @@ public class ThreadPoolTests extends ESTestCase {
             // Let all threads complete
             safeAwait(barrier);
             futures.forEach(ESTestCase::safeGet);
+            // Wait for TaskExecutionTimeTrackingEsThreadPoolExecutor#afterExecute to complete
+            assertBusy(() -> assertThat(executor.getActiveCount(), equalTo(0)));
 
             meterRegistry.getRecorder().collect();
             metricAsserter.assertLatestLongValueMatches(ThreadPool.THREAD_POOL_METRIC_NAME_ACTIVE, InstrumentType.LONG_GAUGE, equalTo(0L));

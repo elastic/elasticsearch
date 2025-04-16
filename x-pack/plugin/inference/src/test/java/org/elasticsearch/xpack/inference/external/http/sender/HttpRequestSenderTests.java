@@ -40,6 +40,7 @@ import static org.elasticsearch.xpack.inference.external.http.Utils.entityAsMap;
 import static org.elasticsearch.xpack.inference.external.http.Utils.getUrl;
 import static org.elasticsearch.xpack.inference.external.request.openai.OpenAiUtils.ORGANIZATION_HEADER;
 import static org.elasticsearch.xpack.inference.results.TextEmbeddingResultsTests.buildExpectationFloat;
+import static org.elasticsearch.xpack.inference.services.ServiceComponentsTests.createWithEmptySettings;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
@@ -77,7 +78,7 @@ public class HttpRequestSenderTests extends ESTestCase {
     }
 
     public void testCreateSender_SendsRequestAndReceivesResponse() throws Exception {
-        var senderFactory = createSenderFactory(clientManager, threadRef);
+        var senderFactory = new HttpRequestSender.Factory(createWithEmptySettings(threadPool), clientManager, mockClusterServiceEmpty());
 
         try (var sender = createSender(senderFactory)) {
             sender.start();

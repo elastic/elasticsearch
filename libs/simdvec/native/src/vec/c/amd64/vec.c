@@ -52,10 +52,10 @@ static inline int64_t xgetbv(int ctr) {
     // use inline assembly, Gnu/AT&T syntax
     uint32_t a, d;
     __asm("xgetbv" : "=a"(a),"=d"(d) : "c"(ctr) : );
-    return a | (uint64_t(d) << 32);
+    return a | (((uint64_t) d) << 32);
 
-#elif (defined (_MSC_FULL_VER) && _MSC_FULL_VER >= 160040000) || (defined (__INTEL_COMPILER) && __INTEL_COMPILER >= 1200) // Microsoft or Intel compiler supporting _xgetbv intrinsic
-    // intrinsic function for XGETBV
+#elif (defined (_MSC_FULL_VER) && _MSC_FULL_VER >= 160040000) || (defined (__INTEL_COMPILER) && __INTEL_COMPILER >= 1200)
+    // Microsoft or Intel compiler supporting _xgetbv intrinsic
     return _xgetbv(ctr);
 
 #else

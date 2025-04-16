@@ -53,42 +53,26 @@ class AddStringKeyStoreCommand extends BaseKeyStoreCommand {
 
         final KeyStoreWrapper keyStore = getKeyStore();
 
-        final Closeable closeable;
-        final CheckedFunction<String, char[], IOException> valueSupplier;
-        if (options.has(stdinOption)) {
-            final Reader stdinReader = terminal.getReader();
-            valueSupplier = s -> {
-                try (CharArrayWriter writer = new CharArrayWriter()) {
-                    int c;
-                    while ((c = stdinReader.read()) != -1) {
-                        if ((char) c == '\r' || (char) c == '\n') {
-                            break;
-                        }
-                        writer.write((char) c);
-                    }
-                    return writer.toCharArray();
+        final CheckedFunction<String, char[], IOException> valueSupplier = s -> {
+            String prompt = "";
+            if (options.has(stdinOption) == false) {
+                prompt = "Enter value for " + s + ": ";
+            }
+            return terminal.readSecret(prompt);
+        };
+        
+        for (final String setting : settings) {
+            if (keyStore.getSettingNames().contains(setting) && options.has(forceOption) == false) {
+                if (terminal.promptYesNo("Setting " + setting + " already exists. Overwrite?", false) == false) {
+                    terminal.println("Exiting without modifying keystore.");
+                    return;
                 }
-            };
-            closeable = stdinReader;
-        } else {
-            valueSupplier = s -> terminal.readSecret("Enter value for " + s + ": ");
-            closeable = () -> {};
-        }
+            }
 
-        try (closeable) {
-            for (final String setting : settings) {
-                if (keyStore.getSettingNames().contains(setting) && options.has(forceOption) == false) {
-                    if (terminal.promptYesNo("Setting " + setting + " already exists. Overwrite?", false) == false) {
-                        terminal.println("Exiting without modifying keystore.");
-                        return;
-                    }
-                }
-
-                try {
-                    keyStore.setString(setting, valueSupplier.apply(setting));
-                } catch (final IllegalArgumentException e) {
-                    throw new UserException(ExitCodes.DATA_ERROR, e.getMessage());
-                }
+            try {
+                keyStore.setString(setting, valueSupplier.apply(setting));
+            } catch (final IllegalArgumentException e) {
+                throw new UserException(ExitCodes.DATA_ERROR, e.getMessage());
             }
         }
 

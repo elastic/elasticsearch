@@ -9,7 +9,7 @@ setup:
           capabilities: [ 'data_stream_options.failure_store' ]
         - method: POST
           path: /{index}/_rollover
-          capabilities: [ 'index-expression-selectors' ]
+          capabilities: [ 'index_expression_selectors' ]
 
   - do:
       allowed_warnings:
@@ -313,7 +313,7 @@ teardown:
       capabilities:
         - method: POST
           path: /{index}/_rollover
-          capabilities: [index-expression-selectors]
+          capabilities: [index_expression_selectors]
 
   # Initialize failure store
   - do:

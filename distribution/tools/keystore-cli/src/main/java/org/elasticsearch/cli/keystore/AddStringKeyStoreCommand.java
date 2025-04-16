@@ -19,10 +19,7 @@ import org.elasticsearch.common.settings.KeyStoreWrapper;
 import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.env.Environment;
 
-import java.io.CharArrayWriter;
-import java.io.Closeable;
 import java.io.IOException;
-import java.io.Reader;
 import java.util.Arrays;
 import java.util.List;
 
@@ -60,7 +57,7 @@ class AddStringKeyStoreCommand extends BaseKeyStoreCommand {
             }
             return terminal.readSecret(prompt);
         };
-        
+
         for (final String setting : settings) {
             if (keyStore.getSettingNames().contains(setting) && options.has(forceOption) == false) {
                 if (terminal.promptYesNo("Setting " + setting + " already exists. Overwrite?", false) == false) {

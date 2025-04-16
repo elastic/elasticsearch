@@ -24,7 +24,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
-import org.elasticsearch.compute.operator.DriverProfile;
+import org.elasticsearch.compute.operator.DriverCompletionInfo;
 import org.elasticsearch.compute.operator.FailureCollector;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.query.QueryBuilder;
@@ -128,17 +128,23 @@ abstract class DataNodeRequestSender {
     final void startComputeOnDataNodes(Set<String> concreteIndices, Runnable runOnTaskFailure, ActionListener<ComputeResponse> listener) {
         final long startTimeInNanos = System.nanoTime();
         searchShards(concreteIndices, ActionListener.wrap(targetShards -> {
-            try (var computeListener = new ComputeListener(transportService.getThreadPool(), runOnTaskFailure, listener.map(profiles -> {
-                return new ComputeResponse(
-                    profiles,
-                    timeValueNanos(System.nanoTime() - startTimeInNanos),
-                    targetShards.totalShards(),
-                    targetShards.totalShards() - shardFailures.size() - skippedShards.get(),
-                    targetShards.skippedShards() + skippedShards.get(),
-                    shardFailures.size(),
-                    selectFailures()
-                );
-            }))) {
+            try (
+                var computeListener = new ComputeListener(
+                    transportService.getThreadPool(),
+                    runOnTaskFailure,
+                    listener.map(
+                        completionInfo -> new ComputeResponse(
+                            completionInfo,
+                            timeValueNanos(System.nanoTime() - startTimeInNanos),
+                            targetShards.totalShards(),
+                            targetShards.totalShards() - shardFailures.size() - skippedShards.get(),
+                            targetShards.skippedShards() + skippedShards.get(),
+                            shardFailures.size(),
+                            selectFailures()
+                        )
+                    )
+                )
+            ) {
                 pendingShardIds.addAll(order(targetShards));
                 trySendingRequestsForPendingShards(targetShards, computeListener);
             }
@@ -248,12 +254,12 @@ abstract class DataNodeRequestSender {
     }
 
     private void sendOneNodeRequest(TargetShards targetShards, ComputeListener computeListener, NodeRequest request) {
-        final ActionListener<List<DriverProfile>> listener = computeListener.acquireCompute();
+        final ActionListener<DriverCompletionInfo> listener = computeListener.acquireCompute();
         sendRequest(request.node, request.shardIds, request.aliasFilters, new NodeListener() {
 
             private final Set<ShardId> pendingRetries = new HashSet<>();
 
-            void onAfter(List<DriverProfile> profiles) {
+            void onAfter(DriverCompletionInfo info) {
                 nodePermits.get(request.node).release();
                 if (concurrentRequests != null) {
                     concurrentRequests.release();
@@ -270,7 +276,7 @@ abstract class DataNodeRequestSender {
                 }
 
                 trySendingRequestsForPendingShards(targetShards, computeListener);
-                listener.onResponse(profiles);
+                listener.onResponse(info);
             }
 
             @Override
@@ -287,7 +293,7 @@ abstract class DataNodeRequestSender {
                     pendingShardIds.add(shardId);
                     maybeScheduleRetry(shardId, entry.getValue());
                 }
-                onAfter(response.profiles());
+                onAfter(response.completionInfo());
             }
 
             @Override
@@ -297,7 +303,7 @@ abstract class DataNodeRequestSender {
                     pendingShardIds.add(shardId);
                     maybeScheduleRetry(shardId, e);
                 }
-                onAfter(List.of());
+                onAfter(DriverCompletionInfo.EMPTY);
             }
 
             @Override
@@ -306,7 +312,7 @@ abstract class DataNodeRequestSender {
                 if (rootTask.isCancelled()) {
                     onFailure(new TaskCancelledException("null"), true);
                 } else {
-                    onResponse(new DataNodeComputeResponse(List.of(), Map.of()));
+                    onResponse(new DataNodeComputeResponse(DriverCompletionInfo.EMPTY, Map.of()));
                 }
             }
 

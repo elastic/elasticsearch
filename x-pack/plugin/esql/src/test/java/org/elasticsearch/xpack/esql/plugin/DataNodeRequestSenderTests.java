@@ -22,6 +22,7 @@ import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.compute.operator.DriverCompletionInfo;
 import org.elasticsearch.compute.test.ComputeTestCase;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
@@ -125,7 +126,7 @@ public class DataNodeRequestSenderTests extends ComputeTestCase {
         Queue<NodeRequest> sent = ConcurrentCollections.newQueue();
         var future = sendRequests(randomBoolean(), -1, targetShards, (node, shardIds, aliasFilters, listener) -> {
             sent.add(nodeRequest(node, shardIds));
-            runWithDelay(() -> listener.onResponse(new DataNodeComputeResponse(List.of(), Map.of())));
+            runWithDelay(() -> listener.onResponse(new DataNodeComputeResponse(DriverCompletionInfo.EMPTY, Map.of())));
         });
         safeGet(future);
         assertThat(sent.size(), equalTo(2));
@@ -144,7 +145,7 @@ public class DataNodeRequestSenderTests extends ComputeTestCase {
             var targetShards = List.of(targetShard(shard1, node1), targetShard(shard3), targetShard(shard4, node2, node3));
             var future = sendRequests(true, -1, targetShards, (node, shardIds, aliasFilters, listener) -> {
                 assertThat(shard3, not(in(shardIds)));
-                runWithDelay(() -> listener.onResponse(new DataNodeComputeResponse(List.of(), Map.of())));
+                runWithDelay(() -> listener.onResponse(new DataNodeComputeResponse(DriverCompletionInfo.EMPTY, Map.of())));
             });
             ComputeResponse resp = safeGet(future);
             assertThat(resp.totalShards, equalTo(3));
@@ -175,7 +176,7 @@ public class DataNodeRequestSenderTests extends ComputeTestCase {
             if (node.equals(node4) && shardIds.contains(shard2)) {
                 failures.put(shard2, new IOException("test"));
             }
-            runWithDelay(() -> listener.onResponse(new DataNodeComputeResponse(List.of(), failures)));
+            runWithDelay(() -> listener.onResponse(new DataNodeComputeResponse(DriverCompletionInfo.EMPTY, failures)));
         });
         try {
             future.actionGet(1, TimeUnit.MINUTES);
@@ -205,7 +206,7 @@ public class DataNodeRequestSenderTests extends ComputeTestCase {
             if (shardIds.contains(shard5)) {
                 failures.put(shard5, new IOException("test failure for shard5"));
             }
-            runWithDelay(() -> listener.onResponse(new DataNodeComputeResponse(List.of(), failures)));
+            runWithDelay(() -> listener.onResponse(new DataNodeComputeResponse(DriverCompletionInfo.EMPTY, failures)));
         });
         var error = expectThrows(Exception.class, future::actionGet);
         assertNotNull(ExceptionsHelper.unwrap(error, IOException.class));
@@ -228,7 +229,7 @@ public class DataNodeRequestSenderTests extends ComputeTestCase {
             if (node1.equals(node) && failed.compareAndSet(false, true)) {
                 runWithDelay(() -> listener.onFailure(new IOException("test request level failure"), true));
             } else {
-                runWithDelay(() -> listener.onResponse(new DataNodeComputeResponse(List.of(), Map.of())));
+                runWithDelay(() -> listener.onResponse(new DataNodeComputeResponse(DriverCompletionInfo.EMPTY, Map.of())));
             }
         });
         Exception exception = expectThrows(Exception.class, future::actionGet);
@@ -247,7 +248,7 @@ public class DataNodeRequestSenderTests extends ComputeTestCase {
             if (node1.equals(node) && failed.compareAndSet(false, true)) {
                 runWithDelay(() -> listener.onFailure(new IOException("test request level failure"), true));
             } else {
-                runWithDelay(() -> listener.onResponse(new DataNodeComputeResponse(List.of(), Map.of())));
+                runWithDelay(() -> listener.onResponse(new DataNodeComputeResponse(DriverCompletionInfo.EMPTY, Map.of())));
             }
         });
         var response = safeGet(future);
@@ -267,7 +268,7 @@ public class DataNodeRequestSenderTests extends ComputeTestCase {
             if (Objects.equals(node1, node)) {
                 runWithDelay(() -> listener.onFailure(new RuntimeException("test request level non fatal failure"), false));
             } else {
-                runWithDelay(() -> listener.onResponse(new DataNodeComputeResponse(List.of(), Map.of())));
+                runWithDelay(() -> listener.onResponse(new DataNodeComputeResponse(DriverCompletionInfo.EMPTY, Map.of())));
             }
         }));
         assertThat(response.totalShards, equalTo(1));
@@ -325,7 +326,7 @@ public class DataNodeRequestSenderTests extends ComputeTestCase {
             sent.add(nodeRequest(node, shardIds));
             runWithDelay(() -> {
                 concurrentRequests.decrementAndGet();
-                listener.onResponse(new DataNodeComputeResponse(List.of(), Map.of()));
+                listener.onResponse(new DataNodeComputeResponse(DriverCompletionInfo.EMPTY, Map.of()));
             });
         }));
         assertThat(sent.size(), equalTo(5));
@@ -348,7 +349,7 @@ public class DataNodeRequestSenderTests extends ComputeTestCase {
         var response = safeGet(sendRequests(randomBoolean(), 1, targetShards, (node, shardIds, aliasFilters, listener) -> {
             runWithDelay(() -> {
                 if (processed.incrementAndGet() == 1) {
-                    listener.onResponse(new DataNodeComputeResponse(List.of(), Map.of()));
+                    listener.onResponse(new DataNodeComputeResponse(DriverCompletionInfo.EMPTY, Map.of()));
                 } else {
                     listener.onSkip();
                 }
@@ -370,7 +371,7 @@ public class DataNodeRequestSenderTests extends ComputeTestCase {
                 if (Objects.equals(node.getId(), node1.getId()) && shardIds.equals(List.of(shard1))) {
                     listener.onFailure(new RuntimeException("test request level non fatal failure"), false);
                 } else if (Objects.equals(node.getId(), node3.getId()) && shardIds.equals(List.of(shard2))) {
-                    listener.onResponse(new DataNodeComputeResponse(List.of(), Map.of()));
+                    listener.onResponse(new DataNodeComputeResponse(DriverCompletionInfo.EMPTY, Map.of()));
                 } else if (Objects.equals(node.getId(), node2.getId()) && shardIds.equals(List.of(shard1))) {
                     listener.onSkip();
                 }
@@ -398,7 +399,7 @@ public class DataNodeRequestSenderTests extends ComputeTestCase {
         var sent = ConcurrentCollections.<NodeRequest>newQueue();
         safeGet(sendRequests(randomBoolean(), -1, targetShards, (node, shardIds, aliasFilters, listener) -> {
             sent.add(nodeRequest(node, shardIds));
-            runWithDelay(() -> listener.onResponse(new DataNodeComputeResponse(List.of(), Map.of())));
+            runWithDelay(() -> listener.onResponse(new DataNodeComputeResponse(DriverCompletionInfo.EMPTY, Map.of())));
         }));
         assertThat(
             sent,
@@ -419,7 +420,7 @@ public class DataNodeRequestSenderTests extends ComputeTestCase {
         var sent = ConcurrentCollections.<NodeRequest>newQueue();
         safeGet(sendRequests(randomBoolean(), -1, targetShards, (node, shardIds, aliasFilters, listener) -> {
             sent.add(nodeRequest(node, shardIds));
-            runWithDelay(() -> listener.onResponse(new DataNodeComputeResponse(List.of(), Map.of())));
+            runWithDelay(() -> listener.onResponse(new DataNodeComputeResponse(DriverCompletionInfo.EMPTY, Map.of())));
         }));
         assertThat(take(sent, 1), contains(nodeRequest(node1, shard1)));
         assertThat(take(sent, 1), anyOf(contains(nodeRequest(node2, shard2)), contains(nodeRequest(warmNode2, shard2))));
@@ -440,8 +441,8 @@ public class DataNodeRequestSenderTests extends ComputeTestCase {
                 (node, shardIds, aliasFilters, listener) -> runWithDelay(
                     () -> listener.onResponse(
                         Objects.equals(node, node4)
-                            ? new DataNodeComputeResponse(List.of(), Map.of())
-                            : new DataNodeComputeResponse(List.of(), Map.of(shard1, new ShardNotFoundException(shard1)))
+                            ? new DataNodeComputeResponse(DriverCompletionInfo.EMPTY, Map.of())
+                            : new DataNodeComputeResponse(DriverCompletionInfo.EMPTY, Map.of(shard1, new ShardNotFoundException(shard1)))
                     )
                 )
             )
@@ -460,7 +461,9 @@ public class DataNodeRequestSenderTests extends ComputeTestCase {
             listener.onResponse(Map.of(shard1, List.of(node2)));
         }),
             (node, shardIds, aliasFilters, listener) -> runWithDelay(
-                () -> listener.onResponse(new DataNodeComputeResponse(List.of(), Map.of(shard1, new ShardNotFoundException(shard1))))
+                () -> listener.onResponse(
+                    new DataNodeComputeResponse(DriverCompletionInfo.EMPTY, Map.of(shard1, new ShardNotFoundException(shard1)))
+                )
             )
         ));
         assertThat(response.totalShards, equalTo(1));
@@ -486,12 +489,16 @@ public class DataNodeRequestSenderTests extends ComputeTestCase {
                 (node, shardIds, aliasFilters, listener) -> runWithDelay(() -> {
                     if (Objects.equals(node, node1)) {
                         // search is going to be retried from replica on node3 without shard resolution
-                        listener.onResponse(new DataNodeComputeResponse(List.of(), Map.of(shard1, new ShardNotFoundException(shard1))));
+                        listener.onResponse(
+                            new DataNodeComputeResponse(DriverCompletionInfo.EMPTY, Map.of(shard1, new ShardNotFoundException(shard1)))
+                        );
                     } else if (Objects.equals(node, node2)) {
                         // search is going to be retried after resolving new shard node since there are no replicas
-                        listener.onResponse(new DataNodeComputeResponse(List.of(), Map.of(shard2, new ShardNotFoundException(shard2))));
+                        listener.onResponse(
+                            new DataNodeComputeResponse(DriverCompletionInfo.EMPTY, Map.of(shard2, new ShardNotFoundException(shard2)))
+                        );
                     } else {
-                        listener.onResponse(new DataNodeComputeResponse(List.of(), Map.of()));
+                        listener.onResponse(new DataNodeComputeResponse(DriverCompletionInfo.EMPTY, Map.of()));
                     }
                 })
             )

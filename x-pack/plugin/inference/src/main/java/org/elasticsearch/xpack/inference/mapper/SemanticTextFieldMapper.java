@@ -27,7 +27,6 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParserUtils;
-import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.features.NodeFeature;
@@ -1077,8 +1076,8 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
     static DenseVectorFieldMapper.IndexOptions defaultSemanticDenseIndexOptions() {
         // As embedding models for text perform better with BBQ, we aggressively default semantic_text fields to use optimized index
         // options outside of dense_vector defaults
-        int m = XContentMapValues.nodeIntegerValue(Lucene99HnswVectorsFormat.DEFAULT_MAX_CONN);
-        int efConstruction = XContentMapValues.nodeIntegerValue(Lucene99HnswVectorsFormat.DEFAULT_BEAM_WIDTH);
+        int m = Lucene99HnswVectorsFormat.DEFAULT_MAX_CONN;
+        int efConstruction = Lucene99HnswVectorsFormat.DEFAULT_BEAM_WIDTH;
         DenseVectorFieldMapper.RescoreVector rescoreVector = new DenseVectorFieldMapper.RescoreVector(DEFAULT_RESCORE_OVERSAMPLE);
         return new DenseVectorFieldMapper.BBQHnswIndexOptions(m, efConstruction, rescoreVector);
     }

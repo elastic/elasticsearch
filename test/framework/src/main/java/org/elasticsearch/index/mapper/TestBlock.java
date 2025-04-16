@@ -150,7 +150,7 @@ public class TestBlock implements BlockLoader.Block {
 
             @Override
             public BlockLoader.AggregateMetricDoubleBuilder aggregateMetricDoubleBuilder(int count) {
-                return null;
+                return new AggregateMetricDoubleBlockBuilder();
             }
         };
     }
@@ -241,6 +241,83 @@ public class TestBlock implements BlockLoader.Block {
         @Override
         public void close() {
             // TODO assert that we close the test block builders
+        }
+    }
+
+    /**
+     * Test implementation of {@link org.elasticsearch.index.mapper.BlockLoader.AggregateMetricDoubleBuilder}.
+     * The implementation here is fairly close to the production one.
+     */
+    private static class AggregateMetricDoubleBlockBuilder implements BlockLoader.AggregateMetricDoubleBuilder {
+        private final DoubleBuilder min = new DoubleBuilder();
+        private final DoubleBuilder max = new DoubleBuilder();
+        private final DoubleBuilder sum = new DoubleBuilder();
+        private final IntBuilder count = new IntBuilder();
+
+        private static class DoubleBuilder extends TestBlock.Builder implements BlockLoader.DoubleBuilder {
+            @Override
+            public BlockLoader.DoubleBuilder appendDouble(double value) {
+                add(value);
+                return this;
+            }
+        }
+
+        private static class IntBuilder extends TestBlock.Builder implements BlockLoader.IntBuilder {
+            @Override
+            public BlockLoader.IntBuilder appendInt(int value) {
+                add(value);
+                return this;
+            }
+        }
+
+        @Override
+        public BlockLoader.DoubleBuilder min() {
+            return min;
+        }
+
+        @Override
+        public BlockLoader.DoubleBuilder max() {
+            return max;
+        }
+
+        @Override
+        public BlockLoader.DoubleBuilder sum() {
+            return sum;
+        }
+
+        @Override
+        public BlockLoader.IntBuilder count() {
+            return count;
+        }
+
+        @Override
+        public BlockLoader.Block build() {
+            var minBlock = max.build();
+            var maxBlock = max.build();
+            var sumBlock = max.build();
+            var countBlock = max.build();
+
+            return new TestBlock(null);
+        }
+
+        @Override
+        public BlockLoader.Builder appendNull() {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public BlockLoader.Builder beginPositionEntry() {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public BlockLoader.Builder endPositionEntry() {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public void close() {
+
         }
     }
 }

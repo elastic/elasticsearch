@@ -81,37 +81,27 @@ setup:
           synonyms: "i-phone, iphone"
 
 ---
-"Timeout can be specified":
+"Refresh can be specified":
+
   - requires:
       test_runner_features: [ capabilities ]
       capabilities:
         - method: PUT
-          path: /_synonyms/{set_id}/{rule_id}
-          capabilities: [ put_synonyms_timeout ]
-      reason: "synonyms timeout capability needed"
+          path: /_synonyms/{rule_id}
+          capabilities: [ synonyms_refresh_param ]
+      reason: "synonyms refresh param capability needed"
 
   - do:
       synonyms.put_synonym_rule:
+        refresh: false
         set_id: "test-synonyms"
-        rule_id: "test-id-0"
-        timeout: 10s
+        rule_id: "test-id-2"
         body:
-          synonyms: "i-phone, iphone"
+          synonyms: "bye, goodbye, seeya"
 
-  - match: { result: "created" }
-  - match: { reload_analyzers_details._shards.total: 0 }
-  - length: { reload_analyzers_details.reload_details: 0 }
-
-  # Validates timeout values
-  - do:
-      catch: /as a time value:\ negative durations are not supported/
-      synonyms.put_synonym_rule:
-        set_id: "test-synonyms"
-        rule_id: "test-id-0"
-        timeout: -100s
-        body:
-          synonyms_set:
-            - synonyms: "bye, goodbye"
+  - match: { result: "updated" }
+  # Reload analyzers info is not included
+  - not_exists: reload_analyzers_details
 
 ---
 "Validation failure tests":

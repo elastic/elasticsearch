@@ -66,20 +66,20 @@ setup:
   - match: { synonyms_set: [] }
 
 ---
-"Timeout can be specified":
+"Refresh can be specified":
 
   - requires:
       test_runner_features: [ capabilities ]
       capabilities:
         - method: PUT
           path: /_synonyms/{rule_id}
-          capabilities: [ put_synonyms_timeout ]
-      reason: "synonyms timeout capability needed"
+          capabilities: [ synonyms_refresh_param ]
+      reason: "synonyms refresh param capability needed"
 
   - do:
       synonyms.put_synonym:
         id: test-update-synonyms
-        timeout: 10s
+        refresh: false
         body:
           synonyms_set:
             - synonyms: "hello, hi"
@@ -87,18 +87,8 @@ setup:
               id: "test-id"
 
   - match: { result: "created" }
-  - match: { reload_analyzers_details._shards.total: 0 }
-  - length: { reload_analyzers_details.reload_details: 0 }
-
-  # Validate timeout values
-  - do:
-      catch: /as a time value:\ negative durations are not supported/
-      synonyms.put_synonym:
-        id: test-update-synonyms
-        timeout: -100s
-        body:
-          synonyms_set:
-            - synonyms: "bye, goodbye"
+  # Reload analyzers info is not included
+  - not_exists: reload_analyzers_details
 
 ---
 "Validation fails tests":

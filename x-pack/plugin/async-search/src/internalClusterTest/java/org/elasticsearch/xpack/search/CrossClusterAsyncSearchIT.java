@@ -1374,7 +1374,7 @@ public class CrossClusterAsyncSearchIT extends AbstractMultiClustersTestCase {
                 .get()
                 .getTasks();
             assertThat(remoteSearchTasks.size(), equalTo(1));
-            remoteClusterSearchTask.set(remoteSearchTasks.getFirst());
+            remoteClusterSearchTask.set(remoteSearchTasks.get(0));
         });
         assertFalse(
             "taskInfo on remote cluster should not be cancelled yet: " + remoteClusterSearchTask.get(),
@@ -1455,7 +1455,7 @@ public class CrossClusterAsyncSearchIT extends AbstractMultiClustersTestCase {
                 .get()
                 .getTasks();
             assertThat(remoteSearchTasks.size(), equalTo(1));
-            remoteClusterSearchTask.set(remoteSearchTasks.getFirst());
+            remoteClusterSearchTask.set(remoteSearchTasks.get(0));
         });
         assertFalse(
             "taskInfo on remote cluster should not be cancelled yet: " + remoteClusterSearchTask.get(),

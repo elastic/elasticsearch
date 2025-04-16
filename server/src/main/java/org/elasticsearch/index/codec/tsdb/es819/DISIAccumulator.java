@@ -108,9 +108,7 @@ final class DISIAccumulator implements Closeable {
         // offset+index jump-table stored at the end
         short blockCount = flushBlockJumps(jumps, lastBlock + 1, disiTempOutput);
         disiTempOutput.close();
-        try (
-            var addressDataInput = dir.openInput(skipListTempFileName, context)
-        ) {
+        try (var addressDataInput = dir.openInput(skipListTempFileName, context)) {
             data.copyBytes(addressDataInput, addressDataInput.length());
         }
         return blockCount;

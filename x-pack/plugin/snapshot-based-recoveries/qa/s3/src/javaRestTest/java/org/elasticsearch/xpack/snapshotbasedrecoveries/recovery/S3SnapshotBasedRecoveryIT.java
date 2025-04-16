@@ -10,11 +10,15 @@ package org.elasticsearch.xpack.snapshotbasedrecoveries.recovery;
 import fixture.s3.S3HttpFixture;
 
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.LazyInitializable;
+import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.cluster.local.distribution.DistributionType;
 import org.junit.ClassRule;
 import org.junit.rules.RuleChain;
 import org.junit.rules.TestRule;
+
+import java.util.function.Supplier;
 
 import static org.hamcrest.Matchers.blankOrNullString;
 import static org.hamcrest.Matchers.not;
@@ -23,11 +27,13 @@ public class S3SnapshotBasedRecoveryIT extends AbstractSnapshotBasedRecoveryRest
 
     static final boolean USE_FIXTURE = Boolean.parseBoolean(System.getProperty("tests.use.fixture", "true"));
 
-    public static final S3HttpFixture s3Fixture = new S3HttpFixture(USE_FIXTURE);
+    private static final Supplier<String> regionSupplier = new LazyInitializable<>(ESTestCase::randomIdentifier)::getOrCompute;
+    public static final S3HttpFixture s3Fixture = new S3HttpFixture(USE_FIXTURE, regionSupplier);
 
     public static ElasticsearchCluster cluster = ElasticsearchCluster.local()
         .distribution(DistributionType.DEFAULT)
         .nodes(3)
+        .systemProperty("aws.region", regionSupplier)
         .keystore("s3.client.snapshot_based_recoveries.access_key", System.getProperty("s3AccessKey"))
         .keystore("s3.client.snapshot_based_recoveries.secret_key", System.getProperty("s3SecretKey"))
         .setting("xpack.license.self_generated.type", "trial")

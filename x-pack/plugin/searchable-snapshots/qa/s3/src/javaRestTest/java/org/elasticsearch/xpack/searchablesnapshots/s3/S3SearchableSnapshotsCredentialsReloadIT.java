@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.searchablesnapshots.s3;
 
+import fixture.aws.DynamicRegionSupplier;
 import fixture.s3.S3HttpFixture;
 import io.netty.handler.codec.http.HttpMethod;
 
@@ -33,9 +34,9 @@ import org.junit.rules.TestRule;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.util.function.Supplier;
 import java.util.function.UnaryOperator;
 
-import static fixture.aws.AwsCredentialsUtils.ANY_REGION;
 import static fixture.aws.AwsCredentialsUtils.mutableAccessKey;
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.Matchers.allOf;
@@ -47,11 +48,12 @@ public class S3SearchableSnapshotsCredentialsReloadIT extends ESRestTestCase {
 
     private static volatile String repositoryAccessKey;
 
+    private static final Supplier<String> regionSupplier = new DynamicRegionSupplier();
     public static final S3HttpFixture s3Fixture = new S3HttpFixture(
         true,
         BUCKET,
         BASE_PATH,
-        mutableAccessKey(() -> repositoryAccessKey, ANY_REGION, "s3")
+        mutableAccessKey(() -> repositoryAccessKey, regionSupplier, "s3")
     );
 
     private static final MutableSettingsProvider keystoreSettings = new MutableSettingsProvider();
@@ -59,6 +61,7 @@ public class S3SearchableSnapshotsCredentialsReloadIT extends ESRestTestCase {
     public static ElasticsearchCluster cluster = ElasticsearchCluster.local()
         .distribution(DistributionType.DEFAULT)
         .setting("xpack.license.self_generated.type", "trial")
+        .systemProperty("aws.region", regionSupplier)
         .keystore(keystoreSettings)
         .setting("xpack.searchable.snapshot.shared_cache.size", "4kB")
         .setting("xpack.searchable.snapshot.shared_cache.region_size", "4kB")

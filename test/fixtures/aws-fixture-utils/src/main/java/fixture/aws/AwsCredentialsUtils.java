@@ -24,12 +24,6 @@ public enum AwsCredentialsUtils {
     ;
 
     /**
-     * Region supplier which matches any region.
-     */
-    // TODO NOMERGE: replace with DynamicRegionSupplier.
-    public static final Supplier<String> ANY_REGION = () -> "*";
-
-    /**
      * @return an authorization predicate that ensures the authorization header matches the given access key, region and service name.
      * @see <a href="https://docs.aws.amazon.com/AmazonS3/latest/API/sigv4-auth-using-authorization-header.html">AWS v4 Signatures</a>
      * @param regionSupplier supplies the name of the AWS region used to sign the request, or {@code *} to skip validation of the region
@@ -70,11 +64,6 @@ public enum AwsCredentialsUtils {
         final var expectedPrefix = "AWS4-HMAC-SHA256 Credential=" + accessKey + "/";
         if (authorizationHeader.startsWith(expectedPrefix) == false) {
             return false;
-        }
-
-        if (region.equals("*")) {
-            // skip region validation; TODO NOMERGE eliminate this when region is fixed in all tests
-            return authorizationHeader.contains("/" + serviceName + "/aws4_request, ");
         }
 
         final var remainder = authorizationHeader.substring(expectedPrefix.length() + "YYYYMMDD".length() /* skip over date field */);

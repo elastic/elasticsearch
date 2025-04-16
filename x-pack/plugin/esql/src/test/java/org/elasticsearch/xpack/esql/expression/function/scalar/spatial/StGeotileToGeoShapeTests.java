@@ -39,7 +39,7 @@ public class StGeotileToGeoShapeTests extends SpatialGridTypeConversionTestCases
             suppliers,
             "StGeotileToGeoShapeFromLongEvaluator[gridId=Attribute[channel=0]]",
             GEO_SHAPE,
-            g -> StGeotile.calculateGeotile(UNSPECIFIED.wkbAsPoint(g), 2),
+            g -> StGeotile.unboundedGrid.calculateGridId(UNSPECIFIED.wkbAsPoint(g), 2),
             StGeotileToGeoShapeTests::valueOf
         );
         forUnaryGeoPoint(
@@ -47,7 +47,7 @@ public class StGeotileToGeoShapeTests extends SpatialGridTypeConversionTestCases
             suppliers,
             "StGeotileToGeoShapeFromStringEvaluator[gridId=Attribute[channel=0]]",
             GEO_SHAPE,
-            g -> new BytesRef(GeoTileUtils.stringEncode(StGeotile.calculateGeotile(UNSPECIFIED.wkbAsPoint(g), 2))),
+            g -> new BytesRef(GeoTileUtils.stringEncode(StGeotile.unboundedGrid.calculateGridId(UNSPECIFIED.wkbAsPoint(g), 2))),
             StGeotileToGeoShapeTests::valueOf
         );
         return parameterSuppliersFromTypedDataWithDefaultChecksNoErrors(true, suppliers);

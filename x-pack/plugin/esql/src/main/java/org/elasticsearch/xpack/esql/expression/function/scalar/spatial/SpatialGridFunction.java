@@ -12,6 +12,7 @@ import org.elasticsearch.common.geo.GeoBoundingBox;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.geometry.Point;
 import org.elasticsearch.geometry.Rectangle;
@@ -23,6 +24,7 @@ import org.elasticsearch.xpack.esql.core.util.PlanStreamInput;
 import org.elasticsearch.xpack.esql.expression.function.OptionalArgument;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
@@ -215,4 +217,119 @@ public abstract class SpatialGridFunction extends ScalarFunction implements Opti
         }
     }
 
+    protected interface UnboundedGrid {
+        long calculateGridId(Point point, int precision);
+    }
+
+    protected interface BoundedGrid {
+        long calculateGridId(Point point);
+
+        int precision();
+    }
+
+    protected static void fromWKB(
+        LongBlock.Builder results,
+        int position,
+        BytesRefBlock wkbBlock,
+        int precision,
+        UnboundedGrid unboundedGrid
+    ) {
+        int valueCount = wkbBlock.getValueCount(position);
+        if (valueCount < 1) {
+            results.appendNull();
+        } else {
+            final BytesRef scratch = new BytesRef();
+            final int firstValueIndex = wkbBlock.getFirstValueIndex(position);
+            if (valueCount == 1) {
+                results.appendLong(
+                    unboundedGrid.calculateGridId(GEO.wkbAsPoint(wkbBlock.getBytesRef(firstValueIndex, scratch)), precision)
+                );
+            } else {
+                results.beginPositionEntry();
+                for (int i = 0; i < valueCount; i++) {
+                    results.appendLong(
+                        unboundedGrid.calculateGridId(GEO.wkbAsPoint(wkbBlock.getBytesRef(firstValueIndex + i, scratch)), precision)
+                    );
+                }
+                results.endPositionEntry();
+            }
+        }
+    }
+
+    protected static void fromEncodedLong(
+        LongBlock.Builder results,
+        int position,
+        LongBlock encoded,
+        int precision,
+        UnboundedGrid unboundedGrid
+    ) {
+        int valueCount = encoded.getValueCount(position);
+        if (valueCount < 1) {
+            results.appendNull();
+        } else {
+            final int firstValueIndex = encoded.getFirstValueIndex(position);
+            if (valueCount == 1) {
+                results.appendLong(unboundedGrid.calculateGridId(GEO.longAsPoint(encoded.getLong(firstValueIndex)), precision));
+            } else {
+                results.beginPositionEntry();
+                for (int i = 0; i < valueCount; i++) {
+                    results.appendLong(unboundedGrid.calculateGridId(GEO.longAsPoint(encoded.getLong(firstValueIndex + i)), precision));
+                }
+                results.endPositionEntry();
+            }
+        }
+    }
+
+    protected static void fromWKB(LongBlock.Builder results, int position, BytesRefBlock wkbBlock, BoundedGrid bounds) {
+        int valueCount = wkbBlock.getValueCount(position);
+        if (valueCount < 1) {
+            results.appendNull();
+        } else {
+            final BytesRef scratch = new BytesRef();
+            final int firstValueIndex = wkbBlock.getFirstValueIndex(position);
+            if (valueCount == 1) {
+                long grid = bounds.calculateGridId(GEO.wkbAsPoint(wkbBlock.getBytesRef(firstValueIndex, scratch)));
+                if (grid < 0) {
+                    results.appendNull();
+                } else {
+                    results.appendLong(grid);
+                }
+            } else {
+                var gridIds = new ArrayList<Long>(valueCount);
+                for (int i = 0; i < valueCount; i++) {
+                    var grid = bounds.calculateGridId(GEO.wkbAsPoint(wkbBlock.getBytesRef(firstValueIndex + i, scratch)));
+                    if (grid >= 0) {
+                        gridIds.add(grid);
+                    }
+                }
+                addGrids(results, gridIds);
+            }
+        }
+    }
+
+    protected static void fromEncodedLong(LongBlock.Builder results, int position, LongBlock encoded, BoundedGrid bounds) {
+        int valueCount = encoded.getValueCount(position);
+        if (valueCount < 1) {
+            results.appendNull();
+        } else {
+            final int firstValueIndex = encoded.getFirstValueIndex(position);
+            if (valueCount == 1) {
+                long grid = bounds.calculateGridId(GEO.longAsPoint(encoded.getLong(firstValueIndex)));
+                if (grid < 0) {
+                    results.appendNull();
+                } else {
+                    results.appendLong(grid);
+                }
+            } else {
+                var gridIds = new ArrayList<Long>(valueCount);
+                for (int i = 0; i < valueCount; i++) {
+                    var grid = bounds.calculateGridId(GEO.longAsPoint(encoded.getLong(firstValueIndex + i)));
+                    if (grid >= 0) {
+                        gridIds.add(grid);
+                    }
+                }
+                addGrids(results, gridIds);
+            }
+        }
+    }
 }

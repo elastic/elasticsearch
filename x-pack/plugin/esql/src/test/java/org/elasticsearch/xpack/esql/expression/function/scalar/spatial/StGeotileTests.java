@@ -35,7 +35,7 @@ public class StGeotileTests extends SpatialGridFunctionTestCase {
     }
 
     private static long valueOf(BytesRef wkb, int precision) {
-        return StGeotile.calculateGeotile(UNSPECIFIED.wkbAsPoint(wkb), precision);
+        return StGeotile.unboundedGrid.calculateGridId(UNSPECIFIED.wkbAsPoint(wkb), precision);
     }
 
     @Override

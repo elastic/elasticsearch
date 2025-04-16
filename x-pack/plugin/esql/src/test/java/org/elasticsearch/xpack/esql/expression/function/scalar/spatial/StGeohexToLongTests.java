@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.spatial;
 
 import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
-
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.h3.H3;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
@@ -38,7 +37,7 @@ public class StGeohexToLongTests extends SpatialGridTypeConversionTestCases {
             suppliers,
             "Attribute[channel=0]",
             DataType.LONG,
-            g -> StGeohex.calculateGeohex(UNSPECIFIED.wkbAsPoint(g), 2),
+            g -> StGeohex.unboundedGrid.calculateGridId(UNSPECIFIED.wkbAsPoint(g), 2),
             StGeohexToLongTests::valueOf
         );
         forUnaryGeoPoint(
@@ -46,7 +45,7 @@ public class StGeohexToLongTests extends SpatialGridTypeConversionTestCases {
             suppliers,
             "StGeohexToLongFromStringEvaluator[gridId=Attribute[channel=0]]",
             DataType.LONG,
-            g -> new BytesRef(H3.h3ToString(StGeohex.calculateGeohex(UNSPECIFIED.wkbAsPoint(g), 2))),
+            g -> new BytesRef(H3.h3ToString(StGeohex.unboundedGrid.calculateGridId(UNSPECIFIED.wkbAsPoint(g), 2))),
             StGeohexToLongTests::valueOf
         );
         return parameterSuppliersFromTypedDataWithDefaultChecksNoErrors(true, suppliers);

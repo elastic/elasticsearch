@@ -39,7 +39,7 @@ public class StGeohexToStringTests extends SpatialGridTypeConversionTestCases {
             suppliers,
             "StGeohexToStringFromLongEvaluator[gridId=Attribute[channel=0]]",
             KEYWORD,
-            g -> StGeohex.calculateGeohex(UNSPECIFIED.wkbAsPoint(g), 2),
+            g -> StGeohex.unboundedGrid.calculateGridId(UNSPECIFIED.wkbAsPoint(g), 2),
             StGeohexToStringTests::valueOf
         );
         forUnaryGeoPoint(
@@ -47,7 +47,7 @@ public class StGeohexToStringTests extends SpatialGridTypeConversionTestCases {
             suppliers,
             "Attribute[channel=0]",
             KEYWORD,
-            g -> new BytesRef(H3.h3ToString(StGeohex.calculateGeohex(UNSPECIFIED.wkbAsPoint(g), 2))),
+            g -> new BytesRef(H3.h3ToString(StGeohex.unboundedGrid.calculateGridId(UNSPECIFIED.wkbAsPoint(g), 2))),
             StGeohexToStringTests::valueOf
         );
         return parameterSuppliersFromTypedDataWithDefaultChecksNoErrors(true, suppliers);

@@ -26,14 +26,14 @@ public final class StGeohexFromFieldAndLiteralAndLiteralEvaluator implements Eva
 
   private final EvalOperator.ExpressionEvaluator in;
 
-  private final GeoHexBoundedPredicate bounds;
+  private final StGeohex.GeoHexBoundedGrid bounds;
 
   private final DriverContext driverContext;
 
   private Warnings warnings;
 
   public StGeohexFromFieldAndLiteralAndLiteralEvaluator(Source source,
-      EvalOperator.ExpressionEvaluator in, GeoHexBoundedPredicate bounds,
+      EvalOperator.ExpressionEvaluator in, StGeohex.GeoHexBoundedGrid bounds,
       DriverContext driverContext) {
     this.source = source;
     this.in = in;
@@ -97,10 +97,10 @@ public final class StGeohexFromFieldAndLiteralAndLiteralEvaluator implements Eva
 
     private final EvalOperator.ExpressionEvaluator.Factory in;
 
-    private final GeoHexBoundedPredicate bounds;
+    private final StGeohex.GeoHexBoundedGrid bounds;
 
     public Factory(Source source, EvalOperator.ExpressionEvaluator.Factory in,
-        GeoHexBoundedPredicate bounds) {
+        StGeohex.GeoHexBoundedGrid bounds) {
       this.source = source;
       this.in = in;
       this.bounds = bounds;

@@ -25,14 +25,14 @@ public final class StGeohexFromFieldDocValuesAndLiteralAndLiteralEvaluator imple
 
   private final EvalOperator.ExpressionEvaluator encoded;
 
-  private final GeoHexBoundedPredicate bounds;
+  private final StGeohex.GeoHexBoundedGrid bounds;
 
   private final DriverContext driverContext;
 
   private Warnings warnings;
 
   public StGeohexFromFieldDocValuesAndLiteralAndLiteralEvaluator(Source source,
-      EvalOperator.ExpressionEvaluator encoded, GeoHexBoundedPredicate bounds,
+      EvalOperator.ExpressionEvaluator encoded, StGeohex.GeoHexBoundedGrid bounds,
       DriverContext driverContext) {
     this.source = source;
     this.encoded = encoded;
@@ -96,10 +96,10 @@ public final class StGeohexFromFieldDocValuesAndLiteralAndLiteralEvaluator imple
 
     private final EvalOperator.ExpressionEvaluator.Factory encoded;
 
-    private final GeoHexBoundedPredicate bounds;
+    private final StGeohex.GeoHexBoundedGrid bounds;
 
     public Factory(Source source, EvalOperator.ExpressionEvaluator.Factory encoded,
-        GeoHexBoundedPredicate bounds) {
+        StGeohex.GeoHexBoundedGrid bounds) {
       this.source = source;
       this.encoded = encoded;
       this.bounds = bounds;

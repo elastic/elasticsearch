@@ -39,7 +39,7 @@ public class StGeohexToGeoShapeTests extends SpatialGridTypeConversionTestCases 
             suppliers,
             "StGeohexToGeoShapeFromLongEvaluator[gridId=Attribute[channel=0]]",
             GEO_SHAPE,
-            g -> StGeohex.calculateGeohex(UNSPECIFIED.wkbAsPoint(g), 2),
+            g -> StGeohex.unboundedGrid.calculateGridId(UNSPECIFIED.wkbAsPoint(g), 2),
             StGeohexToGeoShapeTests::valueOf
         );
         forUnaryGeoPoint(
@@ -47,7 +47,7 @@ public class StGeohexToGeoShapeTests extends SpatialGridTypeConversionTestCases 
             suppliers,
             "StGeohexToGeoShapeFromStringEvaluator[gridId=Attribute[channel=0]]",
             GEO_SHAPE,
-            g -> new BytesRef(H3.h3ToString(StGeohex.calculateGeohex(UNSPECIFIED.wkbAsPoint(g), 2))),
+            g -> new BytesRef(H3.h3ToString(StGeohex.unboundedGrid.calculateGridId(UNSPECIFIED.wkbAsPoint(g), 2))),
             StGeohexToGeoShapeTests::valueOf
         );
         return parameterSuppliersFromTypedDataWithDefaultChecksNoErrors(true, suppliers);

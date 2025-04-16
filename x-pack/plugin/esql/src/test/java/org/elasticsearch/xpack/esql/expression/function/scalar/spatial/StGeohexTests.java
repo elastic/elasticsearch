@@ -35,7 +35,7 @@ public class StGeohexTests extends SpatialGridFunctionTestCase {
     }
 
     private static long valueOf(BytesRef wkb, int precision) {
-        return StGeohex.calculateGeohex(UNSPECIFIED.wkbAsPoint(wkb), precision);
+        return StGeohex.unboundedGrid.calculateGridId(UNSPECIFIED.wkbAsPoint(wkb), precision);
     }
 
     @Override

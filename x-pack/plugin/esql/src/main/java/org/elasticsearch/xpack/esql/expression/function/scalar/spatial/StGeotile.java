@@ -30,7 +30,6 @@ import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 
 import java.io.IOException;
-import java.util.ArrayList;
 
 import static org.elasticsearch.xpack.esql.core.type.DataType.LONG;
 import static org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes.GEO;
@@ -44,6 +43,47 @@ public class StGeotile extends SpatialGridFunction implements EvaluatorMapper {
         "StGeotile",
         StGeotile::new
     );
+
+    /**
+     * When checking tiles with bounds, we need to check if the tile is valid (intersects with the bounds).
+     * This uses GeoTileBoundedPredicate to check if the tile is valid.
+     */
+    protected static class GeoTileBoundedGrid implements BoundedGrid {
+        private final GeoTileBoundedPredicate bounds;
+        private final int precision;
+
+        public GeoTileBoundedGrid(int precision, GeoBoundingBox bbox) {
+            this.bounds = new GeoTileBoundedPredicate(precision, bbox);
+            this.precision = precision;
+        }
+
+        public long calculateGridId(Point point) {
+            final int tiles = 1 << GeoTileUtils.checkPrecisionRange(precision);
+            final int x = GeoTileUtils.getXTile(point.getX(), tiles);
+            final int y = GeoTileUtils.getYTile(point.getY(), tiles);
+            if (bounds.validTile(x, y, precision)) {
+                return GeoTileUtils.longEncodeTiles(precision, x, y);
+            }
+            // TODO: Are we sure negative numbers are not valid
+            return -1L;
+        }
+
+        @Override
+        public int precision() {
+            return precision;
+        }
+    }
+
+    /**
+     * For unbounded grids, we don't need to check if the tile is valid,
+     * just calculate the encoded long intersecting the point at that precision.
+     */
+    protected static final UnboundedGrid unboundedGrid = new UnboundedGrid() {
+        @Override
+        public long calculateGridId(Point point, int precision) {
+            return GeoTileUtils.longEncode(point.getX(), point.getY(), precision);
+        }
+    };
 
     @FunctionInfo(returnType = "long", description = """
         Calculates the `geotile` of the supplied geo_point at the specified precision.
@@ -121,7 +161,7 @@ public class StGeotile extends SpatialGridFunction implements EvaluatorMapper {
             } else if (parameter().foldable()) {
                 // Assume left is not foldable, since that would be dealt with in isFoldable() and fold()
                 int precision = (int) parameter.fold(toEvaluator.foldCtx());
-                GeoTileBoundedPredicate bounds = new GeoTileBoundedPredicate(precision, bbox);
+                GeoTileBoundedGrid bounds = new GeoTileBoundedGrid(precision, bbox);
                 return spatialDocsValues
                     ? new StGeotileFromFieldDocValuesAndLiteralAndLiteralEvaluator.Factory(
                         source(),
@@ -153,7 +193,6 @@ public class StGeotile extends SpatialGridFunction implements EvaluatorMapper {
             } else if (parameter().foldable()) {
                 // Assume left is not foldable, since that would be dealt with in isFoldable() and fold()
                 int precision = (int) parameter.fold(toEvaluator.foldCtx());
-                // TODO: Use GeoTileBoundedPredicate
                 return spatialDocsValues
                     ? new StGeotileFromFieldDocValuesAndLiteralEvaluator.Factory(source(), toEvaluator.apply(spatialField()), precision)
                     : new StGeotileFromFieldAndLiteralEvaluator.Factory(source(), toEvaluator.apply(spatialField), precision);
@@ -178,41 +217,40 @@ public class StGeotile extends SpatialGridFunction implements EvaluatorMapper {
     public Object fold(FoldContext ctx) {
         var point = (BytesRef) spatialField().fold(ctx);
         int precision = (int) parameter().fold(ctx);
-        // TODO: Use GeoTileBoundedPredicate
-        return calculateGeotile(GEO.wkbAsPoint(point), precision);
+        if (bounds() == null) {
+            return fromLiteralAndField(point, precision);
+        } else {
+            return fromLiteralAndFieldAndLiteral(point, precision, asGeoBoundingBox((BytesRef) bounds().fold(ctx)));
+        }
     }
 
     @Evaluator(extraName = "FromFieldAndLiteral", warnExceptions = { IllegalArgumentException.class })
     static void fromFieldAndLiteral(LongBlock.Builder results, int p, BytesRefBlock wkbBlock, @Fixed int precision) {
-        fromWKB(results, p, wkbBlock, precision);
+        fromWKB(results, p, wkbBlock, precision, unboundedGrid);
     }
 
     @Evaluator(extraName = "FromFieldDocValuesAndLiteral", warnExceptions = { IllegalArgumentException.class })
     static void fromFieldDocValuesAndLiteral(LongBlock.Builder results, int p, LongBlock encoded, @Fixed int precision) {
-        fromEncodedLong(results, p, encoded, precision);
+        fromEncodedLong(results, p, encoded, precision, unboundedGrid);
     }
 
     @Evaluator(extraName = "FromFieldAndField", warnExceptions = { IllegalArgumentException.class })
     static void fromFieldAndField(LongBlock.Builder results, int p, BytesRefBlock in, int precision) {
-        fromWKB(results, p, in, precision);
+        fromWKB(results, p, in, precision, unboundedGrid);
     }
 
     @Evaluator(extraName = "FromFieldDocValuesAndField", warnExceptions = { IllegalArgumentException.class })
     static void fromFieldDocValuesAndField(LongBlock.Builder results, int p, LongBlock encoded, int precision) {
-        fromEncodedLong(results, p, encoded, precision);
+        fromEncodedLong(results, p, encoded, precision, unboundedGrid);
     }
 
     @Evaluator(extraName = "FromLiteralAndField", warnExceptions = { IllegalArgumentException.class })
     static long fromLiteralAndField(@Fixed BytesRef in, int precision) {
-        return calculateGeotile(GEO.wkbAsPoint(in), precision);
-    }
-
-    protected static long calculateGeotile(Point point, int precision) {
-        return GeoTileUtils.longEncode(point.getX(), point.getY(), precision);
+        return unboundedGrid.calculateGridId(GEO.wkbAsPoint(in), precision);
     }
 
     @Evaluator(extraName = "FromFieldAndLiteralAndLiteral", warnExceptions = { IllegalArgumentException.class })
-    static void fromFieldAndLiteralAndLiteral(LongBlock.Builder results, int p, BytesRefBlock in, @Fixed GeoTileBoundedPredicate bounds) {
+    static void fromFieldAndLiteralAndLiteral(LongBlock.Builder results, int p, BytesRefBlock in, @Fixed GeoTileBoundedGrid bounds) {
         fromWKB(results, p, in, bounds);
     }
 
@@ -221,14 +259,14 @@ public class StGeotile extends SpatialGridFunction implements EvaluatorMapper {
         LongBlock.Builder results,
         int p,
         LongBlock encoded,
-        @Fixed GeoTileBoundedPredicate bounds
+        @Fixed GeoTileBoundedGrid bounds
     ) {
         fromEncodedLong(results, p, encoded, bounds);
     }
 
     @Evaluator(extraName = "FromFieldAndFieldAndLiteral", warnExceptions = { IllegalArgumentException.class })
     static void fromFieldAndFieldAndLiteral(LongBlock.Builder results, int p, BytesRefBlock in, int precision, @Fixed GeoBoundingBox bbox) {
-        GeoTileBoundedPredicate bounds = new GeoTileBoundedPredicate(precision, bbox);
+        GeoTileBoundedGrid bounds = new GeoTileBoundedGrid(precision, bbox);
         fromWKB(results, p, in, bounds);
     }
 
@@ -240,114 +278,13 @@ public class StGeotile extends SpatialGridFunction implements EvaluatorMapper {
         int precision,
         @Fixed GeoBoundingBox bbox
     ) {
-        GeoTileBoundedPredicate bounds = new GeoTileBoundedPredicate(precision, bbox);
+        GeoTileBoundedGrid bounds = new GeoTileBoundedGrid(precision, bbox);
         fromEncodedLong(results, p, encoded, bounds);
     }
 
     @Evaluator(extraName = "FromLiteralAndFieldAndLiteral", warnExceptions = { IllegalArgumentException.class })
     static long fromLiteralAndFieldAndLiteral(@Fixed BytesRef in, int precision, @Fixed GeoBoundingBox bbox) {
-        GeoTileBoundedPredicate bounds = new GeoTileBoundedPredicate(precision, bbox);
-        return calculateGeotile(GEO.wkbAsPoint(in), bounds);
-    }
-
-    private static void fromWKB(LongBlock.Builder results, int position, BytesRefBlock wkbBlock, int precision) {
-        int valueCount = wkbBlock.getValueCount(position);
-        if (valueCount < 1) {
-            results.appendNull();
-        } else {
-            final BytesRef scratch = new BytesRef();
-            final int firstValueIndex = wkbBlock.getFirstValueIndex(position);
-            if (valueCount == 1) {
-                results.appendLong(calculateGeotile(GEO.wkbAsPoint(wkbBlock.getBytesRef(firstValueIndex, scratch)), precision));
-            } else {
-                results.beginPositionEntry();
-                for (int i = 0; i < valueCount; i++) {
-                    results.appendLong(calculateGeotile(GEO.wkbAsPoint(wkbBlock.getBytesRef(firstValueIndex + i, scratch)), precision));
-                }
-                results.endPositionEntry();
-            }
-        }
-    }
-
-    private static void fromEncodedLong(LongBlock.Builder results, int position, LongBlock encoded, int precision) {
-        int valueCount = encoded.getValueCount(position);
-        if (valueCount < 1) {
-            results.appendNull();
-        } else {
-            final int firstValueIndex = encoded.getFirstValueIndex(position);
-            if (valueCount == 1) {
-                results.appendLong(calculateGeotile(GEO.longAsPoint(encoded.getLong(firstValueIndex)), precision));
-            } else {
-                results.beginPositionEntry();
-                for (int i = 0; i < valueCount; i++) {
-                    results.appendLong(calculateGeotile(GEO.longAsPoint(encoded.getLong(firstValueIndex + i)), precision));
-                }
-                results.endPositionEntry();
-            }
-        }
-    }
-
-    protected static long calculateGeotile(Point point, GeoTileBoundedPredicate bounds) {
-        final int tiles = 1 << GeoTileUtils.checkPrecisionRange(bounds.precision());
-        final int x = GeoTileUtils.getXTile(point.getX(), tiles);
-        final int y = GeoTileUtils.getYTile(point.getY(), tiles);
-        if (bounds.validTile(x, y, bounds.precision())) {
-            return GeoTileUtils.longEncodeTiles(bounds.precision(), x, y);
-        }
-        // TODO: Are we sure negative numbers are not valid
-        return -1L;
-    }
-
-    private static void fromWKB(LongBlock.Builder results, int position, BytesRefBlock wkbBlock, GeoTileBoundedPredicate bounds) {
-        int valueCount = wkbBlock.getValueCount(position);
-        if (valueCount < 1) {
-            results.appendNull();
-        } else {
-            final BytesRef scratch = new BytesRef();
-            final int firstValueIndex = wkbBlock.getFirstValueIndex(position);
-            if (valueCount == 1) {
-                long grid = calculateGeotile(GEO.wkbAsPoint(wkbBlock.getBytesRef(firstValueIndex, scratch)), bounds);
-                if (grid < 0) {
-                    results.appendNull();
-                } else {
-                    results.appendLong(grid);
-                }
-            } else {
-                var gridIds = new ArrayList<Long>(valueCount);
-                for (int i = 0; i < valueCount; i++) {
-                    var grid = calculateGeotile(GEO.wkbAsPoint(wkbBlock.getBytesRef(firstValueIndex + i, scratch)), bounds);
-                    if (grid >= 0) {
-                        gridIds.add(grid);
-                    }
-                }
-                addGrids(results, gridIds);
-            }
-        }
-    }
-
-    private static void fromEncodedLong(LongBlock.Builder results, int position, LongBlock encoded, GeoTileBoundedPredicate bounds) {
-        int valueCount = encoded.getValueCount(position);
-        if (valueCount < 1) {
-            results.appendNull();
-        } else {
-            final int firstValueIndex = encoded.getFirstValueIndex(position);
-            if (valueCount == 1) {
-                long grid = calculateGeotile(GEO.longAsPoint(encoded.getLong(firstValueIndex)), bounds);
-                if (grid < 0) {
-                    results.appendNull();
-                } else {
-                    results.appendLong(grid);
-                }
-            } else {
-                var gridIds = new ArrayList<Long>(valueCount);
-                for (int i = 0; i < valueCount; i++) {
-                    var grid = calculateGeotile(GEO.longAsPoint(encoded.getLong(firstValueIndex + i)), bounds);
-                    if (grid >= 0) {
-                        gridIds.add(grid);
-                    }
-                }
-                addGrids(results, gridIds);
-            }
-        }
+        GeoTileBoundedGrid bounds = new GeoTileBoundedGrid(precision, bbox);
+        return bounds.calculateGridId(GEO.wkbAsPoint(in));
     }
 }

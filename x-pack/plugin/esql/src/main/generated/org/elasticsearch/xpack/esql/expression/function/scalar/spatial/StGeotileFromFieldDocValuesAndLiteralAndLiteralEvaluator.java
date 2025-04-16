@@ -14,7 +14,6 @@ import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.compute.operator.Warnings;
 import org.elasticsearch.core.Releasables;
-import org.elasticsearch.search.aggregations.bucket.geogrid.GeoTileBoundedPredicate;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 
 /**
@@ -26,14 +25,14 @@ public final class StGeotileFromFieldDocValuesAndLiteralAndLiteralEvaluator impl
 
   private final EvalOperator.ExpressionEvaluator encoded;
 
-  private final GeoTileBoundedPredicate bounds;
+  private final StGeotile.GeoTileBoundedGrid bounds;
 
   private final DriverContext driverContext;
 
   private Warnings warnings;
 
   public StGeotileFromFieldDocValuesAndLiteralAndLiteralEvaluator(Source source,
-      EvalOperator.ExpressionEvaluator encoded, GeoTileBoundedPredicate bounds,
+      EvalOperator.ExpressionEvaluator encoded, StGeotile.GeoTileBoundedGrid bounds,
       DriverContext driverContext) {
     this.source = source;
     this.encoded = encoded;
@@ -97,10 +96,10 @@ public final class StGeotileFromFieldDocValuesAndLiteralAndLiteralEvaluator impl
 
     private final EvalOperator.ExpressionEvaluator.Factory encoded;
 
-    private final GeoTileBoundedPredicate bounds;
+    private final StGeotile.GeoTileBoundedGrid bounds;
 
     public Factory(Source source, EvalOperator.ExpressionEvaluator.Factory encoded,
-        GeoTileBoundedPredicate bounds) {
+        StGeotile.GeoTileBoundedGrid bounds) {
       this.source = source;
       this.encoded = encoded;
       this.bounds = bounds;

@@ -38,7 +38,7 @@ public class StGeohashToLongTests extends SpatialGridTypeConversionTestCases {
             suppliers,
             "Attribute[channel=0]",
             DataType.LONG,
-            g -> StGeohash.calculateGeohash(UNSPECIFIED.wkbAsPoint(g), 2),
+            g -> StGeohash.unboundedGrid.calculateGridId(UNSPECIFIED.wkbAsPoint(g), 2),
             StGeohashToLongTests::valueOf
         );
         forUnaryGeoPoint(
@@ -46,7 +46,7 @@ public class StGeohashToLongTests extends SpatialGridTypeConversionTestCases {
             suppliers,
             "StGeohashToLongFromStringEvaluator[gridId=Attribute[channel=0]]",
             DataType.LONG,
-            g -> new BytesRef(Geohash.stringEncode(StGeohash.calculateGeohash(UNSPECIFIED.wkbAsPoint(g), 2))),
+            g -> new BytesRef(Geohash.stringEncode(StGeohash.unboundedGrid.calculateGridId(UNSPECIFIED.wkbAsPoint(g), 2))),
             StGeohashToLongTests::valueOf
         );
         return parameterSuppliersFromTypedDataWithDefaultChecksNoErrors(true, suppliers);

@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.spatial;
 
 import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
-
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.geometry.utils.Geohash;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
@@ -39,7 +38,7 @@ public class StGeohashToStringTests extends SpatialGridTypeConversionTestCases {
             suppliers,
             "StGeohashToStringFromLongEvaluator[gridId=Attribute[channel=0]]",
             KEYWORD,
-            g -> StGeohash.calculateGeohash(UNSPECIFIED.wkbAsPoint(g), 2),
+            g -> StGeohash.unboundedGrid.calculateGridId(UNSPECIFIED.wkbAsPoint(g), 2),
             StGeohashToStringTests::valueOf
         );
         forUnaryGeoPoint(
@@ -47,7 +46,7 @@ public class StGeohashToStringTests extends SpatialGridTypeConversionTestCases {
             suppliers,
             "Attribute[channel=0]",
             KEYWORD,
-            g -> new BytesRef(Geohash.stringEncode(StGeohash.calculateGeohash(UNSPECIFIED.wkbAsPoint(g), 2))),
+            g -> new BytesRef(Geohash.stringEncode(StGeohash.unboundedGrid.calculateGridId(UNSPECIFIED.wkbAsPoint(g), 2))),
             StGeohashToStringTests::valueOf
         );
         return parameterSuppliersFromTypedDataWithDefaultChecksNoErrors(true, suppliers);

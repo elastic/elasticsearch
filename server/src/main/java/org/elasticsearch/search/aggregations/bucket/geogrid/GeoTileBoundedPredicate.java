@@ -56,10 +56,6 @@ public class GeoTileBoundedPredicate {
         }
     }
 
-    public int precision() {
-        return precision;
-    }
-
     /** Does the provided bounds crosses the dateline */
     public boolean crossesDateline() {
         return crossesDateline;

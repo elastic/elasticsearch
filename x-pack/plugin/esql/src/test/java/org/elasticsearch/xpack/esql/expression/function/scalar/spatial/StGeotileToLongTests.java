@@ -38,7 +38,7 @@ public class StGeotileToLongTests extends SpatialGridTypeConversionTestCases {
             suppliers,
             "Attribute[channel=0]",
             DataType.LONG,
-            g -> StGeotile.calculateGeotile(UNSPECIFIED.wkbAsPoint(g), 2),
+            g -> StGeotile.unboundedGrid.calculateGridId(UNSPECIFIED.wkbAsPoint(g), 2),
             StGeotileToLongTests::valueOf
         );
         forUnaryGeoPoint(
@@ -46,7 +46,7 @@ public class StGeotileToLongTests extends SpatialGridTypeConversionTestCases {
             suppliers,
             "StGeotileToLongFromStringEvaluator[gridId=Attribute[channel=0]]",
             DataType.LONG,
-            g -> new BytesRef(GeoTileUtils.stringEncode(StGeotile.calculateGeotile(UNSPECIFIED.wkbAsPoint(g), 2))),
+            g -> new BytesRef(GeoTileUtils.stringEncode(StGeotile.unboundedGrid.calculateGridId(UNSPECIFIED.wkbAsPoint(g), 2))),
             StGeotileToLongTests::valueOf
         );
         return parameterSuppliersFromTypedDataWithDefaultChecksNoErrors(true, suppliers);

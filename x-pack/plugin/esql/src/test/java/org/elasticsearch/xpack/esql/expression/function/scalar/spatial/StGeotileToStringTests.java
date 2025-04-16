@@ -39,7 +39,7 @@ public class StGeotileToStringTests extends SpatialGridTypeConversionTestCases {
             suppliers,
             "StGeotileToStringFromLongEvaluator[gridId=Attribute[channel=0]]",
             KEYWORD,
-            g -> StGeotile.calculateGeotile(UNSPECIFIED.wkbAsPoint(g), 2),
+            g -> StGeotile.unboundedGrid.calculateGridId(UNSPECIFIED.wkbAsPoint(g), 2),
             StGeotileToStringTests::valueOf
         );
         forUnaryGeoPoint(
@@ -47,7 +47,7 @@ public class StGeotileToStringTests extends SpatialGridTypeConversionTestCases {
             suppliers,
             "Attribute[channel=0]",
             KEYWORD,
-            g -> new BytesRef(GeoTileUtils.stringEncode(StGeotile.calculateGeotile(UNSPECIFIED.wkbAsPoint(g), 2))),
+            g -> new BytesRef(GeoTileUtils.stringEncode(StGeotile.unboundedGrid.calculateGridId(UNSPECIFIED.wkbAsPoint(g), 2))),
             StGeotileToStringTests::valueOf
         );
         return parameterSuppliersFromTypedDataWithDefaultChecksNoErrors(true, suppliers);

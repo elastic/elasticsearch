@@ -14,7 +14,6 @@ import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.compute.operator.Warnings;
 import org.elasticsearch.core.Releasables;
-import org.elasticsearch.search.aggregations.bucket.geogrid.GeoHashBoundedPredicate;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 
 /**
@@ -26,14 +25,14 @@ public final class StGeohashFromFieldDocValuesAndLiteralAndLiteralEvaluator impl
 
   private final EvalOperator.ExpressionEvaluator encoded;
 
-  private final GeoHashBoundedPredicate bounds;
+  private final StGeohash.GeoHashBoundedGrid bounds;
 
   private final DriverContext driverContext;
 
   private Warnings warnings;
 
   public StGeohashFromFieldDocValuesAndLiteralAndLiteralEvaluator(Source source,
-      EvalOperator.ExpressionEvaluator encoded, GeoHashBoundedPredicate bounds,
+      EvalOperator.ExpressionEvaluator encoded, StGeohash.GeoHashBoundedGrid bounds,
       DriverContext driverContext) {
     this.source = source;
     this.encoded = encoded;
@@ -97,10 +96,10 @@ public final class StGeohashFromFieldDocValuesAndLiteralAndLiteralEvaluator impl
 
     private final EvalOperator.ExpressionEvaluator.Factory encoded;
 
-    private final GeoHashBoundedPredicate bounds;
+    private final StGeohash.GeoHashBoundedGrid bounds;
 
     public Factory(Source source, EvalOperator.ExpressionEvaluator.Factory encoded,
-        GeoHashBoundedPredicate bounds) {
+        StGeohash.GeoHashBoundedGrid bounds) {
       this.source = source;
       this.encoded = encoded;
       this.bounds = bounds;

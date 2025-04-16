@@ -16,12 +16,10 @@ import org.elasticsearch.xpack.esql.common.spatial.H3SphericalUtil;
  */
 public class GeoHexBoundedPredicate {
 
-    private final int precision;
     private final boolean crossesDateline;
     private final GeoBoundingBox bbox, scratch;
 
-    GeoHexBoundedPredicate(int precision, GeoBoundingBox bbox) {
-        this.precision = precision;
+    GeoHexBoundedPredicate(GeoBoundingBox bbox) {
         this.crossesDateline = bbox.right() < bbox.left();
         this.bbox = bbox;
         scratch = new GeoBoundingBox(new org.elasticsearch.common.geo.GeoPoint(), new org.elasticsearch.common.geo.GeoPoint());
@@ -45,9 +43,5 @@ public class GeoHexBoundedPredicate {
         } else {
             return bbox.left() < maxLon && bbox.right() > minLon;
         }
-    }
-
-    public int precision() {
-        return precision;
     }
 }

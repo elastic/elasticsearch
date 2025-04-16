@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.spatial;
 
 import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
-
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -35,7 +34,7 @@ public class StGeohashTests extends SpatialGridFunctionTestCase {
     }
 
     private static long valueOf(BytesRef wkb, int precision) {
-        return StGeohash.calculateGeohash(UNSPECIFIED.wkbAsPoint(wkb), precision);
+        return StGeohash.unboundedGrid.calculateGridId(UNSPECIFIED.wkbAsPoint(wkb), precision);
     }
 
     @Override

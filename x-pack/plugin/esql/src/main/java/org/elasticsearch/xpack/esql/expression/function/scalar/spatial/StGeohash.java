@@ -30,7 +30,6 @@ import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 
 import java.io.IOException;
-import java.util.ArrayList;
 
 import static org.elasticsearch.xpack.esql.core.type.DataType.LONG;
 import static org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes.GEO;
@@ -44,6 +43,40 @@ public class StGeohash extends SpatialGridFunction implements EvaluatorMapper {
         "StGeohash",
         StGeohash::new
     );
+
+    /**
+     * When checking grid cells with bounds, we need to check if the cell is valid (intersects with the bounds).
+     * This uses GeoHashBoundedPredicate to check if the grid cell is valid.
+     */
+    protected static class GeoHashBoundedGrid implements BoundedGrid {
+        private final GeoHashBoundedPredicate bounds;
+        private final int precision;
+
+        public GeoHashBoundedGrid(int precision, GeoBoundingBox bbox) {
+            this.bounds = new GeoHashBoundedPredicate(precision, bbox);
+            this.precision = precision;
+        }
+
+        public long calculateGridId(Point point) {
+            String geohash = Geohash.stringEncode(point.getX(), point.getY(), precision);
+            if (bounds.validHash(geohash)) {
+                return Geohash.longEncode(geohash);
+            }
+            // TODO: Are negative values allowed in geohash long encoding?
+            return -1;
+        }
+
+        @Override
+        public int precision() {
+            return precision;
+        }
+    }
+
+    /**
+     * For unbounded grids, we don't need to check if the grid cell is valid,
+     * just calculate the encoded long intersecting the point at that precision.
+     */
+    protected static final UnboundedGrid unboundedGrid = (point, precision) -> Geohash.longEncode(point.getX(), point.getY(), precision);
 
     @FunctionInfo(returnType = "long", description = """
         Calculates the `geohash` of the supplied geo_point at the specified precision.
@@ -121,7 +154,7 @@ public class StGeohash extends SpatialGridFunction implements EvaluatorMapper {
             } else if (parameter().foldable()) {
                 // Assume left is not foldable, since that would be dealt with in isFoldable() and fold()
                 int precision = (int) parameter.fold(toEvaluator.foldCtx());
-                GeoHashBoundedPredicate bounds = new GeoHashBoundedPredicate(precision, bbox);
+                GeoHashBoundedGrid bounds = new GeoHashBoundedGrid(precision, bbox);
                 return spatialDocsValues
                     ? new StGeohashFromFieldDocValuesAndLiteralAndLiteralEvaluator.Factory(
                         source(),
@@ -177,41 +210,40 @@ public class StGeohash extends SpatialGridFunction implements EvaluatorMapper {
     public Object fold(FoldContext ctx) {
         var point = (BytesRef) spatialField().fold(ctx);
         int precision = (int) parameter().fold(ctx);
-        // TODO: Use GeoHashBoundedPredicate
-        return calculateGeohash(GEO.wkbAsPoint(point), precision);
+        if (bounds() == null) {
+            return fromLiteralAndField(point, precision);
+        } else {
+            return fromLiteralAndFieldAndLiteral(point, precision, asGeoBoundingBox((BytesRef) bounds().fold(ctx)));
+        }
     }
 
     @Evaluator(extraName = "FromFieldAndLiteral", warnExceptions = { IllegalArgumentException.class })
     static void fromFieldAndLiteral(LongBlock.Builder results, int p, BytesRefBlock wkbBlock, @Fixed int precision) {
-        fromWKB(results, p, wkbBlock, precision);
+        fromWKB(results, p, wkbBlock, precision, unboundedGrid);
     }
 
     @Evaluator(extraName = "FromFieldDocValuesAndLiteral", warnExceptions = { IllegalArgumentException.class })
     static void fromFieldDocValuesAndLiteral(LongBlock.Builder results, int p, LongBlock encoded, @Fixed int precision) {
-        fromEncodedLong(results, p, encoded, precision);
+        fromEncodedLong(results, p, encoded, precision, unboundedGrid);
     }
 
     @Evaluator(extraName = "FromFieldAndField", warnExceptions = { IllegalArgumentException.class })
     static void fromFieldAndField(LongBlock.Builder results, int p, BytesRefBlock in, int precision) {
-        fromWKB(results, p, in, precision);
+        fromWKB(results, p, in, precision, unboundedGrid);
     }
 
     @Evaluator(extraName = "FromFieldDocValuesAndField", warnExceptions = { IllegalArgumentException.class })
     static void fromFieldDocValuesAndField(LongBlock.Builder results, int p, LongBlock encoded, int precision) {
-        fromEncodedLong(results, p, encoded, precision);
+        fromEncodedLong(results, p, encoded, precision, unboundedGrid);
     }
 
     @Evaluator(extraName = "FromLiteralAndField", warnExceptions = { IllegalArgumentException.class })
     static long fromLiteralAndField(@Fixed BytesRef in, int precision) {
-        return calculateGeohash(GEO.wkbAsPoint(in), precision);
-    }
-
-    protected static long calculateGeohash(Point point, int precision) {
-        return Geohash.longEncode(point.getX(), point.getY(), precision);
+        return unboundedGrid.calculateGridId(GEO.wkbAsPoint(in), precision);
     }
 
     @Evaluator(extraName = "FromFieldAndLiteralAndLiteral", warnExceptions = { IllegalArgumentException.class })
-    static void fromFieldAndLiteralAndLiteral(LongBlock.Builder results, int p, BytesRefBlock in, @Fixed GeoHashBoundedPredicate bounds) {
+    static void fromFieldAndLiteralAndLiteral(LongBlock.Builder results, int p, BytesRefBlock in, @Fixed GeoHashBoundedGrid bounds) {
         fromWKB(results, p, in, bounds);
     }
 
@@ -220,14 +252,14 @@ public class StGeohash extends SpatialGridFunction implements EvaluatorMapper {
         LongBlock.Builder results,
         int p,
         LongBlock encoded,
-        @Fixed GeoHashBoundedPredicate bounds
+        @Fixed GeoHashBoundedGrid bounds
     ) {
         fromEncodedLong(results, p, encoded, bounds);
     }
 
     @Evaluator(extraName = "FromFieldAndFieldAndLiteral", warnExceptions = { IllegalArgumentException.class })
     static void fromFieldAndFieldAndLiteral(LongBlock.Builder results, int p, BytesRefBlock in, int precision, @Fixed GeoBoundingBox bbox) {
-        GeoHashBoundedPredicate bounds = new GeoHashBoundedPredicate(precision, bbox);
+        GeoHashBoundedGrid bounds = new GeoHashBoundedGrid(precision, bbox);
         fromWKB(results, p, in, bounds);
     }
 
@@ -239,112 +271,13 @@ public class StGeohash extends SpatialGridFunction implements EvaluatorMapper {
         int precision,
         @Fixed GeoBoundingBox bbox
     ) {
-        GeoHashBoundedPredicate bounds = new GeoHashBoundedPredicate(precision, bbox);
+        GeoHashBoundedGrid bounds = new GeoHashBoundedGrid(precision, bbox);
         fromEncodedLong(results, p, encoded, bounds);
     }
 
     @Evaluator(extraName = "FromLiteralAndFieldAndLiteral", warnExceptions = { IllegalArgumentException.class })
     static long fromLiteralAndFieldAndLiteral(@Fixed BytesRef in, int precision, @Fixed GeoBoundingBox bbox) {
-        GeoHashBoundedPredicate bounds = new GeoHashBoundedPredicate(precision, bbox);
-        return calculateGeohash(GEO.wkbAsPoint(in), bounds);
-    }
-
-    private static void fromWKB(LongBlock.Builder results, int position, BytesRefBlock wkbBlock, int precision) {
-        int valueCount = wkbBlock.getValueCount(position);
-        if (valueCount < 1) {
-            results.appendNull();
-        } else {
-            final BytesRef scratch = new BytesRef();
-            final int firstValueIndex = wkbBlock.getFirstValueIndex(position);
-            if (valueCount == 1) {
-                results.appendLong(calculateGeohash(GEO.wkbAsPoint(wkbBlock.getBytesRef(firstValueIndex, scratch)), precision));
-            } else {
-                results.beginPositionEntry();
-                for (int i = 0; i < valueCount; i++) {
-                    results.appendLong(calculateGeohash(GEO.wkbAsPoint(wkbBlock.getBytesRef(firstValueIndex + i, scratch)), precision));
-                }
-                results.endPositionEntry();
-            }
-        }
-    }
-
-    private static void fromEncodedLong(LongBlock.Builder results, int position, LongBlock encoded, int precision) {
-        int valueCount = encoded.getValueCount(position);
-        if (valueCount < 1) {
-            results.appendNull();
-        } else {
-            final int firstValueIndex = encoded.getFirstValueIndex(position);
-            if (valueCount == 1) {
-                results.appendLong(calculateGeohash(GEO.longAsPoint(encoded.getLong(firstValueIndex)), precision));
-            } else {
-                results.beginPositionEntry();
-                for (int i = 0; i < valueCount; i++) {
-                    results.appendLong(calculateGeohash(GEO.longAsPoint(encoded.getLong(firstValueIndex + i)), precision));
-                }
-                results.endPositionEntry();
-            }
-        }
-    }
-
-    protected static long calculateGeohash(Point point, GeoHashBoundedPredicate bounds) {
-        String geohash = Geohash.stringEncode(point.getX(), point.getY(), bounds.precision());
-        if (bounds.validHash(geohash)) {
-            return Geohash.longEncode(geohash);
-        }
-        // TODO: Are negative values allowed in geohash long encoding?
-        return -1;
-    }
-
-    private static void fromWKB(LongBlock.Builder results, int position, BytesRefBlock wkbBlock, GeoHashBoundedPredicate bounds) {
-        int valueCount = wkbBlock.getValueCount(position);
-        if (valueCount < 1) {
-            results.appendNull();
-        } else {
-            final BytesRef scratch = new BytesRef();
-            final int firstValueIndex = wkbBlock.getFirstValueIndex(position);
-            if (valueCount == 1) {
-                long grid = calculateGeohash(GEO.wkbAsPoint(wkbBlock.getBytesRef(firstValueIndex, scratch)), bounds);
-                if (grid < 0) {
-                    results.appendNull();
-                } else {
-                    results.appendLong(grid);
-                }
-            } else {
-                var gridIds = new ArrayList<Long>(valueCount);
-                for (int i = 0; i < valueCount; i++) {
-                    var grid = calculateGeohash(GEO.wkbAsPoint(wkbBlock.getBytesRef(firstValueIndex + i, scratch)), bounds);
-                    if (grid >= 0) {
-                        gridIds.add(grid);
-                    }
-                }
-                addGrids(results, gridIds);
-            }
-        }
-    }
-
-    private static void fromEncodedLong(LongBlock.Builder results, int position, LongBlock encoded, GeoHashBoundedPredicate bounds) {
-        int valueCount = encoded.getValueCount(position);
-        if (valueCount < 1) {
-            results.appendNull();
-        } else {
-            final int firstValueIndex = encoded.getFirstValueIndex(position);
-            if (valueCount == 1) {
-                long grid = calculateGeohash(GEO.longAsPoint(encoded.getLong(firstValueIndex)), bounds);
-                if (grid < 0) {
-                    results.appendNull();
-                } else {
-                    results.appendLong(grid);
-                }
-            } else {
-                var gridIds = new ArrayList<Long>(valueCount);
-                for (int i = 0; i < valueCount; i++) {
-                    var grid = calculateGeohash(GEO.longAsPoint(encoded.getLong(firstValueIndex + i)), bounds);
-                    if (grid >= 0) {
-                        gridIds.add(grid);
-                    }
-                }
-                addGrids(results, gridIds);
-            }
-        }
+        GeoHashBoundedGrid bounds = new GeoHashBoundedGrid(precision, bbox);
+        return bounds.calculateGridId(GEO.wkbAsPoint(in));
     }
 }

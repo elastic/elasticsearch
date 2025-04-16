@@ -247,7 +247,11 @@ public class PutDataStreamSettingsTransportAction extends TransportMasterNodeAct
             // Called when all indices for all settings are complete
             @Override
             public void onResponse(Void unused) {
-                DataStream dataStream = clusterService.state().projectState(projectResolver.getProjectId()).metadata().dataStreams().get(dataStreamName);
+                DataStream dataStream = clusterService.state()
+                    .projectState(projectResolver.getProjectId())
+                    .metadata()
+                    .dataStreams()
+                    .get(dataStreamName);
                 listener.onResponse(
                     new PutDataStreamSettingsAction.DataStreamSettingsResponse(
                         dataStreamName,

@@ -104,7 +104,7 @@ public class XContentMeteringParserDecoratorIT extends ESIntegTestCase {
                     IndexResult result = super.index(index);
 
                     DocumentSizeReporter documentParsingReporter = documentParsingProvider.newDocumentSizeReporter(
-                        shardId.getIndexName(),
+                        shardId.getIndex(),
                         config().getMapperService(),
                         DocumentSizeAccumulator.EMPTY_INSTANCE
                     );

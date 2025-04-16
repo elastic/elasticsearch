@@ -345,36 +345,44 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
     }
 
     public ComposableIndexTemplate getEffectiveIndexTemplate(ProjectMetadata projectMetadata) {
-        return mergeTemplates(getMatchingIndexTemplate(projectMetadata));
+        return mergeSettingsIntoTemplate(lookupTemplateForDataStream(name, projectMetadata), settings);
+    }
+
+    public static ComposableIndexTemplate getEffectiveIndexTemplate(
+        String dataStreamName,
+        ProjectMetadata projectMetadata,
+        Settings settingsOverrides
+    ) {
+        return mergeSettingsIntoTemplate(lookupTemplateForDataStream(dataStreamName, projectMetadata), settingsOverrides);
     }
 
     public Settings getEffectiveSettings(ProjectMetadata projectMetadata) {
-        return mergeSettings(getMatchingIndexTemplate(projectMetadata));
+        ComposableIndexTemplate template = getMatchingIndexTemplate(projectMetadata);
+        assert template.template() != null : "Template is unexpectedly null";
+        return mergeSettings(template.template().settings(), settings);
     }
 
     private ComposableIndexTemplate getMatchingIndexTemplate(ProjectMetadata projectMetadata) {
         return lookupTemplateForDataStream(name, projectMetadata);
     }
 
-    private ComposableIndexTemplate mergeTemplates(ComposableIndexTemplate originalTemplate) {
+    public static ComposableIndexTemplate mergeSettingsIntoTemplate(ComposableIndexTemplate template, Settings settings) {
         if (Settings.EMPTY.equals(settings)) {
-            return originalTemplate;
+            return template;
         }
-        ComposableIndexTemplate.Builder mergedIndexTemplateBuilder = originalTemplate.toBuilder();
-        assert originalTemplate.template() != null : "Matching template is null for data stream ";
-        Template.Builder mergedTemplateBuilder = Template.builder(originalTemplate.template());
-        mergedTemplateBuilder.settings(mergeSettings(originalTemplate));
+        ComposableIndexTemplate.Builder mergedIndexTemplateBuilder = template.toBuilder();
+        assert template.template() != null : "Template is unexpectedly null";
+        Template.Builder mergedTemplateBuilder = Template.builder(template.template());
+        mergedTemplateBuilder.settings(mergeSettings(template.template().settings(), settings));
         mergedIndexTemplateBuilder.template(mergedTemplateBuilder);
         return mergedIndexTemplateBuilder.build();
     }
 
-    private Settings mergeSettings(ComposableIndexTemplate originalTemplate) {
-        assert originalTemplate.template() != null : "Matching template is null for data stream ";
-        Settings originalSettings = originalTemplate.template().settings();
-        if (Settings.EMPTY.equals(settings)) {
+    private static Settings mergeSettings(Settings originalSettings, Settings newSettings) {
+        if (Settings.EMPTY.equals(newSettings)) {
             return originalSettings;
         }
-        Settings.Builder settingsBuilder = Settings.builder().put(originalSettings).put(settings);
+        Settings.Builder settingsBuilder = Settings.builder().put(originalSettings).put(newSettings);
         for (String settingName : new HashSet<>(settingsBuilder.keys())) {
             if (settingsBuilder.get(settingName) == null) {
                 settingsBuilder.remove(settingName);

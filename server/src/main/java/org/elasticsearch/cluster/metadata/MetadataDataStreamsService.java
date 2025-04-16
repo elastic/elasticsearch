@@ -21,6 +21,7 @@ import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.ProjectState;
 import org.elasticsearch.cluster.SimpleBatchedAckListenerTaskExecutor;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.service.MasterServiceTaskQueue;
 import org.elasticsearch.common.Priority;
@@ -40,9 +41,12 @@ import org.elasticsearch.snapshots.SnapshotsService;
 import java.io.IOException;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
+
+import static org.elasticsearch.cluster.metadata.MetadataCreateDataStreamService.lookupTemplateForDataStream;
 
 /**
  * Handles data stream modification requests.
@@ -359,6 +363,48 @@ public class MetadataDataStreamsService {
                     .setDataStreamIndices(targetFailureStore, indices.copy().setRolloverOnWrite(rolloverOnWrite).build())
                     .build()
             )
+        );
+    }
+
+    public void updateSettings(
+        ProjectResolver projectResolver,
+        TimeValue masterNodeTimeout,
+        TimeValue ackTimeout,
+        String dataStreamName,
+        Settings settingsOverrides,
+        ActionListener<AcknowledgedResponse> listener
+    ) {
+        submitUnbatchedTask(
+            "updating settings on data stream [" + dataStreamName + "]",
+            new AckedClusterStateUpdateTask(Priority.HIGH, masterNodeTimeout, ackTimeout, listener) {
+                @Override
+                public ClusterState execute(ClusterState currentState) throws Exception {
+                    ProjectMetadata projectMetadata = currentState.projectState(projectResolver.getProjectId()).metadata();
+                    ProjectMetadata.Builder projectMetadataBuilder = ProjectMetadata.builder(projectMetadata);
+                    Map<String, DataStream> dataStreamMap = projectMetadata.dataStreams();
+                    DataStream dataStream = dataStreamMap.get(dataStreamName);
+                    Settings existingSettings = dataStream.getSettings();
+
+                    Template.Builder templateBuilder = Template.builder();
+                    Settings.Builder mergedSettingsBuilder = Settings.builder().put(existingSettings).put(settingsOverrides);
+                    Settings mergedSettings = mergedSettingsBuilder.build();
+
+                    ProjectMetadata currentProject = currentState.projectState(projectResolver.getProjectId()).metadata();
+                    final ComposableIndexTemplate template = lookupTemplateForDataStream(dataStreamName, currentProject);
+                    ComposableIndexTemplate mergedTemplate = DataStream.mergeSettingsIntoTemplate(template, mergedSettings);
+                    MetadataIndexTemplateService.validateTemplate(
+                        mergedTemplate.template().settings(),
+                        mergedTemplate.template().mappings(),
+                        indicesService
+                    );
+
+                    templateBuilder.settings(mergedSettingsBuilder);
+                    DataStream.Builder dataStreamBuilder = dataStream.copy().setSettings(mergedSettings);
+                    projectMetadataBuilder.removeDataStream(dataStreamName);
+                    projectMetadataBuilder.put(dataStreamBuilder.build());
+                    return ClusterState.builder(currentState).putProjectMetadata(projectMetadataBuilder).build();
+                }
+            }
         );
     }
 

@@ -24,13 +24,12 @@ import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.search.TopDocsAndMaxScore;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.core.Releasable;
-import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.search.SearchPhaseResult;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.aggregations.AggregationReduceContext;
+import org.elasticsearch.search.aggregations.AggregatorsReducer;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.query.QuerySearchResult;
@@ -246,7 +245,10 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
             if (aggsList != null) {
                 // Add an estimate of the final reduce size
                 breakerSize = addEstimateAndMaybeBreak(estimateRamBytesUsedForReduce(breakerSize));
-                aggs = aggregate(buffer.iterator(), new Iterator<>() {
+                var reduceContext = performFinalReduce
+                    ? aggReduceContextBuilder.forFinalReduction()
+                    : aggReduceContextBuilder.forPartialReduction();
+                aggs = InternalAggregations.maybeExecuteFinalReduce(reduceContext, aggregate(buffer.iterator(), new Iterator<>() {
                     @Override
                     public boolean hasNext() {
                         return aggsList.isEmpty() == false;
@@ -256,10 +258,7 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
                     public InternalAggregations next() {
                         return aggsList.pollFirst();
                     }
-                },
-                    resultSize,
-                    performFinalReduce ? aggReduceContextBuilder.forFinalReduction() : aggReduceContextBuilder.forPartialReduction()
-                );
+                }, resultSize, reduceContext));
             } else {
                 aggs = null;
             }
@@ -391,34 +390,34 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
         int resultSetSize,
         AggregationReduceContext reduceContext
     ) {
-        interface ReleasableIterator extends Iterator<InternalAggregations>, Releasable {}
-        try (var aggsIter = new ReleasableIterator() {
-
-            private Releasable toRelease;
-
-            @Override
-            public void close() {
-                Releasables.close(toRelease);
+        if (resultSetSize == 0) {
+            return null;
+        }
+        final InternalAggregations first;
+        if (partialResults.hasNext()) {
+            first = partialResults.next();
+        } else {
+            try (var delayable = toConsume.next().consumeAggs()) {
+                first = delayable.expand();
             }
-
-            @Override
-            public boolean hasNext() {
-                return toConsume.hasNext();
+        }
+        if (resultSetSize == 1) {
+            return InternalAggregations.reduce(first, reduceContext);
+        }
+        try {
+            // general case
+            try (var reducer = new AggregatorsReducer(first, reduceContext, resultSetSize)) {
+                reducer.accept(first);
+                partialResults.forEachRemaining(reducer::accept);
+                while (toConsume.hasNext()) {
+                    final InternalAggregations next;
+                    try (var delayable = toConsume.next().consumeAggs()) {
+                        next = delayable.expand();
+                    }
+                    reducer.accept(next);
+                }
+                return reducer.get();
             }
-
-            @Override
-            public InternalAggregations next() {
-                var res = toConsume.next().consumeAggs();
-                Releasables.close(toRelease);
-                toRelease = res;
-                return res.expand();
-            }
-        }) {
-            return InternalAggregations.topLevelReduce(
-                partialResults.hasNext() ? Iterators.concat(partialResults, aggsIter) : aggsIter,
-                resultSetSize,
-                reduceContext
-            );
         } finally {
             toConsume.forEachRemaining(QuerySearchResult::releaseAggs);
         }

@@ -1,0 +1,6 @@
+pr: 126805
+summary: Fixing bug with `TransportPutModelAction` listener and adding timeout to
+  request
+area: Machine Learning
+type: bug
+issues: []

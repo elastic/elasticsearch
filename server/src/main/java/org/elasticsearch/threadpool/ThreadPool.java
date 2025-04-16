@@ -378,7 +378,7 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler, 
                 handler.registerCounter(meterRegistry, prefix + THREAD_POOL_METRIC_NAME_REJECTED, name);
             }
 
-            if (holder.executor() instanceof TaskExecutionTimeTrackingEsThreadPoolExecutor timeTrackingExecutor) {
+            if (threadPoolExecutor instanceof TaskExecutionTimeTrackingEsThreadPoolExecutor timeTrackingExecutor) {
                 instruments.add(
                     meterRegistry.registerDoubleGauge(
                         prefix + THREAD_POOL_METRIC_NAME_UTILIZATION,

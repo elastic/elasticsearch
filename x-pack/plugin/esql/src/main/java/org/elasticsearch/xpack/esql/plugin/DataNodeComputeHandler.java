@@ -16,6 +16,8 @@ import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.support.ChannelActionListener;
 import org.elasticsearch.action.support.RefCountingRunnable;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.project.ProjectResolver;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.compute.operator.DriverProfile;
 import org.elasticsearch.compute.operator.exchange.ExchangeService;
 import org.elasticsearch.compute.operator.exchange.ExchangeSink;
@@ -66,6 +68,8 @@ import static org.elasticsearch.xpack.esql.plugin.EsqlPlugin.ESQL_WORKER_THREAD_
 final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRequest> {
     private final ComputeService computeService;
     private final SearchService searchService;
+    private final ClusterService clusterService;
+    private final ProjectResolver projectResolver;
     private final TransportService transportService;
     private final ExchangeService exchangeService;
     private final Executor esqlExecutor;
@@ -73,12 +77,16 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
 
     DataNodeComputeHandler(
         ComputeService computeService,
+        ClusterService clusterService,
+        ProjectResolver projectResolver,
         SearchService searchService,
         TransportService transportService,
         ExchangeService exchangeService,
         Executor esqlExecutor
     ) {
         this.computeService = computeService;
+        this.clusterService = clusterService;
+        this.projectResolver = projectResolver;
         this.searchService = searchService;
         this.transportService = transportService;
         this.exchangeService = exchangeService;
@@ -102,6 +110,8 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
         Integer maxConcurrentNodesPerCluster = PlanConcurrencyCalculator.INSTANCE.calculateNodesConcurrency(dataNodePlan, configuration);
 
         new DataNodeRequestSender(
+            clusterService,
+            projectResolver,
             transportService,
             esqlExecutor,
             parentTask,

@@ -19,7 +19,10 @@ import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.action.support.TransportActions;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
+import org.elasticsearch.cluster.project.ProjectResolver;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.compute.operator.DriverProfile;
 import org.elasticsearch.compute.operator.FailureCollector;
@@ -33,9 +36,6 @@ import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.transport.TransportException;
 import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.xpack.esql.action.EsqlResolveNodesAction;
-import org.elasticsearch.xpack.esql.action.EsqlResolveNodesAction.ResolveNodesRequest;
-import org.elasticsearch.xpack.esql.action.EsqlResolveNodesAction.ResolveNodesResponse;
 import org.elasticsearch.xpack.esql.action.EsqlSearchShardsAction;
 
 import java.util.ArrayList;
@@ -78,6 +78,8 @@ abstract class DataNodeRequestSender {
         DiscoveryNodeRole.DATA_FROZEN_NODE_ROLE.roleName()
     );
 
+    private final ClusterService clusterService;
+    private final ProjectResolver projectResolver;
     private final TransportService transportService;
     private final Executor esqlExecutor;
     private final CancellableTask rootTask;
@@ -100,6 +102,8 @@ abstract class DataNodeRequestSender {
     private final AtomicInteger remainingTargetShardSearchAttempts = new AtomicInteger(10);
 
     DataNodeRequestSender(
+        ClusterService clusterService,
+        ProjectResolver projectResolver,
         TransportService transportService,
         Executor esqlExecutor,
         CancellableTask rootTask,
@@ -109,6 +113,8 @@ abstract class DataNodeRequestSender {
         boolean allowPartialResults,
         int concurrentRequests
     ) {
+        this.clusterService = clusterService;
+        this.projectResolver = projectResolver;
         this.transportService = transportService;
         this.esqlExecutor = esqlExecutor;
         this.rootTask = rootTask;
@@ -490,13 +496,23 @@ abstract class DataNodeRequestSender {
     }
 
     void resolveShards(Set<ShardId> shardIds, ActionListener<Map<ShardId, List<DiscoveryNode>>> listener) {
-        transportService.sendChildRequest(
-            transportService.getLocalNode(),
-            EsqlResolveNodesAction.TYPE.name(),
-            new ResolveNodesRequest(shardIds),
-            rootTask,
-            TransportRequestOptions.EMPTY,
-            new ActionListenerResponseHandler<>(listener.map(ResolveNodesResponse::nodes), ResolveNodesResponse::new, esqlExecutor)
-        );
+        ActionListener.completeWith(listener, () -> doResolveShards(shardIds));
+    }
+
+    private Map<ShardId, List<DiscoveryNode>> doResolveShards(Set<ShardId> shardIds) {
+        var project = projectResolver.getProjectState(clusterService.state());
+        var nodes = Maps.<ShardId, List<DiscoveryNode>>newMapWithExpectedSize(shardIds.size());
+        for (var shardId : shardIds) {
+            nodes.put(
+                shardId,
+                project.routingTable()
+                    .shardRoutingTable(shardId)
+                    .allShards()
+                    .filter(shard -> shard.active() && shard.isSearchable())
+                    .map(shard -> project.cluster().nodes().get(shard.currentNodeId()))
+                    .toList()
+            );
+        }
+        return nodes;
     }
 }

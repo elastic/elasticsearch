@@ -34,7 +34,6 @@ import org.elasticsearch.threadpool.FixedExecutorBuilder;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.esql.plugin.DataNodeRequestSender.NodeListener;
-import org.elasticsearch.xpack.esql.plugin.DataNodeRequestSender.TargetShards;
 import org.junit.After;
 import org.junit.Before;
 
@@ -569,6 +568,8 @@ public class DataNodeRequestSenderTests extends ComputeTestCase {
             Collections.emptyMap()
         );
         new DataNodeRequestSender(
+            null,
+            null,
             transportService,
             executor,
             task,

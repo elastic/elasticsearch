@@ -2778,6 +2778,74 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
         }
     }
 
+    public void testMergeSettingsIntoTemplate() {
+        {
+            // We only have settings from the template, so the effective template will just be the original template
+            DataStream dataStream = createDataStream(Settings.EMPTY);
+            Settings templateSettings = randomSettings();
+            Template.Builder templateBuilder = Template.builder().settings(templateSettings).mappings(randomMappings());
+            ComposableIndexTemplate indexTemplate = ComposableIndexTemplate.builder()
+                .indexPatterns(List.of(dataStream.getName()))
+                .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate())
+                .template(templateBuilder)
+                .build();
+            assertThat(DataStream.mergeSettingsIntoTemplate(indexTemplate, Settings.EMPTY), equalTo(indexTemplate));
+        }
+        {
+            // We only have settings from the data stream, so we expect to get only those back in the effective template
+            Settings dataStreamSettings = randomSettings();
+            String dataStreamName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
+            Settings templateSettings = Settings.EMPTY;
+            CompressedXContent templateMappings = randomMappings();
+            Template.Builder templateBuilder = Template.builder().settings(templateSettings).mappings(templateMappings);
+            ComposableIndexTemplate indexTemplate = ComposableIndexTemplate.builder()
+                .indexPatterns(List.of(dataStreamName))
+                .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate())
+                .template(templateBuilder)
+                .build();
+            Template.Builder expectedTemplateBuilder = Template.builder().settings(dataStreamSettings).mappings(templateMappings);
+            ComposableIndexTemplate expectedEffectiveTemplate = ComposableIndexTemplate.builder()
+                .indexPatterns(List.of(dataStreamName))
+                .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate())
+                .template(expectedTemplateBuilder)
+                .build();
+            assertThat(DataStream.mergeSettingsIntoTemplate(indexTemplate, dataStreamSettings), equalTo(expectedEffectiveTemplate));
+        }
+        {
+            // Here we have settings from both the template and the data stream, so we expect the data stream settings to take precedence
+            Settings dataStreamSettings = Settings.builder()
+                .put("index.setting1", "dataStreamValue")
+                .put("index.setting2", "dataStreamValue")
+                .put("index.setting3", (String) null) // This one gets removed from the effective settings
+                .build();
+            String dataStreamName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
+            Settings templateSettings = Settings.builder()
+                .put("index.setting1", "templateValue")
+                .put("index.setting3", "templateValue")
+                .put("index.setting4", "templateValue")
+                .build();
+            CompressedXContent templateMappings = randomMappings();
+            Template.Builder templateBuilder = Template.builder().settings(templateSettings).mappings(templateMappings);
+            ComposableIndexTemplate indexTemplate = ComposableIndexTemplate.builder()
+                .indexPatterns(List.of(dataStreamName))
+                .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate())
+                .template(templateBuilder)
+                .build();
+            Settings mergedSettings = Settings.builder()
+                .put("index.setting1", "dataStreamValue")
+                .put("index.setting2", "dataStreamValue")
+                .put("index.setting4", "templateValue")
+                .build();
+            Template.Builder expectedTemplateBuilder = Template.builder().settings(mergedSettings).mappings(templateMappings);
+            ComposableIndexTemplate expectedEffectiveTemplate = ComposableIndexTemplate.builder()
+                .indexPatterns(List.of(dataStreamName))
+                .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate())
+                .template(expectedTemplateBuilder)
+                .build();
+            assertThat(DataStream.mergeSettingsIntoTemplate(indexTemplate, dataStreamSettings), equalTo(expectedEffectiveTemplate));
+        }
+    }
+
     private DataStream createDataStream(Settings settings) {
         DataStream dataStream = createTestInstance();
         return dataStream.copy().setSettings(settings).build();

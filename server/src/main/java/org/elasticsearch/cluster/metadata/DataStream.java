@@ -345,7 +345,7 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
     }
 
     public ComposableIndexTemplate getEffectiveIndexTemplate(ProjectMetadata projectMetadata) {
-        return mergeSettingsIntoTemplate(lookupTemplateForDataStream(name, projectMetadata), settings);
+        return mergeSettingsIntoTemplate(getMatchingIndexTemplate(projectMetadata), settings);
     }
 
     public Settings getEffectiveSettings(ProjectMetadata projectMetadata) {

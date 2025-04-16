@@ -64,6 +64,7 @@ final class ES819TSDBDocValuesConsumer extends XDocValuesConsumer {
     final boolean enableOptimizedMerge;
 
     private final Directory dir;
+    private final IOContext ioContext;
 
     ES819TSDBDocValuesConsumer(
         SegmentWriteState state,
@@ -99,6 +100,7 @@ final class ES819TSDBDocValuesConsumer extends XDocValuesConsumer {
             this.skipIndexIntervalSize = skipIndexIntervalSize;
             this.enableOptimizedMerge = enableOptimizedMerge;
             this.dir = state.directory;
+            this.ioContext = state.context;
             success = true;
         } finally {
             if (success == false) {
@@ -549,8 +551,7 @@ final class ES819TSDBDocValuesConsumer extends XDocValuesConsumer {
                 String addressDataOutputName = null;
                 try (
                     var addressMetaOutput = new ByteBuffersIndexOutput(addressMetaBuffer, "meta-temp", "meta-temp");
-                    // TODO: which IOContext should be used here?
-                    var addressDataOutput = dir.createTempOutput(data.getName(), "address-data", IOContext.DEFAULT)
+                    var addressDataOutput = dir.createTempOutput(data.getName(), "address-data", ioContext)
                 ) {
                     addressDataOutputName = addressDataOutput.getName();
                     final DirectMonotonicWriter addressesWriter = DirectMonotonicWriter.getInstance(
@@ -577,10 +578,7 @@ final class ES819TSDBDocValuesConsumer extends XDocValuesConsumer {
                     meta.writeVInt(DIRECT_MONOTONIC_BLOCK_SHIFT);
                     addressMetaBuffer.copyTo(meta);
                     addressDataOutput.close();
-                    try (
-                        // TODO: which IOContext should be used here?
-                        var addressDataInput = dir.openInput(addressDataOutput.getName(), IOContext.DEFAULT)
-                    ) {
+                    try (var addressDataInput = dir.openInput(addressDataOutput.getName(), ioContext)) {
                         data.copyBytes(addressDataInput, addressDataInput.length());
                         meta.writeLong(data.getFilePointer() - start);
                     }

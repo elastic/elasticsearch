@@ -9,8 +9,6 @@
 
 package org.elasticsearch.index.codec;
 
-import org.apache.lucene.codecs.PostingsFormat;
-import org.apache.lucene.codecs.lucene101.Lucene101PostingsFormat;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
@@ -88,15 +86,11 @@ public class PerFieldMapperCodecTests extends ESTestCase {
         """;
 
     public void testUseBloomFilter() throws IOException {
-        boolean timeSeries = randomBoolean();
-        PerFieldFormatSupplier perFieldMapperCodec = createFormatSupplier(false, timeSeries, false);
+        PerFieldFormatSupplier perFieldMapperCodec = createFormatSupplier(false, randomBoolean(), false);
         assertThat(perFieldMapperCodec.useBloomFilter("_id"), is(true));
         assertThat(perFieldMapperCodec.getPostingsFormatForField("_id"), instanceOf(ES87BloomFilterPostingsFormat.class));
         assertThat(perFieldMapperCodec.useBloomFilter("another_field"), is(false));
-
-        Class<? extends PostingsFormat> expectedPostingsFormat = PerFieldFormatSupplier.USE_LUCENE101_POSTINGS_FORMAT.isEnabled()
-            && timeSeries == false ? Lucene101PostingsFormat.class : ES812PostingsFormat.class;
-        assertThat(perFieldMapperCodec.getPostingsFormatForField("another_field"), instanceOf(expectedPostingsFormat));
+        assertThat(perFieldMapperCodec.getPostingsFormatForField("another_field"), instanceOf(ES812PostingsFormat.class));
     }
 
     public void testUseBloomFilterWithTimestampFieldEnabled() throws IOException {
@@ -110,10 +104,7 @@ public class PerFieldMapperCodecTests extends ESTestCase {
     public void testUseBloomFilterWithTimestampFieldEnabled_noTimeSeriesMode() throws IOException {
         PerFieldFormatSupplier perFieldMapperCodec = createFormatSupplier(true, false, false);
         assertThat(perFieldMapperCodec.useBloomFilter("_id"), is(false));
-        Class<? extends PostingsFormat> expectedPostingsFormat = PerFieldFormatSupplier.USE_LUCENE101_POSTINGS_FORMAT.isEnabled()
-            ? Lucene101PostingsFormat.class
-            : ES812PostingsFormat.class;
-        assertThat(perFieldMapperCodec.getPostingsFormatForField("_id"), instanceOf(expectedPostingsFormat));
+        assertThat(perFieldMapperCodec.getPostingsFormatForField("_id"), instanceOf(ES812PostingsFormat.class));
     }
 
     public void testUseBloomFilterWithTimestampFieldEnabled_disableBloomFilter() throws IOException {

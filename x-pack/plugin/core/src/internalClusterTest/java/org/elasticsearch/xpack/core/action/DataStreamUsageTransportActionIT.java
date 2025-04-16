@@ -13,6 +13,7 @@ import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.DataStreamFailureStore;
 import org.elasticsearch.cluster.metadata.DataStreamFailureStoreSettings;
+import org.elasticsearch.cluster.metadata.DataStreamGlobalRetention;
 import org.elasticsearch.cluster.metadata.DataStreamGlobalRetentionSettings;
 import org.elasticsearch.cluster.metadata.DataStreamLifecycle;
 import org.elasticsearch.cluster.metadata.DataStreamOptions;
@@ -48,7 +49,10 @@ import java.util.function.Function;
 import java.util.stream.IntStream;
 
 import static org.elasticsearch.xpack.core.action.XPackUsageFeatureAction.DATA_STREAMS;
+import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.notNullValue;
 
 public class DataStreamUsageTransportActionIT extends ESIntegTestCase {
     /*
@@ -103,7 +107,15 @@ public class DataStreamUsageTransportActionIT extends ESIntegTestCase {
 
             Map<String, Object> globalRetentionMap = (Map<String, Object>) failuresLifecycleMap.get("global_retention");
             assertThat(globalRetentionMap.get("max"), equalTo(Map.of("defined", false)));
-            assertThat(globalRetentionMap.get("default"), equalTo(Map.of("defined", false)));
+            Map<String, Object> failuresDefaultMap = (Map<String, Object>) globalRetentionMap.get("failures_default");
+            assertThat(failuresDefaultMap, notNullValue());
+            assertThat(failuresDefaultMap.get("defined"), equalTo(true));
+            assertThat(failuresDefaultMap.get("affected_data_streams"), equalTo(0));
+            assertThat(
+                failuresDefaultMap.get("retention_millis"),
+                equalTo((int) DataStreamGlobalRetention.FAILURES_DEFAULT_VALUE.getMillis())
+            );
+            assertThat(globalRetentionMap.keySet(), not(contains("default")));
         }
 
         // Keep track of the data streams created
@@ -121,17 +133,10 @@ public class DataStreamUsageTransportActionIT extends ESIntegTestCase {
         AtomicLong minRetention = new AtomicLong(Long.MAX_VALUE);
         AtomicLong maxRetention = new AtomicLong(Long.MIN_VALUE);
 
-        TimeValue defaultRetention = TimeValue.timeValueDays(10);
-        Settings.Builder settingsBuilder = Settings.builder()
-            .put(DataStreamFailureStoreSettings.DATA_STREAM_FAILURE_STORED_ENABLED_SETTING.getKey(), "mis-*");
-        boolean useDefaultRetention = randomBoolean();
-        if (useDefaultRetention) {
-            settingsBuilder.put(
-                DataStreamGlobalRetentionSettings.DATA_STREAMS_DEFAULT_RETENTION_SETTING.getKey(),
-                defaultRetention.getStringRep()
-            );
-        }
-        updateClusterSettings(settingsBuilder);
+        TimeValue defaultRetention = DataStreamGlobalRetention.FAILURES_DEFAULT_VALUE;
+        updateClusterSettings(
+            Settings.builder().put(DataStreamFailureStoreSettings.DATA_STREAM_FAILURE_STORED_ENABLED_SETTING.getKey(), "mis-*")
+        );
 
         /*
          * We now add a number of simulated data streams to the cluster state. Some have failure store, some don't. The ones with failure
@@ -182,7 +187,7 @@ public class DataStreamUsageTransportActionIT extends ESIntegTestCase {
                 if (lifecycle == null
                     && (enabledBySetting || Boolean.TRUE.equals(failureStoreEnabled) || failureIndices.isEmpty() == false)) {
                     effectivelyEnabledFailuresLifecycleCount.incrementAndGet();
-                    if (useDefaultRetention && systemDataStream == false) {
+                    if (systemDataStream == false) {
                         failuresLifecycleWithDefaultRetention.incrementAndGet();
                     }
                 }
@@ -267,14 +272,12 @@ public class DataStreamUsageTransportActionIT extends ESIntegTestCase {
             "global_retention"
         );
         assertThat(globalRetentionMap.get("max").get("defined"), equalTo(false));
-        assertThat(globalRetentionMap.get("default").get("defined"), equalTo(useDefaultRetention));
-        if (useDefaultRetention) {
-            assertThat(
-                globalRetentionMap.get("default").get("affected_data_streams"),
-                equalTo(failuresLifecycleWithDefaultRetention.get())
-            );
-            assertThat(globalRetentionMap.get("default").get("retention_millis"), equalTo((int) defaultRetention.getMillis()));
-        }
+        assertThat(globalRetentionMap.get("failures_default").get("defined"), equalTo(true));
+        assertThat(
+            globalRetentionMap.get("failures_default").get("affected_data_streams"),
+            equalTo(failuresLifecycleWithDefaultRetention.get())
+        );
+        assertThat(globalRetentionMap.get("failures_default").get("retention_millis"), equalTo((int) defaultRetention.getMillis()));
     }
 
     private Map<String, Object> getDataStreamUsage() throws IOException {

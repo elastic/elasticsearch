@@ -17,6 +17,7 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.XPackFeatureUsage;
 import org.elasticsearch.xpack.core.XPackField;
+import org.elasticsearch.xpack.core.datastreams.DataStreamLifecycleFeatureSetUsage.LifecycleStats;
 
 import java.io.IOException;
 import java.util.Map;
@@ -80,13 +81,13 @@ public class DataStreamFeatureSetUsage extends XPackFeatureUsage {
             builder.startObject("global_retention");
             DataStreamLifecycleFeatureSetUsage.GlobalRetentionStats.toXContentFragment(
                 builder,
-                "default",
-                streamStats.globalRetentionStats.get("default")
+                LifecycleStats.FAILURES_DEFAULT_RETENTION_FIELD_NAME,
+                streamStats.globalRetentionStats.get(LifecycleStats.FAILURES_DEFAULT_RETENTION_FIELD_NAME)
             );
             DataStreamLifecycleFeatureSetUsage.GlobalRetentionStats.toXContentFragment(
                 builder,
-                "max",
-                streamStats.globalRetentionStats.get("max")
+                LifecycleStats.MAX_RETENTION_FIELD_NAME,
+                streamStats.globalRetentionStats.get(LifecycleStats.MAX_RETENTION_FIELD_NAME)
             );
             builder.endObject();
             builder.endObject();

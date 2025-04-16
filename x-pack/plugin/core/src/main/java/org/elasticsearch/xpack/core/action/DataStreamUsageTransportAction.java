@@ -64,7 +64,6 @@ public class DataStreamUsageTransportAction extends XPackUsageFeatureTransportAc
         long failuresLifecycleEffectivelyEnabledCounter = 0;
         LongSummaryStatistics dataRetentionStats = new LongSummaryStatistics();
         LongSummaryStatistics effectiveRetentionStats = new LongSummaryStatistics();
-        long affectedByDefaultRetentionCounter = 0;
         long affectedByMaxRetentionCounter = 0;
         long affectedByFailuresDefaultRetentionCounter = 0;
         DataStreamGlobalRetention globalRetention = globalRetentionSettings.get();
@@ -106,9 +105,6 @@ public class DataStreamUsageTransportAction extends XPackUsageFeatureTransportAc
                     // Track global retention usage
                     if (effectiveDataRetentionWithSource.v1() != null) {
                         effectiveRetentionStats.accept(effectiveDataRetentionWithSource.v1().getMillis());
-                        if (effectiveDataRetentionWithSource.v2().equals(DataStreamLifecycle.RetentionSource.DEFAULT_GLOBAL_RETENTION)) {
-                            affectedByDefaultRetentionCounter++;
-                        }
                         if (effectiveDataRetentionWithSource.v2().equals(DataStreamLifecycle.RetentionSource.MAX_GLOBAL_RETENTION)) {
                             affectedByMaxRetentionCounter++;
                         }
@@ -131,9 +127,9 @@ public class DataStreamUsageTransportAction extends XPackUsageFeatureTransportAc
             DataStreamLifecycleFeatureSetUsage.RetentionStats.create(effectiveRetentionStats),
             DataStreamLifecycleFeatureSetUsage.GlobalRetentionStats.getGlobalRetentionStats(
                 globalRetention,
-                affectedByDefaultRetentionCounter,
+                affectedByFailuresDefaultRetentionCounter,
                 affectedByMaxRetentionCounter,
-                affectedByFailuresDefaultRetentionCounter
+                true
             )
         );
         final DataStreamFeatureSetUsage usage = new DataStreamFeatureSetUsage(stats);

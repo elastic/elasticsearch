@@ -264,35 +264,38 @@ public class DataStreamLifecycleFeatureSetUsage extends XPackFeatureUsage {
             long dataStreamsWithDefaultRetention,
             long dataStreamsWithMaxRetention
         ) {
-            return getGlobalRetentionStats(globalRetention, dataStreamsWithDefaultRetention, dataStreamsWithMaxRetention, null);
+            return getGlobalRetentionStats(globalRetention, dataStreamsWithDefaultRetention, dataStreamsWithMaxRetention, false);
         }
 
         public static Map<String, GlobalRetentionStats> getGlobalRetentionStats(
             DataStreamGlobalRetention globalRetention,
             long dataStreamsWithDefaultRetention,
             long dataStreamsWithMaxRetention,
-            Long failureStoreWithDefaultRetention
+            boolean failureStore
         ) {
             if (globalRetention == null) {
                 return Map.of();
             }
             Map<String, GlobalRetentionStats> globalRetentionStats = new HashMap<>();
-            if (globalRetention.defaultRetention() != null) {
-                globalRetentionStats.put(
-                    LifecycleStats.DEFAULT_RETENTION_FIELD_NAME,
-                    new GlobalRetentionStats(dataStreamsWithDefaultRetention, globalRetention.defaultRetention())
-                );
+            if (failureStore) {
+                if (globalRetention.failuresDefaultRetention() != null) {
+                    globalRetentionStats.put(
+                        LifecycleStats.FAILURES_DEFAULT_RETENTION_FIELD_NAME,
+                        new GlobalRetentionStats(dataStreamsWithDefaultRetention, globalRetention.failuresDefaultRetention())
+                    );
+                }
+            } else {
+                if (globalRetention.defaultRetention() != null) {
+                    globalRetentionStats.put(
+                        LifecycleStats.DEFAULT_RETENTION_FIELD_NAME,
+                        new GlobalRetentionStats(dataStreamsWithDefaultRetention, globalRetention.defaultRetention())
+                    );
+                }
             }
             if (globalRetention.maxRetention() != null) {
                 globalRetentionStats.put(
                     LifecycleStats.MAX_RETENTION_FIELD_NAME,
                     new GlobalRetentionStats(dataStreamsWithMaxRetention, globalRetention.maxRetention())
-                );
-            }
-            if (globalRetention.failuresDefaultRetention() != null && failureStoreWithDefaultRetention != null) {
-                globalRetentionStats.put(
-                    LifecycleStats.FAILURES_DEFAULT_RETENTION_FIELD_NAME,
-                    new GlobalRetentionStats(failureStoreWithDefaultRetention, globalRetention.failuresDefaultRetention())
                 );
             }
             return globalRetentionStats;

@@ -46,7 +46,6 @@ import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
-import static org.hamcrest.Matchers.nullValue;
 
 public class TransportGetDataStreamsActionTests extends ESTestCase {
 
@@ -351,7 +350,10 @@ public class TransportGetDataStreamsActionTests extends ESTestCase {
             new IndexSettingProviders(Set.of()),
             null
         );
-        assertThat(response.getGlobalRetention(), nullValue());
+        assertThat(
+            response.getGlobalRetention(),
+            equalTo(new DataStreamGlobalRetention(null, null, DataStreamGlobalRetention.FAILURES_DEFAULT_VALUE))
+        );
         DataStreamGlobalRetention globalRetention = new DataStreamGlobalRetention(
             TimeValue.timeValueDays(randomIntBetween(1, 5)),
             TimeValue.timeValueDays(randomIntBetween(5, 10)),

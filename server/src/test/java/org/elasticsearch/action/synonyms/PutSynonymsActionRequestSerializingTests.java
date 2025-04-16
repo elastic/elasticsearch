@@ -25,7 +25,7 @@ public class PutSynonymsActionRequestSerializingTests extends AbstractWireSerial
 
     @Override
     protected PutSynonymsAction.Request createTestInstance() {
-        return new PutSynonymsAction.Request(randomIdentifier(), randomSynonymsSet());
+        return new PutSynonymsAction.Request(randomIdentifier(), randomSynonymsSet(), randomBoolean());
     }
 
     @Override

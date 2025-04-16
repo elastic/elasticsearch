@@ -19,6 +19,7 @@ import org.elasticsearch.rest.action.RestToXContentListener;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Set;
 
 import static org.elasticsearch.rest.RestRequest.Method.DELETE;
 
@@ -39,8 +40,14 @@ public class RestDeleteSynonymRuleAction extends BaseRestHandler {
     protected RestChannelConsumer prepareRequest(RestRequest restRequest, NodeClient client) throws IOException {
         DeleteSynonymRuleAction.Request request = new DeleteSynonymRuleAction.Request(
             restRequest.param("synonymsSet"),
-            restRequest.param("synonymRuleId")
+            restRequest.param("synonymRuleId"),
+            restRequest.paramAsBoolean("refresh", true)
         );
         return channel -> client.execute(DeleteSynonymRuleAction.INSTANCE, request, new RestToXContentListener<>(channel));
+    }
+
+    @Override
+    public Set<String> supportedCapabilities() {
+        return SynonymCapabilities.CAPABILITIES;
     }
 }

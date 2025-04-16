@@ -9,6 +9,8 @@ package org.elasticsearch.xpack.searchbusinessrules.retriever;
 
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.query.MatchAllQueryBuilder;
+import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.retriever.RetrieverBuilder;
@@ -169,6 +171,7 @@ public class PinnedRetrieverBuilderTests extends AbstractXContentTestCase<Pinned
     }
 
     public void testValidateSort() {
+
         PinnedRetrieverBuilder builder = new PinnedRetrieverBuilder(
             List.of("id1"),
             List.of(),
@@ -176,35 +179,39 @@ public class PinnedRetrieverBuilderTests extends AbstractXContentTestCase<Pinned
             DEFAULT_RANK_WINDOW_SIZE
         );
 
+        QueryBuilder dummyQuery = new MatchAllQueryBuilder();
+
         SearchSourceBuilder emptySource = new SearchSourceBuilder();
+        emptySource.query(dummyQuery);
         builder.finalizeSourceBuilder(emptySource);
         assertThat(emptySource.sorts(), equalTo(null));
 
         SearchSourceBuilder scoreSource = new SearchSourceBuilder();
+        scoreSource.query(dummyQuery);
         scoreSource.sort("_score");
         builder.finalizeSourceBuilder(scoreSource);
         assertThat(scoreSource.sorts().size(), equalTo(1));
 
         SearchSourceBuilder customSortSource = new SearchSourceBuilder();
+        customSortSource.query(dummyQuery);
         customSortSource.sort("field1");
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> builder.finalizeSourceBuilder(customSortSource));
         assertThat(
             e.getMessage(),
             equalTo(
-                "[pinned] retriever only supports sorting by score, "
-                    + "invalid sort criterion: {\n  \"field1\" : {\n    \"order\" : \"asc\"\n  }\n}"
+                "[" + PinnedRetrieverBuilder.NAME + "] retriever only supports sorting by score, invalid sort criterion: {\n  \"field1\" : {\n    \"order\" : \"asc\"\n  }\n}"
             )
         );
 
         SearchSourceBuilder multipleSortsSource = new SearchSourceBuilder();
+        multipleSortsSource.query(dummyQuery);
         multipleSortsSource.sort("_score");
         multipleSortsSource.sort("field1");
         e = expectThrows(IllegalArgumentException.class, () -> builder.finalizeSourceBuilder(multipleSortsSource));
         assertThat(
             e.getMessage(),
             equalTo(
-                "[pinned] retriever only supports sorting by score, "
-                    + "invalid sort criterion: {\n  \"field1\" : {\n    \"order\" : \"asc\"\n  }\n}"
+                "[" + PinnedRetrieverBuilder.NAME + "] retriever only supports sorting by score, invalid sort criterion: {\n  \"field1\" : {\n    \"order\" : \"asc\"\n  }\n}"
             )
         );
     }

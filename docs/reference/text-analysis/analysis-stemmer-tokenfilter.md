@@ -58,8 +58,8 @@ $$$analysis-stemmer-tokenfilter-language-parm$$$
 
 `language`: (Optional, string) Language-dependent stemming algorithm used to stem tokens. If both this and the `name` parameter are specified, the `language` parameter argument is used.
 
-:::{dropdown} Valid values for `language`
-    
+:::{dropdown} Valid values for language
+
 Valid values are sorted by language. Defaults to [**`english`**](https://snowballstem.org/algorithms/porter/stemmer.html). Recommended algorithms are **bolded**.
 Arabic: [**`arabic`**](https://lucene.apache.org/core/10_0_0/analysis/common/org/apache/lucene/analysis/ar/ArabicStemmer.md)
 Armenian: [**`armenian`**](https://snowballstem.org/algorithms/armenian/stemmer.md)

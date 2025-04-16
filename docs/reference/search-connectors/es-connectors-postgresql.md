@@ -171,7 +171,7 @@ Set the following configuration fields:
 `ssl_ca`
 :   Content of SSL certificate (if SSL is enabled). If SSL is disabled, the `ssl_ca` value will be ignored.
 
-    ::::{dropdown} **Expand** to see an example certificate
+    ::::{dropdown} Expand to see an example certificate
     ```
     -----BEGIN CERTIFICATE-----
     MIID+jCCAuKgAwIBAgIGAJJMzlxLMA0GCSqGSIb3DQEBCwUAMHoxCzAJBgNVBAYT

@@ -32,7 +32,7 @@ FROM <source_index>
 
 **Description**
 
-The `LOOKUP JOIN` command adds new columns to your {esql} query
+The `LOOKUP JOIN` command adds new columns to your {{esql}} query
 results table by finding documents in a lookup index that share the same
 join field value as your result rows.
 

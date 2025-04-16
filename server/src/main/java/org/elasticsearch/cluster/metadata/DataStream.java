@@ -33,7 +33,6 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.time.DateFormatters;
-import org.elasticsearch.common.util.FeatureFlag;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
@@ -75,14 +74,9 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
 
     private static final Logger LOGGER = LogManager.getLogger(DataStream.class);
 
-    public static final boolean FAILURE_STORE_FEATURE_FLAG = new FeatureFlag("failure_store").isEnabled();
     public static final TransportVersion ADDED_FAILURE_STORE_TRANSPORT_VERSION = TransportVersions.V_8_12_0;
     public static final TransportVersion ADDED_AUTO_SHARDING_EVENT_VERSION = TransportVersions.V_8_14_0;
     public static final TransportVersion ADD_DATA_STREAM_OPTIONS_VERSION = TransportVersions.V_8_16_0;
-
-    public static boolean isFailureStoreFeatureFlagEnabled() {
-        return FAILURE_STORE_FEATURE_FLAG;
-    }
 
     public static final String BACKING_INDEX_PREFIX = ".ds-";
     public static final String FAILURE_STORE_PREFIX = ".fs-";

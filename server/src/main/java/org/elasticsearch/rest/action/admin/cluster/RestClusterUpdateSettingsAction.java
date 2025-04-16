@@ -11,7 +11,6 @@ package org.elasticsearch.rest.action.admin.cluster;
 
 import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsRequest;
 import org.elasticsearch.client.internal.node.NodeClient;
-import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
@@ -80,6 +79,6 @@ public class RestClusterUpdateSettingsAction extends BaseRestHandler {
 
     @Override
     public Set<String> supportedCapabilities() {
-        return DataStream.isFailureStoreFeatureFlagEnabled() ? Set.of(DATA_STREAM_FAILURE_STORE_CLUSTER_SETTING_CAPABILITY) : Set.of();
+        return Set.of(DATA_STREAM_FAILURE_STORE_CLUSTER_SETTING_CAPABILITY);
     }
 }

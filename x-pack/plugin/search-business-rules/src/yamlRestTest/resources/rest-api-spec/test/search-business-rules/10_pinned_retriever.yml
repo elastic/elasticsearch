@@ -333,11 +333,15 @@ setup:
   - gt: { hits.hits.0._score: 1.0 }
   - match:
       hits.hits.0._explanation.description: "Pinned document by ids, original explanation:"
+  - match:
+      hits.hits.0._explanation.details.0.description: "doc [0] with an original score of [1.7014124E38] is at rank [1] from the following source queries."
 
   - match: { hits.hits.1._id: doc2 }
   - gt: { hits.hits.1._score: 1.0 }
   - match:
       hits.hits.1._explanation.description: "Pinned document by ids, original explanation:"
+  - match:
+      hits.hits.1._explanation.details.0.description: "doc [1] with an original score of [1.7014122E38] is at rank [2] from the following source queries."
 
 ---
 "pinned retriever with empty parameters":
@@ -439,3 +443,16 @@ setup:
                   query:
                     match: { text: "document" }
                   sort: [ { "_id": "desc" } ]
+
+---
+"pinned retriever error case - null inner query":
+  - do:
+      catch: /Underlying query cannot be null for pinned retriever/
+      search:
+        index: test-index1
+        body:
+          retriever:
+            pinned:
+              ids: ["doc1"]
+              retriever:
+                standard: {}

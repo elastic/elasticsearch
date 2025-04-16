@@ -160,12 +160,12 @@ public final class PinnedRetrieverBuilder extends CompoundRetrieverBuilder<Pinne
      * Prioritizes docs over ids if both are present.
      *
      * @param baseQuery the base query to pin documents to
-     * @return a PinnedQueryBuilder or the original query if no pinned documents
+     * @return a PinnedQueryBuilder
+     * @throws IllegalArgumentException if baseQuery is null
      */
     private QueryBuilder createPinnedQuery(QueryBuilder baseQuery) {
-        if (baseQuery == null) {
-            baseQuery = new MatchAllQueryBuilder();
-        }
+        Objects.requireNonNull(baseQuery, "Underlying query cannot be null for pinned retriever");
+
         if (docs.isEmpty() == false) {
             return new PinnedQueryBuilder(baseQuery, docs.toArray(new SpecifiedDocument[0]));
         }

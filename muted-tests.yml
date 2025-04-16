@@ -411,6 +411,9 @@ tests:
 - class: org.elasticsearch.repositories.gcs.GoogleCloudStorageBlobStoreRepositoryTests
   method: testRequestStats
   issue: https://github.com/elastic/elasticsearch/issues/126902
+- class: org.elasticsearch.repositories.gcs.GoogleCloudStorageBlobStoreRepositoryTests
+  method: testWriteReadLarge
+  issue: https://github.com/elastic/elasticsearch/issues/126903
 
 # Examples:
 #

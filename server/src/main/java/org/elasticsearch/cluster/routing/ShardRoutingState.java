@@ -33,7 +33,7 @@ public enum ShardRoutingState {
     /**
      * The shard is assigned to a specific data node and ready to accept indexing and search requests.
      *
-     * A shard transitions from {@link #STARTED} -> {@link #RELOCATING} when the master wants to initialize the node elsewhere.
+     * A shard transitions from {@link #STARTED} -> {@link #RELOCATING} when the master wants to initialize the shard elsewhere.
      */
     STARTED((byte) 3),
 

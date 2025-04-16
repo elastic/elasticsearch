@@ -309,6 +309,10 @@ public class CsvTests extends ESTestCase {
                 testCase.requiredCapabilities.contains(EsqlCapabilities.Cap.METADATA_SCORE.capabilityName())
             );
             assumeFalse(
+                "CSV tests cannot currently handle FORK",
+                testCase.requiredCapabilities.contains(EsqlCapabilities.Cap.FORK_V3.capabilityName())
+            );
+            assumeFalse(
                 "CSV tests cannot currently handle multi_match function that depends on Lucene",
                 testCase.requiredCapabilities.contains(EsqlCapabilities.Cap.MULTI_MATCH_FUNCTION.capabilityName())
             );

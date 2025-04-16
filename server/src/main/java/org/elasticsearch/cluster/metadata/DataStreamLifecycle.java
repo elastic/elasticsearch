@@ -232,7 +232,11 @@ public class DataStreamLifecycle implements SimpleDiffable<DataStreamLifecycle>,
             return Tuple.tuple(dataRetention(), RetentionSource.DATA_STREAM_CONFIGURATION);
         }
         if (dataRetention() == null) {
-            if (targetsFailureStore() && globalRetention.failuresDefaultRetention() != null) {
+            if (targetsFailureStore()) {
+                if (globalRetention.maxRetention() != null
+                    && globalRetention.failuresDefaultRetention().getMillis() > globalRetention.maxRetention().getMillis()) {
+                    return Tuple.tuple(globalRetention.maxRetention(), RetentionSource.MAX_GLOBAL_RETENTION);
+                }
                 return Tuple.tuple(globalRetention.failuresDefaultRetention(), RetentionSource.DEFAULT_FAILURES_RETENTION);
             }
             return globalRetention.defaultRetention() != null

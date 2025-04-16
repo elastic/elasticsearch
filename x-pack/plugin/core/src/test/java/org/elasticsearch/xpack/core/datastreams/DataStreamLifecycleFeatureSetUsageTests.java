@@ -180,7 +180,7 @@ public class DataStreamLifecycleFeatureSetUsageTests extends AbstractWireSeriali
             DataStreamLifecycleFeatureSetUsage.LifecycleStats stats = calculateStats(
                 dataStreams,
                 rollover,
-                new DataStreamGlobalRetention(defaultRetention, maxRetention, null)
+                new DataStreamGlobalRetention(defaultRetention, maxRetention)
             );
 
             assertThat(stats.dataStreamsWithLifecyclesCount, is(3L));

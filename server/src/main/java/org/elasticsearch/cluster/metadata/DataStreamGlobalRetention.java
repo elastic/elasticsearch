@@ -24,10 +24,11 @@ import java.io.IOException;
 public record DataStreamGlobalRetention(
     @Nullable TimeValue defaultRetention,
     @Nullable TimeValue maxRetention,
-    @Nullable TimeValue failuresDefaultRetention
+    TimeValue failuresDefaultRetention
 ) implements Writeable {
 
     public static final TimeValue MIN_RETENTION_VALUE = TimeValue.timeValueSeconds(10);
+    public static final TimeValue FAILURES_DEFAULT_VALUE = TimeValue.timeValueDays(20);
 
     /**
      * @param defaultRetention the default retention or null if it's undefined
@@ -52,6 +53,10 @@ public record DataStreamGlobalRetention(
         }
     }
 
+    public DataStreamGlobalRetention(@Nullable TimeValue defaultRetention, @Nullable TimeValue maxRetention) {
+        this(defaultRetention, maxRetention, FAILURES_DEFAULT_VALUE);
+    }
+
     private boolean validateRetentionValue(@Nullable TimeValue retention) {
         return retention == null || retention.getMillis() >= MIN_RETENTION_VALUE.getMillis();
     }
@@ -60,7 +65,9 @@ public record DataStreamGlobalRetention(
         return new DataStreamGlobalRetention(
             in.readOptionalTimeValue(),
             in.readOptionalTimeValue(),
-            in.getTransportVersion().onOrAfter(TransportVersions.INTRODUCE_FAILURES_LIFECYCLE) ? in.readOptionalTimeValue() : null
+            in.getTransportVersion().onOrAfter(TransportVersions.INTRODUCE_FAILURES_LIFECYCLE)
+                ? in.readOptionalTimeValue()
+                : FAILURES_DEFAULT_VALUE
         );
     }
 
@@ -81,7 +88,7 @@ public record DataStreamGlobalRetention(
             + ", maxRetention="
             + (maxRetention == null ? "null" : maxRetention.getStringRep())
             + ", failuresDefaultRetention="
-            + (failuresDefaultRetention == null ? "null" : failuresDefaultRetention.getStringRep())
+            + failuresDefaultRetention.getStringRep()
             + '}';
     }
 }

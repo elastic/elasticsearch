@@ -147,7 +147,12 @@ public class DataStreamGlobalRetentionIT extends DisabledSecurityDataStreamTestC
     @SuppressWarnings("unchecked")
     public void testDefaultRetention() throws Exception {
         // Set default global retention
-        updateClusterSettings(Settings.builder().put("data_streams.lifecycle.retention.default", "10s").build());
+        updateClusterSettings(
+            Settings.builder()
+                .put("data_streams.lifecycle.retention.default", "10s")
+                .put("data_streams.lifecycle.retention.failures_default", "10s")
+                .build()
+        );
 
         // Verify that the effective retention matches the default retention
         {
@@ -163,7 +168,7 @@ public class DataStreamGlobalRetentionIT extends DisabledSecurityDataStreamTestC
             assertThat(lifecycle.get("data_retention"), nullValue());
             Map<String, Object> failuresLifecycle = ((Map<String, Map<String, Object>>) dataStream.get("failure_store")).get("lifecycle");
             assertThat(failuresLifecycle.get("effective_retention"), is("10s"));
-            assertThat(failuresLifecycle.get("retention_determined_by"), is("default_global_retention"));
+            assertThat(failuresLifecycle.get("retention_determined_by"), is("default_failures_retention"));
             assertThat(failuresLifecycle.get("data_retention"), nullValue());
         }
 
@@ -260,49 +265,6 @@ public class DataStreamGlobalRetentionIT extends DisabledSecurityDataStreamTestC
             // 2 backing indices created + 1 for the deleted index
             // 2 failure indices created + 1 for the deleted failure index
             assertThat(dataStream.get("generation"), is(6));
-        }, 20, TimeUnit.SECONDS);
-    }
-
-    @SuppressWarnings("unchecked")
-    public void testFailuresDefaultRetention() throws Exception {
-        // Set default global retention
-        updateClusterSettings(
-            Settings.builder()
-                .put("data_streams.lifecycle.retention.default", "30m")
-                .put("data_streams.lifecycle.retention.failures_default", "10s")
-                .build()
-        );
-
-        // Verify that the effective retention matches the default retention
-        {
-            Request request = new Request("GET", "/_data_stream/my-data-stream");
-            Response response = client().performRequest(request);
-            List<Object> dataStreams = (List<Object>) entityAsMap(response).get("data_streams");
-            assertThat(dataStreams.size(), is(1));
-            Map<String, Object> dataStream = (Map<String, Object>) dataStreams.get(0);
-            assertThat(dataStream.get("name"), is("my-data-stream"));
-            Map<String, Object> lifecycle = (Map<String, Object>) dataStream.get("lifecycle");
-            assertThat(lifecycle.get("effective_retention"), is("30m"));
-            assertThat(lifecycle.get("retention_determined_by"), is("default_global_retention"));
-            assertThat(lifecycle.get("data_retention"), nullValue());
-            Map<String, Object> failuresLifecycle = ((Map<String, Map<String, Object>>) dataStream.get("failure_store")).get("lifecycle");
-            assertThat(failuresLifecycle.get("effective_retention"), is("10s"));
-            assertThat(failuresLifecycle.get("retention_determined_by"), is("default_failures_retention"));
-            assertThat(failuresLifecycle.get("data_retention"), nullValue());
-        }
-
-        // Verify that the first generation index was removed
-        assertBusy(() -> {
-            Response response = client().performRequest(new Request("GET", "/_data_stream/my-data-stream"));
-            Map<String, Object> dataStream = ((List<Map<String, Object>>) entityAsMap(response).get("data_streams")).get(0);
-            assertThat(dataStream.get("name"), is("my-data-stream"));
-            List<Object> backingIndices = (List<Object>) dataStream.get("indices");
-            assertThat(backingIndices.size(), is(2));
-            List<Object> failureIndices = (List<Object>) ((Map<String, Object>) dataStream.get("failure_store")).get("indices");
-            assertThat(failureIndices.size(), is(1));
-            // 2 backing indices created
-            // 2 failure indices created + 1 for the deleted failure index
-            assertThat(dataStream.get("generation"), is(5));
         }, 20, TimeUnit.SECONDS);
     }
 }

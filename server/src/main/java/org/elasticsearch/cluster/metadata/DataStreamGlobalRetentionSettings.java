@@ -60,7 +60,7 @@ public class DataStreamGlobalRetentionSettings {
 
     public static final Setting<TimeValue> FAILURE_STORE_DEFAULT_RETENTION_SETTING = Setting.timeSetting(
         "data_streams.lifecycle.retention.failures_default",
-        TimeValue.timeValueDays(20),
+        DataStreamGlobalRetention.FAILURES_DEFAULT_VALUE,
         new Setting.Validator<>() {
             @Override
             public void validate(TimeValue value) {}

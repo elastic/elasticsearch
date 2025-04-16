@@ -41,7 +41,7 @@ public class DataStreamGlobalRetentionTests extends AbstractWireSerializingTestC
             );
             case 2 -> failuresDefaultRetention = randomValueOtherThan(
                 failuresDefaultRetention,
-                () -> randomBoolean() ? null : TimeValue.timeValueDays(randomIntBetween(1, 2000))
+                () -> TimeValue.timeValueDays(randomIntBetween(1, 2000))
             );
         }
         return new DataStreamGlobalRetention(defaultRetention, maxRetention, failuresDefaultRetention);
@@ -50,11 +50,10 @@ public class DataStreamGlobalRetentionTests extends AbstractWireSerializingTestC
     public static DataStreamGlobalRetention randomGlobalRetention() {
         boolean withDefault = randomBoolean();
         boolean withMax = randomBoolean();
-        boolean withFailuresDefault = randomBoolean();
         return new DataStreamGlobalRetention(
             withDefault == false ? null : TimeValue.timeValueDays(randomIntBetween(1, 1000)),
             withMax == false ? null : TimeValue.timeValueDays(randomIntBetween(1000, 2000)),
-            withFailuresDefault == false ? null : TimeValue.timeValueDays(randomIntBetween(1, 2000))
+            TimeValue.timeValueDays(randomIntBetween(1, 2000))
         );
     }
 
@@ -67,8 +66,8 @@ public class DataStreamGlobalRetentionTests extends AbstractWireSerializingTestC
                 TimeValue.timeValueDays(randomIntBetween(1, 2000))
             )
         );
-        expectThrows(IllegalArgumentException.class, () -> new DataStreamGlobalRetention(TimeValue.ZERO, null, null));
-        expectThrows(IllegalArgumentException.class, () -> new DataStreamGlobalRetention(null, TimeValue.ZERO, null));
+        expectThrows(IllegalArgumentException.class, () -> new DataStreamGlobalRetention(TimeValue.ZERO, null));
+        expectThrows(IllegalArgumentException.class, () -> new DataStreamGlobalRetention(null, TimeValue.ZERO));
         expectThrows(IllegalArgumentException.class, () -> new DataStreamGlobalRetention(null, null, TimeValue.ZERO));
     }
 }

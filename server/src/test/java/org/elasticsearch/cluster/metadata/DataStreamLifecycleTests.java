@@ -346,38 +346,23 @@ public class DataStreamLifecycleTests extends AbstractWireSerializingTestCase<Da
             assertThat(effectiveFailuresRetentionWithSource.v2(), equalTo(DATA_STREAM_CONFIGURATION));
 
             // Only max retention
-            DataStreamGlobalRetention onlyMaxRetention = new DataStreamGlobalRetention(null, maxRetention, null);
+            DataStreamGlobalRetention onlyMaxRetention = new DataStreamGlobalRetention(null, maxRetention);
             // Data lifecycle
             effectiveDataRetentionWithSource = noDataRetentionLifecycle.getEffectiveDataRetentionWithSource(onlyMaxRetention, false);
             assertThat(effectiveDataRetentionWithSource.v1(), equalTo(maxRetention));
             assertThat(effectiveDataRetentionWithSource.v2(), equalTo(MAX_GLOBAL_RETENTION));
-            // Failures lifecycle
-            effectiveFailuresRetentionWithSource = noFailuresRetentionLifecycle.getEffectiveDataRetentionWithSource(
-                onlyMaxRetention,
-                false
-            );
-            assertThat(effectiveFailuresRetentionWithSource.v1(), equalTo(maxRetention));
-            assertThat(effectiveFailuresRetentionWithSource.v2(), equalTo(MAX_GLOBAL_RETENTION));
 
             // Default configuration with data lifecycle
             effectiveDataRetentionWithSource = noDataRetentionLifecycle.getEffectiveDataRetentionWithSource(
-                new DataStreamGlobalRetention(defaultRetention, null, randomBoolean() ? null : failuresDefaultRetention),
+                new DataStreamGlobalRetention(defaultRetention, null, failuresDefaultRetention),
                 false
             );
             assertThat(effectiveDataRetentionWithSource.v1(), equalTo(defaultRetention));
             assertThat(effectiveDataRetentionWithSource.v2(), equalTo(DEFAULT_GLOBAL_RETENTION));
 
-            // Default configuration with failures lifecycle
-            effectiveFailuresRetentionWithSource = noFailuresRetentionLifecycle.getEffectiveDataRetentionWithSource(
-                new DataStreamGlobalRetention(defaultRetention, null, null),
-                false
-            );
-            assertThat(effectiveFailuresRetentionWithSource.v1(), equalTo(defaultRetention));
-            assertThat(effectiveFailuresRetentionWithSource.v2(), equalTo(DEFAULT_GLOBAL_RETENTION));
-
             // Complete global retention with data lifecycle
             effectiveDataRetentionWithSource = noDataRetentionLifecycle.getEffectiveDataRetentionWithSource(
-                new DataStreamGlobalRetention(defaultRetention, maxRetention, randomBoolean() ? null : failuresDefaultRetention),
+                new DataStreamGlobalRetention(defaultRetention, maxRetention, failuresDefaultRetention),
                 false
             );
             assertThat(effectiveDataRetentionWithSource.v1(), equalTo(defaultRetention));
@@ -388,8 +373,13 @@ public class DataStreamLifecycleTests extends AbstractWireSerializingTestCase<Da
                 new DataStreamGlobalRetention(defaultRetention, maxRetention, failuresDefaultRetention),
                 false
             );
-            assertThat(effectiveFailuresRetentionWithSource.v1(), equalTo(failuresDefaultRetention));
-            assertThat(effectiveFailuresRetentionWithSource.v2(), equalTo(DEFAULT_FAILURES_RETENTION));
+            if (maxRetention.getMillis() < failuresDefaultRetention.getMillis()) {
+                assertThat(effectiveFailuresRetentionWithSource.v1(), equalTo(maxRetention));
+                assertThat(effectiveFailuresRetentionWithSource.v2(), equalTo(MAX_GLOBAL_RETENTION));
+            } else {
+                assertThat(effectiveFailuresRetentionWithSource.v1(), equalTo(failuresDefaultRetention));
+                assertThat(effectiveFailuresRetentionWithSource.v2(), equalTo(DEFAULT_FAILURES_RETENTION));
+            }
         }
 
         // With retention in the data stream lifecycle
@@ -416,7 +406,7 @@ public class DataStreamLifecycleTests extends AbstractWireSerializingTestCase<Da
 
             // only default & data lifecycle
             effectiveDataRetentionWithSource = dataLifecycleRetention.getEffectiveDataRetentionWithSource(
-                new DataStreamGlobalRetention(defaultRetention, null, null),
+                new DataStreamGlobalRetention(defaultRetention, null),
                 false
             );
             assertThat(effectiveDataRetentionWithSource.v1(), equalTo(dataStreamRetention));
@@ -432,7 +422,7 @@ public class DataStreamLifecycleTests extends AbstractWireSerializingTestCase<Da
 
             TimeValue maxGlobalRetention = randomBoolean() ? dataStreamRetention : TimeValue.timeValueDays(dataStreamRetention.days() + 1);
             effectiveDataRetentionWithSource = dataLifecycleRetention.getEffectiveDataRetentionWithSource(
-                new DataStreamGlobalRetention(defaultRetention, maxGlobalRetention, null),
+                new DataStreamGlobalRetention(defaultRetention, maxGlobalRetention),
                 false
             );
             assertThat(effectiveDataRetentionWithSource.v1(), equalTo(dataStreamRetention));
@@ -444,8 +434,7 @@ public class DataStreamLifecycleTests extends AbstractWireSerializingTestCase<Da
                     randomBoolean()
                         ? null
                         : TimeValue.timeValueDays(randomIntBetween(1, (int) (maxRetentionLessThanDataStream.days() - 1))),
-                    maxRetentionLessThanDataStream,
-                    null
+                    maxRetentionLessThanDataStream
                 ),
                 false
             );

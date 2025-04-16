@@ -1,8 +1,0 @@
-pr: 125764
-summary: Fix `ReplaceMissingFieldsWithNull`
-area: ES|QL
-type: bug
-issues:
- - 126036
- - 121754
- - 126030

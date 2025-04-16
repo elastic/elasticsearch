@@ -12,6 +12,7 @@ import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.util.FeatureFlag;
 import org.elasticsearch.xpack.esql.core.QlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.MapExpression;
 import org.elasticsearch.xpack.esql.core.expression.function.Function;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -37,6 +38,7 @@ import org.elasticsearch.xpack.esql.expression.function.aggregate.Values;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.WeightedAvg;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.Kql;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.Match;
+import org.elasticsearch.xpack.esql.expression.function.fulltext.MultiMatch;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.QueryString;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.Term;
 import org.elasticsearch.xpack.esql.expression.function.grouping.Bucket;
@@ -428,6 +430,7 @@ public class EsqlFunctionRegistry {
             new FunctionDefinition[] {
                 def(Kql.class, uni(Kql::new), "kql"),
                 def(Match.class, tri(Match::new), "match"),
+                def(MultiMatch.class, MultiMatch::new, "multi_match"),
                 def(QueryString.class, bi(QueryString::new), "qstr") } };
 
     }
@@ -1023,6 +1026,32 @@ public class EsqlFunctionRegistry {
 
     protected interface UnaryVariadicBuilder<T> {
         T build(Source source, Expression exp, List<Expression> variadic);
+    }
+
+    protected interface BinaryVariadicWithOptionsBuilder<T> {
+        T build(Source source, Expression exp, List<Expression> variadic, Expression options);
+    };
+
+    protected static <T extends Function> FunctionDefinition def(
+        Class<T> function,
+        BinaryVariadicWithOptionsBuilder<T> ctorRef,
+        String... names
+    ) {
+        FunctionBuilder builder = (source, children, cfg) -> {
+            boolean hasMinimumOne = OptionalArgument.class.isAssignableFrom(function);
+            if (hasMinimumOne && children.size() < 1) {
+                throw new QlIllegalArgumentException("expects at least one argument");
+            } else if (hasMinimumOne == false && children.size() < 2) {
+                throw new QlIllegalArgumentException("expects at least two arguments");
+            }
+            Expression options = children.getLast();
+            if (options instanceof MapExpression) {
+                return ctorRef.build(source, children.get(0), children.subList(1, children.size() - 1), options);
+            }
+
+            return ctorRef.build(source, children.get(0), children.subList(1, children.size()), null);
+        };
+        return def(function, builder, names);
     }
 
     /**

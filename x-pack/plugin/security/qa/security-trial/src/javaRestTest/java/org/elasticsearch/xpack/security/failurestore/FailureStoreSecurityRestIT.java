@@ -2229,6 +2229,64 @@ public class FailureStoreSecurityRestIT extends ESRestTestCase {
         }
     }
 
+    public void testScroll() throws Exception {
+        List<String> docIds = setupDataStream();
+        String dataDocId = "1";
+        String failuresDocId = docIds.stream().filter(id -> false == id.equals(dataDocId)).findFirst().get();
+
+        createUser("user", PASSWORD, "role");
+        upsertRole("""
+            {
+              "cluster": ["all"],
+              "indices": [
+                {
+                  "names": ["test*"],
+                  "privileges": ["read"]
+                }
+              ]
+            }""", "role");
+
+        {
+            // user has no access to failure store, searching failures should not work
+            expectThrows(
+                () -> performRequest("user", new Request("POST", Strings.format("/%s/_search?scroll=1m", "test1::failures"))),
+                403
+            );
+
+            // searching data should work
+            final String scrollId = performScrollSearchRequestAndAssertDocs("test1", dataDocId);
+
+            // further searches with scroll_id should work, but won't return any more hits
+            assertSearchHasNoHits(performScrollSearchRequest("user", scrollId));
+
+            deleteScroll(scrollId);
+        }
+
+        upsertRole("""
+            {
+              "cluster": ["all"],
+              "indices": [
+                {
+                  "names": ["test*"],
+                  "privileges": ["read_failure_store"]
+                }
+              ]
+            }""", "role");
+
+        {
+            // user has only read access to failure store, searching data should fail
+            expectThrows(() -> performRequest("user", new Request("POST", Strings.format("/%s/_search?scroll=1m", "test1"))), 403);
+
+            // searching failure store should work
+            final String scrollId = performScrollSearchRequestAndAssertDocs("test1::failures", failuresDocId);
+
+            // further searches with scroll_id should work, but won't return any more hits
+            assertSearchHasNoHits(performScrollSearchRequest("user", scrollId));
+
+            deleteScroll(scrollId);
+        }
+    }
+
     public void testDlsFls() throws Exception {
         setupDataStream();
 
@@ -2813,6 +2871,61 @@ public class FailureStoreSecurityRestIT extends ESRestTestCase {
             }
         } catch (IOException e) {
             throw new UncheckedIOException(e);
+        }
+    }
+
+    private void deleteScroll(String scrollId) throws IOException {
+        Request deleteScroll = new Request("DELETE", "/_search/scroll");
+        deleteScroll.setJsonEntity(Strings.format("""
+            {
+                "scroll_id": "%s"
+            }
+            """, scrollId));
+        Response deleteScrollResponse = performRequest("user", deleteScroll);
+        assertOK(deleteScrollResponse);
+    }
+
+    private String performScrollSearchRequestAndAssertDocs(String indexExpression, String docId) throws IOException {
+        Response scrollResponse = performRequest("user", new Request("POST", Strings.format("/%s/_search?scroll=1m", indexExpression)));
+        assertOK(scrollResponse);
+
+        final SearchResponse searchResponse = SearchResponseUtils.parseSearchResponse(responseAsParser(scrollResponse));
+        final String scrollId = searchResponse.getScrollId();
+        assertThat(scrollId, notNullValue());
+        try {
+            assertSearchContainsDocs(searchResponse, docId);
+        } finally {
+            searchResponse.decRef();
+        }
+        return scrollId;
+    }
+
+    private SearchResponse performScrollSearchRequest(String user, String scrollId) throws IOException {
+        Request searchRequestWithScrollId = new Request("POST", "/_search/scroll");
+        searchRequestWithScrollId.setJsonEntity(Strings.format("""
+            {
+                "scroll": "1m",
+                "scroll_id": "%s"
+            }
+            """, scrollId));
+        Response response = performRequest(user, searchRequestWithScrollId);
+        assertOK(response);
+        return SearchResponseUtils.parseSearchResponse(responseAsParser(response));
+    }
+
+    private static void assertSearchContainsDocs(SearchResponse searchResponse, String... docIds) {
+        SearchHit[] hits = searchResponse.getHits().getHits();
+        assertThat(hits.length, equalTo(docIds.length));
+        List<String> actualDocIds = Arrays.stream(hits).map(SearchHit::getId).toList();
+        assertThat(actualDocIds, containsInAnyOrder(docIds));
+    }
+
+    private static void assertSearchHasNoHits(SearchResponse searchResponse) {
+        try {
+            SearchHit[] hits = searchResponse.getHits().getHits();
+            assertThat(hits.length, equalTo(0));
+        } finally {
+            searchResponse.decRef();
         }
     }
 

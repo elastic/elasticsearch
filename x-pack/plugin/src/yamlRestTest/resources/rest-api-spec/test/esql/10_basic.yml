@@ -237,7 +237,10 @@ FROM EVAL SORT LIMIT with documents_found:
           query: 'from test | eval x = count + 7 | sort x | limit 1'
 
   - match: {documents_found: 40}
-  - match: {values_loaded: 65}
+  # We can't be sure quite how many values we'll load. It's at least
+  # one per document in the index. And one per top document. But we
+  # might load more values because we run in more threads.
+  - gte: {values_loaded: 45}
   - match: {columns.0.name: "color"}
   - match: {columns.1.name: "count"}
   - match: {columns.2.name: "count_d"}

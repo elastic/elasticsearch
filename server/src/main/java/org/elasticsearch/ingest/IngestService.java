@@ -955,8 +955,8 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
                 return resolution;
             } else {
                 // If we get a non-null result but the cluster is not yet fully updated with required node features,
-                // force the result false to maintain old logic until all nodes are updated
-                return false;
+                // force the result null to maintain old logic until all nodes are updated
+                return null;
             }
         };
     }

@@ -91,10 +91,11 @@ public class RepositoryCredentialsTests extends ESSingleNodeTestCase {
 
         final S3Repository repository = (S3Repository) repositories.repository(repositoryName);
         try (var clientReference = repository.createBlobStore().clientReference()) {
-            final S3Client client = clientReference.client();
-            assertThat(client, instanceOf(ProxyS3RepositoryPlugin.ClientAndCredentials.class));
-
-            final AwsCredentials credentials = ((ProxyS3RepositoryPlugin.ClientAndCredentials) client).credentials.resolveCredentials();
+            final ProxyS3RepositoryPlugin.ClientAndCredentials client = asInstanceOf(
+                ProxyS3RepositoryPlugin.ClientAndCredentials.class,
+                clientReference.client()
+            );
+            final AwsCredentials credentials = client.credentials.resolveCredentials();
             assertThat(credentials.accessKeyId(), is("insecure_aws_key"));
             assertThat(credentials.secretAccessKey(), is("insecure_aws_secret"));
         }

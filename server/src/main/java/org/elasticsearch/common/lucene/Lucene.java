@@ -385,9 +385,15 @@ public class Lucene {
      * by shard for sorting purposes.
      */
     public static void writeTopDocsIncludingShardIndex(StreamOutput out, TopDocs topDocs) throws IOException {
-        if (topDocs == null && out.getTransportVersion().onOrAfter(TransportVersions.SEARCH_INCREMENTAL_TOP_DOCS_NULL)) {
-            out.writeByte((byte) -1);
-        } else if (topDocs instanceof TopFieldGroups topFieldGroups) {
+        if (topDocs == null) {
+            if (out.getTransportVersion().onOrAfter(TransportVersions.SEARCH_INCREMENTAL_TOP_DOCS_NULL)) {
+                out.writeByte((byte) -1);
+                return;
+            } else {
+                topDocs = Lucene.EMPTY_TOP_DOCS;
+            }
+        }
+        if (topDocs instanceof TopFieldGroups topFieldGroups) {
             out.writeByte((byte) 2);
             writeTotalHits(out, topDocs.totalHits);
             out.writeString(topFieldGroups.field);

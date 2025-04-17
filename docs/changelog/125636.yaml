@@ -1,6 +1,0 @@
-pr: 125636
-summary: Make `numberOfChannels` consistent with layout map by removing duplicated
-  `ChannelSet`
-area: ES|QL
-type: bug
-issues: []

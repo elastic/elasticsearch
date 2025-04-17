@@ -10,6 +10,7 @@ package org.elasticsearch.common.io.stream;
 
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.bytes.ReleasableBytesReference;
 
 import java.io.EOFException;
 import java.io.IOException;
@@ -289,4 +290,16 @@ public class ByteBufferStreamInput extends StreamInput {
 
     @Override
     public void close() throws IOException {}
+
+    @Override
+    public boolean supportReadAllToReleasableBytesReference() {
+        return true;
+    }
+
+    @Override
+    public ReleasableBytesReference readAllToReleasableBytesReference() {
+        final byte[] res = new byte[buffer.remaining()];
+        buffer.get(res);
+        return ReleasableBytesReference.wrap(new BytesArray(res));
+    }
 }

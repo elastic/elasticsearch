@@ -66,7 +66,7 @@ import static org.elasticsearch.core.Strings.format;
 abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> extends SearchPhase {
     protected static final float DEFAULT_INDEX_BOOST = 1.0f;
     private final Logger logger;
-    private final NamedWriteableRegistry namedWriteableRegistry;
+    protected final NamedWriteableRegistry namedWriteableRegistry;
     protected final SearchTransportService searchTransportService;
     private final Executor executor;
     private final ActionListener<SearchResponse> listener;

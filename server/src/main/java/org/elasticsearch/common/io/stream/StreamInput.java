@@ -127,8 +127,12 @@ public abstract class StreamInput extends InputStream {
         return ReleasableBytesReference.wrap(readBytesReference());
     }
 
-    public ReleasableBytesReference readReleasableBytesReference2() throws IOException {
-        return ReleasableBytesReference.wrap(readBytesReference(readInt()));
+    /**
+     * Same as {@link #readBytesReference()} but with an explicitly provided length.
+     * @param length number of bytes to read
+     */
+    public ReleasableBytesReference readReleasableBytesReference(int length) throws IOException {
+        return ReleasableBytesReference.wrap(readBytesReference(length));
     }
 
     /**

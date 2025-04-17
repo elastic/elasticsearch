@@ -132,8 +132,10 @@ public abstract class StreamOutput extends OutputStream {
      * Serializes a writable just like {@link Writeable#writeTo(StreamOutput)} would but prefixes it with the serialized size of the result.
      *
      * @param writeable {@link Writeable} to serialize
+     * @deprecated use {@link #writeWithSizePrefix} instead
      */
-    public void writeWithSizePrefix(Writeable writeable) throws IOException {
+    @Deprecated
+    public void legacyWriteWithSizePrefix(Writeable writeable) throws IOException {
         final BytesStreamOutput tmp = new BytesStreamOutput();
         tmp.setTransportVersion(version);
         writeable.writeTo(tmp);
@@ -141,12 +143,13 @@ public abstract class StreamOutput extends OutputStream {
     }
 
     /**
-     * Same as {@link #writeWithSizePrefix(Writeable)} but compresses the result of serialization and prefixes with a 4 bytes int for the
-     * instead of a variable length int.
+     * Serializes a writable just like {@link Writeable#writeTo(StreamOutput)} would but also compresses and prefixes it with the serialized
+     * size of the result.
+
      *
      * @param writeable {@link Writeable} to serialize
      */
-    public void writeWithSizePrefix2(Writeable writeable) throws IOException {
+    public void writeWithSizePrefix(Writeable writeable) throws IOException {
         final BytesStreamOutput tmp = new BytesStreamOutput();
         try (var o = new OutputStreamStreamOutput(CompressorFactory.COMPRESSOR.threadLocalOutputStream(tmp))) {
             o.setTransportVersion(version);

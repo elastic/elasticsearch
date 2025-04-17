@@ -48,8 +48,8 @@ public abstract class FilterStreamInput extends StreamInput {
     }
 
     @Override
-    public ReleasableBytesReference readReleasableBytesReference2() throws IOException {
-        return delegate.readReleasableBytesReference2();
+    public ReleasableBytesReference readReleasableBytesReference(int length) throws IOException {
+        return delegate.readReleasableBytesReference(length);
     }
 
     @Override

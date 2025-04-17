@@ -60,7 +60,7 @@ public abstract class DelayableWriteable<T extends Writeable> implements Writeab
             in.getTransportVersion(),
             in.namedWriteableRegistry(),
             in.getTransportVersion().onOrAfter(TransportVersions.COMPRESS_DELAYABLE_WRITEABLE)
-                ? in.readReleasableBytesReference2()
+                ? in.readReleasableBytesReference(in.readInt())
                 : in.readReleasableBytesReference()
         );
     }
@@ -68,7 +68,7 @@ public abstract class DelayableWriteable<T extends Writeable> implements Writeab
     public static <T extends Writeable> DelayableWriteable<T> referencing(Writeable.Reader<T> reader, StreamInput in) throws IOException {
         try (
             ReleasableBytesReference serialized = in.getTransportVersion().onOrAfter(TransportVersions.COMPRESS_DELAYABLE_WRITEABLE)
-                ? in.readReleasableBytesReference2()
+                ? in.readReleasableBytesReference(in.readInt())
                 : in.readReleasableBytesReference()
         ) {
             return new Referencing<>(deserialize(reader, in.getTransportVersion(), in.namedWriteableRegistry(), serialized));
@@ -109,9 +109,9 @@ public abstract class DelayableWriteable<T extends Writeable> implements Writeab
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             if (out.getTransportVersion().onOrAfter(TransportVersions.COMPRESS_DELAYABLE_WRITEABLE)) {
-                out.writeWithSizePrefix2(reference);
-            } else {
                 out.writeWithSizePrefix(reference);
+            } else {
+                out.legacyWriteWithSizePrefix(reference);
             }
         }
 
@@ -239,14 +239,13 @@ public abstract class DelayableWriteable<T extends Writeable> implements Writeab
      * Returns the serialized size in bytes of the provided {@link Writeable}.
      */
     public static long getSerializedSize(Writeable ref) {
-        var out = new CountingStreamOutput();
-        try (var o = new OutputStreamStreamOutput(CompressorFactory.COMPRESSOR.threadLocalOutputStream(out))) {
-            o.setTransportVersion(TransportVersion.current());
-            ref.writeTo(o);
+        try (CountingStreamOutput out = new CountingStreamOutput()) {
+            out.setTransportVersion(TransportVersion.current());
+            ref.writeTo(out);
+            return out.size();
         } catch (IOException exc) {
             throw new UncheckedIOException(exc);
         }
-        return out.size();
     }
 
     private static <T> T deserialize(

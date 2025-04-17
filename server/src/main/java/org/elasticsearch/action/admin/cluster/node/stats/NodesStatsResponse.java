@@ -44,6 +44,9 @@ public class NodesStatsResponse extends BaseNodesXContentResponse<NodeStats> {
 
     @Override
     protected Iterator<? extends ToXContent> xContentChunks(ToXContent.Params outerParams) {
+        if (outerParams.param(DenseVectorStats.INCLUDE_OFF_HEAP) == null) {
+            outerParams = new ToXContent.DelegatingMapParams(Map.of(DenseVectorStats.INCLUDE_OFF_HEAP, "true"), outerParams);
+        }
         var finalOuterParams = new ToXContent.DelegatingMapParams(Map.of(DenseVectorStats.INCLUDE_OFF_HEAP, "true"), outerParams);
         return ChunkedToXContentHelper.object(
             "nodes",

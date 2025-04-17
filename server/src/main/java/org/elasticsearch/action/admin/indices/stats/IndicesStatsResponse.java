@@ -186,8 +186,11 @@ public class IndicesStatsResponse extends ChunkedBroadcastResponse {
     }
 
     @Override
-    protected Iterator<ToXContent> customXContentChunks(ToXContent.Params outterParams) {
-        var params = new ToXContent.DelegatingMapParams(Map.of(DenseVectorStats.INCLUDE_OFF_HEAP, "true"), outterParams);
+    protected Iterator<ToXContent> customXContentChunks(ToXContent.Params outerParams) {
+        if (outerParams.param(DenseVectorStats.INCLUDE_OFF_HEAP) == null) {
+            outerParams = new ToXContent.DelegatingMapParams(Map.of(DenseVectorStats.INCLUDE_OFF_HEAP, "true"), outerParams);
+        }
+        var params = outerParams;
         final ClusterStatsLevel level = ClusterStatsLevel.of(params, ClusterStatsLevel.INDICES);
         if (level == ClusterStatsLevel.INDICES || level == ClusterStatsLevel.SHARDS) {
             return Iterators.concat(

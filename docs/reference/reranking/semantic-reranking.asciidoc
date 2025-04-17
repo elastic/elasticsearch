@@ -1,8 +1,6 @@
 [[semantic-reranking]]
 == Semantic re-ranking
 
-preview::[]
-
 [TIP]
 ====
 This overview focuses more on the high-level concepts and use cases for semantic re-ranking. For full implementation details on how to set up and use semantic re-ranking in {es}, see the <<text-similarity-reranker-retriever,reference documentation>> in the Search API docs.
@@ -87,11 +85,11 @@ To use semantic re-ranking in {es}, you need to:
 
 . *Select and configure a re-ranking model*.
 You have the following options:
-.. Use the <<inference-example-elastic-reranker,Elastic Rerank>> cross-encoder model via the inference API's {es} service. 
+.. Use the <<inference-example-elastic-reranker,Elastic Rerank>> model through a preconfigured `.rerank-v1-elasticsearch` endpoint or create a custom one using the inference API's {es} service.
 .. Use the <<infer-service-cohere,Cohere Rerank inference endpoint>> to create a `rerank` endpoint.
 .. Use the <<infer-service-google-vertex-ai,Google Vertex AI inference endpoint>> to create a `rerank` endpoint.
 .. Upload a model to {es} from Hugging Face with {eland-docs}/machine-learning.html#ml-nlp-pytorch[Eland]. You'll need to use the `text_similarity` NLP task type when loading the model using Eland. Then set up an <<inference-example-eland,{es} service inference endpoint>> with the `rerank` endpoint type.
-+ 
++
 Refer to {ml-docs}/ml-nlp-model-ref.html#ml-nlp-model-ref-text-similarity[the Elastic NLP model reference] for a list of third party text similarity models supported by {es} for semantic re-ranking.
 
 . *Create a `rerank` endpoint using the <<put-inference-api,{es} Inference API>>*.

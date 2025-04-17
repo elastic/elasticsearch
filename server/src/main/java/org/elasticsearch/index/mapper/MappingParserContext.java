@@ -44,6 +44,7 @@ public class MappingParserContext {
     private final long mappingObjectDepthLimit;
     private long mappingObjectDepth = 0;
 
+    // add in the reserved namespaces here? How will the root object mapper get them?
     public MappingParserContext(
         Function<String, SimilarityProvider> similarityLookupService,
         Function<String, Mapper.TypeParser> typeParsers,

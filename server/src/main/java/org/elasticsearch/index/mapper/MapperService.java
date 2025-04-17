@@ -806,6 +806,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
     }
 
     /**
+
      * @return If this field is defined as a multifield of another field
      */
     public boolean isMultiField(String field) {

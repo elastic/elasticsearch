@@ -203,7 +203,7 @@ public abstract class LuceneMaxOperatorTestCase extends AnyOperatorTestCase {
         return matchesRegex(
             "LuceneMaxOperator\\[type = "
                 + getNumberType().name()
-                + ", dataPartitioning = (DOC|SHARD|SEGMENT), fieldName = "
+                + ", dataPartitioning = (AUTO|DOC|SHARD|SEGMENT), fieldName = "
                 + FIELD_NAME
                 + ", limit = 100]"
         );

@@ -72,6 +72,29 @@ public class ForkIT extends AbstractEsqlIntegTestCase {
         }
     }
 
+    public void testRow() {
+        var query = """
+            ROW a = [1, 2, 3, 4], b = 100
+            | MV_EXPAND a
+            | FORK (WHERE a % 2 == 1)
+                   (WHERE a % 2 == 0)
+            | SORT _fork, a
+            """;
+
+        try (var resp = run(query)) {
+            assertColumnNames(resp.columns(), List.of("a", "b", "_fork"));
+            assertColumnTypes(resp.columns(), List.of("integer", "integer", "keyword"));
+
+            Iterable<Iterable<Object>> expectedValues = List.of(
+                List.of(1, 100, "fork1"),
+                List.of(3, 100, "fork1"),
+                List.of(2, 100, "fork2"),
+                List.of(4, 100, "fork2")
+            );
+            assertValues(resp.values(), expectedValues);
+        }
+    }
+
     public void testSortAndLimitInFirstSubQuery() {
         var query = """
             FROM test
@@ -216,6 +239,7 @@ public class ForkIT extends AbstractEsqlIntegTestCase {
                ( WHERE content:"fox" | SORT id )
                ( WHERE content:"dog" | SORT id )
             | KEEP _fork, id, content
+            | SORT _fork, id
             """;
         var queryWithMatchFunction = """
             FROM test
@@ -223,6 +247,7 @@ public class ForkIT extends AbstractEsqlIntegTestCase {
                ( WHERE match(content, "fox") | SORT id )
                ( WHERE match(content, "dog") | SORT id )
             | KEEP _fork, id, content
+            | SORT _fork, id
             """;
         for (var query : List.of(queryWithMatchOperator, queryWithMatchFunction)) {
             try (var resp = run(query)) {
@@ -509,6 +534,7 @@ public class ForkIT extends AbstractEsqlIntegTestCase {
                 | FORK ( EVAL a = 1 )
                        ( EVAL a = 2 )
                 | KEEP a, _fork, id, content
+                | SORT _fork
             """;
 
         try (var resp = run(query)) {

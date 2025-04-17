@@ -325,6 +325,8 @@ public class GoogleCloudStorageBlobStoreRepositoryTests extends ESMockAPIBasedRe
     @SuppressForbidden(reason = "this test uses a HttpServer to emulate a Google Cloud Storage endpoint")
     private static class GoogleErroneousHttpHandler extends ErroneousHttpHandler {
 
+        private static final String IDEMPOTENCY_TOKEN = "x-goog-gcs-idempotency-token";
+
         GoogleErroneousHttpHandler(final HttpHandler delegate, final int maxErrorsPerRequest) {
             super(delegate, maxErrorsPerRequest);
         }
@@ -338,6 +340,18 @@ public class GoogleCloudStorageBlobStoreRepositoryTests extends ESMockAPIBasedRe
                 } catch (IOException e) {
                     throw new AssertionError("Unable to read token request body", e);
                 }
+            }
+
+            if (exchange.getRequestHeaders().containsKey(IDEMPOTENCY_TOKEN)) {
+                String idempotencyToken = exchange.getRequestHeaders().getFirst(IDEMPOTENCY_TOKEN);
+                // In the event of a resumable retry, the GCS client uses the same idempotency token for
+                // the retry status check and the subsequent retries.
+                // Including the range header allows us to disambiguate between the requests
+                // see https://github.com/googleapis/java-storage/issues/3040
+                if (exchange.getRequestHeaders().containsKey("Content-Range")) {
+                    idempotencyToken += " " + exchange.getRequestHeaders().getFirst("Content-Range");
+                }
+                return idempotencyToken;
             }
 
             final String range = exchange.getRequestHeaders().getFirst("Content-Range");

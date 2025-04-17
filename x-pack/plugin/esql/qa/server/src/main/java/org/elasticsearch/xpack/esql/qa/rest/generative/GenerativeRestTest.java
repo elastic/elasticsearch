@@ -54,8 +54,6 @@ public abstract class GenerativeRestTest extends ESRestTestCase {
         "token recognition error at: '``", // https://github.com/elastic/elasticsearch/issues/125870
         "optimized incorrectly due to missing references", // https://github.com/elastic/elasticsearch/issues/116781
         "No matches found for pattern", // https://github.com/elastic/elasticsearch/issues/126418
-        "JOIN left field .* is incompatible with right field", // https://github.com/elastic/elasticsearch/issues/126419
-        "Unsupported type .* for enrich", // most likely still https://github.com/elastic/elasticsearch/issues/126419
         "The incoming YAML document exceeds the limit:" // still to investigate, but it seems to be specific to the test framework
     );
 

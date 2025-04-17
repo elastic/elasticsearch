@@ -291,7 +291,7 @@ abstract class DataNodeRequestSender {
                     final ShardId shardId = entry.getKey();
                     trackShardLevelFailure(shardId, false, entry.getValue());
                     pendingShardIds.add(shardId);
-                    maybeScheduleRetry(shardId, entry.getValue());
+                    maybeScheduleRetry(shardId, false, entry.getValue());
                 }
                 onAfter(response.completionInfo());
             }
@@ -301,7 +301,7 @@ abstract class DataNodeRequestSender {
                 for (ShardId shardId : request.shardIds) {
                     trackShardLevelFailure(shardId, receivedData, e);
                     pendingShardIds.add(shardId);
-                    maybeScheduleRetry(shardId, e);
+                    maybeScheduleRetry(shardId, receivedData, e);
                 }
                 onAfter(DriverCompletionInfo.EMPTY);
             }
@@ -316,8 +316,9 @@ abstract class DataNodeRequestSender {
                 }
             }
 
-            private void maybeScheduleRetry(ShardId shardId, Exception e) {
-                if (targetShards.getShard(shardId).remainingNodes.isEmpty()
+            private void maybeScheduleRetry(ShardId shardId, boolean receivedData, Exception e) {
+                if (receivedData == false
+                    && targetShards.getShard(shardId).remainingNodes.isEmpty()
                     && unwrapFailure(e) instanceof NoShardAvailableActionException) {
                     pendingRetries.add(shardId);
                 }

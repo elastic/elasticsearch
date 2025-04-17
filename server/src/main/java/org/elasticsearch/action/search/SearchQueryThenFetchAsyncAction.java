@@ -27,7 +27,6 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.util.concurrent.CountDown;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.ListenableFuture;
@@ -50,13 +49,13 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.AbstractTransportRequest;
 import org.elasticsearch.transport.LeakTracker;
 import org.elasticsearch.transport.SendRequestTransportException;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportActionProxy;
 import org.elasticsearch.transport.TransportChannel;
 import org.elasticsearch.transport.TransportException;
-import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportResponse;
 import org.elasticsearch.transport.TransportResponseHandler;
 
@@ -286,7 +285,7 @@ public class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<S
     /**
      * Request for starting the query phase for multiple shards.
      */
-    public static final class NodeQueryRequest extends TransportRequest implements IndicesRequest {
+    public static final class NodeQueryRequest extends AbstractTransportRequest implements IndicesRequest {
         private final List<ShardToQuery> shards;
         private final SearchRequest searchRequest;
         private final Map<String, AliasFilter> aliasFilters;
@@ -368,7 +367,7 @@ public class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<S
      * Check if, based on already collected results, a shard search can be updated with a lower search threshold than is current set.
      * When the query executes via batched execution, data nodes this take into account the results of queries run against shards local
      * to the datanode. On the coordinating node results received from all data nodes are taken into account.
-     *
+     * <p>
      * See {@link BottomSortValuesCollector} for details.
      */
     private static ShardSearchRequest tryRewriteWithUpdatedSortValue(
@@ -722,7 +721,7 @@ public class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<S
 
         private static final QueryPhaseResultConsumer.MergeResult EMPTY_PARTIAL_MERGE_RESULT = new QueryPhaseResultConsumer.MergeResult(
             List.of(),
-            Lucene.EMPTY_TOP_DOCS,
+            null,
             null,
             0L
         );
@@ -782,10 +781,12 @@ public class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<S
                 // also collect the set of indices that may be part of a subsequent fetch operation here so that we can release all other
                 // indices without a roundtrip to the coordinating node
                 final BitSet relevantShardIndices = new BitSet(searchRequest.shards.size());
-                for (ScoreDoc scoreDoc : mergeResult.reducedTopDocs().scoreDocs) {
-                    final int localIndex = scoreDoc.shardIndex;
-                    scoreDoc.shardIndex = searchRequest.shards.get(localIndex).shardIndex;
-                    relevantShardIndices.set(localIndex);
+                if (mergeResult.reducedTopDocs() != null) {
+                    for (ScoreDoc scoreDoc : mergeResult.reducedTopDocs().scoreDocs) {
+                        final int localIndex = scoreDoc.shardIndex;
+                        scoreDoc.shardIndex = searchRequest.shards.get(localIndex).shardIndex;
+                        relevantShardIndices.set(localIndex);
+                    }
                 }
                 final Object[] results = new Object[queryPhaseResultConsumer.getNumShards()];
                 for (int i = 0; i < results.length; i++) {

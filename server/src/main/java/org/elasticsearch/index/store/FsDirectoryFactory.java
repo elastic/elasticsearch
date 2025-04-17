@@ -126,6 +126,7 @@ public class FsDirectoryFactory implements IndexStorePlugin.DirectoryFactory {
 
             DirectIODirectory directIO;
             try {
+                // use 8kB buffer (two pages) to guarantee it can load all of an un-page-aligned 1024-dim float vector
                 directIO = new DirectIODirectory(delegate, 8192, DirectIODirectory.DEFAULT_MIN_BYTES_DIRECT) {
                     @Override
                     protected boolean useDirectIO(String name, IOContext context, OptionalLong fileLength) {

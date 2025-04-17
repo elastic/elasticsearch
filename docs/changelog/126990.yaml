@@ -1,0 +1,5 @@
+pr: 126990
+summary: "[Entitlements] Fix: consider case sensitiveness differences"
+area: Infra/Entitlements
+type: bug
+issues: []

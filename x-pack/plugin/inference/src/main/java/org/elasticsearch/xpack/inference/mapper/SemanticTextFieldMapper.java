@@ -379,7 +379,9 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
             }
 
             if (modelSettings.taskType() != TEXT_EMBEDDING) {
-                throw new IllegalArgumentException("Invalid task type");
+                throw new IllegalArgumentException(
+                    "Invalid task type for index options, required [" + TEXT_EMBEDDING + "] but was [" + modelSettings.taskType() + "]"
+                );
             }
 
             // TODO additional verification

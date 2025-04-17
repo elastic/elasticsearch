@@ -146,7 +146,7 @@ final class S3ClientSettings {
     static final Setting.AffixSetting<Boolean> UNUSED_USE_THROTTLE_RETRIES_SETTING = Setting.affixKeySetting(
         PREFIX,
         "use_throttle_retries",
-        key -> Setting.boolSetting(key, Defaults.THROTTLE_RETRIES, Property.NodeScope, Property.Deprecated)
+        key -> Setting.boolSetting(key, true, Property.NodeScope, Property.Deprecated)
     );
 
     /** Whether the s3 client should use path style access. */
@@ -478,6 +478,5 @@ final class S3ClientSettings {
         static final TimeValue READ_TIMEOUT = TimeValue.timeValueSeconds(50);
         static final int MAX_CONNECTIONS = 50;
         static final int RETRY_COUNT = 3;
-        static final boolean THROTTLE_RETRIES = true; // NOMERGE: delete this and hardcode for one (deprecated) use?
     }
 }

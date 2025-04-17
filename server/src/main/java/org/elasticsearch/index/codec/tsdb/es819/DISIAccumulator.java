@@ -52,11 +52,7 @@ final class DISIAccumulator implements Closeable {
     DISIAccumulator(Directory dir, IOContext context, IndexOutput data, byte denseRankPower) throws IOException {
         this.dir = dir;
         this.context = context;
-        this.disiTempOutput = dir.createTempOutput(data.getName(), "disi", context);
-        this.skipListTempFileName = disiTempOutput.getName();
         this.denseRankPower = denseRankPower;
-
-        this.origo = disiTempOutput.getFilePointer(); // All jumps are relative to the origo
         if ((denseRankPower < 7 || denseRankPower > 15) && denseRankPower != -1) {
             throw new IllegalArgumentException(
                 "Acceptable values for denseRankPower are 7-15 (every 128-32768 docIDs). "
@@ -67,6 +63,9 @@ final class DISIAccumulator implements Closeable {
                     + " docIDs)"
             );
         }
+        this.disiTempOutput = dir.createTempOutput(data.getName(), "disi", context);
+        this.skipListTempFileName = disiTempOutput.getName();
+        this.origo = disiTempOutput.getFilePointer(); // All jumps are relative to the origo
     }
 
     void addDocId(int doc) throws IOException {

@@ -56,6 +56,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcke
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.in;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
@@ -166,63 +167,6 @@ public class DiskThresholdDeciderIT extends DiskUsageIntegTestCase {
         assertBusyWithDiskUsageRefresh(dataNode0Id, indexName, contains(in(shardSizes.getSmallestShardIds())));
     }
 
-    public void testRestoreSnapshotAllocationDoesNotExceedWatermarkWithMultipleShards() throws Exception {
-        internalCluster().startMasterOnlyNode();
-        internalCluster().startDataOnlyNode();
-        final String dataNodeName = internalCluster().startDataOnlyNode();
-        ensureStableCluster(3);
-
-        assertAcked(
-            clusterAdmin().preparePutRepository(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, "repo")
-                .setType(FsRepository.TYPE)
-                .setSettings(Settings.builder().put("location", randomRepoPath()).put("compress", randomBoolean()))
-        );
-
-        final AtomicBoolean allowRelocations = new AtomicBoolean(true);
-        final InternalClusterInfoService clusterInfoService = getInternalClusterInfoService();
-        internalCluster().getCurrentMasterNodeInstance(ClusterService.class).addListener(event -> {
-            ClusterInfoServiceUtils.refresh(clusterInfoService);
-            if (allowRelocations.get() == false) {
-                assertThat(
-                    "Expects no relocating shards but got: " + event.state().getRoutingNodes(),
-                    numberOfShardsWithState(event.state().getRoutingNodes(), ShardRoutingState.RELOCATING),
-                    equalTo(0)
-                );
-            }
-        });
-
-        final String dataNode0Id = internalCluster().getInstance(NodeEnvironment.class, dataNodeName).nodeId();
-
-        final String indexName = randomIdentifier();
-        createIndex(indexName, indexSettings(6, 0).put(INDEX_STORE_STATS_REFRESH_INTERVAL_SETTING.getKey(), "0ms").build());
-        var shardSizes = createReasonableSizedShards(indexName);
-
-        final CreateSnapshotResponse createSnapshotResponse = clusterAdmin().prepareCreateSnapshot(TEST_REQUEST_TIMEOUT, "repo", "snap")
-            .setWaitForCompletion(true)
-            .get();
-        final SnapshotInfo snapshotInfo = createSnapshotResponse.getSnapshotInfo();
-        assertThat(snapshotInfo.successfulShards(), is(snapshotInfo.totalShards()));
-        assertThat(snapshotInfo.state(), is(SnapshotState.SUCCESS));
-
-        assertAcked(indicesAdmin().prepareDelete(indexName).get());
-        updateClusterSettings(Settings.builder().put(CLUSTER_ROUTING_REBALANCE_ENABLE_SETTING.getKey(), Rebalance.NONE.toString()));
-        allowRelocations.set(false);
-
-        // reduce disk size of node 0 so that only 1 of 2 smallest shards can be allocated
-        var usableSpace = shardSizes.sizes().get(1).size();
-        getTestFileStore(dataNodeName).setTotalSpace(usableSpace + WATERMARK_BYTES);
-        refreshDiskUsage();
-
-        final RestoreSnapshotResponse restoreSnapshotResponse = clusterAdmin().prepareRestoreSnapshot(TEST_REQUEST_TIMEOUT, "repo", "snap")
-            .setWaitForCompletion(true)
-            .get();
-        final RestoreInfo restoreInfo = restoreSnapshotResponse.getRestoreInfo();
-        assertThat(restoreInfo.successfulShards(), is(snapshotInfo.totalShards()));
-        assertThat(restoreInfo.failedShards(), is(0));
-
-        assertBusyWithDiskUsageRefresh(dataNode0Id, indexName, contains(in(shardSizes.getShardIdsWithSizeSmallerOrEqual(usableSpace))));
-    }
-
     public void testRestoreSnapshotAllocationDoesNotExceedWatermarkWithMultipleRestores() {
         internalCluster().startMasterOnlyNode();
         final String dataNodeName = internalCluster().startDataOnlyNode();
@@ -235,18 +179,9 @@ public class DiskThresholdDeciderIT extends DiskUsageIntegTestCase {
                 .setSettings(Settings.builder().put("location", randomRepoPath()).put("compress", randomBoolean()))
         );
 
-        final AtomicBoolean allowRelocations = new AtomicBoolean(true);
         final InternalClusterInfoService clusterInfoService = getInternalClusterInfoService();
-        internalCluster().getCurrentMasterNodeInstance(ClusterService.class).addListener(event -> {
-            ClusterInfoServiceUtils.refresh(clusterInfoService);
-            if (allowRelocations.get() == false) {
-                assertThat(
-                    "Expects no relocating shards but got: " + event.state().getRoutingNodes(),
-                    numberOfShardsWithState(event.state().getRoutingNodes(), ShardRoutingState.RELOCATING),
-                    equalTo(0)
-                );
-            }
-        });
+        internalCluster().getCurrentMasterNodeInstance(ClusterService.class)
+            .addListener(event -> ClusterInfoServiceUtils.refresh(clusterInfoService));
 
         final String indexName = randomIdentifier();
         createIndex(indexName, indexSettings(6, 0).put(INDEX_STORE_STATS_REFRESH_INTERVAL_SETTING.getKey(), "0ms").build());
@@ -262,11 +197,20 @@ public class DiskThresholdDeciderIT extends DiskUsageIntegTestCase {
 
         assertAcked(indicesAdmin().prepareDelete(indexName).get());
         updateClusterSettings(Settings.builder().put(CLUSTER_ROUTING_REBALANCE_ENABLE_SETTING.getKey(), Rebalance.NONE.toString()));
-        allowRelocations.set(false);
+
+        // Verify that from this point on we do not do any rebalancing
+        internalCluster().getCurrentMasterNodeInstance(ClusterService.class).addListener(event -> {
+            assertThat(
+                "Expects no relocating shards but got: " + event.state().getRoutingNodes(),
+                numberOfShardsWithState(event.state().getRoutingNodes(), ShardRoutingState.RELOCATING),
+                equalTo(0)
+            );
+        });
 
         // reduce disk size of one data node so that only one shard copy fits there, forcing all the other shards to be assigned to the
         // other data node
-        getTestFileStore(dataNodeName).setTotalSpace(shardSizes.getSmallestShardSize() * 2 + WATERMARK_BYTES - 1L);
+        final var usableSpace = randomLongBetween(shardSizes.getSmallestShardSize(), shardSizes.getSmallestShardSize() * 2 - 1L);
+        getTestFileStore(dataNodeName).setTotalSpace(usableSpace + WATERMARK_BYTES);
         refreshDiskUsage();
 
         // We're going to restore the index twice in quick succession and verify that we don't assign more than one shard in total to the
@@ -275,7 +219,7 @@ public class DiskThresholdDeciderIT extends DiskUsageIntegTestCase {
         final var copyIndexName = indexName + "-copy";
 
         // set up a listener that explicitly forbids more than one shard to be assigned to the tiny node
-        final String dataNodeId = internalCluster().getInstance(NodeEnvironment.class, dataNodeName).nodeId();
+        final var dataNodeId = internalCluster().getInstance(NodeEnvironment.class, dataNodeName).nodeId();
         final var allShardsActiveListener = ClusterServiceUtils.addTemporaryStateListener(cs -> {
             assertThat(cs.getRoutingNodes().toString(), cs.getRoutingNodes().node(dataNodeId).size(), lessThanOrEqualTo(1));
             var seenCopy = false;
@@ -325,6 +269,10 @@ public class DiskThresholdDeciderIT extends DiskUsageIntegTestCase {
         // wait for all the shards to finish moving
         safeAwait(allShardsActiveListener);
         ensureGreen(indexName, indexName + "-copy");
+
+        final var tinyNodeShardIds = getShardIds(dataNodeId, indexName);
+        assertThat(tinyNodeShardIds, hasSize(1));
+        assertThat(tinyNodeShardIds.iterator().next(), in(shardSizes.getShardIdsWithSizeSmallerOrEqual(usableSpace)));
     }
 
     private Set<ShardId> getShardIds(final String nodeId, final String indexName) {

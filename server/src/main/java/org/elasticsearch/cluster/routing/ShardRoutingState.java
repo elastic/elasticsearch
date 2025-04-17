@@ -15,16 +15,18 @@ package org.elasticsearch.cluster.routing;
 public enum ShardRoutingState {
     /**
      * The shard is not assigned to any node; any data which it contains is unavailable to the cluster.
-     *
+     * <p>
      * A shard transitions from {@link #UNASSIGNED} to {@link #INITIALIZING} when the master wants an assigned data node to create or start
-     * recovering this shard copy. A shard may also transition back to {@link #UNASSIGNED} in case of a failure.
+     * recovering that shard copy. A shard may also transition back to {@link #UNASSIGNED} in case of any server failure, during
+     * initialization or later.
      */
     UNASSIGNED((byte) 1),
 
     /**
      * The shard is assigned to a node and the recovery process has begun. The shard data is not yet available on the node initializing the
-     * shard.
-     *
+     * shard (though there is a small window of time when the data is available, after recovery completes and before the cluster state is
+     * updated to mark the shard {@link #STARTED}).
+     * <p>
      * A shard transitions from {@link #INITIALIZING} -> {@link #STARTED} when recovery is complete and the data node informs the master
      * that it is ready to serve requests.
      */
@@ -32,7 +34,7 @@ public enum ShardRoutingState {
 
     /**
      * The shard is assigned to a specific data node and ready to accept indexing and search requests.
-     *
+     * <p>
      * A shard transitions from {@link #STARTED} -> {@link #RELOCATING} when the master wants to initialize the shard elsewhere.
      */
     STARTED((byte) 3),

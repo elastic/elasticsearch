@@ -1,0 +1,20 @@
+[[es-release-notes]]
+= Release notes
+
+[partintro]
+--
+
+This section summarizes the changes in each release.
+
+* <<release-notes-9.1.0>>
+* <<release-notes-9.0.0>>
+* <<release-notes-9.0.0-rc1>>
+* <<release-notes-9.0.0-beta1>>
+
+--
+
+include::release-notes/9.1.0.asciidoc[]
+include::release-notes/9.0.0.asciidoc[]
+include::release-notes/9.0.0-rc1.asciidoc[]
+include::release-notes/9.0.0-beta1.asciidoc[]
+

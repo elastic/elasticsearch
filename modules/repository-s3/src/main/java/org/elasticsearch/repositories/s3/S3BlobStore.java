@@ -174,6 +174,7 @@ class S3BlobStore implements BlobStore {
 
             boolean overallSuccess = false;
             for (final var successMetricValue : metricCollection.metricValues(CoreMetric.API_CALL_SUCCESSFUL)) {
+                // The API allows for multiple success flags but in practice there should be only one; check they're all true for safety:
                 if (Boolean.TRUE.equals(successMetricValue)) {
                     overallSuccess = true; // but keep checking just in case
                 } else {

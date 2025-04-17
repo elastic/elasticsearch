@@ -600,11 +600,7 @@ final class ES819TSDBDocValuesConsumer extends XDocValuesConsumer {
                     }
                 } finally {
                     if (addressDataOutputName != null) {
-                        try {
-                            dir.deleteFile(addressDataOutputName);
-                        } catch (final IOException ignored) {
-                            // ignore exception
-                        }
+                        dir.deleteFile(addressDataOutputName);
                     }
                 }
             }

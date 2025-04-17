@@ -60,6 +60,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.concurrent.Executor;
 import java.util.function.BiFunction;
 import java.util.function.Consumer;
@@ -140,24 +141,26 @@ public final class SearchPhaseController {
     }
 
     static TopDocs mergeTopDocs(Collection<TopDocs> results, int topN, int from) {
-        if (results.isEmpty()) {
+        List<TopDocs> topDocsList = results.stream().filter(Objects::nonNull).toList();
+        if (topDocsList.isEmpty()) {
             return null;
         }
-        final TopDocs topDocs = results.stream().findFirst().get();
-        final TopDocs mergedTopDocs;
+        final TopDocs topDocs = topDocsList.stream().findFirst().get();
         final int numShards = results.size();
         if (numShards == 1 && from == 0) { // only one shard and no pagination we can just return the topDocs as we got them.
             return topDocs;
-        } else if (topDocs instanceof TopFieldGroups firstTopDocs) {
+        }
+        final TopDocs mergedTopDocs;
+        if (topDocs instanceof TopFieldGroups firstTopDocs) {
             final Sort sort = new Sort(firstTopDocs.fields);
-            final TopFieldGroups[] shardTopDocs = results.stream().filter(td -> td != Lucene.EMPTY_TOP_DOCS).toArray(TopFieldGroups[]::new);
+            TopFieldGroups[] shardTopDocs = topDocsList.toArray(new TopFieldGroups[0]);
             mergedTopDocs = TopFieldGroups.merge(sort, from, topN, shardTopDocs, false);
         } else if (topDocs instanceof TopFieldDocs firstTopDocs) {
-            final Sort sort = checkSameSortTypes(results, firstTopDocs.fields);
-            final TopFieldDocs[] shardTopDocs = results.stream().filter((td -> td != Lucene.EMPTY_TOP_DOCS)).toArray(TopFieldDocs[]::new);
+            TopFieldDocs[] shardTopDocs = topDocsList.toArray(new TopFieldDocs[0]);
+            final Sort sort = checkSameSortTypes(topDocsList, firstTopDocs.fields);
             mergedTopDocs = TopDocs.merge(sort, from, topN, shardTopDocs);
         } else {
-            final TopDocs[] shardTopDocs = results.toArray(new TopDocs[numShards]);
+            final TopDocs[] shardTopDocs = topDocsList.toArray(new TopDocs[0]);
             mergedTopDocs = TopDocs.merge(from, topN, shardTopDocs);
         }
         return mergedTopDocs;

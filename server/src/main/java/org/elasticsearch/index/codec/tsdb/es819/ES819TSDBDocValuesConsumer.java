@@ -562,46 +562,9 @@ final class ES819TSDBDocValuesConsumer extends XDocValuesConsumer {
                 writeField(field, valuesProducer, maxOrd, null);
             } else {
                 assert numValues > numDocsWithField;
-
-                var addressMetaBuffer = new ByteBuffersDataOutput();
-                String addressDataOutputName = null;
-                try (
-                    var addressMetaOutput = new ByteBuffersIndexOutput(addressMetaBuffer, "meta-temp", "meta-temp");
-                    var addressDataOutput = dir.createTempOutput(data.getName(), "address-data", context)
-                ) {
-                    addressDataOutputName = addressDataOutput.getName();
-                    final DirectMonotonicWriter addressesWriter = DirectMonotonicWriter.getInstance(
-                        addressMetaOutput,
-                        addressDataOutput,
-                        numDocsWithField + 1L,
-                        DIRECT_MONOTONIC_BLOCK_SHIFT
-                    );
-                    // We write this initial zero because the offset for the first document is zero.
-                    addressesWriter.add(0);
-                    writeField(field, valuesProducer, maxOrd, new CheckedIntConsumer<>() {
-                        long addr = 0;
-
-                        @Override
-                        public void accept(int docValueCount) throws IOException {
-                            addr += docValueCount;
-                            addressesWriter.add(addr);
-                        }
-                    });
-                    addressesWriter.finish();
-
-                    long start = data.getFilePointer();
-                    meta.writeLong(start);
-                    meta.writeVInt(DIRECT_MONOTONIC_BLOCK_SHIFT);
-                    addressMetaBuffer.copyTo(meta);
-                    addressDataOutput.close();
-                    try (var addressDataInput = dir.openInput(addressDataOutput.getName(), context)) {
-                        data.copyBytes(addressDataInput, addressDataInput.length());
-                        meta.writeLong(data.getFilePointer() - start);
-                    }
-                } finally {
-                    if (addressDataOutputName != null) {
-                        dir.deleteFile(addressDataOutputName);
-                    }
+                try (var accumulator = new OffsetsAccumulator(dir, context, data, numDocsWithField)) {
+                    writeField(field, valuesProducer, maxOrd, accumulator::addDoc);
+                    accumulator.build(meta, data);
                 }
             }
         } else {

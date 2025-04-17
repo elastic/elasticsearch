@@ -37,6 +37,8 @@ public class LastOverTime$Type$Aggregator {
         return new GroupingState(driverContext.bigArrays());
     }
 
+    // TODO: Since data in data_streams is sorted by `_tsid` and timestamp in descending order,
+    // we can read the first encountered value for each group of `_tsid` and time bucket.
     public static void combine(GroupingState current, int groupId, long timestamp, $type$ value) {
         current.collectValue(groupId, timestamp, value);
     }

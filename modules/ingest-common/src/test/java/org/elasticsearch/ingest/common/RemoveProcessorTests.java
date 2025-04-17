@@ -103,6 +103,7 @@ public class RemoveProcessorTests extends ESTestCase {
                 some.put("map", map);
                 source.put("some", some);
             }
+            default -> throw new AssertionError("failure, got illegal switch case");
         }
         IngestDocument document = RandomDocumentPicks.randomIngestDocument(random(), source);
         Map<String, Object> config = new HashMap<>();

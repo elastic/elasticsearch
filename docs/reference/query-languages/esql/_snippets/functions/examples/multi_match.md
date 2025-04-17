@@ -4,7 +4,7 @@
 
 ```esql
 FROM books
-| WHERE MULTI_MATCH("Faulkner", author, description, {"fuzziness": 1})
+| WHERE MULTI_MATCH("Faulkner", author, description)
 | KEEP book_no, author
 | SORT book_no
 | LIMIT 5

@@ -950,9 +950,8 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
             DataStream.DATA_STREAM_FAILURE_STORE_FEATURE
         );
         return (indexName) -> {
-            Boolean resolution = resolveFailureStore.apply(indexName);
-            if (clusterHasFailureStoreFeature || resolution == null) {
-                return resolution;
+            if (clusterHasFailureStoreFeature) {
+                return resolveFailureStore.apply(indexName);
             } else {
                 // If we get a non-null result but the cluster is not yet fully updated with required node features,
                 // force the result null to maintain old logic until all nodes are updated

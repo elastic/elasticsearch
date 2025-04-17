@@ -417,6 +417,9 @@ tests:
 - class: org.elasticsearch.xpack.search.AsyncSearchActionIT
   method: testDeleteCancelRunningTask
   issue: https://github.com/elastic/elasticsearch/issues/126994
+- class: org.elasticsearch.xpack.search.AsyncSearchActionIT
+  method: testMaxResponseSize
+  issue: https://github.com/elastic/elasticsearch/issues/126995
 
 # Examples:
 #

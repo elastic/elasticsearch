@@ -27,7 +27,8 @@ highlight:
     new data streams by specifying it in the new `data_stream_options` field
     inside of a component or index template:
 
-    ```js
+    [source,yaml]
+    ----
     PUT _index_template/my-template
     {
       "index_patterns": ["logs-test-*"],
@@ -40,19 +41,20 @@ highlight:
         }
       }
     }'
-    ```
+    ----
 
     Existing data streams can be configured with the new data stream
     `_options` endpoint:
 
-    ```js
+    [source,yaml]
+    ----
     PUT _data_stream/logs-test-apache/_options
     {
       "failure_store": {
         "enabled": "true"
       }
     }
-    ```
+    ----
 
     When redirection is enabled, any ingestion related failures will be
     captured in the failure store if the cluster is able to, along with the
@@ -64,16 +66,18 @@ highlight:
     stream data. In order to retrieve the failures, we use the `_search` API
     along with a new bit of index pattern syntax, the `::` selector.
 
-    ```js
+    [source,yaml]
+    ----
     POST logs-test-apache::failures/_search
-    ```
+    ----
 
     This index syntax informs the search operation to target the indices in
     its failure store instead of its backing indices. It can be mixed in a
     number of ways with other index patterns to include their failure store
     indices in the search operation:
 
-    ```js
+    [source,yaml]
+    ----
     POST logs-*::failures/_search
     POST logs-*,logs-*::failures/_search
     POST *::failures/_search
@@ -81,10 +85,5 @@ highlight:
     {
       "query": "FROM my_data_stream*::failures"
     }
-    ```
-
-    ---
-
-    This PR removes the feature flags and guards that prevent the new
-    failure store functionality from operating in production runtimes.
+    ----
   notable: true

@@ -38,9 +38,7 @@ public class FileUtils {
         ? FileUtils::caseInsensitiveStartsWith
         : String::startsWith;
 
-    private static final BiPredicate<String, String> EQUALS = Platform.WINDOWS.isCurrent()
-        ? String::equalsIgnoreCase
-        : String::equals;
+    private static final BiPredicate<String, String> EQUALS = Platform.WINDOWS.isCurrent() ? String::equalsIgnoreCase : String::equals;
 
     /**
      * For our lexicographic sort trick to work correctly, we must have path separators sort before
@@ -103,8 +101,8 @@ public class FileUtils {
 
     static boolean isParent(String maybeParent, String path) {
         logger.trace(() -> Strings.format("checking isParent [%s] for [%s]", maybeParent, path));
-        return STARTS_WITH.test(path, maybeParent) &&
-            (path.length() > maybeParent.length() && path.charAt(maybeParent.length()) == File.separatorChar);
+        return STARTS_WITH.test(path, maybeParent)
+            && (path.length() > maybeParent.length() && path.charAt(maybeParent.length()) == File.separatorChar);
     }
 
     static boolean samePath(String currentPath, String nextPath) {

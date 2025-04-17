@@ -1,5 +1,5 @@
 pr: 126990
-summary: "[Entitlements] Fix: consider case sensitiveness differences"
-area: Infra/Entitlements
+summary: "Fix: consider case sensitiveness differences in Windows/Unix-like filesystems for files entitlements"
+area: Infra/Core
 type: bug
 issues: []

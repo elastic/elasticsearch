@@ -22,6 +22,26 @@ public interface InstrumentationService {
 
     Instrumenter newInstrumenter(Class<?> clazz, Map<MethodKey, CheckMethod> methods);
 
+    /**
+     * This method uses the method names of the provided class to identify the JDK method to instrument; it examines all methods prefixed
+     * by {@code check$}, and parses the rest of the name to extract the JDK method:
+     * <ul>
+     * <li>
+     * Instance methods have the fully qualified class name (with . replaced by _), followed by $, followed by the method name. Example:
+     * {@link org.elasticsearch.entitlement.bridge.EntitlementChecker#check$java_lang_Runtime$halt}
+     * </li>
+     * <li>
+     * Static methods have the fully qualified class name (with . replaced by _), followed by $$, followed by the method name. Example:
+     * {@link org.elasticsearch.entitlement.bridge.EntitlementChecker#check$java_lang_System$$exit}
+     * </li>
+     * <li>
+     * Constructors have the fully qualified class name (with . replaced by _), followed by $ and nothing else. Example:
+     * {@link org.elasticsearch.entitlement.bridge.EntitlementChecker#check$java_lang_ClassLoader$}
+     * </li>
+     * </ul>
+     * @param clazz the class to inspect to find methods to instrument
+     * @throws ClassNotFoundException if the class is not defined or cannot be inspected
+     */
     Map<MethodKey, CheckMethod> lookupMethods(Class<?> clazz) throws ClassNotFoundException;
 
     InstrumentationInfo lookupImplementationMethod(

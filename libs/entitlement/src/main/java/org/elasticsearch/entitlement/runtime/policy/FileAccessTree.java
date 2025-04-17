@@ -36,6 +36,72 @@ import static org.elasticsearch.core.PathUtils.getDefaultFileSystem;
 import static org.elasticsearch.entitlement.runtime.policy.FileUtils.PATH_ORDER;
 import static org.elasticsearch.entitlement.runtime.policy.entitlements.FilesEntitlement.Mode.READ_WRITE;
 
+/**
+ * <p>
+ * This structure facilitates looking up files entitlements for a particular component+module combination, given that grants can occur
+ * at the directory level in addition to the individual file level.
+ * </p>
+ * <p>
+ * Broadly, this class operates on strings rather than abstractions like {@link java.io.File} or {@link Path}, since those can have
+ * behaviour that varies by platform in surprising ways; using strings makes the behaviour predictable. The strings are produced by a
+ * method called {@link FileAccessTree#normalizePath} to make sure they are absolute paths with consistent separator characters.
+ * </p>
+ * <p>
+ * Internally, it does not use a tree data structure; the name "tree" refers to the tree structure of the filesystem, not the choice of
+ * data structure. It takes advantage of the fact that, after normalization, the name of a directory containing a file is a prefix of
+ * the file's own name. The permissions are maintained in several sorted arrays of {@link String}, and permission checks are implemented
+ * as a binary search within these arrays.
+ * </p>
+ * <p>
+ * We want the binary search to locate the relevant entry immediately, either because there's an exact match, or else because there's no
+ * exact match and the binary search points us as an entry for the containing directory. This seems straightforward if the paths are
+ * absolute and sorted, but there are several subtleties.
+ * </p>
+ * <p>
+ * Firstly, there could be intervening siblings; for example, in {@code ["/a", "/a/b"]}, if we look up {@code "/a/c"}, the binary search
+ * will land on {@code "/a/b"}, which is not a relevant entry for {@code "/a/c"}. The solution here is (1) segregate the read and write
+ * permissions so that each array covers one homogeneous kind of permission, and (2) prune the list so redundant child entries are removed
+ * when they are already covered by parent entries. In our example, this pruning process would produce the array {@code ["/a"]} only,
+ * and so the binary search for {@code "/a/c"} lands on the relevant entry for the containing directory.
+ * </p>
+ * <p>
+ * Secondly, the path separator (whether slash or backslash) sorts after the dot character. This means, for example, if the array contains
+ * {@code ["/a", "/a.xml"]} and we look up {@code "/a/b"} using normal string comparison, the binary search would land on {@code "/a.xml"},
+ * which is neither an exact match nor a containing directory, and so the lookup would incorrectly report no match, even though
+ * {@code "/a"} is in the array. To fix this, we define {@link FileUtils#PATH_ORDER} which sorts path separators before any other
+ * character. In the example, this would cause {@code "/a/b"} to sort between {@code "/a"} and {@code "/a.xml"} so that it correctly
+ * finds {@code "/a"}.
+ * </p>
+ * <p>
+ * With the paths pruned, sorted, and segregated by permission, each binary search has the following properties:
+ * <ul>
+ * <li>
+ * If an exact match exists, it will be found at the returned index
+ * </li>
+ * <li>
+ * Else, if a containing folder exists, it will be found immediately before the returned index
+ * </li>
+ * <li>
+ * Else, there is no match
+ * </li>
+ * </ul>
+ * </p>
+ * <p>
+ * Permission is granted if both:
+ * <ul>
+ * <li>
+ * there is no match in exclusivePaths, and
+ * </li>
+ * <li>
+ * there is a match in the array corresponding to the desired operation (read or write).
+ * </li>
+ * </ul>
+ * </p>
+ * <p>
+ * Some additional care is required in the unit tests for this code, since it must also run on Windows where the separator is a
+ * backslash and absolute paths don't start with a separator. See {@code FileAccessTreeTests#testDuplicateExclusivePaths} for an example.
+ * </p>
+ */
 public final class FileAccessTree {
 
     /**
@@ -107,8 +173,18 @@ public final class FileAccessTree {
     private static final Logger logger = LogManager.getLogger(FileAccessTree.class);
     private static final String FILE_SEPARATOR = getDefaultFileSystem().getSeparator();
 
+    /**
+     * lists paths that are forbidden for this component+module because some other component has granted exclusive access to one of its
+     * modules
+     */
     private final String[] exclusivePaths;
+    /**
+     * lists paths for which the component has granted read or read_write access to the module
+     */
     private final String[] readPaths;
+    /**
+     * lists paths for which the component has granted read_write access to the module
+     */
     private final String[] writePaths;
 
     private FileAccessTree(

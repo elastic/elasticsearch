@@ -59,6 +59,68 @@ import static java.util.zip.ZipFile.OPEN_DELETE;
 import static java.util.zip.ZipFile.OPEN_READ;
 import static org.elasticsearch.entitlement.bridge.Util.NO_CLASS;
 
+/**
+ * This class is responsible for finding the "layer" (system, server, plugin, agent) for a caller class to check, retrieve the policy
+ * and entitlements for that layer, and check them against the action(s) the caller wants to perform.
+ * <p></p>
+ * To find a layer:
+ * <ul>
+ * <li>
+ * For plugins, we use the Module -> Plugin name (String) passed to the ctor
+ * </li>
+ * <li>
+ * For the system layer, we build a set ({@link PolicyManager#SYSTEM_LAYER_MODULES}) of references to modules that belong that layer, i.e.
+ * the layer containing what we consider system modules. These are the modules that:
+ * <ul>
+ * <li>
+ * are in the boot module layer ({@link ModuleLayer#boot()});
+ * </li>
+ * <li>
+ * are defined in {@link ModuleFinder#ofSystem()};
+ * </li>
+ * <li>
+ * are not in the ({@link PolicyManager#MODULES_EXCLUDED_FROM_SYSTEM_MODULES}) (currently: {@code java.desktop})
+ * </li>
+ * </ul>
+ * </li>
+ * <li>
+ * For the server layer, we build a set ({@link PolicyManager#SERVER_LAYER_MODULES}) as the set of modules that are in the boot module
+ * layer but not in the system layer.
+ * </li>
+ * </ul>
+ * <p>
+ * When a check is performed (e.g. {@link PolicyManager#checkExitVM(Class)}, we get the module the caller class belongs to via
+ * {@link Class#getModule} and try (in order) to see if that class belongs to:
+ * <ol>
+ * <li>
+ * The system layer - if a module is contained in {@link PolicyManager#SYSTEM_LAYER_MODULES}
+ * </li>
+ * <li>
+ * The server layer - if a module is contained in {@link PolicyManager#SERVER_LAYER_MODULES}
+ * </li>
+ * <li>
+ * One of the plugins or modules layer - if the module is present in the {@code PluginsResolver} map
+ * </li>
+ * <li>
+ * A known agent (APM)
+ * </li>
+ * <li>
+ * Something else
+ * </li>
+ * </ol>
+ * <p>
+ * Once it has a layer, this class maps it to a policy and check the action performed by the caller class against its entitlements,
+ * either allowing it to proceed or raising a {@link NotEntitledException} if the caller class is not entitled to perform the action.
+ * </p>
+ * <p>
+ * All these methods start in the same way: the layers identified in the previous section are used to establish if and how to check:
+ * If the caller class belongs to {@link PolicyManager#SYSTEM_LAYER_MODULES}, no check is performed (the call is trivially allowed, see
+ * {@link PolicyManager#isTriviallyAllowed}).
+ * Otherwise, we lazily compute and create a {@link PolicyManager.ModuleEntitlements} record (see
+ * {@link PolicyManager#computeEntitlements}). The record is cached so it can be used in following checks, stored in a
+ * {@code Module -> ModuleEntitlement} map.
+ * </p>
+ */
 public class PolicyManager {
     /**
      * Use this if you don't have a {@link ModuleEntitlements} in hand.
@@ -74,6 +136,22 @@ public class PolicyManager {
     static final Set<String> MODULES_EXCLUDED_FROM_SYSTEM_MODULES = Set.of("java.desktop");
 
     /**
+     * This class contains all the entitlements by type, plus the {@link FileAccessTree} for the special case of filesystem entitlements.
+     * <p>
+     * We use layers when computing {@link ModuleEntitlements}; first, we check whether the module we are building it for is in the
+     * server layer ({@link PolicyManager#SERVER_LAYER_MODULES}) (*).
+     * If it is, we use the server policy, using the same caller class module name as the scope, and read the entitlements for that scope.
+     * Otherwise, we use the {@code PluginResolver} to identify the correct plugin layer and find the policy for it (if any).
+     * If the plugin is modular, we again use the same caller class module name as the scope, and read the entitlements for that scope.
+     * If it's not, we use the single {@code ALL-UNNAMED} scope – in this case there is one scope and all entitlements apply
+     * to all the plugin code.
+     * </p>
+     * <p>
+     * (*) implementation detail: this is currently done in an indirect way: we know the module is not in the system layer
+     * (otherwise the check would have been already trivially allowed), so we just check that the module is named, and it belongs to the
+     * boot {@link ModuleLayer}. We might want to change this in the future to make it more consistent/easier to maintain.
+     * </p>
+     *
      * @param componentName the plugin name; or else one of the special component names
      *                      like {@link #SERVER_COMPONENT_NAME} or {@link #APM_AGENT_COMPONENT_NAME}.
      */

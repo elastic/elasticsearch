@@ -99,6 +99,7 @@ public class FileUtils {
         return c == File.separatorChar;
     }
 
+    @SuppressForbidden(reason = "we need the separator as a char, not a string")
     static boolean isParent(String maybeParent, String path) {
         logger.trace(() -> Strings.format("checking isParent [%s] for [%s]", maybeParent, path));
         return STARTS_WITH.test(path, maybeParent)

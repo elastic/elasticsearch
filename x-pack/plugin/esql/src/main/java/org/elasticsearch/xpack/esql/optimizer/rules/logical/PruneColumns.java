@@ -11,7 +11,6 @@ import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockUtils;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
-import org.elasticsearch.xpack.esql.core.expression.EmptyAttribute;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.util.Holder;

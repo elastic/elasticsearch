@@ -174,7 +174,6 @@ public class DataStreamLifecycleUsageTransportActionIT extends ESIntegTestCase {
                     indices,
                     randomLongBetween(0, 1000),
                     Map.of(),
-                    Settings.EMPTY,
                     systemDataStream || randomBoolean(),
                     replicated,
                     systemDataStream,

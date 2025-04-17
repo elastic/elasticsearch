@@ -141,6 +141,42 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
         List<Index> indices,
         long generation,
         Map<String, Object> metadata,
+        boolean hidden,
+        boolean replicated,
+        boolean system,
+        boolean allowCustomRouting,
+        IndexMode indexMode,
+        DataStreamLifecycle lifecycle,
+        @Nullable DataStreamOptions dataStreamOptions,
+        List<Index> failureIndices,
+        boolean rolloverOnWrite,
+        @Nullable DataStreamAutoShardingEvent autoShardingEvent
+    ) {
+        this(
+            name,
+            indices,
+            generation,
+            metadata,
+            Settings.EMPTY,
+            hidden,
+            replicated,
+            system,
+            allowCustomRouting,
+            indexMode,
+            lifecycle,
+            dataStreamOptions,
+            failureIndices,
+            rolloverOnWrite,
+            autoShardingEvent
+        );
+    }
+
+    // visible for testing
+    public DataStream(
+        String name,
+        List<Index> indices,
+        long generation,
+        Map<String, Object> metadata,
         Settings settings,
         boolean hidden,
         boolean replicated,

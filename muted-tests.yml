@@ -414,6 +414,9 @@ tests:
 - class: org.elasticsearch.cli.keystore.AddStringKeyStoreCommandTests
   method: testStdinWithMultipleValues
   issue: https://github.com/elastic/elasticsearch/issues/126882
+- class: org.elasticsearch.xpack.search.AsyncSearchActionIT
+  method: testDeleteCancelRunningTask
+  issue: https://github.com/elastic/elasticsearch/issues/126994
 
 # Examples:
 #

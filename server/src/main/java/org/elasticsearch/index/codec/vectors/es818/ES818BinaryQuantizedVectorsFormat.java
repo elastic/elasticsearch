@@ -96,7 +96,7 @@ public class ES818BinaryQuantizedVectorsFormat extends FlatVectorsFormat {
     static final String VECTOR_DATA_EXTENSION = "veb";
     static final int DIRECT_MONOTONIC_BLOCK_SHIFT = 16;
 
-    private static final ES818FlatVectorsFormat rawVectorFormat = new ES818FlatVectorsFormat(
+    private static final DirectIOLucene99FlatVectorsFormat rawVectorFormat = new DirectIOLucene99FlatVectorsFormat(
         FlatVectorScorerUtil.getLucene99FlatVectorsScorer()
     );
 

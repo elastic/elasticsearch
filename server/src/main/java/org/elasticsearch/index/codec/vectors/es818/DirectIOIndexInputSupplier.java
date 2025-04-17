@@ -15,7 +15,7 @@ import org.apache.lucene.store.IndexInput;
 import java.io.IOException;
 
 /**
- * A hook for {@link ES818FlatVectorsReader} to specify the input should be opened using DirectIO.
+ * A hook for {@link DirectIOLucene99FlatVectorsReader} to specify the input should be opened using DirectIO.
  * Remove when IOContext allows more extensible payloads to be specified.
  */
 public interface DirectIOIndexInputSupplier {

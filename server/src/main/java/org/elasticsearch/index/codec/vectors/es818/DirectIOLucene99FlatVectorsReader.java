@@ -52,17 +52,17 @@ import static org.apache.lucene.codecs.lucene99.Lucene99HnswVectorsReader.readVe
 
 /** Copied from Lucene99FlatVectorsReader in Lucene 10.2, then modified to support DirectIOIndexInputSupplier */
 @SuppressForbidden(reason = "Copied from lucene")
-public class ES818FlatVectorsReader extends FlatVectorsReader {
+public class DirectIOLucene99FlatVectorsReader extends FlatVectorsReader {
 
     private static final boolean USE_DIRECT_IO = Boolean.parseBoolean(System.getProperty("vector.rescoring.directio", "true"));
 
-    private static final long SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(ES818FlatVectorsReader.class);
+    private static final long SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(DirectIOLucene99FlatVectorsReader.class);
 
     private final IntObjectHashMap<FieldEntry> fields = new IntObjectHashMap<>();
     private final IndexInput vectorData;
     private final FieldInfos fieldInfos;
 
-    public ES818FlatVectorsReader(SegmentReadState state, FlatVectorsScorer scorer) throws IOException {
+    public DirectIOLucene99FlatVectorsReader(SegmentReadState state, FlatVectorsScorer scorer) throws IOException {
         super(scorer);
         int versionMeta = readMetadata(state);
         this.fieldInfos = state.fieldInfos;
@@ -71,8 +71,8 @@ public class ES818FlatVectorsReader extends FlatVectorsReader {
             vectorData = openDataInput(
                 state,
                 versionMeta,
-                ES818FlatVectorsFormat.VECTOR_DATA_EXTENSION,
-                ES818FlatVectorsFormat.VECTOR_DATA_CODEC_NAME,
+                DirectIOLucene99FlatVectorsFormat.VECTOR_DATA_EXTENSION,
+                DirectIOLucene99FlatVectorsFormat.VECTOR_DATA_CODEC_NAME,
                 // Flat formats are used to randomly access vectors from their node ID that is stored
                 // in the HNSW graph.
                 state.context.withReadAdvice(ReadAdvice.RANDOM)
@@ -89,7 +89,7 @@ public class ES818FlatVectorsReader extends FlatVectorsReader {
         String metaFileName = IndexFileNames.segmentFileName(
             state.segmentInfo.name,
             state.segmentSuffix,
-            ES818FlatVectorsFormat.META_EXTENSION
+            DirectIOLucene99FlatVectorsFormat.META_EXTENSION
         );
         int versionMeta = -1;
         try (ChecksumIndexInput meta = state.directory.openChecksumInput(metaFileName)) {
@@ -97,9 +97,9 @@ public class ES818FlatVectorsReader extends FlatVectorsReader {
             try {
                 versionMeta = CodecUtil.checkIndexHeader(
                     meta,
-                    ES818FlatVectorsFormat.META_CODEC_NAME,
-                    ES818FlatVectorsFormat.VERSION_START,
-                    ES818FlatVectorsFormat.VERSION_CURRENT,
+                    DirectIOLucene99FlatVectorsFormat.META_CODEC_NAME,
+                    DirectIOLucene99FlatVectorsFormat.VERSION_START,
+                    DirectIOLucene99FlatVectorsFormat.VERSION_CURRENT,
                     state.segmentInfo.getId(),
                     state.segmentSuffix
                 );
@@ -132,8 +132,8 @@ public class ES818FlatVectorsReader extends FlatVectorsReader {
             int versionVectorData = CodecUtil.checkIndexHeader(
                 in,
                 codecName,
-                ES818FlatVectorsFormat.VERSION_START,
-                ES818FlatVectorsFormat.VERSION_CURRENT,
+                DirectIOLucene99FlatVectorsFormat.VERSION_START,
+                DirectIOLucene99FlatVectorsFormat.VERSION_CURRENT,
                 state.segmentInfo.getId(),
                 state.segmentSuffix
             );

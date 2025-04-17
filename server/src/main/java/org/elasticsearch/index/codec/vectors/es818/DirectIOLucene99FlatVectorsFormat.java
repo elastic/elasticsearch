@@ -35,7 +35,7 @@ import java.io.IOException;
  * This is copied to change the implementation of {@link #fieldsReader} only.
  * The codec format itself is not changed, so we keep the original {@link #NAME}
  */
-public class ES818FlatVectorsFormat extends FlatVectorsFormat {
+public class DirectIOLucene99FlatVectorsFormat extends FlatVectorsFormat {
 
     static final String NAME = "Lucene99FlatVectorsFormat";
     static final String META_CODEC_NAME = "Lucene99FlatVectorsFormatMeta";
@@ -50,7 +50,7 @@ public class ES818FlatVectorsFormat extends FlatVectorsFormat {
     private final FlatVectorsScorer vectorsScorer;
 
     /** Constructs a format */
-    public ES818FlatVectorsFormat(FlatVectorsScorer vectorsScorer) {
+    public DirectIOLucene99FlatVectorsFormat(FlatVectorsScorer vectorsScorer) {
         super(NAME);
         this.vectorsScorer = vectorsScorer;
     }
@@ -62,7 +62,7 @@ public class ES818FlatVectorsFormat extends FlatVectorsFormat {
 
     @Override
     public FlatVectorsReader fieldsReader(SegmentReadState state) throws IOException {
-        return new ES818FlatVectorsReader(state, vectorsScorer);
+        return new DirectIOLucene99FlatVectorsReader(state, vectorsScorer);
     }
 
     @Override

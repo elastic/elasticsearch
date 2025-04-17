@@ -115,10 +115,11 @@ public class InboundPipeline implements Releasable {
             InboundMessage aggregated = aggregator.finishAggregation();
             try {
                 statsTracker.markMessageReceived();
-                messageHandler.accept(channel, aggregated);
+                messageHandler.accept(channel, /* autocloses */ aggregated);
                 aggregated = null;
             } finally {
                 if (aggregated != null) {
+                    // TODO doesn't messageHandler auto-close always?
                     aggregated.close();
                 }
             }

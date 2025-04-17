@@ -97,9 +97,9 @@ public class InboundHandler {
         TransportLogger.logInboundMessage(channel, message);
 
         if (message.isPing()) {
-            keepAlive.receiveKeepAlive(channel);
+            keepAlive.receiveKeepAlive(channel); // pings hold no resources, no need to close
         } else {
-            messageReceived(channel, message, startTime);
+            messageReceived(channel, /* autocloses absent exception */ message, startTime);
         }
     }
 
@@ -124,14 +124,14 @@ public class InboundHandler {
             threadContext.setHeaders(header.getHeaders());
             threadContext.putTransient("_remote_address", remoteAddress);
             if (header.isRequest()) {
-                handleRequest(channel, message);
+                handleRequest(channel, /* autocloses absent exception */ message);
             } else {
                 // Responses do not support short circuiting currently
                 assert message.isShortCircuit() == false;
                 responseHandler = findResponseHandler(header);
                 // ignore if its null, the service logs it
                 if (responseHandler != null) {
-                    executeResponseHandler(message, responseHandler, remoteAddress);
+                    executeResponseHandler( /* autocloses absent exception */ message, responseHandler, remoteAddress);
                 } else {
                     message.close();
                 }
@@ -161,13 +161,13 @@ public class InboundHandler {
             final StreamInput streamInput = namedWriteableStream(message.openOrGetStreamInput());
             assert assertRemoteVersion(streamInput, header.getVersion());
             if (header.isError()) {
-                handlerResponseError(streamInput, message, responseHandler);
+                handlerResponseError(streamInput, /* autocloses */ message, responseHandler);
             } else {
-                handleResponse(remoteAddress, streamInput, responseHandler, message);
+                handleResponse(remoteAddress, streamInput, responseHandler, /* autocloses */ message);
             }
         } else {
             assert header.isError() == false;
-            handleResponse(remoteAddress, EMPTY_STREAM_INPUT, responseHandler, message);
+            handleResponse(remoteAddress, EMPTY_STREAM_INPUT, responseHandler, /* autocloses */ message);
         }
     }
 
@@ -244,7 +244,7 @@ public class InboundHandler {
     private <T extends TransportRequest> void handleRequest(TcpChannel channel, InboundMessage message) throws IOException {
         final Header header = message.getHeader();
         if (header.isHandshake()) {
-            handleHandshakeRequest(channel, message);
+            handleHandshakeRequest(channel, /* autocloses */ message);
             return;
         }
 
@@ -408,13 +408,13 @@ public class InboundHandler {
         final var executor = handler.executor();
         if (executor == EsExecutors.DIRECT_EXECUTOR_SERVICE) {
             // no need to provide a buffer release here, we never escape the buffer when handling directly
-            doHandleResponse(handler, remoteAddress, stream, message);
+            doHandleResponse(handler, remoteAddress, stream, /* autocloses */ message);
         } else {
             // release buffer once we deserialize the message, but have a fail-safe in #onAfter below in case that didn't work out
             executor.execute(new ForkingResponseHandlerRunnable(handler, null) {
                 @Override
                 protected void doRun() {
-                    doHandleResponse(handler, remoteAddress, stream, message);
+                    doHandleResponse(handler, remoteAddress, stream, /* autocloses */ message);
                 }
 
                 @Override

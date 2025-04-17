@@ -92,6 +92,7 @@ import static fixture.aws.AwsCredentialsUtils.isValidAwsV4SignedAuthorizationHea
 import static org.elasticsearch.repositories.RepositoriesMetrics.METRIC_REQUESTS_TOTAL;
 import static org.elasticsearch.repositories.blobstore.BlobStoreRepository.getRepositoryDataBlobName;
 import static org.elasticsearch.repositories.blobstore.BlobStoreTestUtil.randomNonDataPurpose;
+import static org.elasticsearch.repositories.blobstore.BlobStoreTestUtil.randomPurpose;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.hamcrest.Matchers.allOf;
@@ -507,7 +508,7 @@ public class S3BlobStoreRepositoryTests extends ESMockAPIBasedRepositoryIntegTes
                 .key(blobStore.blobContainer(repository.basePath().add("test-multipart-upload")).path().buildAsString() + danglingBlobName)
                 .overrideConfiguration(
                     AwsRequestOverrideConfiguration.builder()
-                        .putRawQueryParameter(S3BlobStore.CUSTOM_QUERY_PARAMETER_PURPOSE, OperationPurpose.SNAPSHOT_DATA.getKey())
+                        .putRawQueryParameter(S3BlobStore.CUSTOM_QUERY_PARAMETER_PURPOSE, randomPurpose().getKey())
                         .build()
                 )
                 .build();
@@ -519,7 +520,7 @@ public class S3BlobStoreRepositoryTests extends ESMockAPIBasedRepositoryIntegTes
                 .prefix(repository.basePath().buildAsString())
                 .overrideConfiguration(
                     AwsRequestOverrideConfiguration.builder()
-                        .putRawQueryParameter(S3BlobStore.CUSTOM_QUERY_PARAMETER_PURPOSE, OperationPurpose.SNAPSHOT_DATA.getKey())
+                        .putRawQueryParameter(S3BlobStore.CUSTOM_QUERY_PARAMETER_PURPOSE, randomPurpose().getKey())
                         .build()
                 )
                 .build();

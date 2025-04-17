@@ -626,7 +626,7 @@ public class EsqlSession {
                 p.forEachExpression(UnresolvedNamePattern.class, up -> {
                     var ua = new UnresolvedAttribute(up.source(), up.name());
                     referencesBuilder.add(ua);
-                    if (p instanceof Keep) {
+                    if (p instanceof Keep || p instanceof Drop) {
                         keepCommandRefsBuilder.add(ua);
                     }
                 });

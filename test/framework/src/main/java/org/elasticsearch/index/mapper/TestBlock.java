@@ -16,6 +16,7 @@ import org.apache.lucene.util.BytesRef;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 
 import static org.junit.Assert.assertNotNull;
@@ -292,12 +293,29 @@ public class TestBlock implements BlockLoader.Block {
 
         @Override
         public BlockLoader.Block build() {
-            var minBlock = max.build();
+            var minBlock = min.build();
             var maxBlock = max.build();
-            var sumBlock = max.build();
-            var countBlock = max.build();
+            var sumBlock = sum.build();
+            var countBlock = count.build();
 
-            return new TestBlock(null);
+            assert minBlock.size() == maxBlock.size();
+            assert maxBlock.size() == sumBlock.size();
+            assert sumBlock.size() == countBlock.size();
+
+            var values = new ArrayList<>(minBlock.size());
+
+            for (int i = 0; i < minBlock.size(); i++) {
+                // we need to represent this complex block somehow
+                var value = new HashMap<String, Object>();
+                value.put("min", minBlock.values.get(i));
+                value.put("max", maxBlock.values.get(i));
+                value.put("sum", sumBlock.values.get(i));
+                value.put("value_count", countBlock.values.get(i));
+
+                values.add(value);
+            }
+
+            return new TestBlock(values);
         }
 
         @Override

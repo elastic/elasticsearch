@@ -8,21 +8,56 @@
 package org.elasticsearch.xpack.aggregatemetric.mapper;
 
 import org.elasticsearch.index.mapper.BlockLoaderTestCase;
+import org.elasticsearch.logsdb.datageneration.datasource.DataSourceHandler;
+import org.elasticsearch.logsdb.datageneration.datasource.DataSourceRequest;
+import org.elasticsearch.logsdb.datageneration.datasource.DataSourceResponse;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.xpack.aggregatemetric.AggregateMetricMapperPlugin;
+import org.elasticsearch.xpack.aggregatemetric.mapper.datageneration.AggregateMetricDoubleDataSourceHandler;
 
+import java.util.Arrays;
 import java.util.Collection;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 
 public class AggregateMetricDoubleFieldBlockLoaderTests extends BlockLoaderTestCase {
     public AggregateMetricDoubleFieldBlockLoaderTests(Params params) {
-        super("aggregate_metric_double", params);
+        super("aggregate_metric_double", List.of(new AggregateMetricDoubleDataSourceHandler(), new DataSourceHandler() {
+            @Override
+            public DataSourceResponse.ObjectArrayGenerator handle(DataSourceRequest.ObjectArrayGenerator request) {
+                // aggregate_metric_double does not support multiple values in a document so we can't have object arrays
+                return new DataSourceResponse.ObjectArrayGenerator(Optional::empty);
+            }
+        }), params);
     }
 
     @Override
     protected Object expected(Map<String, Object> fieldMapping, Object value, TestContext testContext) {
-        return null;
+        if (value instanceof Map<?, ?> map) {
+            var expected = new HashMap<String, Object>(map.size());
+
+            // put explicit `null` for metrics that are not present, this is how the block looks like
+            Arrays.stream(AggregateMetricDoubleFieldMapper.Metric.values())
+                .map(AggregateMetricDoubleFieldMapper.Metric::toString)
+                .sorted()
+                .forEach(m -> {
+                    expected.put(m, map.get(m));
+                });
+
+            return expected;
+        }
+
+        // malformed or null, return "empty row"
+        return new HashMap<>() {
+            {
+                put("min", null);
+                put("max", null);
+                put("sum", null);
+                put("value_count", null);
+            }
+        };
     }
 
     @Override

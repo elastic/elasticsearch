@@ -11,24 +11,18 @@ package org.elasticsearch.logsdb.datageneration.fields.leaf;
 
 import org.elasticsearch.logsdb.datageneration.FieldDataGenerator;
 import org.elasticsearch.logsdb.datageneration.datasource.DataSource;
-import org.elasticsearch.logsdb.datageneration.datasource.DataSourceRequest;
 
 import java.util.Map;
-import java.util.function.Supplier;
 
-public class KeywordFieldDataGenerator implements FieldDataGenerator {
-    private final Supplier<Object> valueGenerator;
+public class WildcardFieldDataGenerator implements FieldDataGenerator {
+    private final FieldDataGenerator keywordGenerator;
 
-    public KeywordFieldDataGenerator(DataSource dataSource) {
-        var strings = dataSource.get(new DataSourceRequest.StringGenerator());
-        var nulls = dataSource.get(new DataSourceRequest.NullWrapper());
-        var arrays = dataSource.get(new DataSourceRequest.ArrayWrapper());
-
-        this.valueGenerator = arrays.wrapper().compose(nulls.wrapper()).apply(() -> strings.generator().get());
+    public WildcardFieldDataGenerator(DataSource dataSource) {
+        this.keywordGenerator = new KeywordFieldDataGenerator(dataSource);
     }
 
     @Override
     public Object generateValue(Map<String, Object> fieldMapping) {
-        return valueGenerator.get();
+        return keywordGenerator.generateValue(fieldMapping);
     }
 }

@@ -20,8 +20,10 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xpack.constantkeyword.ConstantKeywordMapperPlugin;
 import org.elasticsearch.xpack.countedkeyword.CountedKeywordMapperPlugin;
 import org.elasticsearch.xpack.unsignedlong.UnsignedLongMapperPlugin;
+import org.elasticsearch.xpack.wildcard.Wildcard;
 
 import java.io.IOException;
 import java.util.Collection;
@@ -111,7 +113,13 @@ public class DataGenerationTests extends ESTestCase {
         var mappingService = new MapperServiceTestCase() {
             @Override
             protected Collection<? extends Plugin> getPlugins() {
-                return List.of(new UnsignedLongMapperPlugin(), new MapperExtrasPlugin(), new CountedKeywordMapperPlugin());
+                return List.of(
+                    new UnsignedLongMapperPlugin(),
+                    new MapperExtrasPlugin(),
+                    new CountedKeywordMapperPlugin(),
+                    new ConstantKeywordMapperPlugin(),
+                    new Wildcard()
+                );
             }
         }.createMapperService(mappingXContent);
 

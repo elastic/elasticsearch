@@ -11,17 +11,37 @@ configurations {
   allPlugins
 }
 
-// only configure immediate children of plugins dir
-configure(subprojects.findAll { it.parent.path == project.path }) {
-  group = 'org.elasticsearch.plugin'
-  apply plugin: 'elasticsearch.internal-es-plugin'
+def pluginDirs = [
+  rootProject.file('plugins'), 
+  rootProject.file('x-pack/plugin')
+]
 
-  esplugin {
-    // for local ES plugins, the name of the plugin is the same as the directory
-    name = project.name
-    licenseFile = layout.settingsDirectory.file('licenses/AGPL-3.0+SSPL-1.0+ELASTIC-LICENSE-2.0.txt').asFile
-    noticeFile = layout.settingsDirectory.file('NOTICE.txt').asFile
+pluginDirs.each { dir ->
+  if (dir.isDirectory()) {
+    dir.listFiles()?.each { subDir ->
+      if (subDir.isDirectory()) {
+        def proj = rootProject.findProject(":${dir.name}:${subDir.name}")
+        
+        if (proj != null) { 
+          proj.configure(proj) {
+            group = 'org.elasticsearch.plugin'
+            apply plugin: 'elasticsearch.internal-es-plugin'
+
+            esplugin { 
+              name = proj.name
+              if (dir.name == 'x-pack') {
+                 licenseFile = rootProject.layout.settingsDirectory.file('licenses/ELASTIC-LICENSE-2.0.txt').asFile
+                 noticeFile = rootProject.file('x-pack/NOTICE.txt')
+              } else {
+                 licenseFile = rootProject.layout.settingsDirectory.file('licenses/AGPL-3.0+SSPL-1.0+ELASTIC-LICENSE-2.0.txt').asFile
+                 noticeFile = rootProject.layout.settingsDirectory.file('NOTICE.txt').asFile
+              }
+            }
+            
+            rootProject.project(':plugins').artifacts.add('allPlugins', proj.tasks.named('bundlePlugin'))
+          }
+        }
+      }
+    }
   }
-
-  parent.artifacts.add('allPlugins', tasks.named('bundlePlugin'))
 }

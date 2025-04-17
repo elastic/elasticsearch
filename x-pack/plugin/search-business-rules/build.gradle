@@ -14,6 +14,8 @@ base {
 
 dependencies {
   compileOnly project(path: xpackModule('core'))
+  compileOnly project(':server')
+  compileOnly project(':libs:x-content')
   testImplementation(testArtifact(project(xpackModule('core'))))
   testImplementation(testArtifact(project(':server')))
 }
@@ -21,7 +23,7 @@ dependencies {
 tasks.named("yamlRestTest") {
   usesDefaultDistribution("uses search business rules plugin")
 }
-
 artifacts {
   restXpackTests(new File(projectDir, "src/yamlRestTest/resources/rest-api-spec/test"))
 }
+

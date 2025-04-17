@@ -1,4 +1,7 @@
 setup:
+  - requires:
+      cluster_features: 'pinned_retriever_supported'
+      reason: 'test requires pinned retriever implementation'
   - do:
       indices.create:
         index: test-index1

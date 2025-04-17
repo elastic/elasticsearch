@@ -37,7 +37,7 @@ public class EntitlementBootstrap {
     public record BootstrapArgs(
         @Nullable Policy serverPolicyPatch,
         Map<String, Policy> pluginPolicies,
-        Function<Class<?>, PolicyManager.ScopeInfo> scopeResolver,
+        Function<Class<?>, PolicyManager.PolicyScope> scopeResolver,
         Function<String, Stream<String>> settingResolver,
         Path[] dataDirs,
         Path[] sharedRepoDirs,
@@ -100,7 +100,7 @@ public class EntitlementBootstrap {
     public static void bootstrap(
         Policy serverPolicyPatch,
         Map<String, Policy> pluginPolicies,
-        Function<Class<?>, PolicyManager.ScopeInfo> scopeResolver,
+        Function<Class<?>, PolicyManager.PolicyScope> scopeResolver,
         Function<String, Stream<String>> settingResolver,
         Path[] dataDirs,
         Path[] sharedRepoDirs,

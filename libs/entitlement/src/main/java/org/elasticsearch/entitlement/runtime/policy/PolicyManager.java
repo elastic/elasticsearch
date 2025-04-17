@@ -74,12 +74,12 @@ public class PolicyManager {
     static final Set<String> MODULES_EXCLUDED_FROM_SYSTEM_MODULES = Set.of("java.desktop");
 
     /**
-     * Identifies a particular entitlement {@link Scope} within a component.
+     * Identifies a particular entitlement {@link Scope} within a {@link Policy}.
      * @param componentName
      * @param moduleName
      */
-    public record ScopeInfo(String componentName, String moduleName) {
-        public ScopeInfo {
+    public record PolicyScope(String componentName, String moduleName) {
+        public PolicyScope {
             requireNonNull(componentName);
             requireNonNull(moduleName);
         }
@@ -148,7 +148,7 @@ public class PolicyManager {
     private final Map<String, List<Entitlement>> serverEntitlements;
     private final List<Entitlement> apmAgentEntitlements;
     private final Map<String, Map<String, List<Entitlement>>> pluginsEntitlements;
-    private final Function<Class<?>, ScopeInfo> scopeResolver;
+    private final Function<Class<?>, PolicyScope> scopeResolver;
     private final PathLookup pathLookup;
     private final Set<Class<?>> mutedClasses;
 
@@ -201,7 +201,7 @@ public class PolicyManager {
         Policy serverPolicy,
         List<Entitlement> apmAgentEntitlements,
         Map<String, Policy> pluginPolicies,
-        Function<Class<?>, ScopeInfo> scopeResolver,
+        Function<Class<?>, PolicyScope> scopeResolver,
         Map<String, Path> sourcePaths,
         Module entitlementsModule,
         PathLookup pathLookup,
@@ -615,9 +615,9 @@ public class PolicyManager {
     }
 
     private ModuleEntitlements computeEntitlements(Class<?> requestingClass) {
-        var scopeInfo = scopeResolver.apply(requestingClass);
-        var componentName = scopeInfo.componentName();
-        var moduleName = scopeInfo.moduleName();
+        var policyScope = scopeResolver.apply(requestingClass);
+        var componentName = policyScope.componentName();
+        var moduleName = policyScope.moduleName();
 
         switch (componentName) {
             case SERVER_COMPONENT_NAME -> {

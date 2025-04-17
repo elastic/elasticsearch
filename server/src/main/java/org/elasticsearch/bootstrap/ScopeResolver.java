@@ -9,7 +9,7 @@
 
 package org.elasticsearch.bootstrap;
 
-import org.elasticsearch.entitlement.runtime.policy.PolicyManager.ScopeInfo;
+import org.elasticsearch.entitlement.runtime.policy.PolicyManager.PolicyScope;
 import org.elasticsearch.plugins.PluginsLoader;
 
 import java.util.HashMap;
@@ -53,21 +53,21 @@ public class ScopeResolver {
         return new ScopeResolver(pluginNameByModule, apmAgentPackageName);
     }
 
-    public ScopeInfo resolveClassToScope(Class<?> clazz) {
+    public PolicyScope resolveClassToScope(Class<?> clazz) {
         var module = clazz.getModule();
         var scopeName = getScopeName(module);
         if (isServerModule(module)) {
-            return new ScopeInfo(SERVER_COMPONENT_NAME, scopeName);
+            return new PolicyScope(SERVER_COMPONENT_NAME, scopeName);
         }
         String pluginName = pluginNameByModule.get(module);
         if (pluginName != null) {
-            return new ScopeInfo(pluginName, scopeName);
+            return new PolicyScope(pluginName, scopeName);
         }
         if (module.isNamed() == false && clazz.getPackageName().startsWith(apmAgentPackageName)) {
             // The APM agent is the only thing running non-modular in the system classloader
-            return new ScopeInfo(APM_AGENT_COMPONENT_NAME, ALL_UNNAMED);
+            return new PolicyScope(APM_AGENT_COMPONENT_NAME, ALL_UNNAMED);
         }
-        return new ScopeInfo(UNKNOWN_COMPONENT_NAME, scopeName);
+        return new PolicyScope(UNKNOWN_COMPONENT_NAME, scopeName);
     }
 
     private static boolean isServerModule(Module requestingModule) {

@@ -357,8 +357,7 @@ final class S3ClientSettings {
         return false;
     }
 
-    // backcompat for reading keys out of repository settings (clusterState)
-    // TODO NOMERGE: delete this comment? Doesn't give me any context to understand. Can we delete deprecated code?
+    // Ancient BWC for reading creds stored unsafely in plaintext in RepositoryMetadata#settings - really dangerous but still in use
     private static AwsCredentials loadDeprecatedCredentials(Settings repositorySettings) {
         assert checkDeprecatedCredentials(repositorySettings);
         try (

@@ -860,13 +860,17 @@ public class IngestDocumentTests extends ESTestCase {
 
         // if ignoreMissing is false, we throw an exception for values that aren't found
         IllegalArgumentException e;
-        if (randomBoolean()) {
-            document.setFieldValue("fizz.some", (Object) null);
-            e = expectThrows(IllegalArgumentException.class, () -> document.removeField("fizz.some.nonsense", false));
-            assertThat(e.getMessage(), is("cannot remove [nonsense] from null as part of path [fizz.some.nonsense]"));
-        } else {
-            e = expectThrows(IllegalArgumentException.class, () -> document.removeField("fizz.some.nonsense", false));
-            assertThat(e.getMessage(), is("field [some] not present as part of path [fizz.some.nonsense]"));
+        switch (randomIntBetween(0, 1)) {
+            case 0 -> {
+                document.setFieldValue("fizz.some", (Object) null);
+                e = expectThrows(IllegalArgumentException.class, () -> document.removeField("fizz.some.nonsense", false));
+                assertThat(e.getMessage(), is("cannot remove [nonsense] from null as part of path [fizz.some.nonsense]"));
+            }
+            case 1 -> {
+                e = expectThrows(IllegalArgumentException.class, () -> document.removeField("fizz.some.nonsense", false));
+                assertThat(e.getMessage(), is("field [some] not present as part of path [fizz.some.nonsense]"));
+            }
+            default -> throw new AssertionError("failure, got illegal switch case");
         }
 
         // but no exception is thrown if ignoreMissing is true

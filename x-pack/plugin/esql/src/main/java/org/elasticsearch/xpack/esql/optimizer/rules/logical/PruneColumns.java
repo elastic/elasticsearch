@@ -77,7 +77,7 @@ public final class PruneColumns extends Rule<LogicalPlan, LogicalPlan> {
                             if (aggregate.groupings().isEmpty()) {
                                 p = new LocalRelation(
                                     aggregate.source(),
-                                    List.of(new EmptyAttribute(aggregate.source())),
+                                    List.of(Expressions.attribute(aggregate.aggregates().getFirst())),
                                     LocalSupplier.of(
                                         new Block[] { BlockUtils.constantBlock(PlannerUtils.NON_BREAKING_BLOCK_FACTORY, null, 1) }
                                     )

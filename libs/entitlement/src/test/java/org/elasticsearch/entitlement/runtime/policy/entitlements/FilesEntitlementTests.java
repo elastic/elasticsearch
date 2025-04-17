@@ -11,6 +11,7 @@ package org.elasticsearch.entitlement.runtime.policy.entitlements;
 
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.entitlement.runtime.policy.PathLookup;
+import org.elasticsearch.entitlement.runtime.policy.PathLookupImpl;
 import org.elasticsearch.entitlement.runtime.policy.Policy;
 import org.elasticsearch.entitlement.runtime.policy.PolicyParser;
 import org.elasticsearch.entitlement.runtime.policy.PolicyValidationException;
@@ -42,12 +43,17 @@ public class FilesEntitlementTests extends ESTestCase {
         settings = Settings.EMPTY;
     }
 
-    private static final PathLookup TEST_PATH_LOOKUP = new PathLookup(
-        Path.of("home"),
+    private static final PathLookup TEST_PATH_LOOKUP = new PathLookupImpl(
+        Path.of("/home"),
         Path.of("/config"),
         new Path[] { Path.of("/data1"), Path.of("/data2") },
         new Path[] { Path.of("/shared1"), Path.of("/shared2") },
+        Path.of("/lib"),
+        Path.of("/modules"),
+        Path.of("/plugins"),
+        Path.of("/logs"),
         Path.of("/tmp"),
+        null,
         pattern -> settings.getValues(pattern)
     );
 

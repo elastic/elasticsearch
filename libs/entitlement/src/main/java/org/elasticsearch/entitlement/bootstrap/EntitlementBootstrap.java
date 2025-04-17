@@ -106,9 +106,9 @@ public class EntitlementBootstrap {
             pluginResolver,
             new PathLookupImpl(
                 getUserHome(),
+                configDir,
                 dataDirs,
                 sharedRepoDirs,
-                configDir,
                 libDir,
                 modulesDir,
                 pluginsDir,

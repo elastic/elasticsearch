@@ -18,9 +18,9 @@ import java.util.stream.Stream;
 public interface PathLookup {
     enum BaseDir {
         HOME,
+        CONFIG,
         DATA,
         SHARED_REPO,
-        CONFIG,
         LIB,
         MODULES,
         PLUGINS,
@@ -29,6 +29,9 @@ public interface PathLookup {
         PID
     }
 
-    Stream<Path> resolveRelativePath(BaseDir baseDir, Path relativePath);
+    Stream<Path> getBaseDirPaths(BaseDir baseDir);
+
+    Stream<Path> resolveRelativePaths(BaseDir baseDir, Path relativePath);
+
     Stream<Path> resolveSettingPaths(BaseDir baseDir, String settingName);
 }

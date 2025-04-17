@@ -339,11 +339,7 @@ public class PolicyUtilsTests extends ESTestCase {
                         new FilesEntitlement(
                             List.of(
                                 FilesEntitlement.FileData.ofPath(pathAB, FilesEntitlement.Mode.READ_WRITE),
-                                FilesEntitlement.FileData.ofPathSetting(
-                                    "setting",
-                                    PathLookup.BaseDir.DATA,
-                                    FilesEntitlement.Mode.READ
-                                )
+                                FilesEntitlement.FileData.ofPathSetting("setting", PathLookup.BaseDir.DATA, FilesEntitlement.Mode.READ)
                             )
                         )
                     )

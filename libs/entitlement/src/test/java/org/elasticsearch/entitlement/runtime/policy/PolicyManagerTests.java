@@ -69,12 +69,17 @@ public class PolicyManagerTests extends ESTestCase {
             NO_ENTITLEMENTS_MODULE = makeClassInItsOwnModule().getModule();
 
             TEST_BASE_DIR = createTempDir().toAbsolutePath();
-            TEST_PATH_LOOKUP = new PathLookup(
+            TEST_PATH_LOOKUP = new PathLookupImpl(
                 TEST_BASE_DIR.resolve("/user/home"),
                 TEST_BASE_DIR.resolve("/config"),
                 new Path[] { TEST_BASE_DIR.resolve("/data1/"), TEST_BASE_DIR.resolve("/data2") },
                 new Path[] { TEST_BASE_DIR.resolve("/shared1"), TEST_BASE_DIR.resolve("/shared2") },
-                TEST_BASE_DIR.resolve("/temp"),
+                TEST_BASE_DIR.resolve("/lib"),
+                TEST_BASE_DIR.resolve("/modules"),
+                TEST_BASE_DIR.resolve("/plugins"),
+                TEST_BASE_DIR.resolve("/logs"),
+                TEST_BASE_DIR.resolve("/tmp"),
+                null,
                 Settings.EMPTY::getValues
             );
         } catch (Exception e) {

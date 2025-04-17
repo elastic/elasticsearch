@@ -10,6 +10,10 @@
 package org.elasticsearch.entitlement.runtime.policy;
 
 import java.nio.file.Path;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.List;
+import java.util.Locale;
 import java.util.function.Function;
 import java.util.stream.Stream;
 
@@ -17,9 +21,9 @@ import static java.util.Objects.requireNonNull;
 
 public record PathLookupImpl(
     Path homeDir,
+    Path configDir,
     Path[] dataDirs,
     Path[] sharedRepoDirs,
-    Path configDir,
     Path libDir,
     Path modulesDir,
     Path pluginsDir,
@@ -46,13 +50,13 @@ public record PathLookupImpl(
     }
 
     @Override
-    public Stream<Path> resolvePaths(BaseDir baseDir) {
+    public Stream<Path> getBaseDirPaths(BaseDir baseDir) {
         if (baseDir == BaseDir.HOME) {
             return Stream.of(homeDir);
         } else if (baseDir == BaseDir.DATA) {
-            return Stream.of(dataDirs);
+            return Arrays.stream(dataDirs);
         } else if (baseDir == BaseDir.SHARED_REPO) {
-            return Stream.of(sharedRepoDirs);
+            return Arrays.stream(sharedRepoDirs);
         } else if (baseDir == BaseDir.CONFIG) {
             return Stream.of(configDir);
         } else if (baseDir == BaseDir.LIB) {
@@ -66,14 +70,78 @@ public record PathLookupImpl(
         } else if (baseDir == BaseDir.TEMP) {
             return Stream.of(tempDir);
         } else if (baseDir == BaseDir.PID) {
-            return Stream.of(pidFile);
+            return pidFile == null ? null : Stream.of(pidFile);
         } else {
             throw new IllegalStateException("unknown base dir [" + baseDir + "]");
         }
     }
 
     @Override
-    public Stream<String> resolveSetting(String name) {
-        return settingResolver.apply(name);
+    public Stream<Path> resolveRelativePaths(BaseDir baseDir, Path relativePath) {
+        if (baseDir == BaseDir.HOME) {
+            return Stream.of(homeDir.resolve(relativePath));
+        } else if (baseDir == BaseDir.DATA) {
+            return Arrays.stream(dataDirs).map(dataDirPath -> dataDirPath.resolve(relativePath));
+        } else if (baseDir == BaseDir.SHARED_REPO) {
+            return Arrays.stream(sharedRepoDirs).map(sharedRepoDir -> sharedRepoDir.resolve(relativePath));
+        } else if (baseDir == BaseDir.CONFIG) {
+            return Stream.of(configDir.resolve(relativePath));
+        } else if (baseDir == BaseDir.LIB) {
+            return Stream.of(libDir.resolve(relativePath));
+        } else if (baseDir == BaseDir.MODULES) {
+            return Stream.of(modulesDir.resolve(relativePath));
+        } else if (baseDir == BaseDir.PLUGINS) {
+            return Stream.of(pluginsDir.resolve(relativePath));
+        } else if (baseDir == BaseDir.LOGS) {
+            return Stream.of(logsDir.resolve(relativePath));
+        } else if (baseDir == BaseDir.TEMP) {
+            return Stream.of(tempDir.resolve(relativePath));
+        } else if (baseDir == BaseDir.PID) {
+            return pidFile == null ? null : Stream.of(pidFile.resolve(relativePath));
+        } else {
+            throw new IllegalStateException("unknown base dir [" + baseDir + "]");
+        }
+    }
+
+    @Override
+    public Stream<Path> resolveSettingPaths(BaseDir baseDir, String settingName) {
+        Stream<Path> relativePaths = settingResolver.apply(settingName)
+            .filter(s -> s.toLowerCase(Locale.ROOT).startsWith("https://") == false)
+            .distinct()
+            .map(Path::of);
+        if (baseDir == BaseDir.HOME) {
+            return relativePaths.map(homeDir::resolve);
+        } else if (baseDir == BaseDir.DATA) {
+            return relativePathsCombination(dataDirs, relativePaths);
+        } else if (baseDir == BaseDir.SHARED_REPO) {
+            return relativePathsCombination(sharedRepoDirs, relativePaths);
+        } else if (baseDir == BaseDir.CONFIG) {
+            return relativePaths.map(configDir::resolve);
+        } else if (baseDir == BaseDir.LIB) {
+            return relativePaths.map(libDir::resolve);
+        } else if (baseDir == BaseDir.MODULES) {
+            return relativePaths.map(modulesDir::resolve);
+        } else if (baseDir == BaseDir.PLUGINS) {
+            return relativePaths.map(pluginsDir::resolve);
+        } else if (baseDir == BaseDir.LOGS) {
+            return relativePaths.map(logsDir::resolve);
+        } else if (baseDir == BaseDir.TEMP) {
+            return relativePaths.map(tempDir::resolve);
+        } else if (baseDir == BaseDir.PID) {
+            return relativePaths.map(pidFile::resolve);
+        } else {
+            throw new IllegalStateException("unknown base dir [" + baseDir + "]");
+        }
+    }
+
+    private static Stream<Path> relativePathsCombination(Path[] baseDirs, Stream<Path> relativePaths) {
+        // multiple base dirs are a pain...we need the combination of the base dirs and relative paths
+        List<Path> paths = new ArrayList<>();
+        for (var relativePath : relativePaths.toList()) {
+            for (var dataDir : baseDirs) {
+                paths.add(dataDir.resolve(relativePath));
+            }
+        }
+        return paths.stream();
     }
 }

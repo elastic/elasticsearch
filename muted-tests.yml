@@ -426,6 +426,9 @@ tests:
 - class: org.elasticsearch.xpack.search.AsyncSearchActionIT
   method: testCleanupOnFailure
   issue: https://github.com/elastic/elasticsearch/issues/126999
+- class: org.elasticsearch.xpack.search.AsyncSearchActionIT
+  method: testUpdateStoreKeepAlive
+  issue: https://github.com/elastic/elasticsearch/issues/127001
 
 # Examples:
 #

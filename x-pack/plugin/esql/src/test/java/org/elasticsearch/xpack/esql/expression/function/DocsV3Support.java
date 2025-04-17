@@ -536,7 +536,7 @@ public abstract class DocsV3Support {
             }
             boolean hasExamples = renderExamples(info);
             boolean hasAppendix = renderAppendix(info.appendix());
-            renderFullLayout(info.preview(), info.appliesTo(), hasExamples, hasAppendix, hasFunctionOptions);
+            renderFullLayout(info, hasExamples, hasAppendix, hasFunctionOptions);
             renderKibanaInlineDocs(name, null, info);
             renderKibanaFunctionDefinition(name, null, info, description.args(), description.variadic());
         }
@@ -627,16 +627,12 @@ public abstract class DocsV3Support {
             }
         }
 
-        private void renderFullLayout(
-            boolean preview,
-            FunctionAppliesTo[] functionAppliesTos,
-            boolean hasExamples,
-            boolean hasAppendix,
-            boolean hasFunctionOptions
-        ) throws IOException {
+        private void renderFullLayout(FunctionInfo info, boolean hasExamples, boolean hasAppendix, boolean hasFunctionOptions)
+            throws IOException {
+            String headingMarkdown = "#".repeat(2 + info.depthOffset());
             StringBuilder rendered = new StringBuilder(
                 DOCS_WARNING + """
-                    ## `$UPPER_NAME$` [esql-$NAME$]
+                    $HEAD$ `$UPPER_NAME$` [esql-$NAME$]
                     $PREVIEW_CALLOUT$
                     **Syntax**
 
@@ -645,10 +641,11 @@ public abstract class DocsV3Support {
                     :class: text-center
                     :::
 
-                    """.replace("$NAME$", name)
+                    """.replace("$HEAD$", headingMarkdown)
+                    .replace("$NAME$", name)
                     .replace("$CATEGORY$", category)
                     .replace("$UPPER_NAME$", name.toUpperCase(Locale.ROOT))
-                    .replace("$PREVIEW_CALLOUT$", makePreviewText(preview, functionAppliesTos))
+                    .replace("$PREVIEW_CALLOUT$", makePreviewText(info.preview(), info.appliesTo()))
             );
             for (String section : new String[] { "parameters", "description", "types" }) {
                 rendered.append(addInclude(section));
@@ -775,6 +772,11 @@ public abstract class DocsV3Support {
                 @Override
                 public String appendix() {
                     return orig.appendix().replace(baseName, name);
+                }
+
+                @Override
+                public int depthOffset() {
+                    return orig.depthOffset();
                 }
 
                 @Override

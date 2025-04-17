@@ -71,6 +71,11 @@ public @interface FunctionInfo {
     String appendix() default "";
 
     /**
+     * The heading depth of this function in the docs, relative to the normal depth of functions.
+     */
+    int depthOffset() default 0;
+
+    /**
      * The position the function can appear in the language.
      */
     FunctionType type() default FunctionType.SCALAR;

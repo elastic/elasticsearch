@@ -45,7 +45,8 @@ public class StXMin extends UnaryScalarFunction {
         returnType = "double",
         description = "Extracts the minimum value of the `x` coordinates from the supplied geometry.\n"
             + "If the geometry is of type `geo_point` or `geo_shape` this is equivalent to extracting the minimum `longitude` value.",
-        examples = @Example(file = "spatial_shapes", tag = "st_x_y_min_max")
+        examples = @Example(file = "spatial_shapes", tag = "st_x_y_min_max"),
+        depthOffset = 1  // So this appears as a subsection of ST_ENVELOPE
     )
     public StXMin(
         Source source,

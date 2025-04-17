@@ -57,14 +57,13 @@ import static org.elasticsearch.index.codec.tsdb.es819.ES819TSDBDocValuesFormat.
 
 final class ES819TSDBDocValuesConsumer extends XDocValuesConsumer {
 
+    final Directory dir;
+    final IOContext context;
     IndexOutput data, meta;
     final int maxDoc;
     private byte[] termsDictBuffer;
     private final int skipIndexIntervalSize;
     final boolean enableOptimizedMerge;
-
-    private final Directory dir;
-    private final IOContext ioContext;
 
     ES819TSDBDocValuesConsumer(
         SegmentWriteState state,
@@ -76,6 +75,8 @@ final class ES819TSDBDocValuesConsumer extends XDocValuesConsumer {
         String metaExtension
     ) throws IOException {
         this.termsDictBuffer = new byte[1 << 14];
+        this.dir = state.directory;
+        this.context = state.context;
         boolean success = false;
         try {
             final String dataName = IndexFileNames.segmentFileName(state.segmentInfo.name, state.segmentSuffix, dataExtension);
@@ -99,8 +100,6 @@ final class ES819TSDBDocValuesConsumer extends XDocValuesConsumer {
             maxDoc = state.segmentInfo.maxDoc();
             this.skipIndexIntervalSize = skipIndexIntervalSize;
             this.enableOptimizedMerge = enableOptimizedMerge;
-            this.dir = state.directory;
-            this.ioContext = state.context;
             success = true;
         } finally {
             if (success == false) {
@@ -151,87 +150,104 @@ final class ES819TSDBDocValuesConsumer extends XDocValuesConsumer {
         meta.writeLong(numValues);
         meta.writeInt(numDocsWithValue);
 
-        if (numValues > 0) {
-            // Special case for maxOrd of 1, signal -1 that no blocks will be written
-            meta.writeInt(maxOrd != 1 ? ES819TSDBDocValuesFormat.DIRECT_MONOTONIC_BLOCK_SHIFT : -1);
-            final ByteBuffersDataOutput indexOut = new ByteBuffersDataOutput();
-            final DirectMonotonicWriter indexWriter = DirectMonotonicWriter.getInstance(
-                meta,
-                new ByteBuffersIndexOutput(indexOut, "temp-dv-index", "temp-dv-index"),
-                1L + ((numValues - 1) >>> ES819TSDBDocValuesFormat.NUMERIC_BLOCK_SHIFT),
-                ES819TSDBDocValuesFormat.DIRECT_MONOTONIC_BLOCK_SHIFT
-            );
+        DISIAccumulator disiAccumulator = null;
+        try {
+            if (numValues > 0) {
+                assert numDocsWithValue > 0;
+                // Special case for maxOrd of 1, signal -1 that no blocks will be written
+                meta.writeInt(maxOrd != 1 ? ES819TSDBDocValuesFormat.DIRECT_MONOTONIC_BLOCK_SHIFT : -1);
+                final ByteBuffersDataOutput indexOut = new ByteBuffersDataOutput();
+                final DirectMonotonicWriter indexWriter = DirectMonotonicWriter.getInstance(
+                    meta,
+                    new ByteBuffersIndexOutput(indexOut, "temp-dv-index", "temp-dv-index"),
+                    1L + ((numValues - 1) >>> ES819TSDBDocValuesFormat.NUMERIC_BLOCK_SHIFT),
+                    ES819TSDBDocValuesFormat.DIRECT_MONOTONIC_BLOCK_SHIFT
+                );
 
-            final long valuesDataOffset = data.getFilePointer();
-            // Special case for maxOrd of 1, skip writing the blocks
-            if (maxOrd != 1) {
-                final long[] buffer = new long[ES819TSDBDocValuesFormat.NUMERIC_BLOCK_SIZE];
-                int bufferSize = 0;
-                final TSDBDocValuesEncoder encoder = new TSDBDocValuesEncoder(ES819TSDBDocValuesFormat.NUMERIC_BLOCK_SIZE);
-                values = valuesProducer.getSortedNumeric(field);
-                final int bitsPerOrd = maxOrd >= 0 ? PackedInts.bitsRequired(maxOrd - 1) : -1;
-                for (int doc = values.nextDoc(); doc != DocIdSetIterator.NO_MORE_DOCS; doc = values.nextDoc()) {
-                    final int count = values.docValueCount();
-                    if (docCountConsumer != null) {
-                        docCountConsumer.accept(count);
+                final long valuesDataOffset = data.getFilePointer();
+                // Special case for maxOrd of 1, skip writing the blocks
+                if (maxOrd != 1) {
+                    final long[] buffer = new long[ES819TSDBDocValuesFormat.NUMERIC_BLOCK_SIZE];
+                    int bufferSize = 0;
+                    final TSDBDocValuesEncoder encoder = new TSDBDocValuesEncoder(ES819TSDBDocValuesFormat.NUMERIC_BLOCK_SIZE);
+                    values = valuesProducer.getSortedNumeric(field);
+                    final int bitsPerOrd = maxOrd >= 0 ? PackedInts.bitsRequired(maxOrd - 1) : -1;
+                    if (enableOptimizedMerge && numDocsWithValue < maxDoc) {
+                        disiAccumulator = new DISIAccumulator(dir, context, data, IndexedDISI.DEFAULT_DENSE_RANK_POWER);
                     }
-                    for (int i = 0; i < count; ++i) {
-                        buffer[bufferSize++] = values.nextValue();
-                        if (bufferSize == ES819TSDBDocValuesFormat.NUMERIC_BLOCK_SIZE) {
-                            indexWriter.add(data.getFilePointer() - valuesDataOffset);
-                            if (maxOrd >= 0) {
-                                encoder.encodeOrdinals(buffer, data, bitsPerOrd);
-                            } else {
-                                encoder.encode(buffer, data);
+                    for (int doc = values.nextDoc(); doc != DocIdSetIterator.NO_MORE_DOCS; doc = values.nextDoc()) {
+                        if (disiAccumulator != null) {
+                            disiAccumulator.addDocId(doc);
+                        }
+                        final int count = values.docValueCount();
+                        if (docCountConsumer != null) {
+                            docCountConsumer.accept(count);
+                        }
+                        for (int i = 0; i < count; ++i) {
+                            buffer[bufferSize++] = values.nextValue();
+                            if (bufferSize == ES819TSDBDocValuesFormat.NUMERIC_BLOCK_SIZE) {
+                                indexWriter.add(data.getFilePointer() - valuesDataOffset);
+                                if (maxOrd >= 0) {
+                                    encoder.encodeOrdinals(buffer, data, bitsPerOrd);
+                                } else {
+                                    encoder.encode(buffer, data);
+                                }
+                                bufferSize = 0;
                             }
-                            bufferSize = 0;
+                        }
+                    }
+                    if (bufferSize > 0) {
+                        indexWriter.add(data.getFilePointer() - valuesDataOffset);
+                        // Fill unused slots in the block with zeroes rather than junk
+                        Arrays.fill(buffer, bufferSize, ES819TSDBDocValuesFormat.NUMERIC_BLOCK_SIZE, 0L);
+                        if (maxOrd >= 0) {
+                            encoder.encodeOrdinals(buffer, data, bitsPerOrd);
+                        } else {
+                            encoder.encode(buffer, data);
                         }
                     }
                 }
-                if (bufferSize > 0) {
-                    indexWriter.add(data.getFilePointer() - valuesDataOffset);
-                    // Fill unused slots in the block with zeroes rather than junk
-                    Arrays.fill(buffer, bufferSize, ES819TSDBDocValuesFormat.NUMERIC_BLOCK_SIZE, 0L);
-                    if (maxOrd >= 0) {
-                        encoder.encodeOrdinals(buffer, data, bitsPerOrd);
-                    } else {
-                        encoder.encode(buffer, data);
-                    }
+
+                final long valuesDataLength = data.getFilePointer() - valuesDataOffset;
+                if (maxOrd != 1) {
+                    // Special case for maxOrd of 1, indexWriter isn't really used, so no need to invoke finish() method.
+                    indexWriter.finish();
                 }
+                final long indexDataOffset = data.getFilePointer();
+                data.copyBytes(indexOut.toDataInput(), indexOut.size());
+                meta.writeLong(indexDataOffset);
+                meta.writeLong(data.getFilePointer() - indexDataOffset);
+
+                meta.writeLong(valuesDataOffset);
+                meta.writeLong(valuesDataLength);
             }
 
-            final long valuesDataLength = data.getFilePointer() - valuesDataOffset;
-            if (maxOrd != 1) {
-                // Special case for maxOrd of 1, indexWriter isn't really used, so no need to invoke finish() method.
-                indexWriter.finish();
+            if (numDocsWithValue == 0) { // meta[-2, 0]: No documents with values
+                meta.writeLong(-2); // docsWithFieldOffset
+                meta.writeLong(0L); // docsWithFieldLength
+                meta.writeShort((short) -1); // jumpTableEntryCount
+                meta.writeByte((byte) -1); // denseRankPower
+            } else if (numDocsWithValue == maxDoc) { // meta[-1, 0]: All documents have values
+                meta.writeLong(-1); // docsWithFieldOffset
+                meta.writeLong(0L); // docsWithFieldLength
+                meta.writeShort((short) -1); // jumpTableEntryCount
+                meta.writeByte((byte) -1); // denseRankPower
+            } else { // meta[data.offset, data.length]: IndexedDISI structure for documents with values
+                long offset = data.getFilePointer();
+                meta.writeLong(offset); // docsWithFieldOffset
+                final short jumpTableEntryCount;
+                if (maxOrd != 1 && disiAccumulator != null) {
+                    jumpTableEntryCount = disiAccumulator.build(data);
+                } else {
+                    values = valuesProducer.getSortedNumeric(field);
+                    jumpTableEntryCount = IndexedDISI.writeBitSet(values, data, IndexedDISI.DEFAULT_DENSE_RANK_POWER);
+                }
+                meta.writeLong(data.getFilePointer() - offset); // docsWithFieldLength
+                meta.writeShort(jumpTableEntryCount);
+                meta.writeByte(IndexedDISI.DEFAULT_DENSE_RANK_POWER);
             }
-            final long indexDataOffset = data.getFilePointer();
-            data.copyBytes(indexOut.toDataInput(), indexOut.size());
-            meta.writeLong(indexDataOffset);
-            meta.writeLong(data.getFilePointer() - indexDataOffset);
-
-            meta.writeLong(valuesDataOffset);
-            meta.writeLong(valuesDataLength);
-        }
-
-        if (numDocsWithValue == 0) { // meta[-2, 0]: No documents with values
-            meta.writeLong(-2); // docsWithFieldOffset
-            meta.writeLong(0L); // docsWithFieldLength
-            meta.writeShort((short) -1); // jumpTableEntryCount
-            meta.writeByte((byte) -1); // denseRankPower
-        } else if (numDocsWithValue == maxDoc) { // meta[-1, 0]: All documents have values
-            meta.writeLong(-1); // docsWithFieldOffset
-            meta.writeLong(0L); // docsWithFieldLength
-            meta.writeShort((short) -1); // jumpTableEntryCount
-            meta.writeByte((byte) -1); // denseRankPower
-        } else { // meta[data.offset, data.length]: IndexedDISI structure for documents with values
-            long offset = data.getFilePointer();
-            meta.writeLong(offset); // docsWithFieldOffset
-            values = valuesProducer.getSortedNumeric(field);
-            final short jumpTableEntryCount = IndexedDISI.writeBitSet(values, data, IndexedDISI.DEFAULT_DENSE_RANK_POWER);
-            meta.writeLong(data.getFilePointer() - offset); // docsWithFieldLength
-            meta.writeShort(jumpTableEntryCount);
-            meta.writeByte(IndexedDISI.DEFAULT_DENSE_RANK_POWER);
+        } finally {
+            IOUtils.close(disiAccumulator);
         }
 
         return new long[] { numDocsWithValue, numValues };
@@ -551,7 +567,7 @@ final class ES819TSDBDocValuesConsumer extends XDocValuesConsumer {
                 String addressDataOutputName = null;
                 try (
                     var addressMetaOutput = new ByteBuffersIndexOutput(addressMetaBuffer, "meta-temp", "meta-temp");
-                    var addressDataOutput = dir.createTempOutput(data.getName(), "address-data", ioContext)
+                    var addressDataOutput = dir.createTempOutput(data.getName(), "address-data", context)
                 ) {
                     addressDataOutputName = addressDataOutput.getName();
                     final DirectMonotonicWriter addressesWriter = DirectMonotonicWriter.getInstance(
@@ -578,7 +594,7 @@ final class ES819TSDBDocValuesConsumer extends XDocValuesConsumer {
                     meta.writeVInt(DIRECT_MONOTONIC_BLOCK_SHIFT);
                     addressMetaBuffer.copyTo(meta);
                     addressDataOutput.close();
-                    try (var addressDataInput = dir.openInput(addressDataOutput.getName(), ioContext)) {
+                    try (var addressDataInput = dir.openInput(addressDataOutput.getName(), context)) {
                         data.copyBytes(addressDataInput, addressDataInput.length());
                         meta.writeLong(data.getFilePointer() - start);
                     }

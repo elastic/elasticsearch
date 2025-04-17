@@ -1172,6 +1172,7 @@ class S3BlobContainer extends AbstractBlobContainer {
                 .bucket(bucket)
                 .prefix(keyPath)
                 .maxUploads(maxUploads)
+                // TODO adjust to use S3BlobStore.configureRequestForMetrics, adding metrics collection
                 .overrideConfiguration(
                     b -> b.putRawQueryParameter(S3BlobStore.CUSTOM_QUERY_PARAMETER_PURPOSE, OperationPurpose.SNAPSHOT_DATA.getKey())
                 )
@@ -1204,6 +1205,7 @@ class S3BlobContainer extends AbstractBlobContainer {
                             .bucket(bucket)
                             .key(u.key())
                             .uploadId(u.uploadId())
+                            // TODO adjust to use S3BlobStore.configureRequestForMetrics, adding metrics collection
                             .overrideConfiguration(
                                 b -> b.putRawQueryParameter(
                                     S3BlobStore.CUSTOM_QUERY_PARAMETER_PURPOSE,

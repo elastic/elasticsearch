@@ -41,6 +41,10 @@ public class BlobCacheMetrics {
          */
         Warming,
         /**
+         * When warming the cache as a result of an incoming request
+         */
+        OnlinePrewarming,
+        /**
          * When the data we need is not in the cache
          */
         CacheMiss

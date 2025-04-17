@@ -585,8 +585,10 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
                 b.field("type", SemanticTextFieldMapper.CONTENT_TYPE);
                 b.field(INFERENCE_ID_FIELD, inferenceId);
                 b.startObject(INDEX_OPTIONS_FIELD);
+                b.startObject("dense_vector");
                 b.field("type", indexOptions.getType().name().toLowerCase(Locale.ROOT));
                 b.field("unsupported_param", "any_value");
+                b.endObject();
                 b.endObject();
                 b.endObject();
             }), useLegacyFormat));

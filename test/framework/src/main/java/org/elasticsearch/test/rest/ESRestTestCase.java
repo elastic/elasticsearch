@@ -1622,7 +1622,7 @@ public abstract class ESRestTestCase extends ESTestCase {
      * Returns the REST client used for cleaning up the cluster.
      */
     protected Settings cleanupClientSettings() {
-        if (multiProjectEnabled == false) {
+        if (multiProjectEnabled == false || shouldConfigureProjects() == false) {
             return restAdminSettings();
         }
         return addProjectIdToSettings(restAdminSettings());
@@ -2726,8 +2726,17 @@ public abstract class ESRestTestCase extends ESTestCase {
         assertMap(result, mapMatcher.entry("columns", columnMatcher).entry("values", valuesMatcher));
     }
 
+    /**
+     * Whether the test framework should configure an active projects and some extra projects. This is true by default (when multi-project
+     * is enabled). Subclasses can override this method to avoid configuring projects - e.g. when they configure projects themselves.
+     */
+    protected boolean shouldConfigureProjects() {
+        assert multiProjectEnabled;
+        return true;
+    }
+
     private void configureProjects() throws IOException {
-        if (projectsConfigured || multiProjectEnabled == false) {
+        if (projectsConfigured || multiProjectEnabled == false || shouldConfigureProjects() == false) {
             return;
         }
         projectsConfigured = true;
@@ -2747,17 +2756,13 @@ public abstract class ESRestTestCase extends ESTestCase {
 
     @After
     public final void assertEmptyProjects() throws Exception {
-        if (multiProjectEnabled == false) {
+        if (projectsConfigured == false) {
             return;
         }
         assertEmptyProject(Metadata.DEFAULT_PROJECT_ID.id());
         for (var project : extraProjects) {
             assertEmptyProject(project);
         }
-    }
-
-    public static String activeProject() {
-        return activeProject;
     }
 
     protected void createProject(String project) throws IOException {
@@ -2796,9 +2801,10 @@ public abstract class ESRestTestCase extends ESTestCase {
     }
 
     protected void cleanUpProjects() throws IOException {
+        assert multiProjectEnabled;
         final var projectIds = getProjectIds(adminClient());
         for (String projectId : projectIds) {
-            if (projectId.equals(ProjectId.DEFAULT.id()) || projectId.equals(activeProject) || extraProjects.contains(projectId)) {
+            if (projectId.equals(ProjectId.DEFAULT.id())) {
                 continue;
             }
             deleteProject(projectId);
@@ -2806,6 +2812,7 @@ public abstract class ESRestTestCase extends ESTestCase {
     }
 
     private void deleteProject(String project) throws IOException {
+        assert multiProjectEnabled;
         final Request request = new Request("DELETE", "/_project/" + project);
         cleanupClient().performRequest(request);
     }

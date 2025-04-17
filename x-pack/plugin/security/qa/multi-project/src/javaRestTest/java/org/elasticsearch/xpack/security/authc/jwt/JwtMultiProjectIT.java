@@ -82,6 +82,11 @@ public class JwtMultiProjectIT extends ESRestTestCase {
         return builder.build();
     }
 
+    @Override
+    protected boolean shouldConfigureProjects() {
+        return false;
+    }
+
     @After
     public void cleanup() throws IOException {
         cleanUpProjects();

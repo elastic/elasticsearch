@@ -946,6 +946,12 @@ public class EsqlCapabilities {
         METRICS_COMMAND(Build.current().isSnapshot()),
 
         /**
+         * Are the {@code documents_found} and {@code values_loaded} fields available
+         * in the response and profile?
+         */
+        DOCUMENTS_FOUND_AND_VALUES_LOADED,
+
+        /**
          * Index component selector syntax (my-data-stream-name::failures)
          */
         INDEX_COMPONENT_SELECTORS(DataStream.isFailureStoreFeatureFlagEnabled()),

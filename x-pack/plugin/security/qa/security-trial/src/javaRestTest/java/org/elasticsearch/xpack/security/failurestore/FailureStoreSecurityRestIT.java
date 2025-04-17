@@ -108,7 +108,7 @@ public class FailureStoreSecurityRestIT extends ESRestTestCase {
         upsertRole(Strings.format("""
             {
               "cluster": ["all"],
-              "indices": [{"names": ["test*", "other*"], "privileges": ["write", "auto_configure"]}]
+              "indices": [{"names": ["test*", "other*", "regular*"], "privileges": ["write", "auto_configure"]}]
             }"""), WRITE_ACCESS);
     }
 
@@ -1930,22 +1930,19 @@ public class FailureStoreSecurityRestIT extends ESRestTestCase {
         String dataIndexName = backingIndices.v1();
         String failureIndexName = backingIndices.v2();
 
+        setupOtherDataStream();
+        Tuple<String, String> otherBackingIndices = getSingleDataAndFailureIndices("other1");
+        String otherDataIndexName = otherBackingIndices.v1();
+        String otherFailureIndexName = otherBackingIndices.v2();
+
+        setupRegularIndex();
+
         createUser(MANAGE_ACCESS, PASSWORD, MANAGE_ACCESS);
         upsertRole(Strings.format("""
             {
-              "cluster": ["all"],
+              "cluster": [],
               "indices": [{"names": ["test*"], "privileges": ["manage"]}]
             }"""), MANAGE_ACCESS);
-        createAndStoreApiKey(MANAGE_ACCESS, randomBoolean() ? null : """
-            {
-              "role": {
-                "cluster": ["all"],
-                "indices": [{"names": ["test*"], "privileges": ["manage"]}]
-              }
-            }
-            """);
-        assertOK(addFailureStoreBackingIndex(MANAGE_ACCESS, "test1", failureIndexName));
-        assertDataStreamHasDataAndFailureIndices("test1", dataIndexName, failureIndexName);
 
         // remove the failure index
         assertOK(removeFailureStoreBackingIndex(MANAGE_ACCESS, "test1", failureIndexName));
@@ -1954,67 +1951,28 @@ public class FailureStoreSecurityRestIT extends ESRestTestCase {
         // adding it will fail because the user has no direct access to the backing failure index (.fs*)
         expectThrows(() -> addFailureStoreBackingIndex(MANAGE_ACCESS, "test1", failureIndexName), 403);
 
-        // let's change that
+        // no access to other1 or test1 datastream
         upsertRole(Strings.format("""
             {
-              "cluster": ["all"],
-              "indices": [{"names": ["test*", ".fs*"], "privileges": ["manage"]}]
+              "cluster": [],
+              "indices": [{"names": [ ".?s*", "regular*"], "privileges": ["manage"]}]
             }"""), MANAGE_ACCESS);
-        createOrUpdateApiKey(MANAGE_ACCESS, randomBoolean() ? null : """
-            {
-              "role": {
-                "cluster": ["all"],
-                "indices": [{"names": ["test*", ".fs*"], "privileges": ["manage"]}]
-              }
-            }
-            """);
 
-        // adding should succeed now
-        assertOK(addFailureStoreBackingIndex(MANAGE_ACCESS, "test1", failureIndexName));
-        assertDataStreamHasDataAndFailureIndices("test1", dataIndexName, failureIndexName);
-
-        createUser(MANAGE_FAILURE_STORE_ACCESS, PASSWORD, MANAGE_FAILURE_STORE_ACCESS);
-        upsertRole(Strings.format("""
-            {
-              "cluster": ["all"],
-              "indices": [{"names": ["test*"], "privileges": ["manage_failure_store"]}]
-            }"""), MANAGE_FAILURE_STORE_ACCESS);
-        createAndStoreApiKey(MANAGE_FAILURE_STORE_ACCESS, randomBoolean() ? null : """
-            {
-              "role": {
-                "cluster": ["all"],
-                "indices": [{"names": ["test*"], "privileges": ["manage_failure_store"]}]
-              }
-            }
-            """);
-
-        // manage_failure_store can only remove the failure backing index, but not add it
-        assertOK(removeFailureStoreBackingIndex(MANAGE_FAILURE_STORE_ACCESS, "test1", failureIndexName));
-        assertDataStreamHasNoFailureIndices("test1", dataIndexName);
-        expectThrows(() -> addFailureStoreBackingIndex(MANAGE_FAILURE_STORE_ACCESS, "test1", failureIndexName), 403);
-
-        // not even with access to .fs*
-        upsertRole(Strings.format("""
-            {
-              "cluster": ["all"],
-              "indices": [{"names": ["test*", ".fs*"], "privileges": ["manage_failure_store"]}]
-            }"""), MANAGE_FAILURE_STORE_ACCESS);
-        createOrUpdateApiKey(MANAGE_FAILURE_STORE_ACCESS, randomBoolean() ? null : """
-            {
-              "role": {
-                "cluster": ["all"],
-                "indices": [{"names": ["test*", ".fs*"], "privileges": ["manage_failure_store"]}]
-              }
-            }
-            """);
-        expectThrows(() -> addFailureStoreBackingIndex(MANAGE_FAILURE_STORE_ACCESS, "test1", failureIndexName), 403);
+        assertOK(addFailureStoreBackingIndex(MANAGE_ACCESS, "other1", failureIndexName));
+        assertOK(modifyDatastreamBackingIndex(MANAGE_ACCESS, "add_backing_index", "other1", "regular1"));
+        assertDataStreamHasDataAndFailureIndices(
+            "other1",
+            new String[] { otherDataIndexName, "regular1" },
+            failureIndexName,
+            otherFailureIndexName
+        );
     }
 
-    private void assertDataStreamHasDataAndFailureIndices(String dataStreamName, String dataIndexName, String failureIndexName)
+    private void assertDataStreamHasDataAndFailureIndices(String dataStreamName, String[] dataIndexName, String... failureIndexNames)
         throws IOException {
         Tuple<List<String>, List<String>> indices = getDataAndFailureIndices(dataStreamName);
         assertThat(indices.v1(), containsInAnyOrder(dataIndexName));
-        assertThat(indices.v2(), containsInAnyOrder(failureIndexName));
+        assertThat(indices.v2(), containsInAnyOrder(failureIndexNames));
     }
 
     private void assertDataStreamHasNoFailureIndices(String dataStreamName, String dataIndexName) throws IOException {
@@ -2042,6 +2000,24 @@ public class FailureStoreSecurityRestIT extends ESRestTestCase {
                     "data_stream": "%s",
                     "index": "%s",
                     "failure_store" : true
+                  }
+                }
+              ]
+            }
+            """, action, dataStreamName, failureIndexName));
+        return performRequest(user, request);
+    }
+
+    private Response modifyDatastreamBackingIndex(String user, String action, String dataStreamName, String failureIndexName)
+        throws IOException {
+        Request request = new Request("POST", "/_data_stream/_modify");
+        request.setJsonEntity(Strings.format("""
+            {
+              "actions": [
+                {
+                  "%s": {
+                    "data_stream": "%s",
+                    "index": "%s"
                   }
                 }
               ]
@@ -2963,6 +2939,18 @@ public class FailureStoreSecurityRestIT extends ESRestTestCase {
         return randomBoolean() ? populateDataStreamWithBulkRequest() : populateDataStreamWithDocRequests();
     }
 
+    private void setupRegularIndex() throws IOException {
+        var bulkRequest = new Request("POST", "/_bulk?refresh=true");
+        bulkRequest.setJsonEntity("""
+            { "create" : { "_index" : "regular1", "_id" : "5" } }
+            { "@timestamp": "2015-01-01T12:10:30.123456789Z", "age" : 1, "name" : "joe", "email" : "joe@example.com" }
+            { "create" : { "_index" : "regular1", "_id" : "6" } }
+            { "@timestamp": "2015-01-01T12:10:30.123456789Z", "age" : 2, "name" : "joe", "email" : "joe@example.com" }
+            """);
+        Response response = performRequest(WRITE_ACCESS, bulkRequest);
+        assertOK(response);
+    }
+
     @SuppressWarnings("unchecked")
     private List<String> setupOtherDataStream() throws IOException {
         createOtherTemplates();
@@ -3369,7 +3357,7 @@ public class FailureStoreSecurityRestIT extends ESRestTestCase {
         Request dataStream = new Request("GET", "/_data_stream/" + dataStreamName);
         Response response = adminClient().performRequest(dataStream);
         Map<String, Object> dataStreams = entityAsMap(response);
-        assertEquals(Collections.singletonList("test1"), XContentMapValues.extractValue("data_streams.name", dataStreams));
+        assertEquals(Collections.singletonList(dataStreamName), XContentMapValues.extractValue("data_streams.name", dataStreams));
         List<String> dataIndexNames = (List<String>) XContentMapValues.extractValue("data_streams.indices.index_name", dataStreams);
         List<String> failureIndexNames = (List<String>) XContentMapValues.extractValue(
             "data_streams.failure_store.indices.index_name",

@@ -429,6 +429,9 @@ tests:
 - class: org.elasticsearch.xpack.search.AsyncSearchActionIT
   method: testUpdateStoreKeepAlive
   issue: https://github.com/elastic/elasticsearch/issues/127001
+- class: org.elasticsearch.xpack.search.AsyncSearchActionIT
+  method: testRestartAfterCompletion
+  issue: https://github.com/elastic/elasticsearch/issues/126974
 
 # Examples:
 #

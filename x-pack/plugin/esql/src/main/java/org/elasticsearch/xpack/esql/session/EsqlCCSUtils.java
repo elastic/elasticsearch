@@ -16,6 +16,7 @@ import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.indices.IndicesExpressionGrouper;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.transport.ConnectTransportException;
@@ -145,7 +146,7 @@ public class EsqlCCSUtils {
         StringBuilder sb = new StringBuilder();
         for (String clusterAlias : executionInfo.clusterAliases()) {
             EsqlExecutionInfo.Cluster cluster = executionInfo.getCluster(clusterAlias);
-            if (cluster.getStatus() != EsqlExecutionInfo.Cluster.Status.SKIPPED) {
+            if (cluster.getStatus() != Cluster.Status.SKIPPED && cluster.getStatus() != Cluster.Status.SUCCESSFUL) {
                 if (cluster.getClusterAlias().equals(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY)) {
                     sb.append(executionInfo.getCluster(clusterAlias).getIndexExpression()).append(',');
                 } else {
@@ -180,7 +181,11 @@ public class EsqlCCSUtils {
         }
     }
 
-    static void updateExecutionInfoWithClustersWithNoMatchingIndices(EsqlExecutionInfo executionInfo, IndexResolution indexResolution) {
+    static void updateExecutionInfoWithClustersWithNoMatchingIndices(
+        EsqlExecutionInfo executionInfo,
+        IndexResolution indexResolution,
+        QueryBuilder filter
+    ) {
         Set<String> clustersWithResolvedIndices = new HashSet<>();
         // determine missing clusters
         for (String indexName : indexResolution.resolvedIndices()) {
@@ -202,8 +207,9 @@ public class EsqlCCSUtils {
          * Mark it as SKIPPED with 0 shards searched and took=0.
          */
         for (String c : clustersWithNoMatchingIndices) {
-            if (executionInfo.getCluster(c).getStatus() == EsqlExecutionInfo.Cluster.Status.SKIPPED) {
-                // if cluster was already marked SKIPPED during enrich policy resolution, do not overwrite
+            if (executionInfo.getCluster(c).getStatus() != Cluster.Status.RUNNING
+                && executionInfo.getCluster(c).getStatus() != Cluster.Status.FILTERED) {
+                // if cluster was already in the terminal state and not filtered, do not overwrite
                 continue;
             }
             final String indexExpression = executionInfo.getCluster(c).getIndexExpression();
@@ -217,14 +223,31 @@ public class EsqlCCSUtils {
                 } else {
                     fatalErrorMessage += "; " + error;
                 }
+                if (filter != null) {
+                    // Use filtered status here because we still need to check it on the second lookup without the filter
+                    // to ensure this index is real.
+                    markClusterWithFinalStateAndNoShards(executionInfo, c, Cluster.Status.FILTERED, null);
+                } else {
+                    markClusterWithFinalStateAndNoShards(executionInfo, c, Cluster.Status.FAILED, new VerificationException(error));
+                }
             } else {
                 // no matching indices and no concrete index requested - just mark it as done, no error
-                markClusterWithFinalStateAndNoShards(executionInfo, c, Cluster.Status.SUCCESSFUL, null);
+                markClusterWithFinalStateAndNoShards(
+                    executionInfo,
+                    c,
+                    filter != null ? Cluster.Status.FILTERED : Cluster.Status.SUCCESSFUL,
+                    null
+                );
             }
         }
         if (fatalErrorMessage != null) {
             throw new VerificationException(fatalErrorMessage);
         }
+    }
+
+    // Filter-less version
+    static void updateExecutionInfoWithClustersWithNoMatchingIndices(EsqlExecutionInfo executionInfo, IndexResolution indexResolution) {
+        updateExecutionInfoWithClustersWithNoMatchingIndices(executionInfo, indexResolution, null);
     }
 
     // visible for testing
@@ -261,6 +284,9 @@ public class EsqlCCSUtils {
                             .setFailedShards(0)
                             .build()
                     );
+                }
+                if (cluster.getStatus() == Cluster.Status.FILTERED) {
+                    markClusterWithFinalStateAndNoShards(execInfo, clusterAlias, Cluster.Status.SUCCESSFUL, null);
                 }
             }
         }

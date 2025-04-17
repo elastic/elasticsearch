@@ -34,6 +34,7 @@ import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.CompiledAutomaton;
 import org.apache.lucene.util.automaton.CompiledAutomaton.AUTOMATON_TYPE;
 import org.apache.lucene.util.automaton.Operations;
+import org.elasticsearch.common.bytes.EncodedString;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.search.AutomatonQueries;
@@ -1104,65 +1105,25 @@ public final class KeywordFieldMapper extends FieldMapper {
         return offsetsFieldName;
     }
 
-    /**
-     * Class that holds either a UTF-16 String or a UTF-8 BytesRef, and lazily converts between the two.
-     */
-    private static class RawString {
-        private BytesRef bytesValue;
-        private String stringValue;
-
-        RawString(BytesRef bytesValue) {
-            this.bytesValue = Objects.requireNonNull(bytesValue);
-        }
-
-        RawString(String stringValue) {
-            this.stringValue = Objects.requireNonNull(stringValue);
-        }
-
-        BytesRef bytesValue() {
-            if (bytesValue != null) {
-                return bytesValue;
-            }
-
-            bytesValue = new BytesRef(stringValue);
-            return bytesValue;
-        }
-
-        String stringValue() {
-            if (stringValue != null) {
-                return stringValue;
-            }
-
-            stringValue = bytesValue.utf8ToString();
-            return stringValue;
-        }
-
-        int length() {
-            if (stringValue != null) {
-                return stringValue.length();
-            } else {
-                // This works because we currently use raw utf-8 encoding only for ascii-only strings.
-                return bytesValue.length;
-            }
-        }
-    }
-
     protected void parseCreateField(DocumentParserContext context) throws IOException {
-        RawString value;
+        EncodedString value;
         var bytesValue = context.parser().textRefOrNull();
         if (bytesValue != null) {
-            value = new RawString(new BytesRef(bytesValue.bytes(), bytesValue.start(), bytesValue.end() - bytesValue.start()));
+            int len = bytesValue.end() - bytesValue.start();
+            // For now, we can use `len` for `charCount` because textRefOrNull only returns ascii-encoded unescaped strings,
+            // which means each character uses exactly 1 byte.
+            value = new EncodedString(new BytesRef(bytesValue.bytes(), bytesValue.start(), len), len);
         } else {
             var stringValue = context.parser().textOrNull();
             if (stringValue != null) {
-                value = new RawString(stringValue);
+                value = new EncodedString(stringValue);
             } else {
                 value = null;
             }
         }
 
         if (value == null && fieldType().nullValue != null) {
-            value = new RawString(fieldType().nullValue);
+            value = new EncodedString(fieldType().nullValue);
         }
 
         boolean indexed = indexValue(context, value);
@@ -1186,10 +1147,10 @@ public final class KeywordFieldMapper extends FieldMapper {
     }
 
     private boolean indexValue(DocumentParserContext context, String value) {
-        return indexValue(context, new RawString(value));
+        return indexValue(context, new EncodedString(value));
     }
 
-    private boolean indexValue(DocumentParserContext context, RawString value) {
+    private boolean indexValue(DocumentParserContext context, EncodedString value) {
         if (value == null) {
             return false;
         }
@@ -1210,7 +1171,7 @@ public final class KeywordFieldMapper extends FieldMapper {
 
         if (fieldType().normalizer() != Lucene.KEYWORD_ANALYZER) {
             String normalizedString = normalizeValue(fieldType().normalizer(), fullPath(), value.stringValue());
-            value = new RawString(normalizedString);
+            value = new EncodedString(normalizedString);
         }
 
         BytesRef binaryValue = value.bytesValue();

@@ -387,9 +387,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.action.EsqlActionIT
   method: testQueryOnEmptyDataIndex
   issue: https://github.com/elastic/elasticsearch/issues/126580
-- class: org.elasticsearch.xpack.ilm.TimeSeriesDataStreamsIT
-  method: testShrinkActionInPolicyWithoutHotPhase
-  issue: https://github.com/elastic/elasticsearch/issues/126746
 - class: org.elasticsearch.xpack.test.rest.XPackRestIT
   method: test {p0=transform/transforms_start_stop/Test start/stop/start continuous transform}
   issue: https://github.com/elastic/elasticsearch/issues/126755
@@ -405,18 +402,6 @@ tests:
 - class: org.elasticsearch.xpack.test.rest.XPackRestIT
   method: test {p0=ml/inference_crud/Test delete given unused trained model}
   issue: https://github.com/elastic/elasticsearch/issues/126881
-- class: org.elasticsearch.repositories.gcs.GoogleCloudStorageBlobStoreRepositoryTests
-  method: testRequestStats
-  issue: https://github.com/elastic/elasticsearch/issues/126902
-- class: org.elasticsearch.repositories.gcs.GoogleCloudStorageBlobStoreRepositoryTests
-  method: testWriteReadLarge
-  issue: https://github.com/elastic/elasticsearch/issues/126903
-- class: org.elasticsearch.repositories.gcs.GoogleCloudStorageBlobStoreRepositoryTests
-  method: testWriteFileMultipleOfChunkSize
-  issue: https://github.com/elastic/elasticsearch/issues/126908
-- class: org.elasticsearch.repositories.gcs.GoogleCloudStorageBlobStoreRepositoryTests
-  method: testSnapshotWithLargeSegmentFiles
-  issue: https://github.com/elastic/elasticsearch/issues/126909
 - class: org.elasticsearch.index.engine.CompletionStatsCacheTests
   method: testCompletionStatsCache
   issue: https://github.com/elastic/elasticsearch/issues/126910
@@ -426,6 +411,27 @@ tests:
 - class: org.elasticsearch.cli.keystore.AddStringKeyStoreCommandTests
   method: testStdinWithMultipleValues
   issue: https://github.com/elastic/elasticsearch/issues/126882
+- class: org.elasticsearch.xpack.search.AsyncSearchActionIT
+  method: testDeleteCancelRunningTask
+  issue: https://github.com/elastic/elasticsearch/issues/126994
+- class: org.elasticsearch.xpack.search.AsyncSearchActionIT
+  method: testMaxResponseSize
+  issue: https://github.com/elastic/elasticsearch/issues/126995
+- class: org.elasticsearch.xpack.search.AsyncSearchActionIT
+  method: testRemoveAsyncIndex
+  issue: https://github.com/elastic/elasticsearch/issues/126975
+- class: org.elasticsearch.xpack.search.AsyncSearchActionIT
+  method: testCleanupOnFailure
+  issue: https://github.com/elastic/elasticsearch/issues/126999
+- class: org.elasticsearch.xpack.search.AsyncSearchActionIT
+  method: testUpdateStoreKeepAlive
+  issue: https://github.com/elastic/elasticsearch/issues/127001
+- class: org.elasticsearch.xpack.search.AsyncSearchActionIT
+  method: testRestartAfterCompletion
+  issue: https://github.com/elastic/elasticsearch/issues/126974
+- class: org.elasticsearch.xpack.search.AsyncSearchActionIT
+  method: testDeleteCleanupIndex
+  issue: https://github.com/elastic/elasticsearch/issues/127008
 
 # Examples:
 #

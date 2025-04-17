@@ -1655,6 +1655,20 @@ x:long |languages:integer |hire_date:date_nanos     |avg_worked_seconds:unsigned
 10001  |2                 |1986-06-26T00:00:00.000Z |268728049
 ;
 
+MultiTypedFieldsEvalMultipleTimes
+required_capability: implicit_casting_union_typed_numeric_and_date
+
+FROM employees, employees_incompatible
+| WHERE birth_date > "1990-01-01"
+| EVAL x = emp_no + 1, y = hire_date + 1 year, z = hire_date::datetime
+| SORT z
+| KEEP emp_no, x, hire_date, y, z
+;
+
+emp_no:long |x:long |hire_date:date_nanos     |y:date_nanos             |z:date
+10001       |10002  |1986-06-26T00:00:00.000Z |1987-06-26T00:00:00.000Z |1986-06-26T00:00:00.000Z
+;
+
 MultiTypedFieldsDropKeepSort
 required_capability: implicit_casting_union_typed_numeric_and_date
 

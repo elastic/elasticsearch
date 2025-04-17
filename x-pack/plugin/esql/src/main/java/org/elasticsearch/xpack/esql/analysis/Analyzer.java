@@ -134,6 +134,7 @@ import java.util.stream.Collectors;
 import static java.util.Collections.emptyList;
 import static java.util.Collections.singletonList;
 import static org.elasticsearch.xpack.core.enrich.EnrichPolicy.GEO_MATCH_TYPE;
+import static org.elasticsearch.xpack.esql.analysis.Analyzer.ImplicitCasting.castInvalidMappedField;
 import static org.elasticsearch.xpack.esql.core.type.DataType.BOOLEAN;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DATETIME;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DATE_NANOS;
@@ -187,6 +188,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
              */
             new ImplicitCasting(),
             new ResolveRefs(),
+            new ImplicitToExplicitCasting(),
             new ResolveUnionTypes()  // Must be after ResolveRefs, so union types can be found
         ),
         new Batch<>("Finish Analysis", Limiter.ONCE, new AddImplicitLimit(), new AddImplicitForkLimit(), new UnionTypesCleanup())
@@ -1313,6 +1315,63 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         return b;
     }
 
+    private static class ImplicitToExplicitCasting extends ParameterizedRule<LogicalPlan, LogicalPlan, AnalyzerContext> {
+        @Override
+        public LogicalPlan apply(LogicalPlan plan, AnalyzerContext context) {
+            Map<FieldAttribute, List<LogicalPlan>> invalidMappedFields = new HashMap<>();
+            plan.forEachUp(LogicalPlan.class, p -> {
+                if (p instanceof EsRelation == false) {
+                    p.forEachExpression(Attribute.class, a -> {
+                        if (a instanceof FieldAttribute field) {
+                            if (field.field() instanceof InvalidMappedField invalidMappedField) {
+                                invalidMappedFields.computeIfAbsent(field, k -> new ArrayList<>()).add(p);
+                            }
+                        }
+                    });
+                }
+            });
+            Map<LogicalPlan, Set<FieldAttribute>> planInvalidMapFields = new HashMap<>();
+            invalidMappedFields.forEach((invalidMappedField, plans) -> {
+                for (LogicalPlan plan1 : plans) {
+                    planInvalidMapFields.computeIfAbsent(plan1, k -> new HashSet<>()).add(invalidMappedField);
+                }
+            });
+            Map<FieldAttribute, List<LogicalPlan>> invalidMappedFieldCasted = new HashMap<>();
+            LogicalPlan newPlan = plan.transformDown(LogicalPlan.class, p -> {
+                if (planInvalidMapFields.containsKey(p)) {
+                    // If we are at a plan node that has invalid mapped fields, we need to either add an EVAL, or if that has been done
+                    // we should instead replace with the already casted field
+                    for (FieldAttribute invalidMappedField : planInvalidMapFields.get(p)) {
+                        if (invalidMappedFieldCasted.containsKey(invalidMappedField) == false) {
+                            // Add EVAL to cast the invalid mapped field
+                            DataType targetType = targetType((InvalidMappedField) invalidMappedField.field());
+                            Expression conversionFunction = castInvalidMappedField(targetType, invalidMappedField);
+                            p = new Eval(p.source(), p, List.of(new Alias(p.source(), invalidMappedField.name(), conversionFunction)));
+                            // TODO: Also replace children
+                            invalidMappedFieldCasted.put(invalidMappedField, new ArrayList<>());
+                        } else {
+                            // Replace with already casted field
+                        }
+                    }
+                }
+                return p;
+            });
+            return plan;
+        }
+
+        DataType targetType(InvalidMappedField multiTypedField) {
+            DataType targetType = null;
+            for (DataType type : multiTypedField.types()) {
+                if (targetType == null) { // Initialize the target type to the first type.
+                    targetType = type;
+                } else {
+                    targetType = EsqlDataTypeConverter.commonType(targetType, type);
+                }
+            }
+            return targetType;
+        }
+    }
+
     /**
      * Cast string literals in ScalarFunction, EsqlArithmeticOperation, BinaryComparison, In and GroupingFunction to desired data types.
      * For example, the string literals in the following expressions will be cast implicitly to the field data type on the left hand side.
@@ -1335,10 +1394,11 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
      * </ul>
      * Coalesce(Int, Long) will NOT be converted to Coalesce(Long, Long) or Coalesce(Int, Int).
      */
-    private static class ImplicitCasting extends ParameterizedRule<LogicalPlan, LogicalPlan, AnalyzerContext> {
+    static class ImplicitCasting extends ParameterizedRule<LogicalPlan, LogicalPlan, AnalyzerContext> {
         @Override
         public LogicalPlan apply(LogicalPlan plan, AnalyzerContext context) {
             // Do implicit casting for union typed fields in the following commands
+            /*
             LogicalPlan newPlan = plan.transformUp(p -> {
                 if (p instanceof OrderBy
                     || p instanceof EsqlProject
@@ -1355,9 +1415,10 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             // Add an implicit EsqlProject on top of the whole query if there isn't one yet,
             // without explicit or implicit casting, a union typed field is returned as a null.
             newPlan = addImplicitProjectForInvalidMappedFields(newPlan);
+             */
 
             // do implicit casting for function arguments
-            return newPlan.transformExpressionsUp(
+            return plan.transformExpressionsUp(
                 org.elasticsearch.xpack.esql.core.expression.function.Function.class,
                 e -> ImplicitCasting.cast(e, context.functionRegistry().snapshotRegistry())
             );
@@ -1365,7 +1426,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
 
         private static Expression cast(org.elasticsearch.xpack.esql.core.expression.function.Function f, EsqlFunctionRegistry registry) {
             // Add cast functions to InvalidMappedField if there isn't one yet
-            f = castInvalidMappedFieldInFunction(f);
+            // f = castInvalidMappedFieldInFunction(f);
 
             if (f instanceof In in) {
                 return processIn(in);
@@ -1592,7 +1653,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         /**
          * Do implicit casting for data, date_nanos and numeric types only
          */
-        private static Expression castInvalidMappedField(DataType targetType, Expression fa) {
+        static Expression castInvalidMappedField(DataType targetType, Expression fa) {
             Source source = fa.source();
             return switch (targetType) {
                 case INTEGER -> new ToInteger(source, fa);

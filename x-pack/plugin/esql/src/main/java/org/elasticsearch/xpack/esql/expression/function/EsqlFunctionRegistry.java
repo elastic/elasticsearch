@@ -85,6 +85,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.math.Atan;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Atan2;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Cbrt;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Ceil;
+import org.elasticsearch.xpack.esql.expression.function.scalar.math.CopySign;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Cos;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Cosh;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.E;
@@ -307,6 +308,7 @@ public class EsqlFunctionRegistry {
                 def(Atan2.class, Atan2::new, "atan2"),
                 def(Cbrt.class, Cbrt::new, "cbrt"),
                 def(Ceil.class, Ceil::new, "ceil"),
+                def(CopySign.class, CopySign::new, "copy_sign"),
                 def(Cos.class, Cos::new, "cos"),
                 def(Cosh.class, Cosh::new, "cosh"),
                 def(E.class, E::new, "e"),

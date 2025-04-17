@@ -29,6 +29,7 @@ public class DocumentMapper {
     private final IndexVersion indexVersion;
     private final Logger logger;
     private final String indexName;
+    private /*final*/ MapperRegistry mapperRegistry;
 
     /**
      * Create a new {@link DocumentMapper} that holds empty mappings.
@@ -57,7 +58,8 @@ public class DocumentMapper {
         CompressedXContent source,
         IndexVersion version,
         MapperMetrics mapperMetrics,
-        String indexName
+        String indexName,
+        MapperRegistry mapperRegistry
     ) {
         this.documentParser = documentParser;
         this.type = mapping.getRoot().fullPath();
@@ -67,12 +69,25 @@ public class DocumentMapper {
         this.indexVersion = version;
         this.logger = Loggers.getLogger(getClass(), indexName);
         this.indexName = indexName;
+        this.mapperRegistry = mapperRegistry;
 
         assert mapping.toCompressedXContent().equals(source) || isSyntheticSourceMalformed(source, version)
             : "provided source [" + source + "] differs from mapping [" + mapping.toCompressedXContent() + "]";
     }
 
-    private void maybeLog(Exception ex) {
+    // MP TODO: only used by tests - update tests and remove this ctor
+    DocumentMapper(
+        DocumentParser documentParser,
+        Mapping mapping,
+        CompressedXContent source,
+        IndexVersion version,
+        MapperMetrics mapperMetrics,
+        String indexName
+    ) {
+        this(documentParser, mapping, source, version, mapperMetrics, indexName, null);
+    }
+
+        private void maybeLog(Exception ex) {
         if (logger.isDebugEnabled()) {
             logger.debug("Error while parsing document for index [" + indexName + "]: " + ex.getMessage(), ex);
         } else if (IntervalThrottler.DOCUMENT_PARSING_FAILURE.accept()) {

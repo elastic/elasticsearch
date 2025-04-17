@@ -46,7 +46,6 @@ interface FieldSpecificMatcher {
         return new HashMap<>() {
             {
                 put("keyword", new KeywordMatcher(actualMappings, actualSettings, expectedMappings, expectedSettings));
-                put("date", new DateMatcher(actualMappings, actualSettings, expectedMappings, expectedSettings));
                 put("long", new NumberMatcher("long", actualMappings, actualSettings, expectedMappings, expectedSettings));
                 put("unsigned_long", new UnsignedLongMatcher(actualMappings, actualSettings, expectedMappings, expectedSettings));
                 put("integer", new NumberMatcher("integer", actualMappings, actualSettings, expectedMappings, expectedSettings));
@@ -58,11 +57,14 @@ interface FieldSpecificMatcher {
                 put("scaled_float", new ScaledFloatMatcher(actualMappings, actualSettings, expectedMappings, expectedSettings));
                 put("counted_keyword", new CountedKeywordMatcher(actualMappings, actualSettings, expectedMappings, expectedSettings));
                 put("boolean", new BooleanMatcher(actualMappings, actualSettings, expectedMappings, expectedSettings));
+                put("date", new DateMatcher(actualMappings, actualSettings, expectedMappings, expectedSettings));
                 put("geo_shape", new ExactMatcher("geo_shape", actualMappings, actualSettings, expectedMappings, expectedSettings));
                 put("shape", new ExactMatcher("shape", actualMappings, actualSettings, expectedMappings, expectedSettings));
                 put("geo_point", new GeoPointMatcher(actualMappings, actualSettings, expectedMappings, expectedSettings));
                 put("text", new TextMatcher(actualMappings, actualSettings, expectedMappings, expectedSettings));
                 put("ip", new IpMatcher(actualMappings, actualSettings, expectedMappings, expectedSettings));
+                put("constant_keyword", new ConstantKeywordMatcher(actualMappings, actualSettings, expectedMappings, expectedSettings));
+                put("wildcard", new WildcardMatcher(actualMappings, actualSettings, expectedMappings, expectedSettings));
             }
         };
     }
@@ -687,6 +689,46 @@ interface FieldSpecificMatcher {
             }
 
             // We should be always able to convert an IP back to original string.
+            return value;
+        }
+    }
+
+    class ConstantKeywordMatcher extends GenericMappingAwareMatcher {
+        ConstantKeywordMatcher(
+            XContentBuilder actualMappings,
+            Settings.Builder actualSettings,
+            XContentBuilder expectedMappings,
+            Settings.Builder expectedSettings
+        ) {
+            super("constant_keyword", actualMappings, actualSettings, expectedMappings, expectedSettings);
+        }
+
+        @Override
+        Object convert(Object value, Object nullValue) {
+            // We just need to get rid of literal `null`s which is done in the caller.
+            return value;
+        }
+    }
+
+    class WildcardMatcher extends GenericMappingAwareMatcher {
+        WildcardMatcher(
+            XContentBuilder actualMappings,
+            Settings.Builder actualSettings,
+            XContentBuilder expectedMappings,
+            Settings.Builder expectedSettings
+        ) {
+            super("wildcard", actualMappings, actualSettings, expectedMappings, expectedSettings);
+        }
+
+        @Override
+        Object convert(Object value, Object nullValue) {
+            if (value == null) {
+                if (nullValue != null) {
+                    return nullValue;
+                }
+                return null;
+            }
+
             return value;
         }
     }

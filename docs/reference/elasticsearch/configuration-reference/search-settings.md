@@ -13,9 +13,11 @@ The following expert settings can be set to manage global search and aggregation
 $$$indices-query-bool-max-clause-count$$$
 
 `indices.query.bool.max_clause_count`
-:   [8.0.0] ([Static](docs-content://deploy-manage/deploy/self-managed/configure-elasticsearch.md#static-cluster-setting), integer) This deprecated setting has no effect.
+:   :::{admonition} Deprecated in 8.0.0
+    This deprecated setting has no effect.
+    :::
 
-    {{es}} will now dynamically set the maximum number of allowed clauses in a query, using a heuristic based on the size of the search thread pool and the size of the heap allocated to the JVM. This limit has a minimum value of 1024 and will in most cases be larger (for example, a node with 30Gb RAM and 48 CPUs will have a maximum clause count of around 27,000). Larger heaps lead to higher values, and larger thread pools result in lower values.
+    ([Static](docs-content://deploy-manage/deploy/self-managed/configure-elasticsearch.md#static-cluster-setting), integer) {{es}} will now dynamically set the maximum number of allowed clauses in a query, using a heuristic based on the size of the search thread pool and the size of the heap allocated to the JVM. This limit has a minimum value of 1024 and will in most cases be larger (for example, a node with 30Gb RAM and 48 CPUs will have a maximum clause count of around 27,000). Larger heaps lead to higher values, and larger thread pools result in lower values.
 
     Queries with many clauses should be avoided whenever possible. If you previously bumped this setting to accommodate heavy queries, you might need to increase the amount of memory available to {{es}}, or to reduce the size of your search thread pool so that more memory is available to each concurrent search.
 

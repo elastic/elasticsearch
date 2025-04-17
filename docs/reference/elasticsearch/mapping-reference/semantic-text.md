@@ -115,24 +115,23 @@ endpoint associated with `inference_id`.
 If chunking settings are updated, they will not be applied to existing documents
 until they are reindexed.
 
-::::{dropdown} Valid values for `chunking_settings`
-`type`
-:   Indicates the type of chunking strategy to use. Valid values are `word` or
-`sentence`. Required.
+    **Valid values for `chunking_settings`**:
 
-`max_chunk_size`
-:   The maximum number of works in a chunk. Required.
+    `type`
+    :   Indicates the type of chunking strategy to use. Valid values are `word` or
+    `sentence`. Required.
 
-`overlap`
-:   The number of overlapping words allowed in chunks. This cannot be defined as
-more than half of the `max_chunk_size`. Required for `word` type chunking
-settings.
+    `max_chunk_size`
+    :   The maximum number of works in a chunk. Required.
 
-`sentence_overlap`
-:   The number of overlapping sentences allowed in chunks. Valid values are `0`
-or `1`. Required for `sentence` type chunking settings
+    `overlap`
+    :   The number of overlapping words allowed in chunks. This cannot be defined as
+    more than half of the `max_chunk_size`. Required for `word` type chunking
+    settings.
 
-::::
+    `sentence_overlap`
+    :   The number of overlapping sentences allowed in chunks. Valid values are `0`
+    or `1`. Required for `sentence` type chunking settings
 
 ## {{infer-cap}} endpoint validation [infer-endpoint-validation]
 

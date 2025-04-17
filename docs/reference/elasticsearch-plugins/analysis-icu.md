@@ -20,11 +20,6 @@ While we restrict ICU upgrades to major versions, you may find that an index cre
 
 ## Installation [analysis-icu-install]
 
-::::{warning}
-Version 9.0.0-beta1 of the Elastic Stack has not yet been released. The plugin might not be available.
-::::
-
-
 This plugin can be installed using the plugin manager:
 
 ```sh

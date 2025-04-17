@@ -147,7 +147,8 @@ The following parameters are accepted by numeric types:
 `time_series_metric`
 :   (Optional, string) Marks the field as a [time series metric](docs-content://manage-data/data-store/data-streams/time-series-data-stream-tsds.md#time-series-metric). The value is the metric type. You can’t update this parameter for existing fields.
 
-    ::::{dropdown} Valid `time_series_metric` values for numeric fields
+    **Valid `time_series_metric` values for numeric fields**:
+
     `counter`
     :   A cumulative metric that only monotonically increases or resets to `0` (zero). For example, a count of errors or completed tasks.
 
@@ -156,9 +157,6 @@ The following parameters are accepted by numeric types:
 
     `null` (Default)
     :   Not a time series metric.
-
-    ::::
-
 
     For a numeric time series metric, the `doc_values` parameter must be `true`. A numeric field can’t be both a time series dimension and a time series metric.
 

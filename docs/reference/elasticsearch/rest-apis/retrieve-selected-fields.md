@@ -480,7 +480,7 @@ GET /_search
 
 ### Other methods of retrieving data [field-retrieval-methods]
 
-::::{admonition} Using `fields` is typically better
+::::{admonition} Using fields is typically better
 These options are usually not required. Using the `fields` option is typically the better choice, unless you absolutely need to force loading a stored or `docvalue_fields`.
 
 ::::

@@ -263,15 +263,18 @@ A retriever that normalizes and linearly combines the scores of other retrievers
 
 Each entry specifies the following parameters:
 
-* `retriever`:: (Required, a `retriever` object)
+`retriever`
+:   (Required, a `retriever` object)
 
     Specifies the retriever for which we will compute the top documents for. The retriever will produce `rank_window_size` results, which will later be merged based on the specified `weight` and `normalizer`.
 
-* `weight`:: (Optional, float)
+`weight`
+:   (Optional, float)
 
     The weight that each score of this retriever’s top docs will be multiplied with. Must be greater or equal to 0. Defaults to 1.0.
 
-* `normalizer`:: (Optional, String)
+`normalizer`
+:   (Optional, String)
 
     Specifies how we will normalize the retriever’s scores, before applying the specified `weight`. Available values are: `minmax`, and `none`. Defaults to `none`.
 

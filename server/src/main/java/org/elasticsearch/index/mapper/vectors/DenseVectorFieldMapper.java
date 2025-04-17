@@ -290,6 +290,11 @@ public class DenseVectorFieldMapper extends FieldMapper {
             return this;
         }
 
+        public Builder indexOptions(IndexOptions indexOptions) {
+            this.indexOptions.setValue(indexOptions);
+            return this;
+        }
+
         @Override
         public DenseVectorFieldMapper build(MapperBuilderContext context) {
             // Validate again here because the dimensions or element type could have been set programmatically,
@@ -1221,7 +1226,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
         public abstract VectorSimilarityFunction vectorSimilarityFunction(IndexVersion indexVersion, ElementType elementType);
     }
 
-    abstract static class IndexOptions implements ToXContent {
+    public abstract static class IndexOptions implements ToXContent {
         final VectorIndexType type;
 
         IndexOptions(VectorIndexType type) {
@@ -1230,21 +1235,36 @@ public class DenseVectorFieldMapper extends FieldMapper {
 
         abstract KnnVectorsFormat getVectorsFormat(ElementType elementType);
 
-        final void validateElementType(ElementType elementType) {
-            if (type.supportsElementType(elementType) == false) {
+        public boolean validate(ElementType elementType, int dim, boolean throwOnError) {
+            return validateElementType(elementType, throwOnError) && validateDimension(dim, throwOnError);
+        }
+
+        public boolean validateElementType(ElementType elementType) {
+            return validateElementType(elementType, true);
+        }
+
+        final boolean validateElementType(ElementType elementType, boolean throwOnError) {
+            boolean validElementType = type.supportsElementType(elementType);
+            if (throwOnError && validElementType == false) {
                 throw new IllegalArgumentException(
                     "[element_type] cannot be [" + elementType.toString() + "] when using index type [" + type + "]"
                 );
             }
+            return validElementType;
         }
 
         abstract boolean updatableTo(IndexOptions update);
 
-        public void validateDimension(int dim) {
-            if (type.supportsDimension(dim)) {
-                return;
+        public boolean validateDimension(int dim) {
+            return validateDimension(dim, true);
+        }
+
+        public boolean validateDimension(int dim, boolean throwOnError) {
+            boolean supportsDimension = type.supportsDimension(dim);
+            if (throwOnError && supportsDimension == false) {
+                throw new IllegalArgumentException(type.name + " only supports even dimensions; provided=" + dim);
             }
-            throw new IllegalArgumentException(type.name + " only supports even dimensions; provided=" + dim);
+            return supportsDimension;
         }
 
         abstract boolean doEquals(IndexOptions other);
@@ -1747,12 +1767,12 @@ public class DenseVectorFieldMapper extends FieldMapper {
 
     }
 
-    static class Int8HnswIndexOptions extends QuantizedIndexOptions {
+    public static class Int8HnswIndexOptions extends QuantizedIndexOptions {
         private final int m;
         private final int efConstruction;
         private final Float confidenceInterval;
 
-        Int8HnswIndexOptions(int m, int efConstruction, Float confidenceInterval, RescoreVector rescoreVector) {
+        public Int8HnswIndexOptions(int m, int efConstruction, Float confidenceInterval, RescoreVector rescoreVector) {
             super(VectorIndexType.INT8_HNSW, rescoreVector);
             this.m = m;
             this.efConstruction = efConstruction;
@@ -1890,11 +1910,11 @@ public class DenseVectorFieldMapper extends FieldMapper {
         }
     }
 
-    static class BBQHnswIndexOptions extends QuantizedIndexOptions {
+    public static class BBQHnswIndexOptions extends QuantizedIndexOptions {
         private final int m;
         private final int efConstruction;
 
-        BBQHnswIndexOptions(int m, int efConstruction, RescoreVector rescoreVector) {
+        public BBQHnswIndexOptions(int m, int efConstruction, RescoreVector rescoreVector) {
             super(VectorIndexType.BBQ_HNSW, rescoreVector);
             this.m = m;
             this.efConstruction = efConstruction;
@@ -1936,11 +1956,14 @@ public class DenseVectorFieldMapper extends FieldMapper {
         }
 
         @Override
-        public void validateDimension(int dim) {
-            if (type.supportsDimension(dim)) {
-                return;
+        public boolean validateDimension(int dim, boolean throwOnError) {
+            boolean supportsDimension = type.supportsDimension(dim);
+            if (throwOnError && supportsDimension == false) {
+                throw new IllegalArgumentException(
+                    type.name + " does not support dimensions fewer than " + BBQ_MIN_DIMS + "; provided=" + dim
+                );
             }
-            throw new IllegalArgumentException(type.name + " does not support dimensions fewer than " + BBQ_MIN_DIMS + "; provided=" + dim);
+            return supportsDimension;
         }
     }
 
@@ -1984,15 +2007,19 @@ public class DenseVectorFieldMapper extends FieldMapper {
         }
 
         @Override
-        public void validateDimension(int dim) {
-            if (type.supportsDimension(dim)) {
-                return;
+        public boolean validateDimension(int dim, boolean throwOnError) {
+            boolean supportsDimension = type.supportsDimension(dim);
+            if (throwOnError && supportsDimension == false) {
+                throw new IllegalArgumentException(
+                    type.name + " does not support dimensions fewer than " + BBQ_MIN_DIMS + "; provided=" + dim
+                );
             }
-            throw new IllegalArgumentException(type.name + " does not support dimensions fewer than " + BBQ_MIN_DIMS + "; provided=" + dim);
+            return supportsDimension;
         }
+
     }
 
-    record RescoreVector(float oversample) implements ToXContentObject {
+    public record RescoreVector(float oversample) implements ToXContentObject {
         static final String NAME = "rescore_vector";
         static final String OVERSAMPLE = "oversample";
 
@@ -2310,6 +2337,10 @@ public class DenseVectorFieldMapper extends FieldMapper {
 
         ElementType getElementType() {
             return elementType;
+        }
+
+        public IndexOptions getIndexOptions() {
+            return indexOptions;
         }
     }
 

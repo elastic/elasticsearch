@@ -12,7 +12,6 @@ import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.plugins.SearchPlugin.QuerySpec;
 import org.elasticsearch.plugins.SearchPlugin.RetrieverSpec;
 import org.elasticsearch.xcontent.ParseField;
-import org.elasticsearch.xpack.searchbusinessrules.PinnedQueryBuilder;
 import org.elasticsearch.xpack.searchbusinessrules.retriever.PinnedRetrieverBuilder;
 
 import java.util.List;

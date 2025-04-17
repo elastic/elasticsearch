@@ -205,4 +205,11 @@ public final class ExchangeSinkHandler {
     public int bufferSize() {
         return buffer.size();
     }
+
+    /**
+     * Returns the number of rows (i.e. positions) has been added to this exchange sink
+     */
+    public long addedRows() {
+        return buffer.addedRows();
+    }
 }

@@ -2043,7 +2043,6 @@ public abstract class ESRestTestCase extends ESTestCase {
         return (Map<String, Object>) ((Map<String, Object>) indexMapping.get(index)).get("mappings");
     }
 
-    @SuppressWarnings("unchecked")
     protected static boolean indexExists(String index) throws IOException {
         // We use the /_cluster/health/{index} API to ensure the index exists on the master node - which means all nodes see the index.
         Request request = new Request("GET", "/_cluster/health/" + index);
@@ -2051,6 +2050,7 @@ public abstract class ESRestTestCase extends ESTestCase {
         request.addParameter("level", "indices");
         try {
             final var response = client().performRequest(request);
+            @SuppressWarnings("unchecked")
             final var indices = (Map<String, Object>) entityAsMap(response).get("indices");
             return indices.containsKey(index);
         } catch (ResponseException e) {

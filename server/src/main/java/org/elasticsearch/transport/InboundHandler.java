@@ -281,7 +281,6 @@ public class InboundHandler {
             final T request;
             try {
                 request = reg.newRequest(stream);
-                message.close(); // eager release message to save heap
             } catch (Exception e) {
                 assert ignoreDeserializationErrors : e;
                 throw e;

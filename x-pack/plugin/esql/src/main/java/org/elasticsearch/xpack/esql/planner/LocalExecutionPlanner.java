@@ -31,7 +31,6 @@ import org.elasticsearch.compute.operator.FilterOperator.FilterOperatorFactory;
 import org.elasticsearch.compute.operator.LimitOperator;
 import org.elasticsearch.compute.operator.LocalSourceOperator;
 import org.elasticsearch.compute.operator.LocalSourceOperator.LocalSourceFactory;
-import org.elasticsearch.compute.operator.MergeOperator;
 import org.elasticsearch.compute.operator.MvExpandOperator;
 import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.compute.operator.Operator.OperatorFactory;
@@ -103,7 +102,6 @@ import org.elasticsearch.xpack.esql.plan.physical.HashJoinExec;
 import org.elasticsearch.xpack.esql.plan.physical.LimitExec;
 import org.elasticsearch.xpack.esql.plan.physical.LocalSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.LookupJoinExec;
-import org.elasticsearch.xpack.esql.plan.physical.MergeExec;
 import org.elasticsearch.xpack.esql.plan.physical.MvExpandExec;
 import org.elasticsearch.xpack.esql.plan.physical.OutputExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
@@ -281,8 +279,6 @@ public class LocalExecutionPlanner {
             return planOutput(outputExec, context);
         } else if (node instanceof ExchangeSinkExec exchangeSink) {
             return planExchangeSink(exchangeSink, context);
-        } else if (node instanceof MergeExec mergeExec) {
-            return planMerge(mergeExec, context);
         } else if (node instanceof RrfScoreEvalExec rrf) {
             return planRrfScoreEvalExec(rrf, context);
         }
@@ -802,13 +798,6 @@ public class LocalExecutionPlanner {
             ),
             layout
         );
-    }
-
-    private PhysicalOperation planMerge(MergeExec mergeExec, LocalExecutionPlannerContext context) {
-        Layout.Builder layout = new Layout.Builder();
-        layout.append(mergeExec.output());
-        MergeOperator.BlockSuppliers suppliers = () -> mergeExec.suppliers().stream().map(s -> s.get()).toList();
-        return PhysicalOperation.fromSource(new MergeOperator.MergeOperatorFactory(suppliers), layout.build());
     }
 
     /**

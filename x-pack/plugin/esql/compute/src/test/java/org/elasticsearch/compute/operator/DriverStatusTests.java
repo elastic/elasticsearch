@@ -59,6 +59,8 @@ public class DriverStatusTests extends AbstractWireSerializingTestCase<DriverSta
               "last_updated" : "1973-11-29T09:27:23.214Z",
               "cpu_nanos" : 123213,
               "cpu_time" : "123.2micros",
+              "documents_found" : 222,
+              "values_loaded" : 1000,
               "iterations" : 55,
               "status" : "running",
               "completed_operators" : [

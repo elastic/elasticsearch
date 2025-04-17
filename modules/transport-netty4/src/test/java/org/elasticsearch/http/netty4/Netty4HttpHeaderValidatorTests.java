@@ -111,9 +111,7 @@ public class Netty4HttpHeaderValidatorTests extends ESTestCase {
             channel.writeInbound(last);
             if (shouldPassValidation) {
                 assertEquals("should pass content for valid request", content, channel.readInbound());
-                content.release();
                 assertEquals(last, channel.readInbound());
-                last.release();
             } else {
                 assertNull("should drop content for invalid request", channel.readInbound());
             }
@@ -140,7 +138,7 @@ public class Netty4HttpHeaderValidatorTests extends ESTestCase {
         assertNull("content should not pass yet, need explicit read", channel.readInbound());
 
         channel.read();
-        asInstanceOf(LastHttpContent.class, channel.readInbound()).release();
+        assertTrue(channel.readInbound() instanceof LastHttpContent);
     }
 
     public void testWithFlowControlAndAggregator() {
@@ -159,8 +157,9 @@ public class Netty4HttpHeaderValidatorTests extends ESTestCase {
         validationRequest.listener.onResponse(null);
         channel.runPendingTasks();
 
-        asInstanceOf(FullHttpRequest.class, channel.readInbound()).release();
+        assertTrue(channel.readInbound() instanceof FullHttpRequest);
     }
 
     record ValidationRequest(HttpRequest request, Channel channel, ActionListener<Void> listener) {}
+
 }

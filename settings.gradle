@@ -78,6 +78,7 @@ List projects = [
   'distribution:packages:rpm',
   'distribution:bwc:bugfix',
   'distribution:bwc:bugfix2',
+  'distribution:bwc:bugfix3',
   'distribution:bwc:maintenance',
   'distribution:bwc:minor',
   'distribution:bwc:staged',

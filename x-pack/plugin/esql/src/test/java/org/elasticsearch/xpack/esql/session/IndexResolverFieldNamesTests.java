@@ -1710,6 +1710,16 @@ public class IndexResolverFieldNamesTests extends ESTestCase {
             | keep emp_no, language_name""", Set.of("emp_no", "language_name", "languages", "language_name.*", "languages.*", "emp_no.*"));
     }
 
+    public void testDropAgainWithWildcardAfterEval() {
+        assertFieldNames("""
+            from employees
+            | eval full_name = 12
+            | drop full_name
+            | drop *name
+            | keep emp_no
+            """, Set.of("emp_no", "emp_no.*", "*name", "*name.*"));
+    }
+
     private Set<String> fieldNames(String query, Set<String> enrichPolicyMatchFields) {
         var preAnalysisResult = new EsqlSession.PreAnalysisResult(null);
         return EsqlSession.fieldNames(parser.createStatement(query), enrichPolicyMatchFields, preAnalysisResult).fieldNames();

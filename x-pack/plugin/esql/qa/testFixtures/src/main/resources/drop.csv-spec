@@ -172,3 +172,18 @@ Milky Way
 Milky Way
 Milky Way
 ;
+
+dropAgainWithWildcardAfterEval
+from languages
+| eval language_code = 12, x = 13
+| drop language_code
+| drop language*
+| keep x
+| limit 3
+;
+
+x:integer
+13
+13
+13
+;

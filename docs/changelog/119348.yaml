@@ -1,5 +1,0 @@
-pr: 119348
-summary: Auto-migrate `max_page_search_size`
-area: Transform
-type: enhancement
-issues: []

@@ -234,6 +234,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         this.indexVersionCreated = indexSettings.getIndexVersionCreated();
         this.indexAnalyzers = indexAnalyzers;
         this.mapperRegistry = mapperRegistry;
+        // MP TODO: Huzzah! I can inject the namespace validator into the MappingParserContext here !!!
         this.mappingParserContextSupplier = () -> new MappingParserContext(
             similarityService::getSimilarity,
             type -> mapperRegistry.getMapperParser(type, indexVersionCreated),
@@ -245,7 +246,8 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
             indexAnalyzers,
             indexSettings,
             idFieldMapper,
-            bitSetProducer
+            bitSetProducer,
+            mapperRegistry.getNamespaceValidator()
         );
         this.documentParser = new DocumentParser(parserConfiguration, this.mappingParserContextSupplier.get());
         Map<String, MetadataFieldMapper.TypeParser> metadataMapperParsers = mapperRegistry.getMetadataMapperParsers(
@@ -598,13 +600,18 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
     }
 
     private DocumentMapper newDocumentMapper(Mapping mapping, MergeReason reason, CompressedXContent mappingSource) {
+        RootObjectMapperNamespaceValidator namespaceValidator = mapperRegistry.getNamespaceValidator();
+        // MP TODO: this is probably not the right way to do it, but it's good to know that the RootObjectMapper is accessible here
+        // MP TODO: where did the Mapping get created?
+        // mapping.getRoot().setNamespaceValidator(namespaceValidator);
         DocumentMapper newMapper = new DocumentMapper(
             documentParser,
             mapping,
             mappingSource,
             indexVersionCreated,
             mapperMetrics,
-            index().getName()
+            index().getName(),
+            mapperRegistry
         );
         newMapper.validate(indexSettings, reason != MergeReason.MAPPING_RECOVERY);
         return newMapper;

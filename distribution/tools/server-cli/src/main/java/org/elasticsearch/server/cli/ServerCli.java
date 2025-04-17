@@ -271,8 +271,7 @@ class ServerCli extends EnvironmentAwareCommand {
             .withProcessInfo(processInfo)
             .withServerArgs(args)
             .withTempDir(tempDir)
-            .withJvmOptions(jvmOptions)
-            .withWorkingDir(args.logsDir());
+            .withJvmOptions(jvmOptions);
         return serverProcessBuilder.start();
     }
 

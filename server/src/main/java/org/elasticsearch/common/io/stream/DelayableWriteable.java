@@ -122,14 +122,15 @@ public abstract class DelayableWriteable<T extends Writeable> implements Writeab
 
         @Override
         public Serialized<T> asSerialized(Reader<T> reader, NamedWriteableRegistry registry) {
-            BytesReference buffer;
-            try {
-                buffer = writeToBuffer(TransportVersion.current());
+            // TODO: this path is currently not used in production code, if it ever is this should start using pooled buffers
+            BytesStreamOutput buffer = new BytesStreamOutput();
+            try (var out = new OutputStreamStreamOutput(CompressorFactory.COMPRESSOR.threadLocalOutputStream(buffer))) {
+                out.setTransportVersion(TransportVersion.current());
+                reference.writeTo(out);
             } catch (IOException e) {
                 throw new RuntimeException("unexpected error writing writeable to buffer", e);
             }
-            // TODO: this path is currently not used in production code, if it ever is this should start using pooled buffers
-            return new Serialized<>(reader, TransportVersion.current(), registry, ReleasableBytesReference.wrap(buffer));
+            return new Serialized<>(reader, TransportVersion.current(), registry, ReleasableBytesReference.wrap(buffer.bytes()));
         }
 
         @Override
@@ -140,14 +141,6 @@ public abstract class DelayableWriteable<T extends Writeable> implements Writeab
         @Override
         public long getSerializedSize() {
             return DelayableWriteable.getSerializedSize(reference);
-        }
-
-        private BytesReference writeToBuffer(TransportVersion version) throws IOException {
-            try (BytesStreamOutput buffer = new BytesStreamOutput()) {
-                buffer.setTransportVersion(version);
-                reference.writeTo(buffer);
-                return CompressorFactory.COMPRESSOR.compress(buffer.bytes());
-            }
         }
 
         @Override
@@ -233,6 +226,7 @@ public abstract class DelayableWriteable<T extends Writeable> implements Writeab
         public void close() {
             serialized.close();
         }
+
     }
 
     /**

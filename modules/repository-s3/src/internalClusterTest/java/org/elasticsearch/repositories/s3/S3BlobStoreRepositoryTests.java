@@ -665,8 +665,7 @@ public class S3BlobStoreRepositoryTests extends ESMockAPIBasedRepositoryIntegTes
         // S3 SDK stops retrying after TOKEN_BUCKET_SIZE/DEFAULT_EXCEPTION_TOKEN_COST == 500/5 == 100 failures in quick succession
         // see software.amazon.awssdk.retries.DefaultRetryStrategy.Legacy.TOKEN_BUCKET_SIZE
         // see software.amazon.awssdk.retries.DefaultRetryStrategy.Legacy.DEFAULT_EXCEPTION_TOKEN_COST
-        // TODO NOMERGE: do we need to use (100 - DEFAULT_EXCEPTION_TOKEN_COST) to avoid running out of tokens?
-        private final Semaphore failurePermits = new Semaphore(100);
+        private final Semaphore failurePermits = new Semaphore(99);
 
         S3ErroneousHttpHandler(final HttpHandler delegate, final int maxErrorsPerRequest) {
             super(delegate, maxErrorsPerRequest);

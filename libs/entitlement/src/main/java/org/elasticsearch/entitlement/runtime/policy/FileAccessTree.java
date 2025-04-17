@@ -94,7 +94,8 @@ public final class FileAccessTree {
             ExclusivePath currentExclusivePath = exclusivePaths.get(0);
             for (int i = 1; i < exclusivePaths.size(); ++i) {
                 ExclusivePath nextPath = exclusivePaths.get(i);
-                if (FileUtils.samePath(currentExclusivePath.path(), nextPath.path) || FileUtils.isParent(currentExclusivePath.path(), nextPath.path())) {
+                if (FileUtils.samePath(currentExclusivePath.path(), nextPath.path)
+                    || FileUtils.isParent(currentExclusivePath.path(), nextPath.path())) {
                     throw new IllegalArgumentException(
                         "duplicate/overlapping exclusive paths found in files entitlements: " + currentExclusivePath + " and " + nextPath
                     );

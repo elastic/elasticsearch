@@ -411,6 +411,9 @@ tests:
 - class: org.elasticsearch.cli.keystore.AddStringKeyStoreCommandTests
   method: testStdinWithMultipleValues
   issue: https://github.com/elastic/elasticsearch/issues/126882
+- class: org.elasticsearch.packaging.test.DockerTests
+  method: test024InstallPluginFromArchiveUsingConfigFile
+  issue: https://github.com/elastic/elasticsearch/issues/126936
 
 # Examples:
 #

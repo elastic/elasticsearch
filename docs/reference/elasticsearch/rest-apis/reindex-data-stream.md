@@ -18,7 +18,7 @@ For the most up-to-date API details, refer to [Migration APIs](https://www.elast
 
 
 ::::{tip}
-These APIs are designed for indirect use by {{kib}}'s **Upgrade Assistant**. We strongly recommend you use the **Upgrade Assistant** to upgrade from 8.17 to 9.0.0-beta1. For upgrade instructions, refer to [Upgrading to Elastic 9.0.0-beta1](docs-content://deploy-manage/upgrade/deployment-or-cluster.md).
+These APIs are designed for indirect use by {{kib}}'s **Upgrade Assistant**. We strongly recommend you use the **Upgrade Assistant** to upgrade from 8.17 to {{version}}. For upgrade instructions, refer to [Upgrading to Elastic {{version}}](docs-content://deploy-manage/upgrade/deployment-or-cluster.md).
 ::::
 
 

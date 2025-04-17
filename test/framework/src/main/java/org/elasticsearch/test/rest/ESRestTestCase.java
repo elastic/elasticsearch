@@ -1629,7 +1629,7 @@ public abstract class ESRestTestCase extends ESTestCase {
     }
 
     private Settings addProjectIdToSettings(Settings settings) {
-        if (multiProjectEnabled == false) {
+        if (multiProjectEnabled == false || shouldConfigureProjects() == false) {
             return settings;
         }
         return Settings.builder()

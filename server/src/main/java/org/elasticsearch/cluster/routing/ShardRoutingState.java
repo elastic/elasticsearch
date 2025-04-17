@@ -17,7 +17,7 @@ public enum ShardRoutingState {
      * The shard is not assigned to any node; any data which it contains is unavailable to the cluster.
      *
      * A shard transitions from {@link #UNASSIGNED} to {@link #INITIALIZING} when the master wants an assigned data node to create or start
-     * recovering this shard copy. A shard may also transition back to {@link #UNASSIGNED} in case of an assignment failure.
+     * recovering this shard copy. A shard may also transition back to {@link #UNASSIGNED} in case of a failure.
      */
     UNASSIGNED((byte) 1),
 

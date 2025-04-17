@@ -1,0 +1,5 @@
+pr: 126992
+summary: "[Entitlements] Add missing `outbound_network` entitlement to x-pack-core"
+area: Infra/Entitlements
+type: bug
+issues: []

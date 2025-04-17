@@ -10,7 +10,7 @@
 package org.elasticsearch.http;
 
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.network.HandlingTimeTracker;
+import org.elasticsearch.common.metrics.ExponentialBucketHistogram;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.ESTestCase;
@@ -236,7 +236,7 @@ public class HttpRouteStatsTests extends ESTestCase {
                 "millis",
                 TimeValue::timeValueMillis,
                 histogram,
-                HandlingTimeTracker.getBucketUpperBounds()
+                ExponentialBucketHistogram.getBucketUpperBounds()
             );
             return builder;
         }, false, true));

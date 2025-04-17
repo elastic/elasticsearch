@@ -420,6 +420,9 @@ tests:
 - class: org.elasticsearch.xpack.search.AsyncSearchActionIT
   method: testMaxResponseSize
   issue: https://github.com/elastic/elasticsearch/issues/126995
+- class: org.elasticsearch.xpack.search.AsyncSearchActionIT
+  method: testRemoveAsyncIndex
+  issue: https://github.com/elastic/elasticsearch/issues/126975
 
 # Examples:
 #

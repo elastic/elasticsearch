@@ -186,7 +186,6 @@ final class InternalIndexingStats implements IndexingOperationListener {
         private final CounterMetric deleteCurrent = new CounterMetric();
         private final CounterMetric noopUpdates = new CounterMetric();
 
-
         StatsHolder(long startTimeInNanos, TimeValue recentWriteLoadHalfLife) {
             double lambdaInInverseNanos = Math.log(2.0) / recentWriteLoadHalfLife.nanos();
             logger.debug(

@@ -35,14 +35,11 @@ public interface BalancingWeights {
     WeightFunction weightFunctionForNode(RoutingNode node);
 
     /**
-     * Create a partitioned node sorter for the cluster
+     * Create the node sorters for the cluster
      *
      * @param modelNodes The full set of cluster nodes
      * @param balancer The balancer
-     * @return a {@link PartitionedNodeSorter}
+     * @return a {@link NodeSorters} instance
      */
-    PartitionedNodeSorter createPartitionedNodeSorter(
-        BalancedShardsAllocator.ModelNode[] modelNodes,
-        BalancedShardsAllocator.Balancer balancer
-    );
+    NodeSorters createNodeSorters(BalancedShardsAllocator.ModelNode[] modelNodes, BalancedShardsAllocator.Balancer balancer);
 }

@@ -248,7 +248,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
         private final double avgDiskUsageInBytesPerNode;
         private final Map<String, ModelNode> nodes;
         private final BalancingWeights balancingWeights;
-        private final PartitionedNodeSorter partitionedNodeSorter;
+        private final NodeSorters nodeSorters;
 
         private Balancer(
             WriteLoadForecaster writeLoadForecaster,
@@ -265,8 +265,8 @@ public class BalancedShardsAllocator implements ShardsAllocator {
             avgWriteLoadPerNode = WeightFunction.avgWriteLoadPerNode(writeLoadForecaster, metadata, routingNodes);
             avgDiskUsageInBytesPerNode = WeightFunction.avgDiskUsageInBytesPerNode(allocation.clusterInfo(), metadata, routingNodes);
             nodes = Collections.unmodifiableMap(buildModelFromAssigned());
+            this.nodeSorters = balancingWeights.createNodeSorters(nodesArray(), this);
             this.balancingWeights = balancingWeights;
-            this.partitionedNodeSorter = balancingWeights.createPartitionedNodeSorter(nodesArray(), this);
         }
 
         private static long getShardDiskUsageInBytes(ShardRouting shardRouting, IndexMetadata indexMetadata, ClusterInfo clusterInfo) {
@@ -384,7 +384,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
             }
 
             // Balance each partition
-            for (NodeSorter nodeSorter : partitionedNodeSorter.allNodeSorters()) {
+            for (NodeSorter nodeSorter : nodeSorters.allNodeSorters()) {
                 balanceByWeights(nodeSorter);
             }
         }
@@ -395,7 +395,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
          * explain API only.
          */
         private MoveDecision decideRebalance(final ProjectIndex index, final ShardRouting shard, Decision canRemain) {
-            final NodeSorter sorter = partitionedNodeSorter.sorterForShard(shard);
+            final NodeSorter sorter = nodeSorters.sorterForShard(shard);
             index.assertMatch(shard);
             if (shard.started() == false) {
                 // we can only rebalance started shards
@@ -765,7 +765,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
          *      {@link MoveDecision#getNodeDecisions} will have a non-null value.
          */
         public MoveDecision decideMove(final ProjectIndex index, final ShardRouting shardRouting) {
-            NodeSorter sorter = partitionedNodeSorter.sorterForShard(shardRouting);
+            NodeSorter sorter = nodeSorters.sorterForShard(shardRouting);
             index.assertMatch(shardRouting);
 
             if (shardRouting.started() == false) {

@@ -51,14 +51,12 @@ public class GlobalBalancingWeightsFactory implements BalancingWeightsFactory {
             return weightFunction;
         }
 
-        public PartitionedNodeSorter createPartitionedNodeSorter(
-            BalancedShardsAllocator.ModelNode[] modelNodes,
-            BalancedShardsAllocator.Balancer balancer
-        ) {
-            return new GlobalPartitionedNodeSorter(new BalancedShardsAllocator.NodeSorter(modelNodes, weightFunction, balancer));
+        @Override
+        public NodeSorters createNodeSorters(BalancedShardsAllocator.ModelNode[] modelNodes, BalancedShardsAllocator.Balancer balancer) {
+            return new GlobalNodeSorters(new BalancedShardsAllocator.NodeSorter(modelNodes, weightFunction, balancer));
         }
 
-        private record GlobalPartitionedNodeSorter(BalancedShardsAllocator.NodeSorter nodeSorter) implements PartitionedNodeSorter {
+        private record GlobalNodeSorters(BalancedShardsAllocator.NodeSorter nodeSorter) implements NodeSorters {
 
             @Override
             public Collection<BalancedShardsAllocator.NodeSorter> allNodeSorters() {

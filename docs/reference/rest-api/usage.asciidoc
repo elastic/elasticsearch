@@ -243,7 +243,11 @@ GET /_xpack/usage
       "keep" : 0,
       "enrich" : 0,
       "from" : 0,
-      "row" : 0
+      "row" : 0,
+      "lookup" : 0,
+      "inlinestats" : 0,
+      "lookup_join" : 0,
+      "change_point" : 0
     },
     "queries" : {
       "rest" : {

@@ -27,6 +27,7 @@ import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.TransportVersions.INDEXING_STATS_INCLUDES_RECENT_WRITE_LOAD;
 import static org.elasticsearch.TransportVersions.INDEX_STATS_AND_METADATA_INCLUDE_PEAK_WRITE_LOAD;
+import static org.elasticsearch.TransportVersions.WRITE_LOAD_INCLUDES_BUFFER_WRITES;
 
 public class IndexingStats implements Writeable, ToXContentFragment {
 
@@ -76,7 +77,7 @@ public class IndexingStats implements Writeable, ToXContentFragment {
                 // When getting stats from an older version which doesn't have the recent indexing load, better to fall back to the
                 // unweighted write load, rather that assuming zero load:
                 recentIndexingLoad = totalActiveTimeInNanos > 0
-                    ? (double) totalIndexingLoadSinceShardStartedInNanos / totalActiveTimeInNanos
+                    ? (double) totalIndexingTimeSinceShardStartedInNanos / totalActiveTimeInNanos
                     : 0;
             }
             if (in.getTransportVersion().onOrAfter(INDEX_STATS_AND_METADATA_INCLUDE_PEAK_WRITE_LOAD)) {
@@ -87,6 +88,13 @@ public class IndexingStats implements Writeable, ToXContentFragment {
                 peakIndexingLoad = totalActiveTimeInNanos > 0
                     ? (double) totalIndexingTimeSinceShardStartedInNanos / totalActiveTimeInNanos
                     : 0;
+            }
+            if (in.getTransportVersion().onOrAfter(WRITE_LOAD_INCLUDES_BUFFER_WRITES)) {
+                totalIndexingLoadSinceShardStartedInNanos = in.readLong();
+            } else {
+                // When getting stats from an older version which doesn't have the more accurate indexing load, better to fall back to the
+                // indexing time, rather that assuming zero load:
+                totalIndexingLoadSinceShardStartedInNanos = totalActiveTimeInNanos > 0 ? totalIndexingTimeSinceShardStartedInNanos : 0;
             }
         }
 
@@ -299,6 +307,9 @@ public class IndexingStats implements Writeable, ToXContentFragment {
             }
             if (out.getTransportVersion().onOrAfter(INDEX_STATS_AND_METADATA_INCLUDE_PEAK_WRITE_LOAD)) {
                 out.writeDouble(peakIndexingLoad);
+            }
+            if (out.getTransportVersion().onOrAfter(WRITE_LOAD_INCLUDES_BUFFER_WRITES)) {
+                out.writeLong(totalIndexingLoadSinceShardStartedInNanos);
             }
         }
 

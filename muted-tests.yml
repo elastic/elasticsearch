@@ -429,6 +429,9 @@ tests:
 - class: org.elasticsearch.xpack.search.AsyncSearchActionIT
   method: testRestartAfterCompletion
   issue: https://github.com/elastic/elasticsearch/issues/126974
+- class: org.elasticsearch.xpack.search.AsyncSearchActionIT
+  method: testDeleteCleanupIndex
+  issue: https://github.com/elastic/elasticsearch/issues/127008
 
 # Examples:
 #

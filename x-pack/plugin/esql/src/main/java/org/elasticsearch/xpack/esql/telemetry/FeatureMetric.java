@@ -9,18 +9,14 @@ package org.elasticsearch.xpack.esql.telemetry;
 
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
-import org.elasticsearch.xpack.esql.plan.logical.ChangePoint;
-import org.elasticsearch.xpack.esql.plan.logical.Dedup;
 import org.elasticsearch.xpack.esql.plan.logical.Dissect;
 import org.elasticsearch.xpack.esql.plan.logical.Drop;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
-import org.elasticsearch.xpack.esql.plan.logical.Fork;
 import org.elasticsearch.xpack.esql.plan.logical.Grok;
 import org.elasticsearch.xpack.esql.plan.logical.InlineStats;
-import org.elasticsearch.xpack.esql.plan.logical.Insist;
 import org.elasticsearch.xpack.esql.plan.logical.Keep;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
@@ -30,10 +26,7 @@ import org.elasticsearch.xpack.esql.plan.logical.OrderBy;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.Rename;
 import org.elasticsearch.xpack.esql.plan.logical.Row;
-import org.elasticsearch.xpack.esql.plan.logical.RrfScoreEval;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
-import org.elasticsearch.xpack.esql.plan.logical.inference.Completion;
-import org.elasticsearch.xpack.esql.plan.logical.inference.Rerank;
 import org.elasticsearch.xpack.esql.plan.logical.join.LookupJoin;
 import org.elasticsearch.xpack.esql.plan.logical.local.EsqlProject;
 import org.elasticsearch.xpack.esql.plan.logical.show.ShowInfo;
@@ -61,14 +54,7 @@ public enum FeatureMetric {
     RENAME(Rename.class::isInstance),
     LOOKUP_JOIN(LookupJoin.class::isInstance),
     LOOKUP(Lookup.class::isInstance),
-    CHANGE_POINT(ChangePoint.class::isInstance),
-    INLINESTATS(InlineStats.class::isInstance),
-    RERANK(Rerank.class::isInstance),
-    DEDUP(Dedup.class::isInstance),
-    INSIST(Insist.class::isInstance),
-    FORK(Fork.class::isInstance),
-    RRF(RrfScoreEval.class::isInstance),
-    COMPLETION(Completion.class::isInstance);
+    INLINESTATS(InlineStats.class::isInstance);
 
     /**
      * List here plans we want to exclude from telemetry

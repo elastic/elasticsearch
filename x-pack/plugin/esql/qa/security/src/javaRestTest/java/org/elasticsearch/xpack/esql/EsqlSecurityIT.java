@@ -995,7 +995,7 @@ public class EsqlSecurityIT extends ESRestTestCase {
     }
 
     private void createDataStreamAlias() throws IOException {
-        Request request = new Request("PUT", "_alias");
+        Request request = new Request("POST", "_aliases");
         request.setJsonEntity("""
             {
               "actions": [

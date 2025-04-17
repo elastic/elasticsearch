@@ -1,0 +1,6 @@
+pr: 124832
+summary: List/get query API
+area: ES|QL
+type: feature
+issues:
+ - 124827

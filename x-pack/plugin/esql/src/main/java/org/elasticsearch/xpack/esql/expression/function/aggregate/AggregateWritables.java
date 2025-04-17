@@ -30,6 +30,8 @@ public class AggregateWritables {
             Sum.ENTRY,
             Top.ENTRY,
             Values.ENTRY,
+            MaxOverTime.ENTRY,
+            AvgOverTime.ENTRY,
             // internal functions
             ToPartial.ENTRY,
             FromPartial.ENTRY,

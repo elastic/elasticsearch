@@ -246,6 +246,7 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
             services,
             ActionListener.wrap(result -> {
                 recordCCSTelemetry(task, executionInfo, request, null);
+                planExecutor.metrics().recordTook(executionInfo.overallTook().millis());
                 listener.onResponse(toResponse(task, request, configuration, result));
             }, ex -> {
                 recordCCSTelemetry(task, executionInfo, request, ex);
@@ -329,7 +330,9 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
             }
             return new ColumnInfoImpl(c.name(), c.dataType().outputType(), originalTypes);
         }).toList();
-        EsqlQueryResponse.Profile profile = configuration.profile() ? new EsqlQueryResponse.Profile(result.profiles()) : null;
+        EsqlQueryResponse.Profile profile = configuration.profile()
+            ? new EsqlQueryResponse.Profile(result.completionInfo().collectedProfiles())
+            : null;
         threadPool.getThreadContext().addResponseHeader(AsyncExecutionId.ASYNC_EXECUTION_IS_RUNNING_HEADER, "?0");
         if (task instanceof EsqlQueryTask asyncTask && request.keepOnCompletion()) {
             String asyncExecutionId = asyncTask.getExecutionId().getEncoded();
@@ -337,6 +340,8 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
             return new EsqlQueryResponse(
                 columns,
                 result.pages(),
+                result.completionInfo().documentsFound(),
+                result.completionInfo().documentsFound(),
                 profile,
                 request.columnar(),
                 asyncExecutionId,
@@ -345,7 +350,16 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
                 result.executionInfo()
             );
         }
-        return new EsqlQueryResponse(columns, result.pages(), profile, request.columnar(), request.async(), result.executionInfo());
+        return new EsqlQueryResponse(
+            columns,
+            result.pages(),
+            result.completionInfo().documentsFound(),
+            result.completionInfo().valuesLoaded(),
+            profile,
+            request.columnar(),
+            request.async(),
+            result.executionInfo()
+        );
     }
 
     /**
@@ -380,7 +394,7 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
             id,
             type,
             action,
-            request.getDescription(),
+            request.query(), // Pass the query as the description
             parentTaskId,
             headers,
             originHeaders,
@@ -397,6 +411,8 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
         return new EsqlQueryResponse(
             List.of(),
             List.of(),
+            0,
+            0,
             null,
             false,
             asyncExecutionId,

@@ -1,6 +1,0 @@
-pr: 122250
-summary: "ESQL: Align `RENAME` behavior with `EVAL` for sequential processing"
-area: ES|QL
-type: enhancement
-issues:
-  - 121739

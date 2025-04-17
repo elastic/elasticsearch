@@ -71,7 +71,8 @@ public @interface FunctionInfo {
     String appendix() default "";
 
     /**
-     * The heading depth of this function in the docs, relative to the normal depth of functions.
+     * Adjusts documentation heading level (0=standard, 1=subheading, etc).
+     * Used to create logical nesting between related functions.
      */
     int depthOffset() default 0;
 

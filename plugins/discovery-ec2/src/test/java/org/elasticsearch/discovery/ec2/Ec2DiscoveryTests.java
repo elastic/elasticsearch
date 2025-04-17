@@ -103,8 +103,7 @@ public class Ec2DiscoveryTests extends AbstractEC2MockAPITestCase {
                         final String[] params = request.split("&");
                         Arrays.stream(params).filter(entry -> entry.startsWith("Filter.") && entry.contains("=tag%3A")).forEach(entry -> {
                             final int startIndex = "Filter.".length();
-                            // TODO ensure the filterId is an ASCII int when https://github.com/aws/aws-sdk-java-v2/issues/5968 fixed
-                            final var filterId = entry.substring(startIndex, entry.indexOf(".", startIndex));
+                            final int filterId = Integer.parseInt(entry.substring(startIndex, entry.indexOf(".", startIndex)));
                             tagsIncluded.put(
                                 entry.substring(entry.indexOf("=tag%3A") + "=tag%3A".length()),
                                 Arrays.stream(params)

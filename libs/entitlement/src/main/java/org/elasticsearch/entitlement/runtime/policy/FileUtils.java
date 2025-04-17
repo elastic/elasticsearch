@@ -9,16 +9,38 @@
 
 package org.elasticsearch.entitlement.runtime.policy;
 
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.SuppressForbidden;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 
 import java.io.File;
 import java.util.Comparator;
+import java.util.function.BiPredicate;
 
 import static java.lang.Character.isLetter;
 
 public class FileUtils {
 
+    private static final Logger logger = LogManager.getLogger(FileUtils.class);
+
     private FileUtils() {}
+
+    interface CharComparator {
+        int compare(char c1, char c2);
+    }
+
+    private static final CharComparator CHARACTER_COMPARATOR = Platform.WINDOWS.isCurrent()
+        ? FileUtils::caseInsensitiveCharacterComparator
+        : FileUtils::caseSensitiveCharacterComparator;
+
+    private static final BiPredicate<String, String> STARTS_WITH = Platform.WINDOWS.isCurrent()
+        ? FileUtils::caseInsensitiveStartsWith
+        : String::startsWith;
+
+    private static final BiPredicate<String, String> EQUALS = Platform.WINDOWS.isCurrent()
+        ? String::equalsIgnoreCase
+        : String::equals;
 
     /**
      * For our lexicographic sort trick to work correctly, we must have path separators sort before
@@ -32,7 +54,8 @@ public class FileUtils {
         for (int k = 0; k < lim; k++) {
             char c1 = s1.charAt(k);
             char c2 = s2.charAt(k);
-            if (c1 == c2) {
+            var comp = CHARACTER_COMPARATOR.compare(c1, c2);
+            if (comp == 0) {
                 continue;
             }
             boolean c1IsSeparator = isPathSeparator(c1);
@@ -44,15 +67,48 @@ public class FileUtils {
                 if (c2IsSeparator) {
                     return 1;
                 }
-                return c1 - c2;
+                return comp;
             }
         }
         return len1 - len2;
     };
 
+    /**
+     * Case-insensitive character comparison. Inspired by the {@code WindowsPath#compareTo} implementation.
+     */
+    private static int caseInsensitiveCharacterComparator(char c1, char c2) {
+        if (c1 == c2) {
+            return 0;
+        }
+        c1 = Character.toUpperCase(c1);
+        c2 = Character.toUpperCase(c2);
+        if (c1 == c2) {
+            return 0;
+        }
+        return c1 - c2;
+    }
+
+    private static int caseSensitiveCharacterComparator(char c1, char c2) {
+        return c1 - c2;
+    }
+
+    private static boolean caseInsensitiveStartsWith(String s, String prefix) {
+        return s.regionMatches(true, 0, prefix, 0, prefix.length());
+    }
+
     @SuppressForbidden(reason = "we need the separator as a char, not a string")
     private static boolean isPathSeparator(char c) {
         return c == File.separatorChar;
+    }
+
+    static boolean isParent(String maybeParent, String path) {
+        logger.trace(() -> Strings.format("checking isParent [%s] for [%s]", maybeParent, path));
+        return STARTS_WITH.test(path, maybeParent) &&
+            (path.length() > maybeParent.length() && path.charAt(maybeParent.length()) == File.separatorChar);
+    }
+
+    static boolean samePath(String currentPath, String nextPath) {
+        return EQUALS.test(currentPath, nextPath);
     }
 
     /**

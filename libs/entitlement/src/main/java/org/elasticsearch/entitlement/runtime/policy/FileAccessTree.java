@@ -94,7 +94,7 @@ public final class FileAccessTree {
             ExclusivePath currentExclusivePath = exclusivePaths.get(0);
             for (int i = 1; i < exclusivePaths.size(); ++i) {
                 ExclusivePath nextPath = exclusivePaths.get(i);
-                if (currentExclusivePath.path().equals(nextPath.path) || isParent(currentExclusivePath.path(), nextPath.path())) {
+                if (FileUtils.samePath(currentExclusivePath.path(), nextPath.path) || FileUtils.isParent(currentExclusivePath.path(), nextPath.path())) {
                     throw new IllegalArgumentException(
                         "duplicate/overlapping exclusive paths found in files entitlements: " + currentExclusivePath + " and " + nextPath
                     );
@@ -194,7 +194,7 @@ public final class FileAccessTree {
             prunedReadPaths.add(currentPath);
             for (int i = 1; i < paths.size(); ++i) {
                 String nextPath = paths.get(i);
-                if (currentPath.equals(nextPath) == false && isParent(currentPath, nextPath) == false) {
+                if (FileUtils.samePath(currentPath, nextPath) == false && FileUtils.isParent(currentPath, nextPath) == false) {
                     prunedReadPaths.add(nextPath);
                     currentPath = nextPath;
                 }
@@ -203,7 +203,7 @@ public final class FileAccessTree {
         return prunedReadPaths;
     }
 
-    public static FileAccessTree of(
+    static FileAccessTree of(
         String componentName,
         String moduleName,
         FilesEntitlement filesEntitlement,
@@ -243,20 +243,15 @@ public final class FileAccessTree {
         }
 
         int endx = Arrays.binarySearch(exclusivePaths, path, PATH_ORDER);
-        if (endx < -1 && isParent(exclusivePaths[-endx - 2], path) || endx >= 0) {
+        if (endx < -1 && FileUtils.isParent(exclusivePaths[-endx - 2], path) || endx >= 0) {
             return false;
         }
 
         int ndx = Arrays.binarySearch(paths, path, PATH_ORDER);
         if (ndx < -1) {
-            return isParent(paths[-ndx - 2], path);
+            return FileUtils.isParent(paths[-ndx - 2], path);
         }
         return ndx >= 0;
-    }
-
-    private static boolean isParent(String maybeParent, String path) {
-        logger.trace(() -> Strings.format("checking isParent [%s] for [%s]", maybeParent, path));
-        return path.startsWith(maybeParent) && path.startsWith(FILE_SEPARATOR, maybeParent.length());
     }
 
     @Override

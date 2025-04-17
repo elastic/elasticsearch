@@ -16,7 +16,7 @@ $$$source-mode$$$
 $$$recovery-use_synthetic_source$$$
 
 `index.recovery.use_synthetic_source`
-: (Static, boolean) If synthetic source mode is used, whether the recovery source should also be synthesized instead of stored to disk. Defaults to `true` if source mode is `synthetic`.
+: (Static, boolean) If synthetic source mode is used, whether the recovery source should also be synthesized instead of stored to disk. Defaults to `true`. This setting can only be configured if synthetic source mode is enabled.
 
 $$$synthetic-source-keep$$$
 

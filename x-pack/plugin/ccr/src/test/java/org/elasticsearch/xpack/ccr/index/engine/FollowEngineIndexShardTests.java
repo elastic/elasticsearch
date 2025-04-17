@@ -92,7 +92,8 @@ public class FollowEngineIndexShardTests extends IndexShardTestCase {
             (shard, listener) -> {},
             0L,
             Collections.singleton(primaryRouting.allocationId().getId()),
-            new IndexShardRoutingTable.Builder(primaryRouting.shardId()).addShard(primaryRouting).build()
+            new IndexShardRoutingTable.Builder(primaryRouting.shardId()).addShard(primaryRouting).build(),
+            false
         );
 
         final CountDownLatch latch = new CountDownLatch(1);

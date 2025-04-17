@@ -536,14 +536,15 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         final BiConsumer<IndexShard, ActionListener<ResyncTask>> primaryReplicaSyncer,
         final long applyingClusterStateVersion,
         final Set<String> inSyncAllocationIds,
-        final IndexShardRoutingTable routingTable
+        final IndexShardRoutingTable routingTable,
+        final boolean isRenamed
     ) throws IOException {
         final ShardRouting currentRouting;
         synchronized (mutex) {
             currentRouting = this.shardRouting;
             assert currentRouting != null;
 
-            if (newRouting.shardId().equals(shardId()) == false) {
+            if (newRouting.shardId().equals(shardId()) == false && isRenamed == false) {
                 throw new IllegalArgumentException(
                     "Trying to set a routing entry with shardId " + newRouting.shardId() + " on a shard with shardId " + shardId()
                 );

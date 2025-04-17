@@ -254,6 +254,9 @@ public class TransportIndicesAliasesAction extends TransportMasterNodeAction<Ind
                     case REMOVE_INDEX:
                         finalActions.add(new AliasAction.RemoveIndex(index.getName()));
                         break;
+                    case RENAME_INDEX:
+                        finalActions.add(new AliasAction.RenameIndex(index.getName(), action.destination()));
+                        break;
                     default:
                         throw new IllegalArgumentException("Unsupported action [" + action.actionType() + "]");
                 }

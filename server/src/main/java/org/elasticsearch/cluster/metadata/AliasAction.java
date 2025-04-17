@@ -12,7 +12,10 @@ package org.elasticsearch.cluster.metadata;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.rest.action.admin.indices.AliasesNotFoundException;
+
+import java.util.Map;
 
 /**
  * Individual operation to perform on the cluster state as part of an {@link IndicesAliasesRequest}.
@@ -39,6 +42,13 @@ public abstract class AliasAction {
      * {@link #apply(NewAliasValidator, ProjectMetadata.Builder, IndexMetadata)}.
      */
     abstract boolean removeIndex();
+
+    /**
+     * TODO: document
+     */
+    Tuple<String, String> rename() {
+        return null;
+    }
 
     /**
      * Apply the action.
@@ -216,6 +226,40 @@ public abstract class AliasAction {
         @Override
         boolean apply(NewAliasValidator aliasValidator, ProjectMetadata.Builder metadata, IndexMetadata index) {
             throw new UnsupportedOperationException();
+        }
+    }
+
+    /**
+     * TODO: document
+     */
+    public static class RenameIndex extends AliasAction {
+        private final String destination;
+
+        public RenameIndex(String index, String destination) {
+            super(index);
+            this.destination = destination;
+        }
+
+        @Override
+        boolean removeIndex() {
+            return false;
+        }
+
+        @Override
+        Tuple<String, String> rename() {
+            return new Tuple<>(getIndex(), destination);
+        }
+
+        @Override
+        boolean apply(NewAliasValidator aliasValidator, ProjectMetadata.Builder metadata, IndexMetadata index) {
+            metadata.put(
+                IndexMetadata.builder(index)
+                    .putCustom(
+                        MetadataIndexAliasesService.CUSTOM_RENAME_METADATA_KEY,
+                        Map.of("original_name", getIndex(), "new_name", destination)
+                    )
+            );
+            return true;
         }
     }
 

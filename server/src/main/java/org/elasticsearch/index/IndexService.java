@@ -153,6 +153,8 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
     private volatile AsyncTranslogFSync fsyncTask;
     private final AsyncGlobalCheckpointTask globalCheckpointTask;
     private final AsyncRetentionLeaseSyncTask retentionLeaseSyncTask;
+    // Holds the newest name for this IndexService
+    private volatile Index renamedTo = null;
 
     // don't convert to Setting<> and register... we only set this in tests and register via a plugin
     private final String INDEX_TRANSLOG_RETENTION_CHECK_INTERVAL_SETTING = "index.translog.retention.check_interval";
@@ -307,6 +309,14 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
     static boolean needsMapperService(IndexSettings indexSettings, IndexCreationContext indexCreationContext) {
         return false == (indexSettings.getIndexMetadata().getState() == IndexMetadata.State.CLOSE
             && indexCreationContext == IndexCreationContext.CREATE_INDEX); // metadata verification needs a mapper service
+    }
+
+    /**
+     * Updates the renamed name of this IndexService
+     * @param newName
+     */
+    public void renameTo(String newName) {
+        renamedTo = new Index(newName, index().getUUID());
     }
 
     public enum IndexCreationContext {
@@ -737,6 +747,23 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
     @Override
     public IndexSettings getIndexSettings() {
         return indexSettings;
+    }
+
+    /**
+     * @return the renamed index when applicable
+     */
+    @Override
+    @Nullable
+    public Index getRenamedIndex() {
+        return renamedTo;
+    }
+
+    /**
+     * @return if this index service has been renamed
+     */
+    @Override
+    public boolean isRenamed() {
+        return renamedTo != null;
     }
 
     /**

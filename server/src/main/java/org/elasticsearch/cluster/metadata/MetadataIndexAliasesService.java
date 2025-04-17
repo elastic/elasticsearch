@@ -55,6 +55,8 @@ import static org.elasticsearch.indices.cluster.IndexRemovalReason.NO_LONGER_ASS
  */
 public class MetadataIndexAliasesService {
 
+    public static final String CUSTOM_RENAME_METADATA_KEY = "index_rename";
+
     private final IndicesService indicesService;
 
     private final NamedXContentRegistry xContentRegistry;
@@ -129,10 +131,15 @@ public class MetadataIndexAliasesService {
             ProjectMetadata.Builder metadata = ProjectMetadata.builder(currentProjectMetadata);
             // Run the remaining alias actions
             final Set<String> maybeModifiedIndices = new HashSet<>();
+            final Map<String, String> renamedIndices = new HashMap<>();
             for (AliasAction action : actions) {
                 if (action.removeIndex()) {
                     // Handled above
                     continue;
+                }
+                final Tuple<String, String> destination = action.rename();
+                if (destination != null) {
+                    renamedIndices.put(destination.v1(), destination.v2());
                 }
 
                 /* It is important that we look up the index using the metadata builder we are modifying so we can remove an
@@ -193,7 +200,7 @@ public class MetadataIndexAliasesService {
                 final IndexMetadata currentIndexMetadata = currentProjectMetadata.index(maybeModifiedIndex);
                 final IndexMetadata newIndexMetadata = metadata.get(maybeModifiedIndex);
                 // only increment the aliases version if the aliases actually changed for this index
-                if (currentIndexMetadata.getAliases().equals(newIndexMetadata.getAliases()) == false) {
+                if (newIndexMetadata != null && currentIndexMetadata.getAliases().equals(newIndexMetadata.getAliases()) == false) {
                     assert currentIndexMetadata.getAliasesVersion() == newIndexMetadata.getAliasesVersion();
                     metadata.put(new IndexMetadata.Builder(newIndexMetadata).aliasesVersion(1 + currentIndexMetadata.getAliasesVersion()));
                 }
@@ -201,9 +208,28 @@ public class MetadataIndexAliasesService {
 
             if (changed) {
                 ProjectMetadata updatedMetadata = metadata.build();
+
+                // TODO: move this rename logic to a service that looks at the custom map in the IndexMetadata and does the right thing
+                // RoutingTable existingRoutingTable = currentState.routingTable();
+                // RoutingTable.Builder rtBuilder = RoutingTable.builder(existingRoutingTable);
+                // for (Map.Entry<String, String> renamedIndex : renamedIndices.entrySet()) {
+                // final String oldName = renamedIndex.getKey();
+                // final String newName = renamedIndex.getValue();
+                // System.out.println("--> updating routing table for " + oldName + " ==> " + newName);
+                // IndexRoutingTable indexTable = existingRoutingTable.index(oldName);
+                // IndexMetadata im = updatedState.getMetadata().index(newName);
+                // System.out.println("--> building a new routing table for " + im.getIndex());
+                // IndexRoutingTable.Builder tableBuilder = IndexRoutingTable.builder(im.getIndex());
+                // for (ShardRouting sr : indexTable.randomAllActiveShardsIt()) {
+                // tableBuilder.addShard(sr.updateIndex(im.getIndex()));
+                // }
+                // rtBuilder.add(tableBuilder);
+                // rtBuilder.remove(oldName);
+                // updatedState = ClusterState.builder(updatedState).routingTable(rtBuilder).build();
+                // }
                 // even though changes happened, they resulted in 0 actual changes to metadata
                 // i.e. remove and add the same alias to the same index
-                if (updatedMetadata.equalsAliases(currentProjectMetadata) == false) {
+                if (renamedIndices.isEmpty() == false || updatedMetadata.equalsAliases(currentProjectMetadata) == false) {
                     return ClusterState.builder(currentState).putProjectMetadata(updatedMetadata).build();
                 }
             }

@@ -315,9 +315,6 @@ tests:
 - class: org.elasticsearch.search.CCSDuelIT
   method: testTerminateAfter
   issue: https://github.com/elastic/elasticsearch/issues/126085
-- class: org.elasticsearch.search.sort.GeoDistanceIT
-  method: testDistanceSortingWithUnmappedField
-  issue: https://github.com/elastic/elasticsearch/issues/126118
 - class: org.elasticsearch.search.basic.SearchWithRandomDisconnectsIT
   method: testSearchWithRandomDisconnects
   issue: https://github.com/elastic/elasticsearch/issues/122707
@@ -387,9 +384,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.action.EsqlActionIT
   method: testQueryOnEmptyDataIndex
   issue: https://github.com/elastic/elasticsearch/issues/126580
-- class: org.elasticsearch.xpack.ilm.TimeSeriesDataStreamsIT
-  method: testShrinkActionInPolicyWithoutHotPhase
-  issue: https://github.com/elastic/elasticsearch/issues/126746
 - class: org.elasticsearch.xpack.test.rest.XPackRestIT
   method: test {p0=transform/transforms_start_stop/Test start/stop/start continuous transform}
   issue: https://github.com/elastic/elasticsearch/issues/126755
@@ -432,6 +426,12 @@ tests:
 - class: org.elasticsearch.xpack.search.AsyncSearchActionIT
   method: testRestartAfterCompletion
   issue: https://github.com/elastic/elasticsearch/issues/126974
+- class: org.elasticsearch.xpack.search.AsyncSearchActionIT
+  method: testDeleteCleanupIndex
+  issue: https://github.com/elastic/elasticsearch/issues/127008
+- class: org.elasticsearch.packaging.test.DockerTests
+  method: test024InstallPluginFromArchiveUsingConfigFile
+  issue: https://github.com/elastic/elasticsearch/issues/126936
 
 # Examples:
 #

@@ -48,7 +48,8 @@ public class StGeohashToGeoShape extends AbstractConvertFunction implements Eval
         description = """
             Converts an input value to a `geo_shape` value.
             The input values are expected to be the grid-ids of geohash grids, in either long or string format.""",
-        examples = @Example(file = "spatial-grid", tag = "geohash_to_geoshape")
+        examples = @Example(file = "spatial-grid", tag = "geohash_to_geoshape"),
+        depthOffset = 1 // make it appear as a subsection of ST_GEOHASH
     )
     public StGeohashToGeoShape(
         Source source,

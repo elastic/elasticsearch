@@ -44,7 +44,8 @@ public class StGeohexToString extends AbstractConvertFunction implements Evaluat
     @FunctionInfo(
         returnType = "keyword",
         description = "Converts an input value representing a Geohex grid-ID in long format into a string.",
-        examples = { @Example(file = "spatial-grid", tag = "geohex_to_string") }
+        examples = { @Example(file = "spatial-grid", tag = "geohex_to_string") },
+        depthOffset = 1 // make it appear as a subsection of ST_GEOHEX
     )
     public StGeohexToString(
         Source source,

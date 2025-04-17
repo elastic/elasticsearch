@@ -72,7 +72,6 @@ import static org.elasticsearch.entitlement.runtime.policy.entitlements.FilesEnt
  * character. In the example, this would cause {@code "/a/b"} to sort between {@code "/a"} and {@code "/a.xml"} so that it correctly
  * finds {@code "/a"}.
  * </p>
- * <p>
  * With the paths pruned, sorted, and segregated by permission, each binary search has the following properties:
  * <ul>
  * <li>
@@ -85,8 +84,6 @@ import static org.elasticsearch.entitlement.runtime.policy.entitlements.FilesEnt
  * Else, there is no match
  * </li>
  * </ul>
- * </p>
- * <p>
  * Permission is granted if both:
  * <ul>
  * <li>
@@ -96,7 +93,6 @@ import static org.elasticsearch.entitlement.runtime.policy.entitlements.FilesEnt
  * there is a match in the array corresponding to the desired operation (read or write).
  * </li>
  * </ul>
- * </p>
  * <p>
  * Some additional care is required in the unit tests for this code, since it must also run on Windows where the separator is a
  * backslash and absolute paths don't start with a separator. See {@code FileAccessTreeTests#testDuplicateExclusivePaths} for an example.

@@ -62,7 +62,7 @@ import static org.elasticsearch.entitlement.bridge.Util.NO_CLASS;
 /**
  * This class is responsible for finding the "layer" (system, server, plugin, agent) for a caller class to check, retrieve the policy
  * and entitlements for that layer, and check them against the action(s) the caller wants to perform.
- * <p></p>
+ * <p>
  * To find a layer:
  * <ul>
  * <li>

@@ -1,0 +1,5 @@
+pr: 126973
+summary: Add ability to redirect ingestion failures on data streams to a failure store
+area: Data streams
+type: feature
+issues: []

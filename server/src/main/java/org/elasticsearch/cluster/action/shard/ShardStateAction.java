@@ -49,10 +49,12 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.IndexLongFieldRange;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardLongFieldRange;
+import org.elasticsearch.indices.cluster.IndicesClusterStateService;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.node.NodeClosedException;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.AbstractTransportRequest;
 import org.elasticsearch.transport.ConnectTransportException;
 import org.elasticsearch.transport.RemoteTransportException;
 import org.elasticsearch.transport.TransportChannel;
@@ -172,13 +174,13 @@ public class ShardStateAction {
      * that the shard should be failed because a write made it into the primary but was not replicated to this shard copy. If the shard
      * does not exist anymore but still has an entry in the in-sync set, remove its allocation id from the in-sync set.
      *
-     * @param shardId            shard id of the shard to fail
-     * @param allocationId       allocation id of the shard to fail
-     * @param primaryTerm        the primary term associated with the primary shard that is failing the shard. Must be strictly positive.
-     * @param markAsStale        whether or not to mark a failing shard as stale (eg. removing from in-sync set) when failing the shard.
-     * @param message            the reason for the failure
-     * @param failure            the underlying cause of the failure
-     * @param listener           callback upon completion of the request
+     * @param shardId      shard id of the shard to fail
+     * @param allocationId allocation id of the shard to fail
+     * @param primaryTerm  the primary term associated with the primary shard that is failing the shard. Must be strictly positive.
+     * @param markAsStale  whether or not to mark a failing shard as stale (eg. removing from in-sync set) when failing the shard.
+     * @param message      the reason for the failure
+     * @param failure      the underlying cause of the failure
+     * @param listener     callback upon completion of the request
      */
     public void remoteShardFailed(
         final ShardId shardId,
@@ -203,7 +205,7 @@ public class ShardStateAction {
 
     /**
      * Clears out {@link #remoteShardStateUpdateDeduplicator}. Called by
-     * {@link org.elasticsearch.indices.cluster.IndicesClusterStateService} in case of a master failover to enable sending fresh requests
+     * {@link IndicesClusterStateService} in case of a master failover to enable sending fresh requests
      * to the new master right away on master failover.
      * This method is best effort in so far that it might clear out valid requests in edge cases during master failover. This is not an
      * issue functionally and merely results in some unnecessary transport requests.
@@ -308,7 +310,7 @@ public class ShardStateAction {
 
         @Override
         public ClusterState execute(BatchExecutionContext<FailedShardUpdateTask> batchExecutionContext) throws Exception {
-            List<ClusterStateTaskExecutor.TaskContext<FailedShardUpdateTask>> tasksToBeApplied = new ArrayList<>();
+            List<TaskContext<FailedShardUpdateTask>> tasksToBeApplied = new ArrayList<>();
             List<FailedShard> failedShardsToBeApplied = new ArrayList<>();
             List<StaleShard> staleShardsToBeApplied = new ArrayList<>();
             final ClusterState initialState = batchExecutionContext.initialState();
@@ -443,7 +445,7 @@ public class ShardStateAction {
         }
     }
 
-    public static class FailedShardEntry extends TransportRequest {
+    public static class FailedShardEntry extends AbstractTransportRequest {
         final ShardId shardId;
         final String allocationId;
         final long primaryTerm;
@@ -611,7 +613,8 @@ public class ShardStateAction {
     /**
      * Holder of the pair of time ranges needed in cluster state - one for @timestamp, the other for 'event.ingested'.
      * Since 'event.ingested' was added well after @timestamp, it can be UNKNOWN when @timestamp range is present.
-     * @param timestampRange range for @timestamp
+     *
+     * @param timestampRange     range for @timestamp
      * @param eventIngestedRange range for event.ingested
      */
     record ClusterStateTimeRanges(IndexLongFieldRange timestampRange, IndexLongFieldRange eventIngestedRange) {}
@@ -833,7 +836,7 @@ public class ShardStateAction {
         }
     }
 
-    public static class StartedShardEntry extends TransportRequest {
+    public static class StartedShardEntry extends AbstractTransportRequest {
         final ShardId shardId;
         final String allocationId;
         final long primaryTerm;

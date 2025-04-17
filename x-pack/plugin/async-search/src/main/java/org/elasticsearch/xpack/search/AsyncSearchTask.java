@@ -519,6 +519,7 @@ final class AsyncSearchTask extends SearchTask implements AsyncTask, Releasable 
          */
         @Override
         public void onClusterResponseMinimizeRoundtrips(String clusterAlias, SearchResponse clusterResponse) {
+            checkCancellation();
             // no need to call the delegate progress listener, since this method is only called for minimize_roundtrips=true
             searchResponse.updateResponseMinimizeRoundtrips(clusterAlias, clusterResponse);
         }

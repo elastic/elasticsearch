@@ -10,14 +10,14 @@ package org.elasticsearch.xpack.versionfield.datageneration;
 import org.elasticsearch.logsdb.datageneration.datasource.DataSourceHandler;
 import org.elasticsearch.logsdb.datageneration.datasource.DataSourceRequest;
 import org.elasticsearch.logsdb.datageneration.datasource.DataSourceResponse;
-import org.elasticsearch.xpack.versionfield.Utils;
+import org.elasticsearch.xpack.versionfield.VersionStringTestUtils;
 
 import java.util.HashMap;
 
 public class VersionStringDataSourceHandler implements DataSourceHandler {
     @Override
     public DataSourceResponse.VersionStringGenerator handle(DataSourceRequest.VersionStringGenerator request) {
-        return new DataSourceResponse.VersionStringGenerator(Utils::randomVersionString);
+        return new DataSourceResponse.VersionStringGenerator(VersionStringTestUtils::randomVersionString);
     }
 
     @Override

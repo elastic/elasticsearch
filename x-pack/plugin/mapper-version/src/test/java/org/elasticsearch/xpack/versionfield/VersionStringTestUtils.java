@@ -9,7 +9,7 @@ package org.elasticsearch.xpack.versionfield;
 
 import org.elasticsearch.test.ESTestCase;
 
-public class Utils {
+public class VersionStringTestUtils {
     public static String randomVersionString() {
         return randomVersionNumber() + (ESTestCase.randomBoolean() ? "" : randomPrerelease());
     }

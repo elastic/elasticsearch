@@ -148,7 +148,7 @@ public class VersionStringFieldMapperTests extends MapperTestCase {
 
     @Override
     protected String generateRandomInputValue(MappedFieldType ft) {
-        return Utils.randomVersionString();
+        return VersionStringTestUtils.randomVersionString();
     }
 
     @Override
@@ -192,7 +192,7 @@ public class VersionStringFieldMapperTests extends MapperTestCase {
         }
 
         private Tuple<String, String> generateValue() {
-            String v = Utils.randomVersionString();
+            String v = VersionStringTestUtils.randomVersionString();
             return Tuple.tuple(v, v);
         }
 

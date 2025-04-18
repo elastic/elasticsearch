@@ -25,6 +25,7 @@ import java.util.List;
 import static org.elasticsearch.cluster.metadata.IndexNameExpressionResolver.SelectorResolver.SELECTOR_SEPARATOR;
 import static org.elasticsearch.transport.RemoteClusterAware.REMOTE_CLUSTER_INDEX_SEPARATOR;
 import static org.elasticsearch.transport.RemoteClusterAware.isRemoteIndexName;
+import static org.elasticsearch.transport.RemoteClusterAware.splitIndexName;
 import static org.elasticsearch.xpack.esql.core.util.StringUtils.EXCLUSION;
 import static org.elasticsearch.xpack.esql.core.util.StringUtils.WILDCARD;
 import static org.elasticsearch.xpack.esql.parser.ParserUtils.source;
@@ -92,28 +93,9 @@ abstract class IdentifierBuilder extends AbstractBuilder {
             String indexPattern = visitIndexString(c.indexString());
             String clusterString = visitClusterString(c.clusterString());
             String selectorString = visitSelectorString(c.selectorString());
-            // skip validating index on remote cluster, because the behavior of remote cluster is not consistent with local cluster
-            // For example, invalid#index is an invalid index name, however FROM *:invalid#index does not return an error
-            if (clusterString == null) {
-                hasSeenStar.set(indexPattern.contains(WILDCARD) || hasSeenStar.get());
-                validateIndexPattern(indexPattern, c, hasSeenStar.get());
-                // Other instances of Elasticsearch may have differing selectors so only validate selector string if remote cluster
-                // string is unset
-                if (selectorString != null) {
-                    try {
-                        // Ensures that the selector provided is one of the valid kinds
-                        IndexNameExpressionResolver.SelectorResolver.validateIndexSelectorString(indexPattern, selectorString);
-                    } catch (InvalidIndexNameException e) {
-                        throw new ParsingException(e, source(c), e.getMessage());
-                    }
-                }
-            } else {
-                validateClusterString(clusterString, c);
-                // Do not allow selectors on remote cluster expressions until they are supported
-                if (selectorString != null) {
-                    throwOnMixingSelectorWithCluster(reassembleIndexName(clusterString, indexPattern, selectorString), c);
-                }
-            }
+
+            hasSeenStar.set(hasSeenStar.get() || indexPattern.contains(WILDCARD));
+            validateClusterAndIndexPatterns(indexPattern, c, clusterString, selectorString, hasSeenStar.get());
             patterns.add(reassembleIndexName(clusterString, indexPattern, selectorString));
         });
         return Strings.collectionToDelimitedString(patterns, ",");
@@ -148,56 +130,124 @@ abstract class IdentifierBuilder extends AbstractBuilder {
         }
     }
 
-    private static void validateIndexPattern(String indexPattern, EsqlBaseParser.IndexPatternContext ctx, boolean hasSeenStar) {
+    private static void validateClusterAndIndexPatterns(
+        String indexPattern,
+        EsqlBaseParser.IndexPatternContext ctx,
+        String clusterString,
+        String selectorString,
+        boolean hasSeenStar
+    ) {
         // multiple index names can be in the same double quote, e.g. indexPattern = "idx1, *, -idx2"
-        String[] indices = indexPattern.split(",");
-        boolean hasExclusion = false;
-        for (String index : indices) {
-            // Strip spaces off first because validation checks are not written to handle them
-            index = index.strip();
-            if (isRemoteIndexName(index)) { // skip the validation if there is remote cluster
-                // Ensure that there are no selectors as they are not yet supported
-                if (index.contains(SELECTOR_SEPARATOR)) {
-                    throwOnMixingSelectorWithCluster(index, ctx);
+        String[] patterns = indexPattern.split(",");
+        boolean isFirstPattern = true;
+
+        for (String pattern : patterns) {
+            pattern = pattern.strip();
+
+            /*
+             * Just because there was no clusterString before this index pattern does not mean that the indices
+             * are local indices. Patterns can be clubbed with remote names within quotes such as:
+             * "remote_one:remote_index,local_index". In this case, clusterString will be null.
+             */
+            if (isRemoteIndexName(pattern)) {
+                /*
+                 * Handle scenarios like remote_one:"index1,remote_two:index2". The clusterString here is
+                 * remote_one and is associated with index1 and not index2.
+                 */
+                if (clusterString != null && isFirstPattern) {
+                    throw new ParsingException(
+                        source(ctx),
+                        "Index pattern [{}] contains a cluster alias despite specifying one [{}]",
+                        pattern,
+                        clusterString
+                    );
                 }
-                continue;
-            }
-            try {
-                Tuple<String, String> splitPattern = IndexNameExpressionResolver.splitSelectorExpression(index);
-                if (splitPattern.v2() != null) {
-                    index = splitPattern.v1();
+
+                // {cluster_alias, indexName}
+                String[] clusterAliasAndIndex;
+                try {
+                    clusterAliasAndIndex = splitIndexName(pattern);
+                } catch (IllegalArgumentException e) {
+                    throw new ParsingException(e, source(ctx), e.getMessage());
                 }
-            } catch (InvalidIndexNameException e) {
-                // throws exception if the selector expression is invalid. Selector resolution does not complain about exclusions
-                throw new ParsingException(e, source(ctx), e.getMessage());
-            }
-            hasSeenStar = index.contains(WILDCARD) || hasSeenStar;
-            index = index.replace(WILDCARD, "").strip();
-            if (index.isBlank()) {
-                continue;
-            }
-            hasExclusion = index.startsWith(EXCLUSION);
-            index = removeExclusion(index);
-            String tempName;
-            try {
-                // remove the exclusion outside of <>, from index names with DateMath expression,
-                // e.g. -<-logstash-{now/d}> becomes <-logstash-{now/d}> before calling resolveDateMathExpression
-                tempName = IndexNameExpressionResolver.resolveDateMathExpression(index);
-            } catch (ElasticsearchParseException e) {
-                // throws exception if the DateMath expression is invalid, resolveDateMathExpression does not complain about exclusions
-                throw new ParsingException(e, source(ctx), e.getMessage());
-            }
-            hasExclusion = tempName.startsWith(EXCLUSION) || hasExclusion;
-            index = tempName.equals(index) ? index : removeExclusion(tempName);
-            try {
-                MetadataCreateIndexService.validateIndexOrAliasName(index, InvalidIndexNameException::new);
-            } catch (InvalidIndexNameException e) {
-                // ignore invalid index name if it has exclusions and there is an index with wildcard before it
-                if (hasSeenStar && hasExclusion) {
-                    continue;
+
+                clusterString = clusterAliasAndIndex[0];
+                pattern = clusterAliasAndIndex[1];
+            } else if (clusterString != null) {
+                // This is not a remote index pattern and the cluster string preceding this quoted pattern
+                // cannot be associated with it.
+                if (isFirstPattern == false) {
+                    clusterString = null;
                 }
-                throw new ParsingException(e, source(ctx), e.getMessage());
             }
+
+            if (clusterString != null) {
+                if (selectorString != null) {
+                    throwOnMixingSelectorWithCluster(reassembleIndexName(clusterString, indexPattern, selectorString), ctx);
+                }
+                validateClusterString(clusterString, ctx);
+            }
+
+            validateIndexForCluster(clusterString, pattern, ctx, hasSeenStar);
+            if (selectorString != null) {
+                try {
+                    // Ensures that the selector provided is one of the valid kinds
+                    IndexNameExpressionResolver.SelectorResolver.validateIndexSelectorString(indexPattern, selectorString);
+                } catch (InvalidIndexNameException e) {
+                    throw new ParsingException(e, source(ctx), e.getMessage());
+                }
+            }
+
+            isFirstPattern = false;
+        }
+    }
+
+    private static void validateIndexForCluster(
+        String clusterString,
+        String index,
+        EsqlBaseParser.IndexPatternContext ctx,
+        boolean hasSeenStar
+    ) {
+        // Strip spaces off first because validation checks are not written to handle them
+        index = index.strip();
+
+        try {
+            Tuple<String, String> splitPattern = IndexNameExpressionResolver.splitSelectorExpression(index);
+            if (splitPattern.v2() != null && clusterString != null) {
+                throwOnMixingSelectorWithCluster(reassembleIndexName(clusterString, splitPattern.v1(), splitPattern.v2()), ctx);
+            }
+
+            index = splitPattern.v1();
+        } catch (InvalidIndexNameException e) {
+            // throws exception if the selector expression is invalid. Selector resolution does not complain about exclusions
+            throw new ParsingException(e, source(ctx), e.getMessage());
+        }
+        hasSeenStar = hasSeenStar || index.contains(WILDCARD);
+        index = index.replace(WILDCARD, "").strip();
+        if (index.isBlank()) {
+            return;
+        }
+        var hasExclusion = index.startsWith(EXCLUSION);
+        index = removeExclusion(index);
+        String tempName;
+        try {
+            // remove the exclusion outside of <>, from index names with DateMath expression,
+            // e.g. -<-logstash-{now/d}> becomes <-logstash-{now/d}> before calling resolveDateMathExpression
+            tempName = IndexNameExpressionResolver.resolveDateMathExpression(index);
+        } catch (ElasticsearchParseException e) {
+            // throws exception if the DateMath expression is invalid, resolveDateMathExpression does not complain about exclusions
+            throw new ParsingException(e, source(ctx), e.getMessage());
+        }
+        hasExclusion = tempName.startsWith(EXCLUSION) || hasExclusion;
+        index = tempName.equals(index) ? index : removeExclusion(tempName);
+        try {
+            MetadataCreateIndexService.validateIndexOrAliasName(index, InvalidIndexNameException::new);
+        } catch (InvalidIndexNameException e) {
+            // ignore invalid index name if it has exclusions and there is an index with wildcard before it
+            if (hasSeenStar && hasExclusion) {
+                return;
+            }
+            throw new ParsingException(e, source(ctx), e.getMessage());
         }
     }
 

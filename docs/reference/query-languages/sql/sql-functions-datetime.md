@@ -15,9 +15,8 @@ A common requirement when dealing with date/time in general revolves around the 
 
 The table below shows the mapping between {{es}} and Elasticsearch SQL:
 
-|     |     |
-| --- | --- |
 | **{{es}}** | **Elasticsearch SQL** |
+| --- | --- |
 | Index/Table datetime math |
 | `<index-{now/M{YYYY.MM}}>` |
 | Query date/time math |
@@ -38,9 +37,8 @@ Elasticsearch SQL accepts also the plural for each time unit (e.g. both `YEAR` a
 
 Example of the possible combinations below:
 
-|     |     |
-| --- | --- |
 | **Interval** | **Description** |
+| --- | --- |
 | `INTERVAL '1-2' YEAR TO MONTH` | 1 year and 2 months |
 | `INTERVAL '3 4' DAYS TO HOURS` | 3 days and 4 hours |
 | `INTERVAL '5 6:12' DAYS TO MINUTES` | 5 days, 6 hours and 12 minutes |

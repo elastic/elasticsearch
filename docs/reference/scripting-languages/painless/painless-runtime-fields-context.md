@@ -56,7 +56,6 @@ $$$runtime-emit-method$$$
     ::::{dropdown} Properties of grok
     `extract`
     :   Indicates the values to return. This method applies only to `grok` and `dissect` methods.
-
     ::::
 
 
@@ -66,7 +65,6 @@ $$$runtime-emit-method$$$
     ::::{dropdown} Properties of dissect
     `extract`
     :   Indicates the values to return. This method applies only to `grok` and `dissect` methods.
-
     ::::
 
 

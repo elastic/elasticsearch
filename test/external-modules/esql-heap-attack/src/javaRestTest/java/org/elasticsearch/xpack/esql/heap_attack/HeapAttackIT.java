@@ -19,6 +19,7 @@ import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.client.WarningsHandler;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.CheckedSupplier;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
@@ -972,7 +973,7 @@ public class HeapAttackIT extends ESRestTestCase {
     private void initIndex(String name, String bulk) throws IOException {
         if (indexExists(name) == false) {
             // not strictly required, but this can help isolate failure from bulk indexing.
-            createIndex(name);
+            createIndex(name, Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0).build());
         }
         if (hasText(bulk)) {
             bulk(name, bulk);

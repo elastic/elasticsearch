@@ -2002,7 +2002,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
          * We do not support shrinking the shard count.
          * @param shardCount   updated shardCount
          */
-        public Builder reshardAddShards(int shardCount, IndexMetadata sourceMetadata) {
+        public Builder reshardAddShards(int shardCount, final IndexMetadata sourceMetadata) {
             if (shardCount % numberOfShards() != 0) {
                 throw new IllegalArgumentException(
                     "New shard count ["
@@ -3029,7 +3029,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         return new ShardId(sourceIndexMetadata.getIndex(), shardId);
     }
 
-    private static void assertSplitMetadata(int numSourceShards, int numTargetShards, IndexMetadata sourceIndexMetadata) {
+    public static void assertSplitMetadata(int numSourceShards, int numTargetShards, IndexMetadata sourceIndexMetadata) {
         if (numSourceShards > numTargetShards) {
             throw new IllegalArgumentException(
                 "the number of source shards ["

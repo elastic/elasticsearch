@@ -611,7 +611,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
             indexVersionCreated,
             mapperMetrics,
             index().getName(),
-            mapperRegistry
+            mapperRegistry // MP TODO: hmm, do we still need this now that we have NamespaceValidator in MapperParserContext?
         );
         newMapper.validate(indexSettings, reason != MergeReason.MAPPING_RECOVERY);
         return newMapper;

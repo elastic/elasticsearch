@@ -89,8 +89,20 @@ public class MappingParserContext {
         IdFieldMapper idFieldMapper,
         Function<Query, BitSetProducer> bitSetProducer
     ) {
-        this(similarityLookupService, typeParsers, runtimeFieldParsers, indexVersionCreated, clusterTransportVersion,
-            searchExecutionContextSupplier, scriptCompiler, indexAnalyzers, indexSettings, idFieldMapper, bitSetProducer, null);
+        this(
+            similarityLookupService,
+            typeParsers,
+            runtimeFieldParsers,
+            indexVersionCreated,
+            clusterTransportVersion,
+            searchExecutionContextSupplier,
+            scriptCompiler,
+            indexAnalyzers,
+            indexSettings,
+            idFieldMapper,
+            bitSetProducer,
+            null
+        );
     }
 
     public RootObjectMapperNamespaceValidator getNamespaceValidator() {

@@ -165,7 +165,8 @@ public class TransportSnapshotsStatusAction extends TransportMasterNodeAction<Sn
 
     }
 
-    private void buildResponse(
+    // Package access for testing.
+    void buildResponse(
         SnapshotsInProgress snapshotsInProgress,
         SnapshotsStatusRequest request,
         List<SnapshotsInProgress.Entry> currentSnapshotEntries,
@@ -190,6 +191,9 @@ public class TransportSnapshotsStatusAction extends TransportMasterNodeAction<Sn
                 for (Map.Entry<RepositoryShardId, SnapshotsInProgress.ShardSnapshotStatus> shardEntry : entry
                     .shardSnapshotStatusByRepoShardId()
                     .entrySet()) {
+                    if (task.notifyIfCancelled(listener)) {
+                        return;
+                    }
                     SnapshotsInProgress.ShardSnapshotStatus status = shardEntry.getValue();
                     if (status.nodeId() != null) {
                         // We should have information about this shard from the shard:

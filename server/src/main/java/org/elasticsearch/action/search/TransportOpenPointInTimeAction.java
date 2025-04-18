@@ -39,10 +39,10 @@ import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.search.internal.ShardSearchContextId;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.AbstractTransportRequest;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportActionProxy;
 import org.elasticsearch.transport.TransportChannel;
-import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportRequestHandler;
 import org.elasticsearch.transport.TransportResponseHandler;
 import org.elasticsearch.transport.TransportService;
@@ -92,12 +92,7 @@ public class TransportOpenPointInTimeAction extends HandledTransportAction<OpenP
             ShardOpenReaderRequest::new,
             new ShardOpenReaderRequestHandler()
         );
-        TransportActionProxy.registerProxyAction(
-            transportService,
-            OPEN_SHARD_READER_CONTEXT_NAME,
-            false,
-            TransportOpenPointInTimeAction.ShardOpenReaderResponse::new
-        );
+        TransportActionProxy.registerProxyAction(transportService, OPEN_SHARD_READER_CONTEXT_NAME, false, ShardOpenReaderResponse::new);
     }
 
     @Override
@@ -278,7 +273,7 @@ public class TransportOpenPointInTimeAction extends HandledTransportAction<OpenP
         }
     }
 
-    private static final class ShardOpenReaderRequest extends TransportRequest implements IndicesRequest {
+    private static final class ShardOpenReaderRequest extends AbstractTransportRequest implements IndicesRequest {
         final ShardId shardId;
         final OriginalIndices originalIndices;
         final TimeValue keepAlive;

@@ -15,11 +15,11 @@ import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.transport.TransportRequest;
+import org.elasticsearch.transport.AbstractTransportRequest;
 
 import java.io.IOException;
 
-public abstract class BroadcastShardRequest extends TransportRequest implements IndicesRequest {
+public abstract class BroadcastShardRequest extends AbstractTransportRequest implements IndicesRequest {
 
     private final ShardId shardId;
 

@@ -420,6 +420,9 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.single_node.EsqlSpecIT
   method: test {rrf.SimpleRrf ASYNC}
   issue: https://github.com/elastic/elasticsearch/issues/127063
+- class: org.elasticsearch.packaging.test.DockerTests
+  method: test026InstallBundledRepositoryPlugins
+  issue: https://github.com/elastic/elasticsearch/issues/127081
 
 # Examples:
 #

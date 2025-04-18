@@ -90,7 +90,8 @@ public class TransportReshardAction extends TransportMasterNodeAction<ReshardInd
 
         final ReshardIndexClusterStateUpdateRequest updateRequest = new ReshardIndexClusterStateUpdateRequest(
             projectResolver.getProjectId(),
-            concreteIndices[0]
+            concreteIndices[0],
+            request.multiple()
         );
 
         reshardIndexService.reshardIndex(

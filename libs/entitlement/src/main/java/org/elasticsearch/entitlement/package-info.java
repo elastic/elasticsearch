@@ -168,6 +168,7 @@
  * Most of the entitlements are "flag" entitlements: when present, it grants the caller the right to perform an action (or a set of
  * actions); when it's not present, the actions associated with it are denied. Checking is simply a fact checking if the entitlement type
  * is present or not.
+ * </p>
  * There are two entitlements that are not simple flags:
  * <ul>
  * <li>system properties, where we further get the instance of the entitlement for the
@@ -178,8 +179,7 @@
  * file access, which is treated separately for convenience and performance reasons.
  * See {@link org.elasticsearch.entitlement.runtime.policy.FileAccessTree} for details.
  * </li>
- * <ul>
- * </p>
+ * </ul>
  * <p>
  * A final special cases that short circuit the checks (resulting in a "trivially allowed" case) is when the caller is null is the special
  * {@code NO_CLASS} tag class - this happens if there are no frames in the call stack, e.g. when a call originated directly from native

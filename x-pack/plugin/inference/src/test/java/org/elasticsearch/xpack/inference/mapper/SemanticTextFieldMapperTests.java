@@ -1321,9 +1321,35 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
             "field",
             true,
             null,
+            new SemanticTextIndexOptions(SemanticTextIndexOptions.SupportedIndexOptions.DENSE_VECTOR, defaultDenseVectorIndexOptions())
+        );
+
+        // If we explicitly set index options, we respect those over the defaults
+        mapperService = createMapperService(fieldMapping(b -> {
+            b.field("type", "semantic_text");
+            b.field("inference_id", "another_inference_id");
+            b.startObject("model_settings");
+            b.field("task_type", "text_embedding");
+            b.field("dimensions", 100);
+            b.field("similarity", "cosine");
+            b.field("element_type", "float");
+            b.endObject();
+            b.startObject("index_options");
+            b.startObject("dense_vector");
+            b.field("type", "int4_hnsw");
+            b.field("m", 25);
+            b.field("ef_construction", 100);
+            b.endObject();
+            b.endObject();
+        }), useLegacyFormat, IndexVersions.SEMANTIC_TEXT_DEFAULTS_TO_BBQ);
+        assertSemanticTextField(
+            mapperService,
+            "field",
+            true,
+            null,
             new SemanticTextIndexOptions(
                 SemanticTextIndexOptions.SupportedIndexOptions.DENSE_VECTOR,
-                SemanticTextFieldMapper.defaultSemanticDenseIndexOptions()
+                new DenseVectorFieldMapper.Int4HnswIndexOptions(25, 100, null, null)
             )
         );
 
@@ -1348,10 +1374,7 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
             "field",
             true,
             null,
-            new SemanticTextIndexOptions(
-                SemanticTextIndexOptions.SupportedIndexOptions.DENSE_VECTOR,
-                SemanticTextFieldMapper.defaultSemanticDenseIndexOptions()
-            )
+            new SemanticTextIndexOptions(SemanticTextIndexOptions.SupportedIndexOptions.DENSE_VECTOR, defaultDenseVectorIndexOptions())
         );
 
     }

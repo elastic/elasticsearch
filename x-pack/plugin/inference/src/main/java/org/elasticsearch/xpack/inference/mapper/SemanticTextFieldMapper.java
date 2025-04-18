@@ -1135,6 +1135,20 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
                     }
                 }
 
+                boolean hasUserSpecifiedIndexOptions = indexOptions != null;
+                DenseVectorFieldMapper.DenseVectorIndexOptions denseVectorIndexOptions = hasUserSpecifiedIndexOptions
+                    ? (DenseVectorFieldMapper.DenseVectorIndexOptions) indexOptions.indexOptions()
+                    : (indexVersionCreated.onOrAfter(SEMANTIC_TEXT_DEFAULTS_TO_BBQ) ? defaultSemanticDenseIndexOptions() : null);
+
+                if (denseVectorIndexOptions != null
+                    && denseVectorIndexOptions.validate(
+                        modelSettings.elementType(),
+                        modelSettings.dimensions(),
+                        hasUserSpecifiedIndexOptions
+                    )) {
+                    denseVectorMapperBuilder.indexOptions(denseVectorIndexOptions);
+                }
+
                 yield denseVectorMapperBuilder;
             }
             default -> throw new IllegalArgumentException("Invalid task_type in model_settings [" + modelSettings.taskType().name() + "]");

@@ -16,6 +16,9 @@ import org.elasticsearch.xcontent.ToXContent;
 
 import java.io.IOException;
 
+/**
+ * Represents general index options that can be attached to a semantic or vector field. 
+ */
 public abstract class IndexOptions implements ToXContent, Writeable {
 
     public IndexOptions() {}

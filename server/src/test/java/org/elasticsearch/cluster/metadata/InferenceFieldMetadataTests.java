@@ -70,7 +70,7 @@ public class InferenceFieldMetadataTests extends AbstractXContentTestCase<Infere
         String searchInferenceId = randomIdentifier();
         String[] inputFields = generateRandomStringArray(5, 10, false, false);
         Map<String, Object> chunkingSettings = generateRandomChunkingSettings();
-        SemanticTextIndexOptions indexOptions = randomSemanticTextIndexOptions(TaskType.TEXT_EMBEDDING);
+        SemanticTextIndexOptions indexOptions = randomSemanticTextIndexOptions();
         return new InferenceFieldMetadata(name, inferenceId, searchInferenceId, inputFields, chunkingSettings, indexOptions);
     }
 
@@ -81,6 +81,11 @@ public class InferenceFieldMetadataTests extends AbstractXContentTestCase<Infere
         return randomBoolean() ? generateRandomWordBoundaryChunkingSettings() : generateRandomSentenceBoundaryChunkingSettings();
     }
 
+    public static SemanticTextIndexOptions randomSemanticTextIndexOptions() {
+        TaskType taskType = randomFrom(TaskType.SPARSE_EMBEDDING, TaskType.TEXT_EMBEDDING);
+        return randomSemanticTextIndexOptions(taskType);
+    }
+
     public static SemanticTextIndexOptions randomSemanticTextIndexOptions(TaskType taskType) {
 
         if (taskType == TaskType.TEXT_EMBEDDING) {
@@ -89,7 +94,6 @@ public class InferenceFieldMetadataTests extends AbstractXContentTestCase<Infere
                 : new SemanticTextIndexOptions(SemanticTextIndexOptions.SupportedIndexOptions.DENSE_VECTOR, randomIndexOptionsAll());
         }
 
-        // No other supported task types
         return null;
     }
 

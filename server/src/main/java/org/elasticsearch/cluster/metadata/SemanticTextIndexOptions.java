@@ -26,6 +26,15 @@ import java.util.Arrays;
 import java.util.Locale;
 import java.util.Map;
 
+/**
+ * Represents index options for a semantic_text field.
+ * We represent semantic_text index_options as nested within their respective type. For example:
+ * "index_options": {
+ *   "dense_vector": {
+ *    "type": "bbq_hnsw
+ *    }
+ *  }
+ */
 public class SemanticTextIndexOptions implements ToXContent, Writeable {
 
     private static final String TYPE_FIELD = "type";
@@ -103,11 +112,11 @@ public class SemanticTextIndexOptions implements ToXContent, Writeable {
         try {
             Object type = map.remove(TYPE_FIELD);
             if (type == null) {
-                throw new IllegalArgumentException("Required [" + TYPE_FIELD + "]");
+                throw new IllegalArgumentException("Required " + TYPE_FIELD);
             }
             DenseVectorFieldMapper.VectorIndexType vectorIndexType = DenseVectorFieldMapper.VectorIndexType.fromString(
-                XContentMapValues.nodeStringValue(type.toString(), null)
-            ).orElseThrow(() -> new IllegalArgumentException("Unsupported index options " + TYPE_FIELD + " [" + type + "]"));
+                XContentMapValues.nodeStringValue(type, null)
+            ).orElseThrow(() -> new IllegalArgumentException("Unsupported index options " + TYPE_FIELD + type));
 
             return vectorIndexType.parseIndexOptions(fieldName, map, indexVersion);
         } catch (Exception exc) {

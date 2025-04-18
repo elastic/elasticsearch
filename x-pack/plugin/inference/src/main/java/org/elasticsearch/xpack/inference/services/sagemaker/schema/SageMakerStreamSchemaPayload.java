@@ -19,9 +19,9 @@ import java.util.EnumSet;
 public interface SageMakerStreamSchemaPayload extends SageMakerSchemaPayload {
     InferenceServiceResults.Result streamResponseBody(SageMakerModel model, SdkBytes response) throws Exception;
 
-    SdkBytes unifiedRequestBytes(SageMakerModel model, UnifiedCompletionRequest request) throws Exception;
+    SdkBytes chatCompletionRequestBytes(SageMakerModel model, UnifiedCompletionRequest request) throws Exception;
 
-    InferenceServiceResults.Result unifiedResponseBody(SageMakerModel model, SdkBytes response) throws Exception;
+    InferenceServiceResults.Result chatCompletionResponseBody(SageMakerModel model, SdkBytes response) throws Exception;
 
     /**
      * We currently only support streaming for Completion and Chat Completion, and if we are going to implement one then we should implement

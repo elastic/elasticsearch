@@ -13,13 +13,10 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.inference.services.sagemaker.model.SageMakerModel;
 import org.elasticsearch.xpack.inference.services.sagemaker.schema.openai.OpenAiTextEmbeddingPayload;
 
-import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.empty;
-import static org.hamcrest.Matchers.hasSize;
-import static org.hamcrest.Matchers.in;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyMap;
 import static org.mockito.ArgumentMatchers.anyString;
@@ -36,8 +33,8 @@ public class SageMakerSchemasTests extends ESTestCase {
 
     public static SageMakerSchema mockSchema() {
         SageMakerSchema schema = mock();
-        when(schema.extraServiceSettings(anyMap(), any())).thenReturn(SageMakerStoredServiceSchema.NO_OP);
-        when(schema.extraTaskSettings(anyMap(), any())).thenReturn(SageMakerStoredTaskSchema.NO_OP);
+        when(schema.apiServiceSettings(anyMap(), any())).thenReturn(SageMakerStoredServiceSchema.NO_OP);
+        when(schema.apiTaskSettings(anyMap(), any())).thenReturn(SageMakerStoredTaskSchema.NO_OP);
         return schema;
     }
 
@@ -113,11 +110,10 @@ public class SageMakerSchemasTests extends ESTestCase {
         var expectedNamedWriteables = Stream.concat(
             namedWriteables.flatMap(names -> names.map(entry -> entry.name)),
             Stream.of(SageMakerStoredServiceSchema.NO_OP.getWriteableName(), SageMakerStoredTaskSchema.NO_OP.getWriteableName())
-        ).collect(Collectors.toSet());
+        ).distinct().toArray();
 
         var actualRegisteredNames = SageMakerSchemas.namedWriteables().stream().map(entry -> entry.name).toList();
 
-        assertThat(actualRegisteredNames, hasSize(expectedNamedWriteables.size()));
-        actualRegisteredNames.forEach(name -> assertThat(name, in(expectedNamedWriteables)));
+        assertThat(actualRegisteredNames, containsInAnyOrder(expectedNamedWriteables));
     }
 }

@@ -28,7 +28,7 @@ record SageMakerTaskSettings(
     @Nullable String inferenceIdForDataCapture,
     @Nullable String sessionId,
     @Nullable String targetVariant,
-    SageMakerStoredTaskSchema extraTaskSettings
+    SageMakerStoredTaskSchema apiTaskSettings
 ) implements TaskSettings {
 
     static final String NAME = "sage_maker_task_settings";
@@ -56,20 +56,20 @@ record SageMakerTaskSettings(
             && inferenceIdForDataCapture == null
             && sessionId == null
             && targetVariant == null
-            && SageMakerStoredTaskSchema.NO_OP.equals(extraTaskSettings);
+            && SageMakerStoredTaskSchema.NO_OP.equals(apiTaskSettings);
     }
 
     @Override
     public SageMakerTaskSettings updatedTaskSettings(Map<String, Object> newSettings) {
         var validationException = new ValidationException();
 
-        var updateTaskSettings = fromMap(newSettings, extraTaskSettings.update(newSettings, validationException), validationException);
+        var updateTaskSettings = fromMap(newSettings, apiTaskSettings.update(newSettings, validationException), validationException);
 
         validationException.throwIfValidationErrorsExist();
 
-        var updatedExtraTaskSettings = updateTaskSettings.extraTaskSettings().equals(SageMakerStoredTaskSchema.NO_OP)
-            ? extraTaskSettings
-            : updateTaskSettings.extraTaskSettings();
+        var updatedExtraTaskSettings = updateTaskSettings.apiTaskSettings().equals(SageMakerStoredTaskSchema.NO_OP)
+            ? apiTaskSettings
+            : updateTaskSettings.apiTaskSettings();
 
         return new SageMakerTaskSettings(
             firstNotNullOrNull(updateTaskSettings.customAttributes(), customAttributes),
@@ -102,7 +102,7 @@ record SageMakerTaskSettings(
         out.writeOptionalString(inferenceIdForDataCapture);
         out.writeOptionalString(sessionId);
         out.writeOptionalString(targetVariant);
-        out.writeNamedWriteable(extraTaskSettings);
+        out.writeNamedWriteable(apiTaskSettings);
     }
 
     @Override
@@ -113,7 +113,7 @@ record SageMakerTaskSettings(
         optionalField(INFERENCE_ID, inferenceIdForDataCapture, builder);
         optionalField(SESSION_ID, sessionId, builder);
         optionalField(TARGET_VARIANT, targetVariant, builder);
-        extraTaskSettings.toXContent(builder, params);
+        apiTaskSettings.toXContent(builder, params);
 
         return builder.endObject();
     }
@@ -126,7 +126,7 @@ record SageMakerTaskSettings(
 
     public static SageMakerTaskSettings fromMap(
         Map<String, Object> taskSettingsMap,
-        SageMakerStoredTaskSchema extraTaskSettings,
+        SageMakerStoredTaskSchema apiTaskSettings,
         ValidationException validationException
     ) {
         var customAttributes = extractOptionalString(
@@ -156,7 +156,7 @@ record SageMakerTaskSettings(
             inferenceIdForDataCapture,
             sessionId,
             targetVariant,
-            extraTaskSettings
+            apiTaskSettings
         );
     }
 }

@@ -7,14 +7,15 @@
 
 package org.elasticsearch.xpack.inference.services;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.ToXContentFragment;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.json.JsonXContent;
+import org.elasticsearch.xpack.core.ml.AbstractBWCWireSerializationTestCase;
 import org.elasticsearch.xpack.inference.InferenceNamedWriteablesProvider;
 
 import java.io.IOException;
@@ -29,7 +30,7 @@ import static org.hamcrest.Matchers.equalTo;
  * {@link org.elasticsearch.inference.TaskSettings}, and {@link org.elasticsearch.inference.SecretSettings}
  * must be able to read/write to an index via ToXContent as well as read/write between nodes via Writeable.
  */
-public abstract class InferenceSettingsTestCase<T extends Writeable & ToXContent> extends AbstractWireSerializingTestCase<T> {
+public abstract class InferenceSettingsTestCase<T extends Writeable & ToXContent> extends AbstractBWCWireSerializationTestCase<T> {
 
     /**
      *  This method is final because {@link org.elasticsearch.inference.ModelConfigurations} settings must be registered in
@@ -49,6 +50,14 @@ public abstract class InferenceSettingsTestCase<T extends Writeable & ToXContent
     }
 
     /**
+     * Change this for BWC once the implementation requires difference objects depending on the transport version.
+     */
+    @Override
+    protected T mutateInstanceForVersion(T instance, TransportVersion version) {
+        return instance;
+    }
+
+    /**
      * Verify that we can write to XContent and then read from XContent.
      * This simulates saving the model to the index and then reading the model from the index.
      */
@@ -61,7 +70,7 @@ public abstract class InferenceSettingsTestCase<T extends Writeable & ToXContent
 
     protected abstract T fromMutableMap(Map<String, Object> mutableMap);
 
-    private Map<String, Object> toMap(T instance) throws IOException {
+    public static Map<String, Object> toMap(ToXContent instance) throws IOException {
         try (var builder = JsonXContent.contentBuilder()) {
             if (instance instanceof ToXContentFragment) {
                 builder.startObject();

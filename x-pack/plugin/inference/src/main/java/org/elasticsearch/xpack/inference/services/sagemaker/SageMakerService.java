@@ -149,7 +149,7 @@ public class SageMakerService implements InferenceService {
                 );
             }
         } catch (Exception e) {
-            listener.onFailure(e);
+            listener.onFailure(internalFailure(model, e));
         }
     }
 
@@ -163,6 +163,19 @@ public class SageMakerService implements InferenceService {
             );
         }
         return new SageMakerClient.RegionAndSecrets(model.region(), secrets.get());
+    }
+
+    private static ElasticsearchStatusException internalFailure(Model model, Exception cause) {
+        if (cause instanceof ElasticsearchStatusException ese) {
+            return ese;
+        } else {
+            return new ElasticsearchStatusException(
+                "Failed to call SageMaker for inference id [{}].",
+                RestStatus.INTERNAL_SERVER_ERROR,
+                cause,
+                model.getInferenceEntityId()
+            );
+        }
     }
 
     @Override
@@ -181,18 +194,18 @@ public class SageMakerService implements InferenceService {
             var sageMakerModel = (SageMakerModel) model;
             var regionAndSecrets = regionAndSecrets(sageMakerModel);
             var schema = schemas.streamSchemaFor(sageMakerModel);
-            var sagemakerRequest = schema.unifiedStreamRequest(sageMakerModel, request);
+            var sagemakerRequest = schema.chatCompletionStreamRequest(sageMakerModel, request);
             client.invokeStream(
                 regionAndSecrets,
                 sagemakerRequest,
                 timeout,
                 ActionListener.wrap(
-                    response -> listener.onResponse(schema.unifiedStreamResponse(sageMakerModel, response)),
-                    e -> listener.onFailure(schema.unifiedError(sageMakerModel, e))
+                    response -> listener.onResponse(schema.chatCompletionStreamResponse(sageMakerModel, response)),
+                    e -> listener.onFailure(schema.chatCompletionError(sageMakerModel, e))
                 )
             );
         } catch (Exception e) {
-            listener.onFailure(e);
+            listener.onFailure(internalFailure(model, e));
         }
     }
 
@@ -210,36 +223,41 @@ public class SageMakerService implements InferenceService {
             listener.onFailure(createInvalidModelException(model));
             return;
         }
+        try {
+            var sageMakerModel = ((SageMakerModel) model).override(taskSettings);
+            var batchedRequests = new EmbeddingRequestChunker<>(
+                input,
+                sageMakerModel.batchSize().orElse(DEFAULT_BATCH_SIZE),
+                sageMakerModel.getConfigurations().getChunkingSettings()
+            ).batchRequestsWithListeners(listener);
 
-        var sageMakerModel = ((SageMakerModel) model).override(taskSettings);
-        var batchedRequests = new EmbeddingRequestChunker<>(
-            input,
-            sageMakerModel.batchSize().orElse(DEFAULT_BATCH_SIZE),
-            sageMakerModel.getConfigurations().getChunkingSettings()
-        ).batchRequestsWithListeners(listener);
-
-        var subscribableListener = SubscribableListener.newSucceeded(null);
-        for (var request : batchedRequests) {
-            subscribableListener = subscribableListener.andThen(
-                threadPool.executor(UTILITY_THREAD_POOL_NAME),
-                threadPool.getThreadContext(),
-                (l, ignored) -> infer(
-                    sageMakerModel,
-                    null, // no query when chunking?,
-                    null,  // no return docs while chunking?
-                    null, // no topN while chunking?
-                    request.batch().inputs().get(),
-                    false, // we never stream when chunking
-                    null, // since we pass sageMakerModel as the model, we already overwrote the model with the task settings
-                    inputType,
-                    timeout,
-                    ActionListener.runAfter(request.listener(), () -> l.onResponse(null))
-                )
+            var subscribableListener = SubscribableListener.newSucceeded(null);
+            for (var request : batchedRequests) {
+                subscribableListener = subscribableListener.andThen(
+                    threadPool.executor(UTILITY_THREAD_POOL_NAME),
+                    threadPool.getThreadContext(),
+                    (l, ignored) -> infer(
+                        sageMakerModel,
+                        query,
+                        null,  // no return docs while chunking?
+                        null, // no topN while chunking?
+                        request.batch().inputs().get(),
+                        false, // we never stream when chunking
+                        null, // since we pass sageMakerModel as the model, we already overwrote the model with the task settings
+                        inputType,
+                        timeout,
+                        ActionListener.runAfter(request.listener(), () -> l.onResponse(null))
+                    )
+                );
+            }
+            // if there were any errors trying to create the SubscribableListener chain, then forward that to the listener
+            // otherwise, BatchRequestAndListener will handle forwarding errors from the infer method
+            subscribableListener.addListener(
+                ActionListener.noop().delegateResponse((l, e) -> listener.onFailure(internalFailure(model, e)))
             );
+        } catch (Exception e) {
+            listener.onFailure(internalFailure(model, e));
         }
-        // if there were any errors trying to create the SubscribableListener chain, then forward that to the listener
-        // otherwise, BatchRequestAndListener will handle forwarding errors from the infer method
-        subscribableListener.addListener(ActionListener.noop().delegateResponse((l, e) -> listener.onFailure(e)));
     }
 
     @Override

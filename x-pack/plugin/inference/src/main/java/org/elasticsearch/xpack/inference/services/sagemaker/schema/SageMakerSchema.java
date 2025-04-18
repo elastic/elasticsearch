@@ -16,18 +16,15 @@ import software.amazon.awssdk.services.sagemakerruntime.model.ModelNotReadyExcep
 import software.amazon.awssdk.services.sagemakerruntime.model.ServiceUnavailableException;
 import software.amazon.awssdk.services.sagemakerruntime.model.ValidationErrorException;
 
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.inference.InferenceServiceResults;
-import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.inference.services.sagemaker.SageMakerInferenceRequest;
 import org.elasticsearch.xpack.inference.services.sagemaker.model.SageMakerModel;
 
-import java.util.EnumSet;
 import java.util.Map;
 import java.util.stream.Stream;
 
@@ -46,13 +43,13 @@ public class SageMakerSchema {
         this.schemaPayload = schemaPayload;
     }
 
-    public InvokeEndpointRequest request(SageMakerModel model, SageMakerInferenceRequest request) throws Exception {
+    public InvokeEndpointRequest request(SageMakerModel model, SageMakerInferenceRequest request) {
         try {
             return createRequest(model).accept(schemaPayload.accept(model))
                 .contentType(schemaPayload.contentType(model))
                 .body(schemaPayload.requestBytes(model, request))
                 .build();
-        } catch (ElasticsearchException e) {
+        } catch (ElasticsearchStatusException e) {
             throw e;
         } catch (Exception e) {
             throw new ElasticsearchStatusException(
@@ -81,7 +78,7 @@ public class SageMakerSchema {
     public InferenceServiceResults response(SageMakerModel model, InvokeEndpointResponse response) throws Exception {
         try {
             return schemaPayload.responseBody(model, response);
-        } catch (ElasticsearchException e) {
+        } catch (ElasticsearchStatusException e) {
             throw e;
         } catch (Exception e) {
             throw new ElasticsearchStatusException(
@@ -94,7 +91,7 @@ public class SageMakerSchema {
     }
 
     public Exception error(SageMakerModel model, Exception e) {
-        if (e instanceof ElasticsearchException ee) {
+        if (e instanceof ElasticsearchStatusException ee) {
             return ee;
         }
         var error = errorMessageAndStatus(model, e);
@@ -135,16 +132,12 @@ public class SageMakerSchema {
         return schemaPayload.api();
     }
 
-    public EnumSet<TaskType> supportedTasks() {
-        return schemaPayload.supportedTasks();
+    public SageMakerStoredServiceSchema apiServiceSettings(Map<String, Object> serviceSettings, ValidationException validationException) {
+        return schemaPayload.apiServiceSettings(serviceSettings, validationException);
     }
 
-    public SageMakerStoredServiceSchema extraServiceSettings(Map<String, Object> serviceSettings, ValidationException validationException) {
-        return schemaPayload.extraServiceSettings(serviceSettings, validationException);
-    }
-
-    public SageMakerStoredTaskSchema extraTaskSettings(Map<String, Object> taskSettings, ValidationException validationException) {
-        return schemaPayload.extraTaskSettings(taskSettings, validationException);
+    public SageMakerStoredTaskSchema apiTaskSettings(Map<String, Object> taskSettings, ValidationException validationException) {
+        return schemaPayload.apiTaskSettings(taskSettings, validationException);
     }
 
     public Stream<NamedWriteableRegistry.Entry> namedWriteables() {

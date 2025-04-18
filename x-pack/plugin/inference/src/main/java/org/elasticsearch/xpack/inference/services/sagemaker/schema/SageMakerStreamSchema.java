@@ -12,7 +12,6 @@ import software.amazon.awssdk.services.sagemakerruntime.model.InvokeEndpointWith
 import software.amazon.awssdk.services.sagemakerruntime.model.InvokeEndpointWithResponseStreamResponseHandler;
 import software.amazon.awssdk.services.sagemakerruntime.model.ResponseStream;
 
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.CheckedBiFunction;
@@ -30,7 +29,7 @@ import java.util.Locale;
 import java.util.concurrent.Flow;
 import java.util.function.BiFunction;
 
-public final class SageMakerStreamSchema extends SageMakerSchema {
+public class SageMakerStreamSchema extends SageMakerSchema {
 
     private final SageMakerStreamSchemaPayload payload;
 
@@ -49,7 +48,7 @@ public final class SageMakerStreamSchema extends SageMakerSchema {
                 .contentType(payload.contentType(model))
                 .body(body.get())
                 .build();
-        } catch (ElasticsearchException e) {
+        } catch (ElasticsearchStatusException e) {
             throw e;
         } catch (Exception e) {
             throw new ElasticsearchStatusException(
@@ -117,15 +116,15 @@ public final class SageMakerStreamSchema extends SageMakerSchema {
         });
     }
 
-    public InvokeEndpointWithResponseStreamRequest unifiedStreamRequest(SageMakerModel model, UnifiedCompletionRequest request) {
-        return streamRequest(model, () -> payload.unifiedRequestBytes(model, request));
+    public InvokeEndpointWithResponseStreamRequest chatCompletionStreamRequest(SageMakerModel model, UnifiedCompletionRequest request) {
+        return streamRequest(model, () -> payload.chatCompletionRequestBytes(model, request));
     }
 
-    public InferenceServiceResults unifiedStreamResponse(SageMakerModel model, SageMakerClient.SageMakerStream response) {
-        return streamResponse(model, response, payload::unifiedResponseBody, this::unifiedError);
+    public InferenceServiceResults chatCompletionStreamResponse(SageMakerModel model, SageMakerClient.SageMakerStream response) {
+        return streamResponse(model, response, payload::chatCompletionResponseBody, this::chatCompletionError);
     }
 
-    public UnifiedChatCompletionException unifiedError(SageMakerModel model, Exception e) {
+    public UnifiedChatCompletionException chatCompletionError(SageMakerModel model, Exception e) {
         if (e instanceof UnifiedChatCompletionException ucce) {
             return ucce;
         }

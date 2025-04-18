@@ -39,7 +39,7 @@ public class SageMakerModelBuilder {
         var taskSettingsMap = removeFromMapOrDefaultEmpty(requestMap, ModelConfigurations.TASK_SETTINGS);
         var taskSettings = SageMakerTaskSettings.fromMap(
             taskSettingsMap,
-            schema.extraTaskSettings(taskSettingsMap, validationException),
+            schema.apiTaskSettings(taskSettingsMap, validationException),
             validationException
         );
 
@@ -80,7 +80,7 @@ public class SageMakerModelBuilder {
 
         var taskSettings = SageMakerTaskSettings.fromMap(
             taskSettingsMap,
-            schema.extraTaskSettings(taskSettingsMap, validationException),
+            schema.apiTaskSettings(taskSettingsMap, validationException),
             validationException
         );
 

@@ -27,14 +27,11 @@ public interface SageMakerSchemaPayload {
 
     EnumSet<TaskType> supportedTasks();
 
-    default SageMakerStoredServiceSchema extraServiceSettings(
-        Map<String, Object> serviceSettings,
-        ValidationException validationException
-    ) {
+    default SageMakerStoredServiceSchema apiServiceSettings(Map<String, Object> serviceSettings, ValidationException validationException) {
         return SageMakerStoredServiceSchema.NO_OP;
     }
 
-    default SageMakerStoredTaskSchema extraTaskSettings(Map<String, Object> taskSettings, ValidationException validationException) {
+    default SageMakerStoredTaskSchema apiTaskSettings(Map<String, Object> taskSettings, ValidationException validationException) {
         return SageMakerStoredTaskSchema.NO_OP;
     }
 
@@ -51,8 +48,8 @@ public interface SageMakerSchemaPayload {
                 "Unsupported SageMaker settings for api [%s] and task type [%s]: [%s] and [%s]",
                 model.api(),
                 model.getTaskType(),
-                model.extraServiceSettings().getWriteableName(),
-                model.extraTaskSettings().getWriteableName()
+                model.apiServiceSettings().getWriteableName(),
+                model.apiTaskSettings().getWriteableName()
             )
         );
     }

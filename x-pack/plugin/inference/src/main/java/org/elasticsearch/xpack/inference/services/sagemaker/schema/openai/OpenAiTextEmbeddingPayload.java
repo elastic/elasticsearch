@@ -17,13 +17,13 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.xcontent.XContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.json.JsonXContent;
+import org.elasticsearch.xpack.core.inference.results.TextEmbeddingFloatResults;
 import org.elasticsearch.xpack.inference.services.openai.response.OpenAiEmbeddingsResponseEntity;
 import org.elasticsearch.xpack.inference.services.sagemaker.SageMakerInferenceRequest;
 import org.elasticsearch.xpack.inference.services.sagemaker.model.SageMakerModel;
@@ -55,20 +55,20 @@ public class OpenAiTextEmbeddingPayload implements SageMakerSchemaPayload {
     }
 
     @Override
-    public SageMakerStoredServiceSchema extraServiceSettings(Map<String, Object> serviceSettings, ValidationException validationException) {
-        return ExtraServiceSettings.fromMap(serviceSettings, validationException);
+    public SageMakerStoredServiceSchema apiServiceSettings(Map<String, Object> serviceSettings, ValidationException validationException) {
+        return ApiServiceSettings.fromMap(serviceSettings, validationException);
     }
 
     @Override
-    public SageMakerStoredTaskSchema extraTaskSettings(Map<String, Object> taskSettings, ValidationException validationException) {
-        return new ExtraTaskSettings.ExtraTaskSettingsBuilder().fromMap(taskSettings, validationException).build();
+    public SageMakerStoredTaskSchema apiTaskSettings(Map<String, Object> taskSettings, ValidationException validationException) {
+        return new ApiTaskSettings.ApiTaskSettingsBuilder().fromMap(taskSettings, validationException).build();
     }
 
     @Override
     public Stream<NamedWriteableRegistry.Entry> namedWriteables() {
         return Stream.of(
-            new NamedWriteableRegistry.Entry(SageMakerStoredServiceSchema.class, ExtraServiceSettings.NAME, ExtraServiceSettings::new),
-            new NamedWriteableRegistry.Entry(SageMakerStoredTaskSchema.class, ExtraTaskSettings.NAME, ExtraTaskSettings::new)
+            new NamedWriteableRegistry.Entry(SageMakerStoredServiceSchema.class, ApiServiceSettings.NAME, ApiServiceSettings::new),
+            new NamedWriteableRegistry.Entry(SageMakerStoredTaskSchema.class, ApiTaskSettings.NAME, ApiTaskSettings::new)
         );
     }
 
@@ -84,29 +84,23 @@ public class OpenAiTextEmbeddingPayload implements SageMakerSchemaPayload {
 
     @Override
     public SdkBytes requestBytes(SageMakerModel model, SageMakerInferenceRequest request) throws Exception {
-        if (model.extraServiceSettings() instanceof ExtraServiceSettings extraServiceSettings
-            && model.extraTaskSettings() instanceof ExtraTaskSettings extraTaskSettings) {
+        if (model.apiServiceSettings() instanceof ApiServiceSettings apiServiceSettings
+            && model.apiTaskSettings() instanceof ApiTaskSettings apiTaskSettings) {
             try (var builder = JsonXContent.contentBuilder()) {
                 builder.startObject();
                 if (request.query() != null) {
                     builder.field("query", request.query());
                 }
-                if (request.input() != null) {
-                    if (request.input().size() == 1) {
-                        builder.field("input", request.input().get(0));
-                    } else {
-                        builder.array("input", request.input());
-                    }
+                if (request.input().size() == 1) {
+                    builder.field("input", request.input().get(0));
+                } else {
+                    builder.field("input", request.input());
                 }
-                if (extraTaskSettings.user() != null) {
-                    builder.field("user", extraTaskSettings.user());
+                if (apiTaskSettings.user() != null) {
+                    builder.field("user", apiTaskSettings.user());
                 }
-                if (extraServiceSettings.dimensions() != null) {
-                    builder.field("dimensions", extraServiceSettings.dimensions());
-                }
-                // organizationId is supposed to be a header, but SageMaker SDK does not allow headers, so add it to the body
-                if (extraServiceSettings.organizationId() != null) {
-                    builder.field("organization_id", extraServiceSettings.organizationId());
+                if (apiServiceSettings.dimensions() != null) {
+                    builder.field("dimensions", apiServiceSettings.dimensions());
                 }
                 builder.endObject();
                 return SdkBytes.fromUtf8String(Strings.toString(builder));
@@ -117,19 +111,18 @@ public class OpenAiTextEmbeddingPayload implements SageMakerSchemaPayload {
     }
 
     @Override
-    public InferenceServiceResults responseBody(SageMakerModel model, InvokeEndpointResponse response) throws Exception {
+    public TextEmbeddingFloatResults responseBody(SageMakerModel model, InvokeEndpointResponse response) throws Exception {
         try (var p = jsonXContent.createParser(XContentParserConfiguration.EMPTY, response.body().asInputStream())) {
             return OpenAiEmbeddingsResponseEntity.EmbeddingFloatResult.PARSER.apply(p, null).toTextEmbeddingFloatResults();
         }
     }
 
-    record ExtraServiceSettings(@Nullable Integer dimensions, @Nullable String organizationId) implements SageMakerStoredServiceSchema {
+    record ApiServiceSettings(@Nullable Integer dimensions) implements SageMakerStoredServiceSchema {
         private static final String NAME = "sagemaker_openai_text_embeddings_service_settings";
         private static final String DIMENSIONS_FIELD = "dimensions";
-        private static final String ORGANIZATION_FIELD = "organization_id";
 
-        ExtraServiceSettings(StreamInput in) throws IOException {
-            this(in.readOptionalInt(), in.readOptionalString());
+        ApiServiceSettings(StreamInput in) throws IOException {
+            this(in.readOptionalInt());
         }
 
         @Override
@@ -145,7 +138,6 @@ public class OpenAiTextEmbeddingPayload implements SageMakerSchemaPayload {
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeOptionalInt(dimensions);
-            out.writeOptionalString(organizationId);
         }
 
         @Override
@@ -153,41 +145,32 @@ public class OpenAiTextEmbeddingPayload implements SageMakerSchemaPayload {
             if (dimensions != null) {
                 builder.field(DIMENSIONS_FIELD, dimensions);
             }
-            if (organizationId != null) {
-                builder.field(ORGANIZATION_FIELD, organizationId);
-            }
             return builder;
         }
 
-        static ExtraServiceSettings fromMap(Map<String, Object> serviceSettings, ValidationException validationException) {
+        static ApiServiceSettings fromMap(Map<String, Object> serviceSettings, ValidationException validationException) {
             var dimensions = extractOptionalPositiveInteger(
                 serviceSettings,
                 DIMENSIONS_FIELD,
                 ModelConfigurations.SERVICE_SETTINGS,
                 validationException
             );
-            var organizationId = extractOptionalString(
-                serviceSettings,
-                ORGANIZATION_FIELD,
-                ModelConfigurations.SERVICE_SETTINGS,
-                validationException
-            );
 
-            return new ExtraServiceSettings(dimensions, organizationId);
+            return new ApiServiceSettings(dimensions);
         }
     }
 
-    record ExtraTaskSettings(@Nullable String user) implements SageMakerStoredTaskSchema {
+    record ApiTaskSettings(@Nullable String user) implements SageMakerStoredTaskSchema {
         private static final String NAME = "sagemaker_openai_text_embeddings_task_settings";
         private static final String USER_FIELD = "user";
 
-        ExtraTaskSettings(StreamInput in) throws IOException {
+        ApiTaskSettings(StreamInput in) throws IOException {
             this(in.readOptionalString());
         }
 
         @Override
         public Builder toBuilder() {
-            return new ExtraTaskSettingsBuilder();
+            return new ApiTaskSettingsBuilder();
         }
 
         @Override
@@ -210,18 +193,18 @@ public class OpenAiTextEmbeddingPayload implements SageMakerSchemaPayload {
             return user != null ? builder.field(USER_FIELD, user) : builder;
         }
 
-        static class ExtraTaskSettingsBuilder implements Builder {
+        static class ApiTaskSettingsBuilder implements Builder {
             private String user;
 
             @Override
-            public ExtraTaskSettingsBuilder fromMap(Map<String, Object> map, ValidationException exception) {
+            public ApiTaskSettingsBuilder fromMap(Map<String, Object> map, ValidationException exception) {
                 user = extractOptionalString(map, USER_FIELD, ModelConfigurations.SERVICE_SETTINGS, exception);
                 return this;
             }
 
             @Override
-            public ExtraTaskSettings build() {
-                return new ExtraTaskSettings(user);
+            public ApiTaskSettings build() {
+                return new ApiTaskSettings(user);
             }
         }
     }

@@ -141,6 +141,7 @@ tasks.named("dependencyLicenses").configure {
   mapping from: /json-utils.*/, to: 'aws-sdk-2'
   mapping from: /endpoints-spi.*/, to: 'aws-sdk-2'
   mapping from: /bedrockruntime.*/, to: 'aws-sdk-2'
+  mapping from: /sagemakerruntime.*/, to: 'aws-sdk-2'
   mapping from: /netty-nio-client/, to: 'aws-sdk-2'
   /* Cannot use REGEX to match netty-* because netty-nio-client is an AWS package */
   mapping from: /netty-buffer/, to: 'netty'

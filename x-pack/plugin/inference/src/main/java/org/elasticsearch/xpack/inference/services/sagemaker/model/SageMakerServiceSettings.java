@@ -36,7 +36,7 @@ record SageMakerServiceSettings(
     @Nullable String targetContainerHostname,
     @Nullable String inferenceComponentName,
     @Nullable Integer batchSize,
-    SageMakerStoredServiceSchema extraServiceSettings
+    SageMakerStoredServiceSchema apiServiceSettings
 ) implements ServiceSettings {
 
     static final String NAME = "sage_maker_service_settings";
@@ -52,7 +52,7 @@ record SageMakerServiceSettings(
         Objects.requireNonNull(endpointName);
         Objects.requireNonNull(region);
         Objects.requireNonNull(api);
-        Objects.requireNonNull(extraServiceSettings);
+        Objects.requireNonNull(apiServiceSettings);
     }
 
     SageMakerServiceSettings(StreamInput in) throws IOException {
@@ -87,7 +87,7 @@ record SageMakerServiceSettings(
         out.writeOptionalString(targetContainerHostname());
         out.writeOptionalString(inferenceComponentName());
         out.writeOptionalInt(batchSize());
-        out.writeNamedWriteable(extraServiceSettings);
+        out.writeNamedWriteable(apiServiceSettings);
     }
 
     @Override
@@ -106,7 +106,7 @@ record SageMakerServiceSettings(
         optionalField(TARGET_CONTAINER_HOSTNAME, targetContainerHostname(), builder);
         optionalField(INFERENCE_COMPONENT_NAME, inferenceComponentName(), builder);
         optionalField(BATCH_SIZE, batchSize(), builder);
-        extraServiceSettings.toXContent(builder, params);
+        apiServiceSettings.toXContent(builder, params);
 
         return builder.endObject();
     }
@@ -164,7 +164,7 @@ record SageMakerServiceSettings(
         validationException.throwIfValidationErrorsExist();
 
         var schema = schemas.schemaFor(taskType, api);
-        var extraServiceSettings = schema.extraServiceSettings(serviceSettingsMap, validationException);
+        var apiServiceSettings = schema.apiServiceSettings(serviceSettingsMap, validationException);
 
         validationException.throwIfValidationErrorsExist();
 
@@ -176,7 +176,7 @@ record SageMakerServiceSettings(
             targetContainerHostname,
             inferenceComponentName,
             batchSize,
-            extraServiceSettings
+            apiServiceSettings
         );
     }
 }

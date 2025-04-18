@@ -11,12 +11,18 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.InputType;
 
 import java.util.List;
+import java.util.Objects;
 
 public record SageMakerInferenceRequest(
-    String query,
+    @Nullable String query,
     @Nullable Boolean returnDocuments,
     @Nullable Integer topN,
-    @Nullable List<String> input,
+    List<String> input,
     boolean stream,
     InputType inputType
-) {}
+) {
+    public SageMakerInferenceRequest {
+        Objects.requireNonNull(input);
+        Objects.requireNonNull(inputType);
+    }
+}

@@ -125,11 +125,11 @@ public class SageMakerModel extends Model {
         );
     }
 
-    public SageMakerStoredServiceSchema extraServiceSettings() {
-        return serviceSettings.extraServiceSettings();
+    public SageMakerStoredServiceSchema apiServiceSettings() {
+        return serviceSettings.apiServiceSettings();
     }
 
-    public SageMakerStoredTaskSchema extraTaskSettings() {
-        return taskSettings.extraTaskSettings();
+    public SageMakerStoredTaskSchema apiTaskSettings() {
+        return taskSettings.apiTaskSettings();
     }
 }

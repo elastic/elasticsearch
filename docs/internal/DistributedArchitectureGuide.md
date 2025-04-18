@@ -201,7 +201,7 @@ Each index consists of a fixed number of primary shards. The number of primary s
 primary shard can have zero-to-many replicas used for data redundancy. The number of replicas per shard can be changed dynamically.
 
 The allocation assignment status of each shard copy is tracked by its [ShardRoutingState][]. The `RoutingTable` and `RoutingNodes` objects
-are responsible for tracking to which data nodes each shard in the cluster is allocated: see the [routing package javadoc][] for more
+are responsible for tracking the data nodes to which each shard in the cluster is allocated: see the [routing package javadoc][] for more
 details about these structures.
 
 [routing package javadoc]: https://github.com/elastic/elasticsearch/blob/v9.0.0-beta1/server/src/main/java/org/elasticsearch/cluster/routing/package-info.java

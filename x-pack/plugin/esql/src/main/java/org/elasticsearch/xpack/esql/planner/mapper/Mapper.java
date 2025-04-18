@@ -41,7 +41,6 @@ import org.elasticsearch.xpack.esql.plan.physical.TopNExec;
 import org.elasticsearch.xpack.esql.plan.physical.UnaryExec;
 import org.elasticsearch.xpack.esql.plan.physical.inference.RerankExec;
 
-import java.util.ArrayList;
 import java.util.List;
 
 /**
@@ -235,12 +234,7 @@ public class Mapper {
     }
 
     private PhysicalPlan mapFork(Fork fork) {
-        List<PhysicalPlan> physicalChildren = new ArrayList<>();
-        for (var child : fork.children()) {
-            var mappedChild = new FragmentExec(child);
-            physicalChildren.add(mappedChild);
-        }
-        return new MergeExec(fork.source(), physicalChildren, fork.output());
+        return new MergeExec(fork.source(), fork.children().stream().map(child -> map(child)).toList(), fork.output());
     }
 
     public static boolean isPipelineBreaker(LogicalPlan p) {

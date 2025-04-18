@@ -24,7 +24,6 @@ import org.apache.lucene.index.SortedDocValues;
 import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.index.TermsEnum;
-import org.apache.lucene.search.CheckedIntConsumer;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.SortedSetSelector;
 import org.apache.lucene.store.ByteArrayDataOutput;
@@ -125,12 +124,8 @@ final class ES819TSDBDocValuesConsumer extends XDocValuesConsumer {
         writeField(field, producer, -1, null);
     }
 
-    private long[] writeField(
-        FieldInfo field,
-        TsdbDocValuesProducer valuesProducer,
-        long maxOrd,
-        CheckedIntConsumer<IOException> docCountConsumer
-    ) throws IOException {
+    private long[] writeField(FieldInfo field, TsdbDocValuesProducer valuesProducer, long maxOrd, OffsetsAccumulator offsetsAccumulator)
+        throws IOException {
         int numDocsWithValue = 0;
         long numValues = 0;
 
@@ -180,8 +175,8 @@ final class ES819TSDBDocValuesConsumer extends XDocValuesConsumer {
                             disiAccumulator.addDocId(doc);
                         }
                         final int count = values.docValueCount();
-                        if (docCountConsumer != null) {
-                            docCountConsumer.accept(count);
+                        if (offsetsAccumulator != null) {
+                            offsetsAccumulator.addDoc(count);
                         }
                         for (int i = 0; i < count; ++i) {
                             buffer[bufferSize++] = values.nextValue();
@@ -563,7 +558,7 @@ final class ES819TSDBDocValuesConsumer extends XDocValuesConsumer {
             } else {
                 assert numValues > numDocsWithField;
                 try (var accumulator = new OffsetsAccumulator(dir, context, data, numDocsWithField)) {
-                    writeField(field, valuesProducer, maxOrd, accumulator::addDoc);
+                    writeField(field, valuesProducer, maxOrd, accumulator);
                     accumulator.build(meta, data);
                 }
             }

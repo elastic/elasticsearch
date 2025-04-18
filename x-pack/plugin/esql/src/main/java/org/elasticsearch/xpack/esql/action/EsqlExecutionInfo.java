@@ -394,7 +394,6 @@ public class EsqlExecutionInfo implements ChunkedToXContentObject, Writeable {
         public enum Status {
             RUNNING,     // still running
             SUCCESSFUL,  // all shards completed search
-            FILTERED,    // all shards were filtered out, temporary status for planning
             PARTIAL,     // only some shards completed the search, partial results from cluster
             SKIPPED,     // entire cluster was skipped
             FAILED;      // search was failed due to errors on this cluster

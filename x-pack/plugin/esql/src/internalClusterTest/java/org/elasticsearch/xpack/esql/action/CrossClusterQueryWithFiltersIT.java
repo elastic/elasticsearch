@@ -157,7 +157,7 @@ public class CrossClusterQueryWithFiltersIT extends AbstractCrossClusterTestCase
             assertClusterMetadataSuccess(localCluster, localShards, overallTookMillis, "logs-1");
 
             EsqlExecutionInfo.Cluster remoteCluster = executionInfo.getCluster(REMOTE_CLUSTER_1);
-            assertClusterMetadataNoShards(remoteCluster, remoteShards, overallTookMillis, "logs-2");
+            assertClusterMetadataSkippedShards(remoteCluster, remoteShards, overallTookMillis, "logs-2");
         }
 
         // Only remote is included
@@ -221,7 +221,7 @@ public class CrossClusterQueryWithFiltersIT extends AbstractCrossClusterTestCase
 
             EsqlExecutionInfo.Cluster remoteCluster = executionInfo.getCluster(REMOTE_CLUSTER_1);
             // Remote has no shards due to filter
-            assertClusterMetadataNoShards(remoteCluster, remoteShards, overallTookMillis, "logs-2");
+            assertClusterMetadataSkippedShards(remoteCluster, remoteShards, overallTookMillis, "logs-2");
 
             EsqlExecutionInfo.Cluster localCluster = executionInfo.getCluster(LOCAL_CLUSTER);
             // Local cluster can not be filtered out for now
@@ -245,7 +245,7 @@ public class CrossClusterQueryWithFiltersIT extends AbstractCrossClusterTestCase
 
             EsqlExecutionInfo.Cluster remoteCluster = executionInfo.getCluster(REMOTE_CLUSTER_1);
             // Remote has no shards due to filter
-            assertClusterMetadataNoShards(remoteCluster, remoteShards, overallTookMillis, "logs-*");
+            assertClusterMetadataSkippedShards(remoteCluster, remoteShards, overallTookMillis, "logs-*");
 
             EsqlExecutionInfo.Cluster localCluster = executionInfo.getCluster(LOCAL_CLUSTER);
             // Local cluster can not be filtered out for now

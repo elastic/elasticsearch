@@ -208,8 +208,7 @@ public class EsqlCCSUtils {
          * Mark it as SKIPPED with 0 shards searched and took=0.
          */
         for (String c : clustersWithNoMatchingIndices) {
-            if (executionInfo.getCluster(c).getStatus() != Cluster.Status.RUNNING
-                && executionInfo.getCluster(c).getStatus() != Cluster.Status.FILTERED) {
+            if (executionInfo.getCluster(c).getStatus() != Cluster.Status.RUNNING) {
                 // if cluster was already in the terminal state and not filtered, do not overwrite
                 continue;
             }
@@ -224,21 +223,14 @@ public class EsqlCCSUtils {
                 } else {
                     fatalErrorMessage += "; " + error;
                 }
-                if (filter != null) {
-                    // Use filtered status here because we still need to check it on the second lookup without the filter
-                    // to ensure this index is real.
-                    markClusterWithFinalStateAndNoShards(executionInfo, c, Cluster.Status.FILTERED, null);
-                } else {
+                if (filter == null) {
                     markClusterWithFinalStateAndNoShards(executionInfo, c, Cluster.Status.FAILED, new VerificationException(error));
                 }
             } else {
                 // no matching indices and no concrete index requested - just mark it as done, no error
-                markClusterWithFinalStateAndNoShards(
-                    executionInfo,
-                    c,
-                    filter != null ? Cluster.Status.FILTERED : Cluster.Status.SUCCESSFUL,
-                    null
-                );
+                if (indexResolution.isValid()) {
+                    markClusterWithFinalStateAndNoShards(executionInfo, c, Cluster.Status.SUCCESSFUL, null);
+                }
             }
         }
         if (fatalErrorMessage != null) {
@@ -285,9 +277,6 @@ public class EsqlCCSUtils {
                             .setFailedShards(0)
                             .build()
                     );
-                }
-                if (cluster.getStatus() == Cluster.Status.FILTERED) {
-                    markClusterWithFinalStateAndNoShards(execInfo, clusterAlias, Cluster.Status.SUCCESSFUL, null);
                 }
             }
         }

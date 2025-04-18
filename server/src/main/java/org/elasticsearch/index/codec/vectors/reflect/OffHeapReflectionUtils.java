@@ -9,6 +9,11 @@
 
 package org.elasticsearch.index.codec.vectors.reflect;
 
+import org.apache.lucene.backward_codecs.lucene90.Lucene90HnswVectorsReader;
+import org.apache.lucene.backward_codecs.lucene91.Lucene91HnswVectorsReader;
+import org.apache.lucene.backward_codecs.lucene92.Lucene92HnswVectorsReader;
+import org.apache.lucene.backward_codecs.lucene94.Lucene94HnswVectorsReader;
+import org.apache.lucene.backward_codecs.lucene95.Lucene95HnswVectorsReader;
 import org.apache.lucene.codecs.hnsw.FlatVectorsReader;
 import org.apache.lucene.codecs.lucene99.Lucene99FlatVectorsReader;
 import org.apache.lucene.codecs.lucene99.Lucene99HnswVectorsReader;
@@ -51,6 +56,33 @@ public class OffHeapReflectionUtils {
     static final Class<?> L99_FLT_VR_CLS = Lucene99FlatVectorsReader.class;
     static final Class<?> L99_HNSW_VR_CLS = Lucene99HnswVectorsReader.class;
 
+    // old codecs
+    private static final MethodHandle GET_FIELD_ENTRY_HANDLE_L90HNSW;
+    private static final MethodHandle GET_VECTOR_INDEX_LENGTH_HANDLE_L90HNSW;
+    private static final MethodHandle GET_VECTOR_DATA_LENGTH_HANDLE_L90HNSW;
+
+    private static final MethodHandle GET_FIELD_ENTRY_HANDLE_L91HNSW;
+    private static final MethodHandle GET_VECTOR_INDEX_LENGTH_HANDLE_L91HNSW;
+    private static final MethodHandle GET_VECTOR_DATA_LENGTH_HANDLE_L91HNSW;
+
+    private static final MethodHandle GET_FIELD_ENTRY_HANDLE_L92HNSW;
+    private static final MethodHandle GET_VECTOR_INDEX_LENGTH_HANDLE_L92HNSW;
+    private static final MethodHandle GET_VECTOR_DATA_LENGTH_HANDLE_L92HNSW;
+
+    private static final MethodHandle GET_FIELD_ENTRY_HANDLE_L94HNSW;
+    private static final MethodHandle GET_VECTOR_INDEX_LENGTH_HANDLE_L94HNSW;
+    private static final MethodHandle GET_VECTOR_DATA_LENGTH_HANDLE_L94HNSW;
+
+    private static final MethodHandle GET_FIELD_ENTRY_HANDLE_L95HNSW;
+    private static final MethodHandle GET_VECTOR_INDEX_LENGTH_HANDLE_L95HNSW;
+    private static final MethodHandle GET_VECTOR_DATA_LENGTH_HANDLE_L95HNSW;
+
+    static final Class<?> L90_HNSW_VR_CLS = Lucene90HnswVectorsReader.class;
+    static final Class<?> L91_HNSW_VR_CLS = Lucene91HnswVectorsReader.class;
+    static final Class<?> L92_HNSW_VR_CLS = Lucene92HnswVectorsReader.class;
+    static final Class<?> L94_HNSW_VR_CLS = Lucene94HnswVectorsReader.class;
+    static final Class<?> L95_HNSW_VR_CLS = Lucene95HnswVectorsReader.class;
+
     static {
         try {
             // Lucene99ScalarQuantizedVectorsReader
@@ -74,6 +106,41 @@ public class OffHeapReflectionUtils {
             GET_VECTOR_INDEX_LENGTH_HANDLE_L99HNSW = lookup.findVirtual(cls, "vectorIndexLength", methodType(long.class));
             lookup = privilegedPrivateLookupIn(L99_HNSW_VR_CLS, MethodHandles.lookup());
             FLAT_VECTORS_READER_HNDL_L99HNSW = lookup.findVarHandle(L99_HNSW_VR_CLS, "flatVectorsReader", FlatVectorsReader.class);
+            // Lucene90HnswVectorsReader
+            cls = Class.forName("org.apache.lucene.backward_codecs.lucene90.Lucene90HnswVectorsReader$FieldEntry");
+            lookup = privilegedPrivateLookupIn(L90_HNSW_VR_CLS, MethodHandles.lookup());
+            mt = methodType(cls, String.class);
+            GET_FIELD_ENTRY_HANDLE_L90HNSW = lookup.findVirtual(L90_HNSW_VR_CLS, "getFieldEntry", mt);
+            GET_VECTOR_INDEX_LENGTH_HANDLE_L90HNSW = lookup.findVirtual(cls, "indexDataLength", methodType(long.class));
+            GET_VECTOR_DATA_LENGTH_HANDLE_L90HNSW = lookup.findVirtual(cls, "vectorDataLength", methodType(long.class));
+            // Lucene91HnswVectorsReader
+            cls = Class.forName("org.apache.lucene.backward_codecs.lucene91.Lucene91HnswVectorsReader$FieldEntry");
+            lookup = privilegedPrivateLookupIn(L91_HNSW_VR_CLS, MethodHandles.lookup());
+            mt = methodType(cls, String.class);
+            GET_FIELD_ENTRY_HANDLE_L91HNSW = lookup.findVirtual(L91_HNSW_VR_CLS, "getFieldEntry", mt);
+            GET_VECTOR_INDEX_LENGTH_HANDLE_L91HNSW = lookup.findVirtual(cls, "vectorIndexLength", methodType(long.class));
+            GET_VECTOR_DATA_LENGTH_HANDLE_L91HNSW = lookup.findVirtual(cls, "vectorDataLength", methodType(long.class));
+            // Lucene92HnswVectorsReader
+            cls = Class.forName("org.apache.lucene.backward_codecs.lucene92.Lucene92HnswVectorsReader$FieldEntry");
+            lookup = privilegedPrivateLookupIn(L92_HNSW_VR_CLS, MethodHandles.lookup());
+            mt = methodType(cls, String.class);
+            GET_FIELD_ENTRY_HANDLE_L92HNSW = lookup.findVirtual(L92_HNSW_VR_CLS, "getFieldEntry", mt);
+            GET_VECTOR_INDEX_LENGTH_HANDLE_L92HNSW = lookup.findVirtual(cls, "vectorIndexLength", methodType(long.class));
+            GET_VECTOR_DATA_LENGTH_HANDLE_L92HNSW = lookup.findVirtual(cls, "vectorDataLength", methodType(long.class));
+            // Lucene94HnswVectorsReader
+            cls = Class.forName("org.apache.lucene.backward_codecs.lucene94.Lucene94HnswVectorsReader$FieldEntry");
+            lookup = privilegedPrivateLookupIn(L94_HNSW_VR_CLS, MethodHandles.lookup());
+            mt = methodType(cls, String.class, VectorEncoding.class);
+            GET_FIELD_ENTRY_HANDLE_L94HNSW = lookup.findVirtual(L94_HNSW_VR_CLS, "getFieldEntry", mt);
+            GET_VECTOR_INDEX_LENGTH_HANDLE_L94HNSW = lookup.findVirtual(cls, "vectorIndexLength", methodType(long.class));
+            GET_VECTOR_DATA_LENGTH_HANDLE_L94HNSW = lookup.findVirtual(cls, "vectorDataLength", methodType(long.class));
+            // Lucene95HnswVectorsReader
+            cls = Class.forName("org.apache.lucene.backward_codecs.lucene95.Lucene95HnswVectorsReader$FieldEntry");
+            lookup = privilegedPrivateLookupIn(L95_HNSW_VR_CLS, MethodHandles.lookup());
+            mt = methodType(cls, String.class, VectorEncoding.class);
+            GET_FIELD_ENTRY_HANDLE_L95HNSW = lookup.findVirtual(L95_HNSW_VR_CLS, "getFieldEntry", mt);
+            GET_VECTOR_INDEX_LENGTH_HANDLE_L95HNSW = lookup.findVirtual(cls, "vectorIndexLength", methodType(long.class));
+            GET_VECTOR_DATA_LENGTH_HANDLE_L95HNSW = lookup.findVirtual(cls, "vectorDataLength", methodType(long.class));
         } catch (ReflectiveOperationException e) {
             throw new AssertionError(e);
         }
@@ -121,6 +188,72 @@ public class OffHeapReflectionUtils {
 
     static FlatVectorsReader getFlatVectorsReaderL99HNSW(Lucene99HnswVectorsReader reader) {
         return (FlatVectorsReader) FLAT_VECTORS_READER_HNDL_L99HNSW.get(reader);
+    }
+
+    // old codecs
+    @SuppressForbidden(reason = "static type is not accessible")
+    static Map<String, Long> getOffHeapByteSizeL90HNSW(Lucene90HnswVectorsReader reader, FieldInfo fieldInfo) {
+        try {
+            var entry = GET_FIELD_ENTRY_HANDLE_L90HNSW.invoke(reader, fieldInfo.name);
+            long graph = (long) GET_VECTOR_INDEX_LENGTH_HANDLE_L90HNSW.invoke(entry);
+            long raw = (long) GET_VECTOR_DATA_LENGTH_HANDLE_L90HNSW.invoke(entry);
+            return Map.of(HNSW_VECTOR_INDEX_EXTENSION, graph, FLAT_VECTOR_DATA_EXTENSION, raw);
+        } catch (Throwable t) {
+            handleThrowable(t);
+        }
+        throw new AssertionError("should not reach here");
+    }
+
+    @SuppressForbidden(reason = "static type is not accessible")
+    static Map<String, Long> getOffHeapByteSizeL91HNSW(Lucene91HnswVectorsReader reader, FieldInfo fieldInfo) {
+        try {
+            var entry = GET_FIELD_ENTRY_HANDLE_L91HNSW.invoke(reader, fieldInfo.name);
+            long graph = (long) GET_VECTOR_INDEX_LENGTH_HANDLE_L91HNSW.invoke(entry);
+            long raw = (long) GET_VECTOR_DATA_LENGTH_HANDLE_L91HNSW.invoke(entry);
+            return Map.of(HNSW_VECTOR_INDEX_EXTENSION, graph, FLAT_VECTOR_DATA_EXTENSION, raw);
+        } catch (Throwable t) {
+            handleThrowable(t);
+        }
+        throw new AssertionError("should not reach here");
+    }
+
+    @SuppressForbidden(reason = "static type is not accessible")
+    static Map<String, Long> getOffHeapByteSizeL92HNSW(Lucene92HnswVectorsReader reader, FieldInfo fieldInfo) {
+        try {
+            var entry = GET_FIELD_ENTRY_HANDLE_L92HNSW.invoke(reader, fieldInfo.name);
+            long graph = (long) GET_VECTOR_INDEX_LENGTH_HANDLE_L92HNSW.invoke(entry);
+            long raw = (long) GET_VECTOR_DATA_LENGTH_HANDLE_L92HNSW.invoke(entry);
+            return Map.of(HNSW_VECTOR_INDEX_EXTENSION, graph, FLAT_VECTOR_DATA_EXTENSION, raw);
+        } catch (Throwable t) {
+            handleThrowable(t);
+        }
+        throw new AssertionError("should not reach here");
+    }
+
+    @SuppressForbidden(reason = "static type is not accessible")
+    static Map<String, Long> getOffHeapByteSizeL94HNSW(Lucene94HnswVectorsReader reader, FieldInfo fieldInfo) {
+        try {
+            var entry = GET_FIELD_ENTRY_HANDLE_L94HNSW.invoke(reader, fieldInfo.name, fieldInfo.getVectorEncoding());
+            long graph = (long) GET_VECTOR_INDEX_LENGTH_HANDLE_L94HNSW.invoke(entry);
+            long raw = (long) GET_VECTOR_DATA_LENGTH_HANDLE_L94HNSW.invoke(entry);
+            return Map.of(HNSW_VECTOR_INDEX_EXTENSION, graph, FLAT_VECTOR_DATA_EXTENSION, raw);
+        } catch (Throwable t) {
+            handleThrowable(t);
+        }
+        throw new AssertionError("should not reach here");
+    }
+
+    @SuppressForbidden(reason = "static type is not accessible")
+    static Map<String, Long> getOffHeapByteSizeL95HNSW(Lucene95HnswVectorsReader reader, FieldInfo fieldInfo) {
+        try {
+            var entry = GET_FIELD_ENTRY_HANDLE_L95HNSW.invoke(reader, fieldInfo.name, fieldInfo.getVectorEncoding());
+            long graph = (long) GET_VECTOR_INDEX_LENGTH_HANDLE_L95HNSW.invoke(entry);
+            long raw = (long) GET_VECTOR_DATA_LENGTH_HANDLE_L95HNSW.invoke(entry);
+            return Map.of(HNSW_VECTOR_INDEX_EXTENSION, graph, FLAT_VECTOR_DATA_EXTENSION, raw);
+        } catch (Throwable t) {
+            handleThrowable(t);
+        }
+        throw new AssertionError("should not reach here");
     }
 
     @SuppressWarnings("removal")

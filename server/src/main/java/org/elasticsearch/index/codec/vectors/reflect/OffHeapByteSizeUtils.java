@@ -9,6 +9,11 @@
 
 package org.elasticsearch.index.codec.vectors.reflect;
 
+import org.apache.lucene.backward_codecs.lucene90.Lucene90HnswVectorsReader;
+import org.apache.lucene.backward_codecs.lucene91.Lucene91HnswVectorsReader;
+import org.apache.lucene.backward_codecs.lucene92.Lucene92HnswVectorsReader;
+import org.apache.lucene.backward_codecs.lucene94.Lucene94HnswVectorsReader;
+import org.apache.lucene.backward_codecs.lucene95.Lucene95HnswVectorsReader;
 import org.apache.lucene.codecs.KnnVectorsReader;
 import org.apache.lucene.codecs.lucene99.Lucene99FlatVectorsReader;
 import org.apache.lucene.codecs.lucene99.Lucene99HnswVectorsReader;
@@ -46,8 +51,26 @@ public class OffHeapByteSizeUtils {
             case Lucene99FlatVectorsReader flatVectorsReader -> {
                 return OffHeapReflectionUtils.getOffHeapByteSizeF99FLT(flatVectorsReader, fieldInfo);
             }
-            case null, default -> throw new AssertionError("unexpected reader:" + reader);
+            case Lucene95HnswVectorsReader lucene95HnswVectorsReader -> {
+                return OffHeapReflectionUtils.getOffHeapByteSizeL95HNSW(lucene95HnswVectorsReader, fieldInfo);
+            }
+            case Lucene94HnswVectorsReader lucene94HnswVectorsReader -> {
+                return OffHeapReflectionUtils.getOffHeapByteSizeL94HNSW(lucene94HnswVectorsReader, fieldInfo);
+            }
+            case Lucene92HnswVectorsReader lucene92HnswVectorsReader -> {
+                return OffHeapReflectionUtils.getOffHeapByteSizeL92HNSW(lucene92HnswVectorsReader, fieldInfo);
+            }
+            case Lucene91HnswVectorsReader lucene91HnswVectorsReader -> {
+                return OffHeapReflectionUtils.getOffHeapByteSizeL91HNSW(lucene91HnswVectorsReader, fieldInfo);
+            }
+            case Lucene90HnswVectorsReader lucene90HnswVectorsReader -> {
+                return OffHeapReflectionUtils.getOffHeapByteSizeL90HNSW(lucene90HnswVectorsReader, fieldInfo);
+            }
+            case null, default -> {
+                assert false : "unexpected reader:" + reader;
+            }
         }
+        return Map.of();
     }
 
     /**

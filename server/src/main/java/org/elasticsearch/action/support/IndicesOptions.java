@@ -10,7 +10,6 @@ package org.elasticsearch.action.support;
 
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.TransportVersions;
-import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.logging.DeprecationCategory;
@@ -827,14 +826,14 @@ public record IndicesOptions(
      * @return Whether selectors (::) are allowed in the index expression.
      */
     public boolean allowSelectors() {
-        return DataStream.isFailureStoreFeatureFlagEnabled() && gatekeeperOptions.allowSelectors();
+        return gatekeeperOptions.allowSelectors();
     }
 
     /**
      * @return true when selectors should be included in the resolution, false otherwise.
      */
     public boolean includeFailureIndices() {
-        return DataStream.isFailureStoreFeatureFlagEnabled() && gatekeeperOptions.includeFailureIndices();
+        return gatekeeperOptions.includeFailureIndices();
     }
 
     /**
@@ -1135,19 +1134,6 @@ public record IndicesOptions(
     }
 
     public static IndicesOptions fromMap(Map<String, Object> map, IndicesOptions defaultSettings) {
-        if (DataStream.isFailureStoreFeatureFlagEnabled()) {
-            return fromParameters(
-                map.containsKey(WildcardOptions.EXPAND_WILDCARDS) ? map.get(WildcardOptions.EXPAND_WILDCARDS) : map.get("expandWildcards"),
-                map.containsKey(ConcreteTargetOptions.IGNORE_UNAVAILABLE)
-                    ? map.get(ConcreteTargetOptions.IGNORE_UNAVAILABLE)
-                    : map.get("ignoreUnavailable"),
-                map.containsKey(WildcardOptions.ALLOW_NO_INDICES) ? map.get(WildcardOptions.ALLOW_NO_INDICES) : map.get("allowNoIndices"),
-                map.containsKey(GatekeeperOptions.IGNORE_THROTTLED)
-                    ? map.get(GatekeeperOptions.IGNORE_THROTTLED)
-                    : map.get("ignoreThrottled"),
-                defaultSettings
-            );
-        }
         return fromParameters(
             map.containsKey(WildcardOptions.EXPAND_WILDCARDS) ? map.get(WildcardOptions.EXPAND_WILDCARDS) : map.get("expandWildcards"),
             map.containsKey(ConcreteTargetOptions.IGNORE_UNAVAILABLE)
@@ -1469,11 +1455,10 @@ public record IndicesOptions(
             + ignoreAliases()
             + ", ignore_throttled="
             + ignoreThrottled()
-            // Until the feature flag is removed we access the field directly from the gatekeeper options.
-            + (DataStream.isFailureStoreFeatureFlagEnabled() ? ", allow_selectors=" + gatekeeperOptions().allowSelectors() : "")
-            + (DataStream.isFailureStoreFeatureFlagEnabled()
-                ? ", include_failure_indices=" + gatekeeperOptions().includeFailureIndices()
-                : "")
+            + ", allow_selectors="
+            + allowSelectors()
+            + ", include_failure_indices="
+            + includeFailureIndices()
             + ']';
     }
 }

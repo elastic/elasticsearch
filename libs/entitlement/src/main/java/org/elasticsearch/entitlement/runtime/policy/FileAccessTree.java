@@ -215,11 +215,37 @@ public final class FileAccessTree {
     }
 
     boolean canRead(Path path) {
-        return checkPath(normalizePath(path), readPaths);
+        var normalizedPath = normalizePath(path);
+        var canRead = checkPath(normalizedPath, readPaths);
+
+        logger.trace(
+            () -> Strings.format(
+                "checking [%s] (normalized to [%s]) against [%s] for READ: %b",
+                path,
+                normalizedPath,
+                String.join(",", readPaths),
+                canRead
+            )
+        );
+
+        return canRead;
     }
 
     boolean canWrite(Path path) {
-        return checkPath(normalizePath(path), writePaths);
+        var normalizedPath = normalizePath(path);
+        var canWrite = checkPath(normalizedPath, writePaths);
+
+        logger.trace(
+            () -> Strings.format(
+                "checking [%s] (normalized to [%s]) against [%s] for READ_WRITE: %b",
+                path,
+                normalizedPath,
+                String.join(",", writePaths),
+                canWrite
+            )
+        );
+
+        return canWrite;
     }
 
     /**
@@ -237,7 +263,6 @@ public final class FileAccessTree {
     }
 
     private boolean checkPath(String path, String[] paths) {
-        logger.trace(() -> Strings.format("checking [%s] against [%s]", path, String.join(",", paths)));
         if (paths.length == 0) {
             return false;
         }
@@ -255,8 +280,9 @@ public final class FileAccessTree {
     }
 
     private static boolean isParent(String maybeParent, String path) {
-        logger.trace(() -> Strings.format("checking isParent [%s] for [%s]", maybeParent, path));
-        return path.startsWith(maybeParent) && path.startsWith(FILE_SEPARATOR, maybeParent.length());
+        var isParent = path.startsWith(maybeParent) && path.startsWith(FILE_SEPARATOR, maybeParent.length());
+        logger.trace(() -> Strings.format("checking isParent [%s] for [%s]: %b", maybeParent, path, isParent));
+        return isParent;
     }
 
     @Override

@@ -28,7 +28,7 @@ public class DataStreamFeatures implements FeatureSpecification {
 
     @Override
     public Set<NodeFeature> getFeatures() {
-        return DataStream.isFailureStoreFeatureFlagEnabled() ? Set.of(DataStream.DATA_STREAM_FAILURE_STORE_FEATURE) : Set.of();
+        return Set.of(DataStream.DATA_STREAM_FAILURE_STORE_FEATURE);
     }
 
     @Override

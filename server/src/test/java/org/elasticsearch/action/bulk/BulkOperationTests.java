@@ -441,8 +441,6 @@ public class BulkOperationTests extends ESTestCase {
      * failure store if the failure store node feature is not on every node in the cluster
      */
     public void testFailingDocumentIgnoredByFailureStoreWhenFeatureIsDisabled() throws Exception {
-        Assume.assumeTrue(DataStream.isFailureStoreFeatureFlagEnabled());
-
         // Requests that go to two separate shards
         BulkRequest bulkRequest = new BulkRequest();
         bulkRequest.add(new IndexRequest(fsDataStreamName).id("1").source(Map.of("key", "val")).opType(DocWriteRequest.OpType.CREATE));

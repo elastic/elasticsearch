@@ -72,11 +72,15 @@ public final class ReleasableBytesReference implements RefCounted, Releasable, B
 
     @Override
     public boolean hasReferences() {
-        return refCounted.hasReferences();
+        boolean hasRef = refCounted.hasReferences();
+        // delegate is nulled out when the ref-count reaches zero but only via a plain store, and also we could be racing with a concurrent
+        // decRef so need to check #refCounted again in case we run into a non-null delegate but saw a reference before
+        assert delegate != null || hasRef == false || refCounted.hasReferences() == false;
+        return hasRef;
     }
 
     public ReleasableBytesReference retain() {
-        refCounted.incRef();
+        refCounted.mustIncRef();
         return this;
     }
 
@@ -86,6 +90,7 @@ public final class ReleasableBytesReference implements RefCounted, Releasable, B
      * retaining unnecessary buffers.
      */
     public ReleasableBytesReference retainedSlice(int from, int length) {
+        assert hasReferences();
         if (from == 0 && length() == length) {
             return retain();
         }
@@ -140,6 +145,7 @@ public final class ReleasableBytesReference implements RefCounted, Releasable, B
 
     @Override
     public int length() {
+        assert hasReferences();
         return delegate.length();
     }
 
@@ -158,6 +164,7 @@ public final class ReleasableBytesReference implements RefCounted, Releasable, B
 
     @Override
     public long ramBytesUsed() {
+        assert hasReferences();
         return delegate.ramBytesUsed();
     }
 
@@ -232,6 +239,7 @@ public final class ReleasableBytesReference implements RefCounted, Releasable, B
 
     @Override
     public boolean isFragment() {
+        assert hasReferences();
         return delegate.isFragment();
     }
 

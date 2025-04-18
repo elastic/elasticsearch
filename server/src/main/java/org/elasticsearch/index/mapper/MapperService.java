@@ -600,18 +600,13 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
     }
 
     private DocumentMapper newDocumentMapper(Mapping mapping, MergeReason reason, CompressedXContent mappingSource) {
-        RootObjectMapperNamespaceValidator namespaceValidator = mapperRegistry.getNamespaceValidator();
-        // MP TODO: this is probably not the right way to do it, but it's good to know that the RootObjectMapper is accessible here
-        // MP TODO: where did the Mapping get created?
-        // mapping.getRoot().setNamespaceValidator(namespaceValidator);
         DocumentMapper newMapper = new DocumentMapper(
             documentParser,
             mapping,
             mappingSource,
             indexVersionCreated,
             mapperMetrics,
-            index().getName(),
-            mapperRegistry // MP TODO: hmm, do we still need this now that we have NamespaceValidator in MapperParserContext?
+            index().getName()
         );
         newMapper.validate(indexSettings, reason != MergeReason.MAPPING_RECOVERY);
         return newMapper;

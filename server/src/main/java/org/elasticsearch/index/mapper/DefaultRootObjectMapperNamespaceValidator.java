@@ -10,10 +10,15 @@
 package org.elasticsearch.index.mapper;
 
 /**
- * TODO: DOCUMENT ME
+ * No-op Default of RootObjectMapperNamespaceValidator used in non-serverless Elasticsearch envs.
  */
-public interface RootObjectMapperNamespaceValidator {
+public class DefaultRootObjectMapperNamespaceValidator implements RootObjectMapperNamespaceValidator {
+    @Override
+    public void validateNamespace(ObjectMapper.Subobjects subobjects, Mapper mapper) {}
 
-    // I'm not sure if there are any use cases for this beyond mine
-    void validateNamespace(ObjectMapper.Subobjects subobjects, Mapper mapper);
+    // MP FIXME remove
+    @Override
+    public String toString() {
+        return "I'm the DefaultRootObjectMapperNamespaceValidator{}";
+    }
 }

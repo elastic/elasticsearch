@@ -115,7 +115,9 @@ import org.elasticsearch.index.IndexingPressure;
 import org.elasticsearch.index.SlowLogFieldProvider;
 import org.elasticsearch.index.SlowLogFields;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
+import org.elasticsearch.index.mapper.DefaultRootObjectMapperNamespaceValidator;
 import org.elasticsearch.index.mapper.MapperMetrics;
+import org.elasticsearch.index.mapper.RootObjectMapperNamespaceValidator;
 import org.elasticsearch.index.mapper.SourceFieldMetrics;
 import org.elasticsearch.index.search.stats.ShardSearchPhaseAPMMetrics;
 import org.elasticsearch.index.shard.SearchOperationListener;
@@ -689,6 +691,12 @@ class NodeConstruction {
         modules.bindToInstance(ProjectResolver.class, projectResolver);
 
         // MP TODO: this is where cross-project needs to load the RootObjectMapperNamespaceValidator SPI
+        RootObjectMapperNamespaceValidator namespaceValidator = pluginsService.loadSingletonServiceProvider(
+            RootObjectMapperNamespaceValidator.class,
+            () -> new DefaultRootObjectMapperNamespaceValidator()
+        );
+        modules.bindToInstance(RootObjectMapperNamespaceValidator.class, namespaceValidator);
+        logger.warn("XXX namespaceValidator loaded: " + namespaceValidator);  // MP FIXME remove
 
         ClusterService clusterService = createClusterService(settingsModule, threadPool, taskManager);
         clusterService.addStateApplier(scriptService);
@@ -781,7 +789,7 @@ class NodeConstruction {
         // MP TODO: this is the sole place that the IndicesModule is created
         // MP TODO: so the question now is - where to load the RootObjectMapperNamespaceValidator SPI from?
         // MP TODO: here and pass in *or* in the IndicesModule ctor?
-        IndicesModule indicesModule = new IndicesModule(pluginsService.filterPlugins(MapperPlugin.class).toList());
+        IndicesModule indicesModule = new IndicesModule(pluginsService.filterPlugins(MapperPlugin.class).toList(), namespaceValidator);
         modules.add(indicesModule);
 
         modules.add(new GatewayModule());

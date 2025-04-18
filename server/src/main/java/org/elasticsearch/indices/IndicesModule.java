@@ -95,33 +95,21 @@ import java.util.function.Function;
 public class IndicesModule extends AbstractModule {
     private final MapperRegistry mapperRegistry;
 
-    // MP TODO: this needs to be loaded from serverless somehow
-    private static final String RESERVED_NAMESPACE = "_projectx";
-
-    // MP TODO: in prod code: only called from one place: NodeConstruction.construct :yay: [ but called from 26 test/benchmark places :-( ]
-    public IndicesModule(List<MapperPlugin> mapperPlugins) {
+    public IndicesModule(List<MapperPlugin> mapperPlugins, RootObjectMapperNamespaceValidator namespaceValidator) {
         // MP TODO: happily, this is the only place tha the MapperRegistry is created
         this.mapperRegistry = new MapperRegistry(
             getMappers(mapperPlugins),
             getRuntimeFields(mapperPlugins),
             getMetadataMappers(mapperPlugins),
             getFieldFilter(mapperPlugins),
-            new RootObjectMapperNamespaceValidator() {
-                @Override
-                public void validateNamespace(ObjectMapper.Subobjects subobjects, Mapper mapper) {
-                    // TODO: in the future, this will be a no-op on stateful and loaded somehow dynamically in serverless
-                    if (subobjects == ObjectMapper.Subobjects.ENABLED) {
-                        if (mapper.leafName().equals(RESERVED_NAMESPACE)) {
-                            throw new IllegalArgumentException("xx reserved namespace: [" + RESERVED_NAMESPACE + ']');
-                        }
-                    } else {
-                        if (mapper.leafName().startsWith(RESERVED_NAMESPACE)) {
-                            throw new IllegalArgumentException("xx reserved namespace: [" + RESERVED_NAMESPACE + ']');
-                        }
-                    }
-                }
-            }
+            namespaceValidator
         );
+    }
+
+    // MP TODO: in prod code: only called from one place: NodeConstruction.construct :yay: [ but called from 26 test/benchmark places :-( ]
+    // MP TODO: so remove this once all tests have been updated
+    public IndicesModule(List<MapperPlugin> mapperPlugins) {
+        this(mapperPlugins, null);
     }
 
     public static List<NamedWriteableRegistry.Entry> getNamedWriteables() {

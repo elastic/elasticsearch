@@ -51,8 +51,10 @@ class AddStringKeyStoreCommand extends BaseKeyStoreCommand {
         final KeyStoreWrapper keyStore = getKeyStore();
 
         final CheckedFunction<String, char[], IOException> valueSupplier = s -> {
-            String prompt = "";
-            if (options.has(stdinOption) == false) {
+            final String prompt;
+            if (options.has(stdinOption)) {
+                prompt = "";
+            } else {
                 prompt = "Enter value for " + s + ": ";
             }
             return terminal.readSecret(prompt);

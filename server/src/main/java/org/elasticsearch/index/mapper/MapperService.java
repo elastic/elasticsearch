@@ -234,7 +234,6 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         this.indexVersionCreated = indexSettings.getIndexVersionCreated();
         this.indexAnalyzers = indexAnalyzers;
         this.mapperRegistry = mapperRegistry;
-        // MP TODO: Huzzah! I can inject the namespace validator into the MappingParserContext here !!!
         this.mappingParserContextSupplier = () -> new MappingParserContext(
             similarityService::getSimilarity,
             type -> mapperRegistry.getMapperParser(type, indexVersionCreated),
@@ -808,7 +807,6 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
     }
 
     /**
-
      * @return If this field is defined as a multifield of another field
      */
     public boolean isMultiField(String field) {

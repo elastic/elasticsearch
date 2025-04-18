@@ -459,7 +459,6 @@ public class RootObjectMapper extends ObjectMapper {
         return true;
     }
 
-    // MP TODO: called from MappingParser.parse
     public static RootObjectMapper.Builder parse(String name, Map<String, Object> node, MappingParserContext parserContext)
         throws MapperParsingException {
         Optional<Subobjects> subobjects = parseSubobjects(node);

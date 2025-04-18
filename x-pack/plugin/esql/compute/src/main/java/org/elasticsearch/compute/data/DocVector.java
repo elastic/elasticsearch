@@ -67,6 +67,12 @@ public final class DocVector extends AbstractVector implements Vector {
         blockFactory().adjustBreaker(BASE_RAM_BYTES_USED);
     }
 
+    public DocVector(IntVector shards, IntVector segments, IntVector docs, int[] docMapForwards, int[] docMapBackwards) {
+        this(shards, segments, docs, null);
+        this.shardSegmentDocMapForwards = docMapForwards;
+        this.shardSegmentDocMapBackwards = docMapBackwards;
+    }
+
     public IntVector shards() {
         return shards;
     }
@@ -209,8 +215,12 @@ public final class DocVector extends AbstractVector implements Vector {
         }
     }
 
+    public static long sizeOfSegmentDocMap(int positionCount) {
+        return 2 * (((long) RamUsageEstimator.NUM_BYTES_ARRAY_HEADER) + ((long) Integer.BYTES) * positionCount);
+    }
+
     private long sizeOfSegmentDocMap() {
-        return 2 * (((long) RamUsageEstimator.NUM_BYTES_ARRAY_HEADER) + ((long) Integer.BYTES) * shards.getPositionCount());
+        return sizeOfSegmentDocMap(getPositionCount());
     }
 
     @Override

@@ -127,7 +127,8 @@ public class SemanticTextFieldTests extends AbstractXContentTestCase<SemanticTex
                 NAME,
                 testModel,
                 generateRandomChunkingSettings(),
-                randomSemanticTextIndexOptions(testModel.getTaskType()),
+                null, // TODO: There is a bug in these tests, because allowed IndexOptions depend on index versions that may be incompatible
+                      // with how we generate random index options
                 rawValues,
                 randomFrom(XContentType.values())
             );

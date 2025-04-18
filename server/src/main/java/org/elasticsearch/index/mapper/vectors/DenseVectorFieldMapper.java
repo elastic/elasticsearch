@@ -297,11 +297,6 @@ public class DenseVectorFieldMapper extends FieldMapper {
             return this;
         }
 
-        public Builder indexOptions(IndexOptions indexOptions) {
-            this.indexOptions.setValue(indexOptions);
-            return this;
-        }
-
         @Override
         public DenseVectorFieldMapper build(MapperBuilderContext context) {
             // Validate again here because the dimensions or element type could have been set programmatically,

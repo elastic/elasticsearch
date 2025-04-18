@@ -138,4 +138,22 @@ public class SemanticInferenceMetadataFieldsMapperTests extends MapperServiceTes
         }
     }
 
+    static IndexVersion getRandomCompatibleIndexVersion(boolean useLegacyFormat, IndexVersion minVersion, IndexVersion maxVersion) {
+        if (useLegacyFormat) {
+            if (randomBoolean()) {
+                return IndexVersionUtils.randomVersionBetween(random(), IndexVersions.UPGRADE_TO_LUCENE_10_0_0, maxVersion);
+            }
+            return IndexVersionUtils.randomPreviousCompatibleVersion(random(), IndexVersions.INFERENCE_METADATA_FIELDS_BACKPORT);
+        } else {
+            if (randomBoolean()) {
+                return IndexVersionUtils.randomVersionBetween(random(), IndexVersions.INFERENCE_METADATA_FIELDS, maxVersion);
+            }
+            return IndexVersionUtils.randomVersionBetween(
+                random(),
+                IndexVersions.INFERENCE_METADATA_FIELDS_BACKPORT,
+                IndexVersionUtils.getPreviousVersion(IndexVersions.UPGRADE_TO_LUCENE_10_0_0)
+            );
+        }
+    }
+
 }

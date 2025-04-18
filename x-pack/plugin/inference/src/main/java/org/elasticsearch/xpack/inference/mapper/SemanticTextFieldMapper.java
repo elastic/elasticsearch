@@ -1125,7 +1125,7 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
                     denseVectorMapperBuilder.indexOptions(denseVectorIndexOptions);
                 }
 
-                DenseVectorFieldMapper.IndexOptions defaultIndexOptions = null;
+                DenseVectorFieldMapper.DenseVectorIndexOptions defaultIndexOptions = null;
                 if (indexVersionCreated.onOrAfter(SEMANTIC_TEXT_DEFAULTS_TO_BBQ)) {
                     defaultIndexOptions = defaultSemanticDenseIndexOptions();
                 }
@@ -1140,7 +1140,7 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
         };
     }
 
-    static DenseVectorFieldMapper.IndexOptions defaultSemanticDenseIndexOptions() {
+    static DenseVectorFieldMapper.DenseVectorIndexOptions defaultSemanticDenseIndexOptions() {
         // As embedding models for text perform better with BBQ, we aggressively default semantic_text fields to use optimized index
         // options outside of dense_vector defaults
         int m = Lucene99HnswVectorsFormat.DEFAULT_MAX_CONN;

@@ -398,16 +398,25 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
             return template;
         }
         ComposableIndexTemplate.Builder mergedIndexTemplateBuilder = template.toBuilder();
-        assert template.template() != null : "Template is unexpectedly null";
-        Template.Builder mergedTemplateBuilder = Template.builder(template.template());
-        mergedTemplateBuilder.settings(mergeSettings(template.template().settings(), settings));
+        Template.Builder mergedTemplateBuilder;
+        Settings templateSettings;
+        if (template.template() == null) {
+            mergedTemplateBuilder = Template.builder();
+            templateSettings = null;
+        } else {
+            mergedTemplateBuilder = Template.builder(template.template());
+            templateSettings = template.template().settings();
+        }
+        mergedTemplateBuilder.settings(mergeSettings(templateSettings, settings));
         mergedIndexTemplateBuilder.template(mergedTemplateBuilder);
         return mergedIndexTemplateBuilder.build();
     }
 
     private static Settings mergeSettings(Settings originalSettings, Settings newSettings) {
-        if (Settings.EMPTY.equals(newSettings)) {
+        if (newSettings == null || Settings.EMPTY.equals(newSettings)) {
             return Objects.requireNonNullElse(originalSettings, Settings.EMPTY);
+        } else if (originalSettings == null || Settings.EMPTY.equals(originalSettings)) {
+            return newSettings;
         }
         Settings.Builder settingsBuilder = Settings.builder().put(originalSettings).put(newSettings);
         for (String settingName : new HashSet<>(settingsBuilder.keys())) {

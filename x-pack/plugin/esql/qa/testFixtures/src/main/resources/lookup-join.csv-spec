@@ -1628,3 +1628,26 @@ French
 Spanish
 German
 ;
+
+
+pruningJoinResult
+required_capability: join_lookup_v12
+required_capability: fix_join_masking_eval
+from sample_data
+| eval type = 1000
+| lookup join message_types_lookup on message
+| grok type "%{WORD:foo}"
+| keep event_duration
+;
+
+ignoreOrder: true
+event_duration
+---------------
+1756467
+5033755
+8268153
+725448
+1232382
+2764889
+3450233
+;

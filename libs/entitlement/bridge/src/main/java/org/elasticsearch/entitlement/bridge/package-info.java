@@ -18,6 +18,13 @@
  * method.
  * </p>
  * <p>
+ * <strong>NOTE:</strong> a subtle point that is worth noting: the {@link org.elasticsearch.entitlement.bridge.EntitlementChecker}
+ * interface needs to be accessible from instrumented methods, hence the need to define it here in this project. But the reference held
+ * by {@link org.elasticsearch.entitlement.bridge.EntitlementCheckerHandle} is an instance of a concrete class that need not be accessible.
+ * Once things get underway, the instrumented code is directly calling a method of {@code ElasticsearchEntitlementChecker}, a class that
+ * it could not resolve, by referencing that method through the {@link org.elasticsearch.entitlement.bridge.EntitlementChecker} interface.
+ * </p>
+ * <p>
  * In order to work across multiple Java versions, this project uses multi-release jars via the {@code mrjar} plugin, which makes it is
  * possible to specify classes for specific Java versions in specific {@code src} folders (e.g. {@code main23} for classes available to
  * Java 23+).

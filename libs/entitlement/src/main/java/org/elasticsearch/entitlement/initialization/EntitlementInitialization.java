@@ -121,7 +121,6 @@ public class EntitlementInitialization {
      * classes that were already loaded.
      * </li>
      * </ol>
-     *
      * <p>
      * The third step is needed as the JDK exposes some API through interfaces that have different (internal) implementations
      * depending on the JVM host platform. As we cannot instrument an interfaces, we find its concrete implementation.
@@ -129,10 +128,12 @@ public class EntitlementInitialization {
      * {@code WindowsFileSystemProvider}). At runtime, we find the implementation class which is currently used by the JVM, and add
      * its methods to the set of methods to instrument. See e.g. {@link EntitlementInitialization#fileSystemProviderChecks}.
      * </p>
+     * <p>
+     * <strong>NOTE:</strong> this method is referenced by the agent reflectively
+     * </p>
      *
      * @param inst the JVM instrumentation class instance
      */
-    // Note: referenced by agent reflectively
     public static void initialize(Instrumentation inst) throws Exception {
         manager = initChecker();
 

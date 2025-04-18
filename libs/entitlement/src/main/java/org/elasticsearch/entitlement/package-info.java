@@ -118,14 +118,7 @@
  * <p>
  * In order to verify if a method is entitled to perform an action, we need to identify the right policy to check; the first step here is
  * to identify the caller. This is done in the injected prologue, via a helper function
- * {@link org.elasticsearch.entitlement.bridge.Util#getCallerClass}, which performs a limited stack walk (it "walks up" 2 frames) to
- * identify the caller class. This utility is similar to {@link java.lang.StackWalker#getCallerClass}, but handles the case in which it
- * is called from the "outermost frame", e.g. when a method is called from a native frame.
- * </p>
- * <p>
- * Our plan here was to avoid the stack walking entirely for the most cases, by using the {@code CallerSensitive} attribute together with
- * the {@code Reflection.getCallerClass()} method; the current implementation (8.18/9.0) does not include this optimization, but we plan to
- * introduce that in a later release.
+ * {@link org.elasticsearch.entitlement.bridge.Util#getCallerClass}, which performs a limited stack walk.
  * </p>
  *
  * <h2>Map to a policy</h2>

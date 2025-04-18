@@ -60,17 +60,17 @@ import static java.util.zip.ZipFile.OPEN_READ;
 import static org.elasticsearch.entitlement.bridge.Util.NO_CLASS;
 
 /**
- * This class is responsible for finding the "layer" (system, server, plugin, agent) for a caller class to check, retrieve the policy
- * and entitlements for that layer, and check them against the action(s) the caller wants to perform.
+ * This class is responsible for finding the <strong>component</strong> (system, server, plugin, agent) for a caller class to check,
+ * retrieve the policy and entitlements for that component, and check them against the action(s) the caller wants to perform.
  * <p>
- * To find a layer:
+ * To find a component:
  * <ul>
  * <li>
  * For plugins, we use the Module -> Plugin name (String) passed to the ctor
  * </li>
  * <li>
- * For the system layer, we build a set ({@link PolicyManager#SYSTEM_LAYER_MODULES}) of references to modules that belong that layer, i.e.
- * the layer containing what we consider system modules. These are the modules that:
+ * For the system component, we build a set ({@link PolicyManager#SYSTEM_LAYER_MODULES}) of references to modules that belong that
+ * component, i.e. the component containing what we consider system modules. These are the modules that:
  * <ul>
  * <li>
  * are in the boot module layer ({@link ModuleLayer#boot()});
@@ -84,8 +84,8 @@ import static org.elasticsearch.entitlement.bridge.Util.NO_CLASS;
  * </ul>
  * </li>
  * <li>
- * For the server layer, we build a set ({@link PolicyManager#SERVER_LAYER_MODULES}) as the set of modules that are in the boot module
- * layer but not in the system layer.
+ * For the server component, we build a set ({@link PolicyManager#SERVER_LAYER_MODULES}) as the set of modules that are in the boot module
+ * layer but not in the system component.
  * </li>
  * </ul>
  * <p>
@@ -93,13 +93,13 @@ import static org.elasticsearch.entitlement.bridge.Util.NO_CLASS;
  * {@link Class#getModule} and try (in order) to see if that class belongs to:
  * <ol>
  * <li>
- * The system layer - if a module is contained in {@link PolicyManager#SYSTEM_LAYER_MODULES}
+ * The system component - if a module is contained in {@link PolicyManager#SYSTEM_LAYER_MODULES}
  * </li>
  * <li>
- * The server layer - if a module is contained in {@link PolicyManager#SERVER_LAYER_MODULES}
+ * The server component - if a module is contained in {@link PolicyManager#SERVER_LAYER_MODULES}
  * </li>
  * <li>
- * One of the plugins or modules layer - if the module is present in the {@code PluginsResolver} map
+ * One of the plugins or modules - if the module is present in the {@code PluginsResolver} map
  * </li>
  * <li>
  * A known agent (APM)
@@ -109,11 +109,11 @@ import static org.elasticsearch.entitlement.bridge.Util.NO_CLASS;
  * </li>
  * </ol>
  * <p>
- * Once it has a layer, this class maps it to a policy and check the action performed by the caller class against its entitlements,
+ * Once it has a component, this class maps it to a policy and check the action performed by the caller class against its entitlements,
  * either allowing it to proceed or raising a {@link NotEntitledException} if the caller class is not entitled to perform the action.
  * </p>
  * <p>
- * All these methods start in the same way: the layers identified in the previous section are used to establish if and how to check:
+ * All these methods start in the same way: the components identified in the previous section are used to establish if and how to check:
  * If the caller class belongs to {@link PolicyManager#SYSTEM_LAYER_MODULES}, no check is performed (the call is trivially allowed, see
  * {@link PolicyManager#isTriviallyAllowed}).
  * Otherwise, we lazily compute and create a {@link PolicyManager.ModuleEntitlements} record (see

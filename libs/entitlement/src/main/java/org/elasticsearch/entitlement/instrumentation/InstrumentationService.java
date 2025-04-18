@@ -39,6 +39,12 @@ public interface InstrumentationService {
      * {@link org.elasticsearch.entitlement.bridge.EntitlementChecker#check$java_lang_ClassLoader$}
      * </li>
      * </ul>
+     * <p>
+     * <strong>NOTE:</strong> look up of methods using this convention is the primary way we use to identify which methods to instrument,
+     * but other methods can be added to the map of methods to instrument. See
+     * {@link org.elasticsearch.entitlement.initialization.EntitlementInitialization#initialize} for details.
+     * </p>
+     *
      * @param clazz the class to inspect to find methods to instrument
      * @throws ClassNotFoundException if the class is not defined or cannot be inspected
      */

@@ -21,6 +21,7 @@ import org.elasticsearch.entitlement.instrumentation.Instrumenter;
 import org.elasticsearch.entitlement.instrumentation.MethodKey;
 import org.elasticsearch.entitlement.instrumentation.Transformer;
 import org.elasticsearch.entitlement.runtime.api.ElasticsearchEntitlementChecker;
+import org.elasticsearch.entitlement.runtime.policy.FileAccessTree;
 import org.elasticsearch.entitlement.runtime.policy.PathLookup;
 import org.elasticsearch.entitlement.runtime.policy.Policy;
 import org.elasticsearch.entitlement.runtime.policy.PolicyManager;
@@ -353,45 +354,64 @@ public class EntitlementInitialization {
         Path modulesDir,
         Path libDir
     ) {
-        var pluginReadAccessForbidden = pathSet(pluginsDir, modulesDir, libDir);
-        var pluginWriteAccessForbidden = pathSet(configDir);
+        var readAccessForbidden = pathSet(pluginsDir, modulesDir, libDir);
+        var writeAccessForbidden = pathSet(configDir);
         for (var pluginPolicy : pluginPolicies.entrySet()) {
-            List<Path> readPaths = getFileDataStream(pluginPolicy.getValue()).flatMap(x -> x.resolvePaths(pathLookup)).toList();
-            List<Path> writePaths = getFileDataStream(pluginPolicy.getValue()).filter(x -> x.mode().equals(READ_WRITE))
-                .flatMap(x -> x.resolvePaths(pathLookup))
-                .toList();
-            validateLayerFilesEntitlements(pluginPolicy.getKey(), readPaths, pluginReadAccessForbidden, READ);
-            validateLayerFilesEntitlements(pluginPolicy.getKey(), writePaths, pluginWriteAccessForbidden, READ_WRITE);
+            for (var scope : pluginPolicy.getValue().scopes()) {
+                var filesEntitlement = scope.entitlements()
+                    .stream()
+                    .filter(x -> x instanceof FilesEntitlement)
+                    .map(x -> ((FilesEntitlement) x))
+                    .findFirst();
+                if (filesEntitlement.isPresent()) {
+                    var fileAccessTree = FileAccessTree.withoutExclusivePaths(filesEntitlement.get(), pathLookup, null);
+                    validateReadFilesEntitlements(pluginPolicy.getKey(), scope.moduleName(), fileAccessTree, readAccessForbidden);
+                    validateWriteFilesEntitlements(pluginPolicy.getKey(), scope.moduleName(), fileAccessTree, writeAccessForbidden);
+                }
+            }
         }
     }
 
-    private static Stream<FileData> getFileDataStream(Policy policy) {
-        return getFileDataStream(policy.scopes().stream().flatMap(x -> x.entitlements().stream()));
-    }
-
-    private static Stream<FileData> getFileDataStream(Stream<Entitlement> entitlements) {
-        return entitlements.filter(x -> x instanceof FilesEntitlement).flatMap(x -> ((FilesEntitlement) x).filesData().stream());
-    }
-
-    private static void validateLayerFilesEntitlements(
-        String layerName,
-        List<Path> paths,
-        Set<Path> forbiddenPaths,
+    private static IllegalArgumentException buildValidationException(
+        String componentName,
+        String moduleName,
+        Path forbiddenPath,
         FilesEntitlement.Mode mode
     ) {
-        for (var path : paths) {
-            for (Path forbiddenPath : forbiddenPaths) {
-                if (path.startsWith(forbiddenPath)) {
-                    throw new IllegalArgumentException(
-                        Strings.format(
-                            "policy for [%s] cannot contain a file entitlement for [%s]. Any path under [%s] is forbidden for mode [%s].",
-                            layerName,
-                            path,
-                            forbiddenPath,
-                            mode
-                        )
-                    );
-                }
+        return new IllegalArgumentException(
+            Strings.format(
+                "policy for module [%s] in [%s] has an invalid file entitlement. Any path under [%s] is forbidden for mode [%s].",
+                moduleName,
+                componentName,
+                forbiddenPath,
+                mode
+            )
+        );
+    }
+
+    private static void validateReadFilesEntitlements(
+        String componentName,
+        String moduleName,
+        FileAccessTree fileAccessTree,
+        Set<Path> readForbiddenPaths
+    ) {
+
+        for (Path forbiddenPath : readForbiddenPaths) {
+            if (fileAccessTree.canRead(forbiddenPath)) {
+                throw buildValidationException(componentName, moduleName, forbiddenPath, READ);
+            }
+        }
+    }
+
+    private static void validateWriteFilesEntitlements(
+        String componentName,
+        String moduleName,
+        FileAccessTree fileAccessTree,
+        Set<Path> writeForbiddenPaths
+    ) {
+        for (Path forbiddenPath : writeForbiddenPaths) {
+            if (fileAccessTree.canWrite(forbiddenPath)) {
+                throw buildValidationException(componentName, moduleName, forbiddenPath, READ_WRITE);
             }
         }
     }

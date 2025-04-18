@@ -108,7 +108,9 @@ public class EntitlementInitializationTests extends ESTestCase {
         );
         assertThat(
             ex.getMessage(),
-            both(startsWith("policy for [plugin] cannot contain a file entitlement for")).and(endsWith("is forbidden for mode [READ]."))
+            both(startsWith("policy for module [module2] in [plugin] has an invalid file entitlement")).and(
+                endsWith("is forbidden for mode [READ].")
+            )
         );
 
         // check fails for mode READ_WRITE too
@@ -138,7 +140,9 @@ public class EntitlementInitializationTests extends ESTestCase {
         );
         assertThat(
             ex.getMessage(),
-            both(startsWith("policy for [plugin2] cannot contain a file entitlement")).and(endsWith("is forbidden for mode [READ]."))
+            both(startsWith("policy for module [module1] in [plugin2] has an invalid file entitlement")).and(
+                endsWith("is forbidden for mode [READ].")
+            )
         );
     }
 
@@ -169,7 +173,9 @@ public class EntitlementInitializationTests extends ESTestCase {
         );
         assertThat(
             ex.getMessage(),
-            both(startsWith("policy for [plugin] cannot contain a file entitlement")).and(endsWith("is forbidden for mode [READ_WRITE]."))
+            both(startsWith("policy for module [module1] in [plugin] has an invalid file entitlement")).and(
+                endsWith("is forbidden for mode [READ_WRITE].")
+            )
         );
     }
 }

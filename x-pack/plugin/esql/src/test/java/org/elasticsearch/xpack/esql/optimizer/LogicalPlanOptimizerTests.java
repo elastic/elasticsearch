@@ -423,7 +423,7 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         var relation = as(filter.child(), EsRelation.class);
 
         assertThat(Expressions.names(agg.groupings()), contains("emp_no"));
-        assertThat(Expressions.names(agg.aggregates()), contains("emp_no"));
+        assertThat(Expressions.names(agg.aggregates()), contains("c"));
 
         var exprs = eval.fields();
         assertThat(exprs.size(), equalTo(1));

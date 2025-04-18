@@ -688,3 +688,15 @@ x:integer
 12
 ;
 
+evalAfterGroupingUsingSameName3
+required_capability: retain_aggregate_when_grouping
+row foo = 10 
+| stats field_1 = max(foo), this = count(*), field_2 = max(foo) by foo  
+| rename this AS field_2 
+| keep field_1, field_2  
+| eval field_2 = 1, field_1 = 1
+;
+
+field_2:integer | field_1:integer
+1               | 1
+;

@@ -66,6 +66,11 @@ public class MapPathExtractorTests extends ESTestCase {
         assertNull(MapPathExtractor.extract(Map.of("key", "value"), "    "));
     }
 
+    public void testExtract_ThrowsException_WhenPathDoesNotStartWithDollarSign() {
+        var exception = expectThrows(IllegalArgumentException.class, () -> MapPathExtractor.extract(Map.of("key", "value"), ".key"));
+        assertThat(exception.getMessage(), is("Path [.key] must start with a dollar sign ($)"));
+    }
+
     public void testExtract_ThrowsException_WhenCannotFindField() {
         Map<String, Object> input = Map.of("result", "key");
 
@@ -76,7 +81,7 @@ public class MapPathExtractorTests extends ESTestCase {
     public void testExtract_ThrowsAnException_WhenThePathIsInvalid() {
         Map<String, Object> input = Map.of("result", "key");
 
-        var exception = expectThrows(IllegalArgumentException.class, () -> MapPathExtractor.extract(input, "awesome"));
+        var exception = expectThrows(IllegalArgumentException.class, () -> MapPathExtractor.extract(input, "$awesome"));
         assertThat(exception.getMessage(), is("Invalid path received [awesome], unable to extract a field name."));
     }
 

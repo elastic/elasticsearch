@@ -116,7 +116,7 @@ public class SemanticTextIndexOptions implements ToXContent, Writeable {
             }
             DenseVectorFieldMapper.VectorIndexType vectorIndexType = DenseVectorFieldMapper.VectorIndexType.fromString(
                 XContentMapValues.nodeStringValue(type, null)
-            ).orElseThrow(() -> new IllegalArgumentException("Unsupported index options " + TYPE_FIELD + type));
+            ).orElseThrow(() -> new IllegalArgumentException("Unsupported index options " + TYPE_FIELD + " " + type));
 
             return vectorIndexType.parseIndexOptions(fieldName, map, indexVersion);
         } catch (Exception exc) {

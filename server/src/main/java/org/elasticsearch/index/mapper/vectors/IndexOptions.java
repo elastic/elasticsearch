@@ -37,7 +37,7 @@ public abstract class IndexOptions implements ToXContent, Writeable {
         String className = in.readString(); // Read the class name from the input
         try {
             Class<?> clazz = Class.forName(className);
-            IndexOptions instance = (IndexOptions) clazz.getDeclaredConstructor().newInstance();
+            IndexOptions instance = (IndexOptions) clazz.getConstructor().newInstance();
             return instance.readFrom(in);
         } catch (ReflectiveOperationException e) {
             throw new IOException("Failed to create instance of " + className, e);

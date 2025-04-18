@@ -1281,16 +1281,7 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
             b.field("element_type", "float");
             b.endObject();
         }), useLegacyFormat, IndexVersions.SEMANTIC_TEXT_DEFAULTS_TO_BBQ);
-        assertSemanticTextField(
-            mapperService,
-            "field",
-            true,
-            null,
-            new SemanticTextIndexOptions(
-                SemanticTextIndexOptions.SupportedIndexOptions.DENSE_VECTOR,
-                SemanticTextFieldMapper.defaultSemanticDenseIndexOptions()
-            )
-        );
+        assertSemanticTextField(mapperService, "field", true, null, SemanticTextFieldMapper.defaultSemanticDenseIndexOptions());
 
         // Element types that are incompatible with BBQ will continue to use dense_vector defaults
         mapperService = createMapperService(fieldMapping(b -> {

@@ -1268,7 +1268,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
 
         protected abstract void doWriteTo(StreamOutput out) throws IOException;
 
-        abstract boolean updatableTo(DenseVectorIndexOptions update);
+        public abstract boolean updatableTo(DenseVectorIndexOptions update);
 
         public boolean validateDimension(int dim) {
             return validateDimension(dim, true);
@@ -1642,7 +1642,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
         }
 
         @Override
-        boolean updatableTo(DenseVectorIndexOptions update) {
+        public boolean updatableTo(DenseVectorIndexOptions update) {
             return update.type.equals(this.type)
                 || update.type.equals(VectorIndexType.HNSW)
                 || update.type.equals(VectorIndexType.INT8_HNSW)
@@ -1688,7 +1688,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
         }
 
         @Override
-        boolean updatableTo(DenseVectorIndexOptions update) {
+        public boolean updatableTo(DenseVectorIndexOptions update) {
             return true;
         }
 
@@ -1787,7 +1787,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
         }
 
         @Override
-        boolean updatableTo(DenseVectorIndexOptions update) {
+        public boolean updatableTo(DenseVectorIndexOptions update) {
             boolean updatable = update.type.equals(this.type);
             if (updatable) {
                 Int4HnswIndexOptions int4HnswIndexOptions = (Int4HnswIndexOptions) update;
@@ -1861,7 +1861,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
         }
 
         @Override
-        boolean updatableTo(DenseVectorIndexOptions update) {
+        public boolean updatableTo(DenseVectorIndexOptions update) {
             // TODO: add support for updating from flat, hnsw, and int8_hnsw and updating params
             return update.type.equals(this.type)
                 || update.type.equals(VectorIndexType.HNSW)
@@ -1956,7 +1956,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
         }
 
         @Override
-        boolean updatableTo(DenseVectorIndexOptions update) {
+        public boolean updatableTo(DenseVectorIndexOptions update) {
             boolean updatable;
             if (update.type.equals(this.type)) {
                 Int8HnswIndexOptions int8HnswIndexOptions = (Int8HnswIndexOptions) update;
@@ -2009,7 +2009,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
         }
 
         @Override
-        boolean updatableTo(DenseVectorIndexOptions update) {
+        public boolean updatableTo(DenseVectorIndexOptions update) {
             boolean updatable = update.type.equals(this.type);
             if (updatable) {
                 // fewer connections would break assumptions on max number of connections (based on largest previous graph) during merge
@@ -2084,7 +2084,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
         }
 
         @Override
-        boolean updatableTo(DenseVectorIndexOptions update) {
+        public boolean updatableTo(DenseVectorIndexOptions update) {
             return update.type.equals(this.type);
         }
 
@@ -2152,7 +2152,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
         }
 
         @Override
-        boolean updatableTo(DenseVectorIndexOptions update) {
+        public boolean updatableTo(DenseVectorIndexOptions update) {
             return update.type.equals(this.type);
         }
 

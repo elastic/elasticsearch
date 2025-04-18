@@ -377,18 +377,12 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
                 modelSettings = modelRegistry.getMinimalServiceSettings(inferenceId);
             }
 
-            if (modelSettings == null) {
-                // TODO throw
-                return;
-            }
-
+            // Right now text_embedding is the only task_type supporting index_options
             if (modelSettings.taskType() != TEXT_EMBEDDING) {
                 throw new IllegalArgumentException(
                     "Invalid task type for index options, required [" + TEXT_EMBEDDING + "] but was [" + modelSettings.taskType() + "]"
                 );
             }
-
-            // TODO additional verification
         }
 
         /**
@@ -1127,7 +1121,7 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
                 } else {
                     DenseVectorFieldMapper.DenseVectorIndexOptions defaultIndexOptions = null;
                     if (indexVersionCreated.onOrAfter(SEMANTIC_TEXT_DEFAULTS_TO_BBQ)) {
-                        defaultIndexOptions = defaultSemanticDenseIndexOptions();
+                        defaultIndexOptions = defaultDenseVectorIndexOptions();
                     }
                     if (defaultIndexOptions != null
                         && defaultIndexOptions.validate(modelSettings.elementType(), modelSettings.dimensions(), false)) {
@@ -1138,7 +1132,7 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
                 boolean hasUserSpecifiedIndexOptions = indexOptions != null;
                 DenseVectorFieldMapper.DenseVectorIndexOptions denseVectorIndexOptions = hasUserSpecifiedIndexOptions
                     ? (DenseVectorFieldMapper.DenseVectorIndexOptions) indexOptions.indexOptions()
-                    : (indexVersionCreated.onOrAfter(SEMANTIC_TEXT_DEFAULTS_TO_BBQ) ? defaultSemanticDenseIndexOptions() : null);
+                    : (indexVersionCreated.onOrAfter(SEMANTIC_TEXT_DEFAULTS_TO_BBQ) ? defaultDenseVectorIndexOptions() : null);
 
                 if (denseVectorIndexOptions != null
                     && denseVectorIndexOptions.validate(
@@ -1155,13 +1149,17 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
         };
     }
 
-    static DenseVectorFieldMapper.DenseVectorIndexOptions defaultSemanticDenseIndexOptions() {
+    static DenseVectorFieldMapper.DenseVectorIndexOptions defaultDenseVectorIndexOptions() {
         // As embedding models for text perform better with BBQ, we aggressively default semantic_text fields to use optimized index
         // options outside of dense_vector defaults
         int m = Lucene99HnswVectorsFormat.DEFAULT_MAX_CONN;
         int efConstruction = Lucene99HnswVectorsFormat.DEFAULT_BEAM_WIDTH;
         DenseVectorFieldMapper.RescoreVector rescoreVector = new DenseVectorFieldMapper.RescoreVector(DEFAULT_RESCORE_OVERSAMPLE);
         return new DenseVectorFieldMapper.BBQHnswIndexOptions(m, efConstruction, rescoreVector);
+    }
+
+    static SemanticTextIndexOptions defaultSemanticDenseIndexOptions() {
+        return new SemanticTextIndexOptions(SemanticTextIndexOptions.SupportedIndexOptions.DENSE_VECTOR, defaultDenseVectorIndexOptions());
     }
 
     private static boolean canMergeModelSettings(MinimalServiceSettings previous, MinimalServiceSettings current, Conflicts conflicts) {
@@ -1176,13 +1174,32 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
     }
 
     private static boolean canMergeIndexOptions(SemanticTextIndexOptions previous, SemanticTextIndexOptions current, Conflicts conflicts) {
-        if (Objects.equals(previous, current) || previous == null || current == null) {
+        if (Objects.equals(previous, current) || (previous == null && current == null)) {
             return true;
         }
 
-        // TODO allow updates if they're allowed by dense vector mapper
+        // TODO address merging to/from default index options
+        if (previous == null || current == null) {
+            return true;
+        }
 
-        conflicts.addConflict(INDEX_OPTIONS_FIELD, "Incompatible index options");
-        return false;
+        if (Objects.equals(previous.type(), current.type()) == false) {
+            conflicts.addConflict(INDEX_OPTIONS_FIELD, "Incompatible index options");
+        }
+
+        // TODO clean this up a bit
+        if (previous.type() == SemanticTextIndexOptions.SupportedIndexOptions.DENSE_VECTOR) {
+            DenseVectorFieldMapper.DenseVectorIndexOptions previousDenseOptions = (DenseVectorFieldMapper.DenseVectorIndexOptions) previous
+                .indexOptions();
+            DenseVectorFieldMapper.DenseVectorIndexOptions currentDenseOptions = (DenseVectorFieldMapper.DenseVectorIndexOptions) current
+                .indexOptions();
+            boolean updatable = previousDenseOptions.updatableTo(currentDenseOptions);
+            if (updatable == false) {
+                conflicts.addConflict(INDEX_OPTIONS_FIELD, "Incompatible index options");
+            }
+            return updatable;
+        }
+
+        return true;
     }
 }

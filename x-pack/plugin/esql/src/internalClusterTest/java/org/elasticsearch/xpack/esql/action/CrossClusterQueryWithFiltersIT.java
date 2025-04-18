@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.action;
 
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
@@ -15,6 +16,7 @@ import org.elasticsearch.index.query.RangeQueryBuilder;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.xpack.esql.VerificationException;
 
+import java.io.IOException;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -35,6 +37,11 @@ public class CrossClusterQueryWithFiltersIT extends AbstractCrossClusterTestCase
     @Override
     protected Map<String, Boolean> skipUnavailableForRemoteClusters() {
         return Map.of(REMOTE_CLUSTER_1, false, REMOTE_CLUSTER_2, false);
+    }
+
+    @Override
+    protected boolean reuseClusters() {
+        return false;
     }
 
     protected void assertClusterMetadataSuccess(EsqlExecutionInfo.Cluster clusterMetatata, int shards, long took, String indexExpression) {
@@ -72,6 +79,17 @@ public class CrossClusterQueryWithFiltersIT extends AbstractCrossClusterTestCase
         assertThat(clusterMetatata.getTotalShards(), equalTo(shards));
         assertThat(clusterMetatata.getSuccessfulShards(), equalTo(shards));
         assertThat(clusterMetatata.getSkippedShards(), equalTo(shards));
+        assertThat(clusterMetatata.getFailedShards(), equalTo(0));
+    }
+
+    protected void assertClusterMetadataSkipped(EsqlExecutionInfo.Cluster clusterMetatata, long took, String indexExpression) {
+        assertThat(clusterMetatata.getIndexExpression(), equalTo(indexExpression));
+        assertThat(clusterMetatata.getStatus(), equalTo(EsqlExecutionInfo.Cluster.Status.SKIPPED));
+        assertThat(clusterMetatata.getTook().millis(), greaterThanOrEqualTo(0L));
+        assertThat(clusterMetatata.getTook().millis(), lessThanOrEqualTo(took));
+        assertThat(clusterMetatata.getTotalShards(), equalTo(0));
+        assertThat(clusterMetatata.getSuccessfulShards(), equalTo(0));
+        assertThat(clusterMetatata.getSkippedShards(), equalTo(0));
         assertThat(clusterMetatata.getFailedShards(), equalTo(0));
     }
 
@@ -244,11 +262,12 @@ public class CrossClusterQueryWithFiltersIT extends AbstractCrossClusterTestCase
         populateDateIndex(LOCAL_CLUSTER, LOCAL_INDEX, localShards, docsTest1, "2024-11-26");
         populateDateIndex(REMOTE_CLUSTER_1, REMOTE_INDEX, remoteShards, docsTest2, "2023-11-26");
 
-        int docSize = docsTest1;
+        int count = 0;
         for (var filter : List.of(
             new RangeQueryBuilder("@timestamp").from("2024-01-01").to("now"),
             new RangeQueryBuilder("@timestamp").from("2025-01-01").to("now")
         )) {
+            count++;
             // Local index missing
             VerificationException e = expectThrows(
                 VerificationException.class,
@@ -264,7 +283,7 @@ public class CrossClusterQueryWithFiltersIT extends AbstractCrossClusterTestCase
             // e = expectThrows(VerificationException.class, () -> runQuery("from missing,logs-1", randomBoolean(), filter).close());
             // assertThat(e.getDetailedMessage(), containsString("Unknown index [missing]"));
             // Local index missing + existing remote
-            e = expectThrows(VerificationException.class, () -> runQuery("from missing,c*:logs-2", randomBoolean(), filter).close());
+            e = expectThrows(VerificationException.class, () -> runQuery("from missing,cluster-a:logs-2", randomBoolean(), filter).close());
             assertThat(e.getDetailedMessage(), containsString("Unknown index [missing]"));
             // Wildcard index missing
             e = expectThrows(VerificationException.class, () -> runQuery("from missing*", randomBoolean(), filter).close());
@@ -272,23 +291,154 @@ public class CrossClusterQueryWithFiltersIT extends AbstractCrossClusterTestCase
             // Wildcard index missing + existing index
             try (EsqlQueryResponse resp = runQuery("from missing*,logs-1", randomBoolean(), filter)) {
                 List<List<Object>> values = getValuesList(resp);
-                assertThat(values, hasSize(docSize));
-                // for the second round
-                docSize = 0;
+                assertThat(values, hasSize(count > 1 ? 0 : docsTest1));
             }
         }
     }
 
     public void testFilterWithMissingRemoteIndex() {
-        // TODO
+        int docsTest1 = 50;
+        int docsTest2 = 30;
+        int localShards = randomIntBetween(1, 5);
+        int remoteShards = randomIntBetween(1, 5);
+        populateDateIndex(LOCAL_CLUSTER, LOCAL_INDEX, localShards, docsTest1, "2024-11-26");
+        populateDateIndex(REMOTE_CLUSTER_1, REMOTE_INDEX, remoteShards, docsTest2, "2023-11-26");
+
+        int count = 0;
+        for (var filter : List.of(
+            new RangeQueryBuilder("@timestamp").from("2023-01-01").to("now"),
+            new RangeQueryBuilder("@timestamp").from("2024-01-01").to("now"),
+            new RangeQueryBuilder("@timestamp").from("2025-01-01").to("now")
+        )) {
+            count++;
+            // Local index missing
+            VerificationException e = expectThrows(
+                VerificationException.class,
+                () -> runQuery("from cluster-a:missing", randomBoolean(), filter).close()
+            );
+            assertThat(e.getDetailedMessage(), containsString("Unknown index [cluster-a:missing]"));
+            // Local index missing + wildcards
+            // FIXME: planner does not catch this now
+            // e = expectThrows(VerificationException.class, () -> runQuery("from cluster-a:missing,cluster-a:logs*", randomBoolean(),
+            // filter).close());
+            // assertThat(e.getDetailedMessage(), containsString("Unknown index [cluster-a:missing]"));
+            // Local index missing + existing index
+            // FIXME: planner does not catch this now
+            // e = expectThrows(VerificationException.class, () -> runQuery("from cluster-a:missing,cluster-a:logs-2", randomBoolean(),
+            // filter).close());
+            // assertThat(e.getDetailedMessage(), containsString("Unknown index [cluster-a:missing]"));
+            // Local index + missing remote
+            e = expectThrows(VerificationException.class, () -> runQuery("from logs-1,cluster-a:missing", randomBoolean(), filter).close());
+            assertThat(e.getDetailedMessage(), containsString("Unknown index [cluster-a:missing]"));
+            // Wildcard index missing
+            e = expectThrows(VerificationException.class, () -> runQuery("from cluster-a:missing*", randomBoolean(), filter).close());
+            assertThat(e.getDetailedMessage(), containsString("Unknown index [cluster-a:missing*]"));
+            // Wildcard index missing + existing remote index
+            try (EsqlQueryResponse resp = runQuery("from cluster-a:missing*,cluster-a:logs-2", randomBoolean(), filter)) {
+                List<List<Object>> values = getValuesList(resp);
+                assertThat(values, hasSize(count > 1 ? 0 : docsTest2));
+            }
+            // Wildcard index missing + existing local index
+            try (EsqlQueryResponse resp = runQuery("from cluster-a:missing*,logs-1", randomBoolean(), filter)) {
+                List<List<Object>> values = getValuesList(resp);
+                assertThat(values, hasSize(count > 2 ? 0 : docsTest1));
+            }
+        }
     }
 
-    public void testFilterWithUnavailableRemote() {
-        // TODO
+    public void testFilterWithUnavailableRemote() throws IOException {
+        int docsTest1 = 50;
+        int localShards = randomIntBetween(1, 5);
+        populateDateIndex(LOCAL_CLUSTER, LOCAL_INDEX, localShards, docsTest1, "2024-11-26");
+        cluster(REMOTE_CLUSTER_1).close();
+
+        for (var filter : List.of(
+            new RangeQueryBuilder("@timestamp").from("2024-01-01").to("now"),
+            new RangeQueryBuilder("@timestamp").from("2025-01-01").to("now")
+        )) {
+            // One index
+            var e = expectThrows(ElasticsearchException.class, () -> runQuery("from cluster-a:log-2", randomBoolean(), filter).close());
+            // Two indices
+            e = expectThrows(ElasticsearchException.class, () -> runQuery("from logs-1,cluster-a:log-2", randomBoolean(), filter).close());
+            // Wildcard
+            e = expectThrows(ElasticsearchException.class, () -> runQuery("from logs-1,cluster-a:log*", randomBoolean(), filter).close());
+        }
     }
 
-    public void testFilterWithUnavailableRemoteAndSkipUnavailable() {
-        // TODO
+    public void testFilterWithUnavailableRemoteAndSkipUnavailable() throws IOException {
+        setSkipUnavailable(REMOTE_CLUSTER_1, true);
+        int docsTest1 = 50;
+        int localShards = randomIntBetween(1, 5);
+        populateDateIndex(LOCAL_CLUSTER, LOCAL_INDEX, localShards, docsTest1, "2024-11-26");
+        cluster(REMOTE_CLUSTER_1).close();
+        int count = 0;
+
+        for (var filter : List.of(
+            new RangeQueryBuilder("@timestamp").from("2024-01-01").to("now"),
+            new RangeQueryBuilder("@timestamp").from("2025-01-01").to("now")
+        )) {
+            count++;
+            // One index
+            try (EsqlQueryResponse resp = runQuery("from cluster-a:logs-2", randomBoolean(), filter)) {
+                List<List<Object>> values = getValuesList(resp);
+                assertThat(values, hasSize(0));
+                EsqlExecutionInfo executionInfo = resp.getExecutionInfo();
+                assertNotNull(executionInfo);
+                assertThat(executionInfo.isCrossClusterSearch(), is(true));
+                long overallTookMillis = executionInfo.overallTook().millis();
+                assertThat(overallTookMillis, greaterThanOrEqualTo(0L));
+
+                assertThat(executionInfo.clusterAliases(), equalTo(Set.of(REMOTE_CLUSTER_1)));
+
+                EsqlExecutionInfo.Cluster remoteCluster = executionInfo.getCluster(REMOTE_CLUSTER_1);
+                assertClusterMetadataSkipped(remoteCluster, overallTookMillis, "logs-2");
+            }
+            // Two indices
+            try (EsqlQueryResponse resp = runQuery("from logs-1,cluster-a:logs-2", randomBoolean(), filter)) {
+                List<List<Object>> values = getValuesList(resp);
+                assertThat(values, hasSize(count > 1 ? 0 : docsTest1));
+                EsqlExecutionInfo executionInfo = resp.getExecutionInfo();
+                assertNotNull(executionInfo);
+                assertThat(executionInfo.isCrossClusterSearch(), is(true));
+                long overallTookMillis = executionInfo.overallTook().millis();
+                assertThat(overallTookMillis, greaterThanOrEqualTo(0L));
+
+                assertThat(executionInfo.clusterAliases(), equalTo(Set.of(LOCAL_CLUSTER, REMOTE_CLUSTER_1)));
+
+                EsqlExecutionInfo.Cluster remoteCluster = executionInfo.getCluster(REMOTE_CLUSTER_1);
+                assertClusterMetadataSkipped(remoteCluster, overallTookMillis, "logs-2");
+
+                EsqlExecutionInfo.Cluster localCluster = executionInfo.getCluster(LOCAL_CLUSTER);
+                if (count > 1) {
+                    assertClusterMetadataNoShards(localCluster, localShards, overallTookMillis, "logs-1");
+                } else {
+                    assertClusterMetadataSuccess(localCluster, localShards, overallTookMillis, "logs-1");
+                }
+            }
+            // Wildcard
+            try (EsqlQueryResponse resp = runQuery("from logs-1,cluster-a:logs*", randomBoolean(), filter)) {
+                List<List<Object>> values = getValuesList(resp);
+                assertThat(values, hasSize(count > 1 ? 0 : docsTest1));
+                EsqlExecutionInfo executionInfo = resp.getExecutionInfo();
+                assertNotNull(executionInfo);
+                assertThat(executionInfo.isCrossClusterSearch(), is(true));
+                long overallTookMillis = executionInfo.overallTook().millis();
+                assertThat(overallTookMillis, greaterThanOrEqualTo(0L));
+
+                assertThat(executionInfo.clusterAliases(), equalTo(Set.of(LOCAL_CLUSTER, REMOTE_CLUSTER_1)));
+
+                EsqlExecutionInfo.Cluster remoteCluster = executionInfo.getCluster(REMOTE_CLUSTER_1);
+                assertClusterMetadataSkipped(remoteCluster, overallTookMillis, "logs*");
+
+                EsqlExecutionInfo.Cluster localCluster = executionInfo.getCluster(LOCAL_CLUSTER);
+                if (count > 1) {
+                    assertClusterMetadataNoShards(localCluster, localShards, overallTookMillis, "logs-1");
+                } else {
+                    assertClusterMetadataSuccess(localCluster, localShards, overallTookMillis, "logs-1");
+                }
+            }
+        }
+
     }
 
     protected void populateDateIndex(String clusterAlias, String indexName, int numShards, int numDocs, String date) {

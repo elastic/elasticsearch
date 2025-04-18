@@ -49,4 +49,26 @@ public record OperatorStatus(String operator, @Nullable Operator.Status status) 
     public String toString() {
         return Strings.toString(this);
     }
+
+    /**
+     * The number of documents found by this operator. Most operators
+     * don't find documents and will return {@code 0} here.
+     */
+    public long documentsFound() {
+        if (status == null) {
+            return 0;
+        }
+        return status.documentsFound();
+    }
+
+    /**
+     * The number of values loaded by this operator. Most operators
+     * don't load values and will return {@code 0} here.
+     */
+    public long valuesLoaded() {
+        if (status == null) {
+            return 0;
+        }
+        return status.valuesLoaded();
+    }
 }

@@ -23,6 +23,7 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import java.io.IOException;
 import java.util.List;
 import java.util.Objects;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
@@ -72,6 +73,9 @@ public class ColumnInfoImpl implements ColumnInfo {
     @Nullable
     private final List<String> originalTypes;
 
+    @Nullable
+    private final DataType suggestedCast;
+
     @ParserConstructor
     public ColumnInfoImpl(String name, String type, @Nullable List<String> originalTypes) {
         this(name, DataType.fromEs(type), originalTypes);
@@ -81,6 +85,16 @@ public class ColumnInfoImpl implements ColumnInfo {
         this.name = name;
         this.type = type;
         this.originalTypes = originalTypes;
+        this.suggestedCast = calculateSuggestedCast(this.originalTypes);
+    }
+
+    private static DataType calculateSuggestedCast(List<String> originalTypes) {
+        if (originalTypes == null) {
+            return null;
+        }
+        return DataType.suggestedCast(
+            originalTypes.stream().map(DataType::fromTypeName).filter(Objects::nonNull).collect(Collectors.toSet())
+        );
     }
 
     public ColumnInfoImpl(StreamInput in) throws IOException {
@@ -88,8 +102,10 @@ public class ColumnInfoImpl implements ColumnInfo {
         this.type = DataType.fromEs(in.readString());
         if (in.getTransportVersion().onOrAfter(TransportVersions.ESQL_REPORT_ORIGINAL_TYPES)) {
             this.originalTypes = in.readOptionalStringCollectionAsList();
+            this.suggestedCast = calculateSuggestedCast(this.originalTypes);
         } else {
             this.originalTypes = null;
+            this.suggestedCast = null;
         }
     }
 
@@ -109,6 +125,9 @@ public class ColumnInfoImpl implements ColumnInfo {
         builder.field("type", type.outputType());
         if (originalTypes != null) {
             builder.field("original_types", originalTypes);
+        }
+        if (suggestedCast != null) {
+            builder.field("suggested_cast", suggestedCast.typeName());
         }
         builder.endObject();
         return builder;

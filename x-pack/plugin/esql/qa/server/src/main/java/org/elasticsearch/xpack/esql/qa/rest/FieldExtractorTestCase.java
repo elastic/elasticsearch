@@ -32,6 +32,7 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
+import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.hamcrest.Matcher;
 import org.junit.Before;
@@ -45,8 +46,10 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 import java.util.TreeMap;
 import java.util.function.Function;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.test.ListMatcher.matchesList;
 import static org.elasticsearch.test.MapMatcher.assertMap;
@@ -690,7 +693,7 @@ public abstract class FieldExtractorTestCase extends ESRestTestCase {
      * </pre>.
      */
     public void testIncompatibleTypes() throws IOException {
-        assumeOriginalTypesReported();
+        assumeSuggestedCastReported();
         keywordTest().createIndex("test1", "f");
         index("test1", """
             {"f": "f1"}""");
@@ -764,7 +767,7 @@ public abstract class FieldExtractorTestCase extends ESRestTestCase {
      * </pre>.
      */
     public void testMergeKeywordAndObject() throws IOException {
-        assumeOriginalTypesReported();
+        assumeSuggestedCastReported();
         keywordTest().createIndex("test1", "file");
         index("test1", """
             {"file": "f1"}""");
@@ -959,7 +962,7 @@ public abstract class FieldExtractorTestCase extends ESRestTestCase {
      * In an ideal world we'd promote the {@code integer} to an {@code long} and just go.
      */
     public void testLongIntegerConflict() throws IOException {
-        assumeOriginalTypesReported();
+        assumeSuggestedCastReported();
         longTest().sourceMode(SourceMode.DEFAULT).createIndex("test1", "emp_no");
         index("test1", """
             {"emp_no": 1}""");
@@ -1002,7 +1005,7 @@ public abstract class FieldExtractorTestCase extends ESRestTestCase {
      * In an ideal world we'd promote the {@code short} to an {@code integer} and just go.
      */
     public void testIntegerShortConflict() throws IOException {
-        assumeOriginalTypesReported();
+        assumeSuggestedCastReported();
         intTest().sourceMode(SourceMode.DEFAULT).createIndex("test1", "emp_no");
         index("test1", """
             {"emp_no": 1}""");
@@ -1051,7 +1054,7 @@ public abstract class FieldExtractorTestCase extends ESRestTestCase {
      * </pre>.
      */
     public void testTypeConflictInObject() throws IOException {
-        assumeOriginalTypesReported();
+        assumeSuggestedCastReported();
         createIndex("test1", empNoInObject("integer"));
         index("test1", """
             {"foo": {"emp_no": 1}}""");
@@ -1377,6 +1380,12 @@ public abstract class FieldExtractorTestCase extends ESRestTestCase {
         var capsName = EsqlCapabilities.Cap.REPORT_ORIGINAL_TYPES.name().toLowerCase(Locale.ROOT);
         boolean requiredClusterCapability = clusterHasCapability("POST", "/_query", List.of(), List.of(capsName)).orElse(false);
         assumeTrue("This test makes sense for versions that report original types", requiredClusterCapability);
+    }
+
+    private void assumeSuggestedCastReported() throws IOException {
+        var capsName = EsqlCapabilities.Cap.SUGGESTED_CAST.name().toLowerCase(Locale.ROOT);
+        boolean requiredClusterCapability = clusterHasCapability("POST", "/_query", List.of(), List.of(capsName)).orElse(false);
+        assumeTrue("This test makes sense for versions that report suggested casts", requiredClusterCapability);
     }
 
     private CheckedConsumer<XContentBuilder, IOException> empNoInObject(String empNoType) {
@@ -1715,7 +1724,23 @@ public abstract class FieldExtractorTestCase extends ESRestTestCase {
     }
 
     private static Map<String, Object> unsupportedColumnInfo(String name, String... originalTypes) {
-        return Map.of("name", name, "type", "unsupported", "original_types", List.of(originalTypes));
+        DataType suggested = DataType.suggestedCast(
+            List.of(originalTypes).stream().map(DataType::fromTypeName).filter(Objects::nonNull).collect(Collectors.toSet())
+        );
+        if (suggested == null) {
+            return Map.of("name", name, "type", "unsupported", "original_types", List.of(originalTypes));
+        } else {
+            return Map.of(
+                "name",
+                name,
+                "type",
+                "unsupported",
+                "original_types",
+                List.of(originalTypes),
+                "suggested_cast",
+                suggested.typeName()
+            );
+        }
     }
 
     private static void index(String name, String... docs) throws IOException {

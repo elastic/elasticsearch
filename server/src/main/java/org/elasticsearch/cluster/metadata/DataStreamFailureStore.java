@@ -29,6 +29,7 @@ import java.io.IOException;
  * supports the following configurations only explicitly enabling or disabling the failure store
  */
 public record DataStreamFailureStore(Boolean enabled) implements SimpleDiffable<DataStreamFailureStore>, ToXContentObject {
+    public static final String FAILURES_LIFECYCLE_API_CAPABILITY = "failures_lifecycle";
     public static final String FAILURE_STORE = "failure_store";
     public static final String ENABLED = "enabled";
 

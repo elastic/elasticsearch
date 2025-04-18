@@ -94,8 +94,10 @@ public class EvalBenchmark {
 
     static {
         LogConfigurator.configureESLogging();
-        // Smoke test all the expected values and force loading subclasses more like prod
-        selfTest();
+        if (false == "true".equals(System.getProperty("skipSelfTest"))) {
+            // Smoke test all the expected values and force loading subclasses more like prod
+            selfTest();
+        }
     }
 
     static void selfTest() {

@@ -571,7 +571,7 @@ public class ArchiveTests extends PackagingTestCase {
     }
 
     public void test93ElasticsearchNodeCustomDataPathAndNotEsHomeWorkDir() throws Exception {
-        Path relativeDataPath = installation.data.relativize(installation.home);
+        Path relativeDataPath = getRootTempDir().resolve("custom_data");
         append(installation.config("elasticsearch.yml"), "path.data: " + relativeDataPath);
         sh.setWorkingDirectory(getRootTempDir());
 

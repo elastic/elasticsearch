@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.core.datastreams;
 
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
-import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -50,13 +49,11 @@ public class DataStreamFeatureSetUsage extends XPackFeatureUsage {
         super.innerXContent(builder, params);
         builder.field("data_streams", streamStats.totalDataStreamCount);
         builder.field("indices_count", streamStats.indicesBehindDataStream);
-        if (DataStream.isFailureStoreFeatureFlagEnabled()) {
-            builder.startObject("failure_store");
-            builder.field("explicitly_enabled_count", streamStats.failureStoreExplicitlyEnabledDataStreamCount);
-            builder.field("effectively_enabled_count", streamStats.failureStoreEffectivelyEnabledDataStreamCount);
-            builder.field("failure_indices_count", streamStats.failureStoreIndicesCount);
-            builder.endObject();
-        }
+        builder.startObject("failure_store");
+        builder.field("explicitly_enabled_count", streamStats.failureStoreExplicitlyEnabledDataStreamCount);
+        builder.field("effectively_enabled_count", streamStats.failureStoreEffectivelyEnabledDataStreamCount);
+        builder.field("failure_indices_count", streamStats.failureStoreIndicesCount);
+        builder.endObject();
     }
 
     @Override

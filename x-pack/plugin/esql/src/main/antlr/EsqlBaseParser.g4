@@ -100,7 +100,7 @@ indexPatternAndMetadataFields:
 
 indexPattern
     : (clusterString COLON)? indexString
-    | {this.isDevVersion()}? indexString (CAST_OP selectorString)?
+    | indexString (CAST_OP selectorString)?
     ;
 
 clusterString

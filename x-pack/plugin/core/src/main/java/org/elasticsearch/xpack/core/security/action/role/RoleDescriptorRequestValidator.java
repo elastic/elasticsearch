@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.core.security.action.role;
 
 import org.elasticsearch.action.ActionRequestValidationException;
-import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivilege;
@@ -55,10 +54,8 @@ public class RoleDescriptorRequestValidator {
                 } catch (IllegalArgumentException ile) {
                     validationException = addValidationError(ile.getMessage(), validationException);
                 }
-                if (DataStream.isFailureStoreFeatureFlagEnabled()) {
-                    for (final String indexName : idp.getIndices()) {
-                        validationException = validateIndexNameExpression(indexName, validationException);
-                    }
+                for (final String indexName : idp.getIndices()) {
+                    validationException = validateIndexNameExpression(indexName, validationException);
                 }
             }
         }
@@ -78,10 +75,8 @@ public class RoleDescriptorRequestValidator {
             } catch (IllegalArgumentException ile) {
                 validationException = addValidationError(ile.getMessage(), validationException);
             }
-            if (DataStream.isFailureStoreFeatureFlagEnabled()) {
-                for (String indexName : ridp.indicesPrivileges().getIndices()) {
-                    validationException = validateIndexNameExpression(indexName, validationException);
-                }
+            for (String indexName : ridp.indicesPrivileges().getIndices()) {
+                validationException = validateIndexNameExpression(indexName, validationException);
             }
         }
         if (roleDescriptor.hasRemoteClusterPermissions()) {

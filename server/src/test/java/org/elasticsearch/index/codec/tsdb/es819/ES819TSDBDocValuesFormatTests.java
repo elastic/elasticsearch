@@ -64,6 +64,7 @@ public class ES819TSDBDocValuesFormatTests extends ES87TSDBDocValuesFormatTests 
 
             int numDocs = 256 + random().nextInt(1024);
             int numHosts = numDocs / 20;
+
             for (int i = 0; i < numDocs; i++) {
                 var d = new Document();
 
@@ -77,7 +78,12 @@ public class ES819TSDBDocValuesFormatTests extends ES87TSDBDocValuesFormatTests 
                 d.add(new NumericDocValuesField("counter_1", counter1++));
                 d.add(new SortedNumericDocValuesField("counter_2", counter2++));
                 d.add(new SortedNumericDocValuesField("gauge_1", gauge1Values[i % gauge1Values.length]));
-                d.add(new SortedNumericDocValuesField("gauge_2", gauge2Values[i % gauge1Values.length]));
+
+                int numGauge2 = 1 + random().nextInt(8);
+                for (int j = 0; j < numGauge2; j++) {
+                    d.add(new SortedNumericDocValuesField("gauge_2", gauge2Values[(i + j) % gauge2Values.length]));
+                }
+
                 int numTags = 1 + random().nextInt(8);
                 for (int j = 0; j < numTags; j++) {
                     d.add(new SortedSetDocValuesField("tags", new BytesRef(tags[j])));
@@ -144,15 +150,98 @@ public class ES819TSDBDocValuesFormatTests extends ES87TSDBDocValuesFormatTests 
                     assertTrue("unexpected gauge [" + gaugeOneValue + "]", Arrays.binarySearch(gauge1Values, gaugeOneValue) >= 0);
 
                     assertEquals(i, gaugeTwoDV.nextDoc());
-                    assertEquals(1, gaugeTwoDV.docValueCount());
-                    long gaugeTwoValue = gaugeTwoDV.nextValue();
-                    assertTrue("unexpected gauge [" + gaugeTwoValue + "]", Arrays.binarySearch(gauge2Values, gaugeTwoValue) >= 0);
+                    for (int j = 0; j < gaugeTwoDV.docValueCount(); j++) {
+                        long gaugeTwoValue = gaugeTwoDV.nextValue();
+                        assertTrue("unexpected gauge [" + gaugeTwoValue + "]", Arrays.binarySearch(gauge2Values, gaugeTwoValue) >= 0);
+                    }
 
                     assertEquals(i, tagsDV.nextDoc());
                     for (int j = 0; j < tagsDV.docValueCount(); j++) {
                         long ordinal = tagsDV.nextOrd();
                         String actualTag = tagsDV.lookupOrd(ordinal).utf8ToString();
                         assertTrue("unexpected tag [" + actualTag + "]", Arrays.binarySearch(tags, actualTag) >= 0);
+                    }
+                }
+            }
+        }
+    }
+
+    public void testTwoSegmentsTwoDifferentFields() throws Exception {
+        String timestampField = "@timestamp";
+        String hostnameField = "host.name";
+        long timestamp = 1704067200000L;
+
+        var config = getTimeSeriesIndexWriterConfig(hostnameField, timestampField);
+        try (var dir = newDirectory(); var iw = new IndexWriter(dir, config)) {
+            long counter1 = 0;
+            long counter2 = 10_000_000;
+
+            {
+                var d = new Document();
+                d.add(new SortedDocValuesField(hostnameField, new BytesRef("host-001")));
+                d.add(new SortedNumericDocValuesField(timestampField, timestamp - 1));
+                d.add(new NumericDocValuesField("counter_1", counter1));
+                d.add(new SortedNumericDocValuesField("gauge_1", 2));
+                iw.addDocument(d);
+                iw.commit();
+            }
+            {
+                var d = new Document();
+                d.add(new SortedDocValuesField(hostnameField, new BytesRef("host-001")));
+                d.add(new SortedNumericDocValuesField(timestampField, timestamp));
+                d.add(new SortedNumericDocValuesField("counter_2", counter2));
+                d.add(new SortedNumericDocValuesField("gauge_2", -2));
+                iw.addDocument(d);
+                iw.commit();
+            }
+
+            iw.forceMerge(1);
+
+            try (var reader = DirectoryReader.open(iw)) {
+                assertEquals(1, reader.leaves().size());
+                assertEquals(2, reader.maxDoc());
+                var leaf = reader.leaves().get(0).reader();
+                var hostNameDV = leaf.getSortedDocValues(hostnameField);
+                assertNotNull(hostNameDV);
+                var timestampDV = DocValues.unwrapSingleton(leaf.getSortedNumericDocValues(timestampField));
+                assertNotNull(timestampDV);
+                var counterOneDV = leaf.getNumericDocValues("counter_1");
+                assertNotNull(counterOneDV);
+                var counterTwoDV = leaf.getSortedNumericDocValues("counter_2");
+                assertNotNull(counterTwoDV);
+                var gaugeOneDV = leaf.getSortedNumericDocValues("gauge_1");
+                assertNotNull(gaugeOneDV);
+                var gaugeTwoDV = leaf.getSortedNumericDocValues("gauge_2");
+                assertNotNull(gaugeTwoDV);
+                for (int i = 0; i < 2; i++) {
+                    assertEquals(i, hostNameDV.nextDoc());
+                    assertEquals("host-001", hostNameDV.lookupOrd(hostNameDV.ordValue()).utf8ToString());
+
+                    assertEquals(i, timestampDV.nextDoc());
+                    long actualTimestamp = timestampDV.longValue();
+                    assertTrue(actualTimestamp == timestamp || actualTimestamp == timestamp - 1);
+
+                    if (counterOneDV.advanceExact(i)) {
+                        long counterOneValue = counterOneDV.longValue();
+                        assertEquals(counter1, counterOneValue);
+                    }
+
+                    if (counterTwoDV.advanceExact(i)) {
+                        assertEquals(1, counterTwoDV.docValueCount());
+                        long counterTwoValue = counterTwoDV.nextValue();
+                        assertEquals(counter2, counterTwoValue);
+                    }
+
+                    if (gaugeOneDV.advanceExact(i)) {
+                        assertEquals(1, gaugeOneDV.docValueCount());
+                        long gaugeOneValue = gaugeOneDV.nextValue();
+                        assertEquals(2, gaugeOneValue);
+                    }
+
+                    if (gaugeTwoDV.advanceExact(i)) {
+                        assertEquals(1, gaugeTwoDV.docValueCount());
+                        long gaugeTwoValue = gaugeTwoDV.nextValue();
+                        assertEquals(-2, gaugeTwoValue);
                     }
                 }
             }
@@ -195,7 +284,10 @@ public class ES819TSDBDocValuesFormatTests extends ES87TSDBDocValuesFormatTests 
                     d.add(new SortedNumericDocValuesField("gauge_1", gauge1Values[i % gauge1Values.length]));
                 }
                 if (random().nextBoolean()) {
-                    d.add(new SortedNumericDocValuesField("gauge_2", gauge2Values[i % gauge1Values.length]));
+                    int numGauge2 = 1 + random().nextInt(8);
+                    for (int j = 0; j < numGauge2; j++) {
+                        d.add(new SortedNumericDocValuesField("gauge_2", gauge2Values[(i + j) % gauge2Values.length]));
+                    }
                 }
                 if (random().nextBoolean()) {
                     int numTags = 1 + random().nextInt(8);
@@ -274,9 +366,10 @@ public class ES819TSDBDocValuesFormatTests extends ES87TSDBDocValuesFormatTests 
                     }
 
                     if (gaugeTwoDV.advanceExact(i)) {
-                        assertEquals(1, gaugeTwoDV.docValueCount());
-                        long gaugeTwoValue = gaugeTwoDV.nextValue();
-                        assertTrue("unexpected gauge [" + gaugeTwoValue + "]", Arrays.binarySearch(gauge2Values, gaugeTwoValue) >= 0);
+                        for (int j = 0; j < gaugeTwoDV.docValueCount(); j++) {
+                            long gaugeTwoValue = gaugeTwoDV.nextValue();
+                            assertTrue("unexpected gauge [" + gaugeTwoValue + "]", Arrays.binarySearch(gauge2Values, gaugeTwoValue) >= 0);
+                        }
                     }
 
                     if (tagsDV.advanceExact(i)) {

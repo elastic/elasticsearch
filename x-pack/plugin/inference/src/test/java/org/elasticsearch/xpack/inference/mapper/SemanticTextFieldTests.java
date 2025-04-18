@@ -43,7 +43,6 @@ import java.util.ListIterator;
 import java.util.Map;
 import java.util.function.Predicate;
 
-import static org.elasticsearch.cluster.metadata.InferenceFieldMetadataTests.randomSemanticTextIndexOptions;
 import static org.elasticsearch.xpack.inference.mapper.SemanticInferenceMetadataFieldsMapperTests.getRandomCompatibleIndexVersion;
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextField.CHUNKED_EMBEDDINGS_FIELD;
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextField.toSemanticTextFieldChunk;

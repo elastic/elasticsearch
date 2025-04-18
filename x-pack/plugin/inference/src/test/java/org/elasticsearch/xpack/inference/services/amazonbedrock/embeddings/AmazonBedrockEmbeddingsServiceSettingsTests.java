@@ -20,6 +20,7 @@ import org.elasticsearch.xpack.core.ml.AbstractBWCWireSerializationTestCase;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.ServiceFields;
 import org.elasticsearch.xpack.inference.services.amazonbedrock.AmazonBedrockProvider;
+import org.elasticsearch.xpack.inference.services.amazonbedrock.AmazonBedrockServiceSettings.AmazonBedrockEmbeddingType;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettingsTests;
 import org.hamcrest.CoreMatchers;
@@ -32,6 +33,7 @@ import java.util.Map;
 import static org.elasticsearch.xpack.inference.services.ServiceFields.DIMENSIONS;
 import static org.elasticsearch.xpack.inference.services.ServiceFields.MAX_INPUT_TOKENS;
 import static org.elasticsearch.xpack.inference.services.ServiceFields.SIMILARITY;
+import static org.elasticsearch.xpack.inference.services.amazonbedrock.AmazonBedrockConstants.EMBEDDING_TYPE_FIELD;
 import static org.elasticsearch.xpack.inference.services.amazonbedrock.AmazonBedrockConstants.MODEL_FIELD;
 import static org.elasticsearch.xpack.inference.services.amazonbedrock.AmazonBedrockConstants.PROVIDER_FIELD;
 import static org.elasticsearch.xpack.inference.services.amazonbedrock.AmazonBedrockConstants.REGION_FIELD;
@@ -47,10 +49,17 @@ public class AmazonBedrockEmbeddingsServiceSettingsTests extends AbstractBWCWire
         var model = "model-id";
         var provider = "amazontitan";
         var maxInputTokens = 512;
-        var serviceSettings = AmazonBedrockEmbeddingsServiceSettings.fromMap(
-            createEmbeddingsRequestSettingsMap(region, model, provider, null, null, maxInputTokens, SimilarityMeasure.COSINE),
-            ConfigurationParseContext.REQUEST
+        var map = createEmbeddingsRequestSettingsMap(
+            region,
+            model,
+            provider,
+            null,
+            null,
+            maxInputTokens,
+            SimilarityMeasure.COSINE,
+            null // Default embedding type (float)
         );
+        var serviceSettings = AmazonBedrockEmbeddingsServiceSettings.fromMap(map, ConfigurationParseContext.REQUEST);
 
         assertThat(
             serviceSettings,
@@ -63,9 +72,74 @@ public class AmazonBedrockEmbeddingsServiceSettingsTests extends AbstractBWCWire
                     false,
                     maxInputTokens,
                     SimilarityMeasure.COSINE,
-                    null
+                    null,
+                    AmazonBedrockEmbeddingType.FLOAT
                 )
             )
+        );
+    }
+
+    public void testFromMap_Request_WithBinaryEmbeddingType_CreatesSettingsCorrectly() {
+        var region = "region";
+        var model = "model-id";
+        var provider = "amazontitan";
+        var maxInputTokens = 512;
+
+        var map = createEmbeddingsRequestSettingsMap(
+            region,
+            model,
+            provider,
+            null,
+            null,
+            maxInputTokens,
+            SimilarityMeasure.COSINE,
+            "binary"
+        );
+        var serviceSettings = AmazonBedrockEmbeddingsServiceSettings.fromMap(map, ConfigurationParseContext.REQUEST);
+
+        assertThat(
+            serviceSettings,
+            is(
+                new AmazonBedrockEmbeddingsServiceSettings(
+                    region,
+                    model,
+                    AmazonBedrockProvider.AMAZONTITAN,
+                    null,
+                    false,
+                    maxInputTokens,
+                    SimilarityMeasure.COSINE,
+                    null,
+                    AmazonBedrockEmbeddingType.BINARY
+                )
+            )
+        );
+    }
+
+    public void testFromMap_Request_WithInvalidEmbeddingType_Throws() {
+        var region = "region";
+        var model = "model-id";
+        var provider = "amazontitan";
+        var maxInputTokens = 512;
+
+        var map = createEmbeddingsRequestSettingsMap(
+            region,
+            model,
+            provider,
+            null,
+            null,
+            maxInputTokens,
+            SimilarityMeasure.COSINE,
+            "invalid_type" // Invalid embedding type
+        );
+
+        var thrownException = expectThrows(
+            ValidationException.class,
+            () -> AmazonBedrockEmbeddingsServiceSettings.fromMap(map, ConfigurationParseContext.REQUEST)
+        );
+
+        assertThat(
+            thrownException.getMessage(),
+            containsString("Validation Failed: 1: [service_settings] does not support value [invalid_type] for setting [embedding_type]")
         );
     }
 
@@ -90,7 +164,8 @@ public class AmazonBedrockEmbeddingsServiceSettingsTests extends AbstractBWCWire
                     false,
                     maxInputTokens,
                     SimilarityMeasure.COSINE,
-                    new RateLimitSettings(3)
+                    new RateLimitSettings(3),
+                    AmazonBedrockEmbeddingType.FLOAT
                 )
             )
         );
@@ -115,7 +190,8 @@ public class AmazonBedrockEmbeddingsServiceSettingsTests extends AbstractBWCWire
                     false,
                     maxInputTokens,
                     SimilarityMeasure.COSINE,
-                    null
+                    null,
+                    AmazonBedrockEmbeddingType.FLOAT
                 )
             )
         );
@@ -209,7 +285,8 @@ public class AmazonBedrockEmbeddingsServiceSettingsTests extends AbstractBWCWire
                     false,
                     maxInputTokens,
                     SimilarityMeasure.COSINE,
-                    null
+                    null,
+                    AmazonBedrockEmbeddingType.FLOAT
                 )
             )
         );
@@ -225,7 +302,19 @@ public class AmazonBedrockEmbeddingsServiceSettingsTests extends AbstractBWCWire
 
         assertThat(
             serviceSettings,
-            is(new AmazonBedrockEmbeddingsServiceSettings(region, model, AmazonBedrockProvider.AMAZONTITAN, null, true, null, null, null))
+            is(
+                new AmazonBedrockEmbeddingsServiceSettings(
+                    region,
+                    model,
+                    AmazonBedrockProvider.AMAZONTITAN,
+                    null,
+                    true,
+                    null,
+                    null,
+                    null,
+                    AmazonBedrockEmbeddingType.FLOAT
+                )
+            )
         );
     }
 
@@ -248,7 +337,8 @@ public class AmazonBedrockEmbeddingsServiceSettingsTests extends AbstractBWCWire
                     true,
                     null,
                     SimilarityMeasure.DOT_PRODUCT,
-                    null
+                    null,
+                    AmazonBedrockEmbeddingType.FLOAT
                 )
             )
         );
@@ -281,7 +371,8 @@ public class AmazonBedrockEmbeddingsServiceSettingsTests extends AbstractBWCWire
             true,
             null,
             null,
-            new RateLimitSettings(2)
+            new RateLimitSettings(2),
+            AmazonBedrockEmbeddingType.FLOAT
         );
 
         XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
@@ -302,7 +393,8 @@ public class AmazonBedrockEmbeddingsServiceSettingsTests extends AbstractBWCWire
             false,
             512,
             null,
-            new RateLimitSettings(3)
+            new RateLimitSettings(3),
+            AmazonBedrockEmbeddingType.FLOAT
         );
 
         XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
@@ -323,7 +415,8 @@ public class AmazonBedrockEmbeddingsServiceSettingsTests extends AbstractBWCWire
             false,
             512,
             null,
-            new RateLimitSettings(3)
+            new RateLimitSettings(3),
+            AmazonBedrockEmbeddingType.FLOAT
         );
 
         XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
@@ -343,7 +436,8 @@ public class AmazonBedrockEmbeddingsServiceSettingsTests extends AbstractBWCWire
         @Nullable Integer dimensions,
         @Nullable Boolean dimensionsSetByUser,
         @Nullable Integer maxTokens,
-        @Nullable SimilarityMeasure similarityMeasure
+        @Nullable SimilarityMeasure similarityMeasure,
+        @Nullable String embeddingType
     ) {
         var map = new HashMap<String, Object>(Map.of(REGION_FIELD, region, MODEL_FIELD, model, PROVIDER_FIELD, provider));
 
@@ -361,6 +455,10 @@ public class AmazonBedrockEmbeddingsServiceSettingsTests extends AbstractBWCWire
 
         if (similarityMeasure != null) {
             map.put(SIMILARITY, similarityMeasure.toString());
+        }
+
+        if (embeddingType != null) {
+            map.put(EMBEDDING_TYPE_FIELD, embeddingType);
         }
 
         return map;
@@ -398,7 +496,8 @@ public class AmazonBedrockEmbeddingsServiceSettingsTests extends AbstractBWCWire
             randomBoolean(),
             randomFrom(new Integer[] { null, randomNonNegativeInt() }),
             randomFrom(new SimilarityMeasure[] { null, randomFrom(SimilarityMeasure.values()) }),
-            RateLimitSettingsTests.createRandom()
+            RateLimitSettingsTests.createRandom(),
+            randomFrom(AmazonBedrockEmbeddingType.values())
         );
     }
 }

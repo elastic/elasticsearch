@@ -36,7 +36,7 @@ public final class AmazonBedrockEmbeddingsEntityFactory {
                 if (truncatedInput.size() > 1) {
                     throw new ElasticsearchException("[input] cannot contain more than one string");
                 }
-                return new AmazonBedrockTitanEmbeddingsRequestEntity(truncatedInput.get(0));
+                return new AmazonBedrockTitanEmbeddingsRequestEntity(truncatedInput.get(0), serviceSettings.embeddingType());
             }
             case COHERE -> {
                 return new AmazonBedrockCohereEmbeddingsRequestEntity(truncatedInput, inputType, model.getTaskSettings());

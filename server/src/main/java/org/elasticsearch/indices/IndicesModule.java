@@ -95,10 +95,12 @@ import java.util.function.Function;
 public class IndicesModule extends AbstractModule {
     private final MapperRegistry mapperRegistry;
 
-    // TODO: this needs to be loaded from serverless somehow
+    // MP TODO: this needs to be loaded from serverless somehow
     private static final String RESERVED_NAMESPACE = "_projectx";
 
+    // MP TODO: in prod code: only called from one place: NodeConstruction.construct :yay: [ but called from 26 test/benchmark places :-( ]
     public IndicesModule(List<MapperPlugin> mapperPlugins) {
+        // MP TODO: happily, this is the only place tha the MapperRegistry is created
         this.mapperRegistry = new MapperRegistry(
             getMappers(mapperPlugins),
             getRuntimeFields(mapperPlugins),

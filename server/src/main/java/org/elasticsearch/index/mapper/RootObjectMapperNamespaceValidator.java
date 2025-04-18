@@ -13,6 +13,6 @@ package org.elasticsearch.index.mapper;
  * TODO: DOCUMENT ME
  */
 public interface RootObjectMapperNamespaceValidator {
-    // I'm not sure if there are any use cases for this beyond
+    // I'm not sure if there are any use cases for this beyond mine
     void validateNamespace(ObjectMapper.Subobjects subobjects, Mapper mapper);
 }

@@ -555,22 +555,10 @@ public class RootObjectMapper extends ObjectMapper {
         return super.getTotalFieldsCount() - 1 + runtimeFields.size();
     }
 
-    private static final String RESERVED_NAMESPACE = "_project";
-
     @Override
     protected void validateSubField(Mapper mapper, MappingLookup mappers) {
         if (namespaceValidator != null) {
             namespaceValidator.validateNamespace(subobjects(), mapper);
-        }
-
-        if (subobjects() == Subobjects.ENABLED) {
-            if (mapper.leafName().equals(RESERVED_NAMESPACE)) {
-                throw new IllegalArgumentException("reserved namespace");
-            }
-        } else {
-            if (mapper.leafName().startsWith(RESERVED_NAMESPACE)) {
-                throw new IllegalArgumentException("reserved namespace");
-            }
         }
         super.validateSubField(mapper, mappers);
     }

@@ -35,26 +35,25 @@ public final class MapperRegistry {
     private final Function<String, FieldPredicate> fieldFilter;
     private final RootObjectMapperNamespaceValidator namespaceValidator;
 
+    // MP TODO: remove this no-op RootObjectMapperNamespaceValidator once we know how all this is going to work
     public MapperRegistry(
         Map<String, Mapper.TypeParser> mapperParsers,
         Map<String, RuntimeField.Parser> runtimeFieldParsers,
         Map<String, MetadataFieldMapper.TypeParser> metadataMapperParsers,
         Function<String, FieldPredicate> fieldFilter
     ) {
-        // MP TODO: remove this no-op RootObjectMapperNamespaceValidator once we know how all this is going to work
         this(mapperParsers, runtimeFieldParsers, metadataMapperParsers, fieldFilter, new RootObjectMapperNamespaceValidator() {
             @Override
             public void validateNamespace(ObjectMapper.Subobjects subobjects, Mapper mapper) {}
         });
     }
 
-    // add new SPI provider here
     public MapperRegistry(
         Map<String, Mapper.TypeParser> mapperParsers,
         Map<String, RuntimeField.Parser> runtimeFieldParsers,
         Map<String, MetadataFieldMapper.TypeParser> metadataMapperParsers,
         Function<String, FieldPredicate> fieldFilter,
-        RootObjectMapperNamespaceValidator namespaceValidator
+        RootObjectMapperNamespaceValidator namespaceValidator  // MP TODO: new SPI for serverless
     ) {
         this.mapperParsers = Collections.unmodifiableMap(new LinkedHashMap<>(mapperParsers));
         this.runtimeFieldParsers = runtimeFieldParsers;

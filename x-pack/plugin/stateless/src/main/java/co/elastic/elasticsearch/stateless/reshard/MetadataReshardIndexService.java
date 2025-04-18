@@ -355,9 +355,7 @@ public class MetadataReshardIndexService {
             throw new IllegalStateException("an existing resharding operation on " + index + " is unfinished");
         }
         final int sourceNumShards = sourceMetadata.getNumberOfShards();
-        // TODO: take from request
-        final int multiple = 2;
-        final var reshardingMetadata = IndexReshardingMetadata.newSplitByMultiple(sourceNumShards, multiple);
+        final var reshardingMetadata = IndexReshardingMetadata.newSplitByMultiple(sourceNumShards, request.getMultiple());
         final int targetNumShards = reshardingMetadata.shardCountAfter();
 
         // TODO: Is it possible that routingTableBuilder and newMetadata are not consistent with each other

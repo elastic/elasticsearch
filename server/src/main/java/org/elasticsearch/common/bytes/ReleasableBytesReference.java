@@ -29,7 +29,7 @@ public final class ReleasableBytesReference implements RefCounted, Releasable, B
 
     private static final ReleasableBytesReference EMPTY = new ReleasableBytesReference(BytesArray.EMPTY, RefCounted.ALWAYS_REFERENCED);
 
-    private final BytesReference delegate;
+    private BytesReference delegate;
     private final RefCounted refCounted;
 
     public static ReleasableBytesReference empty() {
@@ -63,7 +63,11 @@ public final class ReleasableBytesReference implements RefCounted, Releasable, B
 
     @Override
     public boolean decRef() {
-        return refCounted.decRef();
+        boolean res = refCounted.decRef();
+        if (res) {
+            delegate = null;
+        }
+        return res;
     }
 
     @Override

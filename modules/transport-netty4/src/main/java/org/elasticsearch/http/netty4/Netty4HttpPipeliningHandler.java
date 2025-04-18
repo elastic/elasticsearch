@@ -118,7 +118,6 @@ public class Netty4HttpPipeliningHandler extends ChannelDuplexHandler {
     @Override
     public void channelRead(final ChannelHandlerContext ctx, final Object msg) {
         activityTracker.startActivity();
-        boolean shouldRead = true;
         try {
             if (msg instanceof HttpRequest request) {
                 final Netty4HttpRequest netty4HttpRequest;
@@ -138,26 +137,25 @@ public class Netty4HttpPipeliningHandler extends ChannelDuplexHandler {
                         netty4HttpRequest = new Netty4HttpRequest(readSequence++, fullHttpRequest);
                         currentRequestStream = null;
                     } else {
-                        var contentStream = new Netty4HttpRequestBodyStream(ctx, serverTransport.getThreadPool().getThreadContext());
+                        var contentStream = new Netty4HttpRequestBodyStream(
+                            ctx.channel(),
+                            serverTransport.getThreadPool().getThreadContext(),
+                            activityTracker
+                        );
                         currentRequestStream = contentStream;
                         netty4HttpRequest = new Netty4HttpRequest(readSequence++, request, contentStream);
-                        shouldRead = false;
                     }
                 }
                 handlePipelinedRequest(ctx, netty4HttpRequest);
             } else {
                 assert msg instanceof HttpContent : "expect HttpContent got " + msg;
                 assert currentRequestStream != null : "current stream must exists before handling http content";
-                shouldRead = false;
                 currentRequestStream.handleNettyContent((HttpContent) msg);
                 if (msg instanceof LastHttpContent) {
                     currentRequestStream = null;
                 }
             }
         } finally {
-            if (shouldRead) {
-                ctx.channel().eventLoop().execute(ctx::read);
-            }
             activityTracker.stopActivity();
         }
     }

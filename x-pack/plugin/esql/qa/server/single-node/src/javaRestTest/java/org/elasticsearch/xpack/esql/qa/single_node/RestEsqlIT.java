@@ -313,7 +313,7 @@ public class RestEsqlIT extends RestEsqlTestCase {
             @SuppressWarnings("unchecked")
             List<Map<String, Object>> operators = (List<Map<String, Object>>) p.get("operators");
             for (Map<String, Object> o : operators) {
-                sig.add(checkOperatorProfile(o, "*:*"));
+                sig.add(checkOperatorProfile(o));
             }
             String description = p.get("description").toString();
             switch (description) {
@@ -409,195 +409,6 @@ public class RestEsqlIT extends RestEsqlTestCase {
                 seenNodes++;
             }
         }
-    }
-
-    public void testPushEqualityOnDefaults() throws IOException {
-        indexTimestampData(1);
-
-        String value = "v".repeat(between(0, 256));
-        indexValue(value);
-
-        RequestObjectBuilder builder = requestObjectBuilder().query(fromIndex() + " | WHERE test == \"" + value + "\"");
-        builder.profile(true);
-        Map<String, Object> result = runEsql(builder);
-        assertResultMap(
-            result,
-            getResultMatcher(result).entry(
-                "profile",
-                matchesMap().entry("drivers", instanceOf(List.class))
-                    .entry("planning", matchesMap().extraOk())
-                    .entry("query", matchesMap().extraOk())
-            ),
-            matchesList().item(matchesMap().entry("name", "@timestamp").entry("type", "date"))
-                .item(matchesMap().entry("name", "test").entry("type", "text"))
-                .item(matchesMap().entry("name", "test.keyword").entry("type", "keyword"))
-                .item(matchesMap().entry("name", "value").entry("type", "long")),
-            equalTo(List.of(Arrays.asList(null, value, value, null)))
-        );
-
-        @SuppressWarnings("unchecked")
-        List<Map<String, Object>> profiles = (List<Map<String, Object>>) ((Map<String, Object>) result.get("profile")).get("drivers");
-        for (Map<String, Object> p : profiles) {
-            fixTypesOnProfile(p);
-            assertThat(p, commonProfile());
-            List<String> sig = new ArrayList<>();
-            @SuppressWarnings("unchecked")
-            List<Map<String, Object>> operators = (List<Map<String, Object>>) p.get("operators");
-            for (Map<String, Object> o : operators) {
-                // The query here is the most important bit - we *do* push to lucene.
-                sig.add(checkOperatorProfile(o, "#test.keyword:" + value + " -_ignored:test.keyword"));
-            }
-            String description = p.get("description").toString();
-            switch (description) {
-                case "data" -> assertMap(
-                    sig,
-                    matchesList().item("LuceneSourceOperator")
-                        .item("ValuesSourceReaderOperator")
-                        .item("ProjectOperator")
-                        .item("ExchangeSinkOperator")
-                );
-                case "node_reduce" -> assertThat(
-                    sig,
-                    either(matchesList().item("ExchangeSourceOperator").item("ExchangeSinkOperator")).or(
-                        matchesList().item("ExchangeSourceOperator").item("AggregationOperator").item("ExchangeSinkOperator")
-                    )
-                );
-                case "final" -> assertMap(sig, matchesList().item("ExchangeSourceOperator").item("LimitOperator").item("OutputOperator"));
-                default -> throw new IllegalArgumentException("can't match " + description);
-            }
-        }
-    }
-
-    public void testPushEqualityOnDefaultsTooBigToPush() throws IOException {
-        indexTimestampData(1);
-
-        String value = "a".repeat(between(257, 1000));
-        indexValue(value);
-
-        RequestObjectBuilder builder = requestObjectBuilder().query(fromIndex() + " | WHERE test == \"" + value + "\"");
-        builder.profile(true);
-        Map<String, Object> result = runEsql(builder);
-        assertResultMap(
-            result,
-            getResultMatcher(result).entry(
-                "profile",
-                matchesMap().entry("drivers", instanceOf(List.class))
-                    .entry("planning", matchesMap().extraOk())
-                    .entry("query", matchesMap().extraOk())
-            ),
-            matchesList().item(matchesMap().entry("name", "@timestamp").entry("type", "date"))
-                .item(matchesMap().entry("name", "test").entry("type", "text"))
-                .item(matchesMap().entry("name", "test.keyword").entry("type", "keyword"))
-                .item(matchesMap().entry("name", "value").entry("type", "long")),
-            equalTo(List.of(Arrays.asList(null, value, null, null)))
-        );
-
-        @SuppressWarnings("unchecked")
-        List<Map<String, Object>> profiles = (List<Map<String, Object>>) ((Map<String, Object>) result.get("profile")).get("drivers");
-        for (Map<String, Object> p : profiles) {
-            fixTypesOnProfile(p);
-            assertThat(p, commonProfile());
-            List<String> sig = new ArrayList<>();
-            @SuppressWarnings("unchecked")
-            List<Map<String, Object>> operators = (List<Map<String, Object>>) p.get("operators");
-            for (Map<String, Object> o : operators) {
-                // The query here is the most important bit - we do *not* push to lucene.
-                sig.add(checkOperatorProfile(o, "*:*"));
-            }
-            String description = p.get("description").toString();
-            switch (description) {
-                case "data" -> assertMap(
-                    sig,
-                    matchesList().item("LuceneSourceOperator")
-                        .item("ValuesSourceReaderOperator")
-                        .item("FilterOperator")
-                        .item("LimitOperator")
-                        .item("ValuesSourceReaderOperator")
-                        .item("ProjectOperator")
-                        .item("ExchangeSinkOperator")
-                );
-                case "node_reduce" -> assertThat(
-                    sig,
-                    either(matchesList().item("ExchangeSourceOperator").item("ExchangeSinkOperator")).or(
-                        matchesList().item("ExchangeSourceOperator").item("AggregationOperator").item("ExchangeSinkOperator")
-                    )
-                );
-                case "final" -> assertMap(sig, matchesList().item("ExchangeSourceOperator").item("LimitOperator").item("OutputOperator"));
-                default -> throw new IllegalArgumentException("can't match " + description);
-            }
-        }
-    }
-
-    public void testPushCaseInsensitiveEqualityOnDefaults() throws IOException {
-        indexTimestampData(1);
-
-        String value = "a".repeat(between(0, 256));
-        indexValue(value);
-
-        RequestObjectBuilder builder = requestObjectBuilder().query(fromIndex() + " | WHERE TO_LOWER(test) == \"" + value + "\"");
-        builder.profile(true);
-        Map<String, Object> result = runEsql(builder);
-        assertResultMap(
-            result,
-            getResultMatcher(result).entry(
-                "profile",
-                matchesMap().entry("drivers", instanceOf(List.class))
-                    .entry("planning", matchesMap().extraOk())
-                    .entry("query", matchesMap().extraOk())
-            ),
-            matchesList().item(matchesMap().entry("name", "@timestamp").entry("type", "date"))
-                .item(matchesMap().entry("name", "test").entry("type", "text"))
-                .item(matchesMap().entry("name", "test.keyword").entry("type", "keyword"))
-                .item(matchesMap().entry("name", "value").entry("type", "long")),
-            equalTo(List.of(Arrays.asList(null, value, null, null)))
-        );
-
-        @SuppressWarnings("unchecked")
-        List<Map<String, Object>> profiles = (List<Map<String, Object>>) ((Map<String, Object>) result.get("profile")).get("drivers");
-        for (Map<String, Object> p : profiles) {
-            fixTypesOnProfile(p);
-            assertThat(p, commonProfile());
-            List<String> sig = new ArrayList<>();
-            @SuppressWarnings("unchecked")
-            List<Map<String, Object>> operators = (List<Map<String, Object>>) p.get("operators");
-            for (Map<String, Object> o : operators) {
-                // The query here is the most important bit - we do *not* push to lucene.
-                sig.add(checkOperatorProfile(o, "*:*"));
-            }
-            String description = p.get("description").toString();
-            switch (description) {
-                case "data" -> assertMap(
-                    sig,
-                    matchesList().item("LuceneSourceOperator")
-                        .item("ValuesSourceReaderOperator")
-                        .item("FilterOperator")
-                        .item("LimitOperator")
-                        .item("ValuesSourceReaderOperator")
-                        .item("ProjectOperator")
-                        .item("ExchangeSinkOperator")
-                );
-                case "node_reduce" -> assertThat(
-                    sig,
-                    either(matchesList().item("ExchangeSourceOperator").item("ExchangeSinkOperator")).or(
-                        matchesList().item("ExchangeSourceOperator").item("AggregationOperator").item("ExchangeSinkOperator")
-                    )
-                );
-                case "final" -> assertMap(sig, matchesList().item("ExchangeSourceOperator").item("LimitOperator").item("OutputOperator"));
-                default -> throw new IllegalArgumentException("can't match " + description);
-            }
-        }
-    }
-
-    private void indexValue(String value) throws IOException {
-        Request bulk = new Request("POST", "/_bulk");
-        bulk.addParameter("filter_path", "errors");
-        bulk.addParameter("refresh", "");
-        bulk.setJsonEntity(String.format("""
-            {"create":{"_index":"%s"}}
-            {"test":"%s"}
-            """, testIndexName(), value));
-        Response response = client().performRequest(bulk);
-        Assert.assertEquals("{\"errors\":false}", EntityUtils.toString(response.getEntity(), StandardCharsets.UTF_8));
     }
 
     @SuppressWarnings("unchecked")
@@ -710,7 +521,7 @@ public class RestEsqlIT extends RestEsqlTestCase {
             @SuppressWarnings("unchecked")
             List<Map<String, Object>> operators = (List<Map<String, Object>>) p.get("operators");
             for (Map<String, Object> o : operators) {
-                sig.add(checkOperatorProfile(o, "*:*"));
+                sig.add(checkOperatorProfile(o));
             }
             signatures.add(sig);
         }
@@ -837,7 +648,7 @@ public class RestEsqlIT extends RestEsqlTestCase {
         }
     }
 
-    private MapMatcher commonProfile() {
+    static MapMatcher commonProfile() {
         return matchesMap() //
             .entry("description", any(String.class))
             .entry("cluster_name", any(String.class))
@@ -858,15 +669,15 @@ public class RestEsqlIT extends RestEsqlTestCase {
      * come back as integers and sometimes longs. This just promotes
      * them to long every time.
      */
-    private void fixTypesOnProfile(Map<String, Object> profile) {
+    static void fixTypesOnProfile(Map<String, Object> profile) {
         profile.put("iterations", ((Number) profile.get("iterations")).longValue());
         profile.put("cpu_nanos", ((Number) profile.get("cpu_nanos")).longValue());
         profile.put("took_nanos", ((Number) profile.get("took_nanos")).longValue());
     }
 
-    private String checkOperatorProfile(Map<String, Object> o, String query) {
+    private String checkOperatorProfile(Map<String, Object> o) {
         String name = (String) o.get("operator");
-        name = name.replaceAll("\\[(.|\n)+", "");
+        name = name.replaceAll("\\[.+", "");
         MapMatcher status = switch (name) {
             case "LuceneSourceOperator" -> matchesMap().entry("processed_slices", greaterThan(0))
                 .entry("processed_shards", List.of(testIndexName() + ":0"))
@@ -878,7 +689,7 @@ public class RestEsqlIT extends RestEsqlTestCase {
                 .entry("pages_emitted", greaterThan(0))
                 .entry("rows_emitted", greaterThan(0))
                 .entry("process_nanos", greaterThan(0))
-                .entry("processed_queries", List.of(query))
+                .entry("processed_queries", List.of("*:*"))
                 .entry("partitioning_strategies", matchesMap().entry("rest-esql-test:0", "SHARD"));
             case "ValuesSourceReaderOperator" -> basicProfile().entry("values_loaded", greaterThanOrEqualTo(0))
                 .entry("readers_built", matchesMap().extraOk());
@@ -891,7 +702,7 @@ public class RestEsqlIT extends RestEsqlTestCase {
             case "ExchangeSourceOperator" -> matchesMap().entry("pages_waiting", 0)
                 .entry("pages_emitted", greaterThan(0))
                 .entry("rows_emitted", greaterThan(0));
-            case "ProjectOperator", "EvalOperator", "FilterOperator" -> basicProfile();
+            case "ProjectOperator", "EvalOperator" -> basicProfile();
             case "LimitOperator" -> matchesMap().entry("pages_processed", greaterThan(0))
                 .entry("limit", 1000)
                 .entry("limit_remaining", 999)

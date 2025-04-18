@@ -12,7 +12,7 @@ package org.elasticsearch.entitlement.instrumentation;
 public interface Instrumenter {
 
     /**
-     * Instruments a class by adding a prologue to check for entitlements to a set of its methods.
+     * Instruments the appropriate methods of a class by adding a prologue that checks for entitlements.
      * The prologue:
      * <ol>
      * <li>

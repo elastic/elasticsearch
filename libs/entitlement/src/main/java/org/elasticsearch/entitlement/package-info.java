@@ -175,10 +175,17 @@
  * Most of the entitlements are "flag" entitlements: when present, it grants the caller the right to perform an action (or a set of
  * actions); when it's not present, the actions associated with it are denied. Checking is simply a fact checking if the entitlement type
  * is present or not.
- * The two exceptions are system properties, where we further get the instance of the entitlement for the
+ * There are two entitlements that are not simple flags:
+ * <ul>
+ * <li>system properties, where we further get the instance of the entitlement for the
  * {@link org.elasticsearch.entitlement.runtime.policy.entitlements.WriteSystemPropertiesEntitlement} class, and we check if it contains
- * that specific property name, and filesystem access, which is treated separately for convenience and performance reasons.
+ * that specific property name, and
+ * </li>
+ * <li>
+ * file access, which is treated separately for convenience and performance reasons.
  * See {@link org.elasticsearch.entitlement.runtime.policy.FileAccessTree} for details.
+ * </li>
+ * <ul>
  * </p>
  * <p>
  * A final special cases that short circuit the checks (resulting in a "trivially allowed" case) is when the caller is null is the special

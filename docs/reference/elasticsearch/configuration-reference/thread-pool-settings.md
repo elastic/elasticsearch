@@ -94,11 +94,7 @@ The following are the types of thread pools and their respective parameters:
 
 ### `fixed` [fixed-thread-pool]
 
-The `fixed` thread pool holds a fixed size of threads to handle the requests with a queue (optionally bounded) for pending requests that have no threads to service them.
-
-The `size` parameter controls the number of threads.
-
-The `queue_size` allows to control the size of the queue of pending requests that have no threads to execute them. By default, it is set to `-1` which means its unbounded. When a request comes in and the queue is full, it will abort the request.
+A `fixed` thread pool holds a fixed number of threads as determined by the `size` parameter. If a task is submitted to a `fixed` thread pool and there are fewer than `size` busy threads in the pool then the task will execute immediately. If all the threads are busy when a task is submitted then it will be held in a queue for later execution. The `queue_size` parameter controls the maximum size of this queue. A `queue_size` of `-1` means that the queue is unbounded, but most `fixed` thread pools specify a bound on their queue size by default. If a bounded queue is full then it will reject further work, which typically causes the corresponding requests to fail.
 
 ```yaml
 thread_pool:
@@ -113,6 +109,8 @@ thread_pool:
 The `scaling` thread pool holds a dynamic number of threads. This number is proportional to the workload and varies between the value of the `core` and `max` parameters.
 
 The `keep_alive` parameter determines how long a thread should be kept around in the thread pool without it doing any work.
+
+If a task is submitted to a `scaling` thread pool when its maximum number of threads are already busy with other tasks, the new task will be held in a queue for later execution. The queue in a `scaling` thread pool is always unbounded.
 
 ```yaml
 thread_pool:

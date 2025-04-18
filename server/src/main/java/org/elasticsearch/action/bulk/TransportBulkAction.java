@@ -45,6 +45,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.index.IndexingPressure;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.indices.SystemIndices;
@@ -85,6 +86,7 @@ public class TransportBulkAction extends TransportAbstractBulkAction {
     private final OriginSettingClient rolloverClient;
     private final FailureStoreMetrics failureStoreMetrics;
     private final DataStreamFailureStoreSettings dataStreamFailureStoreSettings;
+    private final FeatureService featureService;
 
     @Inject
     public TransportBulkAction(
@@ -99,7 +101,8 @@ public class TransportBulkAction extends TransportAbstractBulkAction {
         SystemIndices systemIndices,
         ProjectResolver projectResolver,
         FailureStoreMetrics failureStoreMetrics,
-        DataStreamFailureStoreSettings dataStreamFailureStoreSettings
+        DataStreamFailureStoreSettings dataStreamFailureStoreSettings,
+        FeatureService featureService
     ) {
         this(
             threadPool,
@@ -114,7 +117,8 @@ public class TransportBulkAction extends TransportAbstractBulkAction {
             projectResolver,
             threadPool::relativeTimeInNanos,
             failureStoreMetrics,
-            dataStreamFailureStoreSettings
+            dataStreamFailureStoreSettings,
+            featureService
         );
     }
 
@@ -131,7 +135,8 @@ public class TransportBulkAction extends TransportAbstractBulkAction {
         ProjectResolver projectResolver,
         LongSupplier relativeTimeProvider,
         FailureStoreMetrics failureStoreMetrics,
-        DataStreamFailureStoreSettings dataStreamFailureStoreSettings
+        DataStreamFailureStoreSettings dataStreamFailureStoreSettings,
+        FeatureService featureService
     ) {
         this(
             TYPE,
@@ -148,7 +153,8 @@ public class TransportBulkAction extends TransportAbstractBulkAction {
             projectResolver,
             relativeTimeProvider,
             failureStoreMetrics,
-            dataStreamFailureStoreSettings
+            dataStreamFailureStoreSettings,
+            featureService
         );
     }
 
@@ -167,7 +173,8 @@ public class TransportBulkAction extends TransportAbstractBulkAction {
         ProjectResolver projectResolver,
         LongSupplier relativeTimeProvider,
         FailureStoreMetrics failureStoreMetrics,
-        DataStreamFailureStoreSettings dataStreamFailureStoreSettings
+        DataStreamFailureStoreSettings dataStreamFailureStoreSettings,
+        FeatureService featureService
     ) {
         super(
             bulkAction,
@@ -188,6 +195,7 @@ public class TransportBulkAction extends TransportAbstractBulkAction {
         this.indexNameExpressionResolver = indexNameExpressionResolver;
         this.rolloverClient = new OriginSettingClient(client, LAZY_ROLLOVER_ORIGIN);
         this.failureStoreMetrics = failureStoreMetrics;
+        this.featureService = featureService;
     }
 
     public static <Response extends ReplicationResponse & WriteResponse> ActionListener<BulkResponse> unwrappingSingleItemBulkResponse(
@@ -590,6 +598,11 @@ public class TransportBulkAction extends TransportAbstractBulkAction {
         Executor executor,
         AtomicArray<BulkItemResponse> responses
     ) {
+        // Determine if we have the feature enabled once for entire bulk operation
+        final boolean clusterSupportsFailureStore = featureService.clusterHasFeature(
+            clusterService.state(),
+            DataStream.DATA_STREAM_FAILURE_STORE_FEATURE
+        );
         new BulkOperation(
             task,
             threadPool,
@@ -604,7 +617,8 @@ public class TransportBulkAction extends TransportAbstractBulkAction {
             startTimeNanos,
             listener,
             failureStoreMetrics,
-            dataStreamFailureStoreSettings
+            dataStreamFailureStoreSettings,
+            clusterSupportsFailureStore
         ).run();
     }
 

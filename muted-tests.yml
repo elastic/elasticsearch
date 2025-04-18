@@ -417,6 +417,9 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.multi_node.EsqlSpecIT
   method: test {rerank.Reranker before a limit ASYNC}
   issue: https://github.com/elastic/elasticsearch/issues/127051
+- class: org.elasticsearch.xpack.esql.qa.single_node.EsqlSpecIT
+  method: test {rrf.SimpleRrf ASYNC}
+  issue: https://github.com/elastic/elasticsearch/issues/127063
 
 # Examples:
 #

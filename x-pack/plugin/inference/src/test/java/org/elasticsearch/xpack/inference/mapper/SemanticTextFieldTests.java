@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.inference.mapper;
 
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
+import org.elasticsearch.cluster.metadata.SemanticTextIndexOptions;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
@@ -42,6 +43,7 @@ import java.util.ListIterator;
 import java.util.Map;
 import java.util.function.Predicate;
 
+import static org.elasticsearch.xpack.inference.mapper.SemanticInferenceMetadataFieldsMapperTests.getRandomCompatibleIndexVersion;
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextField.CHUNKED_EMBEDDINGS_FIELD;
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextField.toSemanticTextFieldChunk;
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextField.toSemanticTextFieldChunkLegacy;
@@ -117,12 +119,15 @@ public class SemanticTextFieldTests extends AbstractXContentTestCase<SemanticTex
     @Override
     protected SemanticTextField createTestInstance() {
         List<String> rawValues = randomList(1, 5, () -> randomSemanticTextInput().toString());
+        TestModel testModel = TestModel.createRandomInstance();
         try { // try catch required for override
             return randomSemanticText(
                 useLegacyFormat,
                 NAME,
-                TestModel.createRandomInstance(),
+                testModel,
                 generateRandomChunkingSettings(),
+                null, // TODO: There is a bug in these tests, because allowed IndexOptions depend on index versions that may be incompatible
+                      // with how we generate random index options
                 rawValues,
                 randomFrom(XContentType.values())
             );
@@ -134,7 +139,15 @@ public class SemanticTextFieldTests extends AbstractXContentTestCase<SemanticTex
 
     @Override
     protected SemanticTextField doParseInstance(XContentParser parser) throws IOException {
-        return SemanticTextField.parse(parser, new SemanticTextField.ParserContext(useLegacyFormat, NAME, parser.contentType()));
+        return SemanticTextField.parse(
+            parser,
+            new SemanticTextField.ParserContext(
+                useLegacyFormat,
+                NAME,
+                getRandomCompatibleIndexVersion(useLegacyFormat),
+                parser.contentType()
+            )
+        );
     }
 
     @Override
@@ -266,6 +279,7 @@ public class SemanticTextFieldTests extends AbstractXContentTestCase<SemanticTex
         String fieldName,
         Model model,
         ChunkingSettings chunkingSettings,
+        SemanticTextIndexOptions indexOptions,
         List<String> inputs,
         XContentType contentType
     ) throws IOException {
@@ -282,6 +296,7 @@ public class SemanticTextFieldTests extends AbstractXContentTestCase<SemanticTex
             fieldName,
             model,
             chunkingSettings,
+            indexOptions,
             inputs,
             results,
             contentType
@@ -293,6 +308,7 @@ public class SemanticTextFieldTests extends AbstractXContentTestCase<SemanticTex
         String fieldName,
         Model model,
         ChunkingSettings chunkingSettings,
+        SemanticTextIndexOptions indexOptions,
         List<String> inputs,
         ChunkedInference results,
         XContentType contentType
@@ -328,6 +344,7 @@ public class SemanticTextFieldTests extends AbstractXContentTestCase<SemanticTex
                 model.getInferenceEntityId(),
                 new MinimalServiceSettings(model),
                 chunkingSettings,
+                indexOptions,
                 Map.of(fieldName, chunks)
             ),
             contentType

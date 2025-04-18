@@ -13,8 +13,6 @@ import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.IndexSearcher;
-import org.apache.lucene.search.KnnByteVectorQuery;
-import org.apache.lucene.search.KnnFloatVectorQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.QueryVisitor;
 import org.apache.lucene.search.ScoreMode;
@@ -32,7 +30,7 @@ import org.elasticsearch.search.fetch.subphase.highlight.FieldHighlightContext;
 import org.elasticsearch.search.fetch.subphase.highlight.HighlightField;
 import org.elasticsearch.search.fetch.subphase.highlight.HighlightUtils;
 import org.elasticsearch.search.fetch.subphase.highlight.Highlighter;
-import org.elasticsearch.search.vectors.VectorData;
+import org.elasticsearch.search.vectors.DenseVectorQuery;
 import org.elasticsearch.xpack.core.ml.search.SparseVectorQueryWrapper;
 import org.elasticsearch.xpack.inference.mapper.OffsetSourceField;
 import org.elasticsearch.xpack.inference.mapper.OffsetSourceFieldMapper;
@@ -263,10 +261,8 @@ public class SemanticTextHighlighter implements Highlighter {
 
             @Override
             public void visitLeaf(Query query) {
-                if (query instanceof KnnFloatVectorQuery knnQuery) {
-                    queries.add(fieldType.createExactKnnQuery(VectorData.fromFloats(knnQuery.getTargetCopy()), null));
-                } else if (query instanceof KnnByteVectorQuery knnQuery) {
-                    queries.add(fieldType.createExactKnnQuery(VectorData.fromBytes(knnQuery.getTargetCopy()), null));
+                if (query instanceof DenseVectorQuery) {
+                    queries.add(query);
                 }
             }
         });

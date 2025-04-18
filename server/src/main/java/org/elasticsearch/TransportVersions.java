@@ -222,10 +222,15 @@ public class TransportVersions {
     public static final TransportVersion REPO_ANALYSIS_COPY_BLOB = def(9_048_0_00);
     public static final TransportVersion AMAZON_BEDROCK_TASK_SETTINGS = def(9_049_0_00);
     public static final TransportVersion ESQL_REPORT_SHARD_PARTITIONING = def(9_050_0_00);
-    public static final TransportVersion ESQL_QUERY_PLANNING_DURATION = def(9_051_0_00);
-    public static final TransportVersion ESQL_DOCUMENTS_FOUND_AND_VALUES_LOADED = def(9_052_0_00);
-    public static final TransportVersion BATCHED_QUERY_EXECUTION_DELAYABLE_WRITABLE = def(9_053_0_00);
-    public static final TransportVersion DENSE_VECTOR_OFF_HEAP_STATS = def(9_054_00_0);
+    public static final TransportVersion DEAD_ESQL_QUERY_PLANNING_DURATION = def(9_051_0_00);
+    public static final TransportVersion DEAD_ESQL_DOCUMENTS_FOUND_AND_VALUES_LOADED = def(9_052_0_00);
+    public static final TransportVersion DEAD_BATCHED_QUERY_EXECUTION_DELAYABLE_WRITABLE = def(9_053_0_00);
+    public static final TransportVersion DEAD_SEARCH_INCREMENTAL_TOP_DOCS_NULL = def(9_054_0_00);
+    public static final TransportVersion ESQL_QUERY_PLANNING_DURATION = def(9_055_0_00);
+    public static final TransportVersion ESQL_DOCUMENTS_FOUND_AND_VALUES_LOADED = def(9_056_0_00);
+    public static final TransportVersion BATCHED_QUERY_EXECUTION_DELAYABLE_WRITABLE = def(9_057_0_00);
+    public static final TransportVersion SEARCH_INCREMENTAL_TOP_DOCS_NULL = def(9_058_0_00);
+    public static final TransportVersion DENSE_VECTOR_OFF_HEAP_STATS = def(9_059_00_0);
 
     /*
      * STOP! READ THIS FIRST! No, really,

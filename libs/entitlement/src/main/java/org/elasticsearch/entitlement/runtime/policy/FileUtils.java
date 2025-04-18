@@ -30,15 +30,15 @@ public class FileUtils {
         int compare(char c1, char c2);
     }
 
-    private static final CharComparator CHARACTER_COMPARATOR = Platform.WINDOWS.isCurrent()
-        ? FileUtils::caseInsensitiveCharacterComparator
-        : FileUtils::caseSensitiveCharacterComparator;
+    private static final CharComparator CHARACTER_COMPARATOR = Platform.LINUX.isCurrent()
+        ? FileUtils::caseSensitiveCharacterComparator
+        : FileUtils::caseInsensitiveCharacterComparator;
 
-    private static final BiPredicate<String, String> STARTS_WITH = Platform.WINDOWS.isCurrent()
-        ? FileUtils::caseInsensitiveStartsWith
-        : String::startsWith;
+    private static final BiPredicate<String, String> STARTS_WITH = Platform.LINUX.isCurrent()
+        ? String::startsWith
+        : FileUtils::caseInsensitiveStartsWith;
 
-    private static final BiPredicate<String, String> EQUALS = Platform.WINDOWS.isCurrent() ? String::equalsIgnoreCase : String::equals;
+    private static final BiPredicate<String, String> EQUALS = Platform.LINUX.isCurrent() ? String::equals : String::equalsIgnoreCase;
 
     /**
      * For our lexicographic sort trick to work correctly, we must have path separators sort before
@@ -72,7 +72,7 @@ public class FileUtils {
     };
 
     /**
-     * Case-insensitive character comparison. Inspired by the {@code WindowsPath#compareTo} implementation.
+     * Case-insensitive character comparison. Taken from the JDK {@code WindowsPath#compareTo} implementation.
      */
     private static int caseInsensitiveCharacterComparator(char c1, char c2) {
         if (c1 == c2) {
@@ -83,11 +83,11 @@ public class FileUtils {
         if (c1 == c2) {
             return 0;
         }
-        return c1 - c2;
+        return Character.compare(c1, c2);
     }
 
     private static int caseSensitiveCharacterComparator(char c1, char c2) {
-        return c1 - c2;
+        return Character.compare(c1, c2);
     }
 
     private static boolean caseInsensitiveStartsWith(String s, String prefix) {

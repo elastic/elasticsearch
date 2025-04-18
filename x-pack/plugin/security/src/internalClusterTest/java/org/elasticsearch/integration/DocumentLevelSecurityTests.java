@@ -48,7 +48,7 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
-import org.elasticsearch.search.aggregations.bucket.global.Global;
+import org.elasticsearch.search.aggregations.bucket.SingleBucketAggregation;
 import org.elasticsearch.search.aggregations.bucket.terms.IncludeExclude;
 import org.elasticsearch.search.aggregations.bucket.terms.LongTerms;
 import org.elasticsearch.search.aggregations.bucket.terms.StringTerms;
@@ -960,7 +960,7 @@ public class DocumentLevelSecurityTests extends SecurityIntegTestCase {
                 assertHitCount(response, 3);
                 assertSearchHits(response, "1", "2", "3");
 
-                Global globalAgg = response.getAggregations().get("global");
+                SingleBucketAggregation globalAgg = response.getAggregations().get("global");
                 assertThat(globalAgg.getDocCount(), equalTo(3L));
                 Terms termsAgg = globalAgg.getAggregations().get("field2");
                 assertThat(termsAgg.getBuckets().get(0).getKeyAsString(), equalTo("value2"));
@@ -975,7 +975,7 @@ public class DocumentLevelSecurityTests extends SecurityIntegTestCase {
                 assertHitCount(response, 1);
                 assertSearchHits(response, "1");
 
-                Global globalAgg = response.getAggregations().get("global");
+                SingleBucketAggregation globalAgg = response.getAggregations().get("global");
                 assertThat(globalAgg.getDocCount(), equalTo(1L));
                 Terms termsAgg = globalAgg.getAggregations().get("field2");
                 assertThat(termsAgg.getBuckets().size(), equalTo(0));
@@ -989,7 +989,7 @@ public class DocumentLevelSecurityTests extends SecurityIntegTestCase {
                 assertHitCount(response, 1);
                 assertSearchHits(response, "2");
 
-                Global globalAgg = response.getAggregations().get("global");
+                SingleBucketAggregation globalAgg = response.getAggregations().get("global");
                 assertThat(globalAgg.getDocCount(), equalTo(1L));
                 Terms termsAgg = globalAgg.getAggregations().get("field2");
                 assertThat(termsAgg.getBuckets().size(), equalTo(1));
@@ -1003,7 +1003,7 @@ public class DocumentLevelSecurityTests extends SecurityIntegTestCase {
                 assertHitCount(response, 2);
                 assertSearchHits(response, "1", "2");
 
-                Global globalAgg = response.getAggregations().get("global");
+                SingleBucketAggregation globalAgg = response.getAggregations().get("global");
                 assertThat(globalAgg.getDocCount(), equalTo(2L));
                 Terms termsAgg = globalAgg.getAggregations().get("field2");
                 assertThat(termsAgg.getBuckets().size(), equalTo(1));

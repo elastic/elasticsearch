@@ -11,6 +11,7 @@ package org.elasticsearch.logsdb.datageneration.datasource;
 
 import org.elasticsearch.geometry.Geometry;
 
+import java.net.InetAddress;
 import java.time.Instant;
 import java.util.Map;
 import java.util.Optional;
@@ -49,6 +50,10 @@ public interface DataSourceResponse {
     record PointGenerator(Supplier<Object> generator) implements DataSourceResponse {}
 
     record GeoPointGenerator(Supplier<Object> generator) implements DataSourceResponse {}
+
+    record IpGenerator(Supplier<InetAddress> generator) implements DataSourceResponse {}
+
+    record VersionStringGenerator(Supplier<String> generator) implements DataSourceResponse {}
 
     record NullWrapper(Function<Supplier<Object>, Supplier<Object>> wrapper) implements DataSourceResponse {}
 

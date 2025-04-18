@@ -289,6 +289,8 @@ class NodeConstruction {
             constructor.createClientAndRegistries(settingsModule.getSettings(), threadPool, searchModule);
             DocumentParsingProvider documentParsingProvider = constructor.getDocumentParsingProvider();
 
+            // MP TODO: can we create a NamespaceValidatorProvider and load it here? Then add that to construct.construct below
+
             ScriptService scriptService = constructor.createScriptService(settingsModule, threadPool, serviceProvider);
 
             constructor.createUpdateHelper(scriptService);
@@ -678,12 +680,16 @@ class NodeConstruction {
             telemetryProvider.getTracer()
         );
 
+        // MP TODO: this is where/how multi-project loads the ProjectResolverFactory SPI
         // serverless deployments plug-in the multi-project resolver factory
         ProjectResolver projectResolver = pluginsService.loadSingletonServiceProvider(
             ProjectResolverFactory.class,
             () -> ProjectResolverFactory.DEFAULT
         ).create();
         modules.bindToInstance(ProjectResolver.class, projectResolver);
+
+        // MP TODO: this is where cross-project needs to load the RootObjectMapperNamespaceValidator SPI
+
         ClusterService clusterService = createClusterService(settingsModule, threadPool, taskManager);
         clusterService.addStateApplier(scriptService);
 
@@ -772,6 +778,9 @@ class NodeConstruction {
             )::onNewInfo
         );
 
+        // MP TODO: this is the sole place that the IndicesModule is created
+        // MP TODO: so the question now is - where to load the RootObjectMapperNamespaceValidator SPI from?
+        // MP TODO: here and pass in *or* in the IndicesModule ctor?
         IndicesModule indicesModule = new IndicesModule(pluginsService.filterPlugins(MapperPlugin.class).toList());
         modules.add(indicesModule);
 

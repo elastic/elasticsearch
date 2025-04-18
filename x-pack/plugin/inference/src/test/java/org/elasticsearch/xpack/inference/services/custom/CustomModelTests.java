@@ -13,8 +13,8 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.inference.services.custom.response.CustomResponseParser;
 import org.elasticsearch.xpack.inference.services.custom.response.ErrorResponseParser;
-import org.elasticsearch.xpack.inference.services.custom.response.ResponseParser;
 import org.elasticsearch.xpack.inference.services.custom.response.TextEmbeddingResponseParser;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 import org.hamcrest.MatcherAssert;
@@ -97,7 +97,7 @@ public class CustomModelTests extends ESTestCase {
         return getTestModel(TaskType.TEXT_EMBEDDING, new TextEmbeddingResponseParser("$.result.embeddings[*].embedding"));
     }
 
-    public static CustomModel getTestModel(TaskType taskType, ResponseParser responseParser) {
+    public static CustomModel getTestModel(TaskType taskType, CustomResponseParser responseParser) {
         Integer dims = 1536;
         Integer maxInputTokens = 512;
         Map<String, String> headers = Map.of(HttpHeaders.AUTHORIZATION, "${" + secretSettingsKey + "}");

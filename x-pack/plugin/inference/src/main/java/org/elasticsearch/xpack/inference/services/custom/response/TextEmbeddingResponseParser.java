@@ -7,22 +7,25 @@
 
 package org.elasticsearch.xpack.inference.services.custom.response;
 
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xpack.inference.external.http.HttpResult;
+import org.elasticsearch.xpack.core.inference.results.TextEmbeddingFloatResults;
+import org.elasticsearch.xpack.inference.common.MapPathExtractor;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractRequiredString;
 import static org.elasticsearch.xpack.inference.services.custom.CustomServiceSettings.JSON_PARSER;
 
-public class TextEmbeddingResponseParser implements ResponseParser {
+public class TextEmbeddingResponseParser extends BaseCustomResponseParser<TextEmbeddingFloatResults> {
 
     public static final String NAME = "text_embedding_response_parser";
     public static final String TEXT_EMBEDDING_PARSER_EMBEDDINGS = "text_embeddings";
@@ -83,7 +86,27 @@ public class TextEmbeddingResponseParser implements ResponseParser {
     }
 
     @Override
-    public InferenceServiceResults parse(HttpResult response) {
-        return null;
+    public TextEmbeddingFloatResults transform(Map<String, Object> map) {
+        var mapResults = MapPathExtractor.extract(map, textEmbeddingsPath);
+        var mapResultsList = validateList(mapResults);
+
+        var embeddings = new ArrayList<TextEmbeddingFloatResults.Embedding>(mapResultsList.size());
+
+
+        for (var entry : mapResultsList) {
+            if (entry instanceof List<?> == false) {
+                throw new IllegalStateException(
+                    Strings.format(
+                        "Entry in extracted field was an invalid type, expected a list but received [%s]",
+                        entry.getClass().getSimpleName()
+                    )
+                );
+            }
+
+            var embeddingsAsListFloats = convertToListOfFloats((List<?>) entry);
+            embeddings.add(TextEmbeddingFloatResults.Embedding.of(embeddingsAsListFloats));
+        }
+
+        return new TextEmbeddingFloatResults(embeddings);
     }
 }

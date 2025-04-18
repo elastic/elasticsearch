@@ -27,7 +27,6 @@ import org.elasticsearch.xpack.inference.services.custom.response.CompletionResp
 import org.elasticsearch.xpack.inference.services.custom.response.ErrorResponseParser;
 import org.elasticsearch.xpack.inference.services.custom.response.NoopResponseParser;
 import org.elasticsearch.xpack.inference.services.custom.response.RerankResponseParser;
-import org.elasticsearch.xpack.inference.services.custom.response.ResponseParser;
 import org.elasticsearch.xpack.inference.services.custom.response.SparseEmbeddingResponseParser;
 import org.elasticsearch.xpack.inference.services.custom.response.TextEmbeddingResponseParser;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
@@ -55,7 +54,7 @@ public class CustomServiceSettingsTests extends AbstractBWCWireSerializationTest
         Map<String, String> headers = randomBoolean() ? Map.of() : Map.of("key", "value");
         String requestContentString = randomAlphaOfLength(10);
 
-        ResponseParser responseJsonParser = switch (taskType) {
+        var responseJsonParser = switch (taskType) {
             case TEXT_EMBEDDING -> new TextEmbeddingResponseParser("$.result.embeddings[*].embedding");
             case SPARSE_EMBEDDING -> new SparseEmbeddingResponseParser(
                 "$.result.sparse_embeddings[*]",

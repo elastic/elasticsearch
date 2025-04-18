@@ -10,9 +10,8 @@ package org.elasticsearch.xpack.inference.services.custom.response;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xpack.inference.external.http.HttpResult;
+import org.elasticsearch.xpack.core.inference.results.ChatCompletionResults;
 
 import java.io.IOException;
 import java.util.Map;
@@ -21,7 +20,7 @@ import java.util.Objects;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractRequiredString;
 import static org.elasticsearch.xpack.inference.services.custom.CustomServiceSettings.JSON_PARSER;
 
-public class CompletionResponseParser implements ResponseParser {
+public class CompletionResponseParser extends BaseCustomResponseParser<ChatCompletionResults> {
 
     public static final String NAME = "completion_response_parser";
     public static final String COMPLETION_PARSER_RESULT = "completion_result";
@@ -78,7 +77,7 @@ public class CompletionResponseParser implements ResponseParser {
     }
 
     @Override
-    public InferenceServiceResults parse(HttpResult response) {
+    public ChatCompletionResults transform(Map<String, Object> map) {
         return null;
     }
 }

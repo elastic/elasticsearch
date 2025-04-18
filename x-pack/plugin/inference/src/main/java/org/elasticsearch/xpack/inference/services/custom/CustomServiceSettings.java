@@ -22,11 +22,12 @@ import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
+import org.elasticsearch.xpack.inference.services.custom.response.BaseCustomResponseParser;
 import org.elasticsearch.xpack.inference.services.custom.response.CompletionResponseParser;
+import org.elasticsearch.xpack.inference.services.custom.response.CustomResponseParser;
 import org.elasticsearch.xpack.inference.services.custom.response.ErrorResponseParser;
 import org.elasticsearch.xpack.inference.services.custom.response.NoopResponseParser;
 import org.elasticsearch.xpack.inference.services.custom.response.RerankResponseParser;
-import org.elasticsearch.xpack.inference.services.custom.response.ResponseParser;
 import org.elasticsearch.xpack.inference.services.custom.response.SparseEmbeddingResponseParser;
 import org.elasticsearch.xpack.inference.services.custom.response.TextEmbeddingResponseParser;
 import org.elasticsearch.xpack.inference.services.settings.FilteredXContentObject;
@@ -149,7 +150,7 @@ public class CustomServiceSettings extends FilteredXContentObject implements Ser
     private final String url;
     private final Map<String, String> headers;
     private final String requestContentString;
-    private final ResponseParser responseJsonParser;
+    private final CustomResponseParser responseJsonParser;
     private final RateLimitSettings rateLimitSettings;
     private final ErrorResponseParser errorParser;
 
@@ -160,7 +161,7 @@ public class CustomServiceSettings extends FilteredXContentObject implements Ser
         String url,
         @Nullable Map<String, String> headers,
         String requestContentString,
-        ResponseParser responseJsonParser,
+        CustomResponseParser responseJsonParser,
         @Nullable RateLimitSettings rateLimitSettings,
         ErrorResponseParser errorParser
     ) {
@@ -182,7 +183,7 @@ public class CustomServiceSettings extends FilteredXContentObject implements Ser
         url = in.readString();
         headers = in.readImmutableMap(StreamInput::readString);
         requestContentString = in.readString();
-        responseJsonParser = in.readNamedWriteable(ResponseParser.class);
+        responseJsonParser = in.readNamedWriteable(BaseCustomResponseParser.class);
         rateLimitSettings = new RateLimitSettings(in);
         errorParser = new ErrorResponseParser(in);
     }
@@ -218,7 +219,7 @@ public class CustomServiceSettings extends FilteredXContentObject implements Ser
         return requestContentString;
     }
 
-    public ResponseParser getResponseJsonParser() {
+    public CustomResponseParser getResponseJsonParser() {
         return responseJsonParser;
     }
 
@@ -345,7 +346,7 @@ public class CustomServiceSettings extends FilteredXContentObject implements Ser
         return null;
     }
 
-    private static ResponseParser extractResponseParser(
+    private static CustomResponseParser extractResponseParser(
         TaskType taskType,
         Map<String, Object> responseParserMap,
         ValidationException validationException

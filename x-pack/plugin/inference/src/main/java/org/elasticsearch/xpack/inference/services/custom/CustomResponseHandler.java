@@ -7,6 +7,9 @@
 
 package org.elasticsearch.xpack.inference.services.custom;
 
+import org.elasticsearch.ElasticsearchStatusException;
+import org.elasticsearch.inference.InferenceServiceResults;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.inference.external.http.HttpResult;
 import org.elasticsearch.xpack.inference.external.http.retry.BaseResponseHandler;
 import org.elasticsearch.xpack.inference.external.http.retry.ResponseParser;
@@ -20,6 +23,24 @@ import org.elasticsearch.xpack.inference.services.custom.response.ErrorResponseP
 public class CustomResponseHandler extends BaseResponseHandler {
     public CustomResponseHandler(String requestType, ResponseParser parseFunction, ErrorResponseParser errorParser) {
         super(requestType, parseFunction, errorParser);
+    }
+
+    @Override
+    public InferenceServiceResults parseResult(Request request, HttpResult result) throws RetryException {
+        try {
+            return parseFunction.apply(request, result);
+        } catch (Exception e) {
+            // if we get a parse failure it's probably an incorrect configuration of the service so report the error back to the user
+            // immediately without retrying
+            throw new RetryException(
+                false,
+                new ElasticsearchStatusException(
+                    "Failed to parse custom model response, please check that the response parser path matches the response format.",
+                    RestStatus.BAD_REQUEST,
+                    e
+                )
+            );
+        }
     }
 
     /**

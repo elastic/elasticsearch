@@ -12,6 +12,8 @@ import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.xcontent.ToXContentFragment;
 import org.elasticsearch.xpack.inference.external.http.HttpResult;
 
-public interface ResponseParser extends ToXContentFragment, NamedWriteable {
-    InferenceServiceResults parse(HttpResult response);
+import java.io.IOException;
+
+public interface CustomResponseParser extends ToXContentFragment, NamedWriteable {
+    InferenceServiceResults parse(HttpResult response) throws IOException;
 }

@@ -36,7 +36,7 @@ public abstract class BaseResponseHandler implements ResponseHandler {
     public static final String METHOD_NOT_ALLOWED = "Received a method not allowed status code";
 
     protected final String requestType;
-    private final ResponseParser parseFunction;
+    protected final ResponseParser parseFunction;
     private final Function<HttpResult, ErrorResponse> errorParseFunction;
     private final boolean canHandleStreamingResponses;
 

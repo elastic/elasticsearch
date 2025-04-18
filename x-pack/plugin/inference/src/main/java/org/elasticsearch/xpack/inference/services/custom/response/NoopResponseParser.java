@@ -15,7 +15,7 @@ import org.elasticsearch.xpack.inference.external.http.HttpResult;
 
 import java.io.IOException;
 
-public record NoopResponseParser() implements ResponseParser {
+public record NoopResponseParser() implements CustomResponseParser {
 
     public static final String NAME = "noop_response_parser";
     public static final NoopResponseParser INSTANCE = new NoopResponseParser();
@@ -46,7 +46,7 @@ public record NoopResponseParser() implements ResponseParser {
     }
 
     @Override
-    public InferenceServiceResults parse(HttpResult response) {
+    public InferenceServiceResults parse(HttpResult result) {
         return null;
     }
 }

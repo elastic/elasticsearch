@@ -10,9 +10,8 @@ package org.elasticsearch.xpack.inference.services.custom.response;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xpack.inference.external.http.HttpResult;
+import org.elasticsearch.xpack.core.inference.results.SparseEmbeddingResults;
 
 import java.io.IOException;
 import java.util.Map;
@@ -21,7 +20,7 @@ import java.util.Objects;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractRequiredString;
 import static org.elasticsearch.xpack.inference.services.custom.CustomServiceSettings.JSON_PARSER;
 
-public class SparseEmbeddingResponseParser implements ResponseParser {
+public class SparseEmbeddingResponseParser extends BaseCustomResponseParser<SparseEmbeddingResults> {
 
     public static final String NAME = "sparse_embedding_response_parser";
     public static final String SPARSE_RESULT_PATH = "path";
@@ -104,7 +103,7 @@ public class SparseEmbeddingResponseParser implements ResponseParser {
     }
 
     @Override
-    public InferenceServiceResults parse(HttpResult response) {
+    public SparseEmbeddingResults transform(Map<String, Object> map) {
         return null;
     }
 }

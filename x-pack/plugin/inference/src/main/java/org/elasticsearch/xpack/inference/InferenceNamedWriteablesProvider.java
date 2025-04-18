@@ -63,9 +63,9 @@ import org.elasticsearch.xpack.inference.services.custom.CustomSecretSettings;
 import org.elasticsearch.xpack.inference.services.custom.CustomServiceSettings;
 import org.elasticsearch.xpack.inference.services.custom.CustomTaskSettings;
 import org.elasticsearch.xpack.inference.services.custom.response.CompletionResponseParser;
+import org.elasticsearch.xpack.inference.services.custom.response.CustomResponseParser;
 import org.elasticsearch.xpack.inference.services.custom.response.NoopResponseParser;
 import org.elasticsearch.xpack.inference.services.custom.response.RerankResponseParser;
-import org.elasticsearch.xpack.inference.services.custom.response.ResponseParser;
 import org.elasticsearch.xpack.inference.services.custom.response.SparseEmbeddingResponseParser;
 import org.elasticsearch.xpack.inference.services.custom.response.TextEmbeddingResponseParser;
 import org.elasticsearch.xpack.inference.services.deepseek.DeepSeekChatCompletionModel;
@@ -198,7 +198,7 @@ public class InferenceNamedWriteablesProvider {
 
         namedWriteables.add(
             new NamedWriteableRegistry.Entry(
-                ResponseParser.class,
+                CustomResponseParser.class,
                 TextEmbeddingResponseParser.NAME,
                 TextEmbeddingResponseParser::new
             )
@@ -206,7 +206,7 @@ public class InferenceNamedWriteablesProvider {
 
         namedWriteables.add(
             new NamedWriteableRegistry.Entry(
-                ResponseParser.class,
+                CustomResponseParser.class,
                 SparseEmbeddingResponseParser.NAME,
                 SparseEmbeddingResponseParser::new
             )
@@ -214,7 +214,7 @@ public class InferenceNamedWriteablesProvider {
 
         namedWriteables.add(
             new NamedWriteableRegistry.Entry(
-                ResponseParser.class,
+                CustomResponseParser.class,
                 RerankResponseParser.NAME,
                 RerankResponseParser::new
             )
@@ -222,7 +222,7 @@ public class InferenceNamedWriteablesProvider {
 
         namedWriteables.add(
             new NamedWriteableRegistry.Entry(
-                ResponseParser.class,
+                CustomResponseParser.class,
                 NoopResponseParser.NAME,
                 NoopResponseParser::new
             )
@@ -230,7 +230,7 @@ public class InferenceNamedWriteablesProvider {
 
         namedWriteables.add(
             new NamedWriteableRegistry.Entry(
-                ResponseParser.class,
+                CustomResponseParser.class,
                 CompletionResponseParser.NAME,
                 CompletionResponseParser::new
             )

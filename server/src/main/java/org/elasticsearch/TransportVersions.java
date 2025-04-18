@@ -141,6 +141,7 @@ public class TransportVersions {
     public static final TransportVersion ML_INFERENCE_IBM_WATSONX_RERANK_ADDED = def(8_840_0_00);
     public static final TransportVersion REMOVE_ALL_APPLICABLE_SELECTOR_BACKPORT_8_18 = def(8_840_0_01);
     public static final TransportVersion RETRY_ILM_ASYNC_ACTION_REQUIRE_ERROR_8_18 = def(8_840_0_02);
+    public static final TransportVersion INITIAL_ELASTICSEARCH_8_18_1 = def(8_840_0_03);
     public static final TransportVersion INITIAL_ELASTICSEARCH_8_19 = def(8_841_0_00);
     public static final TransportVersion COHERE_BIT_EMBEDDING_TYPE_SUPPORT_ADDED_BACKPORT_8_X = def(8_841_0_01);
     public static final TransportVersion REMOVE_ALL_APPLICABLE_SELECTOR_BACKPORT_8_19 = def(8_841_0_02);
@@ -170,6 +171,7 @@ public class TransportVersions {
     public static final TransportVersion RETRY_ILM_ASYNC_ACTION_REQUIRE_ERROR_90 = def(9_000_0_07);
     public static final TransportVersion RE_REMOVE_MIN_COMPATIBLE_SHARD_NODE_90 = def(9_000_0_08);
     public static final TransportVersion STORED_SCRIPT_CONTENT_LENGTH_90 = def(9_000_0_09);
+    public static final TransportVersion INITIAL_ELASTICSEARCH_9_0_1 = def(9_000_0_10);
     public static final TransportVersion COHERE_BIT_EMBEDDING_TYPE_SUPPORT_ADDED = def(9_001_0_00);
     public static final TransportVersion REMOVE_SNAPSHOT_FAILURES = def(9_002_0_00);
     public static final TransportVersion TRANSPORT_STATS_HANDLING_TIME_REQUIRED = def(9_003_0_00);
@@ -220,8 +222,15 @@ public class TransportVersions {
     public static final TransportVersion REPO_ANALYSIS_COPY_BLOB = def(9_048_0_00);
     public static final TransportVersion AMAZON_BEDROCK_TASK_SETTINGS = def(9_049_0_00);
     public static final TransportVersion ESQL_REPORT_SHARD_PARTITIONING = def(9_050_0_00);
-    public static final TransportVersion ESQL_QUERY_PLANNING_DURATION = def(9_051_0_00);
-    public static final TransportVersion SEMANTIC_TEXT_INDEX_OPTIONS = def(9_052_0_00);
+    public static final TransportVersion DEAD_ESQL_QUERY_PLANNING_DURATION = def(9_051_0_00);
+    public static final TransportVersion DEAD_ESQL_DOCUMENTS_FOUND_AND_VALUES_LOADED = def(9_052_0_00);
+    public static final TransportVersion DEAD_BATCHED_QUERY_EXECUTION_DELAYABLE_WRITABLE = def(9_053_0_00);
+    public static final TransportVersion DEAD_SEARCH_INCREMENTAL_TOP_DOCS_NULL = def(9_054_0_00);
+    public static final TransportVersion ESQL_QUERY_PLANNING_DURATION = def(9_055_0_00);
+    public static final TransportVersion ESQL_DOCUMENTS_FOUND_AND_VALUES_LOADED = def(9_056_0_00);
+    public static final TransportVersion BATCHED_QUERY_EXECUTION_DELAYABLE_WRITABLE = def(9_057_0_00);
+    public static final TransportVersion SEARCH_INCREMENTAL_TOP_DOCS_NULL = def(9_058_0_00);
+    public static final TransportVersion SEMANTIC_TEXT_INDEX_OPTIONS = def(9_059_0_00);
 
     /*
      * STOP! READ THIS FIRST! No, really,
@@ -288,7 +297,7 @@ public class TransportVersions {
      * Reference to the minimum transport version that can be used with CCS.
      * This should be the transport version used by the previous minor release.
      */
-    public static final TransportVersion MINIMUM_CCS_VERSION = BYTE_SIZE_VALUE_ALWAYS_USES_BYTES_1;
+    public static final TransportVersion MINIMUM_CCS_VERSION = STORED_SCRIPT_CONTENT_LENGTH_90;
 
     /**
      * Sorted list of all versions defined in this class

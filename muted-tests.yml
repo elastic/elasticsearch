@@ -417,6 +417,9 @@ tests:
 - class: org.elasticsearch.xpack.test.rest.XPackRestIT
   method: test {p0=esql/10_basic/basic with documents_found}
   issue: https://github.com/elastic/elasticsearch/issues/127039
+- class: org.elasticsearch.xpack.esql.qa.multi_node.EsqlSpecIT
+  method: test {rerank.Reranker before a limit ASYNC}
+  issue: https://github.com/elastic/elasticsearch/issues/127051
 
 # Examples:
 #

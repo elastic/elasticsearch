@@ -52,14 +52,9 @@ public record PathLookupImpl(
     }
 
     @Override
-    public Path getPIDFile() {
-        return pidFile;
-    }
-
-    @Override
     public Stream<Path> getBaseDirPaths(BaseDir baseDir) {
         return switch (baseDir) {
-            case HOME -> Stream.of(homeDir);
+            case USER_HOME -> Stream.of(homeDir);
             case DATA -> Arrays.stream(dataDirs);
             case SHARED_REPO -> Arrays.stream(sharedRepoDirs);
             case CONFIG -> Stream.of(configDir);

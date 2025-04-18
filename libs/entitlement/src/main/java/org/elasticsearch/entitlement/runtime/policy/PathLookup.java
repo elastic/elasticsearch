@@ -17,7 +17,7 @@ import java.util.stream.Stream;
  */
 public interface PathLookup {
     enum BaseDir {
-        HOME,
+        USER_HOME,
         CONFIG,
         DATA,
         SHARED_REPO,
@@ -28,7 +28,7 @@ public interface PathLookup {
         TEMP
     }
 
-    Path getPIDFile();
+    Path pidFile();
 
     Stream<Path> getBaseDirPaths(BaseDir baseDir);
 

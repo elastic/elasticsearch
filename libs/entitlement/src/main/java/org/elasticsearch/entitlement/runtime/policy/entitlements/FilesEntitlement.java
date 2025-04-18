@@ -181,7 +181,7 @@ public record FilesEntitlement(List<FileData> filesData) implements Entitlement 
         return switch (baseDir) {
             case "config" -> BaseDir.CONFIG;
             case "data" -> BaseDir.DATA;
-            case "home" -> BaseDir.HOME;
+            case "home" -> BaseDir.USER_HOME;
             // NOTE: shared_repo is _not_ accessible to policy files, only internally
             default -> throw new PolicyValidationException(
                 "invalid relative directory: " + baseDir + ", valid values: [config, data, home]"

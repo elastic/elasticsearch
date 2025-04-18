@@ -58,9 +58,9 @@ import java.nio.file.WatchService;
 import java.nio.file.attribute.FileAttribute;
 import java.nio.file.spi.FileSystemProvider;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -203,8 +203,8 @@ public class EntitlementInitialization {
             FileData.ofPath(Path.of("/proc/self/mountinfo"), READ).withPlatform(LINUX),
             FileData.ofPath(Path.of("/proc/diskstats"), READ).withPlatform(LINUX)
         );
-        if (pathLookup.getPIDFile() != null) {
-            serverModuleFileDatas.add(FileData.ofPath(pathLookup.getPIDFile(), READ_WRITE));
+        if (pathLookup.pidFile() != null) {
+            serverModuleFileDatas.add(FileData.ofPath(pathLookup.pidFile(), READ_WRITE));
         }
 
         Collections.addAll(
@@ -323,18 +323,14 @@ public class EntitlementInitialization {
         );
     }
 
-    private static Set<Path> pathSet(Path... paths) {
-        return Arrays.stream(paths).map(x -> x.toAbsolutePath().normalize()).collect(Collectors.toUnmodifiableSet());
-    }
-
     // package visible for tests
     static void validateFilesEntitlements(Map<String, Policy> pluginPolicies, PathLookup pathLookup) {
-        var readAccessForbidden = pathSet(
-            pathLookup.getBaseDirPaths(PLUGINS).findFirst().get(),
-            pathLookup.getBaseDirPaths(MODULES).findFirst().get(),
-            pathLookup.getBaseDirPaths(LIB).findFirst().get()
-        );
-        var writeAccessForbidden = pathSet(pathLookup.getBaseDirPaths(CONFIG).findFirst().get());
+        Set<Path> readAccessForbidden = new HashSet<>();
+        pathLookup.getBaseDirPaths(PLUGINS).forEach(p -> readAccessForbidden.add(p.toAbsolutePath().normalize()));
+        pathLookup.getBaseDirPaths(MODULES).forEach(p -> readAccessForbidden.add(p.toAbsolutePath().normalize()));
+        pathLookup.getBaseDirPaths(LIB).forEach(p -> readAccessForbidden.add(p.toAbsolutePath().normalize()));
+        Set<Path> writeAccessForbidden = new HashSet<>();
+        pathLookup.getBaseDirPaths(CONFIG).forEach(p -> writeAccessForbidden.add(p.toAbsolutePath().normalize()));
         for (var pluginPolicy : pluginPolicies.entrySet()) {
             for (var scope : pluginPolicy.getValue().scopes()) {
                 var filesEntitlement = scope.entitlements()

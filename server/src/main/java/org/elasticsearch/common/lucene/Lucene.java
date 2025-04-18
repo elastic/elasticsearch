@@ -64,6 +64,7 @@ import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.Version;
 import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -383,6 +384,14 @@ public class Lucene {
      * by shard for sorting purposes.
      */
     public static void writeTopDocsIncludingShardIndex(StreamOutput out, TopDocs topDocs) throws IOException {
+        if (topDocs == null) {
+            if (out.getTransportVersion().onOrAfter(TransportVersions.SEARCH_INCREMENTAL_TOP_DOCS_NULL_BACKPORT_8_19)) {
+                out.writeByte((byte) -1);
+                return;
+            } else {
+                topDocs = Lucene.EMPTY_TOP_DOCS;
+            }
+        }
         if (topDocs instanceof TopFieldGroups topFieldGroups) {
             out.writeByte((byte) 2);
             writeTotalHits(out, topDocs.totalHits);
@@ -423,7 +432,10 @@ public class Lucene {
      */
     public static TopDocs readTopDocsIncludingShardIndex(StreamInput in) throws IOException {
         byte type = in.readByte();
-        if (type == 0) {
+        if (type == -1) {
+            assert in.getTransportVersion().onOrAfter(TransportVersions.SEARCH_INCREMENTAL_TOP_DOCS_NULL_BACKPORT_8_19);
+            return null;
+        } else if (type == 0) {
             TotalHits totalHits = readTotalHits(in);
 
             final int scoreDocCount = in.readVInt();

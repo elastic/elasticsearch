@@ -22,3 +22,10 @@ dependencies {
   api project(':libs:grok')
   api project(':libs:dissect')
 }
+
+tasks.named("yamlRestCompatTestTransform").configure ({ task ->
+  task.skipTest("runtime_fields/13_keyword_calculated_at_index/fetch fields", "Script no longer executed at fetch time")
+  task.skipTest("runtime_fields/23_long_calculated_at_index/fetch fields", "Script no longer executed at fetch time")
+  task.skipTest("runtime_fields/33_double_calculated_at_index/fetch fields", "Script no longer executed at fetch time")
+  task.skipTest("runtime_fields/103_geo_point_calculated_at_index/fetch fields from source", "Script no longer executed at fetch time")
+})

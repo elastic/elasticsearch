@@ -34,11 +34,11 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.time.DateFormatters;
-import org.elasticsearch.common.util.FeatureFlag;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
@@ -78,14 +78,10 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
 
     private static final Logger LOGGER = LogManager.getLogger(DataStream.class);
 
-    public static final boolean FAILURE_STORE_FEATURE_FLAG = new FeatureFlag("failure_store").isEnabled();
+    public static final NodeFeature DATA_STREAM_FAILURE_STORE_FEATURE = new NodeFeature("data_stream.failure_store");
     public static final TransportVersion ADDED_FAILURE_STORE_TRANSPORT_VERSION = TransportVersions.V_8_12_0;
     public static final TransportVersion ADDED_AUTO_SHARDING_EVENT_VERSION = TransportVersions.V_8_14_0;
     public static final TransportVersion ADD_DATA_STREAM_OPTIONS_VERSION = TransportVersions.V_8_16_0;
-
-    public static boolean isFailureStoreFeatureFlagEnabled() {
-        return FAILURE_STORE_FEATURE_FLAG;
-    }
 
     public static final String BACKING_INDEX_PREFIX = ".ds-";
     public static final String FAILURE_STORE_PREFIX = ".fs-";
@@ -256,7 +252,7 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
         var lifecycle = in.getTransportVersion().onOrAfter(TransportVersions.V_8_9_X)
             ? in.readOptionalWriteable(DataStreamLifecycle::new)
             : null;
-        // This boolean flag has been moved in data stream options
+        // TODO: clear out the failure_store field, which is redundant https://github.com/elastic/elasticsearch/issues/127071
         var failureStoreEnabled = in.getTransportVersion()
             .between(DataStream.ADDED_FAILURE_STORE_TRANSPORT_VERSION, TransportVersions.V_8_16_0) ? in.readBoolean() : false;
         var failureIndices = in.getTransportVersion().onOrAfter(DataStream.ADDED_FAILURE_STORE_TRANSPORT_VERSION)
@@ -1042,8 +1038,7 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
         }
 
         List<Index> reconciledFailureIndices = this.failureIndices.indices;
-        if (DataStream.isFailureStoreFeatureFlagEnabled()
-            && isAnyIndexMissing(failureIndices.indices, snapshotMetadataBuilder, indicesInSnapshot)) {
+        if (isAnyIndexMissing(failureIndices.indices, snapshotMetadataBuilder, indicesInSnapshot)) {
             reconciledFailureIndices = new ArrayList<>(this.failureIndices.indices);
             failureIndicesChanged = reconciledFailureIndices.removeIf(x -> indicesInSnapshot.contains(x.getName()) == false);
         }
@@ -1110,8 +1105,7 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
         LongSupplier nowSupplier,
         DataStreamGlobalRetention globalRetention
     ) {
-        if (DataStream.isFailureStoreFeatureFlagEnabled() == false
-            || getFailuresLifecycle() == null
+        if (getFailuresLifecycle() == null
             || getFailuresLifecycle().enabled() == false
             || getFailuresLifecycle().getEffectiveDataRetention(globalRetention, isInternal()) == null) {
             return List.of();
@@ -1352,6 +1346,7 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
         }
         if (out.getTransportVersion()
             .between(DataStream.ADDED_FAILURE_STORE_TRANSPORT_VERSION, DataStream.ADD_DATA_STREAM_OPTIONS_VERSION)) {
+            // TODO: clear out the failure_store field, which is redundant https://github.com/elastic/elasticsearch/issues/127071
             out.writeBoolean(isFailureStoreExplicitlyEnabled());
         }
         if (out.getTransportVersion().onOrAfter(DataStream.ADDED_FAILURE_STORE_TRANSPORT_VERSION)) {
@@ -1386,6 +1381,7 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
     public static final ParseField ALLOW_CUSTOM_ROUTING = new ParseField("allow_custom_routing");
     public static final ParseField INDEX_MODE = new ParseField("index_mode");
     public static final ParseField LIFECYCLE = new ParseField("lifecycle");
+    // TODO: clear out the failure_store field, which is redundant https://github.com/elastic/elasticsearch/issues/127071
     public static final ParseField FAILURE_STORE_FIELD = new ParseField("failure_store");
     public static final ParseField FAILURE_INDICES_FIELD = new ParseField("failure_indices");
     public static final ParseField ROLLOVER_ON_WRITE_FIELD = new ParseField("rollover_on_write");
@@ -1396,34 +1392,13 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
     public static final ParseField SETTINGS_FIELD = new ParseField("settings");
 
     @SuppressWarnings("unchecked")
-    private static final ConstructingObjectParser<DataStream, Void> PARSER = new ConstructingObjectParser<>("data_stream", args -> {
-        // Fields behind a feature flag need to be parsed last otherwise the parser will fail when the feature flag is disabled.
-        // Until the feature flag is removed we keep them separately to be mindful of this.
-        boolean failureStoreEnabled = DataStream.isFailureStoreFeatureFlagEnabled() && args[13] != null && (boolean) args[13];
-        DataStreamIndices failureIndices = DataStream.isFailureStoreFeatureFlagEnabled()
-            ? new DataStreamIndices(
-                FAILURE_STORE_PREFIX,
-                args[14] != null ? (List<Index>) args[14] : List.of(),
-                args[15] != null && (boolean) args[15],
-                (DataStreamAutoShardingEvent) args[16]
-            )
-            : new DataStreamIndices(FAILURE_STORE_PREFIX, List.of(), false, null);
-        // We cannot distinguish if failure store was explicitly disabled or not. Given that failure store
-        // is still behind a feature flag in previous version we use the default value instead of explicitly disabling it.
-        DataStreamOptions dataStreamOptions = DataStreamOptions.EMPTY;
-
-        if (DataStream.isFailureStoreFeatureFlagEnabled()) {
-            if (args[17] != null) {
-                dataStreamOptions = (DataStreamOptions) args[17];
-            } else if (failureStoreEnabled) {
-                dataStreamOptions = DataStreamOptions.FAILURE_STORE_ENABLED;
-            }
-        }
-        return new DataStream(
+    private static final ConstructingObjectParser<DataStream, Void> PARSER = new ConstructingObjectParser<>(
+        "data_stream",
+        args -> new DataStream(
             (String) args[0],
             (Long) args[2],
             (Map<String, Object>) args[3],
-            args[12] == null ? Settings.EMPTY : (Settings) args[12],
+            args[17] == null ? Settings.EMPTY : (Settings) args[17],
             args[4] != null && (boolean) args[4],
             args[5] != null && (boolean) args[5],
             args[6] != null && (boolean) args[6],
@@ -1431,16 +1406,21 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
             args[7] != null && (boolean) args[7],
             args[8] != null ? IndexMode.fromString((String) args[8]) : null,
             (DataStreamLifecycle) args[9],
-            dataStreamOptions,
+            args[16] != null ? (DataStreamOptions) args[16] : DataStreamOptions.EMPTY,
             new DataStreamIndices(
                 BACKING_INDEX_PREFIX,
                 (List<Index>) args[1],
                 args[10] != null && (boolean) args[10],
                 (DataStreamAutoShardingEvent) args[11]
             ),
-            failureIndices
-        );
-    });
+            new DataStreamIndices(
+                FAILURE_STORE_PREFIX,
+                args[13] != null ? (List<Index>) args[13] : List.of(),
+                args[14] != null && (boolean) args[14],
+                (DataStreamAutoShardingEvent) args[15]
+            )
+        )
+    );
 
     static {
         PARSER.declareString(ConstructingObjectParser.constructorArg(), NAME_FIELD);
@@ -1467,28 +1447,25 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
             (p, c) -> DataStreamAutoShardingEvent.fromXContent(p),
             AUTO_SHARDING_FIELD
         );
+        // TODO: clear out the failure_store field, which is redundant https://github.com/elastic/elasticsearch/issues/127071
+        PARSER.declareBoolean(ConstructingObjectParser.optionalConstructorArg(), FAILURE_STORE_FIELD);
+        PARSER.declareObjectArray(
+            ConstructingObjectParser.optionalConstructorArg(),
+            (p, c) -> Index.fromXContent(p),
+            FAILURE_INDICES_FIELD
+        );
+        PARSER.declareBoolean(ConstructingObjectParser.optionalConstructorArg(), FAILURE_ROLLOVER_ON_WRITE_FIELD);
+        PARSER.declareObject(
+            ConstructingObjectParser.optionalConstructorArg(),
+            (p, c) -> DataStreamAutoShardingEvent.fromXContent(p),
+            FAILURE_AUTO_SHARDING_FIELD
+        );
+        PARSER.declareObject(
+            ConstructingObjectParser.optionalConstructorArg(),
+            (p, c) -> DataStreamOptions.fromXContent(p),
+            DATA_STREAM_OPTIONS_FIELD
+        );
         PARSER.declareObject(ConstructingObjectParser.optionalConstructorArg(), (p, c) -> Settings.fromXContent(p), SETTINGS_FIELD);
-        // The fields behind the feature flag should always be last.
-        if (DataStream.isFailureStoreFeatureFlagEnabled()) {
-            // Should be removed after backport
-            PARSER.declareBoolean(ConstructingObjectParser.optionalConstructorArg(), FAILURE_STORE_FIELD);
-            PARSER.declareObjectArray(
-                ConstructingObjectParser.optionalConstructorArg(),
-                (p, c) -> Index.fromXContent(p),
-                FAILURE_INDICES_FIELD
-            );
-            PARSER.declareBoolean(ConstructingObjectParser.optionalConstructorArg(), FAILURE_ROLLOVER_ON_WRITE_FIELD);
-            PARSER.declareObject(
-                ConstructingObjectParser.optionalConstructorArg(),
-                (p, c) -> DataStreamAutoShardingEvent.fromXContent(p),
-                FAILURE_AUTO_SHARDING_FIELD
-            );
-            PARSER.declareObject(
-                ConstructingObjectParser.optionalConstructorArg(),
-                (p, c) -> DataStreamOptions.fromXContent(p),
-                DATA_STREAM_OPTIONS_FIELD
-            );
-        }
     }
 
     public static DataStream fromXContent(XContentParser parser) throws IOException {
@@ -1524,23 +1501,18 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
         builder.field(REPLICATED_FIELD.getPreferredName(), replicated);
         builder.field(SYSTEM_FIELD.getPreferredName(), system);
         builder.field(ALLOW_CUSTOM_ROUTING.getPreferredName(), allowCustomRouting);
-        builder.startObject(SETTINGS_FIELD.getPreferredName());
-        this.settings.toXContent(builder, params);
-        builder.endObject();
-        if (DataStream.isFailureStoreFeatureFlagEnabled()) {
-            if (failureIndices.indices.isEmpty() == false) {
-                builder.xContentList(FAILURE_INDICES_FIELD.getPreferredName(), failureIndices.indices);
-            }
-            builder.field(FAILURE_ROLLOVER_ON_WRITE_FIELD.getPreferredName(), failureIndices.rolloverOnWrite);
-            if (failureIndices.autoShardingEvent != null) {
-                builder.startObject(FAILURE_AUTO_SHARDING_FIELD.getPreferredName());
-                failureIndices.autoShardingEvent.toXContent(builder, params);
-                builder.endObject();
-            }
-            if (dataStreamOptions.isEmpty() == false) {
-                builder.field(DATA_STREAM_OPTIONS_FIELD.getPreferredName());
-                dataStreamOptions.toXContent(builder, params);
-            }
+        if (failureIndices.indices.isEmpty() == false) {
+            builder.xContentList(FAILURE_INDICES_FIELD.getPreferredName(), failureIndices.indices);
+        }
+        builder.field(FAILURE_ROLLOVER_ON_WRITE_FIELD.getPreferredName(), failureIndices.rolloverOnWrite);
+        if (failureIndices.autoShardingEvent != null) {
+            builder.startObject(FAILURE_AUTO_SHARDING_FIELD.getPreferredName());
+            failureIndices.autoShardingEvent.toXContent(builder, params);
+            builder.endObject();
+        }
+        if (dataStreamOptions.isEmpty() == false) {
+            builder.field(DATA_STREAM_OPTIONS_FIELD.getPreferredName());
+            dataStreamOptions.toXContent(builder, params);
         }
         if (indexMode != null) {
             builder.field(INDEX_MODE.getPreferredName(), indexMode);
@@ -1555,6 +1527,9 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
             backingIndices.autoShardingEvent.toXContent(builder, params);
             builder.endObject();
         }
+        builder.startObject(SETTINGS_FIELD.getPreferredName());
+        this.settings.toXContent(builder, params);
+        builder.endObject();
         builder.endObject();
         return builder;
     }

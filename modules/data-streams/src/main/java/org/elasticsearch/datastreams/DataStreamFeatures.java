@@ -9,6 +9,7 @@
 
 package org.elasticsearch.datastreams;
 
+import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.features.FeatureSpecification;
 import org.elasticsearch.features.NodeFeature;
 
@@ -27,7 +28,7 @@ public class DataStreamFeatures implements FeatureSpecification {
 
     @Override
     public Set<NodeFeature> getFeatures() {
-        return Set.of();
+        return Set.of(DataStream.DATA_STREAM_FAILURE_STORE_FEATURE);
     }
 
     @Override

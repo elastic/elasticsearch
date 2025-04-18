@@ -51,8 +51,7 @@ import org.elasticsearch.search.aggregations.BucketCollector;
 import org.elasticsearch.search.aggregations.BucketOrder;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.MultiBucketCollector;
-import org.elasticsearch.search.aggregations.bucket.filter.Filter;
-import org.elasticsearch.search.aggregations.bucket.global.Global;
+import org.elasticsearch.search.aggregations.bucket.SingleBucketAggregation;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregator;
@@ -436,7 +435,7 @@ public class MaxAggregatorTests extends AggregatorTestCase {
 
         DirectoryReader indexReader = DirectoryReader.open(directory);
 
-        Global global = searchAndReduce(indexReader, new AggTestConfig(aggregationBuilder, fieldType));
+        SingleBucketAggregation global = searchAndReduce(indexReader, new AggTestConfig(aggregationBuilder, fieldType));
         assertNotNull(global);
         assertEquals("global", global.getName());
         assertEquals(10L, global.getDocCount());
@@ -647,7 +646,7 @@ public class MaxAggregatorTests extends AggregatorTestCase {
 
         DirectoryReader indexReader = DirectoryReader.open(directory);
 
-        Global global = searchAndReduce(indexReader, new AggTestConfig(aggregationBuilder, fieldType));
+        SingleBucketAggregation global = searchAndReduce(indexReader, new AggTestConfig(aggregationBuilder, fieldType));
         assertNotNull(global);
         assertEquals("global", global.getName());
         assertEquals(0L, global.getDocCount());
@@ -695,7 +694,7 @@ public class MaxAggregatorTests extends AggregatorTestCase {
             assertEquals((long) i + 1, bucket.getKeyAsNumber());
             assertEquals(1L, bucket.getDocCount());
 
-            Filter filter = bucket.getAggregations().get("filter");
+            SingleBucketAggregation filter = bucket.getAggregations().get("filter");
             assertNotNull(filter);
             assertEquals(0L, filter.getDocCount());
 

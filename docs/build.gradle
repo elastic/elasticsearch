@@ -85,9 +85,6 @@ testClusters.matching { it.name == "yamlRestTest"}.configureEach {
     setting 'xpack.license.self_generated.type', 'trial'
     setting 'indices.lifecycle.history_index_enabled', 'false'
     keystorePassword 'keystore-password'
-    if (buildParams.snapshotBuild == false) {
-      requiresFeature 'es.failure_store_feature_flag_enabled', new Version(8, 12, 0)
-    }
   }
 
   // debug ccr test failures:
@@ -126,7 +123,6 @@ testClusters.matching { it.name == "yamlRestTest"}.configureEach {
 
 
   requiresFeature 'es.index_mode_feature_flag_registered', Version.fromString("8.0.0")
-  requiresFeature 'es.failure_store_feature_flag_enabled', Version.fromString("8.12.0")
 
   // TODO Rene: clean up this kind of cross project file references
   extraConfigFile 'op-jwks.json', project(':x-pack:test:idp-fixture').file("src/main/resources/oidc/op-jwks.json")

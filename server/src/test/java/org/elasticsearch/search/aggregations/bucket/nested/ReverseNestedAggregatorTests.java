@@ -28,6 +28,7 @@ import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregatorTestCase;
 import org.elasticsearch.search.aggregations.InternalAggregation;
+import org.elasticsearch.search.aggregations.bucket.SingleBucketAggregation;
 import org.elasticsearch.search.aggregations.bucket.terms.LongTerms;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.Max;
@@ -73,8 +74,10 @@ public class ReverseNestedAggregatorTests extends AggregatorTestCase {
                 reverseNestedBuilder.subAggregation(maxAgg);
                 MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType(VALUE_FIELD_NAME, NumberFieldMapper.NumberType.LONG);
 
-                Nested nested = searchAndReduce(indexReader, new AggTestConfig(nestedBuilder, fieldType));
-                ReverseNested reverseNested = (ReverseNested) ((InternalAggregation) nested).getProperty(REVERSE_AGG_NAME);
+                SingleBucketAggregation nested = searchAndReduce(indexReader, new AggTestConfig(nestedBuilder, fieldType));
+                SingleBucketAggregation reverseNested = (SingleBucketAggregation) ((InternalAggregation) nested).getProperty(
+                    REVERSE_AGG_NAME
+                );
                 assertEquals(REVERSE_AGG_NAME, reverseNested.getName());
                 assertEquals(0, reverseNested.getDocCount());
 
@@ -126,10 +129,12 @@ public class ReverseNestedAggregatorTests extends AggregatorTestCase {
                 MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType(VALUE_FIELD_NAME, NumberFieldMapper.NumberType.LONG);
 
                 AggTestConfig aggTestConfig = new AggTestConfig(nestedBuilder, fieldType);
-                Nested nested = searchAndReduce(indexReader, aggTestConfig);
+                SingleBucketAggregation nested = searchAndReduce(indexReader, aggTestConfig);
                 assertEquals(expectedNestedDocs, nested.getDocCount());
 
-                ReverseNested reverseNested = (ReverseNested) ((InternalAggregation) nested).getProperty(REVERSE_AGG_NAME);
+                SingleBucketAggregation reverseNested = (SingleBucketAggregation) ((InternalAggregation) nested).getProperty(
+                    REVERSE_AGG_NAME
+                );
                 assertEquals(REVERSE_AGG_NAME, reverseNested.getName());
                 assertEquals(expectedParentDocs, reverseNested.getDocCount());
 
@@ -185,11 +190,11 @@ public class ReverseNestedAggregatorTests extends AggregatorTestCase {
                     reverseNested(REVERSE_AGG_NAME).subAggregation(aliasMaxAgg)
                 );
 
-                Nested nested = searchAndReduce(indexReader, new AggTestConfig(agg, fieldType));
-                Nested aliasNested = searchAndReduce(indexReader, new AggTestConfig(aliasAgg, fieldType));
+                SingleBucketAggregation nested = searchAndReduce(indexReader, new AggTestConfig(agg, fieldType));
+                SingleBucketAggregation aliasNested = searchAndReduce(indexReader, new AggTestConfig(aliasAgg, fieldType));
 
-                ReverseNested reverseNested = nested.getAggregations().get(REVERSE_AGG_NAME);
-                ReverseNested aliasReverseNested = aliasNested.getAggregations().get(REVERSE_AGG_NAME);
+                SingleBucketAggregation reverseNested = nested.getAggregations().get(REVERSE_AGG_NAME);
+                SingleBucketAggregation aliasReverseNested = aliasNested.getAggregations().get(REVERSE_AGG_NAME);
 
                 assertEquals(reverseNested, aliasReverseNested);
                 assertEquals(expectedParentDocs, reverseNested.getDocCount());

@@ -423,10 +423,6 @@ public class MetadataCreateDataStreamService {
         String failureStoreIndexName,
         @Nullable BiConsumer<ProjectMetadata.Builder, IndexMetadata> metadataTransformer
     ) throws Exception {
-        if (DataStream.isFailureStoreFeatureFlagEnabled() == false) {
-            return currentState;
-        }
-
         var indexSettings = DataStreamFailureStoreDefinition.buildFailureStoreIndexSettings(nodeSettings);
 
         CreateIndexClusterStateUpdateRequest createIndexRequest = new CreateIndexClusterStateUpdateRequest(

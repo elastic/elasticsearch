@@ -855,6 +855,11 @@ public class RestController implements HttpServerTransport.Dispatcher {
         public void sendResponse(RestResponse response) {
             delegate.sendResponse(response);
         }
+
+        @Override
+        public String toString() {
+            return delegate.toString();
+        }
     }
 
     private static final class MeteringRestChannelDecorator extends DelegatingRestChannel {
@@ -941,6 +946,11 @@ public class RestController implements HttpServerTransport.Dispatcher {
 
         private static long rawRelativeTimeInMillis() {
             return TimeValue.nsecToMSec(System.nanoTime());
+        }
+
+        @Override
+        public String toString() {
+            return "ResourceHandlingHttpChannel[" + super.toString() + "]";
         }
     }
 

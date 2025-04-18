@@ -29,7 +29,7 @@ import static org.elasticsearch.rest.RestUtils.getMasterNodeTimeout;
 @ServerlessScope(Scope.PUBLIC)
 public class RestPutComponentTemplateAction extends BaseRestHandler {
 
-    public static final String SUPPORTS_FAILURE_STORE = "failure_store_in_template";
+    public static final String SUPPORTS_FAILURE_STORE = "data_stream_options.failure_store";
     private static final Set<String> capabilities = Set.of(SUPPORTS_FAILURE_STORE);
 
     @Override

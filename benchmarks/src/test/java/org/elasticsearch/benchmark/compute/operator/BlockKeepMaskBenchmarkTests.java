@@ -6,13 +6,13 @@
  * your election, the "Elastic License 2.0", the "GNU Affero General Public
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
-package org.elasticsearch.search.aggregations.bucket.sampler;
 
-import org.elasticsearch.search.aggregations.bucket.SingleBucketAggregation;
+package org.elasticsearch.benchmark.compute.operator;
 
-/**
- * A {@code filter} aggregation that defines a single bucket to hold a sample of
- * top-matching documents. Computation of child aggregations is deferred until
- * the top-matching documents on a shard have been determined.
- */
-public interface Sampler extends SingleBucketAggregation {}
+import org.elasticsearch.test.ESTestCase;
+
+public class BlockKeepMaskBenchmarkTests extends ESTestCase {
+    public void test() {
+        BlockKeepMaskBenchmark.selfTest();
+    }
+}

@@ -1,6 +1,7 @@
 setup:
   - requires:
-      reason: "Data stream options was added in 8.18+"
+      cluster_features: [ "data_stream.failure_store" ]
+      reason: "Failure store GA in 8.19+"
       test_runner_features: [ capabilities, allowed_warnings, contains ]
       capabilities:
         - method: POST
@@ -8,10 +9,7 @@ setup:
           capabilities: [ 'failure_store_status' ]
         - method: POST
           path: /_index_template/{template}
-          capabilities: [ 'failure_store_in_template' ]
-        - method: PUT
-          path: /_cluster/settings
-          capabilities: [ 'data_stream_failure_store_cluster_setting' ]
+          capabilities: [ 'data_stream_options.failure_store' ]
 
   - do:
       cluster.put_settings:

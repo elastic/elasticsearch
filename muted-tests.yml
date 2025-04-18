@@ -411,9 +411,6 @@ tests:
 - class: org.elasticsearch.packaging.test.DockerTests
   method: test024InstallPluginFromArchiveUsingConfigFile
   issue: https://github.com/elastic/elasticsearch/issues/126936
-- class: org.elasticsearch.repositories.blobstore.testkit.analyze.RepositoryAnalysisFailureIT
-  method: testFailsOnReadError
-  issue: https://github.com/elastic/elasticsearch/issues/127029
 - class: org.elasticsearch.xpack.test.rest.XPackRestIT
   method: test {p0=esql/10_basic/basic with documents_found}
   issue: https://github.com/elastic/elasticsearch/issues/127039

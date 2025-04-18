@@ -6,11 +6,13 @@
  * your election, the "Elastic License 2.0", the "GNU Affero General Public
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
-package org.elasticsearch.search.aggregations.bucket.global;
 
-import org.elasticsearch.search.aggregations.bucket.SingleBucketAggregation;
+package org.elasticsearch.benchmark.compute.operator;
 
-/**
- * A {@code global} aggregation. Defines a single bucket the holds all the documents in the search context.
- */
-public interface Global extends SingleBucketAggregation {}
+import org.elasticsearch.test.ESTestCase;
+
+public class ValuesSourceReaderBenchmarkTests extends ESTestCase {
+    public void test() {
+        ValuesSourceReaderBenchmark.selfTest();
+    }
+}

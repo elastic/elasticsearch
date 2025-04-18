@@ -12,7 +12,6 @@ package org.elasticsearch.rest.action.admin.indices;
 import org.elasticsearch.action.admin.indices.template.put.PutComponentTemplateAction;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.metadata.ComponentTemplate;
-import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.Scope;
@@ -30,7 +29,7 @@ import static org.elasticsearch.rest.RestUtils.getMasterNodeTimeout;
 @ServerlessScope(Scope.PUBLIC)
 public class RestPutComponentTemplateAction extends BaseRestHandler {
 
-    public static final String SUPPORTS_FAILURE_STORE = "failure_store_in_template";
+    public static final String SUPPORTS_FAILURE_STORE = "data_stream_options.failure_store";
     private static final Set<String> capabilities = Set.of(SUPPORTS_FAILURE_STORE);
 
     @Override
@@ -59,6 +58,6 @@ public class RestPutComponentTemplateAction extends BaseRestHandler {
 
     @Override
     public Set<String> supportedCapabilities() {
-        return DataStream.isFailureStoreFeatureFlagEnabled() ? capabilities : Set.of();
+        return capabilities;
     }
 }

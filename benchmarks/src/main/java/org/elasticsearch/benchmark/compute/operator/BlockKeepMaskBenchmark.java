@@ -42,7 +42,13 @@ import java.util.concurrent.TimeUnit;
 @Fork(1)
 public class BlockKeepMaskBenchmark extends BlockBenchmark {
     static {
-        // Smoke test all the expected values and force loading subclasses more like prod
+        if (false == "true".equals(System.getProperty("skipSelfTest"))) {
+            // Smoke test all the expected values and force loading subclasses more like prod
+            selfTest();
+        }
+    }
+
+    static void selfTest() {
         int totalPositions = 10;
         for (String paramString : RELEVANT_TYPE_BLOCK_COMBINATIONS) {
             String[] params = paramString.split("/");

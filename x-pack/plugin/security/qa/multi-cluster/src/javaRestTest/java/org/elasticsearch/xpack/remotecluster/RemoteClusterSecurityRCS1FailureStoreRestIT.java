@@ -17,7 +17,6 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
-import org.elasticsearch.test.cluster.FeatureFlag;
 import org.elasticsearch.test.cluster.local.distribution.DistributionType;
 import org.elasticsearch.test.cluster.util.resource.Resource;
 import org.elasticsearch.test.rest.ObjectPath;
@@ -45,7 +44,6 @@ public class RemoteClusterSecurityRCS1FailureStoreRestIT extends AbstractRemoteC
             .name("fulfilling-cluster")
             .nodes(3)
             .apply(commonClusterConfig)
-            .feature(FeatureFlag.FAILURE_STORE_ENABLED)
             .rolesFile(Resource.fromClasspath("roles.yml"))
             .build();
 
@@ -53,7 +51,6 @@ public class RemoteClusterSecurityRCS1FailureStoreRestIT extends AbstractRemoteC
             .distribution(DistributionType.DEFAULT)
             .name("query-cluster")
             .apply(commonClusterConfig)
-            .feature(FeatureFlag.FAILURE_STORE_ENABLED)
             .rolesFile(Resource.fromClasspath("roles.yml"))
             .build();
     }

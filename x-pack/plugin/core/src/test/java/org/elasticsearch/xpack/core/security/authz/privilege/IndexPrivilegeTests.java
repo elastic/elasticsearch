@@ -13,7 +13,6 @@ import org.elasticsearch.action.delete.TransportDeleteAction;
 import org.elasticsearch.action.index.TransportIndexAction;
 import org.elasticsearch.action.search.TransportSearchAction;
 import org.elasticsearch.action.update.TransportUpdateAction;
-import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.common.util.iterable.Iterables;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.rollup.action.GetRollupIndexCapsAction;
@@ -70,15 +69,13 @@ public class IndexPrivilegeTests extends ESTestCase {
         );
         assertThat(findPrivilegesThatGrant(RefreshAction.NAME), equalTo(List.of("maintenance", "manage", "all")));
 
-        if (DataStream.isFailureStoreFeatureFlagEnabled()) {
-            Predicate<IndexPrivilege> failuresOnly = p -> p.getSelectorPredicate() == IndexComponentSelectorPredicate.FAILURES;
-            assertThat(findPrivilegesThatGrant(TransportSearchAction.TYPE.name(), failuresOnly), equalTo(List.of("read_failure_store")));
-            assertThat(findPrivilegesThatGrant(TransportIndexAction.NAME, failuresOnly), equalTo(List.of()));
-            assertThat(findPrivilegesThatGrant(TransportUpdateAction.NAME, failuresOnly), equalTo(List.of()));
-            assertThat(findPrivilegesThatGrant(TransportDeleteAction.NAME, failuresOnly), equalTo(List.of()));
-            assertThat(findPrivilegesThatGrant(IndicesStatsAction.NAME, failuresOnly), equalTo(List.of("manage_failure_store")));
-            assertThat(findPrivilegesThatGrant(RefreshAction.NAME, failuresOnly), equalTo(List.of("manage_failure_store")));
-        }
+        Predicate<IndexPrivilege> failuresOnly = p -> p.getSelectorPredicate() == IndexComponentSelectorPredicate.FAILURES;
+        assertThat(findPrivilegesThatGrant(TransportSearchAction.TYPE.name(), failuresOnly), equalTo(List.of("read_failure_store")));
+        assertThat(findPrivilegesThatGrant(TransportIndexAction.NAME, failuresOnly), equalTo(List.of()));
+        assertThat(findPrivilegesThatGrant(TransportUpdateAction.NAME, failuresOnly), equalTo(List.of()));
+        assertThat(findPrivilegesThatGrant(TransportDeleteAction.NAME, failuresOnly), equalTo(List.of()));
+        assertThat(findPrivilegesThatGrant(IndicesStatsAction.NAME, failuresOnly), equalTo(List.of("manage_failure_store")));
+        assertThat(findPrivilegesThatGrant(RefreshAction.NAME, failuresOnly), equalTo(List.of("manage_failure_store")));
     }
 
     public void testGet() {
@@ -117,7 +114,6 @@ public class IndexPrivilegeTests extends ESTestCase {
     }
 
     public void testResolveSameSelectorPrivileges() {
-        assumeTrue("requires failure store feature", DataStream.isFailureStoreFeatureFlagEnabled());
         {
             IndexPrivilege actual = resolvePrivilegeAndAssertSingleton(Set.of("read_failure_store"));
             assertThat(actual, equalTo(IndexPrivilege.READ_FAILURE_STORE));
@@ -144,7 +140,6 @@ public class IndexPrivilegeTests extends ESTestCase {
     }
 
     public void testResolveBySelectorAccess() {
-        assumeTrue("requires failure store feature", DataStream.isFailureStoreFeatureFlagEnabled());
         {
             Set<IndexPrivilege> actual = IndexPrivilege.resolveBySelectorAccess(Set.of("read_failure_store"));
             assertThat(actual, containsInAnyOrder(IndexPrivilege.READ_FAILURE_STORE));

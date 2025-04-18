@@ -7,11 +7,12 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-package org.elasticsearch.search.aggregations.bucket.nested;
+package org.elasticsearch.benchmark.compute.operator;
 
-import org.elasticsearch.search.aggregations.bucket.SingleBucketAggregation;
+import org.elasticsearch.test.ESTestCase;
 
-/**
- * A {@code reverse nested} aggregation. Defines a single bucket that holds all the parent documents for a specific nested path.
- */
-public interface ReverseNested extends SingleBucketAggregation {}
+public class BlockReadBenchmarkTests extends ESTestCase {
+    public void test() {
+        BlockKeepMaskBenchmark.selfTest();
+    }
+}

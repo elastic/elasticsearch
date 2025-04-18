@@ -15,7 +15,7 @@ highlight:
     represent events that could be critical signals for observability or
     security use cases.
 
-    To help mitigate this problem, data streams now maintain a "failure
+    To help mitigate this problem, data streams can now maintain a "failure
     store" which is used to accept and hold documents that fail to be
     ingested due to preventable configuration errors. The data stream's
     failure store operates like a separate set of backing indices with their

@@ -206,7 +206,7 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
         var lifecycle = in.getTransportVersion().onOrAfter(TransportVersions.V_8_9_X)
             ? in.readOptionalWriteable(DataStreamLifecycle::new)
             : null;
-        // This boolean flag has been moved in data stream options
+        // TODO: clear out the failure_store field, which is redundant https://github.com/elastic/elasticsearch/issues/127071
         var failureStoreEnabled = in.getTransportVersion()
             .between(DataStream.ADDED_FAILURE_STORE_TRANSPORT_VERSION, TransportVersions.V_8_16_0) ? in.readBoolean() : false;
         var failureIndices = in.getTransportVersion().onOrAfter(DataStream.ADDED_FAILURE_STORE_TRANSPORT_VERSION)
@@ -1242,6 +1242,7 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
         }
         if (out.getTransportVersion()
             .between(DataStream.ADDED_FAILURE_STORE_TRANSPORT_VERSION, DataStream.ADD_DATA_STREAM_OPTIONS_VERSION)) {
+            // TODO: clear out the failure_store field, which is redundant https://github.com/elastic/elasticsearch/issues/127071
             out.writeBoolean(isFailureStoreExplicitlyEnabled());
         }
         if (out.getTransportVersion().onOrAfter(DataStream.ADDED_FAILURE_STORE_TRANSPORT_VERSION)) {
@@ -1273,6 +1274,7 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
     public static final ParseField ALLOW_CUSTOM_ROUTING = new ParseField("allow_custom_routing");
     public static final ParseField INDEX_MODE = new ParseField("index_mode");
     public static final ParseField LIFECYCLE = new ParseField("lifecycle");
+    // TODO: clear out the failure_store field, which is redundant https://github.com/elastic/elasticsearch/issues/127071
     public static final ParseField FAILURE_STORE_FIELD = new ParseField("failure_store");
     public static final ParseField FAILURE_INDICES_FIELD = new ParseField("failure_indices");
     public static final ParseField ROLLOVER_ON_WRITE_FIELD = new ParseField("rollover_on_write");
@@ -1282,25 +1284,9 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
     public static final ParseField DATA_STREAM_OPTIONS_FIELD = new ParseField("options");
 
     @SuppressWarnings("unchecked")
-    private static final ConstructingObjectParser<DataStream, Void> PARSER = new ConstructingObjectParser<>("data_stream", args -> {
-        // Fields behind a feature flag need to be parsed last otherwise the parser will fail when the feature flag is disabled.
-        // Until the feature flag is removed we keep them separately to be mindful of this.
-        boolean failureStoreEnabled = args[12] != null && (boolean) args[12];
-        DataStreamIndices failureIndices = new DataStreamIndices(
-            FAILURE_STORE_PREFIX,
-            args[13] != null ? (List<Index>) args[13] : List.of(),
-            args[14] != null && (boolean) args[14],
-            (DataStreamAutoShardingEvent) args[15]
-        );
-        // We cannot distinguish if failure store was explicitly disabled or not. Given that failure store
-        // is still behind a feature flag in previous version we use the default value instead of explicitly disabling it.
-        DataStreamOptions dataStreamOptions = DataStreamOptions.EMPTY;
-        if (args[16] != null) {
-            dataStreamOptions = (DataStreamOptions) args[16];
-        } else if (failureStoreEnabled) {
-            dataStreamOptions = DataStreamOptions.FAILURE_STORE_ENABLED;
-        }
-        return new DataStream(
+    private static final ConstructingObjectParser<DataStream, Void> PARSER = new ConstructingObjectParser<>(
+        "data_stream",
+        args -> new DataStream(
             (String) args[0],
             (Long) args[2],
             (Map<String, Object>) args[3],
@@ -1311,16 +1297,21 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
             args[7] != null && (boolean) args[7],
             args[8] != null ? IndexMode.fromString((String) args[8]) : null,
             (DataStreamLifecycle) args[9],
-            dataStreamOptions,
+            args[16] != null ? (DataStreamOptions) args[16] : DataStreamOptions.EMPTY,
             new DataStreamIndices(
                 BACKING_INDEX_PREFIX,
                 (List<Index>) args[1],
                 args[10] != null && (boolean) args[10],
                 (DataStreamAutoShardingEvent) args[11]
             ),
-            failureIndices
-        );
-    });
+            new DataStreamIndices(
+                FAILURE_STORE_PREFIX,
+                args[13] != null ? (List<Index>) args[13] : List.of(),
+                args[14] != null && (boolean) args[14],
+                (DataStreamAutoShardingEvent) args[15]
+            )
+        )
+    );
 
     static {
         PARSER.declareString(ConstructingObjectParser.constructorArg(), NAME_FIELD);
@@ -1347,7 +1338,7 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
             (p, c) -> DataStreamAutoShardingEvent.fromXContent(p),
             AUTO_SHARDING_FIELD
         );
-        // Should be removed after backport
+        // TODO: clear out the failure_store field, which is redundant https://github.com/elastic/elasticsearch/issues/127071
         PARSER.declareBoolean(ConstructingObjectParser.optionalConstructorArg(), FAILURE_STORE_FIELD);
         PARSER.declareObjectArray(
             ConstructingObjectParser.optionalConstructorArg(),

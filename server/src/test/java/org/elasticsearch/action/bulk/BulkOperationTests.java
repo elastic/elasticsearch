@@ -436,6 +436,45 @@ public class BulkOperationTests extends ESTestCase {
         assertThat(failedItem.getFailureStoreStatus(), equalTo(IndexDocFailureStoreStatus.USED));
     }
 
+    /**
+     * A bulk operation to a data stream with a failure store enabled should NOT redirect any documents that fail at a shard level to the
+     * failure store if the failure store node feature is not on every node in the cluster
+     */
+    public void testFailingDocumentIgnoredByFailureStoreWhenFeatureIsDisabled() throws Exception {
+        Assume.assumeTrue(DataStream.isFailureStoreFeatureFlagEnabled());
+
+        // Requests that go to two separate shards
+        BulkRequest bulkRequest = new BulkRequest();
+        bulkRequest.add(new IndexRequest(fsDataStreamName).id("1").source(Map.of("key", "val")).opType(DocWriteRequest.OpType.CREATE));
+        bulkRequest.add(new IndexRequest(fsDataStreamName).id("3").source(Map.of("key", "val")).opType(DocWriteRequest.OpType.CREATE));
+
+        NodeClient client = getNodeClient(
+            thatFailsDocuments(Map.of(new IndexAndId(ds2BackingIndex1.getIndex().getName(), "3"), () -> new MapperException("test")))
+        );
+
+        BulkResponse bulkItemResponses = safeAwait(
+            l -> newBulkOperation(
+                clusterState,
+                client,
+                bulkRequest,
+                new AtomicArray<>(bulkRequest.numberOfActions()),
+                mockObserver(clusterState),
+                l,
+                new FailureStoreDocumentConverter(),
+                DataStreamFailureStoreSettings.create(ClusterSettings.createBuiltInClusterSettings()),
+                false
+            ).run()
+        );
+        assertThat(bulkItemResponses.hasFailures(), is(true));
+        BulkItemResponse failedItem = Arrays.stream(bulkItemResponses.getItems())
+            .filter(BulkItemResponse::isFailed)
+            .findFirst()
+            .orElseThrow(() -> new AssertionError("Could not find redirected item"));
+        assertThat(failedItem.getFailure().getCause(), is(instanceOf(MapperException.class)));
+        assertThat(failedItem.getFailure().getCause().getMessage(), is(equalTo("test")));
+        assertThat(failedItem.getFailureStoreStatus(), equalTo(IndexDocFailureStoreStatus.NOT_APPLICABLE_OR_UNKNOWN));
+    }
+
     public void testFailingDocumentRedirectsToFailureStoreWhenEnabledByClusterSetting() {
         Assume.assumeTrue(DataStream.isFailureStoreFeatureFlagEnabled());
 
@@ -477,7 +516,8 @@ public class BulkOperationTests extends ESTestCase {
                 mockObserver(DEFAULT_STATE),
                 l,
                 new FailureStoreDocumentConverter(),
-                dataStreamFailureStoreSettings
+                dataStreamFailureStoreSettings,
+                true
             ).run()
         );
         assertThat(bulkItemResponsesUsingClusterSetting.hasFailures(), is(false));
@@ -1170,7 +1210,8 @@ public class BulkOperationTests extends ESTestCase {
             observer,
             listener,
             failureStoreDocumentConverter,
-            DataStreamFailureStoreSettings.create(ClusterSettings.createBuiltInClusterSettings())
+            DataStreamFailureStoreSettings.create(ClusterSettings.createBuiltInClusterSettings()),
+            true
         );
     }
 
@@ -1182,7 +1223,8 @@ public class BulkOperationTests extends ESTestCase {
         ClusterStateObserver observer,
         ActionListener<BulkResponse> listener,
         FailureStoreDocumentConverter failureStoreDocumentConverter,
-        DataStreamFailureStoreSettings dataStreamFailureStoreSettings
+        DataStreamFailureStoreSettings dataStreamFailureStoreSettings,
+        boolean failureStoreNodeFeatureEnabled
     ) {
         // Time provision
         long timeZero = TimeUnit.MILLISECONDS.toNanos(randomMillisUpToYear9999() - TimeUnit.DAYS.toMillis(1));
@@ -1215,7 +1257,8 @@ public class BulkOperationTests extends ESTestCase {
             observer,
             failureStoreDocumentConverter,
             FailureStoreMetrics.NOOP,
-            dataStreamFailureStoreSettings
+            dataStreamFailureStoreSettings,
+            failureStoreNodeFeatureEnabled
         );
     }
 

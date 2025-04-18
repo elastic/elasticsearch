@@ -39,12 +39,22 @@ public class DataStreamFeatures implements FeatureSpecification {
 
     @Override
     public Set<NodeFeature> getFeatures() {
-        return Set.of(
-            DataStreamLifecycleHealthInfoPublisher.DSL_HEALTH_INFO_FEATURE,  // Added in 8.12
-            LazyRolloverAction.DATA_STREAM_LAZY_ROLLOVER,                    // Added in 8.13
-            DataStreamAutoShardingService.DATA_STREAM_AUTO_SHARDING_FEATURE,
-            DataStreamGlobalRetention.GLOBAL_RETENTION                       // Added in 8.14
-        );
+        if (DataStream.isFailureStoreFeatureFlagEnabled()) {
+            return Set.of(
+                DataStreamLifecycleHealthInfoPublisher.DSL_HEALTH_INFO_FEATURE,  // Added in 8.12
+                LazyRolloverAction.DATA_STREAM_LAZY_ROLLOVER,                    // Added in 8.13
+                DataStreamAutoShardingService.DATA_STREAM_AUTO_SHARDING_FEATURE,
+                DataStreamGlobalRetention.GLOBAL_RETENTION                       // Added in 8.14
+                DataStream.DATA_STREAM_FAILURE_STORE_FEATURE                     // Added in 8.19
+            );
+        } else {
+            return Set.of(
+                DataStreamLifecycleHealthInfoPublisher.DSL_HEALTH_INFO_FEATURE,  // Added in 8.12
+                LazyRolloverAction.DATA_STREAM_LAZY_ROLLOVER,                    // Added in 8.13
+                DataStreamAutoShardingService.DATA_STREAM_AUTO_SHARDING_FEATURE,
+                DataStreamGlobalRetention.GLOBAL_RETENTION                       // Added in 8.14
+            );
+        }
     }
 
     @Override

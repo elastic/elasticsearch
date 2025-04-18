@@ -44,7 +44,6 @@ public class XpackWithMultipleProjectsClientYamlTestSuiteIT extends MultipleProj
         .configFile("service_tokens", Resource.fromClasspath("service_tokens"))
         .user(USER, PASS)
         .feature(FeatureFlag.TIME_SERIES_MODE)
-        .feature(FeatureFlag.FAILURE_STORE_ENABLED)
         .build();
 
     public XpackWithMultipleProjectsClientYamlTestSuiteIT(@Name("yaml") ClientYamlTestCandidate testCandidate) {

@@ -29,7 +29,6 @@ buildParams.bwcVersions.withWireCompatible { bwcVersion, baseName ->
     versions = [bwcVersion.toString(), project.version]
     setting 'cluster.remote.node.attr', 'gateway'
     setting 'xpack.security.enabled', 'false'
-    requiresFeature 'es.failure_store_feature_flag_enabled', new Version(8, 12, 0)
   }
   def remoteCluster = testClusters.register("${baseName}-remote") {
     numberOfNodes = 3
@@ -37,7 +36,6 @@ buildParams.bwcVersions.withWireCompatible { bwcVersion, baseName ->
     firstNode.setting 'node.attr.gateway', 'true'
     lastNode.setting 'node.attr.gateway', 'true'
     setting 'xpack.security.enabled', 'false'
-    requiresFeature 'es.failure_store_feature_flag_enabled', new Version(8, 12, 0)
   }
 
 

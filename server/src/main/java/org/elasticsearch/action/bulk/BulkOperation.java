@@ -222,7 +222,7 @@ final class BulkOperation extends ActionRunnable<BulkResponse> {
      */
     private void rollOverFailureStores(Runnable runnable) {
         // Skip allocation of some objects if we don't need to roll over anything.
-        if (failureStoresToBeRolledOver.isEmpty() || DataStream.isFailureStoreFeatureFlagEnabled() == false) {
+        if (failureStoresToBeRolledOver.isEmpty()) {
             runnable.run();
             return;
         }
@@ -423,7 +423,7 @@ final class BulkOperation extends ActionRunnable<BulkResponse> {
     }
 
     private void redirectFailuresOrCompleteBulkOperation() {
-        if (DataStream.isFailureStoreFeatureFlagEnabled() && failureStoreRedirects.isEmpty() == false) {
+        if (failureStoreRedirects.isEmpty() == false) {
             doRedirectFailures();
         } else {
             completeBulkOperation();
@@ -615,10 +615,7 @@ final class BulkOperation extends ActionRunnable<BulkResponse> {
      * @return a data stream if the write request points to a data stream, or {@code null} if it does not
      */
     private static DataStream getRedirectTargetCandidate(DocWriteRequest<?> docWriteRequest, ProjectMetadata project) {
-        // Feature flag guard
-        if (DataStream.isFailureStoreFeatureFlagEnabled() == false) {
-            return null;
-        }
+        // PRTODO: We could check for cluster feature here instead
         // If there is no index abstraction, then the request is using a pattern of some sort, which data streams do not support
         IndexAbstraction ia = project.getIndicesLookup().get(docWriteRequest.index());
         return DataStream.resolveDataStream(ia, project);

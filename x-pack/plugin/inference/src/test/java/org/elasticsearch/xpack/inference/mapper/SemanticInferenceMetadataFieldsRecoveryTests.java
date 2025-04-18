@@ -56,7 +56,8 @@ public class SemanticInferenceMetadataFieldsRecoveryTests extends EngineTestCase
     private final Model model1;
     private final Model model2;
     private final ChunkingSettings chunkingSettings;
-    private final SemanticTextIndexOptions indexOptions;
+    private final SemanticTextIndexOptions indexOptions1;
+    private final SemanticTextIndexOptions indexOptions2;
     private final boolean useSynthetic;
     private final boolean useIncludesExcludes;
 
@@ -64,7 +65,8 @@ public class SemanticInferenceMetadataFieldsRecoveryTests extends EngineTestCase
         this.model1 = TestModel.createRandomInstance(TaskType.TEXT_EMBEDDING, List.of(SimilarityMeasure.DOT_PRODUCT));
         this.model2 = TestModel.createRandomInstance(TaskType.SPARSE_EMBEDDING);
         this.chunkingSettings = generateRandomChunkingSettings();
-        this.indexOptions = randomSemanticTextIndexOptions();
+        this.indexOptions1 = randomSemanticTextIndexOptions(model1.getTaskType());
+        this.indexOptions2 = randomSemanticTextIndexOptions(model2.getTaskType());
         this.useSynthetic = useSynthetic;
         this.useIncludesExcludes = useIncludesExcludes;
     }
@@ -255,8 +257,8 @@ public class SemanticInferenceMetadataFieldsRecoveryTests extends EngineTestCase
             false,
             builder,
             List.of(
-                randomSemanticText(false, "semantic_2", model2, chunkingSettings, indexOptions, randomInputs(), XContentType.JSON),
-                randomSemanticText(false, "semantic_1", model1, chunkingSettings, indexOptions, randomInputs(), XContentType.JSON)
+                randomSemanticText(false, "semantic_2", model2, chunkingSettings, indexOptions2, randomInputs(), XContentType.JSON),
+                randomSemanticText(false, "semantic_1", model1, chunkingSettings, indexOptions1, randomInputs(), XContentType.JSON)
             )
         );
         builder.endObject();

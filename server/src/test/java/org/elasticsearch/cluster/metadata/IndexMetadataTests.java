@@ -38,6 +38,7 @@ import org.elasticsearch.index.shard.IndexLongFieldRange;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardLongFieldRange;
 import org.elasticsearch.indices.IndicesModule;
+import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.index.IndexVersionUtils;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
@@ -729,7 +730,7 @@ public class IndexMetadataTests extends ESTestCase {
             randomIdentifier(),
             randomSet(1, 5, ESTestCase::randomIdentifier).toArray(String[]::new),
             InferenceFieldMetadataTests.generateRandomChunkingSettings(),
-            InferenceFieldMetadataTests.randomSemanticTextIndexOptions()
+            InferenceFieldMetadataTests.randomSemanticTextIndexOptions(TaskType.TEXT_EMBEDDING)
         );
     }
 

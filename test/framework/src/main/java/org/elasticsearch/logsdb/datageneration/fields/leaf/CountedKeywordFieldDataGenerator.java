@@ -13,14 +13,11 @@ import org.elasticsearch.logsdb.datageneration.FieldDataGenerator;
 import org.elasticsearch.logsdb.datageneration.datasource.DataSource;
 import org.elasticsearch.logsdb.datageneration.datasource.DataSourceRequest;
 
-import java.util.HashSet;
 import java.util.Map;
-import java.util.Set;
 import java.util.function.Supplier;
 
 public class CountedKeywordFieldDataGenerator implements FieldDataGenerator {
     private final Supplier<Object> valueGenerator;
-    private final Set<String> previousStrings = new HashSet<>();
 
     public CountedKeywordFieldDataGenerator(String fieldName, DataSource dataSource) {
         var strings = dataSource.get(new DataSourceRequest.StringGenerator());

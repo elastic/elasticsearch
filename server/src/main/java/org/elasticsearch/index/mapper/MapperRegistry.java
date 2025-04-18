@@ -48,7 +48,7 @@ public final class MapperRegistry {
         });
     }
 
-        // add new SPI provider here
+    // add new SPI provider here
     public MapperRegistry(
         Map<String, Mapper.TypeParser> mapperParsers,
         Map<String, RuntimeField.Parser> runtimeFieldParsers,

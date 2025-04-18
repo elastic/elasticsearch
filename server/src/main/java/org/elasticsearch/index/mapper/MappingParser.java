@@ -123,7 +123,7 @@ public final class MappingParser {
         final MappingParserContext mappingParserContext = mappingParserContextSupplier.get();
 
         // MP TODO: this is where the mappingParserContext is injected into RootObjectMapper - can we get the NamespaceValidator
-        // MP TODO:   added to the context before making this call?
+        // MP TODO: added to the context before making this call?
         RootObjectMapper.Builder rootObjectMapper = RootObjectMapper.parse(type, mappingSource, mappingParserContext);
 
         Map<Class<? extends MetadataFieldMapper>, MetadataFieldMapper> metadataMappers = metadataMappersSupplier.get();

@@ -169,9 +169,9 @@ public final class FileAccessTree {
         }
 
         // everything has access to the temp dir, config dir, to their own dir (their own jar files) and the jdk
-        addPathAndMaybeLink.accept(pathLookup.getBaseDirPaths(TEMP).findFirst().get(), READ_WRITE);
+        pathLookup.getBaseDirPaths(TEMP).forEach(tempPath -> addPathAndMaybeLink.accept(tempPath, READ_WRITE));
         // TODO: this grants read access to the config dir for all modules until explicit read entitlements can be added
-        addPathAndMaybeLink.accept(pathLookup.getBaseDirPaths(CONFIG).findFirst().get(), Mode.READ);
+        pathLookup.getBaseDirPaths(CONFIG).forEach(configPath -> addPathAndMaybeLink.accept(configPath, Mode.READ));
         if (componentPath != null) {
             addPathAndMaybeLink.accept(componentPath, Mode.READ);
         }

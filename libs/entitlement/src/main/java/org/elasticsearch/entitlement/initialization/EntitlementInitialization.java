@@ -75,7 +75,6 @@ import static org.elasticsearch.entitlement.runtime.policy.PathLookup.BaseDir.DA
 import static org.elasticsearch.entitlement.runtime.policy.PathLookup.BaseDir.LIB;
 import static org.elasticsearch.entitlement.runtime.policy.PathLookup.BaseDir.LOGS;
 import static org.elasticsearch.entitlement.runtime.policy.PathLookup.BaseDir.MODULES;
-import static org.elasticsearch.entitlement.runtime.policy.PathLookup.BaseDir.PID;
 import static org.elasticsearch.entitlement.runtime.policy.PathLookup.BaseDir.PLUGINS;
 import static org.elasticsearch.entitlement.runtime.policy.PathLookup.BaseDir.SHARED_REPO;
 import static org.elasticsearch.entitlement.runtime.policy.Platform.LINUX;
@@ -204,8 +203,8 @@ public class EntitlementInitialization {
             FileData.ofPath(Path.of("/proc/self/mountinfo"), READ).withPlatform(LINUX),
             FileData.ofPath(Path.of("/proc/diskstats"), READ).withPlatform(LINUX)
         );
-        if (pathLookup.resolveRelativePaths(PID, Path.of("")) != null) {
-            serverModuleFileDatas.add(FileData.ofBaseDirPath(PID, READ_WRITE));
+        if (pathLookup.getPIDFile() != null) {
+            serverModuleFileDatas.add(FileData.ofPath(pathLookup.getPIDFile(), READ_WRITE));
         }
 
         Collections.addAll(

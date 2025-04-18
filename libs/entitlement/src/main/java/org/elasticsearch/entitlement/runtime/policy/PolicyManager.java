@@ -433,6 +433,8 @@ public class PolicyManager {
     }
 
     public void checkCreateTempFile(Class<?> callerClass) {
+        // in production there should only ever be a single temp directory
+        // so we can safely assume we only need to check the sole element in this stream
         checkFileWrite(callerClass, pathLookup.getBaseDirPaths(TEMP).findFirst().get());
     }
 

@@ -12,9 +12,9 @@ package org.elasticsearch.entitlement.runtime.policy;
 import java.nio.file.Path;
 import java.util.stream.Stream;
 
-// TODO: (jack) new a need interface, but can still be a record
-// interface should be a single method that takes in an enum and returns
-// a stream of paths
+/**
+ * Resolves paths for known directories checked by entitlements.
+ */
 public interface PathLookup {
     enum BaseDir {
         HOME,
@@ -25,9 +25,10 @@ public interface PathLookup {
         MODULES,
         PLUGINS,
         LOGS,
-        TEMP,
-        PID
+        TEMP
     }
+
+    Path getPIDFile();
 
     Stream<Path> getBaseDirPaths(BaseDir baseDir);
 

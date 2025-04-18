@@ -29,8 +29,10 @@ import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 
+import static org.elasticsearch.index.query.QueryBuilders.boolQuery;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.index.query.QueryBuilders.termQuery;
+import static org.elasticsearch.index.query.QueryBuilders.termsQuery;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.avg;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.filters;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.histogram;
@@ -93,6 +95,118 @@ public class FiltersIT extends ESIntegTestCase {
         }
         indexRandom(true, builders);
         ensureSearchable();
+    }
+
+    // This test replicates a strange filter query & filters aggregation behavior
+    // we apparently utilize competitive iterators strangely.
+    // See: https://github.com/elastic/elasticsearch/issues/126955
+    public void testSimpleWithFilterQuery() throws Exception {
+        createIndex("filters_idx");
+        String groupFieldName = "group";
+        String subGroupFieldName = "subGroup";
+
+        int numTotalGroup0 = 500;
+        String group0Name = "group0";
+
+        int numTotalGroup1 = 1000;
+        String group1Name = "group1";
+
+        int subGroup0 = 100;
+        String subGroup0Name = "subGroup0";
+
+        int subGroup1 = 50;
+        String subGroup1Name = "subGroup1";
+
+        int subGroup2 = 25;
+        String subGroup2Name = "subGroup2";
+        int others = 10;
+        String otherName = "others";
+        List<IndexRequestBuilder> builders = new ArrayList<>();
+        for (int i = 0; i < numTotalGroup0; i++) {
+            for (int j = 0; j < subGroup0; j++) {
+                XContentBuilder source = jsonBuilder().startObject()
+                    .field(groupFieldName, group0Name)
+                    .field(subGroupFieldName, subGroup0Name)
+                    .endObject();
+                builders.add(prepareIndex("filters_idx").setSource(source));
+            }
+            for (int j = 0; j < subGroup1; j++) {
+                XContentBuilder source = jsonBuilder().startObject()
+                    .field(groupFieldName, group0Name)
+                    .field(subGroupFieldName, subGroup1Name)
+                    .endObject();
+                builders.add(prepareIndex("filters_idx").setSource(source));
+            }
+            for (int j = 0; j < subGroup2; j++) {
+                XContentBuilder source = jsonBuilder().startObject()
+                    .field(groupFieldName, group0Name)
+                    .field(subGroupFieldName, subGroup2Name)
+                    .endObject();
+                builders.add(prepareIndex("filters_idx").setSource(source));
+            }
+            for (int j = 0; j < others; j++) {
+                XContentBuilder source = jsonBuilder().startObject()
+                    .field(groupFieldName, group0Name)
+                    .field(subGroupFieldName, otherName)
+                    .endObject();
+                builders.add(prepareIndex("filters_idx").setSource(source));
+            }
+        }
+        for (int i = 0; i < numTotalGroup1; i++) {
+            for (int j = 0; j < subGroup0; j++) {
+                XContentBuilder source = jsonBuilder().startObject()
+                    .field(groupFieldName, group1Name)
+                    .field(subGroupFieldName, subGroup0Name)
+                    .endObject();
+                builders.add(prepareIndex("filters_idx").setSource(source));
+            }
+            for (int j = 0; j < subGroup1; j++) {
+                XContentBuilder source = jsonBuilder().startObject()
+                    .field(groupFieldName, group1Name)
+                    .field(subGroupFieldName, subGroup1Name)
+                    .endObject();
+                builders.add(prepareIndex("filters_idx").setSource(source));
+            }
+            for (int j = 0; j < subGroup2; j++) {
+                XContentBuilder source = jsonBuilder().startObject()
+                    .field(groupFieldName, group1Name)
+                    .field(subGroupFieldName, subGroup2Name)
+                    .endObject();
+                builders.add(prepareIndex("filters_idx").setSource(source));
+            }
+            for (int j = 0; j < others; j++) {
+                XContentBuilder source = jsonBuilder().startObject()
+                    .field(groupFieldName, group1Name)
+                    .field(subGroupFieldName, otherName)
+                    .endObject();
+                builders.add(prepareIndex("filters_idx").setSource(source));
+            }
+        }
+        indexRandom(true, false, true, builders);
+        ensureSearchable();
+        assertNoFailuresAndResponse(
+            prepareSearch("filters_idx").setSize(0)
+                .setRequestCache(false)
+                .setTrackTotalHits(true)
+                .setQuery(boolQuery().filter(termQuery(groupFieldName + ".keyword", group0Name)))
+                .addAggregation(
+                    filters(
+                        "results",
+                        new KeyedFilter(subGroup0Name, termsQuery(subGroupFieldName + ".keyword", subGroup0Name)),
+                        new KeyedFilter(subGroup1Name, termsQuery(subGroupFieldName + ".keyword", subGroup1Name)),
+                        new KeyedFilter(subGroup2Name, termsQuery(subGroupFieldName + ".keyword", subGroup2Name))
+                        // This is key
+                    ).otherBucket(false)
+                ),
+            searchResponse -> {
+                Filters filters = searchResponse.getAggregations().get("results");
+                assertThat(filters, notNullValue());
+                assertThat(filters.getName(), equalTo("results"));
+                Filters.Bucket bucket = filters.getBucketByKey(subGroup0Name);
+                assertThat(bucket, Matchers.notNullValue());
+                assertThat(bucket.getDocCount(), equalTo((long) subGroup0 * numTotalGroup0));
+            }
+        );
     }
 
     public void testSimple() throws Exception {

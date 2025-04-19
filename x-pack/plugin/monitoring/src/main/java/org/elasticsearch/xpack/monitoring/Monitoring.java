@@ -162,7 +162,8 @@ public class Monitoring extends Plugin implements ActionPlugin, ReloadablePlugin
             clusterService,
             threadPool,
             client,
-            services.xContentRegistry()
+            services.xContentRegistry(),
+            services.projectResolver()
         );
         templateRegistry.initialize();
 

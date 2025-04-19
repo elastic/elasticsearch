@@ -97,7 +97,7 @@ public class EsqlDataTypeConverterTests extends ESTestCase {
                     assertEqualsCommonType(dataType1, NULL, dataType1);
                 } else if (isDateTimeOrNanosOrTemporal(dataType2)) {
                     if ((dataType1 == DATE_NANOS && dataType2 == DATETIME) || (dataType1 == DATETIME && dataType2 == DATE_NANOS)) {
-                        assertNullCommonType(dataType1, dataType2);
+                        assertEqualsCommonType(dataType1, dataType2, DATE_NANOS);
                     } else if (isDateTime(dataType1) || isDateTime(dataType2)) {
                         assertEqualsCommonType(dataType1, dataType2, DATETIME);
                     } else if (dataType1 == DATE_NANOS || dataType2 == DATE_NANOS) {

@@ -139,7 +139,6 @@ LABEL org.label-schema.build-date="${build_date}" \\
   org.opencontainers.image.vendor="Elastic" \\
   org.opencontainers.image.version="${version}"
 
-<% if (docker_context != 'docker-hub-build-context') { %>
 LABEL name="Elasticsearch" \\
   maintainer="infra@elastic.co" \\
   vendor="Elastic" \\
@@ -147,7 +146,6 @@ LABEL name="Elasticsearch" \\
   release="1" \\
   summary="Elasticsearch" \\
   description="You know, for search."
-<% } %>
 
 RUN mkdir /licenses && ln LICENSE.txt /licenses/LICENSE
 

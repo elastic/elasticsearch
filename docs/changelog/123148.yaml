@@ -1,0 +1,5 @@
+pr: 123148
+summary: Don't return a parent field if its type is not listed in the types parameter
+area: Search
+type: enhancement
+issues: []

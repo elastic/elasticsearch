@@ -51,9 +51,6 @@ public class S3RepositoryPlugin extends Plugin implements RepositoryPlugin, Relo
     static {
         SpecialPermission.check();
         AccessController.doPrivileged((PrivilegedAction<Void>) () -> {
-            // Pre-load region metadata to avoid looking them up dynamically without privileges enabled
-            // noinspection ResultOfMethodCallIgnored
-            Region.regions();
             try {
                 // Eagerly load the RegionFromEndpointGuesser map from the resource file
                 MethodHandles.lookup().ensureInitialized(RegionFromEndpointGuesser.class);

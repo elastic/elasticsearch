@@ -34,7 +34,6 @@ import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
 
-@ESTestCase.WithoutSecurityManager
 public class PolicyUtilsTests extends ESTestCase {
 
     public void testCreatePluginPolicyWithPatch() {

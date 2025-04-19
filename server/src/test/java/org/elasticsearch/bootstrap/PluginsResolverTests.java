@@ -32,7 +32,6 @@ import static java.util.Map.entry;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-@ESTestCase.WithoutSecurityManager
 public class PluginsResolverTests extends ESTestCase {
 
     private record TestPluginLayer(PluginBundle pluginBundle, ClassLoader pluginClassLoader, ModuleLayer pluginModuleLayer)

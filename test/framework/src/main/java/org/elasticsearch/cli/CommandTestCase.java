@@ -25,7 +25,6 @@ import static org.hamcrest.Matchers.emptyString;
 /**
  * A base test case for cli tools.
  */
-@ESTestCase.WithoutSecurityManager
 public abstract class CommandTestCase extends ESTestCase {
 
     /** The terminal that execute uses */

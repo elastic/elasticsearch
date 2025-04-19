@@ -37,7 +37,6 @@ import static org.elasticsearch.entitlement.runtime.policy.entitlements.FilesEnt
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 
-@ESTestCase.WithoutSecurityManager
 public class FileAccessTreeTests extends ESTestCase {
 
     static Path root;

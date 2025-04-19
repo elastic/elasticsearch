@@ -29,6 +29,7 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.mapper.IgnoredSourceFieldMapper;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
+import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.ingest.IngestService;
@@ -896,6 +897,7 @@ public final class IndexSettings {
     private volatile int maxTokenCount;
     private volatile int maxNgramDiff;
     private volatile int maxShingleDiff;
+    private volatile DenseVectorFieldMapper.FilterHeuristic hnswFilterHeuristic;
     private volatile TimeValue searchIdleAfter;
     private volatile int maxAnalyzedOffset;
     private volatile boolean weightMatchesEnabled;
@@ -1091,6 +1093,7 @@ public final class IndexSettings {
         logsdbAddHostNameField = scopedSettings.get(LOGSDB_ADD_HOST_NAME_FIELD);
         skipIgnoredSourceWrite = scopedSettings.get(IgnoredSourceFieldMapper.SKIP_IGNORED_SOURCE_WRITE_SETTING);
         skipIgnoredSourceRead = scopedSettings.get(IgnoredSourceFieldMapper.SKIP_IGNORED_SOURCE_READ_SETTING);
+        hnswFilterHeuristic = scopedSettings.get(DenseVectorFieldMapper.HNSW_FILTER_HEURISTIC);
         indexMappingSourceMode = scopedSettings.get(INDEX_MAPPER_SOURCE_MODE_SETTING);
         recoverySourceEnabled = RecoverySettings.INDICES_RECOVERY_SOURCE_ENABLED_SETTING.get(nodeSettings);
         recoverySourceSyntheticEnabled = DiscoveryNode.isStateless(nodeSettings) == false
@@ -1203,6 +1206,7 @@ public final class IndexSettings {
             this::setSkipIgnoredSourceWrite
         );
         scopedSettings.addSettingsUpdateConsumer(IgnoredSourceFieldMapper.SKIP_IGNORED_SOURCE_READ_SETTING, this::setSkipIgnoredSourceRead);
+        scopedSettings.addSettingsUpdateConsumer(DenseVectorFieldMapper.HNSW_FILTER_HEURISTIC, this::setHnswFilterHeuristic);
     }
 
     private void setSearchIdleAfter(TimeValue searchIdleAfter) {
@@ -1820,5 +1824,17 @@ public final class IndexSettings {
      */
     public IndexRouting getIndexRouting() {
         return indexRouting;
+    }
+
+    /**
+     * The heuristic to utilize when executing filtered search on vectors indexed
+     * in HNSW format.
+     */
+    public DenseVectorFieldMapper.FilterHeuristic getHnswFilterHeuristic() {
+        return this.hnswFilterHeuristic;
+    }
+
+    private void setHnswFilterHeuristic(DenseVectorFieldMapper.FilterHeuristic heuristic) {
+        this.hnswFilterHeuristic = heuristic;
     }
 }

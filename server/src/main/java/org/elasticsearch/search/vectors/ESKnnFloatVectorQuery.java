@@ -12,14 +12,15 @@ package org.elasticsearch.search.vectors;
 import org.apache.lucene.search.KnnFloatVectorQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TopDocs;
+import org.apache.lucene.search.knn.KnnSearchStrategy;
 import org.elasticsearch.search.profile.query.QueryProfiler;
 
 public class ESKnnFloatVectorQuery extends KnnFloatVectorQuery implements QueryProfilerProvider {
     private final Integer kParam;
     private long vectorOpsCount;
 
-    public ESKnnFloatVectorQuery(String field, float[] target, Integer k, int numCands, Query filter) {
-        super(field, target, numCands, filter);
+    public ESKnnFloatVectorQuery(String field, float[] target, Integer k, int numCands, Query filter, KnnSearchStrategy strategy) {
+        super(field, target, numCands, filter, strategy);
         this.kParam = k;
     }
 
@@ -38,5 +39,9 @@ public class ESKnnFloatVectorQuery extends KnnFloatVectorQuery implements QueryP
 
     public Integer kParam() {
         return kParam;
+    }
+
+    public KnnSearchStrategy getStrategy() {
+        return searchStrategy;
     }
 }

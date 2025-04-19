@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.optimizer.rules.logical;
 
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
@@ -19,6 +20,7 @@ import org.elasticsearch.xpack.esql.core.util.CollectionUtils;
 import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunction;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.FromPartial;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.Rate;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.TimeSeriesAggregateFunction;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.ToPartial;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Values;
@@ -120,7 +122,7 @@ import java.util.Map;
  *
  * becomes
  *
- * TS k8s
+ * FROM k8s
  * | STATS max_memory_usage = max(memory_usage), host_values=VALUES(host) BY _tsid, time_bucket=bucket(@timestamp, 1minute)
  * | STATS sum(max_memory_usage) BY host_values, time_bucket
  *
@@ -129,7 +131,7 @@ import java.util.Map;
  *
  * becomes
  *
- * TS k8s
+ * FROM k8s
  * | STATS avg_memory_usage = avg(memory_usage), host_values=VALUES(host) BY _tsid, time_bucket=bucket(@timestamp, 1minute)
  * | STATS sum(avg_memory_usage) BY host_values, time_bucket
  *
@@ -154,11 +156,15 @@ public final class TranslateTimeSeriesAggregate extends OptimizerRules.Optimizer
         Map<AggregateFunction, Alias> timeSeriesAggs = new HashMap<>();
         List<NamedExpression> firstPassAggs = new ArrayList<>();
         List<NamedExpression> secondPassAggs = new ArrayList<>();
+        Holder<Boolean> hasRateAggregates = new Holder<>(Boolean.FALSE);
         for (NamedExpression agg : aggregate.aggregates()) {
             if (agg instanceof Alias alias && alias.child() instanceof AggregateFunction af) {
                 Holder<Boolean> changed = new Holder<>(Boolean.FALSE);
                 Expression outerAgg = af.transformDown(TimeSeriesAggregateFunction.class, tsAgg -> {
                     changed.set(Boolean.TRUE);
+                    if (tsAgg instanceof Rate) {
+                        hasRateAggregates.set(Boolean.TRUE);
+                    }
                     AggregateFunction firstStageFn = tsAgg.perTimeSeriesAggregation();
                     Alias newAgg = timeSeriesAggs.computeIfAbsent(firstStageFn, k -> {
                         Alias firstStageAlias = new Alias(tsAgg.source(), agg.name(), firstStageFn);
@@ -231,16 +237,17 @@ public final class TranslateTimeSeriesAggregate extends OptimizerRules.Optimizer
             secondPassGroupings.add(new Alias(g.source(), g.name(), newFinalGroup.toAttribute(), g.id()));
         }
         LogicalPlan newChild = aggregate.child().transformUp(EsRelation.class, r -> {
+            IndexMode indexMode = hasRateAggregates.get() ? r.indexMode() : IndexMode.STANDARD;
             if (r.output().contains(tsid.get()) == false) {
                 return new EsRelation(
                     r.source(),
                     r.indexPattern(),
-                    r.indexMode(),
+                    indexMode,
                     r.indexNameWithModes(),
                     CollectionUtils.combine(r.output(), tsid.get())
                 );
             } else {
-                return r;
+                return new EsRelation(r.source(), r.indexPattern(), indexMode, r.indexNameWithModes(), r.output());
             }
         });
         final var firstPhase = new TimeSeriesAggregate(

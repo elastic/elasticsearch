@@ -15,6 +15,7 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -94,6 +95,7 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
         SearchService searchService,
         ExchangeService exchangeService,
         ClusterService clusterService,
+        ProjectResolver projectResolver,
         ThreadPool threadPool,
         BigArrays bigArrays,
         BlockFactoryProvider blockFactoryProvider,
@@ -149,6 +151,7 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
             searchService,
             exchangeService,
             clusterService,
+            projectResolver,
             indexNameExpressionResolver,
             usageService,
             new InferenceRunner(client)

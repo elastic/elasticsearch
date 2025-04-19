@@ -164,4 +164,5 @@ tasks.named("yamlRestTest").configure {
     blacklist += [];
   }
   systemProperty 'tests.rest.blacklist', blacklist.join(',')
+  systemProperty "test.multi_project.enabled", true
 }

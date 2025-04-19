@@ -355,4 +355,9 @@ public class SnapshotStats implements Writeable, ToXContentObject {
         result = 31 * result + (int) (processedSize ^ (processedSize >>> 32));
         return result;
     }
+
+    @Override
+    public String toString() {
+        return Strings.toString(this, true, true);
+    }
 }

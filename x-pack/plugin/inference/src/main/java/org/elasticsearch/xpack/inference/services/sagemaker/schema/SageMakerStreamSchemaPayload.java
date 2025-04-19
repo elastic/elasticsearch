@@ -1,0 +1,36 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
+ */
+
+package org.elasticsearch.xpack.inference.services.sagemaker.schema;
+
+import software.amazon.awssdk.core.SdkBytes;
+
+import org.elasticsearch.inference.InferenceServiceResults;
+import org.elasticsearch.inference.TaskType;
+import org.elasticsearch.inference.UnifiedCompletionRequest;
+import org.elasticsearch.xpack.inference.services.sagemaker.model.SageMakerModel;
+
+import java.util.EnumSet;
+
+public interface SageMakerStreamSchemaPayload extends SageMakerSchemaPayload {
+    InferenceServiceResults.Result streamResponseBody(SageMakerModel model, SdkBytes response) throws Exception;
+
+    SdkBytes unifiedRequestBytes(SageMakerModel model, UnifiedCompletionRequest request) throws Exception;
+
+    InferenceServiceResults.Result unifiedResponseBody(SageMakerModel model, SdkBytes response) throws Exception;
+
+    /**
+     * We currently only support streaming for Completion and Chat Completion, and if we are going to implement one then we should implement
+     * the other, so this interface requires both streaming input and streaming unified input.
+     * If we ever allowed streaming for more than just Completion, then we'd probably break up this class so that Unified Chat Completion
+     * was its own interface.
+     */
+    @Override
+    default EnumSet<TaskType> supportedTasks() {
+        return EnumSet.of(TaskType.COMPLETION, TaskType.CHAT_COMPLETION);
+    }
+}

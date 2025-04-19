@@ -132,6 +132,10 @@ import org.elasticsearch.xpack.inference.services.ibmwatsonx.IbmWatsonxService;
 import org.elasticsearch.xpack.inference.services.jinaai.JinaAIService;
 import org.elasticsearch.xpack.inference.services.mistral.MistralService;
 import org.elasticsearch.xpack.inference.services.openai.OpenAiService;
+import org.elasticsearch.xpack.inference.services.sagemaker.SageMakerClient;
+import org.elasticsearch.xpack.inference.services.sagemaker.SageMakerService;
+import org.elasticsearch.xpack.inference.services.sagemaker.model.SageMakerModelBuilder;
+import org.elasticsearch.xpack.inference.services.sagemaker.schema.SageMakerSchemas;
 import org.elasticsearch.xpack.inference.services.voyageai.VoyageAIService;
 import org.elasticsearch.xpack.inference.telemetry.InferenceStats;
 
@@ -293,6 +297,7 @@ public class InferencePlugin extends Plugin
             services.threadPool()
         );
 
+        var sageMakerSchemas = new SageMakerSchemas();
         inferenceServices.add(
             () -> List.of(
                 context -> new ElasticInferenceService(
@@ -301,6 +306,15 @@ public class InferencePlugin extends Plugin
                     inferenceServiceSettings,
                     modelRegistry,
                     authorizationHandler
+                ),
+                context -> new SageMakerService(
+                    new SageMakerModelBuilder(sageMakerSchemas),
+                    new SageMakerClient(
+                        new SageMakerClient.Factory(new HttpSettings(settings, services.clusterService())),
+                        services.threadPool()
+                    ),
+                    sageMakerSchemas,
+                    services.threadPool()
                 )
             )
         );

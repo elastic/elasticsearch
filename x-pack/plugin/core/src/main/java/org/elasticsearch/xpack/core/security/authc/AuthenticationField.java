@@ -15,6 +15,8 @@ public final class AuthenticationField {
 
     public static final String API_KEY_REALM_NAME = "_es_api_key";
     public static final String API_KEY_REALM_TYPE = "_es_api_key";
+    public static final String UNIVERSAL_API_KEY_REALM_NAME = "_es_universal_api_key";
+    public static final String UNIVERSAL_API_KEY_REALM_TYPE = "_es_universal_api_key";
 
     public static final String API_KEY_CREATOR_REALM_NAME = "_security_api_key_creator_realm_name";
     public static final String API_KEY_CREATOR_REALM_TYPE = "_security_api_key_creator_realm_type";

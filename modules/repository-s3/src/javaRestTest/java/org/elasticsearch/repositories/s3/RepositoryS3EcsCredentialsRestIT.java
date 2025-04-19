@@ -51,7 +51,7 @@ public class RepositoryS3EcsCredentialsRestIT extends AbstractRepositoryS3RestTe
         .module("repository-s3")
         .setting("s3.client." + CLIENT + ".endpoint", s3Fixture::getAddress)
         .environment("AWS_CONTAINER_CREDENTIALS_FULL_URI", () -> ec2ImdsHttpFixture.getAddress() + "/ecs_credentials_endpoint")
-        .environment("AWS_REGION", regionSupplier)
+        .environment("AWS_REGION", regionSupplier) // Region is supplied by environment variable when running in ECS
         .build();
 
     @ClassRule

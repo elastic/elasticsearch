@@ -16,7 +16,7 @@ import org.elasticsearch.search.aggregations.AggregationReduceContext;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.InternalMultiBucketAggregation;
-import org.elasticsearch.search.aggregations.bucket.InternalSingleBucketAggregation;
+import org.elasticsearch.search.aggregations.bucket.SingleBucketAggregation;
 import org.elasticsearch.search.aggregations.pipeline.BucketHelpers.GapPolicy;
 import org.elasticsearch.search.aggregations.support.AggregationPath;
 
@@ -65,7 +65,7 @@ public abstract class BucketMetricsPipelineAggregator extends SiblingPipelineAgg
                                 + "] but was missing in search response"
                         );
                     }
-                    if (currentAgg instanceof InternalSingleBucketAggregation singleBucketAggregation) {
+                    if (currentAgg instanceof SingleBucketAggregation singleBucketAggregation) {
                         currentAgg = singleBucketAggregation.getAggregations().get(parsedPath.get(++currElement).name());
                     } else if (pathElementContainsBucketKey(parsedPath.get(currElement))) {
                         if (currentAgg instanceof InternalMultiBucketAggregation<?, ?> multiBucketAggregation) {

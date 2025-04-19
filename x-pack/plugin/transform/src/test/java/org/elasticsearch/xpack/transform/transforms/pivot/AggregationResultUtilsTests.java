@@ -21,7 +21,7 @@ import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.PipelineAggregationBuilder;
 import org.elasticsearch.search.aggregations.PipelineAggregatorBuilders;
-import org.elasticsearch.search.aggregations.bucket.InternalSingleBucketAggregation;
+import org.elasticsearch.search.aggregations.bucket.SingleBucketAggregation;
 import org.elasticsearch.search.aggregations.bucket.composite.InternalComposite;
 import org.elasticsearch.search.aggregations.bucket.range.InternalRange;
 import org.elasticsearch.search.aggregations.bucket.range.Range;
@@ -1003,12 +1003,8 @@ public class AggregationResultUtilsTests extends ESTestCase {
         };
     }
 
-    public static InternalSingleBucketAggregation createSingleBucketAgg(
-        String name,
-        long docCount,
-        InternalAggregation... subAggregations
-    ) {
-        InternalSingleBucketAggregation agg = mock(InternalSingleBucketAggregation.class);
+    public static SingleBucketAggregation createSingleBucketAgg(String name, long docCount, InternalAggregation... subAggregations) {
+        SingleBucketAggregation agg = mock(SingleBucketAggregation.class);
         when(agg.getDocCount()).thenReturn(docCount);
         when(agg.getName()).thenReturn(name);
         if (subAggregations != null) {

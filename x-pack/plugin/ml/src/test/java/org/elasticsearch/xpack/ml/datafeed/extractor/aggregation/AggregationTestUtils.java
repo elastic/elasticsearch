@@ -11,7 +11,7 @@ import org.elasticsearch.core.Tuple;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregations;
-import org.elasticsearch.search.aggregations.bucket.InternalSingleBucketAggregation;
+import org.elasticsearch.search.aggregations.bucket.SingleBucketAggregation;
 import org.elasticsearch.search.aggregations.bucket.composite.InternalComposite;
 import org.elasticsearch.search.aggregations.bucket.histogram.InternalHistogram;
 import org.elasticsearch.search.aggregations.bucket.terms.StringTerms;
@@ -59,8 +59,8 @@ public final class AggregationTestUtils {
         return bucket;
     }
 
-    static InternalSingleBucketAggregation createSingleBucketAgg(String name, long docCount, List<InternalAggregation> subAggregations) {
-        InternalSingleBucketAggregation singleBucketAggregation = mock(InternalSingleBucketAggregation.class);
+    static SingleBucketAggregation createSingleBucketAgg(String name, long docCount, List<InternalAggregation> subAggregations) {
+        SingleBucketAggregation singleBucketAggregation = mock(SingleBucketAggregation.class);
         when(singleBucketAggregation.getName()).thenReturn(name);
         when(singleBucketAggregation.getDocCount()).thenReturn(docCount);
         when(singleBucketAggregation.getAggregations()).thenReturn(createAggs(subAggregations));

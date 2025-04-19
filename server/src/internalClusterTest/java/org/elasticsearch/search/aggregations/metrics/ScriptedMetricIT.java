@@ -731,8 +731,8 @@ public class ScriptedMetricIT extends ESIntegTestCase {
                 assertThat(object, notNullValue());
                 assertThat(object, instanceOf(Number.class));
                 assertThat(((Number) object).longValue(), equalTo(numDocs * 3));
-                assertThat(((InternalAggregation) global).getProperty("scripted"), sameInstance(scriptedMetricAggregation));
-                assertThat((List) ((InternalAggregation) global).getProperty("scripted.value"), sameInstance(aggregationList));
+                assertThat(global.getProperty("scripted"), sameInstance(scriptedMetricAggregation));
+                assertThat((List) global.getProperty("scripted.value"), sameInstance(aggregationList));
                 assertThat((List) ((InternalAggregation) scriptedMetricAggregation).getProperty("value"), sameInstance(aggregationList));
             }
         );

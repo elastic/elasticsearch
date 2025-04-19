@@ -2909,7 +2909,7 @@ public class InternalEngine extends Engine {
             IndexSettings indexSettings,
             ThreadPoolMergeExecutorService threadPoolMergeExecutorService
         ) {
-            super(shardId, indexSettings, threadPoolMergeExecutorService);
+            super(shardId, indexSettings, threadPoolMergeExecutorService, InternalEngine.this::estimateMergeBytes);
         }
 
         @Override

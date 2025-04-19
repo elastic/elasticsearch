@@ -5,13 +5,13 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.security.authc.service;
+package org.elasticsearch.xpack.core.security.authc.service;
 
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.core.security.authc.service.ServiceAccount.ServiceAccountId;
 import org.elasticsearch.xpack.core.security.support.Validation;
 import org.elasticsearch.xpack.core.security.support.ValidationTests;
-import org.elasticsearch.xpack.security.authc.service.ServiceAccount.ServiceAccountId;
 
 import java.io.IOException;
 

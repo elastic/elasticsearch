@@ -105,6 +105,7 @@ public class TokenInfo implements Writeable, ToXContentObject, Comparable<TokenI
 
     public enum TokenSource {
         INDEX,
-        FILE;
+        FILE,
+        EXTENSION
     }
 }

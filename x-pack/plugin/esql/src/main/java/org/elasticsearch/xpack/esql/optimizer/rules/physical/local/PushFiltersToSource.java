@@ -53,12 +53,13 @@ public class PushFiltersToSource extends PhysicalOptimizerRules.ParameterizedOpt
     }
 
     private static PhysicalPlan planFilterExec(FilterExec filterExec, EsQueryExec queryExec, LocalPhysicalOptimizerContext ctx) {
+        LucenePushdownPredicates pushdownPredicates = LucenePushdownPredicates.from(ctx.searchStats());
         List<Expression> pushable = new ArrayList<>();
         List<Expression> nonPushable = new ArrayList<>();
         for (Expression exp : splitAnd(filterExec.condition())) {
-            (canPushToSource(exp, LucenePushdownPredicates.from(ctx.searchStats())) ? pushable : nonPushable).add(exp);
+            (canPushToSource(exp, pushdownPredicates) ? pushable : nonPushable).add(exp);
         }
-        return rewrite(filterExec, queryExec, pushable, nonPushable, List.of());
+        return rewrite(pushdownPredicates, filterExec, queryExec, pushable, nonPushable, List.of());
     }
 
     private static PhysicalPlan planFilterExec(
@@ -67,16 +68,17 @@ public class PushFiltersToSource extends PhysicalOptimizerRules.ParameterizedOpt
         EsQueryExec queryExec,
         LocalPhysicalOptimizerContext ctx
     ) {
+        LucenePushdownPredicates pushdownPredicates = LucenePushdownPredicates.from(ctx.searchStats());
         AttributeMap<Attribute> aliasReplacedBy = getAliasReplacedBy(evalExec);
         List<Expression> pushable = new ArrayList<>();
         List<Expression> nonPushable = new ArrayList<>();
         for (Expression exp : splitAnd(filterExec.condition())) {
             Expression resExp = exp.transformUp(ReferenceAttribute.class, r -> aliasReplacedBy.resolve(r, r));
-            (canPushToSource(resExp, LucenePushdownPredicates.from(ctx.searchStats())) ? pushable : nonPushable).add(exp);
+            (canPushToSource(resExp, pushdownPredicates) ? pushable : nonPushable).add(exp);
         }
         // Replace field references with their actual field attributes
         pushable.replaceAll(e -> e.transformDown(ReferenceAttribute.class, r -> aliasReplacedBy.resolve(r, r)));
-        return rewrite(filterExec, queryExec, pushable, nonPushable, evalExec.fields());
+        return rewrite(pushdownPredicates, filterExec, queryExec, pushable, nonPushable, evalExec.fields());
     }
 
     static AttributeMap<Attribute> getAliasReplacedBy(EvalExec evalExec) {
@@ -90,6 +92,7 @@ public class PushFiltersToSource extends PhysicalOptimizerRules.ParameterizedOpt
     }
 
     private static PhysicalPlan rewrite(
+        LucenePushdownPredicates pushdownPredicates,
         FilterExec filterExec,
         EsQueryExec queryExec,
         List<Expression> pushable,
@@ -99,7 +102,7 @@ public class PushFiltersToSource extends PhysicalOptimizerRules.ParameterizedOpt
         // Combine GT, GTE, LT and LTE in pushable to Range if possible
         List<Expression> newPushable = combineEligiblePushableToRange(pushable);
         if (newPushable.size() > 0) { // update the executable with pushable conditions
-            Query queryDSL = TRANSLATOR_HANDLER.asQuery(Predicates.combineAnd(newPushable));
+            Query queryDSL = TRANSLATOR_HANDLER.asQuery(pushdownPredicates, Predicates.combineAnd(newPushable));
             QueryBuilder planQuery = queryDSL.toQueryBuilder();
             Queries.Clause combiningQueryClauseType = queryExec.hasScoring() ? Queries.Clause.MUST : Queries.Clause.FILTER;
             var query = Queries.combine(combiningQueryClauseType, asList(queryExec.query(), planQuery));

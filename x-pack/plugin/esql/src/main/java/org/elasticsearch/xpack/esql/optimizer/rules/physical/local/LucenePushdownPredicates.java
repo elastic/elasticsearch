@@ -47,6 +47,8 @@ public interface LucenePushdownPredicates {
      */
     boolean isIndexed(FieldAttribute attr);
 
+    boolean canUseEqualityOnSyntheticSourceDelegate(FieldAttribute attr, String value);
+
     /**
      * We see fields as pushable if either they are aggregatable or they are indexed.
      * This covers non-indexed cases like <code>AbstractScriptFieldType</code> which hard-coded <code>isAggregatable</code> to true,
@@ -116,6 +118,11 @@ public interface LucenePushdownPredicates {
             // TODO: This is the original behaviour, but is it correct? In FieldType isAggregatable usually only means hasDocValues
             return attr.field().isAggregatable();
         }
+
+        @Override
+        public boolean canUseEqualityOnSyntheticSourceDelegate(FieldAttribute attr, String value) {
+            return false;
+        }
     };
 
     /**
@@ -140,6 +147,11 @@ public interface LucenePushdownPredicates {
             @Override
             public boolean isIndexed(FieldAttribute attr) {
                 return stats.isIndexed(attr.name());
+            }
+
+            @Override
+            public boolean canUseEqualityOnSyntheticSourceDelegate(FieldAttribute attr, String value) {
+                return stats.canUseEqualityOnSyntheticSourceDelegate(attr.field().getName(), value);
             }
         };
     }

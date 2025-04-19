@@ -90,8 +90,13 @@ public abstract class BinaryLogic extends BinaryOperator<Boolean, Boolean, Boole
     }
 
     @Override
-    public Query asQuery(TranslatorHandler handler) {
-        return boolQuery(source(), handler.asQuery(left()), handler.asQuery(right()), this instanceof And);
+    public Query asQuery(LucenePushdownPredicates pushdownPredicates, TranslatorHandler handler) {
+        return boolQuery(
+            source(),
+            handler.asQuery(pushdownPredicates, left()),
+            handler.asQuery(pushdownPredicates, right()),
+            this instanceof And
+        );
     }
 
     public static Query boolQuery(Source source, Query left, Query right, boolean isAnd) {

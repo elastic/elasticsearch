@@ -31,7 +31,7 @@ public interface TranslationAware {
      * <p>and <b>not</b> this:</p>
      * <p>{@code Query childQuery = child.asQuery(handler);}</p>
      */
-    Query asQuery(TranslatorHandler handler);
+    Query asQuery(LucenePushdownPredicates pushdownPredicates, TranslatorHandler handler);
 
     /**
      * Subinterface for expressions that can only process single values (and null out on MVs).

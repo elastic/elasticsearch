@@ -135,7 +135,7 @@ public class EndsWithTests extends AbstractScalarFunctionTestCase {
 
         assertThat(function.translatable(LucenePushdownPredicates.DEFAULT), equalTo(true));
 
-        var query = function.asQuery(TranslatorHandler.TRANSLATOR_HANDLER);
+        var query = function.asQuery(LucenePushdownPredicates.DEFAULT, TranslatorHandler.TRANSLATOR_HANDLER);
 
         assertThat(query, equalTo(new WildcardQuery(Source.EMPTY, "field", "*a\\*b\\?c\\\\")));
     }

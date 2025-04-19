@@ -81,7 +81,7 @@ public class IsNull extends UnaryScalarFunction implements Negatable<UnaryScalar
     }
 
     @Override
-    public Query asQuery(TranslatorHandler handler) {
+    public Query asQuery(LucenePushdownPredicates pushdownPredicates, TranslatorHandler handler) {
         return new NotQuery(source(), new ExistsQuery(source(), handler.nameOf(field())));
     }
 }

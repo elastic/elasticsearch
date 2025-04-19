@@ -113,8 +113,13 @@ public class SearchableSnapshotIndexEventListener implements IndexEventListener 
                             shardId
                         );
                     }
-                    if (sharedBlobCacheService != null) {
-                        sharedBlobCacheService.forceEvict(SearchableSnapshots.forceEvictPredicate(shardId, indexSettings.getSettings()));
+                    if (indexSettings.getIndexMetadata().isPartialSearchableSnapshot() && sharedBlobCacheService != null) {
+                        // Evict shards we know are not coming back asynchronously. Let any other shards expire.
+                        switch (reason) {
+                            case DELETED, FAILURE -> sharedBlobCacheService.forceEvictAsync(
+                                SearchableSnapshots.forceEvictPredicate(shardId, indexSettings.getSettings())
+                            );
+                        }
                     }
                 }
             }

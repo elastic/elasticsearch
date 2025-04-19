@@ -140,7 +140,7 @@ public class IlmPolicyDeprecationCheckerTests extends ESTestCase {
         final DeprecationIssue expected = new DeprecationIssue(
             DeprecationIssue.Level.WARNING,
             "ILM policy [deprecated-action] contains the action 'freeze' that is deprecated and will be removed in a future version.",
-            "https://www.elastic.co/guide/en/elasticsearch/reference/master/frozen-indices.html",
+            "https://ela.st/es-deprecation-7-frozen-index",
             "This action is already a noop so it can be safely removed, because frozen indices no longer offer any advantages."
                 + " Consider cold or frozen tiers in place of frozen indices.",
             false,

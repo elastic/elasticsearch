@@ -605,10 +605,10 @@ public class ModelRegistry implements ClusterStateListener {
                         format(
                             "Failed to rollback while handling failure to update inference endpoint [%s]. "
                                 + "Endpoint may be in an inconsistent state due to [%s]",
-                            inferenceEntityId
+                            inferenceEntityId,
+                            configResponse.buildFailureMessage()
                         ),
-                        RestStatus.INTERNAL_SERVER_ERROR,
-                        configResponse.buildFailureMessage()
+                        RestStatus.INTERNAL_SERVER_ERROR
                     )
                 );
             } else {

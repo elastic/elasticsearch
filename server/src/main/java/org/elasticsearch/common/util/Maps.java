@@ -280,7 +280,7 @@ public class Maps {
      * @return a new pre-sized {@link HashMap}
      */
     public static <K, V> Map<K, V> newHashMapWithExpectedSize(int expectedSize) {
-        return new HashMap<>(capacity(expectedSize));
+        return HashMap.newHashMap(expectedSize);
     }
 
     /**
@@ -292,7 +292,7 @@ public class Maps {
      * @return a new pre-sized {@link HashMap}
      */
     public static <K, V> Map<K, V> newConcurrentHashMapWithExpectedSize(int expectedSize) {
-        return new ConcurrentHashMap<>(capacity(expectedSize));
+        return new ConcurrentHashMap<>(expectedSize);
     }
 
     /**
@@ -304,12 +304,7 @@ public class Maps {
      * @return a new pre-sized {@link LinkedHashMap}
      */
     public static <K, V> LinkedHashMap<K, V> newLinkedHashMapWithExpectedSize(int expectedSize) {
-        return new LinkedHashMap<>(capacity(expectedSize));
-    }
-
-    static int capacity(int expectedSize) {
-        assert expectedSize >= 0;
-        return expectedSize < 2 ? expectedSize + 1 : (int) (expectedSize / 0.75 + 1.0);
+        return LinkedHashMap.newLinkedHashMap(expectedSize);
     }
 
     /**

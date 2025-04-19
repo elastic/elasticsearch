@@ -9,6 +9,7 @@ package org.elasticsearch.repositories.blobstore.testkit.analyze;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
@@ -364,8 +365,12 @@ class BlobAnalyzeAction extends HandledTransportAction<BlobAnalyzeAction.Request
                                 bytesReference,
                                 failIfExists
                             );
-                        } catch (BlobWriteAbortedException e) {
-                            assert request.getAbortWrite() : "write unexpectedly aborted";
+                        } catch (Exception e) {
+                            if (ExceptionsHelper.unwrap(e, BlobWriteAbortedException.class) != null) {
+                                assert request.getAbortWrite() : "write unexpectedly aborted";
+                            } else {
+                                throw e;
+                            }
                         }
                     } else {
                         blobContainer.writeBlob(OperationPurpose.REPOSITORY_ANALYSIS, request.blobName, bytesReference, failIfExists);

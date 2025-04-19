@@ -9,6 +9,7 @@
 
 package org.elasticsearch.repositories.s3;
 
+import fixture.aws.DynamicRegionSupplier;
 import fixture.s3.S3HttpFixture;
 
 import com.carrotsearch.randomizedtesting.annotations.Name;
@@ -23,7 +24,8 @@ import org.junit.ClassRule;
 import org.junit.rules.RuleChain;
 import org.junit.rules.TestRule;
 
-import static fixture.aws.AwsCredentialsUtils.ANY_REGION;
+import java.util.function.Supplier;
+
 import static fixture.aws.AwsCredentialsUtils.fixedAccessKey;
 
 @ThreadLeakFilters(filters = { TestContainersThreadFilter.class })
@@ -33,15 +35,17 @@ public class RepositoryS3ClientYamlTestSuiteIT extends AbstractRepositoryS3Clien
     private static final String ACCESS_KEY = "RepositoryS3ClientYamlTestSuiteIT-access-key";
     private static final String SECRET_KEY = "RepositoryS3ClientYamlTestSuiteIT-secret-key";
 
+    private static final Supplier<String> regionSupplier = new DynamicRegionSupplier();
     private static final S3HttpFixture s3Fixture = new S3HttpFixture(
         true,
         "bucket",
         "base_path_integration_tests",
-        fixedAccessKey(ACCESS_KEY, ANY_REGION, "s3")
+        fixedAccessKey(ACCESS_KEY, regionSupplier, "s3")
     );
 
     public static ElasticsearchCluster cluster = ElasticsearchCluster.local()
         .module("repository-s3")
+        .systemProperty("aws.region", regionSupplier)
         .keystore("s3.client.integration_test_permanent.access_key", ACCESS_KEY)
         .keystore("s3.client.integration_test_permanent.secret_key", SECRET_KEY)
         .setting("s3.client.integration_test_permanent.endpoint", s3Fixture::getAddress)

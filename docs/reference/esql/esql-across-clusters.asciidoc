@@ -145,7 +145,7 @@ Once the security model is configured, you can add remote clusters.
 include::{es-ref-dir}/search/search-your-data/search-across-clusters.asciidoc[tag=ccs-remote-cluster-setup]
 
 <1> Since `skip_unavailable` was not set on `cluster_three`, it uses
-the default of `false`. See the <<ccq-skip-unavailable-clusters>>
+the default of `true`. See the <<ccq-skip-unavailable-clusters>>
 section for details.
 
 [discrete]
@@ -283,7 +283,7 @@ searches are currently in that state. The clusters can have one of the following
 *successful* (searches on all shards were successful), *skipped* (the search
 failed on a cluster marked with `skip_unavailable`=`true`), *failed* (the search
 failed on a cluster marked with `skip_unavailable`=`false`) or **partial** (the search was
-<<esql-async-query-stop-api, interrupted>> before finishing).
+<<esql-async-query-stop-api, interrupted>> before finishing or has partially failed).
 <3> The `_clusters/details` section shows metadata about the search on each cluster.
 <4> If you included indices from the local cluster you sent the request to in your {ccs},
 it is identified as "(local)".
@@ -525,12 +525,9 @@ FROM my-index-000001,cluster*:my-index-*,cluster_three:-my-index-000001
 [[ccq-skip-unavailable-clusters]]
 ==== Optional remote clusters
 
-{ccs-cap} for {esql} currently does not respect the `skip_unavailable`
-setting. As a result, if a remote cluster specified in the request is
-unavailable or failed, {ccs} for {esql} queries will fail regardless of the setting.
-
-We are actively working to align the behavior of {ccs} for {esql} with other
-{ccs} APIs.
+{ccs-cap} for {esql} will set the remote cluster which is disconnected from the querying cluster to `skipped`
+and continue the query with other clusters, unless the cluster's `skip_unavailable` setting is set to `false`,
+in which case the query will fail.
 
 [discrete]
 [[ccq-during-upgrade]]

@@ -308,6 +308,11 @@ public class EsqlCapabilities {
         STRING_LITERAL_AUTO_CASTING_TO_DATETIME_ADD_SUB,
 
         /**
+         * Support implicit casting for union typed numeric and date/date_nanos fields
+         */
+        IMPLICIT_CASTING_UNION_TYPED_NUMERIC_AND_DATE,
+
+        /**
          * Support for named or positional parameters in EsqlQueryRequest.
          */
         NAMED_POSITIONAL_PARAMETER,

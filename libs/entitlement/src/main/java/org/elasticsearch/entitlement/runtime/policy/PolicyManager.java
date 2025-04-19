@@ -65,13 +65,25 @@ public class PolicyManager {
      */
     private static final Logger generalLogger = LogManager.getLogger(PolicyManager.class);
 
-    static final String UNKNOWN_COMPONENT_NAME = "(unknown)";
-    static final String SERVER_COMPONENT_NAME = "(server)";
-    static final String APM_AGENT_COMPONENT_NAME = "(APM agent)";
+    public static final String UNKNOWN_COMPONENT_NAME = "(unknown)";
+    public static final String SERVER_COMPONENT_NAME = "(server)";
+    public static final String APM_AGENT_COMPONENT_NAME = "(APM agent)";
 
     static final Class<?> DEFAULT_FILESYSTEM_CLASS = PathUtils.getDefaultFileSystem().getClass();
 
     static final Set<String> MODULES_EXCLUDED_FROM_SYSTEM_MODULES = Set.of("java.desktop");
+
+    /**
+     * Identifies a particular entitlement {@link Scope} within a {@link Policy}.
+     * @param componentName
+     * @param moduleName
+     */
+    public record PolicyScope(String componentName, String moduleName) {
+        public PolicyScope {
+            requireNonNull(componentName);
+            requireNonNull(moduleName);
+        }
+    }
 
     /**
      * @param componentName the plugin name; or else one of the special component names
@@ -131,7 +143,7 @@ public class PolicyManager {
     private final Map<String, List<Entitlement>> serverEntitlements;
     private final List<Entitlement> apmAgentEntitlements;
     private final Map<String, Map<String, List<Entitlement>>> pluginsEntitlements;
-    private final Function<Class<?>, String> pluginResolver;
+    private final Function<Class<?>, PolicyScope> scopeResolver;
     private final PathLookup pathLookup;
     private final Set<Class<?>> mutedClasses;
 
@@ -167,10 +179,6 @@ public class PolicyManager {
         .collect(Collectors.toUnmodifiableSet());
 
     private final Map<String, Path> sourcePaths;
-    /**
-     * The package name containing classes from the APM agent.
-     */
-    private final String apmAgentPackageName;
 
     /**
      * Frames originating from this module are ignored in the permission logic.
@@ -188,9 +196,8 @@ public class PolicyManager {
         Policy serverPolicy,
         List<Entitlement> apmAgentEntitlements,
         Map<String, Policy> pluginPolicies,
-        Function<Class<?>, String> pluginResolver,
+        Function<Class<?>, PolicyScope> scopeResolver,
         Map<String, Path> sourcePaths,
-        String apmAgentPackageName,
         Module entitlementsModule,
         PathLookup pathLookup,
         Set<Class<?>> suppressFailureLogClasses
@@ -200,9 +207,8 @@ public class PolicyManager {
         this.pluginsEntitlements = requireNonNull(pluginPolicies).entrySet()
             .stream()
             .collect(toUnmodifiableMap(Map.Entry::getKey, e -> buildScopeEntitlementsMap(e.getValue())));
-        this.pluginResolver = pluginResolver;
+        this.scopeResolver = scopeResolver;
         this.sourcePaths = sourcePaths;
-        this.apmAgentPackageName = apmAgentPackageName;
         this.entitlementsModule = entitlementsModule;
         this.pathLookup = requireNonNull(pathLookup);
         this.mutedClasses = suppressFailureLogClasses;
@@ -604,50 +610,42 @@ public class PolicyManager {
     }
 
     private ModuleEntitlements computeEntitlements(Class<?> requestingClass) {
-        Module requestingModule = requestingClass.getModule();
-        if (isServerModule(requestingModule)) {
-            return getModuleScopeEntitlements(
-                serverEntitlements,
-                requestingModule.getName(),
-                SERVER_COMPONENT_NAME,
-                getComponentPathFromClass(requestingClass)
-            );
-        }
+        var policyScope = scopeResolver.apply(requestingClass);
+        var componentName = policyScope.componentName();
+        var moduleName = policyScope.moduleName();
 
-        // plugins
-        var pluginName = pluginResolver.apply(requestingClass);
-        if (pluginName != null) {
-            var pluginEntitlements = pluginsEntitlements.get(pluginName);
-            if (pluginEntitlements == null) {
-                return defaultEntitlements(pluginName, sourcePaths.get(pluginName), requestingModule.getName());
-            } else {
+        switch (componentName) {
+            case SERVER_COMPONENT_NAME -> {
                 return getModuleScopeEntitlements(
-                    pluginEntitlements,
-                    getScopeName(requestingModule),
-                    pluginName,
-                    sourcePaths.get(pluginName)
+                    serverEntitlements,
+                    moduleName,
+                    SERVER_COMPONENT_NAME,
+                    getComponentPathFromClass(requestingClass)
                 );
             }
-        }
-
-        if (requestingModule.isNamed() == false && requestingClass.getPackageName().startsWith(apmAgentPackageName)) {
-            // The APM agent is the only thing running non-modular in the system classloader
-            return policyEntitlements(
-                APM_AGENT_COMPONENT_NAME,
-                getComponentPathFromClass(requestingClass),
-                ALL_UNNAMED,
-                apmAgentEntitlements
-            );
-        }
-
-        return defaultEntitlements(UNKNOWN_COMPONENT_NAME, null, requestingModule.getName());
-    }
-
-    private static String getScopeName(Module requestingModule) {
-        if (requestingModule.isNamed() == false) {
-            return ALL_UNNAMED;
-        } else {
-            return requestingModule.getName();
+            case APM_AGENT_COMPONENT_NAME -> {
+                // The APM agent is the only thing running non-modular in the system classloader
+                return policyEntitlements(
+                    APM_AGENT_COMPONENT_NAME,
+                    getComponentPathFromClass(requestingClass),
+                    ALL_UNNAMED,
+                    apmAgentEntitlements
+                );
+            }
+            case UNKNOWN_COMPONENT_NAME -> {
+                return defaultEntitlements(UNKNOWN_COMPONENT_NAME, null, moduleName);
+            }
+            default -> {
+                // Must be a plugin
+                assert componentName.startsWith("(") == false
+                    : "Parentheses indicate a special component name that isn't a plugin: " + componentName;
+                var pluginEntitlements = pluginsEntitlements.get(componentName);
+                if (pluginEntitlements == null) {
+                    return defaultEntitlements(componentName, sourcePaths.get(componentName), moduleName);
+                } else {
+                    return getModuleScopeEntitlements(pluginEntitlements, moduleName, componentName, sourcePaths.get(componentName));
+                }
+            }
         }
     }
 
@@ -681,10 +679,6 @@ public class PolicyManager {
             return defaultEntitlements(componentName, componentPath, scopeName);
         }
         return policyEntitlements(componentName, componentPath, scopeName, entitlements);
-    }
-
-    private static boolean isServerModule(Module requestingModule) {
-        return requestingModule.isNamed() && requestingModule.getLayer() == ModuleLayer.boot();
     }
 
     /**

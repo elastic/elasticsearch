@@ -28,7 +28,6 @@ import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchResponseUtils;
 import org.elasticsearch.test.TestSecurityClient;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
-import org.elasticsearch.test.cluster.FeatureFlag;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.test.rest.ObjectPath;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -68,7 +67,6 @@ public class FailureStoreSecurityRestIT extends ESRestTestCase {
     @ClassRule
     public static ElasticsearchCluster cluster = ElasticsearchCluster.local()
         .apply(SecurityOnTrialLicenseRestTestCase.commonTrialSecurityClusterConfig)
-        .feature(FeatureFlag.FAILURE_STORE_ENABLED)
         .build();
 
     @Override

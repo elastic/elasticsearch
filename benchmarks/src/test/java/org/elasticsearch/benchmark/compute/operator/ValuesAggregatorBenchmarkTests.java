@@ -7,11 +7,12 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-package org.elasticsearch.join.aggregations;
+package org.elasticsearch.benchmark.compute.operator;
 
-import org.elasticsearch.search.aggregations.bucket.SingleBucketAggregation;
+import org.elasticsearch.test.ESTestCase;
 
-/**
- * An single bucket aggregation that translates child documents to their parent documents.
- */
-public interface Parent extends SingleBucketAggregation {}
+public class ValuesAggregatorBenchmarkTests extends ESTestCase {
+    public void test() {
+        ValuesAggregatorBenchmark.selfTest();
+    }
+}

@@ -113,7 +113,9 @@ public class GoogleCloudStorageServiceTests extends ESTestCase {
         secureSettings2.setFile("gcs.client.gcs3.credentials_file", serviceAccountFileContent("project_gcs23"));
         final Settings settings2 = Settings.builder().setSecureSettings(secureSettings2).build();
         try (GoogleCloudStoragePlugin plugin = new GoogleCloudStoragePlugin(settings1)) {
-            final GoogleCloudStorageService storageService = plugin.storageService;
+            plugin.storageService.set(plugin.createStorageService(randomBoolean(), null));
+            plugin.reload(settings1);
+            final GoogleCloudStorageService storageService = plugin.storageService.get();
             var statsCollector = new GcsRepositoryStatsCollector();
             final var client11 = storageService.client("gcs1", "repo1", statsCollector);
             assertThat(client11.getOptions().getProjectId(), equalTo("project_gcs11"));
@@ -151,7 +153,9 @@ public class GoogleCloudStorageServiceTests extends ESTestCase {
         secureSettings1.setFile("gcs.client.gcs1.credentials_file", serviceAccountFileContent("test_project"));
         final Settings settings = Settings.builder().setSecureSettings(secureSettings1).build();
         try (GoogleCloudStoragePlugin plugin = new GoogleCloudStoragePlugin(settings)) {
-            final GoogleCloudStorageService storageService = plugin.storageService;
+            plugin.storageService.set(plugin.createStorageService(randomBoolean(), null));
+            plugin.reload(settings);
+            final GoogleCloudStorageService storageService = plugin.storageService.get();
 
             final MeteredStorage repo1Client = storageService.client("gcs1", "repo1", new GcsRepositoryStatsCollector());
             final MeteredStorage repo2Client = storageService.client("gcs1", "repo2", new GcsRepositoryStatsCollector());

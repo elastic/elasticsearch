@@ -19,6 +19,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.plugins.Plugin;
@@ -26,6 +27,7 @@ import org.elasticsearch.plugins.ReloadablePlugin;
 import org.elasticsearch.plugins.RepositoryPlugin;
 import org.elasticsearch.repositories.RepositoriesMetrics;
 import org.elasticsearch.repositories.Repository;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 
@@ -86,13 +88,39 @@ public class S3RepositoryPlugin extends Plugin implements RepositoryPlugin, Relo
 
     @Override
     public Collection<?> createComponents(PluginServices services) {
-        service.set(s3Service(services.environment(), services.clusterService().getSettings(), services.resourceWatcherService()));
+        S3PerProjectClientManager s3PerProjectClientManager = null;
+        if (services.projectResolver().supportsMultipleProjects()) {
+            s3PerProjectClientManager = new S3PerProjectClientManager(
+                settings,
+                s3ClientSettings -> this.service.get().buildClient(s3ClientSettings),
+                services.threadPool().executor(ThreadPool.Names.GENERIC)
+            );
+            services.clusterService().addListener(s3PerProjectClientManager);
+        }
+        service.set(
+            s3Service(
+                services.environment(),
+                services.clusterService().getSettings(),
+                services.resourceWatcherService(),
+                s3PerProjectClientManager
+            )
+        );
         this.service.get().refreshAndClearCache(S3ClientSettings.load(settings));
         return List.of(service);
     }
 
+    @Deprecated(forRemoval = true)
     S3Service s3Service(Environment environment, Settings nodeSettings, ResourceWatcherService resourceWatcherService) {
         return new S3Service(environment, nodeSettings, resourceWatcherService);
+    }
+
+    S3Service s3Service(
+        Environment environment,
+        Settings nodeSettings,
+        ResourceWatcherService resourceWatcherService,
+        @Nullable S3PerProjectClientManager s3PerProjectClientManager
+    ) {
+        return new S3Service(environment, nodeSettings, resourceWatcherService, s3PerProjectClientManager);
     }
 
     @Override

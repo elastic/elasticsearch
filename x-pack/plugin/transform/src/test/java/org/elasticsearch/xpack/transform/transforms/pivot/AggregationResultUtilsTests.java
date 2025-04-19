@@ -1004,16 +1004,12 @@ public class AggregationResultUtilsTests extends ESTestCase {
     }
 
     public static SingleBucketAggregation createSingleBucketAgg(String name, long docCount, InternalAggregation... subAggregations) {
-        SingleBucketAggregation agg = mock(SingleBucketAggregation.class);
-        when(agg.getDocCount()).thenReturn(docCount);
-        when(agg.getName()).thenReturn(name);
-        if (subAggregations != null) {
-            InternalAggregations subAggs = InternalAggregations.from(List.of(subAggregations));
-            when(agg.getAggregations()).thenReturn(subAggs);
-        } else {
-            when(agg.getAggregations()).thenReturn(null);
-        }
-        return agg;
+        return new SingleBucketAggregation(
+            name,
+            docCount,
+            subAggregations == null ? null : InternalAggregations.from(List.of(subAggregations)),
+            null
+        );
     }
 
     public void testSingleBucketAggExtractor() {

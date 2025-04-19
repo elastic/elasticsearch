@@ -30,7 +30,19 @@ public class IndexVersionUtilsTests extends ESTestCase {
 
         String minIndexVersion = IndexVersions.MINIMUM_COMPATIBLE.toReleaseVersion();
         String lowestCompatibleVersion = indexCompatible.released.get(0);
-        assertThat(lowestCompatibleVersion, equalTo(minIndexVersion));
+
+        var arch = System.getProperty("os.arch");
+        var osName = System.getProperty("os.name");
+
+        if (arch.equals("aarch64") && osName.startsWith("Mac") && minIndexVersion.startsWith("7.0")) {
+            // AArch64 is supported on Mac since 7.16.0
+            assertThat(lowestCompatibleVersion, equalTo("7.16.0"));
+        } else if (arch.equals("aarch64") && osName.startsWith("Linux") && minIndexVersion.startsWith("7.0")) {
+            // AArch64 is supported on Linux since 7.12.0
+            assertThat(lowestCompatibleVersion, equalTo("7.12.0"));
+        } else {
+            assertThat(lowestCompatibleVersion, equalTo(minIndexVersion));
+        }
     }
 
     /**

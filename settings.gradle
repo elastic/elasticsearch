@@ -170,4 +170,5 @@ if (extraProjects.exists()) {
   for (File extraProjectDir : extraProjects.listFiles()) {
     addSubProjects('', extraProjectDir)
   }
+
 }

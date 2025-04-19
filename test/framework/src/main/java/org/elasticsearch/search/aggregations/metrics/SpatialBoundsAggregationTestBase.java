@@ -11,7 +11,6 @@ package org.elasticsearch.search.aggregations.metrics;
 
 import org.elasticsearch.common.geo.SpatialPoint;
 import org.elasticsearch.common.util.BigArray;
-import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.bucket.SingleBucketAggregation;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms.Bucket;
@@ -73,29 +72,17 @@ public abstract class SpatialBoundsAggregationTestBase<T extends SpatialPoint> e
                 SpatialBounds<T> geobounds = global.getAggregations().get(aggName());
                 assertThat(geobounds, notNullValue());
                 assertThat(geobounds.getName(), equalTo(aggName()));
-                assertThat((SpatialBounds<?>) ((InternalAggregation) global).getProperty(aggName()), sameInstance(geobounds));
+                assertThat((SpatialBounds<?>) global.getProperty(aggName()), sameInstance(geobounds));
                 T topLeft = geobounds.topLeft();
                 T bottomRight = geobounds.bottomRight();
                 assertThat(topLeft.getY(), closeTo(singleTopLeft.getY(), GEOHASH_TOLERANCE));
                 assertThat(topLeft.getX(), closeTo(singleTopLeft.getX(), GEOHASH_TOLERANCE));
                 assertThat(bottomRight.getY(), closeTo(singleBottomRight.getY(), GEOHASH_TOLERANCE));
                 assertThat(bottomRight.getX(), closeTo(singleBottomRight.getX(), GEOHASH_TOLERANCE));
-                assertThat(
-                    (double) ((InternalAggregation) global).getProperty(aggName() + ".top"),
-                    closeTo(singleTopLeft.getY(), GEOHASH_TOLERANCE)
-                );
-                assertThat(
-                    (double) ((InternalAggregation) global).getProperty(aggName() + ".left"),
-                    closeTo(singleTopLeft.getX(), GEOHASH_TOLERANCE)
-                );
-                assertThat(
-                    (double) ((InternalAggregation) global).getProperty(aggName() + ".bottom"),
-                    closeTo(singleBottomRight.getY(), GEOHASH_TOLERANCE)
-                );
-                assertThat(
-                    (double) ((InternalAggregation) global).getProperty(aggName() + ".right"),
-                    closeTo(singleBottomRight.getX(), GEOHASH_TOLERANCE)
-                );
+                assertThat((double) global.getProperty(aggName() + ".top"), closeTo(singleTopLeft.getY(), GEOHASH_TOLERANCE));
+                assertThat((double) global.getProperty(aggName() + ".left"), closeTo(singleTopLeft.getX(), GEOHASH_TOLERANCE));
+                assertThat((double) global.getProperty(aggName() + ".bottom"), closeTo(singleBottomRight.getY(), GEOHASH_TOLERANCE));
+                assertThat((double) global.getProperty(aggName() + ".right"), closeTo(singleBottomRight.getX(), GEOHASH_TOLERANCE));
             }
         );
 

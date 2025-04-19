@@ -308,6 +308,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     private final LongSupplier relativeTimeInNanosSupplier;
     private volatile long startedRelativeTimeInNanos = -1L; // use -1 to indicate this has not yet been set to its true value
     private volatile long indexingTimeBeforeShardStartedInNanos;
+    private volatile long indexingLoadBeforeShardStartedInNanos;
     private volatile double recentIndexingLoadAtShardStarted;
     private final SubscribableListener<Void> waitForEngineOrClosedShardListeners = new SubscribableListener<>();
 
@@ -569,6 +570,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                 // unlikely case that getRelativeTimeInNanos() returns exactly -1, we advance by 1ns to avoid that special value.
                 startedRelativeTimeInNanos = (relativeTimeInNanos != -1L) ? relativeTimeInNanos : 0L;
                 indexingTimeBeforeShardStartedInNanos = internalIndexingStats.totalIndexingTimeInNanos();
+                indexingLoadBeforeShardStartedInNanos = internalIndexingStats.totalIndexingLoadInNanos();
                 recentIndexingLoadAtShardStarted = internalIndexingStats.recentIndexingLoad(startedRelativeTimeInNanos);
             } else if (currentRouting.primary()
                 && currentRouting.relocating()
@@ -1401,6 +1403,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             throttled,
             throttleTimeInMillis,
             indexingTimeBeforeShardStartedInNanos,
+            indexingLoadBeforeShardStartedInNanos,
             timeSinceShardStartedInNanos,
             currentTimeInNanos,
             recentIndexingLoadAtShardStarted
@@ -3233,6 +3236,16 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      */
     public void noopUpdate() {
         internalIndexingStats.noopUpdate();
+    }
+
+    /**
+     * Increment relevant stats when indexing buffers are written to disk using indexing threads,
+     * in order to apply back-pressure on indexing.
+     * @param took  time it took to write the index buffers for this shard
+     * @see org.elasticsearch.indices.IndexingMemoryController
+     */
+    public void writeIndexBuffersOnIndexThreads(long took) {
+        internalIndexingStats.writeIndexingBuffersTime(took);
     }
 
     public void maybeCheckIndex() {

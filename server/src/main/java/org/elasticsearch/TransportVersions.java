@@ -230,6 +230,7 @@ public class TransportVersions {
     public static final TransportVersion ESQL_DOCUMENTS_FOUND_AND_VALUES_LOADED = def(9_056_0_00);
     public static final TransportVersion BATCHED_QUERY_EXECUTION_DELAYABLE_WRITABLE = def(9_057_0_00);
     public static final TransportVersion SEARCH_INCREMENTAL_TOP_DOCS_NULL = def(9_058_0_00);
+    public static final TransportVersion WRITE_LOAD_INCLUDES_BUFFER_WRITES = def(9_059_00_0);
 
     /*
      * STOP! READ THIS FIRST! No, really,

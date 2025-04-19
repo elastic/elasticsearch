@@ -149,7 +149,7 @@ public class PutDataStreamLifecycleAction {
         ) {
             super(masterNodeTimeout, ackTimeout);
             this.names = names;
-            this.lifecycle = DataStreamLifecycle.builder()
+            this.lifecycle = DataStreamLifecycle.dataLifecycleBuilder()
                 .dataRetention(dataRetention)
                 .enabled(enabled == null || enabled)
                 .downsampling(downsampling)

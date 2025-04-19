@@ -34,6 +34,7 @@ import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.CompiledAutomaton;
 import org.apache.lucene.util.automaton.CompiledAutomaton.AUTOMATON_TYPE;
 import org.apache.lucene.util.automaton.Operations;
+import org.elasticsearch.common.bytes.EncodedString;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.search.AutomatonQueries;
@@ -1105,15 +1106,30 @@ public final class KeywordFieldMapper extends FieldMapper {
     }
 
     protected void parseCreateField(DocumentParserContext context) throws IOException {
-        String value = context.parser().textOrNull();
-        if (value == null) {
-            value = fieldType().nullValue;
+        EncodedString value;
+        var bytesValue = context.parser().textRefOrNull();
+        if (bytesValue != null) {
+            int len = bytesValue.end() - bytesValue.start();
+            // For now, we can use `len` for `charCount` because textRefOrNull only returns ascii-encoded unescaped strings,
+            // which means each character uses exactly 1 byte.
+            value = new EncodedString(new BytesRef(bytesValue.bytes(), bytesValue.start(), len), len);
+        } else {
+            var stringValue = context.parser().textOrNull();
+            if (stringValue != null) {
+                value = new EncodedString(stringValue);
+            } else {
+                value = null;
+            }
+        }
+
+        if (value == null && fieldType().nullValue != null) {
+            value = new EncodedString(fieldType().nullValue);
         }
 
         boolean indexed = indexValue(context, value);
         if (offsetsFieldName != null && context.isImmediateParentAnArray() && context.canAddIgnoredField()) {
             if (indexed) {
-                context.getOffSetContext().recordOffset(offsetsFieldName, value);
+                context.getOffSetContext().recordOffset(offsetsFieldName, value.stringValue());
             } else if (value == null) {
                 context.getOffSetContext().recordNull(offsetsFieldName);
             }
@@ -1131,9 +1147,14 @@ public final class KeywordFieldMapper extends FieldMapper {
     }
 
     private boolean indexValue(DocumentParserContext context, String value) {
+        return indexValue(context, new EncodedString(value));
+    }
+
+    private boolean indexValue(DocumentParserContext context, EncodedString value) {
         if (value == null) {
             return false;
         }
+
         // if field is disabled, skip indexing
         if ((fieldType.indexOptions() == IndexOptions.NONE) && (fieldType.stored() == false) && (fieldType().hasDocValues() == false)) {
             return false;
@@ -1143,15 +1164,17 @@ public final class KeywordFieldMapper extends FieldMapper {
             context.addIgnoredField(fullPath());
             if (isSyntheticSource) {
                 // Save a copy of the field so synthetic source can load it
-                context.doc().add(new StoredField(originalName(), new BytesRef(value)));
+                context.doc().add(new StoredField(originalName(), value.bytesValue()));
             }
             return false;
         }
 
-        value = normalizeValue(fieldType().normalizer(), fullPath(), value);
+        if (fieldType().normalizer() != Lucene.KEYWORD_ANALYZER) {
+            String normalizedString = normalizeValue(fieldType().normalizer(), fullPath(), value.stringValue());
+            value = new EncodedString(normalizedString);
+        }
 
-        // convert to utf8 only once before feeding postings/dv/stored fields
-        final BytesRef binaryValue = new BytesRef(value);
+        BytesRef binaryValue = value.bytesValue();
 
         if (fieldType().isDimension()) {
             context.getRoutingFields().addString(fieldType().name(), binaryValue);

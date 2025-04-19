@@ -33,6 +33,7 @@ import org.elasticsearch.xcontent.DeprecationHandler;
 import org.elasticsearch.xcontent.FilterXContentParser;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.XBytesRef;
 import org.elasticsearch.xcontent.XContentLocation;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParser.NumberType;
@@ -705,6 +706,14 @@ public class CompletionFieldMapper extends FieldMapper {
                 return Token.START_OBJECT;
             }
             return super.currentToken();
+        }
+
+        @Override
+        public XBytesRef textRefOrNull() throws IOException {
+            if (parsingObject == false) {
+                return null;
+            }
+            return super.textRefOrNull();
         }
 
         @Override

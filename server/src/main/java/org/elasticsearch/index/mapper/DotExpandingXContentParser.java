@@ -12,6 +12,7 @@ package org.elasticsearch.index.mapper;
 import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.xcontent.FilterXContentParser;
 import org.elasticsearch.xcontent.FilterXContentParserWrapper;
+import org.elasticsearch.xcontent.XBytesRef;
 import org.elasticsearch.xcontent.XContentLocation;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentSubParser;
@@ -377,6 +378,14 @@ class DotExpandingXContentParser extends FilterXContentParserWrapper {
         if (state == State.PARSING_ORIGINAL_CONTENT) {
             delegate().skipChildren();
         }
+    }
+
+    @Override
+    public XBytesRef textRefOrNull() throws IOException {
+        if (state == State.EXPANDING_START_OBJECT) {
+            throw new IllegalStateException("Can't get text on a " + currentToken() + " at " + getTokenLocation());
+        }
+        return super.textRefOrNull();
     }
 
     @Override

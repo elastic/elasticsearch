@@ -303,10 +303,16 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
         Collection<InternalAggregations> aggsList
     ) {
         if (topDocsList != null) {
-            topDocsList.add(partialResult.reducedTopDocs);
+            addTopDocsToList(partialResult, topDocsList);
         }
         if (aggsList != null) {
             addAggsToList(partialResult, aggsList);
+        }
+    }
+
+    private static void addTopDocsToList(MergeResult partialResult, List<TopDocs> topDocsList) {
+        if (partialResult.reducedTopDocs != null) {
+            topDocsList.add(partialResult.reducedTopDocs);
         }
     }
 
@@ -340,7 +346,7 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
         if (hasTopDocs) {
             topDocsList = new ArrayList<>(resultSetSize);
             if (lastMerge != null) {
-                topDocsList.add(lastMerge.reducedTopDocs);
+                addTopDocsToList(lastMerge, topDocsList);
             }
         } else {
             topDocsList = null;
@@ -358,7 +364,7 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
                 }
             }
             // we have to merge here in the same way we collect on a shard
-            newTopDocs = topDocsList == null ? Lucene.EMPTY_TOP_DOCS : mergeTopDocs(topDocsList, topNSize, 0);
+            newTopDocs = topDocsList == null ? null : mergeTopDocs(topDocsList, topNSize, 0);
             newAggs = hasAggs
                 ? aggregate(
                     toConsume.iterator(),
@@ -647,7 +653,7 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
 
     record MergeResult(
         List<SearchShard> processedShards,
-        TopDocs reducedTopDocs,
+        @Nullable TopDocs reducedTopDocs,
         @Nullable InternalAggregations reducedAggs,
         long estimatedSize
     ) implements Writeable {

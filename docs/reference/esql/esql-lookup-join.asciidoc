@@ -48,7 +48,8 @@ image::images/esql/esql-lookup-join.png[align="center"]
 lookup_index::
 The name of the lookup index. This must
 be a specific index name - wildcards, aliases, and remote cluster
-references are not supported.
+references are not supported. Indices used for lookups must be configured with the <<index-mode-setting,`lookup` mode>>.
+
 
 [[esql-lookup-join-field-name]]
 field_name::
@@ -142,6 +143,7 @@ any particular order. If a certain order is required, users should use a
 
 To use `LOOKUP JOIN`, the following requirements must be met:
 
+* Indices used for lookups must be configured with the <<index-mode-setting,`lookup` mode>> 
 * *Compatible data types*: The join key and join field in the lookup
 index must have compatible data types. This means:
 ** The data types must either be identical or be internally represented
@@ -166,7 +168,7 @@ representations, see the <<esql-supported-types,Supported Field Types documentat
 
 The following are the current limitations with `LOOKUP JOIN`
 
-* Indices in <<index-mode-setting,lookup>> mode are always single-sharded.
+* Indices in <<index-mode-setting,`lookup`>> mode are always single-sharded.
 * Cross cluster search is unsupported initially. Both source and lookup indices
 must be local.
 * Currently, only matching on equality is supported.

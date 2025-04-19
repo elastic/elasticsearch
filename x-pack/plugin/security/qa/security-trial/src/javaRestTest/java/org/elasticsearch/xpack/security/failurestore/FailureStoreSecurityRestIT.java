@@ -2159,6 +2159,155 @@ public class FailureStoreSecurityRestIT extends ESRestTestCase {
         expectThrowsWithApiKey(apiKey, new Search("test1"), 403);
     }
 
+    public void testFieldCapabilities() throws Exception {
+        setupDataStream();
+
+        final Tuple<String, String> backingIndices = getSingleDataAndFailureIndices("test1");
+        final String dataIndexName = backingIndices.v1();
+        final String failureIndexName = backingIndices.v2();
+
+        createUser("user", PASSWORD, "role");
+        upsertRole("""
+            {
+              "cluster": ["all"],
+              "indices": [
+                {
+                  "names": ["test*"],
+                  "privileges": ["read"]
+                }
+              ]
+            }""", "role");
+
+        {
+            expectThrows(() -> performRequest("user", new Request("POST", "/test1::failures/_field_caps?fields=name")), 403);
+            assertFieldCapsResponseContainsIndexAndFields(
+                performRequest("user", new Request("POST", Strings.format("/%s/_field_caps?fields=name", "test1"))),
+                dataIndexName,
+                Set.of("name")
+            );
+        }
+
+        upsertRole("""
+            {
+              "cluster": ["all"],
+              "indices": [
+                {
+                  "names": ["test*"],
+                  "privileges": ["read_failure_store"]
+                }
+              ]
+            }""", "role");
+
+        {
+            expectThrows(() -> performRequest("user", new Request("POST", "/test1/_field_caps?fields=name")), 403);
+            assertFieldCapsResponseContainsIndexAndFields(
+                performRequest("user", new Request("POST", "/test1::failures/_field_caps?fields=error.*")),
+                failureIndexName,
+                Set.of(
+                    "error.message",
+                    "error.pipeline_trace",
+                    "error.processor_type",
+                    "error.type",
+                    "error.processor_tag",
+                    "error.pipeline",
+                    "error.stack_trace",
+                    "error"
+                )
+            );
+        }
+
+        upsertRole("""
+            {
+              "cluster": ["all"],
+              "indices": [
+                {
+                  "names": ["test*"],
+                  "privileges": ["read_failure_store"],
+                  "field_security": {
+                      "grant": ["error*"],
+                      "except": ["error.message"]
+                  }
+                }
+              ]
+            }""", "role");
+        {
+            expectThrows(() -> performRequest("user", new Request("POST", "/test1/_field_caps?fields=name")), 403);
+            assertFieldCapsResponseContainsIndexAndFields(
+                performRequest("user", new Request("POST", "/test1::failures/_field_caps?fields=error.*")),
+                failureIndexName,
+                Set.of(
+                    "error.pipeline_trace",
+                    "error.processor_type",
+                    "error.type",
+                    "error.processor_tag",
+                    "error.pipeline",
+                    "error.stack_trace",
+                    "error"
+                )
+            );
+        }
+
+        upsertRole("""
+            {
+              "cluster": ["all"],
+              "indices": [
+                {
+                  "names": ["test*"],
+                  "privileges": ["read_failure_store", "read"],
+                  "field_security": {
+                      "grant": ["error*", "name"],
+                      "except": ["error.type"]
+                  }
+                }
+              ]
+            }""", "role");
+        {
+            assertFieldCapsResponseContainsIndexAndFields(
+                performRequest("user", new Request("POST", "/test1/_field_caps?fields=name,age,email")),
+                dataIndexName,
+                Set.of("name")
+            );
+            assertFieldCapsResponseContainsIndexAndFields(
+                performRequest("user", new Request("POST", "/test1::failures/_field_caps?fields=error.*")),
+                failureIndexName,
+                Set.of(
+                    "error.pipeline_trace",
+                    "error.processor_type",
+                    "error.message",
+                    "error.processor_tag",
+                    "error.pipeline",
+                    "error.stack_trace",
+                    "error"
+                )
+            );
+        }
+
+        upsertRole("""
+            {
+              "cluster": ["all"],
+              "indices": [
+                {
+                  "names": ["other*"],
+                  "privileges": ["read_failure_store", "read"]
+                }
+              ]
+            }""", "role");
+        expectThrows(() -> performRequest("user", new Request("POST", "/test1/_field_caps?fields=name")), 403);
+        expectThrows(() -> performRequest("user", new Request("POST", "/test1::failures/_field_caps?fields=name")), 403);
+    }
+
+    private void assertFieldCapsResponseContainsIndexAndFields(Response fieldCapsResponse, String indexName, Set<String> expectedFields)
+        throws IOException {
+        assertOK(fieldCapsResponse);
+        ObjectPath objectPath = ObjectPath.createFromResponse(fieldCapsResponse);
+
+        List<String> indices = objectPath.evaluate("indices");
+        assertThat(indices, containsInAnyOrder(indexName));
+
+        Map<String, Object> fields = objectPath.evaluate("fields");
+        assertThat(fields.keySet(), containsInAnyOrder(expectedFields.toArray()));
+    }
+
     public void testPit() throws Exception {
         List<String> docIds = setupDataStream();
         String dataDocId = "1";
@@ -2226,6 +2375,64 @@ public class FailureStoreSecurityRestIT extends ESRestTestCase {
                 """, pitId));
             Response searchResponse = performRequest("user", searchRequest);
             expectSearch(searchResponse, failuresDocId);
+        }
+    }
+
+    public void testScroll() throws Exception {
+        List<String> docIds = setupDataStream();
+        String dataDocId = "1";
+        String failuresDocId = docIds.stream().filter(id -> false == id.equals(dataDocId)).findFirst().get();
+
+        createUser("user", PASSWORD, "role");
+        upsertRole("""
+            {
+              "cluster": ["all"],
+              "indices": [
+                {
+                  "names": ["test*"],
+                  "privileges": ["read"]
+                }
+              ]
+            }""", "role");
+
+        {
+            // user has no access to failure store, searching failures should not work
+            expectThrows(
+                () -> performRequest("user", new Request("POST", Strings.format("/%s/_search?scroll=1m", "test1::failures"))),
+                403
+            );
+
+            // searching data should work
+            final String scrollId = performScrollSearchRequestAndAssertDocs("test1", dataDocId);
+
+            // further searches with scroll_id should work, but won't return any more hits
+            assertSearchHasNoHits(performScrollSearchRequest("user", scrollId));
+
+            deleteScroll(scrollId);
+        }
+
+        upsertRole("""
+            {
+              "cluster": ["all"],
+              "indices": [
+                {
+                  "names": ["test*"],
+                  "privileges": ["read_failure_store"]
+                }
+              ]
+            }""", "role");
+
+        {
+            // user has only read access to failure store, searching data should fail
+            expectThrows(() -> performRequest("user", new Request("POST", Strings.format("/%s/_search?scroll=1m", "test1"))), 403);
+
+            // searching failure store should work
+            final String scrollId = performScrollSearchRequestAndAssertDocs("test1::failures", failuresDocId);
+
+            // further searches with scroll_id should work, but won't return any more hits
+            assertSearchHasNoHits(performScrollSearchRequest("user", scrollId));
+
+            deleteScroll(scrollId);
         }
     }
 
@@ -2813,6 +3020,61 @@ public class FailureStoreSecurityRestIT extends ESRestTestCase {
             }
         } catch (IOException e) {
             throw new UncheckedIOException(e);
+        }
+    }
+
+    private void deleteScroll(String scrollId) throws IOException {
+        Request deleteScroll = new Request("DELETE", "/_search/scroll");
+        deleteScroll.setJsonEntity(Strings.format("""
+            {
+                "scroll_id": "%s"
+            }
+            """, scrollId));
+        Response deleteScrollResponse = performRequest("user", deleteScroll);
+        assertOK(deleteScrollResponse);
+    }
+
+    private String performScrollSearchRequestAndAssertDocs(String indexExpression, String docId) throws IOException {
+        Response scrollResponse = performRequest("user", new Request("POST", Strings.format("/%s/_search?scroll=1m", indexExpression)));
+        assertOK(scrollResponse);
+
+        final SearchResponse searchResponse = SearchResponseUtils.parseSearchResponse(responseAsParser(scrollResponse));
+        final String scrollId = searchResponse.getScrollId();
+        assertThat(scrollId, notNullValue());
+        try {
+            assertSearchContainsDocs(searchResponse, docId);
+        } finally {
+            searchResponse.decRef();
+        }
+        return scrollId;
+    }
+
+    private SearchResponse performScrollSearchRequest(String user, String scrollId) throws IOException {
+        Request searchRequestWithScrollId = new Request("POST", "/_search/scroll");
+        searchRequestWithScrollId.setJsonEntity(Strings.format("""
+            {
+                "scroll": "1m",
+                "scroll_id": "%s"
+            }
+            """, scrollId));
+        Response response = performRequest(user, searchRequestWithScrollId);
+        assertOK(response);
+        return SearchResponseUtils.parseSearchResponse(responseAsParser(response));
+    }
+
+    private static void assertSearchContainsDocs(SearchResponse searchResponse, String... docIds) {
+        SearchHit[] hits = searchResponse.getHits().getHits();
+        assertThat(hits.length, equalTo(docIds.length));
+        List<String> actualDocIds = Arrays.stream(hits).map(SearchHit::getId).toList();
+        assertThat(actualDocIds, containsInAnyOrder(docIds));
+    }
+
+    private static void assertSearchHasNoHits(SearchResponse searchResponse) {
+        try {
+            SearchHit[] hits = searchResponse.getHits().getHits();
+            assertThat(hits.length, equalTo(0));
+        } finally {
+            searchResponse.decRef();
         }
     }
 

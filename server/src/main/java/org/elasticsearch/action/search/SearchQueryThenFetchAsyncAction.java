@@ -27,7 +27,6 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.util.concurrent.CountDown;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.ListenableFuture;
@@ -720,7 +719,7 @@ public class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<S
 
         private static final QueryPhaseResultConsumer.MergeResult EMPTY_PARTIAL_MERGE_RESULT = new QueryPhaseResultConsumer.MergeResult(
             List.of(),
-            Lucene.EMPTY_TOP_DOCS,
+            null,
             null,
             0L
         );
@@ -780,10 +779,12 @@ public class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<S
                 // also collect the set of indices that may be part of a subsequent fetch operation here so that we can release all other
                 // indices without a roundtrip to the coordinating node
                 final BitSet relevantShardIndices = new BitSet(searchRequest.shards.size());
-                for (ScoreDoc scoreDoc : mergeResult.reducedTopDocs().scoreDocs) {
-                    final int localIndex = scoreDoc.shardIndex;
-                    scoreDoc.shardIndex = searchRequest.shards.get(localIndex).shardIndex;
-                    relevantShardIndices.set(localIndex);
+                if (mergeResult.reducedTopDocs() != null) {
+                    for (ScoreDoc scoreDoc : mergeResult.reducedTopDocs().scoreDocs) {
+                        final int localIndex = scoreDoc.shardIndex;
+                        scoreDoc.shardIndex = searchRequest.shards.get(localIndex).shardIndex;
+                        relevantShardIndices.set(localIndex);
+                    }
                 }
                 final Object[] results = new Object[queryPhaseResultConsumer.getNumShards()];
                 for (int i = 0; i < results.length; i++) {

@@ -13,6 +13,7 @@ import org.apache.lucene.codecs.DocValuesConsumer;
 import org.apache.lucene.codecs.DocValuesProducer;
 import org.apache.lucene.index.SegmentReadState;
 import org.apache.lucene.index.SegmentWriteState;
+import org.elasticsearch.common.util.FeatureFlag;
 
 import java.io.IOException;
 
@@ -56,14 +57,33 @@ public class ES819TSDBDocValuesFormat extends org.apache.lucene.codecs.DocValues
     static final int TERMS_DICT_REVERSE_INDEX_SIZE = 1 << TERMS_DICT_REVERSE_INDEX_SHIFT;
     static final int TERMS_DICT_REVERSE_INDEX_MASK = TERMS_DICT_REVERSE_INDEX_SIZE - 1;
 
+    // Default for escape hatch:
+    static final boolean OPTIMIZED_MERGE_ENABLE_DEFAULT;
+    static final FeatureFlag TSDB_DOC_VALUES_OPTIMIZED_MERGE = new FeatureFlag("tsdb_doc_values_optimized_merge");
+    static final String OPTIMIZED_MERGE_ENABLED_NAME = ES819TSDBDocValuesConsumer.class.getName() + ".enableOptimizedMerge";
+
+    static {
+        boolean optimizedMergeDefault = TSDB_DOC_VALUES_OPTIMIZED_MERGE.isEnabled();
+        OPTIMIZED_MERGE_ENABLE_DEFAULT = Boolean.parseBoolean(
+            System.getProperty(OPTIMIZED_MERGE_ENABLED_NAME, Boolean.toString(optimizedMergeDefault))
+        );
+    }
+
+    private final boolean enableOptimizedMerge;
+
     /** Default constructor. */
     public ES819TSDBDocValuesFormat() {
+        this(OPTIMIZED_MERGE_ENABLE_DEFAULT);
+    }
+
+    public ES819TSDBDocValuesFormat(boolean enableOptimizedMerge) {
         super(CODEC_NAME);
+        this.enableOptimizedMerge = enableOptimizedMerge;
     }
 
     @Override
     public DocValuesConsumer fieldsConsumer(SegmentWriteState state) throws IOException {
-        return new ES819TSDBDocValuesConsumer(state, DATA_CODEC, DATA_EXTENSION, META_CODEC, META_EXTENSION);
+        return new ES819TSDBDocValuesConsumer(state, enableOptimizedMerge, DATA_CODEC, DATA_EXTENSION, META_CODEC, META_EXTENSION);
     }
 
     @Override

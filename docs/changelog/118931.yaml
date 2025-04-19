@@ -1,6 +1,0 @@
-pr: 118931
-summary: Add a `LicenseAware` interface for licensed Nodes
-area: ES|QL
-type: enhancement
-issues:
- - 117405

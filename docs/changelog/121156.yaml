@@ -1,5 +1,0 @@
-pr: 121156
-summary: Remove redundant sorts from execution plan
-area: ES|QL
-type: bug
-issues: []

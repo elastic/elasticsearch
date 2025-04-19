@@ -1,6 +1,0 @@
-pr: 120645
-summary: Esql Support date nanos on date diff function
-area: ES|QL
-type: enhancement
-issues:
- - 109999

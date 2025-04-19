@@ -1,5 +1,0 @@
-pr: 124597
-summary: Return unique deprecation for old indices with incompatible date formats
-area: Infra/Core
-type: enhancement
-issues: []

@@ -1,6 +1,0 @@
-pr: 123381
-summary: Push down `StartsWith` and `EndsWith` functions to Lucene
-area: ES|QL
-type: enhancement
-issues:
- - 123067

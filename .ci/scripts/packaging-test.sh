@@ -28,6 +28,8 @@ BUILD_JAVA_HOME=$HOME/.java/$ES_BUILD_JAVA
 rm -Rfv $HOME/.gradle/init.d/ && mkdir -p $HOME/.gradle/init.d
 cp -v .ci/init.gradle $HOME/.gradle/init.d
 
+for attempt in 1 2 3 4 5; do ./gradlew --version && break; echo "Failed to download gradle wrapper - attempt $attempt/5" && sleep 5; done
+
 unset JAVA_HOME
 
 if [ -f "/etc/os-release" ] ; then

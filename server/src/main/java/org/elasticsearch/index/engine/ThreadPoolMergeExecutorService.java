@@ -33,7 +33,7 @@ public class ThreadPoolMergeExecutorService {
     /**
      * Floor for IO write rate limit of individual merge tasks (we will never go any lower than this)
      */
-    static final ByteSizeValue MIN_IO_RATE = ByteSizeValue.ofMb(5L);
+    static final ByteSizeValue MIN_IO_RATE = ByteSizeValue.ofMb(10L);
     /**
      * Ceiling for IO write rate limit of individual merge tasks (we will never go any higher than this)
      */
@@ -41,7 +41,7 @@ public class ThreadPoolMergeExecutorService {
     /**
      * Initial value for IO write rate limit of individual merge tasks when doAutoIOThrottle is true
      */
-    static final ByteSizeValue START_IO_RATE = ByteSizeValue.ofMb(20L);
+    static final ByteSizeValue START_IO_RATE = ByteSizeValue.ofMb(40L);
     /**
      * Total number of submitted merge tasks that support IO auto throttling and that have not yet been run (or aborted).
      * This includes merge tasks that are currently running and that are backlogged (by their respective merge schedulers).

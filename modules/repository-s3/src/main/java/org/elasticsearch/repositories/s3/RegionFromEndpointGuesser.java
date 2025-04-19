@@ -23,16 +23,15 @@ import java.util.HashMap;
 import java.util.Map;
 
 /**
- * Simple mapping from S3 endpoint hostnames to AWS region names, in case the user does not specify a region.
+ * Simple mapping from S3 endpoint hostnames to AWS region names, in case the user does not specify a region. This allows Elasticsearch to
+ * guess an appropriate AWS region name, and keep working, if a user does not specify one. This is a best-effort attempt for backwards
+ * compatibility: AWS SDK V1 would extrapolate the correct region but V2 considers it a fatal error not to be told the region name
+ * explicitly.
+ * <p>
+ * The mapping is loaded from the JAR resource named {@code regions_by_endpoint.txt}.
+ * </p>
  */
 class RegionFromEndpointGuesser {
-    /*
-     * Loads JAR resource "regions_by_endpoint.txt" into a map from S3 endpoint hostnames to AWS region names, in case the user specifies a
-     * regional endpoint but not a region. This allows Elasticsearch to guess an appropriate AWS region name, and keep working, if a user
-     * does not specify one. This is a best-effort attempt for backwards compatibility: AWS SDK V1 would extrapolate the correct region but
-     * V2 considers it a fatal error not to be told the region name explicitly.
-     */
-
     private static final Map<String, String> regionsByEndpoint;
 
     static {

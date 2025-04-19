@@ -17,6 +17,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.compute.operator.DriverCompletionInfo;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.indices.IndicesExpressionGrouper;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.transport.ConnectTransportException;
@@ -146,7 +147,7 @@ public class EsqlCCSUtils {
         StringBuilder sb = new StringBuilder();
         for (String clusterAlias : executionInfo.clusterAliases()) {
             EsqlExecutionInfo.Cluster cluster = executionInfo.getCluster(clusterAlias);
-            if (cluster.getStatus() != EsqlExecutionInfo.Cluster.Status.SKIPPED) {
+            if (cluster.getStatus() != Cluster.Status.SKIPPED && cluster.getStatus() != Cluster.Status.SUCCESSFUL) {
                 if (cluster.getClusterAlias().equals(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY)) {
                     sb.append(executionInfo.getCluster(clusterAlias).getIndexExpression()).append(',');
                 } else {
@@ -181,7 +182,11 @@ public class EsqlCCSUtils {
         }
     }
 
-    static void updateExecutionInfoWithClustersWithNoMatchingIndices(EsqlExecutionInfo executionInfo, IndexResolution indexResolution) {
+    static void updateExecutionInfoWithClustersWithNoMatchingIndices(
+        EsqlExecutionInfo executionInfo,
+        IndexResolution indexResolution,
+        QueryBuilder filter
+    ) {
         Set<String> clustersWithResolvedIndices = new HashSet<>();
         // determine missing clusters
         for (String indexName : indexResolution.resolvedIndices()) {
@@ -203,8 +208,8 @@ public class EsqlCCSUtils {
          * Mark it as SKIPPED with 0 shards searched and took=0.
          */
         for (String c : clustersWithNoMatchingIndices) {
-            if (executionInfo.getCluster(c).getStatus() == EsqlExecutionInfo.Cluster.Status.SKIPPED) {
-                // if cluster was already marked SKIPPED during enrich policy resolution, do not overwrite
+            if (executionInfo.getCluster(c).getStatus() != Cluster.Status.RUNNING) {
+                // if cluster was already in the terminal state and not filtered, do not overwrite
                 continue;
             }
             final String indexExpression = executionInfo.getCluster(c).getIndexExpression();
@@ -218,14 +223,24 @@ public class EsqlCCSUtils {
                 } else {
                     fatalErrorMessage += "; " + error;
                 }
+                if (filter == null) {
+                    markClusterWithFinalStateAndNoShards(executionInfo, c, Cluster.Status.FAILED, new VerificationException(error));
+                }
             } else {
                 // no matching indices and no concrete index requested - just mark it as done, no error
-                markClusterWithFinalStateAndNoShards(executionInfo, c, Cluster.Status.SUCCESSFUL, null);
+                if (indexResolution.isValid()) {
+                    markClusterWithFinalStateAndNoShards(executionInfo, c, Cluster.Status.SUCCESSFUL, null);
+                }
             }
         }
         if (fatalErrorMessage != null) {
             throw new VerificationException(fatalErrorMessage);
         }
+    }
+
+    // Filter-less version
+    static void updateExecutionInfoWithClustersWithNoMatchingIndices(EsqlExecutionInfo executionInfo, IndexResolution indexResolution) {
+        updateExecutionInfoWithClustersWithNoMatchingIndices(executionInfo, indexResolution, null);
     }
 
     // visible for testing

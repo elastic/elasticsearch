@@ -137,12 +137,12 @@ class BuildPluginFuncTest extends AbstractGradleFuncTest {
         file("licenses/hamcrest-core-1.3.jar.sha1").text = "42a25dc3219429f0e5d060061f71acb49bf010a0"
         file("licenses/hamcrest-core-LICENSE.txt").text = EXAMPLE_LICENSE
         file("licenses/hamcrest-core-NOTICE.txt").text = "mock notice"
-        file("licenses/junit-4.12.jar.sha1").text = "2973d150c0dc1fefe998f834810d68f278ea58ec"
+        file("licenses/junit-4.13.2.jar.sha1").text = "2973d150c0dc1fefe998f834810d68f278ea58ec"
         file("licenses/junit-LICENSE.txt").text = EXAMPLE_LICENSE
         file("licenses/junit-NOTICE.txt").text = "mock notice"
         buildFile << """
             dependencies {
-              api "junit:junit:4.12"
+              api "junit:junit:4.13.2"
               // missing classes in thirdparty audit
               api 'org.hamcrest:hamcrest-core:1.3'
             }

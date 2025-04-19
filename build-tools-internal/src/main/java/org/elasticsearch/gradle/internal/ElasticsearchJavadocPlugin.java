@@ -16,7 +16,6 @@ import org.gradle.api.Plugin;
 import org.gradle.api.Project;
 import org.gradle.api.Task;
 import org.gradle.api.artifacts.Configuration;
-import org.gradle.api.artifacts.Dependency;
 import org.gradle.api.artifacts.ProjectDependency;
 import org.gradle.api.plugins.BasePluginExtension;
 import org.gradle.api.plugins.JavaPlugin;
@@ -25,7 +24,6 @@ import org.gradle.external.javadoc.JavadocOfflineLink;
 import org.gradle.external.javadoc.StandardJavadocDocletOptions;
 
 import java.io.File;
-import java.util.Comparator;
 import java.util.List;
 
 // Handle javadoc dependencies across projects. Order matters: the linksOffline for
@@ -77,12 +75,11 @@ public class ElasticsearchJavadocPlugin implements Plugin<Project> {
     }
 
     private void configureJavadocForConfiguration(Project project, boolean shadow, Configuration configuration) {
-        configuration.getAllDependencies()
-            .stream()
-            .sorted(Comparator.comparing(Dependency::getGroup))
-            .filter(d -> d instanceof ProjectDependency)
-            .map(d -> (ProjectDependency) d)
-            .forEach(projectDependency -> configureDependency(project, shadow, projectDependency));
+        configuration.getAllDependencies().configureEach(dependency -> {
+            if (dependency instanceof ProjectDependency) {
+                configureDependency(project, shadow, (ProjectDependency) dependency);
+            }
+        });
     }
 
     private void configureDependency(Project project, boolean shadowed, ProjectDependency dep) {

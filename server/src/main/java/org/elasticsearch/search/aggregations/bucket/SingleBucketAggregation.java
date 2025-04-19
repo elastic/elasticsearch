@@ -34,7 +34,7 @@ import java.util.function.Function;
 /**
  * A base class for all the single bucket aggregations.
  */
-public abstract class SingleBucketAggregation extends InternalAggregation {
+public class SingleBucketAggregation extends InternalAggregation {
 
     private final long docCount;
     private final InternalAggregations aggregations;
@@ -46,7 +46,7 @@ public abstract class SingleBucketAggregation extends InternalAggregation {
      * @param docCount      The document count in the single bucket.
      * @param aggregations  The already built sub-aggregations that are associated with the bucket.
      */
-    protected SingleBucketAggregation(String name, long docCount, InternalAggregations aggregations, Map<String, Object> metadata) {
+    public SingleBucketAggregation(String name, long docCount, InternalAggregations aggregations, Map<String, Object> metadata) {
         super(name, metadata);
         this.docCount = docCount;
         this.aggregations = aggregations;
@@ -96,7 +96,9 @@ public abstract class SingleBucketAggregation extends InternalAggregation {
     /**
      * Create a <b>new</b> empty sub aggregation. This must be a new instance on each call.
      */
-    protected abstract SingleBucketAggregation newAggregation(String name, long docCount, InternalAggregations subAggregations);
+    protected SingleBucketAggregation newAggregation(String name, long docCount, InternalAggregations subAggregations) {
+        return new SingleBucketAggregation(name, docCount, subAggregations, metadata);
+    }
 
     @Override
     protected AggregatorReducer getLeaderReducer(AggregationReduceContext reduceContext, int size) {
@@ -224,5 +226,10 @@ public abstract class SingleBucketAggregation extends InternalAggregation {
     @Override
     public int hashCode() {
         return Objects.hash(super.hashCode(), docCount, aggregations);
+    }
+
+    @Override
+    public String getWriteableName() {
+        return "SingleBucketAggregation";
     }
 }

@@ -60,11 +60,7 @@ public final class AggregationTestUtils {
     }
 
     static SingleBucketAggregation createSingleBucketAgg(String name, long docCount, List<InternalAggregation> subAggregations) {
-        SingleBucketAggregation singleBucketAggregation = mock(SingleBucketAggregation.class);
-        when(singleBucketAggregation.getName()).thenReturn(name);
-        when(singleBucketAggregation.getDocCount()).thenReturn(docCount);
-        when(singleBucketAggregation.getAggregations()).thenReturn(createAggs(subAggregations));
-        return singleBucketAggregation;
+        return new SingleBucketAggregation(name, docCount, createAggs(subAggregations), Map.of());
     }
 
     static InternalHistogram.Bucket createHistogramBucket(long timestamp, long docCount) {

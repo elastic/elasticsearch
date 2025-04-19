@@ -139,7 +139,7 @@ tasks.named("thirdPartyAudit").configure {
     'org.apache.log.Logger',
     'javax.jms.Message',
 
-    // crt??
+    // We use the Apache HTTP client rather than an AWS common runtime (CRT) one, so we don't need any of these classes:
     'software.amazon.awssdk.crt.CRT',
     'software.amazon.awssdk.crt.auth.credentials.Credentials',
     'software.amazon.awssdk.crt.auth.credentials.CredentialsProvider',
@@ -183,7 +183,7 @@ tasks.named("thirdPartyAudit").configure {
     'software.amazon.awssdk.crtcore.CrtProxyConfiguration$DefaultBuilder',
     'software.amazon.awssdk.crtcore.CrtProxyConfiguration',
 
-    // eventstream
+    // We don't use anything eventstream-based so these classes are not needed:
     'software.amazon.eventstream.HeaderValue',
     'software.amazon.eventstream.Message',
     'software.amazon.eventstream.MessageDecoder'

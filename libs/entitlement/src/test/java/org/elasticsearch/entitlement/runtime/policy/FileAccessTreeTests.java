@@ -363,6 +363,16 @@ public class FileAccessTreeTests extends ESTestCase {
         assertEquals(expected, actual);
     }
 
+    public void testDuplicatePrunedPathsWindows() {
+        assumeTrue("Specific to windows for paths with mixed casing", WINDOWS.isCurrent());
+
+        List<String> inputPaths = List.of("/a", "/A", "/a/b", "/a/B", "/b/c", "b/c/d", "B/c/d", "b/c/D", "e/f", "e/f");
+        List<String> outputPaths = List.of("/a", "/b/c", "b/c/d", "e/f");
+        var actual = FileAccessTree.pruneSortedPaths(inputPaths.stream().map(p -> normalizePath(path(p))).toList());
+        var expected = outputPaths.stream().map(p -> normalizePath(path(p))).toList();
+        assertEquals(expected, actual);
+    }
+
     public void testDuplicateExclusivePaths() {
         // Bunch o' handy definitions
         var pathAB = path("/a/b");
@@ -455,6 +465,37 @@ public class FileAccessTreeTests extends ESTestCase {
         assertThat(fileAccessTree.canWrite(Path.of("C:\\foo")), is(true));
         assertThat(fileAccessTree.canRead(Path.of("D:\\foo")), is(true));
         assertThat(fileAccessTree.canWrite(Path.of("D:\\foo")), is(false));
+    }
+
+    public void testWindowsMixedCaseAccess() {
+        assumeTrue("Specific to windows for paths with mixed casing", WINDOWS.isCurrent());
+
+        var fileAccessTree = FileAccessTree.of(
+            "test",
+            "test",
+            new FilesEntitlement(
+                List.of(
+                    FileData.ofPath(Path.of("\\\\.\\pipe\\"), READ),
+                    FileData.ofPath(Path.of("D:\\.gradle"), READ),
+                    FileData.ofPath(Path.of("D:\\foo"), READ),
+                    FileData.ofPath(Path.of("C:\\foo"), FilesEntitlement.Mode.READ_WRITE)
+                )
+            ),
+            TEST_PATH_LOOKUP,
+            null,
+            List.of()
+        );
+
+        assertThat(fileAccessTree.canRead(Path.of("\\\\.\\PIPE\\bar")), is(true));
+        assertThat(fileAccessTree.canRead(Path.of("c:\\foo")), is(true));
+        assertThat(fileAccessTree.canRead(Path.of("C:\\FOO")), is(true));
+        assertThat(fileAccessTree.canWrite(Path.of("C:\\foo")), is(true));
+        assertThat(fileAccessTree.canRead(Path.of("c:\\foo")), is(true));
+        assertThat(fileAccessTree.canRead(Path.of("C:\\FOO")), is(true));
+        assertThat(fileAccessTree.canRead(Path.of("d:\\foo")), is(true));
+        assertThat(fileAccessTree.canRead(Path.of("d:\\FOO")), is(true));
+        assertThat(fileAccessTree.canWrite(Path.of("D:\\foo")), is(false));
+        assertThat(fileAccessTree.canWrite(Path.of("d:\\foo")), is(false));
     }
 
     FileAccessTree accessTree(FilesEntitlement entitlement, List<ExclusivePath> exclusivePaths) {

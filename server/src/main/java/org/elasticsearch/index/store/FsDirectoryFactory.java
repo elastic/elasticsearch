@@ -9,6 +9,7 @@
 
 package org.elasticsearch.index.store;
 
+import org.apache.lucene.misc.store.DirectIODirectory;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.FSDirectory;
 import org.apache.lucene.store.FileSwitchDirectory;
@@ -25,17 +26,23 @@ import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.codec.vectors.es818.DirectIOIndexInputSupplier;
 import org.elasticsearch.index.shard.ShardPath;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.plugins.IndexStorePlugin;
 
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.HashSet;
+import java.util.OptionalLong;
 import java.util.Set;
 import java.util.function.BiPredicate;
 
 public class FsDirectoryFactory implements IndexStorePlugin.DirectoryFactory {
+
+    private static final Logger Log = LogManager.getLogger(FsDirectoryFactory.class);
 
     public static final Setting<LockFactory> INDEX_LOCK_FACTOR_SETTING = new Setting<>("index.store.fs.fs_lock", "native", (s) -> {
         return switch (s) {
@@ -109,12 +116,29 @@ public class FsDirectoryFactory implements IndexStorePlugin.DirectoryFactory {
         return unwrap instanceof HybridDirectory;
     }
 
-    static final class HybridDirectory extends NIOFSDirectory {
+    static final class HybridDirectory extends NIOFSDirectory implements DirectIOIndexInputSupplier {
         private final MMapDirectory delegate;
+        private final DirectIODirectory directIODelegate;
 
         HybridDirectory(LockFactory lockFactory, MMapDirectory delegate) throws IOException {
             super(delegate.getDirectory(), lockFactory);
             this.delegate = delegate;
+
+            DirectIODirectory directIO;
+            try {
+                // use 8kB buffer (two pages) to guarantee it can load all of an un-page-aligned 1024-dim float vector
+                directIO = new DirectIODirectory(delegate, 8192, DirectIODirectory.DEFAULT_MIN_BYTES_DIRECT) {
+                    @Override
+                    protected boolean useDirectIO(String name, IOContext context, OptionalLong fileLength) {
+                        return true;
+                    }
+                };
+            } catch (Exception e) {
+                // directio not supported
+                Log.warn("Could not initialize DirectIO access", e);
+                directIO = null;
+            }
+            this.directIODelegate = directIO;
         }
 
         @Override
@@ -133,6 +157,18 @@ public class FsDirectoryFactory implements IndexStorePlugin.DirectoryFactory {
             } else {
                 return super.openInput(name, context);
             }
+        }
+
+        @Override
+        public IndexInput openInputDirect(String name, IOContext context) throws IOException {
+            if (directIODelegate == null) {
+                return openInput(name, context);
+            }
+            // we need to do these checks on the outer directory since the inner doesn't know about pending deletes
+            ensureOpen();
+            ensureCanRead(name);
+
+            return directIODelegate.openInput(name, context);
         }
 
         @Override

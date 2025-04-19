@@ -423,6 +423,9 @@ tests:
 - class: org.elasticsearch.packaging.test.DockerTests
   method: test026InstallBundledRepositoryPlugins
   issue: https://github.com/elastic/elasticsearch/issues/127081
+- class: org.elasticsearch.multiproject.test.XpackWithMultipleProjectsClientYamlTestSuiteIT
+  method: test {yaml=esql/10_basic/basic with documents_found}
+  issue: https://github.com/elastic/elasticsearch/issues/127088
 
 # Examples:
 #

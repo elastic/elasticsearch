@@ -47,26 +47,27 @@ POST _search
 
 ## Top level parameters for `weighted_token` [weighted-token-query-params]
 
-`<tokens>`
-:   (Required, dictionary) A dictionary of token-weight pairs.
+### `<tokens>`
 
-    `pruning_config`
-    :   (Optional, object) Optional pruning configuration. If enabled, this will omit non-significant tokens from the query in order to improve query performance. Default: Disabled.
+(Required, dictionary) A dictionary of token-weight pairs.
 
-        Parameters for `<pruning_config>` are:
+`pruning_config`
+:   (Optional, object) Optional pruning configuration. If enabled, this will omit non-significant tokens from the query in order to improve query performance. Default: Disabled.
 
-        `tokens_freq_ratio_threshold`
-        :   (Optional, integer) Tokens whose frequency is more than `tokens_freq_ratio_threshold` times the average frequency of all tokens in the specified field are considered outliers and pruned. This value must between 1 and 100. Default: `5`.
+    Parameters for `<pruning_config>` are:
 
-        `tokens_weight_threshold`
-        :   (Optional, float) Tokens whose weight is less than `tokens_weight_threshold` are considered insignificant and pruned. This value must be between 0 and 1. Default: `0.4`.
+    `tokens_freq_ratio_threshold`
+    :   (Optional, integer) Tokens whose frequency is more than `tokens_freq_ratio_threshold` times the average frequency of all tokens in the specified field are considered outliers and pruned. This value must between 1 and 100. Default: `5`.
 
-        `only_score_pruned_tokens`
-        :   (Optional, boolean) If `true` we only input pruned tokens into scoring, and discard non-pruned tokens. It is strongly recommended to set this to `false` for the main query, but this can be set to `true` for a rescore query to get more relevant results. Default: `false`.
+    `tokens_weight_threshold`
+    :   (Optional, float) Tokens whose weight is less than `tokens_weight_threshold` are considered insignificant and pruned. This value must be between 0 and 1. Default: `0.4`.
 
-        ::::{note}
-        The default values for `tokens_freq_ratio_threshold` and `tokens_weight_threshold` were chosen based on tests using ELSER that provided the most optimal results.
-        ::::
+    `only_score_pruned_tokens`
+    :   (Optional, boolean) If `true` we only input pruned tokens into scoring, and discard non-pruned tokens. It is strongly recommended to set this to `false` for the main query, but this can be set to `true` for a rescore query to get more relevant results. Default: `false`.
+
+    ::::{note}
+    The default values for `tokens_freq_ratio_threshold` and `tokens_weight_threshold` were chosen based on tests using ELSER that provided the most optimal results.
+    ::::
 
 
 

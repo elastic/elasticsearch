@@ -39,7 +39,7 @@ The filter produces the following tokens.
 
 The API response contains the position and offsets of each output token. Note the `predicate_token_filter` filter does not change the tokens' original positions or offsets.
 
-::::{dropdown} **Response**
+::::{dropdown} Response
 ```console-result
 {
   "tokens" : [

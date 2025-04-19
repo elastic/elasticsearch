@@ -23,7 +23,7 @@ $$$runtime-emit-method$$$
     ::::
 
 
-  ::::{dropdown} Signatures of `emit`
+  ::::{dropdown} Signatures of emit
   The signature for `emit` depends on the `type` of the field.
 
   `boolean`
@@ -53,20 +53,18 @@ $$$runtime-emit-method$$$
 `grok`
 :   Defines a [grok pattern](/reference/enrich-processor/grok-processor.md) to extract structured fields out of a single text field within a document. A grok pattern is like a regular expression that supports aliased expressions that can be reused. See [Define a runtime field with a grok pattern](docs-content://manage-data/data-store/mapping/explore-data-with-runtime-fields.md#runtime-examples-grok).
 
-    ::::{dropdown} Properties of `grok`
+    ::::{dropdown} Properties of grok
     `extract`
     :   Indicates the values to return. This method applies only to `grok` and `dissect` methods.
-
     ::::
 
 
 `dissect`
 :   Defines a [dissect pattern](/reference/enrich-processor/dissect-processor.md). Dissect operates much like grok, but does not accept regular expressions. See [Define a runtime field with a dissect pattern](docs-content://manage-data/data-store/mapping/explore-data-with-runtime-fields.md#runtime-examples-dissect).
 
-    ::::{dropdown} Properties of `dissect`
+    ::::{dropdown} Properties of dissect
     `extract`
     :   Indicates the values to return. This method applies only to `grok` and `dissect` methods.
-
     ::::
 
 

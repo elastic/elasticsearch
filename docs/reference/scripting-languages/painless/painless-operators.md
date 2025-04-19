@@ -7,9 +7,8 @@ mapped_pages:
 
 An operator is the most basic action that can be taken to evaluate values in a script. An expression is one-to-many consecutive operations. Precedence is the order in which an operator will be evaluated relative to another operator. Associativity is the direction within an expression in which a specific operator is evaluated. The following table lists all available operators:
 
-|     |     |     |     |     |
-| --- | --- | --- | --- | --- |
 | **Operator** | **Category** | **Symbol(s)** | **Precedence** | **Associativity** |
+| --- | --- | --- | --- | --- |
 | [Precedence](/reference/scripting-languages/painless/painless-operators-general.md#precedence-operator) | [General](/reference/scripting-languages/painless/painless-operators-general.md) | () | 0 | left → right |
 | [Method Call](/reference/scripting-languages/painless/painless-operators-reference.md#method-call-operator) | [Reference](/reference/scripting-languages/painless/painless-operators-reference.md) | . () | 1 | left → right |
 | [Field Access](/reference/scripting-languages/painless/painless-operators-reference.md#field-access-operator) | [Reference](/reference/scripting-languages/painless/painless-operators-reference.md) | . | 1 | left → right |

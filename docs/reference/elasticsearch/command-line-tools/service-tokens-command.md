@@ -39,58 +39,50 @@ To ensure that {{es}} can read the service account token information at startup,
 
 ## Parameters [service-tokens-command-parameters]
 
-`create`
-:   Creates a service account token for the specified service account.
+### `create`
 
-    ::::{dropdown} Properties of `create`
-    `<service_account_principal>`
-    :   (Required, string) Service account principal that takes the format of `<namespace>/<service>`, where the `namespace` is a top-level grouping of service accounts, and `service` is the name of the service. For example, `elastic/fleet-server`.
+Creates a service account token for the specified service account.
 
-        The service account principal must match a known service account.
+**Properties of `create`**:
 
+`<service_account_principal>`
+:   (Required, string) Service account principal that takes the format of `<namespace>/<service>`, where the `namespace` is a top-level grouping of service accounts, and `service` is the name of the service. For example, `elastic/fleet-server`.
 
-    `<token_name>`
-    :   (Required, string) An identifier for the token name.
+    The service account principal must match a known service account.
 
-        Token names must be at least 1 and no more than 256 characters. They can contain alphanumeric characters (`a-z`, `A-Z`, `0-9`), dashes (`-`), and underscores (`_`), but cannot begin with an underscore.
+`<token_name>`
+:   (Required, string) An identifier for the token name.
 
-        ::::{note}
-        Token names must be unique in the context of the associated service account.
-        ::::
+    Token names must be at least 1 and no more than 256 characters. They can contain alphanumeric characters (`a-z`, `A-Z`, `0-9`), dashes (`-`), and underscores (`_`), but cannot begin with an underscore.
 
+    :::::{note}
+    Token names must be unique in the context of the associated service account.
+    :::::
 
-    ::::
+### `list`
 
+Lists all service account tokens defined in the `service_tokens` file. If you specify a service account principal, the command lists only the tokens that belong to the specified service account.
 
-`list`
-:   Lists all service account tokens defined in the `service_tokens` file. If you specify a service account principal, the command lists only the tokens that belong to the specified service account.
+**Properties of `list`**:
 
-    ::::{dropdown} Properties of `list`
-    `<service_account_principal>`
-    :   (Optional, string) Service account principal that takes the format of `<namespace>/<service>`, where the `namespace` is a top-level grouping of service accounts, and `service` is the name of the service. For example, `elastic/fleet-server`.
+`<service_account_principal>`
+:   (Optional, string) Service account principal that takes the format of `<namespace>/<service>`, where the `namespace` is a top-level grouping of service accounts, and `service` is the name of the service. For example, `elastic/fleet-server`.
 
-        The service account principal must match a known service account.
+    The service account principal must match a known service account.
 
+### `delete`
 
-    ::::
+Deletes a service account token for the specified service account.
 
+**Properties of `delete`**:
 
-`delete`
-:   Deletes a service account token for the specified service account.
+`<service_account_principal>`
+:   (Required, string) Service account principal that takes the format of `<namespace>/<service>`, where the `namespace` is a top-level grouping of service accounts, and `service` is the name of the service. For example, `elastic/fleet-server`.
 
-    ::::{dropdown} Properties of `delete`
-    `<service_account_principal>`
-    :   (Required, string) Service account principal that takes the format of `<namespace>/<service>`, where the `namespace` is a top-level grouping of service accounts, and `service` is the name of the service. For example, `elastic/fleet-server`.
+    The service account principal must match a known service account.
 
-        The service account principal must match a known service account.
-
-
-    ::::
-
-
-    `<token_name>`
-    :   (Required, string) Name of an existing token.
-
+`<token_name>`
+:   (Required, string) Name of an existing token.
 
 
 ## Examples [_examples_21]

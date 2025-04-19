@@ -17,7 +17,14 @@ PUT my-index
   "mappings": {
     "properties": {
       "text.tokens": {
-        "type": "sparse_vector"
+        "type": "sparse_vector",
+        "index_options": {
+          "prune": true,
+          "pruning_config": {
+            "tokens_freq_ratio_threshold": 5,
+            "tokens_weight_threshold: 0.4
+          }
+        }
       }
     }
   }
@@ -36,6 +43,28 @@ The following parameters are accepted by `sparse_vector` fields:
     * Exclude the field from [_source](/reference/elasticsearch/rest-apis/retrieve-selected-fields.md#source-filtering).
     * Use [synthetic `_source`](/reference/elasticsearch/mapping-reference/mapping-source-field.md#synthetic-source).
 
+[index_options](...)
+:    (Optional, object) You can set index options for your  `sparse_vector` field to determine if you should prune tokens, and the parameter configurations for the token pruning. If the pruning options are not set for your `sparse_query` vector on the field, Elasticsearch will use the defaults if set here for the field. The available options for the index options are:
+
+Parameters for `index_options` are:
+
+`prune`
+:   (Optional, boolean) [preview] Whether to perform pruning, omitting the non-significant tokens from the query to improve query performance. If `prune` is true but the `pruning_config` is not specified, pruning will occur but default values will be used. Default: false.
+
+`pruning_config`
+:   (Optional, object) [preview] Optional pruning configuration. If enabled, this will omit non-significant tokens from the query in order to improve query performance. This is only used if `prune` is set to `true`. If `prune` is set to `true` but `pruning_config` is not specified, default values will be used.
+
+    Parameters for `pruning_config` include:
+
+    `tokens_freq_ratio_threshold`
+    :   (Optional, integer) [preview] Tokens whose frequency is more than `tokens_freq_ratio_threshold` times the average frequency of all tokens in the specified field are considered outliers and pruned. This value must between 1 and 100. Default: `5`.
+
+    `tokens_weight_threshold`
+    :   (Optional, float) [preview] Tokens whose weight is less than `tokens_weight_threshold` are considered insignificant and pruned. This value must be between 0 and 1. Default: `0.4`.
+
+    ::::{note}
+    The default values for `tokens_freq_ratio_threshold` and `tokens_weight_threshold` were chosen based on tests using ELSERv2 that provided the most optimal results.
+    ::::
 
 
 ## Multi-value sparse vectors [index-multi-value-sparse-vectors]

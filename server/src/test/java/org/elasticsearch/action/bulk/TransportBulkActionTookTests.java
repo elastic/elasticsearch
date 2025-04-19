@@ -246,12 +246,12 @@ public class TransportBulkActionTookTests extends ESTestCase {
             IndexNameExpressionResolver indexNameExpressionResolver,
             LongSupplier relativeTimeProvider
         ) {
-            super(
-                threadPool,
-                transportService,
-                clusterService,
-                null,
-                null,
+            super(threadPool, transportService, clusterService, null, new FeatureService(List.of()) {
+                @Override
+                public boolean clusterHasFeature(ClusterState state, NodeFeature feature) {
+                    return DataStream.DATA_STREAM_FAILURE_STORE_FEATURE.equals(feature);
+                }
+            },
                 client,
                 actionFilters,
                 indexNameExpressionResolver,
@@ -259,13 +259,7 @@ public class TransportBulkActionTookTests extends ESTestCase {
                 EmptySystemIndices.INSTANCE,
                 relativeTimeProvider,
                 FailureStoreMetrics.NOOP,
-                DataStreamFailureStoreSettings.create(ClusterSettings.createBuiltInClusterSettings()),
-                new FeatureService(List.of()) {
-                    @Override
-                    public boolean clusterHasFeature(ClusterState state, NodeFeature feature) {
-                        return DataStream.DATA_STREAM_FAILURE_STORE_FEATURE.equals(feature);
-                    }
-                }
+                DataStreamFailureStoreSettings.create(ClusterSettings.createBuiltInClusterSettings())
             );
         }
     }

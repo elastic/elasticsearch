@@ -2419,13 +2419,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
                         new IndexingPressure(settings),
                         EmptySystemIndices.INSTANCE,
                         FailureStoreMetrics.NOOP,
-                        DataStreamFailureStoreSettings.create(ClusterSettings.createBuiltInClusterSettings()),
-                        new FeatureService(List.of()) {
-                            @Override
-                            public boolean clusterHasFeature(ClusterState state, NodeFeature feature) {
-                                return DataStream.DATA_STREAM_FAILURE_STORE_FEATURE.equals(feature);
-                            }
-                        }
+                        DataStreamFailureStoreSettings.create(ClusterSettings.createBuiltInClusterSettings())
                     )
                 );
                 final TransportShardBulkAction transportShardBulkAction = new TransportShardBulkAction(

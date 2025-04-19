@@ -454,11 +454,11 @@ public class BulkOperationTests extends ESTestCase {
 
         BulkResponse bulkItemResponses = safeAwait(
             l -> newBulkOperation(
-                clusterState,
+                DEFAULT_STATE,
                 client,
                 bulkRequest,
                 new AtomicArray<>(bulkRequest.numberOfActions()),
-                mockObserver(clusterState),
+                mockObserver(DEFAULT_STATE),
                 l,
                 new FailureStoreDocumentConverter(),
                 DataStreamFailureStoreSettings.create(ClusterSettings.createBuiltInClusterSettings()),

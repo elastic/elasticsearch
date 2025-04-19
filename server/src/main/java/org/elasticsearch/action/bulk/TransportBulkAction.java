@@ -86,7 +86,6 @@ public class TransportBulkAction extends TransportAbstractBulkAction {
     private final OriginSettingClient rolloverClient;
     private final FailureStoreMetrics failureStoreMetrics;
     private final DataStreamFailureStoreSettings dataStreamFailureStoreSettings;
-    private final FeatureService featureService;
 
     @Inject
     public TransportBulkAction(
@@ -101,8 +100,7 @@ public class TransportBulkAction extends TransportAbstractBulkAction {
         IndexingPressure indexingPressure,
         SystemIndices systemIndices,
         FailureStoreMetrics failureStoreMetrics,
-        DataStreamFailureStoreSettings dataStreamFailureStoreSettings,
-        FeatureService featureService
+        DataStreamFailureStoreSettings dataStreamFailureStoreSettings
     ) {
         this(
             threadPool,
@@ -117,8 +115,7 @@ public class TransportBulkAction extends TransportAbstractBulkAction {
             systemIndices,
             threadPool::relativeTimeInNanos,
             failureStoreMetrics,
-            dataStreamFailureStoreSettings,
-            featureService
+            dataStreamFailureStoreSettings
         );
     }
 
@@ -135,8 +132,7 @@ public class TransportBulkAction extends TransportAbstractBulkAction {
         SystemIndices systemIndices,
         LongSupplier relativeTimeProvider,
         FailureStoreMetrics failureStoreMetrics,
-        DataStreamFailureStoreSettings dataStreamFailureStoreSettings,
-        FeatureService featureService
+        DataStreamFailureStoreSettings dataStreamFailureStoreSettings
     ) {
         this(
             TYPE,
@@ -153,8 +149,7 @@ public class TransportBulkAction extends TransportAbstractBulkAction {
             systemIndices,
             relativeTimeProvider,
             failureStoreMetrics,
-            dataStreamFailureStoreSettings,
-            featureService
+            dataStreamFailureStoreSettings
         );
     }
 
@@ -173,8 +168,7 @@ public class TransportBulkAction extends TransportAbstractBulkAction {
         SystemIndices systemIndices,
         LongSupplier relativeTimeProvider,
         FailureStoreMetrics failureStoreMetrics,
-        DataStreamFailureStoreSettings dataStreamFailureStoreSettings,
-        FeatureService featureService
+        DataStreamFailureStoreSettings dataStreamFailureStoreSettings
     ) {
         super(
             bulkAction,
@@ -195,7 +189,6 @@ public class TransportBulkAction extends TransportAbstractBulkAction {
         this.indexNameExpressionResolver = indexNameExpressionResolver;
         this.rolloverClient = new OriginSettingClient(client, LAZY_ROLLOVER_ORIGIN);
         this.failureStoreMetrics = failureStoreMetrics;
-        this.featureService = featureService;
     }
 
     public static <Response extends ReplicationResponse & WriteResponse> ActionListener<BulkResponse> unwrappingSingleItemBulkResponse(

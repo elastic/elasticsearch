@@ -27,7 +27,6 @@ import org.elasticsearch.cluster.ClusterStateApplier;
 import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.metadata.AliasMetadata;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
-import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.DataStreamFailureStoreSettings;
 import org.elasticsearch.cluster.metadata.DataStreamTestHelper;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -43,7 +42,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.features.FeatureService;
-import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexingPressure;
@@ -162,13 +160,7 @@ public class TransportBulkActionIngestTests extends ESTestCase {
                 new IndexingPressure(SETTINGS),
                 EmptySystemIndices.INSTANCE,
                 FailureStoreMetrics.NOOP,
-                DataStreamFailureStoreSettings.create(ClusterSettings.createBuiltInClusterSettings()),
-                new FeatureService(List.of()) {
-                    @Override
-                    public boolean clusterHasFeature(ClusterState state, NodeFeature feature) {
-                        return DataStream.DATA_STREAM_FAILURE_STORE_FEATURE.equals(feature);
-                    }
-                }
+                DataStreamFailureStoreSettings.create(ClusterSettings.createBuiltInClusterSettings())
             );
         }
 

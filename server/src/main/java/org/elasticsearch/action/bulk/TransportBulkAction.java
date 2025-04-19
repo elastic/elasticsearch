@@ -578,6 +578,11 @@ public class TransportBulkAction extends TransportAbstractBulkAction {
         Executor executor,
         AtomicArray<BulkItemResponse> responses
     ) {
+        // Determine if we have the feature enabled once for entire bulk operation
+        final boolean clusterSupportsFailureStore = featureService.clusterHasFeature(
+            clusterService.state(),
+            DataStream.DATA_STREAM_FAILURE_STORE_FEATURE
+        );
         new BulkOperation(
             task,
             threadPool,
@@ -591,7 +596,8 @@ public class TransportBulkAction extends TransportAbstractBulkAction {
             startTimeNanos,
             listener,
             failureStoreMetrics,
-            dataStreamFailureStoreSettings
+            dataStreamFailureStoreSettings,
+            clusterSupportsFailureStore
         ).run();
     }
 

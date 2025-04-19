@@ -190,7 +190,7 @@ TSDB failures go to failure store:
       capabilities:
         - method: POST
           path: /_index_template/{template}
-          capabilities: [ 'failure_store_in_template' ]
+          capabilities: [ 'data_stream_options.failure_store' ]
   - do:
       allowed_warnings:
         - "index template [my-template2] has index patterns [fs-k8s*] matching patterns from existing older templates [global] with patterns (global => [*]); this template [my-template2] will take precedence during new index creation"

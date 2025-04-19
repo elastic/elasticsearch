@@ -58,6 +58,7 @@ import static java.util.stream.Collectors.toUnmodifiableMap;
 import static java.util.zip.ZipFile.OPEN_DELETE;
 import static java.util.zip.ZipFile.OPEN_READ;
 import static org.elasticsearch.entitlement.bridge.Util.NO_CLASS;
+import static org.elasticsearch.entitlement.runtime.policy.PathLookup.BaseDir.TEMP;
 
 public class PolicyManager {
     /**
@@ -432,7 +433,9 @@ public class PolicyManager {
     }
 
     public void checkCreateTempFile(Class<?> callerClass) {
-        checkFileWrite(callerClass, pathLookup.tempDir());
+        // in production there should only ever be a single temp directory
+        // so we can safely assume we only need to check the sole element in this stream
+        checkFileWrite(callerClass, pathLookup.getBaseDirPaths(TEMP).findFirst().get());
     }
 
     @SuppressForbidden(reason = "Explicitly checking File apis")

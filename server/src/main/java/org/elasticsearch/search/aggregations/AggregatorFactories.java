@@ -578,15 +578,11 @@ public class AggregatorFactories {
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
-            if (aggregationBuilders != null) {
-                for (AggregationBuilder subAgg : aggregationBuilders) {
-                    subAgg.toXContent(builder, params);
-                }
+            for (AggregationBuilder subAgg : aggregationBuilders) {
+                subAgg.toXContent(builder, params);
             }
-            if (pipelineAggregatorBuilders != null) {
-                for (PipelineAggregationBuilder subAgg : pipelineAggregatorBuilders) {
-                    subAgg.toXContent(builder, params);
-                }
+            for (PipelineAggregationBuilder subAgg : pipelineAggregatorBuilders) {
+                subAgg.toXContent(builder, params);
             }
             builder.endObject();
             return builder;

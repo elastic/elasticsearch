@@ -9,6 +9,10 @@ package org.elasticsearch.xpack.searchbusinessrules;
 
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.SearchPlugin;
+import org.elasticsearch.plugins.SearchPlugin.QuerySpec;
+import org.elasticsearch.plugins.SearchPlugin.RetrieverSpec;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xpack.searchbusinessrules.retriever.PinnedRetrieverBuilder;
 
 import java.util.List;
 
@@ -18,7 +22,12 @@ public class SearchBusinessRules extends Plugin implements SearchPlugin {
 
     @Override
     public List<QuerySpec<?>> getQueries() {
-        return singletonList(new QuerySpec<>(PinnedQueryBuilder.NAME, PinnedQueryBuilder::new, PinnedQueryBuilder::fromXContent));
+        return List.of(new QuerySpec<>(PinnedQueryBuilder.NAME, PinnedQueryBuilder::new, PinnedQueryBuilder::fromXContent));
+    }
+
+    @Override
+    public List<RetrieverSpec<?>> getRetrievers() {
+        return singletonList(new RetrieverSpec<>(new ParseField(PinnedRetrieverBuilder.NAME), PinnedRetrieverBuilder::fromXContent));
     }
 
 }

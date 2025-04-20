@@ -1,0 +1,83 @@
+---
+setup:
+  - do:
+      cluster.health:
+        wait_for_status: yellow
+
+---
+"Test get reindex status with nonexistent task id":
+  - requires:
+      reason: "requires a cluster with the migration reindex feature"
+      test_runner_features: [capabilities]
+      capabilities:
+        - method: POST
+          path: /_migration/reindex
+          capabilities: [migration_reindex]
+  - do:
+      catch: /resource_not_found_exception/
+      indices.get_migrate_reindex_status:
+        index: "does_not_exist"
+
+---
+"Test Reindex With Existing Data Stream":
+  - requires:
+      reason: "requires a cluster with the migration reindex feature"
+      test_runner_features: [capabilities]
+      capabilities:
+        - method: POST
+          path: /_migration/reindex
+          capabilities: [migration_reindex]
+  - do:
+      indices.put_index_template:
+        name: my-template1
+        body:
+          index_patterns: [my-data-stream*]
+          template:
+            mappings:
+              properties:
+                '@timestamp':
+                  type: date
+                'foo':
+                  type: keyword
+          data_stream: {}
+
+  - do: # superuser
+      indices.create_data_stream:
+        name: my-data-stream
+  - is_true: acknowledged
+
+  - do:
+      indices.migrate_reindex:
+        body: |
+          {
+            "mode": "upgrade",
+            "source": {
+              "index": "my-data-stream"
+            }
+          }
+  - match: { acknowledged: true }
+
+  - do:
+      indices.get_migrate_reindex_status:
+        index: "my-data-stream"
+  - match: { total_indices_in_data_stream: 1 }
+  - match: { total_indices_requiring_upgrade: 0 }
+  - match: { successes: 0 }
+  - match: { in_progress: [] }
+  - match: { pending: 0 }
+  - match: { errors: [] }
+
+  - do:
+      indices.cancel_migrate_reindex:
+        index: "my-data-stream"
+  - match: { acknowledged: true }
+
+  - do:
+      catch: /resource_not_found_exception/
+      indices.cancel_migrate_reindex:
+        index: "my-data-stream"
+
+  - do:
+      catch: /resource_not_found_exception/
+      indices.get_migrate_reindex_status:
+        index: "my-data-stream"

@@ -7,7 +7,7 @@
 
 package org.elasticsearch.xpack.security.action.rolemapping;
 
-import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.reservedstate.ReservedClusterStateHandler;
 import org.elasticsearch.reservedstate.TransformState;
 import org.elasticsearch.xcontent.XContentParser;
@@ -32,7 +32,7 @@ import static org.elasticsearch.common.xcontent.XContentHelper.mapToXContentPars
  * It is used by the ReservedClusterStateService to add/update or remove role mappings. Typical usage
  * for this action is in the context of file based settings.
  */
-public class ReservedRoleMappingAction implements ReservedClusterStateHandler<List<PutRoleMappingRequest>> {
+public class ReservedRoleMappingAction implements ReservedClusterStateHandler<ProjectMetadata, List<PutRoleMappingRequest>> {
     public static final String NAME = "role_mappings";
 
     @Override
@@ -41,19 +41,19 @@ public class ReservedRoleMappingAction implements ReservedClusterStateHandler<Li
     }
 
     @Override
-    public TransformState transform(Object source, TransformState prevState) throws Exception {
-        @SuppressWarnings("unchecked")
-        Set<ExpressionRoleMapping> roleMappings = validate((List<PutRoleMappingRequest>) source);
+    public TransformState<ProjectMetadata> transform(List<PutRoleMappingRequest> source, TransformState<ProjectMetadata> prevState)
+        throws Exception {
+        Set<ExpressionRoleMapping> roleMappings = validateAndTranslate(source);
         RoleMappingMetadata newRoleMappingMetadata = new RoleMappingMetadata(roleMappings);
-        if (newRoleMappingMetadata.equals(RoleMappingMetadata.getFromClusterState(prevState.state()))) {
+        if (newRoleMappingMetadata.equals(RoleMappingMetadata.getFromProject(prevState.state()))) {
             return prevState;
         } else {
-            ClusterState newState = newRoleMappingMetadata.updateClusterState(prevState.state());
+            ProjectMetadata newState = newRoleMappingMetadata.updateProject(prevState.state());
             Set<String> entities = newRoleMappingMetadata.getRoleMappings()
                 .stream()
                 .map(ExpressionRoleMapping::getName)
                 .collect(Collectors.toSet());
-            return new TransformState(newState, entities);
+            return new TransformState<>(newState, entities);
         }
     }
 
@@ -71,7 +71,7 @@ public class ReservedRoleMappingAction implements ReservedClusterStateHandler<Li
         return result;
     }
 
-    private Set<ExpressionRoleMapping> validate(List<PutRoleMappingRequest> roleMappings) {
+    private Set<ExpressionRoleMapping> validateAndTranslate(List<PutRoleMappingRequest> roleMappings) {
         var exceptions = new ArrayList<Exception>();
         for (var roleMapping : roleMappings) {
             // File based defined role mappings are allowed to use MetadataUtils.RESERVED_PREFIX
@@ -85,6 +85,8 @@ public class ReservedRoleMappingAction implements ReservedClusterStateHandler<Li
             exceptions.forEach(illegalArgumentException::addSuppressed);
             throw illegalArgumentException;
         }
-        return roleMappings.stream().map(PutRoleMappingRequest::getMapping).collect(Collectors.toUnmodifiableSet());
+        return roleMappings.stream()
+            .map(r -> RoleMappingMetadata.copyWithNameInMetadata(r.getMapping()))
+            .collect(Collectors.toUnmodifiableSet());
     }
 }

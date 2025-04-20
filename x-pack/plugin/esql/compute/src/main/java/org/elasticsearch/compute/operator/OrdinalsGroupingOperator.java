@@ -19,6 +19,7 @@ import org.elasticsearch.common.util.BitArray;
 import org.elasticsearch.compute.Describable;
 import org.elasticsearch.compute.aggregation.GroupingAggregator;
 import org.elasticsearch.compute.aggregation.GroupingAggregator.Factory;
+import org.elasticsearch.compute.aggregation.GroupingAggregatorEvaluationContext;
 import org.elasticsearch.compute.aggregation.GroupingAggregatorFunction;
 import org.elasticsearch.compute.aggregation.SeenGroupIds;
 import org.elasticsearch.compute.aggregation.blockhash.BlockHash;
@@ -46,6 +47,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.function.IntFunction;
 import java.util.function.Supplier;
+import java.util.stream.Collectors;
 
 import static java.util.Objects.requireNonNull;
 import static java.util.stream.Collectors.joining;
@@ -291,7 +293,7 @@ public class OrdinalsGroupingOperator implements Operator {
                 try (IntVector selected = IntVector.range(0, blocks[0].getPositionCount(), driverContext.blockFactory())) {
                     int offset = 1;
                     for (int i = 0; i < aggregators.size(); i++) {
-                        aggregators.get(i).evaluate(blocks, offset, selected, driverContext);
+                        aggregators.get(i).evaluate(blocks, offset, selected, new GroupingAggregatorEvaluationContext(driverContext));
                         offset += aggBlockCounts[i];
                     }
                 }
@@ -325,7 +327,11 @@ public class OrdinalsGroupingOperator implements Operator {
 
     @Override
     public String toString() {
-        return this.getClass().getSimpleName() + "[" + "aggregators=" + aggregatorFactories + "]";
+        String aggregatorDescriptions = aggregatorFactories.stream()
+            .map(factory -> "\"" + factory.describe() + "\"")
+            .collect(Collectors.joining(", "));
+
+        return this.getClass().getSimpleName() + "[" + "aggregators=[" + aggregatorDescriptions + "]]";
     }
 
     record SegmentID(int shardIndex, int segmentIndex) {
@@ -367,8 +373,8 @@ public class OrdinalsGroupingOperator implements Operator {
         }
 
         void addInput(IntVector docs, Page page) {
+            GroupingAggregatorFunction.AddInput[] prepared = new GroupingAggregatorFunction.AddInput[aggregators.size()];
             try {
-                GroupingAggregatorFunction.AddInput[] prepared = new GroupingAggregatorFunction.AddInput[aggregators.size()];
                 for (int i = 0; i < prepared.length; i++) {
                     prepared[i] = aggregators.get(i).prepareProcessPage(this, page);
                 }
@@ -387,7 +393,7 @@ public class OrdinalsGroupingOperator implements Operator {
             } catch (IOException e) {
                 throw new UncheckedIOException(e);
             } finally {
-                page.releaseBlocks();
+                Releasables.close(page::releaseBlocks, Releasables.wrap(prepared));
             }
         }
 
@@ -611,12 +617,12 @@ public class OrdinalsGroupingOperator implements Operator {
         @Override
         IntBlock readOrdinalsAdded1(IntVector docs) throws IOException {
             final int positionCount = docs.getPositionCount();
-            try (IntVector.Builder builder = blockFactory.newIntVectorFixedBuilder(positionCount)) {
+            try (IntVector.FixedBuilder builder = blockFactory.newIntVectorFixedBuilder(positionCount)) {
                 for (int p = 0; p < positionCount; p++) {
                     if (sortedDocValues.advanceExact(docs.getInt(p))) {
-                        builder.appendInt(sortedDocValues.ordValue() + 1);
+                        builder.appendInt(p, sortedDocValues.ordValue() + 1);
                     } else {
-                        builder.appendInt(0);
+                        builder.appendInt(p, 0);
                     }
                 }
                 return builder.build().asBlock();

@@ -11,7 +11,7 @@ import org.elasticsearch.license.License;
 import org.elasticsearch.license.MockLicenseState;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.MockLogAppender;
+import org.elasticsearch.test.MockLog;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.Authentication.RealmRef;
@@ -59,11 +59,11 @@ public class AuditTrailServiceTests extends ESTestCase {
     }
 
     public void testLogWhenLicenseProhibitsAuditing() throws Exception {
-        try (var mockLogAppender = MockLogAppender.capture(AuditTrailService.class)) {
+        try (var mockLog = MockLog.capture(AuditTrailService.class)) {
             when(licenseState.getOperationMode()).thenReturn(randomFrom(License.OperationMode.values()));
             if (isAuditingAllowed) {
-                mockLogAppender.addExpectation(
-                    new MockLogAppender.UnseenEventExpectation(
+                mockLog.addExpectation(
+                    new MockLog.UnseenEventExpectation(
                         "audit disabled because of license",
                         AuditTrailService.class.getName(),
                         Level.WARN,
@@ -73,8 +73,8 @@ public class AuditTrailServiceTests extends ESTestCase {
                     )
                 );
             } else {
-                mockLogAppender.addExpectation(
-                    new MockLogAppender.SeenEventExpectation(
+                mockLog.addExpectation(
+                    new MockLog.SeenEventExpectation(
                         "audit disabled because of license",
                         AuditTrailService.class.getName(),
                         Level.WARN,
@@ -88,15 +88,15 @@ public class AuditTrailServiceTests extends ESTestCase {
                 service.get();
             }
 
-            mockLogAppender.assertAllExpectationsMatched();
+            mockLog.assertAllExpectationsMatched();
         }
     }
 
     public void testNoLogRecentlyWhenLicenseProhibitsAuditing() throws Exception {
-        try (var mockLogAppender = MockLogAppender.capture(AuditTrailService.class)) {
+        try (var mockLog = MockLog.capture(AuditTrailService.class)) {
             service.nextLogInstantAtomic.set(randomFrom(Instant.now().minus(Duration.ofMinutes(5)), Instant.now()));
-            mockLogAppender.addExpectation(
-                new MockLogAppender.UnseenEventExpectation(
+            mockLog.addExpectation(
+                new MockLog.UnseenEventExpectation(
                     "audit disabled because of license",
                     AuditTrailService.class.getName(),
                     Level.WARN,
@@ -106,7 +106,7 @@ public class AuditTrailServiceTests extends ESTestCase {
             for (int i = 1; i <= randomIntBetween(2, 6); i++) {
                 service.get();
             }
-            mockLogAppender.assertAllExpectationsMatched();
+            mockLog.assertAllExpectationsMatched();
         }
     }
 

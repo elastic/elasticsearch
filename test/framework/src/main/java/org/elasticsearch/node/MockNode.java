@@ -1,13 +1,16 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.node;
 
+import org.elasticsearch.action.search.OnlinePrewarmingService;
+import org.elasticsearch.action.search.OnlinePrewarmingServiceProvider;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.ClusterInfoService;
 import org.elasticsearch.cluster.MockInternalClusterInfoService;
@@ -27,9 +30,9 @@ import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.indices.ExecutorSelector;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
-import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.plugins.MockPluginsService;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.plugins.PluginsLoader;
 import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.readiness.MockReadinessService;
 import org.elasticsearch.readiness.ReadinessService;
@@ -98,7 +101,6 @@ public class MockNode extends Node {
             ScriptService scriptService,
             BigArrays bigArrays,
             FetchPhase fetchPhase,
-            ResponseCollectorService responseCollectorService,
             CircuitBreakerService circuitBreakerService,
             ExecutorSelector executorSelector,
             Tracer tracer
@@ -112,12 +114,15 @@ public class MockNode extends Node {
                     scriptService,
                     bigArrays,
                     fetchPhase,
-                    responseCollectorService,
                     circuitBreakerService,
                     executorSelector,
                     tracer
                 );
             }
+            OnlinePrewarmingService onlinePrewarmingService = pluginsService.loadSingletonServiceProvider(
+                OnlinePrewarmingServiceProvider.class,
+                () -> OnlinePrewarmingServiceProvider.DEFAULT
+            ).create(clusterService.getSettings(), threadPool, clusterService);
             return new MockSearchService(
                 clusterService,
                 indicesService,
@@ -125,10 +130,10 @@ public class MockNode extends Node {
                 scriptService,
                 bigArrays,
                 fetchPhase,
-                responseCollectorService,
                 circuitBreakerService,
                 executorSelector,
-                tracer
+                tracer,
+                onlinePrewarmingService
             );
         }
 
@@ -191,16 +196,6 @@ public class MockNode extends Node {
                     localNodeFactory,
                     clusterSettings,
                     taskManager.getTaskHeaders()
-                );
-            }
-        }
-
-        @Override
-        void processRecoverySettings(PluginsService pluginsService, ClusterSettings clusterSettings, RecoverySettings recoverySettings) {
-            if (pluginsService.filterPlugins(RecoverySettingsChunkSizePlugin.class).findAny().isEmpty() == false) {
-                clusterSettings.addSettingsUpdateConsumer(
-                    RecoverySettingsChunkSizePlugin.CHUNK_SIZE_SETTING,
-                    recoverySettings::setChunkSize
                 );
             }
         }
@@ -274,10 +269,11 @@ public class MockNode extends Node {
         final Collection<Class<? extends Plugin>> classpathPlugins,
         final boolean forbidPrivateIndexSettings
     ) {
-        super(NodeConstruction.prepareConstruction(environment, new MockServiceProvider() {
+        super(NodeConstruction.prepareConstruction(environment, null, new MockServiceProvider() {
+
             @Override
-            PluginsService newPluginService(Environment environment, Settings settings) {
-                return new MockPluginsService(settings, environment, classpathPlugins);
+            PluginsService newPluginService(Environment environment, PluginsLoader pluginsLoader) {
+                return new MockPluginsService(environment.settings(), environment, classpathPlugins);
             }
         }, forbidPrivateIndexSettings));
 

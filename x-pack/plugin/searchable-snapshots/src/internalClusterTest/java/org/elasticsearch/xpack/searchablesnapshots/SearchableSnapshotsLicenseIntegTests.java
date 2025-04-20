@@ -64,6 +64,7 @@ public class SearchableSnapshotsLicenseIntegTests extends BaseFrozenSearchableSn
         assertAcked(indicesAdmin().prepareDelete(indexName));
 
         final MountSearchableSnapshotRequest req = new MountSearchableSnapshotRequest(
+            TEST_REQUEST_TIMEOUT,
             indexName,
             repoName,
             snapshotName,
@@ -78,8 +79,13 @@ public class SearchableSnapshotsLicenseIntegTests extends BaseFrozenSearchableSn
         assertThat(restoreSnapshotResponse.getRestoreInfo().failedShards(), equalTo(0));
         ensureGreen(indexName);
 
-        assertAcked(client().execute(TransportDeleteLicenseAction.TYPE, new AcknowledgedRequest.Plain()).get());
-        assertAcked(client().execute(PostStartBasicAction.INSTANCE, new PostStartBasicRequest()).get());
+        assertAcked(
+            client().execute(TransportDeleteLicenseAction.TYPE, new AcknowledgedRequest.Plain(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT))
+                .get()
+        );
+        assertAcked(
+            client().execute(PostStartBasicAction.INSTANCE, new PostStartBasicRequest(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT)).get()
+        );
 
         ensureClusterSizeConsistency();
         ensureClusterStateConsistency();
@@ -87,6 +93,7 @@ public class SearchableSnapshotsLicenseIntegTests extends BaseFrozenSearchableSn
 
     public void testMountRequiresLicense() {
         final MountSearchableSnapshotRequest req = new MountSearchableSnapshotRequest(
+            TEST_REQUEST_TIMEOUT,
             indexName + "-extra",
             repoName,
             snapshotName,
@@ -141,7 +148,7 @@ public class SearchableSnapshotsLicenseIntegTests extends BaseFrozenSearchableSn
         assertBusy(
             () -> assertEquals(
                 ClusterHealthStatus.RED,
-                clusterAdmin().prepareHealth(indexName).get().getIndices().get(indexName).getStatus()
+                clusterAdmin().prepareHealth(TEST_REQUEST_TIMEOUT, indexName).get().getIndices().get(indexName).getStatus()
             )
         );
 
@@ -160,7 +167,8 @@ public class SearchableSnapshotsLicenseIntegTests extends BaseFrozenSearchableSn
         waitNoPendingTasksOnAll();
         ensureClusterStateConsistency();
 
-        PostStartTrialRequest request = new PostStartTrialRequest().setType(License.LicenseType.TRIAL.getTypeName()).acknowledge(true);
+        PostStartTrialRequest request = new PostStartTrialRequest(TEST_REQUEST_TIMEOUT).setType(License.LicenseType.TRIAL.getTypeName())
+            .acknowledge(true);
         final PostStartTrialResponse response = client().execute(PostStartTrialAction.INSTANCE, request).get();
         assertThat(
             response.getStatus(),

@@ -19,7 +19,10 @@ public class ComponentVersionsNodesInfoIT extends ESIntegTestCase {
     public void testNodesInfoComponentVersions() {
         final String node_1 = internalCluster().startNode();
 
-        ClusterHealthResponse clusterHealth = clusterAdmin().prepareHealth().setWaitForGreenStatus().setWaitForNodes("1").get();
+        ClusterHealthResponse clusterHealth = clusterAdmin().prepareHealth(TEST_REQUEST_TIMEOUT)
+            .setWaitForGreenStatus()
+            .setWaitForNodes("1")
+            .get();
         logger.info("--> done cluster_health, status {}", clusterHealth.getStatus());
 
         String server1NodeId = getNodeId(node_1);

@@ -1,0 +1,6 @@
+pr: 124177
+summary: "Improve error message for ( and ["
+area: ES|QL
+type: bug
+issues:
+ - 124145

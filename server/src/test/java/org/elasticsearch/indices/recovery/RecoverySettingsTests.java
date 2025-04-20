@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.indices.recovery;
@@ -18,7 +19,7 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.MockLogAppender;
+import org.elasticsearch.test.MockLog;
 
 import java.util.ArrayList;
 import java.util.HashSet;
@@ -43,9 +44,9 @@ import static org.elasticsearch.indices.recovery.RecoverySettings.NODE_BANDWIDTH
 import static org.elasticsearch.indices.recovery.RecoverySettings.NODE_BANDWIDTH_RECOVERY_SETTINGS;
 import static org.elasticsearch.indices.recovery.RecoverySettings.TOTAL_PHYSICAL_MEMORY_OVERRIDING_TEST_SETTING;
 import static org.elasticsearch.node.NodeRoleSettings.NODE_ROLES_SETTING;
-import static org.elasticsearch.test.MockLogAppender.LoggingExpectation;
-import static org.elasticsearch.test.MockLogAppender.SeenEventExpectation;
-import static org.elasticsearch.test.MockLogAppender.assertThatLogger;
+import static org.elasticsearch.test.MockLog.LoggingExpectation;
+import static org.elasticsearch.test.MockLog.SeenEventExpectation;
+import static org.elasticsearch.test.MockLog.assertThatLogger;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
@@ -422,7 +423,7 @@ public class RecoverySettingsTests extends ESTestCase {
                     .withMemory(ByteSizeValue.ofBytes(randomLongBetween(1L, ByteSizeUnit.GB.toBytes(4L))))
                     .build()
                     .getMaxBytesPerSec(),
-                equalTo(new ByteSizeValue(40, ByteSizeUnit.MB))
+                equalTo(ByteSizeValue.of(40, ByteSizeUnit.MB))
             );
         }
         {
@@ -432,7 +433,7 @@ public class RecoverySettingsTests extends ESTestCase {
                     .withMemory(ByteSizeValue.ofBytes(randomLongBetween(ByteSizeUnit.GB.toBytes(4L) + 1L, ByteSizeUnit.GB.toBytes(8L))))
                     .build()
                     .getMaxBytesPerSec(),
-                equalTo(new ByteSizeValue(60, ByteSizeUnit.MB))
+                equalTo(ByteSizeValue.of(60, ByteSizeUnit.MB))
             );
         }
         {
@@ -442,7 +443,7 @@ public class RecoverySettingsTests extends ESTestCase {
                     .withMemory(ByteSizeValue.ofBytes(randomLongBetween(ByteSizeUnit.GB.toBytes(8L) + 1L, ByteSizeUnit.GB.toBytes(16L))))
                     .build()
                     .getMaxBytesPerSec(),
-                equalTo(new ByteSizeValue(90, ByteSizeUnit.MB))
+                equalTo(ByteSizeValue.of(90, ByteSizeUnit.MB))
             );
         }
         {
@@ -452,7 +453,7 @@ public class RecoverySettingsTests extends ESTestCase {
                     .withMemory(ByteSizeValue.ofBytes(randomLongBetween(ByteSizeUnit.GB.toBytes(16L) + 1L, ByteSizeUnit.GB.toBytes(32L))))
                     .build()
                     .getMaxBytesPerSec(),
-                equalTo(new ByteSizeValue(125, ByteSizeUnit.MB))
+                equalTo(ByteSizeValue.of(125, ByteSizeUnit.MB))
             );
         }
         {
@@ -462,7 +463,7 @@ public class RecoverySettingsTests extends ESTestCase {
                     .withMemory(ByteSizeValue.ofBytes(randomLongBetween(ByteSizeUnit.GB.toBytes(32L) + 1L, ByteSizeUnit.TB.toBytes(4L))))
                     .build()
                     .getMaxBytesPerSec(),
-                equalTo(new ByteSizeValue(250, ByteSizeUnit.MB))
+                equalTo(ByteSizeValue.of(250, ByteSizeUnit.MB))
             );
         }
     }
@@ -490,9 +491,9 @@ public class RecoverySettingsTests extends ESTestCase {
         final ClusterSettings clusterSettings = new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
         final RecoverySettings recoverySettings = new RecoverySettings(settings, clusterSettings);
 
-        try (var mockAppender = MockLogAppender.capture(RecoverySettings.class)) {
-            mockAppender.addExpectation(
-                new MockLogAppender.UnseenEventExpectation("no warnings", RecoverySettings.class.getCanonicalName(), Level.WARN, "*")
+        try (var mockLog = MockLog.capture(RecoverySettings.class)) {
+            mockLog.addExpectation(
+                new MockLog.UnseenEventExpectation("no warnings", RecoverySettings.class.getCanonicalName(), Level.WARN, "*")
             );
 
             assertThat(recoverySettings.getUseSnapshotsDuringRecovery(), is(false));
@@ -507,7 +508,7 @@ public class RecoverySettingsTests extends ESTestCase {
             assertThat(releasable, is(notNullValue()));
             releasable.close();
 
-            mockAppender.assertAllExpectationsMatched();
+            mockLog.assertAllExpectationsMatched();
         }
     }
 

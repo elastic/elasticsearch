@@ -10,12 +10,11 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.math;
 import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
+import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.expression.function.AbstractScalarFunctionTestCase;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
-import org.elasticsearch.xpack.esql.expression.function.scalar.AbstractScalarFunctionTestCase;
-import org.elasticsearch.xpack.ql.expression.Expression;
-import org.elasticsearch.xpack.ql.tree.Source;
-import org.elasticsearch.xpack.ql.type.DataType;
-import org.elasticsearch.xpack.ql.type.DataTypes;
 
 import java.util.List;
 import java.util.function.Supplier;
@@ -50,8 +49,8 @@ public class PowTests extends AbstractScalarFunctionTestCase {
                 // 143^143 is still representable, but 144^144 is infinite
                 TestCaseSupplier.castToDoubleSuppliersFromRange(Double.NEGATIVE_INFINITY, Double.POSITIVE_INFINITY),
                 List.of(
-                    new TestCaseSupplier.TypedDataSupplier("<0 double>", () -> 0d, DataTypes.DOUBLE),
-                    new TestCaseSupplier.TypedDataSupplier("<-0 double>", () -> -0d, DataTypes.DOUBLE)
+                    new TestCaseSupplier.TypedDataSupplier("<0 double>", () -> 0d, DataType.DOUBLE),
+                    new TestCaseSupplier.TypedDataSupplier("<-0 double>", () -> -0d, DataType.DOUBLE)
                 ),
                 List.of()
             )
@@ -73,22 +72,12 @@ public class PowTests extends AbstractScalarFunctionTestCase {
                 144d,
                 Double.POSITIVE_INFINITY,
                 List.of(
-                    "Line -1:-1: evaluation of [] failed, treating result as null. Only first 20 failures recorded.",
-                    "Line -1:-1: java.lang.ArithmeticException: not a finite double number: Infinity"
+                    "Line 1:1: evaluation of [source] failed, treating result as null. Only first 20 failures recorded.",
+                    "Line 1:1: java.lang.ArithmeticException: not a finite double number: Infinity"
                 )
             )
         );
-        return parameterSuppliersFromTypedData(errorsForCasesWithoutExamples(suppliers));
-    }
-
-    @Override
-    protected DataType expectedType(List<DataType> argTypes) {
-        return DataTypes.DOUBLE;
-    }
-
-    @Override
-    protected List<ArgumentSpec> argSpec() {
-        return List.of(required(numerics()), required(numerics()));
+        return parameterSuppliersFromTypedDataWithDefaultChecksNoErrors(true, suppliers);
     }
 
     @Override

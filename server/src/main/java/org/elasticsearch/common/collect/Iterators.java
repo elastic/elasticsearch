@@ -1,18 +1,21 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.common.collect;
 
 import org.elasticsearch.core.Nullable;
 
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.Iterator;
+import java.util.List;
 import java.util.NoSuchElementException;
 import java.util.Objects;
 import java.util.function.BiFunction;
@@ -21,6 +24,7 @@ import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.IntFunction;
+import java.util.function.Predicate;
 import java.util.function.Supplier;
 import java.util.function.ToIntFunction;
 
@@ -30,22 +34,27 @@ public class Iterators {
      * Returns a single element iterator over the supplied value.
      */
     public static <T> Iterator<T> single(T element) {
-        return new Iterator<>() {
+        return new SingleIterator<>(element);
+    }
 
-            private T value = Objects.requireNonNull(element);
+    private static final class SingleIterator<T> implements Iterator<T> {
+        private T value;
 
-            @Override
-            public boolean hasNext() {
-                return value != null;
-            }
+        SingleIterator(T element) {
+            value = Objects.requireNonNull(element);
+        }
 
-            @Override
-            public T next() {
-                final T res = value;
-                value = null;
-                return res;
-            }
-        };
+        @Override
+        public boolean hasNext() {
+            return value != null;
+        }
+
+        @Override
+        public T next() {
+            final T res = value;
+            value = null;
+            return res;
+        }
     }
 
     @SafeVarargs
@@ -177,6 +186,110 @@ public class Iterators {
         public void forEachRemaining(Consumer<? super U> action) {
             input.forEachRemaining(t -> action.accept(fn.apply(t)));
         }
+    }
+
+    /**
+     * @param input An iterator over <i>non-null</i> values.
+     * @param predicate The predicate with which to filter the input.
+     * @return an iterator which returns the values from {@code input} which match {@code predicate}.
+     */
+    public static <T> Iterator<T> filter(Iterator<? extends T> input, Predicate<T> predicate) {
+        while (input.hasNext()) {
+            final var value = input.next();
+            assert value != null;
+            if (predicate.test(value)) {
+                return new FilterIterator<>(value, input, predicate);
+            }
+        }
+        return Collections.emptyIterator();
+    }
+
+    private static final class FilterIterator<T> implements Iterator<T> {
+        private final Iterator<? extends T> input;
+        private final Predicate<T> predicate;
+        private T next;
+
+        FilterIterator(T value, Iterator<? extends T> input, Predicate<T> predicate) {
+            this.next = value;
+            this.input = input;
+            this.predicate = predicate;
+            assert next != null;
+            assert predicate.test(next);
+        }
+
+        @Override
+        public boolean hasNext() {
+            return next != null;
+        }
+
+        @Override
+        public T next() {
+            if (hasNext() == false) {
+                throw new NoSuchElementException();
+            }
+            final var value = next;
+            while (input.hasNext()) {
+                final var laterValue = input.next();
+                assert laterValue != null;
+                if (predicate.test(laterValue)) {
+                    next = laterValue;
+                    return value;
+                }
+            }
+            next = null;
+            return value;
+        }
+    }
+
+    /**
+     * Returns an iterator that yields at most the first {@code n} elements of the provided {@code input} iterator.
+     */
+    public static <T> Iterator<T> limit(Iterator<? extends T> input, int n) {
+        assert n >= 0 : "negative limit";
+        if (n > 0 && input.hasNext()) {
+            return new LimitIterator<>(input, n);
+        } else {
+            return Collections.emptyIterator();
+        }
+    }
+
+    private static final class LimitIterator<T> implements Iterator<T> {
+        private final Iterator<? extends T> input;
+        private final int limit;
+        private int current;
+
+        LimitIterator(Iterator<? extends T> input, int limit) {
+            this.input = input;
+            this.limit = limit;
+        }
+
+        @Override
+        public boolean hasNext() {
+            return current < limit && input.hasNext();
+        }
+
+        @Override
+        public T next() {
+            if (current >= limit) {
+                throw new NoSuchElementException();
+            }
+            ++current;
+            return input.next();
+        }
+    }
+
+    /**
+     * Returns a list containing the elements of the provided {@code iterator}.
+     */
+    public static <T> List<T> toList(Iterator<T> iterator) {
+        if (iterator.hasNext()) {
+            var list = new ArrayList<T>();
+            while (iterator.hasNext()) {
+                list.add(iterator.next());
+            }
+            return Collections.unmodifiableList(list);
+        }
+        return Collections.emptyList();
     }
 
     public static <T, U> Iterator<U> flatMap(Iterator<? extends T> input, Function<T, Iterator<? extends U>> fn) {
@@ -357,6 +470,43 @@ public class Iterators {
         }
     }
 
+    /**
+     * Cycles infinitely over the elements in the {@code source} parameter
+     */
+    public static <T> Iterator<T> cycling(final Iterable<T> source) {
+        return new CyclingIterator<>(Objects.requireNonNull(source));
+    }
+
+    private static class CyclingIterator<T> implements Iterator<T> {
+        private final Iterable<T> source;
+        private Iterator<T> iterator;
+
+        CyclingIterator(Iterable<T> source) {
+            this.source = source;
+            this.iterator = source.iterator();
+            if (iterator.hasNext() == false) {
+                throw new IllegalArgumentException("Cannot cycle over empty iterable");
+            }
+        }
+
+        @Override
+        public boolean hasNext() {
+            return true;
+        }
+
+        @Override
+        public T next() {
+            if (iterator.hasNext()) {
+                return iterator.next();
+            }
+            iterator = source.iterator();
+            if (iterator.hasNext() == false) {
+                throw new IllegalArgumentException("Cannot cycle over empty iterable");
+            }
+            return iterator.next();
+        }
+    }
+
     public static <T> boolean equals(Iterator<? extends T> iterator1, Iterator<? extends T> iterator2, BiPredicate<T, T> itemComparer) {
         if (iterator1 == null) {
             return iterator2 == null;
@@ -388,5 +538,4 @@ public class Iterators {
         }
         return result;
     }
-
 }

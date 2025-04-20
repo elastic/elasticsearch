@@ -50,8 +50,8 @@ public class MultiField implements ExtractedField {
     }
 
     @Override
-    public Object[] value(SearchHit hit) {
-        return field.value(hit);
+    public Object[] value(SearchHit hit, SourceSupplier source) {
+        return field.value(hit, source);
     }
 
     @Override

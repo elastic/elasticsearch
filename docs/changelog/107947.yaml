@@ -1,6 +1,0 @@
-pr: 107947
-summary: "ESQL: Fix equals `hashCode` for functions"
-area: ES|QL
-type: bug
-issues:
- - 104393

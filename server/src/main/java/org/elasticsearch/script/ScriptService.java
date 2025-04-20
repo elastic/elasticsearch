@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.script;
@@ -140,7 +141,7 @@ public class ScriptService implements Closeable, ClusterStateApplier, ScriptComp
     public static final Setting.AffixSetting<ScriptCache.CompilationRate> SCRIPT_MAX_COMPILATIONS_RATE_SETTING = Setting.affixKeySetting(
         CONTEXT_PREFIX,
         "max_compilations_rate",
-        key -> new Setting<ScriptCache.CompilationRate>(
+        key -> new Setting<>(
             key,
             "75/5m",
             (String value) -> value.equals(UNLIMITED_COMPILATION_RATE_KEY)
@@ -656,7 +657,7 @@ public class ScriptService implements Closeable, ClusterStateApplier, ScriptComp
             return Collections.emptyMap();
         }
 
-        ScriptMetadata scriptMetadata = clusterState.metadata().custom(ScriptMetadata.TYPE);
+        ScriptMetadata scriptMetadata = clusterState.metadata().getProject().custom(ScriptMetadata.TYPE);
 
         if (scriptMetadata == null) {
             return Collections.emptyMap();
@@ -666,7 +667,7 @@ public class ScriptService implements Closeable, ClusterStateApplier, ScriptComp
     }
 
     protected StoredScriptSource getScriptFromClusterState(String id) {
-        ScriptMetadata scriptMetadata = clusterState.metadata().custom(ScriptMetadata.TYPE);
+        ScriptMetadata scriptMetadata = clusterState.metadata().getProject().custom(ScriptMetadata.TYPE);
 
         if (scriptMetadata == null) {
             throw new ResourceNotFoundException("unable to find script [" + id + "] in cluster state");
@@ -686,12 +687,12 @@ public class ScriptService implements Closeable, ClusterStateApplier, ScriptComp
         PutStoredScriptRequest request,
         ActionListener<AcknowledgedResponse> listener
     ) {
-        if (request.content().length() > maxSizeInBytes) {
+        if (request.contentLength() > maxSizeInBytes) {
             throw new IllegalArgumentException(
                 "exceeded max allowed stored script size in bytes ["
                     + maxSizeInBytes
                     + "] with size ["
-                    + request.content().length()
+                    + request.contentLength()
                     + "] for script ["
                     + request.id()
                     + "]"
@@ -732,7 +733,7 @@ public class ScriptService implements Closeable, ClusterStateApplier, ScriptComp
         submitUnbatchedTask(clusterService, "put-script-" + request.id(), new AckedClusterStateUpdateTask(request, listener) {
             @Override
             public ClusterState execute(ClusterState currentState) {
-                ScriptMetadata smd = currentState.metadata().custom(ScriptMetadata.TYPE);
+                ScriptMetadata smd = currentState.metadata().getProject().custom(ScriptMetadata.TYPE);
                 smd = ScriptMetadata.putStoredScript(smd, request.id(), source);
                 Metadata.Builder mdb = Metadata.builder(currentState.getMetadata()).putCustom(ScriptMetadata.TYPE, smd);
 
@@ -749,7 +750,7 @@ public class ScriptService implements Closeable, ClusterStateApplier, ScriptComp
         submitUnbatchedTask(clusterService, "delete-script-" + request.id(), new AckedClusterStateUpdateTask(request, listener) {
             @Override
             public ClusterState execute(ClusterState currentState) {
-                ScriptMetadata smd = currentState.metadata().custom(ScriptMetadata.TYPE);
+                ScriptMetadata smd = currentState.metadata().getProject().custom(ScriptMetadata.TYPE);
                 smd = ScriptMetadata.deleteStoredScript(smd, request.id());
                 Metadata.Builder mdb = Metadata.builder(currentState.getMetadata()).putCustom(ScriptMetadata.TYPE, smd);
 
@@ -768,7 +769,7 @@ public class ScriptService implements Closeable, ClusterStateApplier, ScriptComp
     }
 
     public static StoredScriptSource getStoredScript(ClusterState state, GetStoredScriptRequest request) {
-        ScriptMetadata scriptMetadata = state.metadata().custom(ScriptMetadata.TYPE);
+        ScriptMetadata scriptMetadata = state.metadata().getProject().custom(ScriptMetadata.TYPE);
 
         if (scriptMetadata != null) {
             return scriptMetadata.getStoredScript(request.id());

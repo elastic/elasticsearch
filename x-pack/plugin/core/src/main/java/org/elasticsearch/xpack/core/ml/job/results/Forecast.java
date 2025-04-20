@@ -140,7 +140,11 @@ public class Forecast implements ToXContentObject, Writeable {
         builder.field(BUCKET_SPAN.getPreferredName(), bucketSpan);
         builder.field(DETECTOR_INDEX.getPreferredName(), detectorIndex);
         if (timestamp != null) {
-            builder.timeField(Result.TIMESTAMP.getPreferredName(), Result.TIMESTAMP.getPreferredName() + "_string", timestamp.getTime());
+            builder.timestampFieldsFromUnixEpochMillis(
+                Result.TIMESTAMP.getPreferredName(),
+                Result.TIMESTAMP.getPreferredName() + "_string",
+                timestamp.getTime()
+            );
         }
         if (partitionFieldName != null) {
             builder.field(PARTITION_FIELD_NAME.getPreferredName(), partitionFieldName);

@@ -40,6 +40,8 @@ public final class UsernamesField {
     public static final String REMOTE_MONITORING_INDEXING_ROLE = "remote_monitoring_agent";
     public static final String LAZY_ROLLOVER_NAME = "_lazy_rollover";
     public static final String LAZY_ROLLOVER_ROLE = "_lazy_rollover";
+    public static final String REINDEX_DATA_STREAM_NAME = "_reindex_data_stream";
+    public static final String REINDEX_DATA_STREAM_ROLE = "_reindex_data_stream";
 
     private UsernamesField() {}
 }

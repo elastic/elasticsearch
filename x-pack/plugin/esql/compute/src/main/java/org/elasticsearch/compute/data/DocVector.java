@@ -238,6 +238,11 @@ public final class DocVector extends AbstractVector implements Vector {
     }
 
     @Override
+    public DocBlock keepMask(BooleanVector mask) {
+        throw new UnsupportedOperationException("can't mask DocVector because it can't contain nulls");
+    }
+
+    @Override
     public ReleasableIterator<? extends Block> lookup(IntBlock positions, ByteSizeValue targetBlockSize) {
         throw new UnsupportedOperationException("can't lookup values from DocVector");
     }

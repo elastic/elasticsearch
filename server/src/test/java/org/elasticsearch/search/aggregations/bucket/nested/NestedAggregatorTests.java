@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.aggregations.bucket.nested;
@@ -55,7 +56,7 @@ import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregatorTestCase;
 import org.elasticsearch.search.aggregations.BucketOrder;
 import org.elasticsearch.search.aggregations.InternalAggregation;
-import org.elasticsearch.search.aggregations.bucket.filter.Filter;
+import org.elasticsearch.search.aggregations.bucket.SingleBucketAggregation;
 import org.elasticsearch.search.aggregations.bucket.filter.FilterAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.terms.InternalTerms;
 import org.elasticsearch.search.aggregations.bucket.terms.LongTerms;
@@ -418,37 +419,37 @@ public class NestedAggregatorTests extends AggregatorTestCase {
 
                 Terms.Bucket bucket = terms.getBuckets().get(0);
                 assertEquals("d", bucket.getKeyAsString());
-                Max numPages = ((Nested) bucket.getAggregations().get("chapters")).getAggregations().get("num_pages");
+                Max numPages = ((SingleBucketAggregation) bucket.getAggregations().get("chapters")).getAggregations().get("num_pages");
                 assertEquals(3, (int) numPages.value());
 
                 bucket = terms.getBuckets().get(1);
                 assertEquals("f", bucket.getKeyAsString());
-                numPages = ((Nested) bucket.getAggregations().get("chapters")).getAggregations().get("num_pages");
+                numPages = ((SingleBucketAggregation) bucket.getAggregations().get("chapters")).getAggregations().get("num_pages");
                 assertEquals(14, (int) numPages.value());
 
                 bucket = terms.getBuckets().get(2);
                 assertEquals("g", bucket.getKeyAsString());
-                numPages = ((Nested) bucket.getAggregations().get("chapters")).getAggregations().get("num_pages");
+                numPages = ((SingleBucketAggregation) bucket.getAggregations().get("chapters")).getAggregations().get("num_pages");
                 assertEquals(18, (int) numPages.value());
 
                 bucket = terms.getBuckets().get(3);
                 assertEquals("e", bucket.getKeyAsString());
-                numPages = ((Nested) bucket.getAggregations().get("chapters")).getAggregations().get("num_pages");
+                numPages = ((SingleBucketAggregation) bucket.getAggregations().get("chapters")).getAggregations().get("num_pages");
                 assertEquals(23, (int) numPages.value());
 
                 bucket = terms.getBuckets().get(4);
                 assertEquals("c", bucket.getKeyAsString());
-                numPages = ((Nested) bucket.getAggregations().get("chapters")).getAggregations().get("num_pages");
+                numPages = ((SingleBucketAggregation) bucket.getAggregations().get("chapters")).getAggregations().get("num_pages");
                 assertEquals(39, (int) numPages.value());
 
                 bucket = terms.getBuckets().get(5);
                 assertEquals("b", bucket.getKeyAsString());
-                numPages = ((Nested) bucket.getAggregations().get("chapters")).getAggregations().get("num_pages");
+                numPages = ((SingleBucketAggregation) bucket.getAggregations().get("chapters")).getAggregations().get("num_pages");
                 assertEquals(50, (int) numPages.value());
 
                 bucket = terms.getBuckets().get(6);
                 assertEquals("a", bucket.getKeyAsString());
-                numPages = ((Nested) bucket.getAggregations().get("chapters")).getAggregations().get("num_pages");
+                numPages = ((SingleBucketAggregation) bucket.getAggregations().get("chapters")).getAggregations().get("num_pages");
                 assertEquals(70, (int) numPages.value());
 
                 // reverse order:
@@ -467,37 +468,37 @@ public class NestedAggregatorTests extends AggregatorTestCase {
 
                 bucket = terms.getBuckets().get(0);
                 assertEquals("a", bucket.getKeyAsString());
-                numPages = ((Nested) bucket.getAggregations().get("chapters")).getAggregations().get("num_pages");
+                numPages = ((SingleBucketAggregation) bucket.getAggregations().get("chapters")).getAggregations().get("num_pages");
                 assertEquals(70, (int) numPages.value());
 
                 bucket = terms.getBuckets().get(1);
                 assertEquals("b", bucket.getKeyAsString());
-                numPages = ((Nested) bucket.getAggregations().get("chapters")).getAggregations().get("num_pages");
+                numPages = ((SingleBucketAggregation) bucket.getAggregations().get("chapters")).getAggregations().get("num_pages");
                 assertEquals(50, (int) numPages.value());
 
                 bucket = terms.getBuckets().get(2);
                 assertEquals("c", bucket.getKeyAsString());
-                numPages = ((Nested) bucket.getAggregations().get("chapters")).getAggregations().get("num_pages");
+                numPages = ((SingleBucketAggregation) bucket.getAggregations().get("chapters")).getAggregations().get("num_pages");
                 assertEquals(39, (int) numPages.value());
 
                 bucket = terms.getBuckets().get(3);
                 assertEquals("e", bucket.getKeyAsString());
-                numPages = ((Nested) bucket.getAggregations().get("chapters")).getAggregations().get("num_pages");
+                numPages = ((SingleBucketAggregation) bucket.getAggregations().get("chapters")).getAggregations().get("num_pages");
                 assertEquals(23, (int) numPages.value());
 
                 bucket = terms.getBuckets().get(4);
                 assertEquals("g", bucket.getKeyAsString());
-                numPages = ((Nested) bucket.getAggregations().get("chapters")).getAggregations().get("num_pages");
+                numPages = ((SingleBucketAggregation) bucket.getAggregations().get("chapters")).getAggregations().get("num_pages");
                 assertEquals(18, (int) numPages.value());
 
                 bucket = terms.getBuckets().get(5);
                 assertEquals("f", bucket.getKeyAsString());
-                numPages = ((Nested) bucket.getAggregations().get("chapters")).getAggregations().get("num_pages");
+                numPages = ((SingleBucketAggregation) bucket.getAggregations().get("chapters")).getAggregations().get("num_pages");
                 assertEquals(14, (int) numPages.value());
 
                 bucket = terms.getBuckets().get(6);
                 assertEquals("d", bucket.getKeyAsString());
-                numPages = ((Nested) bucket.getAggregations().get("chapters")).getAggregations().get("num_pages");
+                numPages = ((SingleBucketAggregation) bucket.getAggregations().get("chapters")).getAggregations().get("num_pages");
                 assertEquals(3, (int) numPages.value());
             }
         }
@@ -556,7 +557,7 @@ public class NestedAggregatorTests extends AggregatorTestCase {
                     Tuple<String, int[]> book = books.get(i);
                     Terms.Bucket bucket = terms.getBuckets().get(i);
                     assertEquals(book.v1(), bucket.getKeyAsString());
-                    Min numPages = ((Nested) bucket.getAggregations().get("chapters")).getAggregations().get("num_pages");
+                    Min numPages = ((SingleBucketAggregation) bucket.getAggregations().get("chapters")).getAggregations().get("num_pages");
                     assertEquals(book.v2()[0], (int) numPages.value());
                 }
             }
@@ -642,7 +643,7 @@ public class NestedAggregatorTests extends AggregatorTestCase {
                 MappedFieldType fieldType1 = new KeywordFieldMapper.KeywordFieldType("key");
                 MappedFieldType fieldType2 = new KeywordFieldMapper.KeywordFieldType("value");
 
-                Filter filter = searchAndReduce(
+                SingleBucketAggregation filter = searchAndReduce(
                     indexReader,
                     new AggTestConfig(filterAggregationBuilder, fieldType1, fieldType2).withQuery(
                         Queries.newNonNestedFilter(IndexVersion.current())
@@ -707,7 +708,7 @@ public class NestedAggregatorTests extends AggregatorTestCase {
                 );
 
                 InternalNested nested = searchAndReduce(indexReader, new AggTestConfig(agg, fieldType));
-                Nested aliasNested = searchAndReduce(indexReader, new AggTestConfig(aliasAgg, fieldType));
+                SingleBucketAggregation aliasNested = searchAndReduce(indexReader, new AggTestConfig(aliasAgg, fieldType));
 
                 assertEquals(nested, aliasNested);
                 assertEquals(expectedNestedDocs, nested.getDocCount());
@@ -766,8 +767,8 @@ public class NestedAggregatorTests extends AggregatorTestCase {
                 assertNotNull(terms);
 
                 for (LongTerms.Bucket bucket : terms.getBuckets()) {
-                    Max max = (Max) bucket.getAggregations().asMap().get(MAX_AGG_NAME);
-                    InternalSimpleValue bucketScript = (InternalSimpleValue) bucket.getAggregations().asMap().get("bucketscript");
+                    Max max = (Max) bucket.getAggregations().get(MAX_AGG_NAME);
+                    InternalSimpleValue bucketScript = (InternalSimpleValue) bucket.getAggregations().get("bucketscript");
                     assertNotNull(max);
                     assertNotNull(bucketScript);
                     assertEquals(max.value(), -bucketScript.getValue(), Double.MIN_VALUE);
@@ -912,6 +913,7 @@ public class NestedAggregatorTests extends AggregatorTestCase {
     );
 
     public static NestedObjectMapper nestedObject(String path) {
-        return new NestedObjectMapper.Builder(path, IndexVersion.current()).build(MapperBuilderContext.root(false, false));
+        return new NestedObjectMapper.Builder(path, IndexVersion.current(), query -> { throw new UnsupportedOperationException(); }, null)
+            .build(MapperBuilderContext.root(false, false));
     }
 }

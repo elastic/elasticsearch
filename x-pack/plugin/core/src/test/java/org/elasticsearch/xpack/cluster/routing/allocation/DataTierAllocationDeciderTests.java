@@ -23,8 +23,11 @@ import org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.cluster.routing.GlobalRoutingTable;
+import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.RoutingNodesHelper;
+import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.routing.allocation.DataTier;
@@ -759,27 +762,15 @@ public class DataTierAllocationDeciderTests extends ESAllocationTestCase {
             SingleNodeShutdownMetadata.Type.REPLACE,
             SingleNodeShutdownMetadata.Type.REMOVE
         );
+        var builder = SingleNodeShutdownMetadata.builder()
+            .setNodeId(nodeId)
+            .setNodeEphemeralId(nodeId)
+            .setType(type)
+            .setReason(this.getTestName());
         return switch (type) {
-            case REMOVE -> SingleNodeShutdownMetadata.builder()
-                .setNodeId(nodeId)
-                .setType(type)
-                .setReason(this.getTestName())
-                .setStartedAtMillis(randomNonNegativeLong())
-                .build();
-            case REPLACE -> SingleNodeShutdownMetadata.builder()
-                .setNodeId(nodeId)
-                .setType(type)
-                .setTargetNodeName(randomAlphaOfLength(10))
-                .setReason(this.getTestName())
-                .setStartedAtMillis(randomNonNegativeLong())
-                .build();
-            case SIGTERM -> SingleNodeShutdownMetadata.builder()
-                .setNodeId(nodeId)
-                .setType(type)
-                .setGracePeriod(randomTimeValue())
-                .setReason(this.getTestName())
-                .setStartedAtMillis(randomNonNegativeLong())
-                .build();
+            case REMOVE -> builder.setStartedAtMillis(randomNonNegativeLong()).build();
+            case REPLACE -> builder.setTargetNodeName(randomAlphaOfLength(10)).setStartedAtMillis(randomNonNegativeLong()).build();
+            case SIGTERM -> builder.setGracePeriod(randomTimeValue()).setStartedAtMillis(randomNonNegativeLong()).build();
             case RESTART -> throw new AssertionError("bad randomization, this method only generates removal type shutdowns");
         };
     }
@@ -890,7 +881,15 @@ public class DataTierAllocationDeciderTests extends ESAllocationTestCase {
         if (desiredNodes != null) {
             metadata.putCustom(DesiredNodesMetadata.TYPE, new DesiredNodesMetadata(desiredNodes));
         }
-        return ClusterState.builder(new ClusterName("test")).nodes(discoveryNodes).metadata(metadata).build();
+
+        RoutingTable.Builder routingTableBuilder = new RoutingTable.Builder();
+        routingTableBuilder.add(IndexRoutingTable.builder(shard.shardId().getIndex()).build());
+
+        return ClusterState.builder(new ClusterName("test"))
+            .nodes(discoveryNodes)
+            .metadata(metadata)
+            .routingTable(GlobalRoutingTable.builder().put(Metadata.DEFAULT_PROJECT_ID, routingTableBuilder).build())
+            .build();
     }
 
     private static DesiredNode newDesiredNode(String externalId, DiscoveryNodeRole... roles) {
@@ -936,7 +935,7 @@ public class DataTierAllocationDeciderTests extends ESAllocationTestCase {
 
         {
             final var decision = DataTierAllocationDecider.INSTANCE.canRemain(
-                allocation.metadata().getIndexSafe(shard.index()),
+                allocation.metadata().getProject().getIndexSafe(shard.index()),
                 shard,
                 routingNode,
                 allocation
@@ -1019,6 +1018,7 @@ public class DataTierAllocationDeciderTests extends ESAllocationTestCase {
                 nodeId,
                 SingleNodeShutdownMetadata.builder()
                     .setNodeId(nodeId)
+                    .setNodeEphemeralId(nodeId)
                     .setType(SingleNodeShutdownMetadata.Type.RESTART)
                     .setReason(this.getTestName())
                     .setStartedAtMillis(randomNonNegativeLong())

@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.runtime;
@@ -17,6 +18,7 @@ import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.QueryVisitor;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Scorer;
+import org.apache.lucene.search.ScorerSupplier;
 import org.apache.lucene.search.TwoPhaseIterator;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.util.SloppyMath;
@@ -78,8 +80,9 @@ public final class GeoPointScriptFieldDistanceFeatureQuery extends AbstractScrip
             }
 
             @Override
-            public Scorer scorer(LeafReaderContext context) {
-                return new DistanceScorer(this, scriptContextFunction().apply(context), context.reader().maxDoc(), boost);
+            public ScorerSupplier scorerSupplier(LeafReaderContext context) throws IOException {
+                Scorer scorer = new DistanceScorer(scriptContextFunction().apply(context), context.reader().maxDoc(), boost);
+                return new DefaultScorerSupplier(scorer);
             }
 
             @Override
@@ -115,8 +118,7 @@ public final class GeoPointScriptFieldDistanceFeatureQuery extends AbstractScrip
         private final DocIdSetIterator disi;
         private final float weight;
 
-        protected DistanceScorer(Weight weight, AbstractLongFieldScript script, int maxDoc, float boost) {
-            super(weight);
+        protected DistanceScorer(AbstractLongFieldScript script, int maxDoc, float boost) {
             this.script = script;
             twoPhase = new TwoPhaseIterator(DocIdSetIterator.all(maxDoc)) {
                 @Override

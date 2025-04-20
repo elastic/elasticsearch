@@ -13,6 +13,7 @@ import org.elasticsearch.client.Response;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.time.DateFormatter;
+import org.elasticsearch.common.time.FormatNames;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
@@ -63,7 +64,7 @@ public class EcsDynamicTemplatesIT extends ESRestTestCase {
 
     private static Map<String, Object> ecsDynamicTemplates;
     private static Map<String, Map<String, Object>> ecsFlatFieldDefinitions;
-    private static Map<String, String> ecsFlatMultiFieldDefinitions;
+    private static Map<String, Map<String, Object>> ecsFlatMultiFieldDefinitions;
 
     @BeforeClass
     public static void setupSuiteScopeCluster() throws Exception {
@@ -142,12 +143,11 @@ public class EcsDynamicTemplatesIT extends ESRestTestCase {
                 iterator.remove();
             }
 
-            List<Map<String, String>> multiFields = (List<Map<String, String>>) definitions.get("multi_fields");
+            List<Map<String, Object>> multiFields = (List<Map<String, Object>>) definitions.get("multi_fields");
             if (multiFields != null) {
                 multiFields.forEach(multiFieldsDefinitions -> {
-                    String subfieldFlatName = Objects.requireNonNull(multiFieldsDefinitions.get("flat_name"));
-                    String subfieldType = Objects.requireNonNull(multiFieldsDefinitions.get("type"));
-                    ecsFlatMultiFieldDefinitions.put(subfieldFlatName, subfieldType);
+                    String subfieldFlatName = (String) Objects.requireNonNull(multiFieldsDefinitions.get("flat_name"));
+                    ecsFlatMultiFieldDefinitions.put(subfieldFlatName, multiFieldsDefinitions);
                 });
             }
         }
@@ -164,6 +164,22 @@ public class EcsDynamicTemplatesIT extends ESRestTestCase {
         Map<String, Object> flattenedFieldsMap = createTestDocument(true);
         indexDocument(indexName, flattenedFieldsMap);
         verifyEcsMappings(indexName);
+    }
+
+    public void testFlattenedFieldsWithinAttributes() throws IOException {
+        String indexName = "test-flattened-attributes";
+        createTestIndex(indexName);
+        Map<String, Object> flattenedFieldsMap = createTestDocument(true);
+        indexDocument(indexName, Map.of("attributes", flattenedFieldsMap));
+        verifyEcsMappings(indexName, "attributes.");
+    }
+
+    public void testFlattenedFieldsWithinResourceAttributes() throws IOException {
+        String indexName = "test-flattened-attributes";
+        createTestIndex(indexName);
+        Map<String, Object> flattenedFieldsMap = createTestDocument(true);
+        indexDocument(indexName, Map.of("resource.attributes", flattenedFieldsMap));
+        verifyEcsMappings(indexName, "resource.attributes.");
     }
 
     public void testFlattenedFieldsWithoutSubobjects() throws IOException {
@@ -191,7 +207,45 @@ public class EcsDynamicTemplatesIT extends ESRestTestCase {
         verifyEcsMappings(indexName);
     }
 
-    private void assertType(String expectedType, Map<String, Object> actualMappings) throws IOException {
+    public void testDateFieldsWithDifferentFormats() throws IOException {
+        Map<String, Object> dateFieldsMap = ecsFlatFieldDefinitions.entrySet()
+            .stream()
+            .filter(entry -> "date".equals(entry.getValue().get("type")))
+            .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
+
+        // test with iso8601 format
+        String indexName = "test-date-fields-as-is8601";
+        createTestIndex(indexName);
+        Map<String, Object> document = new HashMap<>();
+        DateFormatter formatter = DateFormatter.forPattern(FormatNames.ISO8601.getName());
+        for (String field : dateFieldsMap.keySet()) {
+            document.put(field, formatter.formatMillis(System.currentTimeMillis()));
+        }
+        verifyAllDateFields(indexName, document, dateFieldsMap);
+
+        // test with milliseconds since epoch format
+        indexName = "test-date-fields-as-millis";
+        createTestIndex(indexName);
+        document = new HashMap<>();
+        for (String field : dateFieldsMap.keySet()) {
+            document.put(field, System.currentTimeMillis());
+        }
+        verifyAllDateFields(indexName, document, dateFieldsMap);
+    }
+
+    private void verifyAllDateFields(String indexName, Map<String, Object> document, Map<String, Object> dateFieldsMap) throws IOException {
+        indexDocument(indexName, document);
+        final Map<String, Object> rawMappings = getMappings(indexName);
+        final Map<String, Map<String, Object>> flatFieldMappings = new HashMap<>();
+        processRawMappingsSubtree(rawMappings, flatFieldMappings, new HashMap<>(), "");
+        flatFieldMappings.forEach((fieldName, fieldMappings) -> {
+            if (dateFieldsMap.containsKey(fieldName)) {
+                assertType("date", fieldMappings);
+            }
+        });
+    }
+
+    private void assertType(String expectedType, Map<String, Object> actualMappings) {
         assertNotNull("expected to get non-null mappings for field", actualMappings);
         assertEquals(expectedType, actualMappings.get("type"));
     }
@@ -297,6 +351,7 @@ public class EcsDynamicTemplatesIT extends ESRestTestCase {
         } else {
             indexMappings = ecsDynamicTemplates;
         }
+        indexMappings.put("date_detection", false);
         try (XContentBuilder bodyBuilder = JsonXContent.contentBuilder()) {
             bodyBuilder.startObject();
             bodyBuilder.startObject("settings");
@@ -334,7 +389,7 @@ public class EcsDynamicTemplatesIT extends ESRestTestCase {
                 return "test";
             }
             case "date" -> {
-                return DateFormatter.forPattern("strict_date_optional_time").formatMillis(System.currentTimeMillis());
+                return DateFormatter.forPattern(FormatNames.STRICT_DATE_OPTIONAL_TIME.getName()).formatMillis(System.currentTimeMillis());
             }
             case "ip" -> {
                 return NetworkAddress.format(randomIp(true));
@@ -395,12 +450,19 @@ public class EcsDynamicTemplatesIT extends ESRestTestCase {
     }
 
     private void verifyEcsMappings(String indexName) throws IOException {
+        verifyEcsMappings(indexName, "");
+    }
+
+    private void verifyEcsMappings(String indexName, String fieldPrefix) throws IOException {
         final Map<String, Object> rawMappings = getMappings(indexName);
         final Map<String, Map<String, Object>> flatFieldMappings = new HashMap<>();
         final Map<String, Map<String, Object>> flatMultiFieldsMappings = new HashMap<>();
         processRawMappingsSubtree(rawMappings, flatFieldMappings, flatMultiFieldsMappings, "");
 
-        Map<String, Map<String, Object>> shallowFieldMapCopy = new HashMap<>(ecsFlatFieldDefinitions);
+        Map<String, Map<String, Object>> shallowFieldMapCopy = ecsFlatFieldDefinitions.entrySet()
+            .stream()
+            .collect(Collectors.toMap(e -> fieldPrefix + e.getKey(), Map.Entry::getValue));
+
         logger.info("Testing mapping of {} ECS fields", shallowFieldMapCopy.size());
         List<String> nonEcsFields = new ArrayList<>();
         Map<String, String> fieldToWrongMappingType = new HashMap<>();
@@ -411,32 +473,35 @@ public class EcsDynamicTemplatesIT extends ESRestTestCase {
             if (expectedMappings == null) {
                 nonEcsFields.add(fieldName);
             } else {
-                String expectedType = (String) expectedMappings.get("type");
-                String actualMappingType = (String) actualMappings.get("type");
-                if (actualMappingType.equals(expectedType) == false) {
-                    fieldToWrongMappingType.put(fieldName, actualMappingType);
-                }
-                if (expectedMappings.get("index") != actualMappings.get("index")) {
-                    wronglyIndexedFields.add(fieldName);
-                }
-                if (expectedMappings.get("doc_values") != actualMappings.get("doc_values")) {
-                    wronglyDocValuedFields.add(fieldName);
-                }
+                compareExpectedToActualMappings(
+                    fieldName,
+                    actualMappings,
+                    expectedMappings,
+                    fieldToWrongMappingType,
+                    wronglyIndexedFields,
+                    wronglyDocValuedFields
+                );
             }
         });
 
-        Map<String, String> shallowMultiFieldMapCopy = new HashMap<>(ecsFlatMultiFieldDefinitions);
+        Map<String, Map<String, Object>> shallowMultiFieldMapCopy = ecsFlatMultiFieldDefinitions.entrySet()
+            .stream()
+            .collect(Collectors.toMap(e -> fieldPrefix + e.getKey(), Map.Entry::getValue));
         logger.info("Testing mapping of {} ECS multi-fields", shallowMultiFieldMapCopy.size());
         flatMultiFieldsMappings.forEach((fieldName, actualMappings) -> {
-            String expectedType = shallowMultiFieldMapCopy.remove(fieldName);
-            if (expectedType != null) {
+            Map<String, Object> expectedMultiFieldMappings = shallowMultiFieldMapCopy.remove(fieldName);
+            if (expectedMultiFieldMappings != null) {
                 // not finding an entry in the expected multi-field mappings map is acceptable: our dynamic templates are required to
                 // ensure multi-field mapping for all fields with such ECS definitions. However, the patterns in these templates may lead
                 // to multi-field mapping for ECS fields for which such are not defined
-                String actualMappingType = (String) actualMappings.get("type");
-                if (actualMappingType.equals(expectedType) == false) {
-                    fieldToWrongMappingType.put(fieldName, actualMappingType);
-                }
+                compareExpectedToActualMappings(
+                    fieldName,
+                    actualMappings,
+                    expectedMultiFieldMappings,
+                    fieldToWrongMappingType,
+                    wronglyIndexedFields,
+                    wronglyDocValuedFields
+                );
             }
         });
 
@@ -460,7 +525,13 @@ public class EcsDynamicTemplatesIT extends ESRestTestCase {
             );
         });
         fieldToWrongMappingType.forEach((fieldName, actualMappingType) -> {
-            String ecsExpectedType = (String) ecsFlatFieldDefinitions.get(fieldName).get("type");
+            // if fieldPrefix is not null, we need to remove it from the field name for the ECS lookup
+            String ecsFieldName = fieldPrefix == null ? fieldName : fieldName.substring(fieldPrefix.length());
+            Map<String, Object> fieldMappings = ecsFlatFieldDefinitions.get(ecsFieldName);
+            if (fieldMappings == null) {
+                fieldMappings = ecsFlatMultiFieldDefinitions.get(ecsFieldName);
+            }
+            String ecsExpectedType = (String) fieldMappings.get("type");
             logger.error(
                 "ECS field '{}' should be mapped to type '{}' but is mapped to type '{}'. Update {} accordingly.",
                 fieldName,
@@ -492,5 +563,26 @@ public class EcsDynamicTemplatesIT extends ESRestTestCase {
                 + "details above",
             wronglyDocValuedFields.isEmpty()
         );
+    }
+
+    private static void compareExpectedToActualMappings(
+        String fieldName,
+        Map<String, Object> actualMappings,
+        Map<String, Object> expectedMappings,
+        Map<String, String> fieldToWrongMappingType,
+        List<String> wronglyIndexedFields,
+        List<String> wronglyDocValuedFields
+    ) {
+        String expectedType = (String) expectedMappings.get("type");
+        String actualMappingType = (String) actualMappings.get("type");
+        if (actualMappingType.equals(expectedType) == false) {
+            fieldToWrongMappingType.put(fieldName, actualMappingType);
+        }
+        if (expectedMappings.get("index") != actualMappings.get("index")) {
+            wronglyIndexedFields.add(fieldName);
+        }
+        if (expectedMappings.get("doc_values") != actualMappings.get("doc_values")) {
+            wronglyDocValuedFields.add(fieldName);
+        }
     }
 }

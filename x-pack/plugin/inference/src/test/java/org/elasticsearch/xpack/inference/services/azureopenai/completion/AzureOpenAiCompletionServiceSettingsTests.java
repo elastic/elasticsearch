@@ -13,6 +13,7 @@ import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.azureopenai.AzureOpenAiServiceFields;
 
 import java.io.IOException;
@@ -46,7 +47,8 @@ public class AzureOpenAiCompletionServiceSettingsTests extends AbstractWireSeria
                     AzureOpenAiServiceFields.API_VERSION,
                     apiVersion
                 )
-            )
+            ),
+            ConfigurationParseContext.PERSISTENT
         );
 
         assertThat(serviceSettings, is(new AzureOpenAiCompletionServiceSettings(resourceName, deploymentId, apiVersion, null)));
@@ -61,18 +63,6 @@ public class AzureOpenAiCompletionServiceSettingsTests extends AbstractWireSeria
 
         assertThat(xContentResult, is("""
             {"resource_name":"resource","deployment_id":"deployment","api_version":"2024","rate_limit":{"requests_per_minute":120}}"""));
-    }
-
-    public void testToFilteredXContent_WritesAllValues_Except_RateLimit() throws IOException {
-        var entity = new AzureOpenAiCompletionServiceSettings("resource", "deployment", "2024", null);
-
-        XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
-        var filteredXContent = entity.getFilteredXContentObject();
-        filteredXContent.toXContent(builder, null);
-        String xContentResult = Strings.toString(builder);
-
-        assertThat(xContentResult, is("""
-            {"resource_name":"resource","deployment_id":"deployment","api_version":"2024"}"""));
     }
 
     @Override

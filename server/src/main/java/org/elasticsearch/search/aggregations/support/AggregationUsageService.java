@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.aggregations.support;
@@ -18,8 +19,6 @@ import java.util.concurrent.atomic.LongAdder;
 
 public class AggregationUsageService implements ReportingService<AggregationInfo> {
     private static final String ES_SEARCH_QUERY_AGGREGATIONS_TOTAL_COUNT = "es.search.query.aggregations.total";
-    private final String AGGREGATION_NAME_KEY = "aggregation_name";
-    private final String VALUES_SOURCE_KEY = "values_source";
     private final LongCounter aggregationsUsageCounter;
     private final Map<String, Map<String, LongAdder>> aggs;
     private final AggregationInfo info;
@@ -82,6 +81,8 @@ public class AggregationUsageService implements ReportingService<AggregationInfo
         }
         assert valuesSourceMap != null : "Unknown aggregation [" + aggregationName + "][" + valuesSourceType + "]";
         // tests will have a no-op implementation here
+        String VALUES_SOURCE_KEY = "values_source";
+        String AGGREGATION_NAME_KEY = "aggregation_name";
         aggregationsUsageCounter.incrementBy(1, Map.of(AGGREGATION_NAME_KEY, aggregationName, VALUES_SOURCE_KEY, valuesSourceType));
     }
 

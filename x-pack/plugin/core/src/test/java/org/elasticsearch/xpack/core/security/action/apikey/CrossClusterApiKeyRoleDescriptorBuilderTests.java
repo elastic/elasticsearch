@@ -10,11 +10,16 @@ package org.elasticsearch.xpack.core.security.action.apikey;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.xcontent.XContentParseException;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.json.JsonXContent;
+import org.elasticsearch.xpack.core.security.authc.AuthenticationTestHelper;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
+import org.elasticsearch.xpack.core.security.authz.permission.ClusterPermission;
 import org.elasticsearch.xpack.core.security.authz.permission.RemoteClusterPermissions;
+import org.elasticsearch.xpack.core.security.authz.privilege.ClusterPrivilege;
+import org.elasticsearch.xpack.core.security.authz.privilege.ClusterPrivilegeResolver;
 
 import java.io.IOException;
 import java.util.List;
@@ -27,6 +32,7 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
+import static org.mockito.Mockito.mock;
 
 public class CrossClusterApiKeyRoleDescriptorBuilderTests extends ESTestCase {
 
@@ -246,18 +252,20 @@ public class CrossClusterApiKeyRoleDescriptorBuilderTests extends ESTestCase {
     }
 
     public void testCheckForInvalidLegacyRoleDescriptors() {
-        final String[] pre8_14ClusterPrivileges_searchAndReplication = { "cross_cluster_search", "cross_cluster_replication" };
-        final String[] pre8_14ClusterPrivileges_searchOnly = { "cross_cluster_search" };
-        final String[] pre8_14IndexPrivileges = { "read", "read_cross_cluster", "view_index_metadata" };
+        // legacy here is in reference to RCS API privileges pre GA, we know which privileges are used in those versions and is used for
+        // minor optimizations. the "legacy" privileges might also be the same as in newer versions, and that is OK too.
+        final String[] legacyClusterPrivileges_searchAndReplication = { "cross_cluster_search", "cross_cluster_replication" };
+        final String[] legacyClusterPrivileges_searchOnly = { "cross_cluster_search" };
+        final String[] legacyIndexPrivileges = { "read", "read_cross_cluster", "view_index_metadata" };
         final String[] otherPrivileges = randomArray(1, 5, String[]::new, () -> randomAlphaOfLength(5));
         String apiKeyId = randomAlphaOfLength(5);
-        RoleDescriptor.IndicesPrivileges pre8_14SearchIndexPrivileges_noDLS = RoleDescriptor.IndicesPrivileges.builder()
+        RoleDescriptor.IndicesPrivileges legacySearchIndexPrivileges_noDLS = RoleDescriptor.IndicesPrivileges.builder()
             .indices(randomAlphaOfLength(5))
-            .privileges(pre8_14IndexPrivileges)
+            .privileges(legacyIndexPrivileges)
             .build();
-        RoleDescriptor.IndicesPrivileges pre8_14SearchIndexPrivileges_withDLS = RoleDescriptor.IndicesPrivileges.builder()
+        RoleDescriptor.IndicesPrivileges legacySearchIndexPrivileges_withDLS = RoleDescriptor.IndicesPrivileges.builder()
             .indices(randomAlphaOfLength(5))
-            .privileges(pre8_14IndexPrivileges)
+            .privileges(legacyIndexPrivileges)
             .query("{\"term\":{\"tag\":42}}")
             .build();
         RoleDescriptor.IndicesPrivileges otherIndexPrivilege = RoleDescriptor.IndicesPrivileges.builder()
@@ -265,18 +273,18 @@ public class CrossClusterApiKeyRoleDescriptorBuilderTests extends ESTestCase {
             .privileges(otherPrivileges) // replication has fixed index privileges, but for this test we don't care about the actual values
             .build();
 
-        // role descriptor emulates pre 8.14 with search and replication with DLS: this is the primary case we are trying to catch
-        RoleDescriptor pre8_14ApiKeyRoleDescriptor_withSearchAndReplication_withDLS = new RoleDescriptor(
+        // role descriptor emulates pre GA with search and replication with DLS: this is the primary case we are trying to catch
+        RoleDescriptor legacyApiKeyRoleDescriptor_withSearchAndReplication_withDLS = new RoleDescriptor(
             ROLE_DESCRIPTOR_NAME,
-            pre8_14ClusterPrivileges_searchAndReplication,
-            new RoleDescriptor.IndicesPrivileges[] { pre8_14SearchIndexPrivileges_withDLS, otherIndexPrivilege },
+            legacyClusterPrivileges_searchAndReplication,
+            new RoleDescriptor.IndicesPrivileges[] { legacySearchIndexPrivileges_withDLS, otherIndexPrivilege },
             null
         );
         IllegalArgumentException exception = expectThrows(
             IllegalArgumentException.class,
             () -> CrossClusterApiKeyRoleDescriptorBuilder.checkForInvalidLegacyRoleDescriptors(
                 apiKeyId,
-                List.of(pre8_14ApiKeyRoleDescriptor_withSearchAndReplication_withDLS)
+                List.of(legacyApiKeyRoleDescriptor_withSearchAndReplication_withDLS)
             )
         );
         assertThat(
@@ -287,32 +295,32 @@ public class CrossClusterApiKeyRoleDescriptorBuilderTests extends ESTestCase {
                     + "] is invalid: search does not support document or field level security if replication is assigned"
             )
         );
-        // role descriptor emulates search only with DLS, this could be a valid role descriptor for pre/post 8.14
+        // role descriptor emulates search only with DLS, this could be a valid role descriptor for pre/post GA
         RoleDescriptor apiKeyRoleDescriptor_withSearch_withDLS = new RoleDescriptor(
             ROLE_DESCRIPTOR_NAME,
-            pre8_14ClusterPrivileges_searchOnly,
-            new RoleDescriptor.IndicesPrivileges[] { pre8_14SearchIndexPrivileges_withDLS },
+            legacyClusterPrivileges_searchOnly,
+            new RoleDescriptor.IndicesPrivileges[] { legacySearchIndexPrivileges_withDLS },
             null
         );
         noErrorCheckRoleDescriptor(apiKeyRoleDescriptor_withSearch_withDLS);
 
-        // role descriptor emulates search and replication without DLS, this could be a valid role descriptor for pre/post 8.14
+        // role descriptor emulates search and replication without DLS, this could be a valid role descriptor for pre/post GA
         RoleDescriptor apiKeyRoleDescriptor_withSearchAndReplication_noDLS = new RoleDescriptor(
             ROLE_DESCRIPTOR_NAME,
-            pre8_14ClusterPrivileges_searchAndReplication,
-            new RoleDescriptor.IndicesPrivileges[] { pre8_14SearchIndexPrivileges_noDLS, otherIndexPrivilege },
+            legacyClusterPrivileges_searchAndReplication,
+            new RoleDescriptor.IndicesPrivileges[] { legacySearchIndexPrivileges_noDLS, otherIndexPrivilege },
             null
         );
         noErrorCheckRoleDescriptor(apiKeyRoleDescriptor_withSearchAndReplication_noDLS);
 
         // role descriptor that will never have search and replication with DLS but may have other privileges
-        RoleDescriptor notpre8_14_apiKeyRoleDescriptor_withSearchAndReplication_DLS = new RoleDescriptor(
+        RoleDescriptor notLegacyApiKeyRoleDescriptor_withSearchAndReplication_DLS = new RoleDescriptor(
             ROLE_DESCRIPTOR_NAME,
             otherPrivileges,
             new RoleDescriptor.IndicesPrivileges[] { otherIndexPrivilege, otherIndexPrivilege },
             null
         );
-        noErrorCheckRoleDescriptor(notpre8_14_apiKeyRoleDescriptor_withSearchAndReplication_DLS);
+        noErrorCheckRoleDescriptor(notLegacyApiKeyRoleDescriptor_withSearchAndReplication_DLS);
     }
 
     private void noErrorCheckRoleDescriptor(RoleDescriptor roleDescriptor) {
@@ -354,9 +362,42 @@ public class CrossClusterApiKeyRoleDescriptorBuilderTests extends ESTestCase {
     }
 
     public void testAPIKeyAllowsAllRemoteClusterPrivilegesForCCS() {
-        // if users can add remote cluster permissions to a role, then the APIKey should also allow that for that permission
-        // the inverse however, is not guaranteed. cross_cluster_search exists largely for internal use and is not exposed to the users role
-        assertTrue(Set.of(CCS_CLUSTER_PRIVILEGE_NAMES).containsAll(RemoteClusterPermissions.getSupportedRemoteClusterPermissions()));
+        // test to help ensure that at least 1 action that is allowed by the remote cluster permissions are supported by CCS
+        List<String> actionsToTest = List.of("cluster:monitor/xpack/enrich/esql/resolve_policy", "cluster:monitor/stats/remote");
+        // if you add new remote cluster permissions, please define an action we can test to help ensure it is supported by RCS 2.0
+        assertThat(actionsToTest.size(), equalTo(RemoteClusterPermissions.getSupportedRemoteClusterPermissions().size()));
+
+        for (String privilege : RemoteClusterPermissions.getSupportedRemoteClusterPermissions()) {
+            boolean actionPassesRemoteClusterPermissionCheck = false;
+            ClusterPrivilege clusterPrivilege = ClusterPrivilegeResolver.resolve(privilege);
+            // each remote cluster privilege has an action to test
+            for (String action : actionsToTest) {
+                if (clusterPrivilege.buildPermission(ClusterPermission.builder())
+                    .build()
+                    .check(action, mock(TransportRequest.class), AuthenticationTestHelper.builder().build())) {
+                    actionPassesRemoteClusterPermissionCheck = true;
+                    break;
+                }
+            }
+            assertTrue(
+                "privilege [" + privilege + "] does not cover any actions among [" + actionsToTest + "]",
+                actionPassesRemoteClusterPermissionCheck
+            );
+        }
+        // test that the actions pass the privilege check for CCS
+        for (String privilege : Set.of(CCS_CLUSTER_PRIVILEGE_NAMES)) {
+            boolean actionPassesRemoteCCSCheck = false;
+            ClusterPrivilege clusterPrivilege = ClusterPrivilegeResolver.resolve(privilege);
+            for (String action : actionsToTest) {
+                if (clusterPrivilege.buildPermission(ClusterPermission.builder())
+                    .build()
+                    .check(action, mock(TransportRequest.class), AuthenticationTestHelper.builder().build())) {
+                    actionPassesRemoteCCSCheck = true;
+                    break;
+                }
+            }
+            assertTrue(actionPassesRemoteCCSCheck);
+        }
     }
 
     private static void assertRoleDescriptor(

@@ -75,18 +75,14 @@ public class IPFilter {
     private static final IPFilterValidator ALLOW_VALIDATOR = new IPFilterValidator(true);
     private static final IPFilterValidator DENY_VALIDATOR = new IPFilterValidator(false);
 
-    public static final Setting<List<String>> TRANSPORT_FILTER_ALLOW_SETTING = Setting.listSetting(
+    public static final Setting<List<String>> TRANSPORT_FILTER_ALLOW_SETTING = Setting.stringListSetting(
         setting("transport.filter.allow"),
-        Collections.emptyList(),
-        Function.identity(),
         ALLOW_VALIDATOR,
         Property.OperatorDynamic,
         Property.NodeScope
     );
-    public static final Setting<List<String>> TRANSPORT_FILTER_DENY_SETTING = Setting.listSetting(
+    public static final Setting<List<String>> TRANSPORT_FILTER_DENY_SETTING = Setting.stringListSetting(
         setting("transport.filter.deny"),
-        Collections.emptyList(),
-        Function.identity(),
         DENY_VALIDATOR,
         Property.OperatorDynamic,
         Property.NodeScope
@@ -115,26 +111,12 @@ public class IPFilter {
     public static final Setting.AffixSetting<List<String>> PROFILE_FILTER_DENY_SETTING = Setting.affixKeySetting(
         "transport.profiles.",
         "xpack.security.filter.deny",
-        key -> Setting.listSetting(
-            key,
-            Collections.emptyList(),
-            Function.identity(),
-            DENY_VALIDATOR,
-            Property.OperatorDynamic,
-            Property.NodeScope
-        )
+        key -> Setting.stringListSetting(key, DENY_VALIDATOR, Property.OperatorDynamic, Property.NodeScope)
     );
     public static final Setting.AffixSetting<List<String>> PROFILE_FILTER_ALLOW_SETTING = Setting.affixKeySetting(
         "transport.profiles.",
         "xpack.security.filter.allow",
-        key -> Setting.listSetting(
-            key,
-            Collections.emptyList(),
-            Function.identity(),
-            ALLOW_VALIDATOR,
-            Property.OperatorDynamic,
-            Property.NodeScope
-        )
+        key -> Setting.stringListSetting(key, ALLOW_VALIDATOR, Property.OperatorDynamic, Property.NodeScope)
     );
 
     private static final Setting<List<String>> HTTP_FILTER_ALLOW_FALLBACK = Setting.listSetting(

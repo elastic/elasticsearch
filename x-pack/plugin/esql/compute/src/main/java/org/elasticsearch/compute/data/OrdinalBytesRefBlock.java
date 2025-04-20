@@ -54,7 +54,11 @@ public final class OrdinalBytesRefBlock extends AbstractNonThreadSafeRefCounted 
      * Returns true if this ordinal block is dense enough to enable optimizations using its ordinals
      */
     public boolean isDense() {
-        return ordinals.getTotalValueCount() * 2 / 3 >= bytes.getPositionCount();
+        return isDense(bytes.getPositionCount(), ordinals.getTotalValueCount());
+    }
+
+    public static boolean isDense(int totalPositions, int numOrdinals) {
+        return numOrdinals * 2L / 3L >= totalPositions;
     }
 
     public IntBlock getOrdinalsBlock() {
@@ -126,6 +130,32 @@ public final class OrdinalBytesRefBlock extends AbstractNonThreadSafeRefCounted 
     }
 
     @Override
+    public BytesRefBlock keepMask(BooleanVector mask) {
+        if (getPositionCount() == 0) {
+            incRef();
+            return this;
+        }
+        if (mask.isConstant()) {
+            if (mask.getBoolean(0)) {
+                incRef();
+                return this;
+            }
+            return (BytesRefBlock) blockFactory().newConstantNullBlock(getPositionCount());
+        }
+        OrdinalBytesRefBlock result = null;
+        IntBlock filteredOrdinals = ordinals.keepMask(mask);
+        try {
+            result = new OrdinalBytesRefBlock(filteredOrdinals, bytes);
+            bytes.incRef();
+        } finally {
+            if (result == null) {
+                filteredOrdinals.close();
+            }
+        }
+        return result;
+    }
+
+    @Override
     public ReleasableIterator<BytesRefBlock> lookup(IntBlock positions, ByteSizeValue targetBlockSize) {
         return new BytesRefLookup(this, positions, targetBlockSize);
     }
@@ -177,11 +207,6 @@ public final class OrdinalBytesRefBlock extends AbstractNonThreadSafeRefCounted 
     }
 
     @Override
-    public int nullValuesCount() {
-        return ordinals.nullValuesCount();
-    }
-
-    @Override
     public boolean mayHaveNulls() {
         return ordinals.mayHaveNulls();
     }
@@ -193,6 +218,11 @@ public final class OrdinalBytesRefBlock extends AbstractNonThreadSafeRefCounted 
 
     @Override
     public boolean mayHaveMultivaluedFields() {
+        return ordinals.mayHaveMultivaluedFields();
+    }
+
+    @Override
+    public boolean doesHaveMultivaluedFields() {
         return ordinals.mayHaveMultivaluedFields();
     }
 
@@ -219,5 +249,10 @@ public final class OrdinalBytesRefBlock extends AbstractNonThreadSafeRefCounted 
     @Override
     public long ramBytesUsed() {
         return ordinals.ramBytesUsed() + bytes.ramBytesUsed();
+    }
+
+    @Override
+    public String toString() {
+        return getClass().getSimpleName() + "[ordinals=" + ordinals + ", bytes=" + bytes + "]";
     }
 }

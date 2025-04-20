@@ -103,7 +103,7 @@ public final class ApiKey implements ToXContentObject {
         }
     }
 
-    public static final ApiKey.Version CURRENT_API_KEY_VERSION = new ApiKey.Version(8_13_00_99);
+    public static final ApiKey.Version CURRENT_API_KEY_VERSION = new ApiKey.Version(8_15_00_99);
 
     private final String name;
     private final String id;

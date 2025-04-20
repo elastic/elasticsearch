@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.search.aggregations.metrics;
 
@@ -87,15 +88,6 @@ public abstract class InternalNumericMetricsAggregation extends InternalAggregat
          */
         protected MultiValue(StreamInput in) throws IOException {
             super(in);
-        }
-
-        /**
-         * Read from a stream.
-         *
-         * @param readFormat whether to read the "format" field
-         */
-        protected MultiValue(StreamInput in, boolean readFormat) throws IOException {
-            super(in, readFormat);
         }
 
         public abstract double value(String name);

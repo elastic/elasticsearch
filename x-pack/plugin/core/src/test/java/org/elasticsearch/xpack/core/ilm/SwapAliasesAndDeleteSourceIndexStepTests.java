@@ -23,7 +23,6 @@ import org.elasticsearch.test.client.NoOpClient;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.ilm.Step.StepKey;
 
-import java.util.Arrays;
 import java.util.List;
 import java.util.function.BiFunction;
 
@@ -92,7 +91,7 @@ public class SwapAliasesAndDeleteSourceIndexStepTests extends AbstractStepTestCa
         String targetIndexPrefix = "index_prefix";
         String targetIndexName = targetIndexPrefix + sourceIndexName;
 
-        List<AliasActions> expectedAliasActions = Arrays.asList(
+        List<AliasActions> expectedAliasActions = List.of(
             AliasActions.removeIndex().index(sourceIndexName),
             AliasActions.add().index(targetIndexName).alias(sourceIndexName),
             AliasActions.add()

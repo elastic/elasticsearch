@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.aggregations.bucket.terms.heuristic;
@@ -45,10 +46,7 @@ public class GND extends NXYSignificanceHeuristic {
 
     @Override
     public boolean equals(Object other) {
-        if ((other instanceof GND) == false) {
-            return false;
-        }
-        return super.equals(other);
+        return other instanceof GND && super.equals(other);
     }
 
     @Override
@@ -98,17 +96,4 @@ public class GND extends NXYSignificanceHeuristic {
         return builder;
     }
 
-    public static class GNDBuilder extends NXYBuilder {
-        public GNDBuilder(boolean backgroundIsSuperset) {
-            super(true, backgroundIsSuperset);
-        }
-
-        @Override
-        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            builder.startObject(NAME);
-            builder.field(BACKGROUND_IS_SUPERSET.getPreferredName(), backgroundIsSuperset);
-            builder.endObject();
-            return builder;
-        }
-    }
 }

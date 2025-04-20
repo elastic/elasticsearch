@@ -1,0 +1,5 @@
+pr: 121041
+summary: Support configurable chunking in `semantic_text` fields
+area: Relevance
+type: enhancement
+issues: []

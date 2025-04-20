@@ -51,9 +51,9 @@ public final class AscendingSequenceRowInTableLookup extends RowInTableLookup {
     }
 
     private IntVector lookupVectorInRange(IntVector vector) {
-        try (IntVector.Builder builder = blockFactory.newIntVectorFixedBuilder(vector.getPositionCount())) {
+        try (IntVector.FixedBuilder builder = blockFactory.newIntVectorFixedBuilder(vector.getPositionCount())) {
             for (int i = 0; i < vector.getPositionCount(); i++) {
-                builder.appendInt(vector.getInt(i) - min);
+                builder.appendInt(i, vector.getInt(i) - min);
             }
             return builder.build();
         }

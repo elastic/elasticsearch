@@ -10,12 +10,11 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.SpecialPermission;
-import org.elasticsearch.action.ActionRequest;
-import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.allocation.DataTier;
@@ -296,11 +295,15 @@ public class XPackPlugin extends XPackClientPlugin
     private static boolean alreadyContainsXPackCustomMetadata(ClusterState clusterState) {
         final Metadata metadata = clusterState.metadata();
         return metadata.custom(LicensesMetadata.TYPE) != null
-            || metadata.custom(MlMetadata.TYPE) != null
-            || metadata.custom(WatcherMetadata.TYPE) != null
-            || RoleMappingMetadata.getFromClusterState(clusterState).isEmpty() == false
             || clusterState.custom(TokenMetadata.TYPE) != null
-            || metadata.custom(TransformMetadata.TYPE) != null;
+            || metadata.projects().values().stream().anyMatch(XPackPlugin::alreadyContainsXPackCustomMetadata);
+    }
+
+    private static boolean alreadyContainsXPackCustomMetadata(ProjectMetadata project) {
+        return project.custom(MlMetadata.TYPE) != null
+            || project.custom(WatcherMetadata.TYPE) != null
+            || RoleMappingMetadata.getFromProject(project).isEmpty() == false
+            || project.custom(TransformMetadata.TYPE) != null;
     }
 
     @Override
@@ -331,8 +334,7 @@ public class XPackPlugin extends XPackClientPlugin
                 services.threadPool(),
                 services.clusterService(),
                 getClock(),
-                getLicenseState(),
-                services.featureService()
+                getLicenseState()
             );
             setLicenseService(licenseService);
         }
@@ -349,28 +351,28 @@ public class XPackPlugin extends XPackClientPlugin
     }
 
     @Override
-    public List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {
-        List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> actions = new ArrayList<>();
-        actions.add(new ActionHandler<>(XPackInfoAction.INSTANCE, getInfoAction()));
-        actions.add(new ActionHandler<>(XPackUsageAction.INSTANCE, getUsageAction()));
-        actions.add(new ActionHandler<>(PutLicenseAction.INSTANCE, TransportPutLicenseAction.class));
-        actions.add(new ActionHandler<>(GetLicenseAction.INSTANCE, TransportGetLicenseAction.class));
-        actions.add(new ActionHandler<>(TransportDeleteLicenseAction.TYPE, TransportDeleteLicenseAction.class));
-        actions.add(new ActionHandler<>(PostStartTrialAction.INSTANCE, TransportPostStartTrialAction.class));
-        actions.add(new ActionHandler<>(GetTrialStatusAction.INSTANCE, TransportGetTrialStatusAction.class));
-        actions.add(new ActionHandler<>(PostStartBasicAction.INSTANCE, TransportPostStartBasicAction.class));
-        actions.add(new ActionHandler<>(GetBasicStatusAction.INSTANCE, TransportGetBasicStatusAction.class));
-        actions.add(new ActionHandler<>(TransportGetFeatureUsageAction.TYPE, TransportGetFeatureUsageAction.class));
-        actions.add(new ActionHandler<>(TermsEnumAction.INSTANCE, TransportTermsEnumAction.class));
-        actions.add(new ActionHandler<>(TransportDeleteAsyncResultAction.TYPE, TransportDeleteAsyncResultAction.class));
-        actions.add(new ActionHandler<>(XPackInfoFeatureAction.DATA_TIERS, DataTiersInfoTransportAction.class));
-        actions.add(new ActionHandler<>(XPackUsageFeatureAction.DATA_TIERS, DataTiersUsageTransportAction.class));
-        actions.add(new ActionHandler<>(XPackUsageFeatureAction.DATA_STREAMS, DataStreamUsageTransportAction.class));
-        actions.add(new ActionHandler<>(XPackInfoFeatureAction.DATA_STREAMS, DataStreamInfoTransportAction.class));
-        actions.add(new ActionHandler<>(XPackUsageFeatureAction.DATA_STREAM_LIFECYCLE, DataStreamLifecycleUsageTransportAction.class));
-        actions.add(new ActionHandler<>(XPackUsageFeatureAction.HEALTH, HealthApiUsageTransportAction.class));
-        actions.add(new ActionHandler<>(XPackUsageFeatureAction.REMOTE_CLUSTERS, RemoteClusterUsageTransportAction.class));
-        actions.add(new ActionHandler<>(NodesDataTiersUsageTransportAction.TYPE, NodesDataTiersUsageTransportAction.class));
+    public List<ActionHandler> getActions() {
+        List<ActionHandler> actions = new ArrayList<>();
+        actions.add(new ActionHandler(XPackInfoAction.INSTANCE, getInfoAction()));
+        actions.add(new ActionHandler(XPackUsageAction.INSTANCE, getUsageAction()));
+        actions.add(new ActionHandler(PutLicenseAction.INSTANCE, TransportPutLicenseAction.class));
+        actions.add(new ActionHandler(GetLicenseAction.INSTANCE, TransportGetLicenseAction.class));
+        actions.add(new ActionHandler(TransportDeleteLicenseAction.TYPE, TransportDeleteLicenseAction.class));
+        actions.add(new ActionHandler(PostStartTrialAction.INSTANCE, TransportPostStartTrialAction.class));
+        actions.add(new ActionHandler(GetTrialStatusAction.INSTANCE, TransportGetTrialStatusAction.class));
+        actions.add(new ActionHandler(PostStartBasicAction.INSTANCE, TransportPostStartBasicAction.class));
+        actions.add(new ActionHandler(GetBasicStatusAction.INSTANCE, TransportGetBasicStatusAction.class));
+        actions.add(new ActionHandler(TransportGetFeatureUsageAction.TYPE, TransportGetFeatureUsageAction.class));
+        actions.add(new ActionHandler(TermsEnumAction.INSTANCE, TransportTermsEnumAction.class));
+        actions.add(new ActionHandler(TransportDeleteAsyncResultAction.TYPE, TransportDeleteAsyncResultAction.class));
+        actions.add(new ActionHandler(XPackInfoFeatureAction.DATA_TIERS, DataTiersInfoTransportAction.class));
+        actions.add(new ActionHandler(XPackUsageFeatureAction.DATA_TIERS, DataTiersUsageTransportAction.class));
+        actions.add(new ActionHandler(XPackUsageFeatureAction.DATA_STREAMS, DataStreamUsageTransportAction.class));
+        actions.add(new ActionHandler(XPackInfoFeatureAction.DATA_STREAMS, DataStreamInfoTransportAction.class));
+        actions.add(new ActionHandler(XPackUsageFeatureAction.DATA_STREAM_LIFECYCLE, DataStreamLifecycleUsageTransportAction.class));
+        actions.add(new ActionHandler(XPackUsageFeatureAction.HEALTH, HealthApiUsageTransportAction.class));
+        actions.add(new ActionHandler(XPackUsageFeatureAction.REMOTE_CLUSTERS, RemoteClusterUsageTransportAction.class));
+        actions.add(new ActionHandler(NodesDataTiersUsageTransportAction.TYPE, NodesDataTiersUsageTransportAction.class));
         return actions;
     }
 
@@ -412,9 +414,9 @@ public class XPackPlugin extends XPackClientPlugin
     }
 
     public static Path resolveConfigFile(Environment env, String name) {
-        Path config = env.configFile().resolve(name);
+        Path config = env.configDir().resolve(name);
         if (Files.exists(config) == false) {
-            Path legacyConfig = env.configFile().resolve("x-pack").resolve(name);
+            Path legacyConfig = env.configDir().resolve("x-pack").resolve(name);
             if (Files.exists(legacyConfig)) {
                 deprecationLogger.warn(
                     DeprecationCategory.OTHER,

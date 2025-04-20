@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.datastreams.lifecycle;
@@ -62,7 +63,7 @@ public class ExplainDataStreamLifecycleResponseTests extends AbstractWireSeriali
     @SuppressWarnings("unchecked")
     public void testToXContent() throws IOException {
         long now = System.currentTimeMillis();
-        DataStreamLifecycle lifecycle = new DataStreamLifecycle();
+        DataStreamLifecycle lifecycle = DataStreamLifecycle.DEFAULT_DATA_LIFECYCLE;
         ExplainIndexDataStreamLifecycle explainIndex = createRandomIndexDataStreamLifecycleExplanation(now, lifecycle);
         explainIndex.setNowSupplier(() -> now);
         {
@@ -240,7 +241,7 @@ public class ExplainDataStreamLifecycleResponseTests extends AbstractWireSeriali
 
     public void testChunkCount() {
         long now = System.currentTimeMillis();
-        DataStreamLifecycle lifecycle = new DataStreamLifecycle();
+        DataStreamLifecycle lifecycle = DataStreamLifecycle.DEFAULT_DATA_LIFECYCLE;
         Response response = new Response(
             List.of(
                 createRandomIndexDataStreamLifecycleExplanation(now, lifecycle),
@@ -297,7 +298,12 @@ public class ExplainDataStreamLifecycleResponseTests extends AbstractWireSeriali
 
     private Response randomResponse() {
         return new Response(
-            List.of(createRandomIndexDataStreamLifecycleExplanation(System.nanoTime(), randomBoolean() ? new DataStreamLifecycle() : null)),
+            List.of(
+                createRandomIndexDataStreamLifecycleExplanation(
+                    System.nanoTime(),
+                    randomBoolean() ? DataStreamLifecycle.DEFAULT_DATA_LIFECYCLE : null
+                )
+            ),
             randomBoolean()
                 ? new RolloverConfiguration(
                     new RolloverConditions(

@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.bootstrap;
@@ -15,16 +16,20 @@ import java.io.FilePermission;
 import java.io.IOException;
 import java.net.SocketPermission;
 import java.net.URL;
+import java.security.AllPermission;
 import java.security.CodeSource;
 import java.security.Permission;
 import java.security.PermissionCollection;
 import java.security.Permissions;
 import java.security.Policy;
 import java.security.ProtectionDomain;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.Predicate;
+import java.util.stream.Collectors;
 
 /** custom policy for union of static and dynamic permissions */
 final class ESPolicy extends Policy {
@@ -34,25 +39,29 @@ final class ESPolicy extends Policy {
     /** limited policy for scripts */
     static final String UNTRUSTED_RESOURCE = "untrusted.policy";
 
+    private static final String ALL_FILE_MASK = "read,readlink,write,delete,execute";
+    private static final AllPermission ALL_PERMISSION = new AllPermission();
+
     final Policy template;
     final Policy untrusted;
     final Policy system;
     final PermissionCollection dynamic;
     final PermissionCollection dataPathPermission;
-    final PermissionCollection forbiddenFilePermission;
-    final Map<String, Policy> plugins;
+    final Map<URL, Policy> plugins;
+    final PermissionCollection allSecuredFiles;
+    final Map<FilePermission, Set<URL>> securedFiles;
 
+    @SuppressForbidden(reason = "Need to access and check file permissions directly")
     ESPolicy(
-        Map<String, URL> codebases,
+        Policy template,
         PermissionCollection dynamic,
-        Map<String, Policy> plugins,
+        Map<URL, Policy> plugins,
         boolean filterBadDefaults,
         List<FilePermission> dataPathPermissions,
-        List<FilePermission> forbiddenFilePermissions
+        Map<String, Set<URL>> securedFiles
     ) {
-        this.template = PolicyUtil.readPolicy(getClass().getResource(POLICY_RESOURCE), codebases);
+        this.template = template;
         this.dataPathPermission = createPermission(dataPathPermissions);
-        this.forbiddenFilePermission = createPermission(forbiddenFilePermissions);
         this.untrusted = PolicyUtil.readPolicy(getClass().getResource(UNTRUSTED_RESOURCE), Collections.emptyMap());
         if (filterBadDefaults) {
             this.system = new SystemPolicy(Policy.getPolicy());
@@ -61,6 +70,27 @@ final class ESPolicy extends Policy {
         }
         this.dynamic = dynamic;
         this.plugins = plugins;
+
+        this.securedFiles = securedFiles.entrySet()
+            .stream()
+            .collect(Collectors.toUnmodifiableMap(e -> new FilePermission(e.getKey(), ALL_FILE_MASK), e -> Set.copyOf(e.getValue())));
+        this.allSecuredFiles = createPermission(this.securedFiles.keySet());
+    }
+
+    private static PermissionCollection createPermission(Collection<FilePermission> permissions) {
+        PermissionCollection coll;
+        var it = permissions.iterator();
+        if (it.hasNext() == false) {
+            coll = new Permissions();
+        } else {
+            Permission p = it.next();
+            coll = p.newPermissionCollection();
+            coll.add(p);
+            it.forEachRemaining(coll::add);
+        }
+
+        coll.setReadOnly();
+        return coll;
     }
 
     private static PermissionCollection createPermission(List<FilePermission> permissions) {
@@ -87,12 +117,18 @@ final class ESPolicy extends Policy {
             return false;
         }
 
-        // completely deny access to specific files that are forbidden
-        if (forbiddenFilePermission.implies(permission)) {
-            return false;
+        URL location = codeSource.getLocation();
+        if (allSecuredFiles.implies(permission)) {
+            /*
+             * Check if location can access this secured file
+             * The permission this is generated from, SecuredFileAccessPermission, doesn't have a mask,
+             * it just grants all access (and so disallows all access from others)
+             * It's helpful to use the infrastructure around FilePermission here to do the directory structure check with implies
+             * so we use ALL_FILE_MASK mask to check if we can do something with this file, whatever the actual operation we're requesting
+             */
+            return canAccessSecuredFile(domain, new FilePermission(permission.getName(), ALL_FILE_MASK));
         }
 
-        URL location = codeSource.getLocation();
         if (location != null) {
             // run scripts with limited permissions
             if (BootstrapInfo.UNTRUSTED_CODEBASE.equals(location.getFile())) {
@@ -100,7 +136,7 @@ final class ESPolicy extends Policy {
             }
             // check for an additional plugin permission: plugin policy is
             // only consulted for its codesources.
-            Policy plugin = plugins.get(location.getFile());
+            Policy plugin = plugins.get(location);
             if (plugin != null && plugin.implies(domain, permission)) {
                 return true;
             }
@@ -120,6 +156,38 @@ final class ESPolicy extends Policy {
 
         // otherwise defer to template + dynamic file permissions
         return template.implies(domain, permission) || dynamic.implies(permission) || system.implies(domain, permission);
+    }
+
+    @SuppressForbidden(reason = "We get given an URL by the security infrastructure")
+    private boolean canAccessSecuredFile(ProtectionDomain domain, FilePermission permission) {
+        if (domain == null || domain.getCodeSource() == null || domain.getCodeSource().getLocation() == null) {
+            return false;
+        }
+
+        // If the domain in question has AllPermission - only true of sources built into the JDK, as we prevent AllPermission from being
+        // configured in Elasticsearch - then it has access to this file.
+
+        if (system.implies(domain, ALL_PERMISSION)) {
+            return true;
+        }
+        URL location = domain.getCodeSource().getLocation();
+
+        // check the source
+        Set<URL> accessibleSources = securedFiles.get(permission);
+        if (accessibleSources != null) {
+            // simple case - single-file referenced directly
+
+            return accessibleSources.contains(location);
+        } else {
+            // there's a directory reference in there somewhere
+            // do a manual search :(
+            // there may be several permissions that potentially match,
+            // grant access if any of them cover this file
+            return securedFiles.entrySet()
+                .stream()
+                .filter(e -> e.getKey().implies(permission))
+                .anyMatch(e -> e.getValue().contains(location));
+        }
     }
 
     private static void hadoopHack() {

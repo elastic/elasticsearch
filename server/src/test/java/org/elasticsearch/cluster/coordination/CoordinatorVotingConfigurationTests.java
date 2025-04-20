@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.cluster.coordination;
@@ -13,7 +14,7 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.discovery.DiscoveryModule;
-import org.elasticsearch.test.MockLogAppender;
+import org.elasticsearch.test.MockLog;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 
 import java.util.HashSet;
@@ -458,9 +459,9 @@ public class CoordinatorVotingConfigurationTests extends AbstractCoordinatorTest
         value = "org.elasticsearch.cluster.coordination.ClusterBootstrapService:INFO"
     )
     public void testClusterUUIDLogging() {
-        try (var mockAppender = MockLogAppender.capture(ClusterBootstrapService.class); var cluster = new Cluster(randomIntBetween(1, 3))) {
-            mockAppender.addExpectation(
-                new MockLogAppender.SeenEventExpectation(
+        try (var mockLog = MockLog.capture(ClusterBootstrapService.class)) {
+            mockLog.addExpectation(
+                new MockLog.SeenEventExpectation(
                     "fresh node message",
                     ClusterBootstrapService.class.getCanonicalName(),
                     Level.INFO,
@@ -468,25 +469,27 @@ public class CoordinatorVotingConfigurationTests extends AbstractCoordinatorTest
                 )
             );
 
-            cluster.runRandomly();
-            cluster.stabilise();
-            mockAppender.assertAllExpectationsMatched();
+            try (var cluster = new Cluster(randomIntBetween(1, 3))) {
+                cluster.runRandomly();
+                cluster.stabilise();
+                mockLog.assertAllExpectationsMatched();
 
-            final var restartingNode = cluster.getAnyNode();
-            mockAppender.addExpectation(
-                new MockLogAppender.SeenEventExpectation(
-                    "restarted node message",
-                    ClusterBootstrapService.class.getCanonicalName(),
-                    Level.INFO,
-                    "this node is locked into cluster UUID ["
-                        + restartingNode.getLastAppliedClusterState().metadata().clusterUUID()
-                        + "] and will not attempt further cluster bootstrapping"
-                )
-            );
-            restartingNode.close();
-            cluster.clusterNodes.replaceAll(cn -> cn == restartingNode ? cn.restartedNode() : cn);
-            cluster.stabilise();
-            mockAppender.assertAllExpectationsMatched();
+                final var restartingNode = cluster.getAnyNode();
+                mockLog.addExpectation(
+                    new MockLog.SeenEventExpectation(
+                        "restarted node message",
+                        ClusterBootstrapService.class.getCanonicalName(),
+                        Level.INFO,
+                        "this node is locked into cluster UUID ["
+                            + restartingNode.getLastAppliedClusterState().metadata().clusterUUID()
+                            + "] and will not attempt further cluster bootstrapping"
+                    )
+                );
+                restartingNode.close();
+                cluster.clusterNodes.replaceAll(cn -> cn == restartingNode ? cn.restartedNode() : cn);
+                cluster.stabilise();
+                mockLog.assertAllExpectationsMatched();
+            }
         }
     }
 

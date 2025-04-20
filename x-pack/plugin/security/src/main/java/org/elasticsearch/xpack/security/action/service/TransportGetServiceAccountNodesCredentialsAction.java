@@ -12,8 +12,8 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.nodes.TransportNodesAction;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -35,7 +35,8 @@ public class TransportGetServiceAccountNodesCredentialsAction extends TransportN
     GetServiceAccountCredentialsNodesRequest,
     GetServiceAccountCredentialsNodesResponse,
     GetServiceAccountCredentialsNodesRequest.Node,
-    GetServiceAccountCredentialsNodesResponse.Node> {
+    GetServiceAccountCredentialsNodesResponse.Node,
+    Void> {
 
     private final FileServiceAccountTokenStore fileServiceAccountTokenStore;
 

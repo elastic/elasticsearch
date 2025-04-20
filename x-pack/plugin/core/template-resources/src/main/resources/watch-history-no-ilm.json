@@ -7,7 +7,6 @@
   "template": {
     "settings": {
       "index.number_of_shards": 1,
-      "index.number_of_replicas": 0,
       "index.auto_expand_replicas": "0-1",
       "index.hidden": true,
       "index.format": 6
@@ -50,6 +49,15 @@
         {
           "disabled_jira_custom_fields": {
             "path_match": "result.actions.jira.fields.customfield_*",
+            "mapping": {
+              "type": "object",
+              "enabled": false
+            }
+          }
+        },
+        {
+          "disabled_result_input_chain_fields": {
+            "path_match": "result.input.chain",
             "mapping": {
               "type": "object",
               "enabled": false

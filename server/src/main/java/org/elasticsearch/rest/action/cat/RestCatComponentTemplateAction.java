@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.rest.action.cat;
@@ -14,7 +15,9 @@ import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.metadata.ComponentTemplate;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.metadata.Template;
+import org.elasticsearch.cluster.project.ProjectIdResolver;
 import org.elasticsearch.common.Table;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.rest.BaseRestHandler;
@@ -41,6 +44,13 @@ import static org.elasticsearch.rest.RestUtils.getMasterNodeTimeout;
  */
 @ServerlessScope(Scope.PUBLIC)
 public class RestCatComponentTemplateAction extends AbstractCatAction {
+
+    private final ProjectIdResolver projectIdResolver;
+
+    public RestCatComponentTemplateAction(ProjectIdResolver projectIdResolver) {
+        this.projectIdResolver = projectIdResolver;
+    }
+
     @Override
     public String getName() {
         return "cat_component_template_action";
@@ -53,7 +63,7 @@ public class RestCatComponentTemplateAction extends AbstractCatAction {
 
     @Override
     protected void documentation(StringBuilder sb) {
-        sb.append("/_cat/component_templates");
+        sb.append("/_cat/component_templates\n");
     }
 
     @Override
@@ -74,10 +84,9 @@ public class RestCatComponentTemplateAction extends AbstractCatAction {
     @Override
     protected BaseRestHandler.RestChannelConsumer doCatRequest(RestRequest request, NodeClient client) {
         final String matchPattern = request.hasParam("name") ? request.param("name") : null;
-        final ClusterStateRequest clusterStateRequest = new ClusterStateRequest();
+        final ClusterStateRequest clusterStateRequest = new ClusterStateRequest(getMasterNodeTimeout(request));
         clusterStateRequest.clear().metadata(true);
         clusterStateRequest.local(request.paramAsBoolean("local", clusterStateRequest.local()));
-        clusterStateRequest.masterNodeTimeout(getMasterNodeTimeout(request));
         return channel -> client.admin().cluster().state(clusterStateRequest, new RestResponseListener<>(channel) {
             @Override
             public RestResponse buildResponse(ClusterStateResponse clusterStateResponse) throws Exception {
@@ -88,10 +97,14 @@ public class RestCatComponentTemplateAction extends AbstractCatAction {
 
     public Table buildTable(RestRequest request, ClusterStateResponse clusterStateResponse, String patternString) throws Exception {
         Table table = getTableWithHeader(request);
-        Metadata metadata = clusterStateResponse.getState().metadata();
-        Map<String, Set<String>> reverseIndexOnComposedOfToIndexName = buildReverseIndexOnComposedOfToIndexName(metadata);
+        final Metadata metadata = clusterStateResponse.getState().metadata();
+        if (metadata.projects().size() > 1) {
+            throw new IllegalStateException("returned cluster state has multiple projects");
+        }
+        final ProjectMetadata project = metadata.getProject(projectIdResolver.getProjectId());
+        Map<String, Set<String>> reverseIndexOnComposedOfToIndexName = buildReverseIndexOnComposedOfToIndexName(project);
 
-        for (Map.Entry<String, ComponentTemplate> entry : metadata.componentTemplates().entrySet()) {
+        for (Map.Entry<String, ComponentTemplate> entry : project.componentTemplates().entrySet()) {
             String name = entry.getKey();
             ComponentTemplate componentTemplate = entry.getValue();
             if (patternString == null || Regex.simpleMatch(patternString, name)) {
@@ -110,8 +123,8 @@ public class RestCatComponentTemplateAction extends AbstractCatAction {
         return table;
     }
 
-    private static Map<String, Set<String>> buildReverseIndexOnComposedOfToIndexName(Metadata metadata) {
-        Map<String, ComposableIndexTemplate> allTemplates = metadata.templatesV2();
+    private static Map<String, Set<String>> buildReverseIndexOnComposedOfToIndexName(ProjectMetadata project) {
+        Map<String, ComposableIndexTemplate> allTemplates = project.templatesV2();
         Map<String, Set<String>> reverseIndex = new HashMap<>();
 
         for (Map.Entry<String, ComposableIndexTemplate> templateEntry : allTemplates.entrySet()) {

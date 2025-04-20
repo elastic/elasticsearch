@@ -1,15 +1,17 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.admin.cluster.allocation;
 
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.cluster.ClusterInfo;
+import org.elasticsearch.cluster.project.DefaultProjectResolver;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.snapshots.EmptySnapshotsInfoService;
@@ -52,11 +54,11 @@ public class TransportClusterAllocationExplainActionTests extends ESTestCase {
             clusterService,
             threadPool,
             new ActionFilters(Set.of()),
-            null,
             () -> ClusterInfo.EMPTY,
             EmptySnapshotsInfoService.INSTANCE,
             new AllocationDeciders(List.of()),
-            null
+            null,
+            DefaultProjectResolver.INSTANCE
         );
     }
 
@@ -67,6 +69,7 @@ public class TransportClusterAllocationExplainActionTests extends ESTestCase {
         );
     }
 
+    @Override
     @After
     public void tearDown() throws Exception {
         super.tearDown();

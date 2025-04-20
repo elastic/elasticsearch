@@ -16,7 +16,7 @@ import org.elasticsearch.core.Releasables;
 
 /**
  * Block view of a {@link $Type$Vector}. Cannot represent multi-values or nulls.
- * This class is generated. Do not edit it.
+ * This class is generated. Edit {@code X-VectorBlock.java.st} instead.
  */
 public final class $Type$VectorBlock extends AbstractVectorBlock implements $Type$Block {
 
@@ -44,8 +44,15 @@ $if(BytesRef)$
             return null;
         }
     }
-$endif$
 
+$elseif(boolean)$
+    @Override
+    public ToMask toMask() {
+        vector.incRef();
+        return new ToMask(vector, false);
+    }
+
+$endif$
     @Override
 $if(BytesRef)$
     public BytesRef getBytesRef(int valueIndex, BytesRef dest) {
@@ -69,6 +76,11 @@ $endif$
     @Override
     public $Type$Block filter(int... positions) {
         return vector.filter(positions).asBlock();
+    }
+
+    @Override
+    public $Type$Block keepMask(BooleanVector mask) {
+        return vector.keepMask(mask);
     }
 
     @Override

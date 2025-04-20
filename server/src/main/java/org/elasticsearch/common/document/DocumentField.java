@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.common.document;
@@ -44,11 +45,7 @@ public class DocumentField implements Writeable, Iterable<Object> {
     public DocumentField(StreamInput in) throws IOException {
         name = in.readString();
         values = in.readCollectionAsList(StreamInput::readGenericValue);
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_7_16_0)) {
-            ignoredValues = in.readCollectionAsList(StreamInput::readGenericValue);
-        } else {
-            ignoredValues = Collections.emptyList();
-        }
+        ignoredValues = in.readCollectionAsList(StreamInput::readGenericValue);
         if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_2_0)) {
             lookupFields = in.readCollectionAsList(LookupField::new);
         } else {
@@ -114,9 +111,7 @@ public class DocumentField implements Writeable, Iterable<Object> {
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(name);
         out.writeCollection(values, StreamOutput::writeGenericValue);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_7_16_0)) {
-            out.writeCollection(ignoredValues, StreamOutput::writeGenericValue);
-        }
+        out.writeCollection(ignoredValues, StreamOutput::writeGenericValue);
         if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_2_0)) {
             out.writeCollection(lookupFields);
         } else {

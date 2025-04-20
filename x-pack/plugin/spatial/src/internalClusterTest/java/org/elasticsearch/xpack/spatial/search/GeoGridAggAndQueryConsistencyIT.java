@@ -129,7 +129,7 @@ public class GeoGridAggAndQueryConsistencyIT extends ESIntegTestCase {
                     client().prepareSearch("test").setTrackTotalHits(true).setQuery(queryBuilder),
                     innerResponse -> assertThat(
                         "Bucket " + bucket.getKeyAsString(),
-                        innerResponse.getHits().getTotalHits().value,
+                        innerResponse.getHits().getTotalHits().value(),
                         Matchers.equalTo(bucket.getDocCount())
                     )
                 );
@@ -320,7 +320,7 @@ public class GeoGridAggAndQueryConsistencyIT extends ESIntegTestCase {
                 client().prepareSearch("test").setTrackTotalHits(true).setQuery(queryBuilder),
                 response -> assertThat(
                     "Expected hits at precision " + precision + " for H3 cell " + bucket.getKeyAsString(),
-                    response.getHits().getTotalHits().value,
+                    response.getHits().getTotalHits().value(),
                     Matchers.equalTo(bucket.getDocCount())
                 )
             );

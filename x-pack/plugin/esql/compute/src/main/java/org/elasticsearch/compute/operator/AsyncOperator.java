@@ -17,34 +17,43 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.seqno.LocalCheckpointTracker;
 import org.elasticsearch.index.seqno.SequenceNumbers;
-import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.Map;
 import java.util.Objects;
-import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.atomic.LongAdder;
 
 /**
- * {@link AsyncOperator} performs an external computation specified in {@link #performAsync(Page, ActionListener)}.
- * This operator acts as a client and operates on a per-page basis to reduce communication overhead.
+ * {@link AsyncOperator} performs an external computation specified in
+ * {@link #performAsync(Page, ActionListener)}. This operator acts as a client
+ * to reduce communication overhead and fetches a {@code Fetched} at a time.
+ * It's the responsibility of subclasses to transform that {@code Fetched} into
+ * output.
+ * <p>
+ *     This operator will also take care of merging response headers from the thread context into the main thread,
+ *     which <b>must</b> be the one that closes this.
+ * </p>
+ *
  * @see #performAsync(Page, ActionListener)
  */
-public abstract class AsyncOperator implements Operator {
+public abstract class AsyncOperator<Fetched> implements Operator {
 
     private volatile SubscribableListener<Void> blockedFuture;
 
-    private final Map<Long, Page> buffers = ConcurrentCollections.newConcurrentMap();
-    private final AtomicReference<Exception> failure = new AtomicReference<>();
+    private final Map<Long, Fetched> buffers = ConcurrentCollections.newConcurrentMap();
+    private final FailureCollector failureCollector = new FailureCollector();
     private final DriverContext driverContext;
 
     private final int maxOutstandingRequests;
-    private final LongAdder totalTimeInNanos = new LongAdder();
+    private final ResponseHeadersCollector responseHeadersCollector;
+    private final LongAdder processNanos = new LongAdder();
+
     private boolean finished = false;
     private volatile boolean closed = false;
 
@@ -64,9 +73,10 @@ public abstract class AsyncOperator implements Operator {
      *
      * @param maxOutstandingRequests the maximum number of outstanding requests
      */
-    public AsyncOperator(DriverContext driverContext, int maxOutstandingRequests) {
+    public AsyncOperator(DriverContext driverContext, ThreadContext threadContext, int maxOutstandingRequests) {
         this.driverContext = driverContext;
         this.maxOutstandingRequests = maxOutstandingRequests;
+        this.responseHeadersCollector = new ResponseHeadersCollector(threadContext);
     }
 
     @Override
@@ -77,7 +87,7 @@ public abstract class AsyncOperator implements Operator {
 
     @Override
     public void addInput(Page input) {
-        if (failure.get() != null) {
+        if (failureCollector.hasFailure()) {
             input.releaseBlocks();
             return;
         }
@@ -85,18 +95,19 @@ public abstract class AsyncOperator implements Operator {
         driverContext.addAsyncAction();
         boolean success = false;
         try {
-            final ActionListener<Page> listener = ActionListener.wrap(output -> {
+            final ActionListener<Fetched> listener = ActionListener.wrap(output -> {
                 buffers.put(seqNo, output);
                 onSeqNoCompleted(seqNo);
             }, e -> {
                 releasePageOnAnyThread(input);
-                onFailure(e);
+                failureCollector.unwrapAndCollect(e);
                 onSeqNoCompleted(seqNo);
             });
             final long startNanos = System.nanoTime();
             performAsync(input, ActionListener.runAfter(listener, () -> {
+                responseHeadersCollector.collect();
                 driverContext.removeAsyncAction();
-                totalTimeInNanos.add(System.nanoTime() - startNanos);
+                processNanos.add(System.nanoTime() - startNanos);
             }));
             success = true;
         } finally {
@@ -106,10 +117,12 @@ public abstract class AsyncOperator implements Operator {
         }
     }
 
-    private void releasePageOnAnyThread(Page page) {
+    protected static void releasePageOnAnyThread(Page page) {
         page.allowPassingToDifferentDriver();
         page.releaseBlocks();
     }
+
+    protected abstract void releaseFetchedOnAnyThread(Fetched result);
 
     /**
      * Performs an external computation and notify the listener when the result is ready.
@@ -117,36 +130,17 @@ public abstract class AsyncOperator implements Operator {
      * @param inputPage the input page
      * @param listener  the listener
      */
-    protected abstract void performAsync(Page inputPage, ActionListener<Page> listener);
+    protected abstract void performAsync(Page inputPage, ActionListener<Fetched> listener);
 
     protected abstract void doClose();
-
-    private void onFailure(Exception e) {
-        failure.getAndUpdate(first -> {
-            if (first == null) {
-                return e;
-            }
-            // ignore subsequent TaskCancelledException exceptions as they don't provide useful info.
-            if (ExceptionsHelper.unwrap(e, TaskCancelledException.class) != null) {
-                return first;
-            }
-            if (ExceptionsHelper.unwrap(first, TaskCancelledException.class) != null) {
-                return e;
-            }
-            if (ExceptionsHelper.unwrapCause(first) != ExceptionsHelper.unwrapCause(e)) {
-                first.addSuppressed(e);
-            }
-            return first;
-        });
-    }
 
     private void onSeqNoCompleted(long seqNo) {
         checkpoint.markSeqNoAsProcessed(seqNo);
         if (checkpoint.getPersistedCheckpoint() < checkpoint.getProcessedCheckpoint()) {
             notifyIfBlocked();
         }
-        if (closed || failure.get() != null) {
-            discardPages();
+        if (closed || failureCollector.hasFailure()) {
+            discardResults();
         }
     }
 
@@ -164,20 +158,20 @@ public abstract class AsyncOperator implements Operator {
     }
 
     private void checkFailure() {
-        Exception e = failure.get();
+        Exception e = failureCollector.getFailure();
         if (e != null) {
-            discardPages();
-            throw ExceptionsHelper.convertToElastic(e);
+            discardResults();
+            throw ExceptionsHelper.convertToRuntime(e);
         }
     }
 
-    private void discardPages() {
+    private void discardResults() {
         long nextCheckpoint;
         while ((nextCheckpoint = checkpoint.getPersistedCheckpoint() + 1) <= checkpoint.getProcessedCheckpoint()) {
-            Page page = buffers.remove(nextCheckpoint);
+            Fetched result = buffers.remove(nextCheckpoint);
             checkpoint.markSeqNoAsPersisted(nextCheckpoint);
-            if (page != null) {
-                releasePageOnAnyThread(page);
+            if (result != null) {
+                releaseFetchedOnAnyThread(result);
             }
         }
     }
@@ -186,7 +180,8 @@ public abstract class AsyncOperator implements Operator {
     public final void close() {
         finish();
         closed = true;
-        discardPages();
+        discardResults();
+        responseHeadersCollector.finish();
         doClose();
     }
 
@@ -205,22 +200,25 @@ public abstract class AsyncOperator implements Operator {
         }
     }
 
-    @Override
-    public Page getOutput() {
+    /**
+     * Get a {@link Fetched} from the buffer.
+     * @return a result if one is ready or {@code null} if none are available.
+     */
+    public final Fetched fetchFromBuffer() {
         checkFailure();
         long persistedCheckpoint = checkpoint.getPersistedCheckpoint();
         if (persistedCheckpoint < checkpoint.getProcessedCheckpoint()) {
             persistedCheckpoint++;
-            Page page = buffers.remove(persistedCheckpoint);
+            Fetched result = buffers.remove(persistedCheckpoint);
             checkpoint.markSeqNoAsPersisted(persistedCheckpoint);
-            return page;
+            return result;
         } else {
             return null;
         }
     }
 
     @Override
-    public SubscribableListener<Void> isBlocked() {
+    public IsBlockedResult isBlocked() {
         // TODO: Add an exchange service between async operation instead?
         if (finished) {
             return Operator.NOT_BLOCKED;
@@ -237,21 +235,17 @@ public abstract class AsyncOperator implements Operator {
             if (blockedFuture == null) {
                 blockedFuture = new SubscribableListener<>();
             }
-            return blockedFuture;
+            return new IsBlockedResult(blockedFuture, getClass().getSimpleName());
         }
     }
 
     @Override
     public final Operator.Status status() {
-        return status(
-            Math.max(0L, checkpoint.getMaxSeqNo()),
-            Math.max(0L, checkpoint.getProcessedCheckpoint()),
-            TimeValue.timeValueNanos(totalTimeInNanos.sum()).millis()
-        );
+        return status(Math.max(0L, checkpoint.getMaxSeqNo()), Math.max(0L, checkpoint.getProcessedCheckpoint()), processNanos.sum());
     }
 
-    protected Operator.Status status(long receivedPages, long completedPages, long totalTimeInMillis) {
-        return new Status(receivedPages, completedPages, totalTimeInMillis);
+    protected Operator.Status status(long receivedPages, long completedPages, long processNanos) {
+        return new Status(receivedPages, completedPages, processNanos);
     }
 
     public static class Status implements Operator.Status {
@@ -263,25 +257,31 @@ public abstract class AsyncOperator implements Operator {
 
         final long receivedPages;
         final long completedPages;
-        final long totalTimeInMillis;
+        final long processNanos;
 
-        protected Status(long receivedPages, long completedPages, long totalTimeInMillis) {
+        protected Status(long receivedPages, long completedPages, long processNanos) {
             this.receivedPages = receivedPages;
             this.completedPages = completedPages;
-            this.totalTimeInMillis = totalTimeInMillis;
+            this.processNanos = processNanos;
         }
 
         protected Status(StreamInput in) throws IOException {
             this.receivedPages = in.readVLong();
             this.completedPages = in.readVLong();
-            this.totalTimeInMillis = in.readVLong();
+            this.processNanos = in.getTransportVersion().onOrAfter(TransportVersions.ESQL_PROFILE_ASYNC_NANOS)
+                ? in.readVLong()
+                : TimeValue.timeValueMillis(in.readVLong()).nanos();
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeVLong(receivedPages);
             out.writeVLong(completedPages);
-            out.writeVLong(totalTimeInMillis);
+            out.writeVLong(
+                out.getTransportVersion().onOrAfter(TransportVersions.ESQL_PROFILE_ASYNC_NANOS)
+                    ? processNanos
+                    : TimeValue.timeValueNanos(processNanos).millis()
+            );
         }
 
         public long receivedPages() {
@@ -292,8 +292,8 @@ public abstract class AsyncOperator implements Operator {
             return completedPages;
         }
 
-        public long totalTimeInMillis() {
-            return totalTimeInMillis;
+        public long procesNanos() {
+            return processNanos;
         }
 
         @Override
@@ -309,12 +309,12 @@ public abstract class AsyncOperator implements Operator {
         }
 
         protected final XContentBuilder innerToXContent(XContentBuilder builder) throws IOException {
+            builder.field("process_nanos", processNanos);
+            if (builder.humanReadable()) {
+                builder.field("process_time", TimeValue.timeValueNanos(processNanos));
+            }
             builder.field("received_pages", receivedPages);
             builder.field("completed_pages", completedPages);
-            builder.field("total_time_in_millis", totalTimeInMillis);
-            if (totalTimeInMillis >= 0) {
-                builder.field("total_time", TimeValue.timeValueMillis(totalTimeInMillis));
-            }
             return builder;
         }
 
@@ -323,14 +323,12 @@ public abstract class AsyncOperator implements Operator {
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
             Status status = (Status) o;
-            return receivedPages == status.receivedPages
-                && completedPages == status.completedPages
-                && totalTimeInMillis == status.totalTimeInMillis;
+            return receivedPages == status.receivedPages && completedPages == status.completedPages && processNanos == status.processNanos;
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(receivedPages, completedPages, totalTimeInMillis);
+            return Objects.hash(receivedPages, completedPages, processNanos);
         }
 
         @Override
@@ -340,7 +338,7 @@ public abstract class AsyncOperator implements Operator {
 
         @Override
         public TransportVersion getMinimalSupportedVersion() {
-            return TransportVersions.ESQL_ENRICH_OPERATOR_STATUS;
+            return TransportVersions.V_8_14_0;
         }
     }
 }

@@ -13,7 +13,7 @@ import org.elasticsearch.test.cluster.local.distribution.DistributionType;
 public class SqlTestCluster {
     public static String CLUSTER_NAME = "javaRestTest";
 
-    public static ElasticsearchCluster getCluster(boolean enableFreezing) {
+    public static ElasticsearchCluster getCluster() {
         var settings = ElasticsearchCluster.local()
             .distribution(DistributionType.DEFAULT)
             .name(CLUSTER_NAME)
@@ -21,10 +21,6 @@ public class SqlTestCluster {
             .setting("xpack.watcher.enabled", "false")
             .setting("xpack.security.enabled", "false")
             .setting("xpack.license.self_generated.type", "trial");
-
-        if (enableFreezing) {
-            settings = settings.plugin("freeze-plugin");
-        }
 
         return settings.build();
     }

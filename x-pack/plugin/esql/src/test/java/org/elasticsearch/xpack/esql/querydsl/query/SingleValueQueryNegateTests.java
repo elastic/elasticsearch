@@ -8,9 +8,9 @@
 package org.elasticsearch.xpack.esql.querydsl.query;
 
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.ql.querydsl.query.MatchAll;
-import org.elasticsearch.xpack.ql.querydsl.query.NotQuery;
-import org.elasticsearch.xpack.ql.tree.Source;
+import org.elasticsearch.xpack.esql.core.querydsl.query.MatchAll;
+import org.elasticsearch.xpack.esql.core.querydsl.query.NotQuery;
+import org.elasticsearch.xpack.esql.core.tree.Source;
 
 import static org.hamcrest.Matchers.equalTo;
 

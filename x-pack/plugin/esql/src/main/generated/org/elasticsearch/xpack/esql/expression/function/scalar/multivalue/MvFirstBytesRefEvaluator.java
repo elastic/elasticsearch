@@ -15,7 +15,7 @@ import org.elasticsearch.compute.operator.EvalOperator;
 
 /**
  * {@link EvalOperator.ExpressionEvaluator} implementation for {@link MvFirst}.
- * This class is generated. Do not edit it.
+ * This class is generated. Edit {@code MvEvaluatorImplementer} instead.
  */
 public final class MvFirstBytesRefEvaluator extends AbstractMultivalueFunction.AbstractEvaluator {
   public MvFirstBytesRefEvaluator(EvalOperator.ExpressionEvaluator field,

@@ -1,0 +1,5 @@
+pr: 125214
+summary: Run `TransportGetDataStreamLifecycleAction` on local node
+area: Data streams
+type: enhancement
+issues: []

@@ -1,18 +1,17 @@
-import org.elasticsearch.gradle.internal.info.BuildParams
-
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 apply plugin: 'elasticsearch.internal-yaml-rest-test'
 apply plugin: 'elasticsearch.yaml-rest-compat-test'
 
 esplugin {
-  description 'Ingest processor that uses Apache Tika to extract contents'
-  classname 'org.elasticsearch.ingest.attachment.IngestAttachmentPlugin'
+  description = 'Ingest processor that uses Apache Tika to extract contents'
+  classname = 'org.elasticsearch.ingest.attachment.IngestAttachmentPlugin'
 }
 
 // this overwrites the 'versions' map from Elasticsearch itself, but indeed we want that -- we're interested in managing our dependencies
@@ -138,20 +137,12 @@ tasks.named("forbiddenPatterns").configure {
   exclude '**/text-cjk-*.txt'
 }
 
-tasks.named("yamlRestTestV7CompatTransform").configure { task ->
-  // 2 new tika metadata fields are returned in v8
-  task.replaceValueInLength("_source.attachment", 8, "Test ingest attachment processor with .doc file")
-  task.replaceValueInLength("_source.attachment", 8, "Test ingest attachment processor with .docx file")
-  // Tika 2.4.0 adds an extra newline for each embedded attachment, making the content_length larger
-  task.replaceValueInMatch("_source.attachment.content_length", 20, "Test ingest attachment processor with .docx file")
-}
-
 tasks.named("thirdPartyAudit").configure {
   ignoreMissingClasses()
 }
 
-if (BuildParams.inFipsJvm) {
+if (buildParams.inFipsJvm) {
   tasks.named("test").configure { enabled = false }
   tasks.named("yamlRestTest").configure { enabled = false };
-  tasks.named("yamlRestTestV7CompatTest").configure { enabled = false };
+  tasks.named("yamlRestCompatTest").configure { enabled = false };
 }

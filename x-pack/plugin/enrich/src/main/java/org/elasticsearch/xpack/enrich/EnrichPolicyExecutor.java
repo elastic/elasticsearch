@@ -13,10 +13,12 @@ import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.admin.cluster.node.tasks.get.GetTaskRequest;
 import org.elasticsearch.action.admin.cluster.node.tasks.get.GetTaskResponse;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
@@ -85,7 +87,7 @@ public class EnrichPolicyExecutor {
         String enrichIndexName = EnrichPolicy.getIndexName(request.getName(), nowTimestamp);
         Releasable policyLock = tryLockingPolicy(request.getName(), enrichIndexName);
         try {
-            Request internalRequest = new Request(request.getName(), enrichIndexName);
+            Request internalRequest = new Request(request.masterNodeTimeout(), request.getName(), enrichIndexName);
             internalRequest.setWaitForCompletion(request.isWaitForCompletion());
             internalRequest.setParentTask(request.getParentTask());
             client.execute(InternalExecutePolicyAction.INSTANCE, internalRequest, ActionListener.wrap(response -> {
@@ -114,20 +116,22 @@ public class EnrichPolicyExecutor {
     }
 
     public void runPolicyLocally(
+        ProjectId projectId,
         ExecuteEnrichPolicyTask task,
         String policyName,
         String enrichIndexName,
         ActionListener<ExecuteEnrichPolicyStatus> listener
     ) {
         try {
-            EnrichPolicy policy = EnrichStore.getPolicy(policyName, clusterService.state());
+            EnrichPolicy policy = EnrichStore.getPolicy(policyName, clusterService.state().metadata().getProject(projectId));
             if (policy == null) {
                 throw new ResourceNotFoundException("policy [{}] does not exist", policyName);
             }
 
             task.setStatus(new ExecuteEnrichPolicyStatus(ExecuteEnrichPolicyStatus.PolicyPhases.SCHEDULED));
-            Runnable runnable = createPolicyRunner(policyName, policy, enrichIndexName, task, listener);
-            threadPool.executor(ThreadPool.Names.GENERIC).execute(runnable);
+            var policyRunner = createPolicyRunner(projectId, policyName, policy, enrichIndexName, task);
+            threadPool.executor(ThreadPool.Names.GENERIC)
+                .execute(ActionRunnable.wrap(ActionListener.assertOnce(listener), policyRunner::run));
         } catch (Exception e) {
             task.setStatus(new ExecuteEnrichPolicyStatus(ExecuteEnrichPolicyStatus.PolicyPhases.FAILED));
             throw e;
@@ -206,18 +210,18 @@ public class EnrichPolicyExecutor {
         });
     }
 
-    private Runnable createPolicyRunner(
+    private EnrichPolicyRunner createPolicyRunner(
+        ProjectId projectId,
         String policyName,
         EnrichPolicy policy,
         String enrichIndexName,
-        ExecuteEnrichPolicyTask task,
-        ActionListener<ExecuteEnrichPolicyStatus> listener
+        ExecuteEnrichPolicyTask task
     ) {
         return new EnrichPolicyRunner(
+            projectId,
             policyName,
             policy,
             task,
-            listener,
             clusterService,
             indicesService,
             client,

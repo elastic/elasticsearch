@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.internal;
@@ -11,8 +12,8 @@ package org.elasticsearch.search.internal;
 import org.apache.lucene.search.FieldDoc;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TotalHits;
-import org.elasticsearch.action.search.SearchShardTask;
 import org.elasticsearch.action.search.SearchType;
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
 import org.elasticsearch.index.mapper.IdLoader;
@@ -35,9 +36,11 @@ import org.elasticsearch.search.fetch.subphase.highlight.SearchHighlightContext;
 import org.elasticsearch.search.profile.Profilers;
 import org.elasticsearch.search.query.QuerySearchResult;
 import org.elasticsearch.search.rank.context.QueryPhaseRankShardContext;
+import org.elasticsearch.search.rank.feature.RankFeatureResult;
 import org.elasticsearch.search.rescore.RescoreContext;
 import org.elasticsearch.search.sort.SortAndFormats;
 import org.elasticsearch.search.suggest.SuggestionSearchContext;
+import org.elasticsearch.tasks.CancellableTask;
 
 import java.util.List;
 
@@ -375,6 +378,16 @@ public abstract class FilteredSearchContext extends SearchContext {
     }
 
     @Override
+    public void addRankFeatureResult() {
+        in.addRankFeatureResult();
+    }
+
+    @Override
+    public RankFeatureResult rankFeatureResult() {
+        return in.rankFeatureResult();
+    }
+
+    @Override
     public FetchSearchResult fetchResult() {
         return in.fetchResult();
     }
@@ -410,12 +423,12 @@ public abstract class FilteredSearchContext extends SearchContext {
     }
 
     @Override
-    public void setTask(SearchShardTask task) {
+    public void setTask(CancellableTask task) {
         in.setTask(task);
     }
 
     @Override
-    public SearchShardTask getTask() {
+    public CancellableTask getTask() {
         return in.getTask();
     }
 
@@ -447,5 +460,15 @@ public abstract class FilteredSearchContext extends SearchContext {
     @Override
     public IdLoader newIdLoader() {
         return in.newIdLoader();
+    }
+
+    @Override
+    public CircuitBreaker circuitBreaker() {
+        return in.circuitBreaker();
+    }
+
+    @Override
+    public long memAccountingBufferSize() {
+        return in.memAccountingBufferSize();
     }
 }

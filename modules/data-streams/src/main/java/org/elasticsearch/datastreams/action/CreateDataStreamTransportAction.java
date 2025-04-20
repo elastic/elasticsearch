@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.datastreams.action;
 
@@ -15,13 +16,13 @@ import org.elasticsearch.action.support.master.AcknowledgedTransportMasterNodeAc
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MetadataCreateDataStreamService;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.indices.SystemDataStreamDescriptor;
 import org.elasticsearch.indices.SystemIndices;
+import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -30,6 +31,7 @@ public class CreateDataStreamTransportAction extends AcknowledgedTransportMaster
 
     private final MetadataCreateDataStreamService metadataCreateDataStreamService;
     private final SystemIndices systemIndices;
+    private final ProjectResolver projectResolver;
 
     @Inject
     public CreateDataStreamTransportAction(
@@ -37,7 +39,7 @@ public class CreateDataStreamTransportAction extends AcknowledgedTransportMaster
         ClusterService clusterService,
         ThreadPool threadPool,
         ActionFilters actionFilters,
-        IndexNameExpressionResolver indexNameExpressionResolver,
+        ProjectResolver projectResolver,
         MetadataCreateDataStreamService metadataCreateDataStreamService,
         SystemIndices systemIndices
     ) {
@@ -48,9 +50,9 @@ public class CreateDataStreamTransportAction extends AcknowledgedTransportMaster
             threadPool,
             actionFilters,
             CreateDataStreamAction.Request::new,
-            indexNameExpressionResolver,
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
+        this.projectResolver = projectResolver;
         this.metadataCreateDataStreamService = metadataCreateDataStreamService;
         this.systemIndices = systemIndices;
     }
@@ -68,6 +70,7 @@ public class CreateDataStreamTransportAction extends AcknowledgedTransportMaster
         );
         MetadataCreateDataStreamService.CreateDataStreamClusterStateUpdateRequest updateRequest =
             new MetadataCreateDataStreamService.CreateDataStreamClusterStateUpdateRequest(
+                projectResolver.getProjectId(),
                 request.getName(),
                 request.getStartTime(),
                 systemDataStreamDescriptor,

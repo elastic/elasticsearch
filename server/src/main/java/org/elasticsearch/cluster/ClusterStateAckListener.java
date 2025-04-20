@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.cluster;
 
@@ -19,39 +20,37 @@ import org.elasticsearch.core.TimeValue;
 public interface ClusterStateAckListener {
 
     /**
-     * Called to determine which nodes the acknowledgement is expected from.
+     * Called to determine the nodes from which an acknowledgement is expected.
+     * <p>
+     * This method will be called multiple times to determine the set of acking nodes, so it is crucial for it to return consistent results:
+     * Given the same listener instance and the same node parameter, the method implementation should return the same result.
      *
-     * As this method will be called multiple times to determine the set of acking nodes,
-     * it is crucial for it to return consistent results: Given the same listener instance
-     * and the same node parameter, the method implementation should return the same result.
-     *
-     * @param discoveryNode a node
-     * @return true if the node is expected to send ack back, false otherwise
+     * @return {@code true} if and only if this task will wait for an ack from the given node.
      */
     boolean mustAck(DiscoveryNode discoveryNode);
 
     /**
-     * Called once all the nodes have acknowledged the cluster state update request. Must be
-     * very lightweight execution, since it gets executed on the cluster service thread.
+     * Called once all the selected nodes have acknowledged the cluster state update request. Must be very lightweight execution, since it
+     * is executed on the cluster service thread.
      */
     void onAllNodesAcked();
 
     /**
-     * Called after all the nodes have acknowledged the cluster state update request but at least one of them failed. Must be
-     * very lightweight execution, since it gets executed on the cluster service thread.
+     * Called after all the nodes have acknowledged the cluster state update request but at least one of them failed. Must be very
+     * lightweight execution, since it is executed on the cluster service thread.
      *
-     * @param e optional error that might have been thrown
+     * @param e exception representing the failure.
      */
     void onAckFailure(Exception e);
 
     /**
-     * Called once the acknowledgement timeout defined by
-     * {@link AckedClusterStateUpdateTask#ackTimeout()} has expired
+     * Called if the acknowledgement timeout defined by {@link ClusterStateAckListener#ackTimeout()} expires while still waiting for acks.
      */
     void onAckTimeout();
 
     /**
-     * @return acknowledgement timeout, maximum time interval to wait for acknowledgements
+     * @return acknowledgement timeout, i.e. the maximum time interval to wait for acknowledgements. Return {@link TimeValue#MINUS_ONE} if
+     *         the request should wait indefinitely for acknowledgements.
      */
     TimeValue ackTimeout();
 

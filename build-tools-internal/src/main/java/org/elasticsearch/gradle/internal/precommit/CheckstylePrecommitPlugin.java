@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.gradle.internal.precommit;
@@ -18,6 +19,7 @@ import org.gradle.api.plugins.JavaBasePlugin;
 import org.gradle.api.plugins.quality.Checkstyle;
 import org.gradle.api.plugins.quality.CheckstyleExtension;
 import org.gradle.api.provider.Provider;
+import org.gradle.api.tasks.PathSensitivity;
 import org.gradle.api.tasks.SourceSetContainer;
 import org.gradle.api.tasks.TaskProvider;
 
@@ -40,19 +42,25 @@ public class CheckstylePrecommitPlugin extends PrecommitPlugin {
         File checkstyleDir = new File(project.getBuildDir(), "checkstyle");
         File checkstyleSuppressions = new File(checkstyleDir, "checkstyle_suppressions.xml");
         File checkstyleConf = new File(checkstyleDir, "checkstyle.xml");
-        TaskProvider<Task> copyCheckstyleConf = project.getTasks().register("copyCheckstyleConf");
-
+        TaskProvider<CopyCheckStyleConfTask> copyCheckstyleConf = project.getTasks()
+            .register("copyCheckstyleConf", CopyCheckStyleConfTask.class);
         // configure inputs and outputs so up to date works properly
         copyCheckstyleConf.configure(t -> t.getOutputs().files(checkstyleSuppressions, checkstyleConf));
         if ("jar".equals(checkstyleConfUrl.getProtocol())) {
             try {
                 JarURLConnection jarURLConnection = (JarURLConnection) checkstyleConfUrl.openConnection();
-                copyCheckstyleConf.configure(t -> t.getInputs().file(jarURLConnection.getJarFileURL()));
+                copyCheckstyleConf.configure(
+                    t -> t.getInputs().file(jarURLConnection.getJarFileURL()).withPathSensitivity(PathSensitivity.RELATIVE)
+                );
             } catch (IOException e) {
                 throw new UncheckedIOException(e);
             }
         } else if ("file".equals(checkstyleConfUrl.getProtocol())) {
-            copyCheckstyleConf.configure(t -> t.getInputs().files(checkstyleConfUrl.getFile(), checkstyleSuppressionsUrl.getFile()));
+            copyCheckstyleConf.configure(
+                t -> t.getInputs()
+                    .files(checkstyleConfUrl.getFile(), checkstyleSuppressionsUrl.getFile())
+                    .withPathSensitivity(PathSensitivity.RELATIVE)
+            );
         }
 
         // Explicitly using an Action interface as java lambdas

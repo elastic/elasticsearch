@@ -171,3 +171,33 @@
   - match: {component_templates.0.component_template.template.lifecycle.enabled: true}
   - match: {component_templates.0.component_template.template.lifecycle.data_retention: "10d"}
   - is_true: component_templates.0.component_template.template.lifecycle.rollover
+
+---
+"Deprecated local parameter":
+  - requires:
+      capabilities:
+        - method: GET
+          path: /_component_template
+          capabilities: ["local_param_deprecated"]
+      test_runner_features: ["capabilities", "warnings"]
+      reason: Deprecation was implemented with capability
+
+  - do:
+      cluster.get_component_template:
+        local: true
+      warnings:
+        - "the [?local] query parameter to this API has no effect, is now deprecated, and will be removed in a future version"
+
+---
+"Deprecated local parameter works in v8 compat mode":
+  - requires:
+      test_runner_features: ["headers"]
+
+  - do:
+      headers:
+        Content-Type: "application/vnd.elasticsearch+json;compatible-with=8"
+        Accept: "application/vnd.elasticsearch+json;compatible-with=8"
+      cluster.get_component_template:
+        local: true
+
+  - exists: component_templates

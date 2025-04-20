@@ -1,6 +1,0 @@
-pr: 108459
-summary: Do not use global ordinals strategy if the leaf reader context cannot be
-  obtained
-area: Machine Learning
-type: bug
-issues: []

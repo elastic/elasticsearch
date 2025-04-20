@@ -38,7 +38,7 @@ public class GeoToH3Tests extends ESTestCase {
 
     private void testPoint(double lat, double lon) {
         GeoPoint point = new GeoPoint(PlanetModel.SPHERE, Math.toRadians(lat), Math.toRadians(lon));
-        for (int res = 0; res < Constants.MAX_H3_RES; res++) {
+        for (int res = 0; res < H3.MAX_H3_RES; res++) {
             String h3Address = H3.geoToH3Address(lat, lon, res);
             assertEquals(res, H3.getResolution(h3Address));
             GeoPolygon polygon = getGeoPolygon(h3Address);

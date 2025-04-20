@@ -1,0 +1,5 @@
+pr: 113757
+summary: Store arrays offsets for keyword fields natively with synthetic source instead of falling back to ignored source.
+area: Mapping
+type: enhancement
+issues: []

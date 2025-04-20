@@ -19,6 +19,7 @@ import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -38,6 +39,7 @@ import org.elasticsearch.xpack.watcher.common.http.HttpRequest;
 import org.elasticsearch.xpack.watcher.common.http.HttpResponse;
 import org.elasticsearch.xpack.watcher.notification.jira.JiraAccount;
 import org.elasticsearch.xpack.watcher.notification.jira.JiraIssue;
+import org.elasticsearch.xpack.watcher.test.WatcherTestUtils;
 import org.elasticsearch.xpack.watcher.trigger.schedule.ScheduleTriggerEvent;
 import org.junit.Before;
 import org.mockito.ArgumentCaptor;
@@ -45,14 +47,18 @@ import org.mockito.ArgumentCaptor;
 import java.time.Instant;
 import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
+import java.util.Map;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonMap;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.not;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.atLeastOnce;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
@@ -71,9 +77,18 @@ public class HistoryStoreTests extends ESTestCase {
         when(client.threadPool()).thenReturn(threadPool);
         when(client.settings()).thenReturn(settings);
         when(threadPool.getThreadContext()).thenReturn(new ThreadContext(settings));
+        historyStore = createHistoryStore(null);
+    }
+
+    private HistoryStore createHistoryStore(ByteSizeValue maxHistoryRecordSize) {
         BulkProcessor2.Listener listener = mock(BulkProcessor2.Listener.class);
-        BulkProcessor2 bulkProcessor = BulkProcessor2.builder(client::bulk, listener, threadPool).setBulkActions(1).build();
-        historyStore = new HistoryStore(bulkProcessor);
+        BulkProcessor2 bulkProcessor = BulkProcessor2.builder(client::bulk, listener, client.threadPool()).setBulkActions(1).build();
+        Settings.Builder settingsBuilder = Settings.builder();
+        if (maxHistoryRecordSize != null) {
+            settingsBuilder.put(HistoryStore.MAX_HISTORY_SIZE_SETTING.getKey(), maxHistoryRecordSize);
+        }
+        Settings settings = settingsBuilder.build();
+        return new HistoryStore(bulkProcessor, settings);
     }
 
     public void testPut() throws Exception {
@@ -83,11 +98,11 @@ public class HistoryStoreTests extends ESTestCase {
         WatchRecord watchRecord = new WatchRecord.MessageWatchRecord(wid, event, ExecutionState.EXECUTED, null, randomAlphaOfLength(10));
 
         IndexResponse indexResponse = mock(IndexResponse.class);
-
+        AtomicBoolean historyItemIndexed = new AtomicBoolean(false);
         doAnswer(invocation -> {
-            BulkRequest request = (BulkRequest) invocation.getArguments()[1];
+            BulkRequest request = (BulkRequest) invocation.getArguments()[0];
             @SuppressWarnings("unchecked")
-            ActionListener<BulkResponse> listener = (ActionListener<BulkResponse>) invocation.getArguments()[2];
+            ActionListener<BulkResponse> listener = (ActionListener<BulkResponse>) invocation.getArguments()[1];
 
             IndexRequest indexRequest = (IndexRequest) request.requests().get(0);
             if (indexRequest.id().equals(wid.value())
@@ -96,14 +111,108 @@ public class HistoryStoreTests extends ESTestCase {
                 listener.onResponse(
                     new BulkResponse(new BulkItemResponse[] { BulkItemResponse.success(1, OpType.CREATE, indexResponse) }, 1)
                 );
+                historyItemIndexed.set(true);
             } else {
                 listener.onFailure(new ElasticsearchException("test issue"));
+                fail("Unexpected indexRequest");
             }
             return null;
         }).when(client).bulk(any(), any());
 
         historyStore.put(watchRecord);
         verify(client).bulk(any(), any());
+        assertThat(historyItemIndexed.get(), equalTo(true));
+    }
+
+    @SuppressWarnings("unchecked")
+    public void testPutLargeHistory() throws Exception {
+        IndexResponse indexResponse = mock(IndexResponse.class);
+        AtomicBoolean historyRedacted = new AtomicBoolean(false);
+        doAnswer(invocation -> {
+            BulkRequest request = (BulkRequest) invocation.getArguments()[0];
+            ActionListener<BulkResponse> listener = (ActionListener<BulkResponse>) invocation.getArguments()[1];
+            IndexRequest indexRequest = (IndexRequest) request.requests().get(0);
+            Map<String, Object> sourceMap = indexRequest.sourceAsMap();
+            if (indexRequest.opType() == OpType.CREATE && indexRequest.index().equals(HistoryStoreField.DATA_STREAM)) {
+                if (sourceMap.containsKey("input")
+                    && ((Map<String, Object>) sourceMap.get("input")).containsKey(WatchRecord.TRUNCATED_RECORD_KEY)
+                    && sourceMap.containsKey("result")
+                    && ((Map<String, Object>) sourceMap.get("result")).containsKey(WatchRecord.TRUNCATED_RECORD_KEY)) {
+                    assertThat(
+                        ((Map<String, Object>) sourceMap.get("input")).get(WatchRecord.TRUNCATED_RECORD_KEY),
+                        equalTo(WatchRecord.TRUNCATED_RECORD_VALUE)
+                    );
+                    assertThat(
+                        ((Map<String, Object>) sourceMap.get("result")).get(WatchRecord.TRUNCATED_RECORD_KEY),
+                        equalTo(WatchRecord.TRUNCATED_RECORD_VALUE)
+                    );
+                    historyRedacted.set(true);
+                }
+                listener.onResponse(
+                    new BulkResponse(new BulkItemResponse[] { BulkItemResponse.success(1, OpType.CREATE, indexResponse) }, 1)
+                );
+            } else {
+                listener.onFailure(new ElasticsearchException("test issue"));
+                fail("Should never get here");
+            }
+            return null;
+        }).when(client).bulk(any(), any());
+        HistoryStore historyStoreSmallLimit = createHistoryStore(ByteSizeValue.ofBytes(10));
+        HistoryStore historyStoreLargeLimit = createHistoryStore(ByteSizeValue.ofBytes(10_000_000));
+        {
+            /*
+             * First, create a history record with input and results. We expect this to not be truncated when the store has a high limit,
+             * and we expect it to be truncated when we have the artificially low limit.
+             */
+            WatchExecutionContext context = WatcherTestUtils.createWatchExecutionContext();
+            WatchExecutionResult result = new WatchExecutionResult(context, randomNonNegativeLong());
+            String message = randomAlphaOfLength(100);
+            WatchRecord watchRecord = new WatchRecord.MessageWatchRecord(context, result, message);
+            historyStoreLargeLimit.put(watchRecord);
+            verify(client, atLeastOnce()).bulk(any(), any());
+            assertThat(historyRedacted.get(), equalTo(false));
+            historyStoreSmallLimit.put(watchRecord);
+            verify(client, atLeastOnce()).bulk(any(), any());
+            assertThat(historyRedacted.get(), equalTo(true));
+        }
+        {
+            /*
+             * Now make sure that we don't blow up when the input and result are null
+             */
+            historyRedacted.set(false);
+            ZonedDateTime now = Instant.ofEpochMilli(0).atZone(ZoneOffset.UTC);
+            Wid wid = new Wid("_name", now);
+            ScheduleTriggerEvent event = new ScheduleTriggerEvent(wid.watchId(), now, now);
+            WatchRecord watchRecord = new WatchRecord.MessageWatchRecord(
+                wid,
+                event,
+                ExecutionState.EXECUTED,
+                null,
+                randomAlphaOfLength(10)
+            );
+            historyStoreLargeLimit.put(watchRecord);
+            verify(client, atLeastOnce()).bulk(any(), any());
+            assertThat(historyRedacted.get(), equalTo(false));
+            historyStoreSmallLimit.put(watchRecord);
+            verify(client, atLeastOnce()).bulk(any(), any());
+            assertThat(historyRedacted.get(), equalTo(false));
+        }
+        {
+            /*
+             * Now make sure that we don't blow up when the input and result are null
+             */
+            historyRedacted.set(false);
+            WatchExecutionContext context = WatcherTestUtils.createWatchExecutionContext();
+            WatchExecutionResult result = new WatchExecutionResult(context, randomNonNegativeLong());
+            Exception exception = new RuntimeException(randomAlphaOfLength(100));
+            WatchRecord watchRecord = new WatchRecord.ExceptionWatchRecord(context, result, exception);
+            historyStoreLargeLimit.put(watchRecord);
+            verify(client, atLeastOnce()).bulk(any(), any());
+            assertThat(historyRedacted.get(), equalTo(false));
+            historyStoreSmallLimit.put(watchRecord);
+            verify(client, atLeastOnce()).bulk(any(), any());
+            assertThat(historyRedacted.get(), equalTo(true));
+        }
     }
 
     public void testStoreWithHideSecrets() throws Exception {
@@ -148,12 +257,14 @@ public class HistoryStoreTests extends ESTestCase {
         watchRecord.result().actionsResults().put(JiraAction.TYPE, result);
 
         ArgumentCaptor<BulkRequest> requestCaptor = ArgumentCaptor.forClass(BulkRequest.class);
+        AtomicBoolean historyItemIndexed = new AtomicBoolean(false);
         doAnswer(invocation -> {
             @SuppressWarnings("unchecked")
-            ActionListener<BulkResponse> listener = (ActionListener<BulkResponse>) invocation.getArguments()[2];
+            ActionListener<BulkResponse> listener = (ActionListener<BulkResponse>) invocation.getArguments()[1];
 
             IndexResponse indexResponse = mock(IndexResponse.class);
             listener.onResponse(new BulkResponse(new BulkItemResponse[] { BulkItemResponse.success(1, OpType.CREATE, indexResponse) }, 1));
+            historyItemIndexed.set(true);
             return null;
         }).when(client).bulk(requestCaptor.capture(), any());
 
@@ -162,7 +273,7 @@ public class HistoryStoreTests extends ESTestCase {
         } else {
             historyStore.forcePut(watchRecord);
         }
-
+        assertThat(historyItemIndexed.get(), equalTo(true));
         assertThat(requestCaptor.getAllValues(), hasSize(1));
         assertThat(requestCaptor.getValue().requests().get(0), instanceOf(IndexRequest.class));
         IndexRequest capturedIndexRequest = (IndexRequest) requestCaptor.getValue().requests().get(0);

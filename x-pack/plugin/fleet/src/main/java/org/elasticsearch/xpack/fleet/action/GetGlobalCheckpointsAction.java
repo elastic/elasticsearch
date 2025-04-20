@@ -26,15 +26,16 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.common.util.concurrent.CountDown;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.node.NodeClosedException;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.Task;
@@ -170,7 +171,7 @@ public class GetGlobalCheckpointsAction extends ActionType<GetGlobalCheckpointsA
             final IndexNameExpressionResolver resolver,
             final ThreadPool threadPool
         ) {
-            super(NAME, actionFilters, transportService.getTaskManager());
+            super(NAME, actionFilters, transportService.getTaskManager(), EsExecutors.DIRECT_EXECUTOR_SERVICE);
             this.clusterService = clusterService;
             this.client = client;
             this.resolver = resolver;
@@ -193,7 +194,7 @@ public class GetGlobalCheckpointsAction extends ActionType<GetGlobalCheckpointsA
                 return;
             }
 
-            final IndexMetadata indexMetadata = state.getMetadata().index(index);
+            final IndexMetadata indexMetadata = state.getMetadata().getProject().index(index);
             final IndexRoutingTable routingTable = state.routingTable().index(index);
 
             if (routingTable.allPrimaryShardsActive()) {
@@ -227,7 +228,7 @@ public class GetGlobalCheckpointsAction extends ActionType<GetGlobalCheckpointsA
                                 client,
                                 request,
                                 listener,
-                                state.getMetadata().index(index),
+                                state.getMetadata().getProject().index(index),
                                 TimeValue.timeValueNanos(remainingNanos)
                             ).run();
                         } else {
@@ -236,7 +237,7 @@ public class GetGlobalCheckpointsAction extends ActionType<GetGlobalCheckpointsA
                                     null,
                                     "Primary shards were not active within timeout [timeout={}, shards={}, active={}]",
                                     request.timeout(),
-                                    state.getMetadata().index(index).getNumberOfShards(),
+                                    state.getMetadata().getProject().index(index).getNumberOfShards(),
                                     state.routingTable().index(index).primaryShardsActive()
                                 )
                             );
@@ -256,7 +257,7 @@ public class GetGlobalCheckpointsAction extends ActionType<GetGlobalCheckpointsA
                                 null,
                                 "Primary shards were not active within timeout [timeout={}, shards={}, active={}]",
                                 request.timeout(),
-                                state.getMetadata().index(index).getNumberOfShards(),
+                                state.getMetadata().getProject().index(index).getNumberOfShards(),
                                 state.routingTable().index(index).primaryShardsActive()
                             )
                         );

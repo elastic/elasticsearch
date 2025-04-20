@@ -23,7 +23,7 @@ import java.util.function.BiFunction;
  * Copies the execution state data from one index to another, typically after a
  * new index has been created. As part of the execution state copy it will set the target index
  * "current step" to the provided target next step {@link org.elasticsearch.xpack.core.ilm.Step.StepKey}.
- *
+ * <p>
  * Useful for actions such as shrink.
  */
 public class CopyExecutionStateStep extends ClusterStateActionStep {
@@ -67,7 +67,7 @@ public class CopyExecutionStateStep extends ClusterStateActionStep {
 
     @Override
     public ClusterState performAction(Index index, ClusterState clusterState) {
-        IndexMetadata indexMetadata = clusterState.metadata().index(index);
+        IndexMetadata indexMetadata = clusterState.metadata().getProject().index(index);
         if (indexMetadata == null) {
             // Index must have been since deleted, ignore it
             logger.debug("[{}] lifecycle action for index [{}] executed but index no longer exists", getKey().action(), index.getName());
@@ -77,7 +77,7 @@ public class CopyExecutionStateStep extends ClusterStateActionStep {
         LifecycleExecutionState lifecycleState = indexMetadata.getLifecycleExecutionState();
         String targetIndexName = targetIndexNameSupplier.apply(index.getName(), lifecycleState);
         calculatedTargetIndexName.set(targetIndexName);
-        IndexMetadata targetIndexMetadata = clusterState.metadata().index(targetIndexName);
+        IndexMetadata targetIndexMetadata = clusterState.metadata().getProject().index(targetIndexName);
 
         if (targetIndexMetadata == null) {
             logger.warn(

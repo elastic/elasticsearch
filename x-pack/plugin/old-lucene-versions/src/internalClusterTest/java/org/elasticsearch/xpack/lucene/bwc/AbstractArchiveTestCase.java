@@ -94,11 +94,7 @@ public abstract class AbstractArchiveTestCase extends AbstractSnapshotIntegTestC
                             .put(
                                 IndexMetadata.SETTING_INDEX_VERSION_CREATED.getKey(),
                                 metadata.settings()
-                                    .getAsVersionId(
-                                        "version",
-                                        IndexVersion::fromId,
-                                        IndexVersion.fromId(randomBoolean() ? 5000099 : 6000099)
-                                    )
+                                    .getAsVersionId("version", IndexVersion::fromId, IndexVersion.fromId(randomFrom(5000099, 6000099)))
                             )
                     )
                     .build();
@@ -118,7 +114,8 @@ public abstract class AbstractArchiveTestCase extends AbstractSnapshotIntegTestC
 
         assertAcked(client().admin().indices().prepareDelete(indexName));
 
-        PostStartTrialRequest request = new PostStartTrialRequest().setType(License.LicenseType.TRIAL.getTypeName()).acknowledge(true);
+        PostStartTrialRequest request = new PostStartTrialRequest(TEST_REQUEST_TIMEOUT).setType(License.LicenseType.TRIAL.getTypeName())
+            .acknowledge(true);
         client().execute(PostStartTrialAction.INSTANCE, request).get();
     }
 }

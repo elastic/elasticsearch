@@ -1,0 +1,144 @@
+setup:
+  - requires:
+      cluster_features: "gte_v8.15.0"
+      reason: semantic_text introduced in 8.15.0
+
+  - do:
+      inference.put:
+        task_type: sparse_embedding
+        inference_id: sparse-inference-id
+        body: >
+          {
+            "service": "test_service",
+            "service_settings": {
+              "model": "my_model",
+              "api_key": "abc64"
+            },
+            "task_settings": {
+            }
+          }
+
+  - do:
+      inference.put:
+        task_type: text_embedding
+        inference_id: dense-inference-id
+        body: >
+          {
+            "service": "text_embedding_test_service",
+            "service_settings": {
+              "model": "my_model",
+              "dimensions": 10,
+              "api_key": "abc64",
+              "similarity": "COSINE"
+            },
+            "task_settings": {
+            }
+          }
+
+  - do:
+      indices.create:
+        index: test-sparse-index
+        body:
+          mappings:
+            properties:
+              inference_field:
+                type: semantic_text
+                inference_id: sparse-inference-id
+
+  - do:
+      indices.create:
+        index: test-dense-index
+        body:
+          mappings:
+            properties:
+              inference_field:
+                type: semantic_text
+                inference_id: dense-inference-id
+
+---
+"Exists query with no indexed documents":
+  - do:
+      search:
+        index: test-sparse-index
+        body:
+          query:
+            exists:
+              field: "inference_field"
+
+  - match: { hits.total.value: 0 }
+
+---
+"Exists query with null indexed documents":
+  - do:
+      index:
+        index: test-sparse-index
+        id: doc
+        body:
+          inference_field: null
+        refresh: true
+
+  - do:
+      search:
+        index: test-sparse-index
+        body:
+          query:
+            exists:
+              field: "inference_field"
+
+  - match: { hits.total.value: 0 }
+
+  - do:
+      index:
+        index: test-dense-index
+        id: doc
+        body:
+          inference_field: null
+        refresh: true
+
+  - do:
+      search:
+        index: test-dense-index
+        body:
+          query:
+            exists:
+              field: "inference_field"
+
+  - match: { hits.total.value: 0 }
+
+---
+"Exists query with indexed documents":
+  - do:
+      index:
+        index: test-sparse-index
+        id: doc
+        body:
+          inference_field: "hello world"
+        refresh: true
+
+  - do:
+      search:
+        index: test-sparse-index
+        body:
+          query:
+            exists:
+              field: "inference_field"
+
+  - match: { hits.total.value: 1 }
+
+  - do:
+      index:
+        index: test-dense-index
+        id: doc
+        body:
+          inference_field: "hello world"
+        refresh: true
+
+  - do:
+      search:
+        index: test-dense-index
+        body:
+          query:
+            exists:
+              field: "inference_field"
+
+  - match: { hits.total.value: 1 }

@@ -1,43 +1,58 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.search;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.util.Maps;
+import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.InnerHitBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
+import org.elasticsearch.search.SearchPhaseResult;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.collapse.CollapseBuilder;
 
 import java.util.Iterator;
 import java.util.List;
-import java.util.function.Supplier;
 
 /**
  * This search phase is an optional phase that will be executed once all hits are fetched from the shards that executes
  * field-collapsing on the inner hits. This phase only executes if field collapsing is requested in the search request and otherwise
  * forwards to the next phase immediately.
  */
-final class ExpandSearchPhase extends SearchPhase {
-    private final SearchPhaseContext context;
-    private final SearchHits searchHits;
-    private final Supplier<SearchPhase> nextPhase;
+class ExpandSearchPhase extends SearchPhase {
 
-    ExpandSearchPhase(SearchPhaseContext context, SearchHits searchHits, Supplier<SearchPhase> nextPhase) {
-        super("expand");
+    static final String NAME = "expand";
+
+    private final AbstractSearchAsyncAction<?> context;
+    private final SearchResponseSections searchResponseSections;
+    private final AtomicArray<SearchPhaseResult> queryPhaseResults;
+
+    ExpandSearchPhase(
+        AbstractSearchAsyncAction<?> context,
+        SearchResponseSections searchResponseSections,
+        AtomicArray<SearchPhaseResult> queryPhaseResults
+    ) {
+        super(NAME);
         this.context = context;
-        this.searchHits = searchHits;
-        this.nextPhase = nextPhase;
+        this.searchResponseSections = searchResponseSections;
+        this.queryPhaseResults = queryPhaseResults;
+    }
+
+    // protected for tests
+    protected SearchPhase nextPhase() {
+        return new FetchLookupFieldsPhase(context, searchResponseSections, queryPhaseResults);
     }
 
     /**
@@ -49,15 +64,16 @@ final class ExpandSearchPhase extends SearchPhase {
     }
 
     @Override
-    public void run() {
+    protected void run() {
+        var searchHits = searchResponseSections.hits();
         if (isCollapseRequest() == false || searchHits.getHits().length == 0) {
             onPhaseDone();
         } else {
-            doRun();
+            doRun(searchHits);
         }
     }
 
-    private void doRun() {
+    private void doRun(SearchHits searchHits) {
         SearchRequest searchRequest = context.getRequest();
         CollapseBuilder collapseBuilder = searchRequest.source().collapse();
         final List<InnerHitBuilder> innerHitBuilders = collapseBuilder.getInnerHits();
@@ -81,8 +97,15 @@ final class ExpandSearchPhase extends SearchPhase {
                 CollapseBuilder innerCollapseBuilder = innerHitBuilder.getInnerCollapseBuilder();
                 SearchSourceBuilder sourceBuilder = buildExpandSearchSourceBuilder(innerHitBuilder, innerCollapseBuilder).query(groupQuery)
                     .postFilter(searchRequest.source().postFilter())
-                    .runtimeMappings(searchRequest.source().runtimeMappings());
+                    .runtimeMappings(searchRequest.source().runtimeMappings())
+                    .pointInTimeBuilder(searchRequest.source().pointInTimeBuilder());
                 SearchRequest groupRequest = new SearchRequest(searchRequest);
+                if (searchRequest.pointInTimeBuilder() != null) {
+                    // if the original request has a point in time, we propagate it to the inner search request
+                    // and clear the indices and preference from the inner search request
+                    groupRequest.indices(Strings.EMPTY_ARRAY);
+                    groupRequest.preference(null);
+                }
                 groupRequest.source(sourceBuilder);
                 multiRequest.add(groupRequest);
             }
@@ -93,12 +116,16 @@ final class ExpandSearchPhase extends SearchPhase {
                 for (InnerHitBuilder innerHitBuilder : innerHitBuilders) {
                     MultiSearchResponse.Item item = it.next();
                     if (item.isFailure()) {
-                        context.onPhaseFailure(this, "failed to expand hits", item.getFailure());
+                        phaseFailure(item.getFailure());
                         return;
                     }
                     SearchHits innerHits = item.getResponse().getHits();
                     if (hit.getInnerHits() == null) {
                         hit.setInnerHits(Maps.newMapWithExpectedSize(innerHitBuilders.size()));
+                    }
+                    if (hit.isPooled() == false) {
+                        // TODO: make this work pooled by forcing the hit itself to become pooled as needed here
+                        innerHits = innerHits.asUnpooled();
                     }
                     hit.getInnerHits().put(innerHitBuilder.getName(), innerHits);
                     assert innerHits.isPooled() == false || hit.isPooled() : "pooled inner hits can only be added to a pooled hit";
@@ -106,7 +133,11 @@ final class ExpandSearchPhase extends SearchPhase {
                 }
             }
             onPhaseDone();
-        }, context::onFailure));
+        }, this::phaseFailure));
+    }
+
+    private void phaseFailure(Exception ex) {
+        context.onPhaseFailure(NAME, "failed to expand hits", ex);
     }
 
     private static SearchSourceBuilder buildExpandSearchSourceBuilder(InnerHitBuilder options, CollapseBuilder innerCollapseBuilder) {
@@ -151,6 +182,6 @@ final class ExpandSearchPhase extends SearchPhase {
     }
 
     private void onPhaseDone() {
-        context.executeNextPhase(this, nextPhase.get());
+        context.executeNextPhase(NAME, this::nextPhase);
     }
 }

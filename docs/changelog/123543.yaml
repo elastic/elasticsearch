@@ -1,0 +1,6 @@
+pr: 123543
+summary: Enhance memory accounting for document expansion and introduce max document
+  size limit
+area: CRUD
+type: enhancement
+issues: []

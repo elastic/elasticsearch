@@ -3,9 +3,10 @@ setup:
   - requires:
       cluster_features: ["gte_v8.13.0"]
       reason: "resolve cluster introduced in 8.13"
-      test_runner_features: "warnings"
+      test_runner_features: ["warnings", "headers"]
 
   - do:
+      headers: { X-elastic-product-origin: elastic }
       indices.create:
         index: ".tasks"
 ---

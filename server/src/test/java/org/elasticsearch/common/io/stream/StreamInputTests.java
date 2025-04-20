@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.common.io.stream;
@@ -24,6 +25,15 @@ import static org.mockito.Mockito.verify;
 public class StreamInputTests extends ESTestCase {
 
     private StreamInput in = Mockito.spy(StreamInput.class);
+
+    {
+        try {
+            Mockito.when(in.skip(anyLong())).thenAnswer(a -> a.getArguments()[0]);
+        } catch (IOException e) {
+            throw new AssertionError(e);
+        }
+    }
+
     byte[] bytes = "0123456789".getBytes(UTF_8);
 
     public void testCalculateByteLengthOfAscii() throws IOException {

@@ -134,7 +134,7 @@ public class CertificateInfo implements ToXContentObject, Writeable, Comparable<
             .field("subject_dn", subjectDn)
             .field("serial_number", serialNumber)
             .field("has_private_key", hasPrivateKey)
-            .timeField("expiry", expiry);
+            .timestampField("expiry", expiry);
         if (Strings.hasLength(issuer)) {
             builder.field("issuer", issuer);
         }

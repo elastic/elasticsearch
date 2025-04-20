@@ -411,3 +411,53 @@ setup:
 
   - match: {hits.total.value: 1}
   - match: {hits.hits.0._id: "2"}
+---
+"nested Knn search with required similarity appropriately filters inner_hits":
+  - requires:
+      cluster_features: "gte_v8.16.0"
+      reason: 'bugfix for 8.16'
+
+  - do:
+      search:
+        index: test
+        body:
+          query:
+            nested:
+              path: nested
+              inner_hits:
+                size: 3
+                _source: false
+                fields:
+                  - nested.paragraph_id
+              query:
+                knn:
+                  field: nested.vector
+                  query_vector: [-0.5, 90.0, -10, 14.8, -156.0]
+                  num_candidates: 3
+                  similarity: 10.5
+
+  - match: {hits.total.value: 1}
+  - match: {hits.hits.0._id: "2"}
+  - length: {hits.hits.0.inner_hits.nested.hits.hits: 1}
+  - match: {hits.hits.0.inner_hits.nested.hits.hits.0.fields.nested.0.paragraph_id.0: "0"}
+
+  - do:
+      search:
+        index: test
+        body:
+          knn:
+            field: nested.vector
+            query_vector: [-0.5, 90.0, -10, 14.8, -156.0]
+            num_candidates: 3
+            k: 3
+            similarity: 10.5
+            inner_hits:
+              size: 3
+              _source: false
+              fields:
+                - nested.paragraph_id
+
+  - match: {hits.total.value: 1}
+  - match: {hits.hits.0._id: "2"}
+  - length: {hits.hits.0.inner_hits.nested.hits.hits: 1}
+  - match: {hits.hits.0.inner_hits.nested.hits.hits.0.fields.nested.0.paragraph_id.0: "0"}

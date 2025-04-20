@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.search.suggest.phrase;
 
@@ -34,7 +35,7 @@ class StupidBackoffScorer extends WordScorer {
         if (count < 1) {
             return discount * scoreUnigram(word);
         }
-        return count / (w_1.termStats.totalTermFreq + 0.00000000001d);
+        return count / (w_1.termStats.totalTermFreq() + 0.00000000001d);
     }
 
     @Override
@@ -49,7 +50,7 @@ class StupidBackoffScorer extends WordScorer {
         join(separator, spare, w_2.term, w_1.term, w.term);
         long trigramCount = frequency(spare.get());
         if (trigramCount < 1) {
-            return discount * (bigramCount / (w_1.termStats.totalTermFreq + 0.00000000001d));
+            return discount * (bigramCount / (w_1.termStats.totalTermFreq() + 0.00000000001d));
         }
         return trigramCount / (bigramCount + 0.00000000001d);
     }

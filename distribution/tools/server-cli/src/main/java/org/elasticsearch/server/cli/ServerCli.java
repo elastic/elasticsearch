@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.server.cli;
@@ -32,6 +33,8 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.Locale;
+import java.util.Map;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
  * The main CLI for running Elasticsearch.
@@ -44,6 +47,8 @@ class ServerCli extends EnvironmentAwareCommand {
     private final OptionSpecBuilder quietOption;
     private final OptionSpec<String> enrollmentTokenOption;
 
+    // flag for indicating shutdown has begun. we use an AtomicBoolean to double as a synchronization object
+    private final AtomicBoolean shuttingDown = new AtomicBoolean(false);
     private volatile ServerProcess server;
 
     // visible for testing
@@ -98,7 +103,14 @@ class ServerCli extends EnvironmentAwareCommand {
             syncPlugins(terminal, env, processInfo);
 
             ServerArgs args = createArgs(options, env, secrets, processInfo);
-            this.server = startServer(terminal, processInfo, args);
+            synchronized (shuttingDown) {
+                // if we are shutting down there is no reason to start the server
+                if (shuttingDown.get()) {
+                    terminal.println("CLI is shutting down, skipping starting server process");
+                    return;
+                }
+                this.server = startServer(terminal, processInfo, args);
+            }
         }
 
         if (options.has(daemonizeOption)) {
@@ -139,7 +151,7 @@ class ServerCli extends EnvironmentAwareCommand {
             throw new UserException(ExitCodes.USAGE, "Multiple --enrollment-token parameters are not allowed");
         }
 
-        Path log4jConfig = env.configFile().resolve("log4j2.properties");
+        Path log4jConfig = env.configDir().resolve("log4j2.properties");
         if (Files.exists(log4jConfig) == false) {
             throw new UserException(ExitCodes.CONFIG, "Missing logging config file at " + log4jConfig);
         }
@@ -157,7 +169,7 @@ class ServerCli extends EnvironmentAwareCommand {
         assert secureSettingsLoader(env) instanceof KeyStoreLoader;
 
         String autoConfigLibs = "modules/x-pack-core,modules/x-pack-security,lib/tools/security-cli";
-        Command cmd = loadTool("auto-configure-node", autoConfigLibs);
+        Command cmd = loadTool(processInfo.sysprops(), "auto-configure-node", autoConfigLibs);
         assert cmd instanceof EnvironmentAwareCommand;
         @SuppressWarnings("raw")
         var autoConfigNode = (EnvironmentAwareCommand) cmd;
@@ -199,7 +211,7 @@ class ServerCli extends EnvironmentAwareCommand {
     // package private for testing
     void syncPlugins(Terminal terminal, Environment env, ProcessInfo processInfo) throws Exception {
         String pluginCliLibs = "lib/tools/plugin-cli";
-        Command cmd = loadTool("sync-plugins", pluginCliLibs);
+        Command cmd = loadTool(processInfo.sysprops(), "sync-plugins", pluginCliLibs);
         assert cmd instanceof EnvironmentAwareCommand;
         @SuppressWarnings("raw")
         var syncPlugins = (EnvironmentAwareCommand) cmd;
@@ -228,13 +240,16 @@ class ServerCli extends EnvironmentAwareCommand {
             }
             validatePidFile(pidFile);
         }
-        return new ServerArgs(daemonize, quiet, pidFile, secrets, env.settings(), env.configFile(), env.logsFile());
+        return new ServerArgs(daemonize, quiet, pidFile, secrets, env.settings(), env.configDir(), env.logsDir());
     }
 
     @Override
     public void close() throws IOException {
-        if (server != null) {
-            server.stop();
+        synchronized (shuttingDown) {
+            shuttingDown.set(true);
+            if (server != null) {
+                server.stop();
+            }
         }
     }
 
@@ -244,8 +259,8 @@ class ServerCli extends EnvironmentAwareCommand {
     }
 
     // protected to allow tests to override
-    protected Command loadTool(String toolname, String libs) {
-        return CliToolProvider.load(toolname, libs).create();
+    protected Command loadTool(Map<String, String> sysprops, String toolname, String libs) {
+        return CliToolProvider.load(sysprops, toolname, libs).create();
     }
 
     // protected to allow tests to override

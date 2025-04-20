@@ -37,7 +37,6 @@ import java.util.stream.Collectors;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.not;
 
 public class DatafeedJobsRestIT extends ESRestTestCase {
 
@@ -503,12 +502,12 @@ public class DatafeedJobsRestIT extends ESRestTestCase {
             }""");
         client().performRequest(createJobRequest);
         String datafeedId = jobId + "-datafeed";
-        new DatafeedBuilder(datafeedId, jobId, "*hidden-*").setIndicesOptions("""
+        new DatafeedBuilder(datafeedId, jobId, "hidden-*").setIndicesOptions("""
             {"expand_wildcards": ["all"],"allow_no_indices": true}""").build();
 
         StringBuilder bulk = new StringBuilder();
 
-        Request createGeoData = new Request("PUT", "/.hidden-index");
+        Request createGeoData = new Request("PUT", "/hidden-index");
         createGeoData.setJsonEntity("""
             {
               "mappings": {
@@ -528,23 +527,23 @@ public class DatafeedJobsRestIT extends ESRestTestCase {
         client().performRequest(createGeoData);
 
         bulk.append("""
-            {"index": {"_index": ".hidden-index", "_id": 1}}
+            {"index": {"_index": "hidden-index", "_id": 1}}
             {"time":"2016-06-01T00:00:00Z","value": 1000}
-            {"index": {"_index": ".hidden-index", "_id": 2}}
+            {"index": {"_index": "hidden-index", "_id": 2}}
             {"time":"2016-06-01T00:05:00Z","value":1500}
-            {"index": {"_index": ".hidden-index", "_id": 3}}
+            {"index": {"_index": "hidden-index", "_id": 3}}
             {"time":"2016-06-01T00:10:00Z","value":1600}
-            {"index": {"_index": ".hidden-index", "_id": 4}}
+            {"index": {"_index": "hidden-index", "_id": 4}}
             {"time":"2016-06-01T00:15:00Z","value":100}
-            {"index": {"_index": ".hidden-index", "_id": 5}}
+            {"index": {"_index": "hidden-index", "_id": 5}}
             {"time":"2016-06-01T00:20:00Z","value":1}
-            {"index": {"_index": ".hidden-index", "_id": 6}}
+            {"index": {"_index": "hidden-index", "_id": 6}}
             {"time":"2016-06-01T00:25:00Z","value":1500}
-            {"index": {"_index": ".hidden-index", "_id": 7}}
+            {"index": {"_index": "hidden-index", "_id": 7}}
             {"time":"2016-06-01T00:30:00Z","value":1500}
-            {"index": {"_index": ".hidden-index", "_id": 8}}
+            {"index": {"_index": "hidden-index", "_id": 8}}
             {"time":"2016-06-01T00:40:00Z","value":2100}
-            {"index": {"_index": ".hidden-index", "_id": 9}}
+            {"index": {"_index": "hidden-index", "_id": 9}}
             {"time":"2016-06-01T00:41:00Z","value":0}
             """);
         bulkIndex(bulk.toString());
@@ -637,6 +636,7 @@ public class DatafeedJobsRestIT extends ESRestTestCase {
     }
 
     public void testCreationOnPutWithRollup() throws Exception {
+        createDummyRollupIndex();
         setupDataAccessRole("airline-data-aggs-rollup");
         String jobId = "privs-put-job-rollup";
         String datafeedId = "datafeed-" + jobId;
@@ -1248,6 +1248,7 @@ public class DatafeedJobsRestIT extends ESRestTestCase {
     }
 
     public void testLookbackOnlyGivenAggregationsWithHistogramAndRollupIndex() throws Exception {
+        createDummyRollupIndex();
         String jobId = "aggs-histogram-rollup-job";
         Request createJobRequest = new Request("PUT", MachineLearning.BASE_PATH + "anomaly_detectors/" + jobId);
         createJobRequest.setJsonEntity("""
@@ -1296,19 +1297,28 @@ public class DatafeedJobsRestIT extends ESRestTestCase {
                     }
                 ]
             }""");
+        createRollupRequest.setOptions(ROLLUP_REQUESTS_OPTIONS);
         client().performRequest(createRollupRequest);
-        client().performRequest(new Request("POST", "/_rollup/job/" + rollupJobId + "/_start"));
+        var startRequest = new Request("POST", "/_rollup/job/" + rollupJobId + "/_start");
+        startRequest.setOptions(ROLLUP_REQUESTS_OPTIONS);
+        client().performRequest(startRequest);
 
         assertBusy(() -> {
-            Response getRollup = client().performRequest(new Request("GET", "/_rollup/job/" + rollupJobId));
+            var getRequest = new Request("GET", "/_rollup/job/" + rollupJobId);
+            getRequest.setOptions(ROLLUP_REQUESTS_OPTIONS);
+            Response getRollup = client().performRequest(getRequest);
             String body = EntityUtils.toString(getRollup.getEntity());
             assertThat(body, containsString("\"job_state\":\"started\""));
             assertThat(body, containsString("\"rollups_indexed\":4"));
         }, 60, TimeUnit.SECONDS);
 
-        client().performRequest(new Request("POST", "/_rollup/job/" + rollupJobId + "/_stop"));
+        var stopRequest = new Request("POST", "/_rollup/job/" + rollupJobId + "/_stop");
+        stopRequest.setOptions(ROLLUP_REQUESTS_OPTIONS);
+        client().performRequest(stopRequest);
         assertBusy(() -> {
-            Response getRollup = client().performRequest(new Request("GET", "/_rollup/job/" + rollupJobId));
+            var getRequest = new Request("GET", "/_rollup/job/" + rollupJobId);
+            getRequest.setOptions(ROLLUP_REQUESTS_OPTIONS);
+            Response getRollup = client().performRequest(getRequest);
             assertThat(EntityUtils.toString(getRollup.getEntity()), containsString("\"job_state\":\"stopped\""));
         }, 60, TimeUnit.SECONDS);
 
@@ -1351,6 +1361,7 @@ public class DatafeedJobsRestIT extends ESRestTestCase {
     }
 
     public void testLookbackWithoutPermissionsAndRollup() throws Exception {
+        createDummyRollupIndex();
         setupFullAccessRole("airline-data-aggs-rollup");
         String jobId = "rollup-permission-test-network-job";
         String datafeedId = "datafeed-" + jobId;
@@ -1799,7 +1810,7 @@ public class DatafeedJobsRestIT extends ESRestTestCase {
         bulkRequest.addParameter("refresh", "true");
         bulkRequest.addParameter("pretty", null);
         String bulkResponse = EntityUtils.toString(client().performRequest(bulkRequest).getEntity());
-        assertThat(bulkResponse, not(containsString("\"errors\": false")));
+        assertThat(bulkResponse, containsString("\"errors\" : false"));
     }
 
     private Response createJobAndDataFeed(String jobId, String datafeedId) throws IOException {
@@ -1824,6 +1835,7 @@ public class DatafeedJobsRestIT extends ESRestTestCase {
 
         String rollupJobId = "rollup-" + jobId;
         Request createRollupRequest = new Request("PUT", "/_rollup/job/" + rollupJobId);
+        createRollupRequest.setOptions(ROLLUP_REQUESTS_OPTIONS);
         createRollupRequest.setJsonEntity("""
             {
             "index_pattern": "airline-data-aggs",
@@ -1877,5 +1889,22 @@ public class DatafeedJobsRestIT extends ESRestTestCase {
         return new DatafeedBuilder(datafeedId, jobId, "airline-data-aggs-rollup").setAggregations(aggregations)
             .setAuthHeader(BASIC_AUTH_VALUE_ML_ADMIN_WITH_SOME_DATA_ACCESS)
             .build();
+    }
+
+    private static void createDummyRollupIndex() throws IOException {
+        // create dummy rollup index to circumvent the check that prohibits rollup usage in empty clusters:
+        Request req = new Request("PUT", "dummy-rollup-index");
+        req.setJsonEntity("""
+            {
+                "mappings":{
+                    "_meta": {
+                        "_rollup":{
+                            "my-id": {}
+                        }
+                    }
+                }
+            }
+            """);
+        client().performRequest(req);
     }
 }

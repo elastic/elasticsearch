@@ -97,7 +97,12 @@ public class TrainedModelCRUDIT extends MlSingleNodeTestCase {
         ).actionGet();
 
         assertThat(
-            client().admin().indices().prepareGetIndex().addIndices(InferenceIndexConstants.nativeDefinitionStore()).get().indices().length,
+            client().admin()
+                .indices()
+                .prepareGetIndex(TEST_REQUEST_TIMEOUT)
+                .addIndices(InferenceIndexConstants.nativeDefinitionStore())
+                .get()
+                .indices().length,
             equalTo(1)
         );
 

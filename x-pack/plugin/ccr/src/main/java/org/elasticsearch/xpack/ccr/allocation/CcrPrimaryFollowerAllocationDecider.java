@@ -27,7 +27,7 @@ public final class CcrPrimaryFollowerAllocationDecider extends AllocationDecider
 
     @Override
     public Decision canAllocate(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
-        final IndexMetadata indexMetadata = allocation.metadata().index(shardRouting.index());
+        final IndexMetadata indexMetadata = allocation.metadata().indexMetadata(shardRouting.index());
         if (CcrSettings.CCR_FOLLOWING_INDEX_SETTING.get(indexMetadata.getSettings()) == false) {
             return allocation.decision(Decision.YES, NAME, "shard is not a follower and is not under the purview of this decider");
         }

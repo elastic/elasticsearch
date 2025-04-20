@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.repositories.s3;
@@ -11,6 +12,7 @@ package org.elasticsearch.repositories.s3;
 import com.amazonaws.services.s3.AbstractAmazonS3;
 
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
+import org.elasticsearch.common.ReferenceDocs;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
@@ -28,6 +30,7 @@ import org.mockito.Mockito;
 
 import java.util.Map;
 
+import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
@@ -90,8 +93,8 @@ public class S3RepositoryTests extends ESTestCase {
     private Settings bufferAndChunkSettings(long buffer, long chunk) {
         return Settings.builder()
             .put(S3Repository.BUCKET_SETTING.getKey(), "bucket")
-            .put(S3Repository.BUFFER_SIZE_SETTING.getKey(), new ByteSizeValue(buffer, ByteSizeUnit.MB).getStringRep())
-            .put(S3Repository.CHUNK_SIZE_SETTING.getKey(), new ByteSizeValue(chunk, ByteSizeUnit.MB).getStringRep())
+            .put(S3Repository.BUFFER_SIZE_SETTING.getKey(), ByteSizeValue.of(buffer, ByteSizeUnit.MB).getStringRep())
+            .put(S3Repository.CHUNK_SIZE_SETTING.getKey(), ByteSizeValue.of(chunk, ByteSizeUnit.MB).getStringRep())
             .build();
     }
 
@@ -152,4 +155,57 @@ public class S3RepositoryTests extends ESTestCase {
         );
     }
 
+    public void testAnalysisFailureDetail() {
+        try (
+            S3Repository s3repo = createS3Repo(
+                new RepositoryMetadata("dummy-repo", "mock", Settings.builder().put(S3Repository.BUCKET_SETTING.getKey(), "bucket").build())
+            )
+        ) {
+            assertThat(
+                s3repo.getAnalysisFailureExtraDetail(),
+                allOf(
+                    containsString("storage system underneath this repository behaved incorrectly"),
+                    containsString("incorrectly claims to be S3-compatible"),
+                    containsString("report this incompatibility to your storage supplier"),
+                    containsString("unless you can demonstrate that the same issue exists when using a genuine AWS S3 repository"),
+                    containsString(ReferenceDocs.SNAPSHOT_REPOSITORY_ANALYSIS.toString()),
+                    containsString(ReferenceDocs.S3_COMPATIBLE_REPOSITORIES.toString())
+                )
+            );
+        }
+    }
+
+    // ensures that chunkSize is limited to chunk_size setting, when buffer_size * parts_num is bigger
+    public void testChunkSizeLimit() {
+        var meta = new RepositoryMetadata(
+            "dummy-repo",
+            "mock",
+            Settings.builder()
+                .put(S3Repository.BUCKET_SETTING.getKey(), "bucket")
+                .put(S3Repository.CHUNK_SIZE_SETTING.getKey(), "1GB")
+                .put(S3Repository.BUFFER_SIZE_SETTING.getKey(), "100MB")
+                .put(S3Repository.MAX_MULTIPART_PARTS.getKey(), 10_000) // ~1TB
+                .build()
+        );
+        try (var repo = createS3Repo(meta)) {
+            assertEquals(ByteSizeValue.ofGb(1), repo.chunkSize());
+        }
+    }
+
+    // ensures that chunkSize is limited to buffer_size * parts_num, when chunk_size setting is bigger
+    public void testPartsNumLimit() {
+        var meta = new RepositoryMetadata(
+            "dummy-repo",
+            "mock",
+            Settings.builder()
+                .put(S3Repository.BUCKET_SETTING.getKey(), "bucket")
+                .put(S3Repository.CHUNK_SIZE_SETTING.getKey(), "5TB")
+                .put(S3Repository.BUFFER_SIZE_SETTING.getKey(), "100MB")
+                .put(S3Repository.MAX_MULTIPART_PARTS.getKey(), 10_000)
+                .build()
+        );
+        try (var repo = createS3Repo(meta)) {
+            assertEquals(ByteSizeValue.ofMb(1_000_000), repo.chunkSize());
+        }
+    }
 }

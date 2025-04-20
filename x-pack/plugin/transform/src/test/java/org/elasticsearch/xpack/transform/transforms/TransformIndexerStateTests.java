@@ -16,7 +16,6 @@ import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.action.support.ActionTestUtils;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.settings.Settings;
@@ -27,8 +26,7 @@ import org.elasticsearch.index.reindex.BulkByScrollTask;
 import org.elasticsearch.index.reindex.DeleteByQueryRequest;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
-import org.elasticsearch.search.profile.SearchProfileResults;
-import org.elasticsearch.search.suggest.Suggest;
+import org.elasticsearch.search.SearchResponseUtils;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.client.NoOpClient;
 import org.elasticsearch.test.junit.annotations.TestIssueLogging;
@@ -87,22 +85,8 @@ import static org.mockito.Mockito.verify;
 
 public class TransformIndexerStateTests extends ESTestCase {
 
-    private static final SearchResponse ONE_HIT_SEARCH_RESPONSE = new SearchResponse(
-        SearchHits.unpooled(new SearchHit[] { SearchHit.unpooled(1) }, new TotalHits(1L, TotalHits.Relation.EQUAL_TO), 1.0f),
-        // Simulate completely null aggs
-        null,
-        new Suggest(Collections.emptyList()),
-        false,
-        false,
-        new SearchProfileResults(Collections.emptyMap()),
-        1,
-        "",
-        1,
-        1,
-        0,
-        0,
-        ShardSearchFailure.EMPTY_ARRAY,
-        SearchResponse.Clusters.EMPTY
+    private static final SearchResponse ONE_HIT_SEARCH_RESPONSE = SearchResponseUtils.successfulResponse(
+        SearchHits.unpooled(new SearchHit[] { SearchHit.unpooled(1) }, new TotalHits(1L, TotalHits.Relation.EQUAL_TO), 1.0f)
     );
 
     private Client client;
@@ -122,6 +106,7 @@ public class TransformIndexerStateTests extends ESTestCase {
         private CountDownLatch searchLatch;
         private CountDownLatch doProcessLatch;
         private CountDownLatch finishLatch = new CountDownLatch(1);
+        private CountDownLatch afterFinishLatch;
 
         MockedTransformIndexer(
             ThreadPool threadPool,
@@ -306,6 +291,16 @@ public class TransformIndexerStateTests extends ESTestCase {
 
         void finishCheckpoint() {
             searchResponse = null;
+        }
+
+        @Override
+        protected void afterFinishOrFailure() {
+            maybeWaitOnLatch(afterFinishLatch);
+            super.afterFinishOrFailure();
+        }
+
+        public CountDownLatch createAfterFinishLatch(int count) {
+            return afterFinishLatch = new CountDownLatch(count);
         }
     }
 
@@ -957,6 +952,58 @@ public class TransformIndexerStateTests extends ESTestCase {
 
         indexer.stop();
         assertBusy(() -> assertThat(indexer.getState(), equalTo(IndexerState.STOPPED)), 5, TimeUnit.SECONDS);
+    }
+
+    /**
+     * Given one indexer thread is finishing its run
+     * And that thread is after finishAndSetState() but before afterFinishOrFailure()
+     * When another thread calls maybeTriggerAsyncJob
+     * Then that other thread should not start another indexer run
+     */
+    public void testRunOneJobAtATime() throws Exception {
+        var indexer = createMockIndexer(
+            createTransformConfig(),
+            new AtomicReference<>(IndexerState.STARTED),
+            null,
+            threadPool,
+            auditor,
+            null,
+            new TransformIndexerStats(),
+            new TransformContext(TransformTaskState.STARTED, "", 0, mock(TransformContext.Listener.class))
+        );
+
+        // stop the indexer thread once it kicks off
+        var startLatch = indexer.createAwaitForStartLatch(1);
+        // stop the indexer thread before afterFinishOrFailure
+        var afterFinishLatch = indexer.createAfterFinishLatch(1);
+
+        // flip IndexerState to INDEXING
+        assertEquals(IndexerState.STARTED, indexer.start());
+        assertTrue(indexer.maybeTriggerAsyncJob(System.currentTimeMillis()));
+        assertEquals(IndexerState.INDEXING, indexer.getState());
+
+        // now let the indexer thread run
+        indexer.finishCheckpoint();
+        startLatch.countDown();
+
+        // wait until the IndexerState flips back to STARTED
+        assertBusy(() -> assertThat(indexer.getState(), equalTo(IndexerState.STARTED)), 5, TimeUnit.SECONDS);
+
+        assertFalse(
+            "Indexer state is STARTED, but the Indexer is not finished cleaning up from the previous run.",
+            indexer.maybeTriggerAsyncJob(System.currentTimeMillis())
+        );
+
+        // let the first job finish
+        afterFinishLatch.countDown();
+        indexer.waitUntilFinished();
+
+        // we should now (eventually) be able to schedule the next job
+        assertBusy(() -> assertTrue(indexer.maybeTriggerAsyncJob(System.currentTimeMillis())), 5, TimeUnit.SECONDS);
+
+        // stop the indexer, equivalent to _stop?force=true
+        assertFalse("Transform Indexer thread should still be running", indexer.abort());
+        assertEquals(IndexerState.ABORTING, indexer.getState());
     }
 
     private void setStopAtCheckpoint(

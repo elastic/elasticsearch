@@ -35,7 +35,7 @@ public class DeleteSearchApplicationAction {
     public static class Request extends ActionRequest implements ToXContentObject {
         private final String name;
 
-        public static ParseField NAME_FIELD = new ParseField("name");
+        public static final ParseField NAME_FIELD = new ParseField("name");
 
         public Request(StreamInput in) throws IOException {
             super(in);

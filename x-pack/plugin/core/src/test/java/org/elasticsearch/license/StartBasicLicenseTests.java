@@ -20,6 +20,7 @@ import java.util.Set;
 
 import static org.elasticsearch.test.ESIntegTestCase.Scope.SUITE;
 import static org.elasticsearch.test.NodeRoles.addRoles;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 
 @ESIntegTestCase.ClusterScope(scope = SUITE)
 public class StartBasicLicenseTests extends AbstractLicensesIntegrationTestCase {
@@ -38,38 +39,28 @@ public class StartBasicLicenseTests extends AbstractLicensesIntegrationTestCase 
     }
 
     public void testStartBasicLicense() throws Exception {
-        LicensingClient licensingClient = new LicensingClient(client());
-        License license = TestUtils.generateSignedLicense("trial", License.VERSION_CURRENT, -1, TimeValue.timeValueHours(24));
-        licensingClient.preparePutLicense(license).get();
+        generateAndPutTestLicense();
 
-        assertBusy(() -> {
-            GetLicenseResponse getLicenseResponse = licensingClient.prepareGetLicense().get();
-            assertEquals("trial", getLicenseResponse.license().type());
-        });
+        assertBusy(() -> assertEquals("trial", getLicense().license().type()));
 
-        GetBasicStatusResponse response = licensingClient.prepareGetStartBasic().get();
-        assertTrue(response.isEligibleToStartBasic());
+        assertTrue(getBasicStatus().isEligibleToStartBasic());
 
-        PostStartBasicResponse startResponse = licensingClient.preparePostStartBasic().setAcknowledge(true).get();
+        PostStartBasicResponse startResponse = startBasic(true);
         assertTrue(startResponse.isAcknowledged());
         assertTrue(startResponse.getStatus().isBasicStarted());
 
-        assertBusy(() -> {
-            GetLicenseResponse currentLicense = licensingClient.prepareGetLicense().get();
-            assertEquals("basic", currentLicense.license().type());
-        });
+        assertBusy(() -> assertEquals("basic", getLicense().license().type()));
 
-        long expirationMillis = licensingClient.prepareGetLicense().get().license().expiryDate();
+        long expirationMillis = getLicense().license().expiryDate();
         assertEquals(LicenseSettings.BASIC_SELF_GENERATED_LICENSE_EXPIRATION_MILLIS, expirationMillis);
 
-        GetLicenseResponse licenseResponse = licensingClient.prepareGetLicense().get();
+        GetLicenseResponse licenseResponse = getLicense();
         assertEquals("basic", licenseResponse.license().type());
         assertEquals(XPackInfoResponse.BASIC_SELF_GENERATED_LICENSE_EXPIRATION_MILLIS, licenseResponse.license().expiryDate());
 
-        GetBasicStatusResponse response4 = licensingClient.prepareGetStartBasic().get();
-        assertFalse(response4.isEligibleToStartBasic());
+        assertFalse(getBasicStatus().isEligibleToStartBasic());
 
-        PostStartBasicResponse response5 = licensingClient.preparePostStartBasic().setAcknowledge(true).get();
+        PostStartBasicResponse response5 = startBasic(true);
         assertEquals(403, response5.status().getStatus());
         assertFalse(response5.getStatus().isBasicStarted());
         assertTrue(response5.isAcknowledged());
@@ -77,16 +68,11 @@ public class StartBasicLicenseTests extends AbstractLicensesIntegrationTestCase 
     }
 
     public void testUnacknowledgedStartBasicLicense() throws Exception {
-        LicensingClient licensingClient = new LicensingClient(client());
-        License license = TestUtils.generateSignedLicense("trial", License.VERSION_CURRENT, -1, TimeValue.timeValueHours(24));
-        licensingClient.preparePutLicense(license).get();
+        generateAndPutTestLicense();
 
-        assertBusy(() -> {
-            GetLicenseResponse getLicenseResponse = licensingClient.prepareGetLicense().get();
-            assertEquals("trial", getLicenseResponse.license().type());
-        });
+        assertBusy(() -> assertEquals("trial", getLicense().license().type()));
 
-        PostStartBasicResponse response = licensingClient.preparePostStartBasic().get();
+        PostStartBasicResponse response = startBasic(false);
         assertEquals(200, response.status().getStatus());
         assertFalse(response.isAcknowledged());
         assertFalse(response.getStatus().isBasicStarted());
@@ -95,6 +81,31 @@ public class StartBasicLicenseTests extends AbstractLicensesIntegrationTestCase 
             "This license update requires acknowledgement. To acknowledge the license, "
                 + "please read the following messages and call /start_basic again, this time with the \"acknowledge=true\" parameter:",
             response.getAcknowledgeMessage()
+        );
+    }
+
+    private static GetBasicStatusResponse getBasicStatus() {
+        return safeGet(clusterAdmin().execute(GetBasicStatusAction.INSTANCE, new GetBasicStatusRequest(TEST_REQUEST_TIMEOUT)));
+    }
+
+    private static PostStartBasicResponse startBasic(boolean acknowledged) {
+        return safeGet(
+            clusterAdmin().execute(
+                PostStartBasicAction.INSTANCE,
+                new PostStartBasicRequest(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT).acknowledge(acknowledged)
+            )
+        );
+    }
+
+    private static void generateAndPutTestLicense() throws Exception {
+        final var license = TestUtils.generateSignedLicense("trial", License.VERSION_CURRENT, -1, TimeValue.timeValueHours(24));
+        assertAcked(
+            safeGet(
+                client().execute(
+                    PutLicenseAction.INSTANCE,
+                    new PutLicenseRequest(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT).license(license).acknowledge(randomBoolean())
+                )
+            )
         );
     }
 }

@@ -1,12 +1,17 @@
-import org.elasticsearch.gradle.internal.info.BuildParams
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
+ */
 
 apply plugin: 'elasticsearch.internal-es-plugin'
-apply plugin: 'elasticsearch.legacy-yaml-rest-test'
+apply plugin: 'elasticsearch.internal-yaml-rest-test'
 
 esplugin {
-  name 'constant-keyword'
-  description 'Module for the constant-keyword field type, which is a specialization of keyword for the case when all documents have the same value.'
-  classname 'org.elasticsearch.xpack.constantkeyword.ConstantKeywordMapperPlugin'
+  name = 'constant-keyword'
+  description = 'Module for the constant-keyword field type, which is a specialization of keyword for the case when all documents have the same value.'
+  classname ='org.elasticsearch.xpack.constantkeyword.ConstantKeywordMapperPlugin'
   extendedPlugins = ['x-pack-core', 'lang-painless']
 }
 base {
@@ -18,7 +23,7 @@ dependencies {
   compileOnly project(path: xpackModule('core'))
 }
 
-if (BuildParams.isSnapshotBuild() == false) {
+if (buildParams.getSnapshotBuild() == false) {
   tasks.named("test").configure {
     systemProperty 'es.index_mode_feature_flag_registered', 'true'
   }

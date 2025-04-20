@@ -78,7 +78,7 @@ public final class StatsCollector extends Collector {
             final long timestamp = timestamp();
             final String clusterUuid = clusterUuid(clusterState);
 
-            final CcrStatsAction.Request request = new CcrStatsAction.Request();
+            final CcrStatsAction.Request request = new CcrStatsAction.Request(getCollectionTimeout());
             final CcrStatsAction.Response response = client.execute(CcrStatsAction.INSTANCE, request).actionGet(getCollectionTimeout());
 
             final AutoFollowStatsMonitoringDoc autoFollowStatsDoc = new AutoFollowStatsMonitoringDoc(

@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.admin.cluster.stats;
@@ -792,6 +793,10 @@ public class ClusterStatsNodes implements ToXContentFragment {
             long currentCoordinatingOps = 0;
             long currentPrimaryOps = 0;
             long currentReplicaOps = 0;
+            long lowWaterMarkSplits = 0;
+            long highWaterMarkSplits = 0;
+            long largeOpsRejections = 0;
+            long totalLargeRejectedOpsBytes = 0;
             for (NodeStats nodeStat : nodeStats) {
                 IndexingPressureStats nodeStatIndexingPressureStats = nodeStat.getIndexingPressureStats();
                 if (nodeStatIndexingPressureStats != null) {
@@ -815,6 +820,10 @@ public class ClusterStatsNodes implements ToXContentFragment {
                     currentReplicaOps += nodeStatIndexingPressureStats.getCurrentReplicaOps();
                     primaryDocumentRejections += nodeStatIndexingPressureStats.getPrimaryDocumentRejections();
                     totalCoordinatingRequests += nodeStatIndexingPressureStats.getTotalCoordinatingRequests();
+                    lowWaterMarkSplits += nodeStatIndexingPressureStats.getLowWaterMarkSplits();
+                    highWaterMarkSplits += nodeStatIndexingPressureStats.getHighWaterMarkSplits();
+                    largeOpsRejections += nodeStatIndexingPressureStats.getLargeOpsRejections();
+                    totalLargeRejectedOpsBytes += nodeStatIndexingPressureStats.getTotalLargeRejectedOpsBytes();
                 }
             }
             indexingPressureStats = new IndexingPressureStats(
@@ -837,7 +846,11 @@ public class ClusterStatsNodes implements ToXContentFragment {
                 currentPrimaryOps,
                 currentReplicaOps,
                 primaryDocumentRejections,
-                totalCoordinatingRequests
+                totalCoordinatingRequests,
+                lowWaterMarkSplits,
+                highWaterMarkSplits,
+                largeOpsRejections,
+                totalLargeRejectedOpsBytes
             );
         }
 

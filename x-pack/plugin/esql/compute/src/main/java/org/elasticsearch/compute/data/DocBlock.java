@@ -26,11 +26,6 @@ public class DocBlock extends AbstractVectorBlock implements Block {
     }
 
     @Override
-    public String getWriteableName() {
-        throw new UnsupportedOperationException();
-    }
-
-    @Override
     public void writeTo(StreamOutput out) throws IOException {
         throw new UnsupportedOperationException();
     }
@@ -48,6 +43,11 @@ public class DocBlock extends AbstractVectorBlock implements Block {
     @Override
     public Block filter(int... positions) {
         return new DocBlock(asVector().filter(positions));
+    }
+
+    @Override
+    public Block keepMask(BooleanVector mask) {
+        return vector.keepMask(mask);
     }
 
     @Override

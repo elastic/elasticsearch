@@ -1,13 +1,15 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.admin.indices.readonly;
 
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.support.IndicesOptions;
@@ -31,12 +33,18 @@ public class AddIndexBlockRequest extends AcknowledgedRequest<AddIndexBlockReque
     private final APIBlock block;
     private String[] indices;
     private IndicesOptions indicesOptions = IndicesOptions.strictExpandOpen();
+    private boolean markVerified = true;
 
     public AddIndexBlockRequest(StreamInput in) throws IOException {
         super(in);
         indices = in.readStringArray();
         indicesOptions = IndicesOptions.readIndicesOptions(in);
         block = APIBlock.readFrom(in);
+        if (in.getTransportVersion().onOrAfter(TransportVersions.ADD_INDEX_BLOCK_TWO_PHASE)) {
+            markVerified = in.readBoolean();
+        } else {
+            markVerified = false;
+        }
     }
 
     /**
@@ -102,6 +110,15 @@ public class AddIndexBlockRequest extends AcknowledgedRequest<AddIndexBlockReque
         return this;
     }
 
+    public boolean markVerified() {
+        return markVerified;
+    }
+
+    public AddIndexBlockRequest markVerified(boolean markVerified) {
+        this.markVerified = markVerified;
+        return this;
+    }
+
     /**
      * Returns the block to be added
      */
@@ -115,6 +132,9 @@ public class AddIndexBlockRequest extends AcknowledgedRequest<AddIndexBlockReque
         out.writeStringArray(indices);
         indicesOptions.writeIndicesOptions(out);
         block.writeTo(out);
+        if (out.getTransportVersion().onOrAfter(TransportVersions.ADD_INDEX_BLOCK_TWO_PHASE)) {
+            out.writeBoolean(markVerified);
+        }
     }
 
     @Override
@@ -135,4 +155,5 @@ public class AddIndexBlockRequest extends AcknowledgedRequest<AddIndexBlockReque
         result = 31 * result + Arrays.hashCode(indices);
         return result;
     }
+
 }

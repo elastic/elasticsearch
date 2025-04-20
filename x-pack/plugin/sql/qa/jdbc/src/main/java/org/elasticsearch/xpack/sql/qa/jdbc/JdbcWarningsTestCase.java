@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.sql.qa.jdbc;
 
-import org.elasticsearch.Version;
 import org.junit.Before;
 
 import java.io.IOException;
@@ -20,13 +19,12 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.Properties;
 
+import static org.elasticsearch.xpack.sql.proto.VersionCompatibility.INTRODUCING_WARNING_HANDLING;
 import static org.elasticsearch.xpack.sql.qa.jdbc.JdbcTestUtils.JDBC_DRIVER_VERSION;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 
 public abstract class JdbcWarningsTestCase extends JdbcIntegrationTestCase {
-
-    private static final Version WARNING_HANDLING_ADDED_VERSION = Version.V_8_2_0;
 
     @Before
     public void setupData() throws IOException {
@@ -89,7 +87,7 @@ public abstract class JdbcWarningsTestCase extends JdbcIntegrationTestCase {
     }
 
     private void assumeWarningHandlingDriverVersion() {
-        assumeTrue("Driver does not yet handle deprecation warnings", JDBC_DRIVER_VERSION.onOrAfter(WARNING_HANDLING_ADDED_VERSION));
+        assumeTrue("Driver does not yet handle deprecation warnings", JDBC_DRIVER_VERSION.onOrAfter(INTRODUCING_WARNING_HANDLING));
     }
 
 }

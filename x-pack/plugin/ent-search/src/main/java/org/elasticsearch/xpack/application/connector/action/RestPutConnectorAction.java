@@ -15,12 +15,15 @@ import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.xpack.application.EnterpriseSearch;
 
+import java.io.IOException;
 import java.util.List;
 
 import static org.elasticsearch.rest.RestRequest.Method.PUT;
 
 @ServerlessScope(Scope.PUBLIC)
 public class RestPutConnectorAction extends BaseRestHandler {
+
+    private static final String CONNECTOR_ID_PARAM = "connector_id";
 
     @Override
     public String getName() {
@@ -30,18 +33,17 @@ public class RestPutConnectorAction extends BaseRestHandler {
     @Override
     public List<Route> routes() {
         return List.of(
-            new Route(PUT, "/" + EnterpriseSearch.CONNECTOR_API_ENDPOINT + "/{connector_id}"),
+            new Route(PUT, "/" + EnterpriseSearch.CONNECTOR_API_ENDPOINT + "/{" + CONNECTOR_ID_PARAM + "}"),
             new Route(PUT, "/" + EnterpriseSearch.CONNECTOR_API_ENDPOINT)
         );
     }
 
     @Override
-    protected RestChannelConsumer prepareRequest(RestRequest restRequest, NodeClient client) {
-        String connectorId = restRequest.param("connector_id");
+    protected RestChannelConsumer prepareRequest(RestRequest restRequest, NodeClient client) throws IOException {
+        String connectorId = restRequest.param(CONNECTOR_ID_PARAM);
         PutConnectorAction.Request request;
-        // Handle empty REST request body
         if (restRequest.hasContent()) {
-            request = PutConnectorAction.Request.fromXContentBytes(connectorId, restRequest.content(), restRequest.getXContentType());
+            request = PutConnectorAction.Request.fromXContent(restRequest.contentParser(), connectorId);
         } else {
             request = new PutConnectorAction.Request(connectorId);
         }

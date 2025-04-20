@@ -87,7 +87,7 @@ public class PutSamlServiceProviderRequestTests extends ESTestCase {
         final PutSamlServiceProviderRequest request = new PutSamlServiceProviderRequest(doc, RefreshPolicy.NONE);
         final TransportVersion version = TransportVersionUtils.randomVersionBetween(
             random(),
-            TransportVersions.V_7_7_0,
+            TransportVersions.V_8_0_0,
             TransportVersion.current()
         );
         final PutSamlServiceProviderRequest read = copyWriteable(

@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.ingest.attachment;
@@ -121,15 +122,20 @@ final class TikaImpl {
 
     // apply additional containment for parsers, this is intersected with the current permissions
     // its hairy, but worth it so we don't have some XML flaw reading random crap from the FS
-    private static final AccessControlContext RESTRICTED_CONTEXT = new AccessControlContext(
-        new ProtectionDomain[] { new ProtectionDomain(null, getRestrictedPermissions()) }
-    );
+    private static final AccessControlContext RESTRICTED_CONTEXT = isUsingSecurityManager()
+        ? new AccessControlContext(new ProtectionDomain[] { new ProtectionDomain(null, getRestrictedPermissions()) })
+        : null;
+
+    private static boolean isUsingSecurityManager() {
+        return false;
+    }
 
     // compute some minimal permissions for parsers. they only get r/w access to the java temp directory,
     // the ability to load some resources from JARs, and read sysprops
     @SuppressForbidden(reason = "adds access to tmp directory")
     static PermissionCollection getRestrictedPermissions() {
         Permissions perms = new Permissions();
+
         // property/env access needed for parsing
         perms.add(new PropertyPermission("*", "read"));
         perms.add(new RuntimePermission("getenv.TIKA_CONFIG"));

@@ -47,6 +47,19 @@ abstract class AbstractArrayBlock extends AbstractNonThreadSafeRefCounted implem
     }
 
     @Override
+    public boolean doesHaveMultivaluedFields() {
+        if (false == mayHaveMultivaluedFields()) {
+            return false;
+        }
+        for (int p = 0; p < getPositionCount(); p++) {
+            if (getValueCount(p) > 1) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    @Override
     public final MvOrdering mvOrdering() {
         return mvOrdering;
     }
@@ -64,7 +77,7 @@ abstract class AbstractArrayBlock extends AbstractNonThreadSafeRefCounted implem
         if (firstValueIndexes != null) {
             assert firstValueIndexes.length >= getPositionCount() + 1 : firstValueIndexes.length + " < " + positionCount;
             for (int i = 0; i < getPositionCount(); i++) {
-                assert firstValueIndexes[i + 1] >= firstValueIndexes[i] : firstValueIndexes[i + 1] + " < " + firstValueIndexes[i];
+                assert firstValueIndexes[i + 1] > firstValueIndexes[i] : firstValueIndexes[i + 1] + " <= " + firstValueIndexes[i];
             }
         }
         if (nullsMask != null) {
@@ -113,8 +126,7 @@ abstract class AbstractArrayBlock extends AbstractNonThreadSafeRefCounted implem
         return nullsMask != null;
     }
 
-    @Override
-    public final int nullValuesCount() {
+    final int nullValuesCount() {
         return mayHaveNulls() ? nullsMask.cardinality() : 0;
     }
 
@@ -179,8 +191,7 @@ abstract class AbstractArrayBlock extends AbstractNonThreadSafeRefCounted implem
         if (nullsMask != null) {
             out.writeLongArray(nullsMask.toLongArray());
         }
-        if (out.getTransportVersion().before(TransportVersions.ESQL_MV_ORDERING_SORTED_ASCENDING)
-            && mvOrdering == MvOrdering.SORTED_ASCENDING) {
+        if (out.getTransportVersion().before(TransportVersions.V_8_15_0) && mvOrdering == MvOrdering.SORTED_ASCENDING) {
             out.writeEnum(MvOrdering.UNORDERED);
         } else {
             out.writeEnum(mvOrdering);

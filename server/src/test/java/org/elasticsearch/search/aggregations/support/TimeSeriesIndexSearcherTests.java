@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.aggregations.support;
@@ -200,7 +201,10 @@ public class TimeSeriesIndexSearcherTests extends ESTestCase {
         BucketCollector collector = getBucketCollector(2 * DOC_COUNTS);
 
         // skip the first doc of segment 1 and 2
-        indexSearcher.search(SortedSetDocValuesField.newSlowSetQuery("_tsid", new BytesRef("tsid0"), new BytesRef("tsid1")), collector);
+        indexSearcher.search(
+            SortedSetDocValuesField.newSlowSetQuery("_tsid", List.of(new BytesRef("tsid0"), new BytesRef("tsid1"))),
+            collector
+        );
         collector.postCollection();
 
         reader.close();

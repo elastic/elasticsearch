@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.gradle.internal.conventions.util;
@@ -13,17 +14,18 @@ import org.gradle.api.GradleException;
 import org.gradle.api.Project;
 import org.gradle.api.file.FileTree;
 import org.gradle.api.initialization.IncludedBuild;
+import org.gradle.api.internal.GradleInternal;
 import org.gradle.api.invocation.Gradle;
 import org.gradle.api.plugins.JavaPluginExtension;
 import org.gradle.api.tasks.SourceSet;
 import org.gradle.api.tasks.SourceSetContainer;
 import org.gradle.api.tasks.util.PatternFilterable;
 
-import javax.annotation.Nullable;
 import java.io.File;
-import java.util.Collection;
 import java.util.Optional;
 import java.util.function.Supplier;
+
+import javax.annotation.Nullable;
 
 public class Util {
 
@@ -117,6 +119,14 @@ public class Util {
 
     public static SourceSetContainer getJavaSourceSets(Project project) {
         return project.getExtensions().getByType(JavaPluginExtension.class).getSourceSets();
+    }
+
+    public static File getRootFolder(Gradle gradle) {
+        Gradle parent = gradle.getParent();
+        if (parent == null) {
+            return gradle.getRootProject().getRootDir();
+        }
+        return getRootFolder(parent);
     }
 
     public static File locateElasticsearchWorkspace(Gradle gradle) {

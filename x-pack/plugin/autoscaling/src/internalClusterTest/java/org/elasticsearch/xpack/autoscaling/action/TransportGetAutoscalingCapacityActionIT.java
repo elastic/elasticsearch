@@ -11,7 +11,7 @@ import org.apache.logging.log4j.Level;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.monitor.os.OsProbe;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.elasticsearch.test.MockLogAppender;
+import org.elasticsearch.test.MockLog;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.xpack.autoscaling.AutoscalingIntegTestCase;
 import org.elasticsearch.xpack.autoscaling.capacity.AutoscalingCapacity;
@@ -47,9 +47,9 @@ public class TransportGetAutoscalingCapacityActionIT extends AutoscalingIntegTes
     }
 
     public void assertCurrentCapacity(long memory, long storage, int nodes) {
-        try (var appender = MockLogAppender.capture(TransportGetAutoscalingCapacityAction.class)) {
-            appender.addExpectation(
-                new MockLogAppender.SeenEventExpectation(
+        try (var mockLog = MockLog.capture(TransportGetAutoscalingCapacityAction.class)) {
+            mockLog.addExpectation(
+                new MockLog.SeenEventExpectation(
                     "autoscaling capacity response message with " + storage,
                     TransportGetAutoscalingCapacityAction.class.getName(),
                     Level.DEBUG,
@@ -67,18 +67,20 @@ public class TransportGetAutoscalingCapacityActionIT extends AutoscalingIntegTes
             assertThat(currentCapacity.total().memory().getBytes(), Matchers.equalTo(memory * nodes));
             assertThat(currentCapacity.node().storage().getBytes(), Matchers.equalTo(storage));
             assertThat(currentCapacity.total().storage().getBytes(), Matchers.equalTo(storage * nodes));
-            appender.assertAllExpectationsMatched();
+            mockLog.assertAllExpectationsMatched();
         }
     }
 
     public GetAutoscalingCapacityAction.Response capacity() {
-        GetAutoscalingCapacityAction.Request request = new GetAutoscalingCapacityAction.Request();
+        GetAutoscalingCapacityAction.Request request = new GetAutoscalingCapacityAction.Request(TEST_REQUEST_TIMEOUT);
         GetAutoscalingCapacityAction.Response response = client().execute(GetAutoscalingCapacityAction.INSTANCE, request).actionGet();
         return response;
     }
 
     private void putAutoscalingPolicy(String policyName) {
         final PutAutoscalingPolicyAction.Request request = new PutAutoscalingPolicyAction.Request(
+            TEST_REQUEST_TIMEOUT,
+            TEST_REQUEST_TIMEOUT,
             policyName,
             new TreeSet<>(Set.of("data")),
             new TreeMap<>()

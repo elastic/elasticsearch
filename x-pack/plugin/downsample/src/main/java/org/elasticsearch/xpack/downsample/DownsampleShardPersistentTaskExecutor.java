@@ -25,7 +25,6 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
@@ -34,6 +33,7 @@ import org.elasticsearch.index.mapper.TimeSeriesIdFieldMapper;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardNotFoundException;
 import org.elasticsearch.indices.IndicesService;
+import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.persistent.AllocatedPersistentTask;
 import org.elasticsearch.persistent.PersistentTaskState;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
@@ -116,7 +116,7 @@ public class DownsampleShardPersistentTaskExecutor extends PersistentTasksExecut
     public void validate(DownsampleShardTaskParams params, ClusterState clusterState) {
         // This is just a pre-check, but doesn't prevent from avoiding from aborting the task when source index disappeared
         // after initial creation of the persistent task.
-        var indexShardRouting = clusterState.routingTable().shardRoutingTable(params.shardId().getIndexName(), params.shardId().id());
+        var indexShardRouting = findShardRoutingTable(params.shardId(), clusterState);
         if (indexShardRouting == null) {
             throw new ShardNotFoundException(params.shardId());
         }
@@ -178,11 +178,8 @@ public class DownsampleShardPersistentTaskExecutor extends PersistentTasksExecut
     }
 
     private static IndexShardRoutingTable findShardRoutingTable(ShardId shardId, ClusterState clusterState) {
-        var indexRoutingTable = clusterState.routingTable().index(shardId.getIndexName());
-        if (indexRoutingTable != null) {
-            return indexRoutingTable.shard(shardId.getId());
-        }
-        return null;
+        var indexRoutingTable = clusterState.globalRoutingTable().indexRouting(clusterState.metadata(), shardId.getIndex());
+        return indexRoutingTable.map(routingTable -> routingTable.shard(shardId.getId())).orElse(null);
     }
 
     static void realNodeOperation(
@@ -315,7 +312,8 @@ public class DownsampleShardPersistentTaskExecutor extends PersistentTasksExecut
                 IndicesService indicesService,
                 DownsampleMetrics downsampleMetrics
             ) {
-                super(NAME, actionFilters, transportService.getTaskManager());
+                // TODO: consider moving to Downsample.DOWSAMPLE_TASK_THREAD_POOL_NAME and simplify realNodeOperation
+                super(NAME, actionFilters, transportService.getTaskManager(), EsExecutors.DIRECT_EXECUTOR_SERVICE);
                 this.client = client;
                 this.indicesService = indicesService;
                 this.downsampleMetrics = downsampleMetrics;
@@ -326,6 +324,7 @@ public class DownsampleShardPersistentTaskExecutor extends PersistentTasksExecut
                 realNodeOperation(client, indicesService, downsampleMetrics, request.task, request.params, request.lastDownsampleTsid);
                 listener.onResponse(ActionResponse.Empty.INSTANCE);
             }
+
         }
     }
 }

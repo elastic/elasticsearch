@@ -6,7 +6,7 @@
  */
 
 import org.elasticsearch.gradle.VersionProperties
-import org.elasticsearch.gradle.internal.info.BuildParams
+
 import org.elasticsearch.gradle.testclusters.StandaloneRestIntegTestTask
 
 apply plugin: 'elasticsearch.internal-testclusters'
@@ -28,7 +28,8 @@ tasks.named("forbiddenPatterns").configure {
   exclude '**/system_key'
 }
 
-String outputDir = "${buildDir}/generated-resources/${project.name}"
+def buildDirectory = layout.buildDirectory
+String outputDir = "${buildDirectory.file("generated-resources/${project.name}").get().asFile}"
 
 tasks.register("copyTestNodeKeyMaterial", Copy) {
   from project(':x-pack:plugin:core').files('src/test/resources/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.pem',
@@ -36,19 +37,19 @@ tasks.register("copyTestNodeKeyMaterial", Copy) {
   into outputDir
 }
 
-BuildParams.bwcVersions.withWireCompatible { bwcVersion, baseName ->
+buildParams.bwcVersions.withWireCompatible { bwcVersion, baseName ->
   String oldVersion = bwcVersion.toString()
 
   // SearchableSnapshotsRollingUpgradeIT uses a specific repository to not interfere with other tests
-  String searchableSnapshotRepository = "${buildDir}/cluster/shared/searchable-snapshots-repo/${baseName}"
-
+  String searchableSnapshotRepository = "${buildDirectory.file("cluster/shared/searchable-snapshots-repo/${baseName}").get().asFile}"
+  File repoFolder = buildDirectory.file("cluster/shared/repo/${baseName}").get().asFile
   def baseCluster = testClusters.register(baseName) {
     testDistribution = "DEFAULT"
     versions = [oldVersion, project.version]
     numberOfNodes = 3
 
     setting 'repositories.url.allowed_urls', 'http://snapshot.test*'
-    setting 'path.repo', "['${buildDir}/cluster/shared/repo/${baseName}', '${searchableSnapshotRepository}']"
+    setting 'path.repo', "['${repoFolder}', '${searchableSnapshotRepository}']"
     setting 'xpack.license.self_generated.type', 'trial'
     setting 'xpack.security.enabled', 'true'
     setting 'xpack.security.transport.ssl.enabled', 'true'
@@ -107,15 +108,15 @@ BuildParams.bwcVersions.withWireCompatible { bwcVersion, baseName ->
     useCluster baseCluster
     mustRunAfter("precommit")
     dependsOn "copyTestNodeKeyMaterial"
+    def repoDir = buildDirectory.file("cluster/shared/repo/${baseName}").get().asFile
     doFirst {
-      delete("${buildDir}/cluster/shared/repo/${baseName}")
+      delete(repoDir)
       delete("${searchableSnapshotRepository}")
     }
-
     systemProperty 'tests.rest.suite', 'old_cluster'
     systemProperty 'tests.upgrade_from_version', oldVersion
     systemProperty 'tests.path.searchable.snapshots.repo', searchableSnapshotRepository
-    nonInputProperties.systemProperty('tests.rest.cluster', baseCluster.map(c->c.allHttpSocketURI.join(",")))
+    nonInputProperties.systemProperty('tests.rest.cluster', getClusterInfo(baseName).map { it.allHttpSocketURI.join(",") })
     nonInputProperties.systemProperty('tests.clustername', baseName)
   }
 
@@ -123,9 +124,9 @@ BuildParams.bwcVersions.withWireCompatible { bwcVersion, baseName ->
     dependsOn "${baseName}#oldClusterTest"
     useCluster baseCluster
     doFirst {
-      baseCluster.get().nextNodeToNextVersion()
+      getRegistry().get().nextNodeToNextVersion(baseCluster)
     }
-    nonInputProperties.systemProperty('tests.rest.cluster', baseCluster.map(c->c.allHttpSocketURI.join(",")))
+    nonInputProperties.systemProperty('tests.rest.cluster', getClusterInfo(baseName).map { it.allHttpSocketURI.join(",") })
     nonInputProperties.systemProperty('tests.clustername', baseName)
     systemProperty 'tests.rest.suite', 'mixed_cluster'
     systemProperty 'tests.first_round', 'true'
@@ -137,9 +138,9 @@ BuildParams.bwcVersions.withWireCompatible { bwcVersion, baseName ->
     dependsOn "${baseName}#oneThirdUpgradedTest"
     useCluster baseCluster
     doFirst {
-      baseCluster.get().nextNodeToNextVersion()
+      getRegistry().get().nextNodeToNextVersion(baseCluster)
     }
-    nonInputProperties.systemProperty('tests.rest.cluster', "${-> baseCluster.get().allHttpSocketURI.join(",")}")
+    nonInputProperties.systemProperty('tests.rest.cluster', getClusterInfo(baseName).map { it.allHttpSocketURI.join(",") })
     nonInputProperties.systemProperty('tests.clustername', baseName)
     systemProperty 'tests.rest.suite', 'mixed_cluster'
     systemProperty 'tests.first_round', 'false'
@@ -151,9 +152,9 @@ BuildParams.bwcVersions.withWireCompatible { bwcVersion, baseName ->
     dependsOn "${baseName}#twoThirdsUpgradedTest"
     useCluster baseCluster
     doFirst {
-      baseCluster.get().nextNodeToNextVersion()
+      getRegistry().get().nextNodeToNextVersion(baseCluster)
     }
-    nonInputProperties.systemProperty('tests.rest.cluster', "${-> baseCluster.get().allHttpSocketURI.join(",")}")
+    nonInputProperties.systemProperty('tests.rest.cluster', getClusterInfo(baseName).map { it.allHttpSocketURI.join(",") })
     nonInputProperties.systemProperty('tests.clustername', baseName)
     systemProperty 'tests.rest.suite', 'upgraded_cluster'
     systemProperty 'tests.upgrade_from_version', oldVersion

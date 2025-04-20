@@ -52,7 +52,6 @@ public class ConnectorFeaturesTests extends ESTestCase {
                     "document_level_security": {
                         "enabled": true
                     },
-                    "filtering_advanced_config": true,
                     "sync_rules": {
                         "advanced": {
                             "enabled": false
@@ -70,7 +69,6 @@ public class ConnectorFeaturesTests extends ESTestCase {
     public void testToXContentMissingDocumentLevelSecurity() throws IOException {
         String content = XContentHelper.stripWhitespace("""
                 {
-                    "filtering_advanced_config": true,
                     "sync_rules": {
                         "advanced": {
                             "enabled": false
@@ -88,7 +86,9 @@ public class ConnectorFeaturesTests extends ESTestCase {
     public void testToXContentMissingSyncRules() throws IOException {
         String content = XContentHelper.stripWhitespace("""
                 {
-                    "filtering_advanced_config": true
+                    "document_level_security": {
+                        "enabled": true
+                    }
                 }
             """);
 
@@ -98,7 +98,6 @@ public class ConnectorFeaturesTests extends ESTestCase {
     public void testToXContentMissingSyncRulesAdvanced() throws IOException {
         String content = XContentHelper.stripWhitespace("""
                 {
-                    "filtering_advanced_config": true,
                     "sync_rules": {
                         "basic": {
                             "enabled": true
@@ -116,7 +115,6 @@ public class ConnectorFeaturesTests extends ESTestCase {
                     "document_level_security": {
                         "enabled": true
                     },
-                    "filtering_advanced_config": true,
                     "sync_rules": {
                         "advanced": {
                             "enabled": false

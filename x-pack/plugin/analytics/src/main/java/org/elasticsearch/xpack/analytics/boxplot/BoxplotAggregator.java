@@ -105,7 +105,7 @@ public class BoxplotAggregator extends NumericMetricsAggregator.MultiValue {
         states = bigArrays.grow(states, bucket + 1);
         TDigestState state = states.get(bucket);
         if (state == null) {
-            state = TDigestState.create(compression, executionHint);
+            state = TDigestState.createWithoutCircuitBreaking(compression, executionHint);
             states.set(bucket, state);
         }
         return state;

@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.transport;
@@ -31,7 +32,7 @@ import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.telemetry.tracing.Tracer;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.MockLogAppender;
+import org.elasticsearch.test.MockLog;
 import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -127,7 +128,6 @@ public class InboundHandlerTests extends ESTestCase {
 
     public void testRequestAndResponse() throws Exception {
         String action = "test-request";
-        int headerSize = TcpHeader.headerSize(TransportVersion.current());
         boolean isError = randomBoolean();
         AtomicReference<TestRequest> requestCaptor = new AtomicReference<>();
         AtomicReference<TestResponse> responseCaptor = new AtomicReference<>();
@@ -170,19 +170,20 @@ public class InboundHandlerTests extends ESTestCase {
         );
         requestHandlers.registerHandler(registry);
         String requestValue = randomAlphaOfLength(10);
-        OutboundMessage.Request request = new OutboundMessage.Request(
-            threadPool.getThreadContext(),
-            new TestRequest(requestValue),
-            TransportVersion.current(),
+        BytesRefRecycler recycler = new BytesRefRecycler(PageCacheRecycler.NON_RECYCLING_INSTANCE);
+        BytesReference fullRequestBytes = OutboundHandler.serialize(
+            OutboundHandler.MessageDirection.REQUEST,
             action,
             requestId,
             false,
-            null
+            TransportVersion.current(),
+            null,
+            new TestRequest(requestValue),
+            threadPool.getThreadContext(),
+            new RecyclerBytesStreamOutput(recycler)
         );
 
-        BytesRefRecycler recycler = new BytesRefRecycler(PageCacheRecycler.NON_RECYCLING_INSTANCE);
-        BytesReference fullRequestBytes = request.serialize(new RecyclerBytesStreamOutput(recycler));
-        BytesReference requestContent = fullRequestBytes.slice(headerSize, fullRequestBytes.length() - headerSize);
+        BytesReference requestContent = fullRequestBytes.slice(TcpHeader.HEADER_SIZE, fullRequestBytes.length() - TcpHeader.HEADER_SIZE);
         Header requestHeader = new Header(
             fullRequestBytes.length() - 6,
             requestId,
@@ -207,7 +208,7 @@ public class InboundHandlerTests extends ESTestCase {
         }
 
         BytesReference fullResponseBytes = channel.getMessageCaptor().get();
-        BytesReference responseContent = fullResponseBytes.slice(headerSize, fullResponseBytes.length() - headerSize);
+        BytesReference responseContent = fullResponseBytes.slice(TcpHeader.HEADER_SIZE, fullResponseBytes.length() - TcpHeader.HEADER_SIZE);
         Header responseHeader = new Header(fullRequestBytes.length() - 6, requestId, responseStatus, TransportVersion.current());
         InboundMessage responseMessage = new InboundMessage(responseHeader, ReleasableBytesReference.wrap(responseContent), () -> {});
         responseHeader.finishParsingHeader(responseMessage.openOrGetStreamInput());
@@ -229,14 +230,9 @@ public class InboundHandlerTests extends ESTestCase {
         // response so we must just close the connection on an error. To avoid the failure disappearing into a black hole we at least log
         // it.
 
-        try (var mockAppender = MockLogAppender.capture(InboundHandler.class)) {
-            mockAppender.addExpectation(
-                new MockLogAppender.SeenEventExpectation(
-                    "expected message",
-                    EXPECTED_LOGGER_NAME,
-                    Level.WARN,
-                    "error processing handshake version"
-                )
+        try (var mockLog = MockLog.capture(InboundHandler.class)) {
+            mockLog.addExpectation(
+                new MockLog.SeenEventExpectation("expected message", EXPECTED_LOGGER_NAME, Level.WARN, "error processing handshake version")
             );
 
             final AtomicBoolean isClosed = new AtomicBoolean();
@@ -260,7 +256,7 @@ public class InboundHandlerTests extends ESTestCase {
             handler.inboundMessage(channel, requestMessage);
             assertTrue(isClosed.get());
             assertNull(channel.getMessageCaptor().get());
-            mockAppender.assertAllExpectationsMatched();
+            mockLog.assertAllExpectationsMatched();
         }
     }
 
@@ -273,11 +269,16 @@ public class InboundHandlerTests extends ESTestCase {
     public void testLogsSlowInboundProcessing() throws Exception {
 
         handler.setSlowLogThreshold(TimeValue.timeValueMillis(5L));
-        try (var mockAppender = MockLogAppender.capture(InboundHandler.class)) {
+        try (var mockLog = MockLog.capture(InboundHandler.class)) {
             final TransportVersion remoteVersion = TransportVersion.current();
 
-            mockAppender.addExpectation(
-                new MockLogAppender.SeenEventExpectation("expected slow request", EXPECTED_LOGGER_NAME, Level.WARN, "handling request ")
+            mockLog.addExpectation(
+                new MockLog.SeenEventExpectation(
+                    "expected slow request",
+                    EXPECTED_LOGGER_NAME,
+                    Level.WARN,
+                    "handling request*/configuration-reference/networking-settings?version=*#modules-network-threading-model"
+                )
             );
 
             final long requestId = randomNonNegativeLong();
@@ -289,22 +290,30 @@ public class InboundHandlerTests extends ESTestCase {
             );
             BytesStreamOutput byteData = new BytesStreamOutput();
             TaskId.EMPTY_TASK_ID.writeTo(byteData);
-            TransportVersion.writeVersion(remoteVersion, byteData);
-            final InboundMessage requestMessage = new InboundMessage(requestHeader, ReleasableBytesReference.wrap(byteData.bytes()), () -> {
-                try {
-                    TimeUnit.SECONDS.sleep(1L);
-                } catch (InterruptedException e) {
-                    throw new AssertionError(e);
-                }
-            });
+            // simulate bytes of a transport handshake: vInt transport version then release version string
+            try (var payloadByteData = new BytesStreamOutput()) {
+                TransportVersion.writeVersion(remoteVersion, payloadByteData);
+                payloadByteData.writeString(randomIdentifier());
+                byteData.writeBytesReference(payloadByteData.bytes());
+            }
+            final InboundMessage requestMessage = new InboundMessage(
+                requestHeader,
+                ReleasableBytesReference.wrap(byteData.bytes()),
+                () -> safeSleep(TimeValue.timeValueSeconds(1))
+            );
             requestHeader.actionName = TransportHandshaker.HANDSHAKE_ACTION_NAME;
             requestHeader.headers = Tuple.tuple(Map.of(), Map.of());
             handler.inboundMessage(channel, requestMessage);
             // expect no response - channel just closed on exception
-            mockAppender.assertAllExpectationsMatched();
+            mockLog.assertAllExpectationsMatched();
 
-            mockAppender.addExpectation(
-                new MockLogAppender.SeenEventExpectation("expected slow response", EXPECTED_LOGGER_NAME, Level.WARN, "handling response ")
+            mockLog.addExpectation(
+                new MockLog.SeenEventExpectation(
+                    "expected slow response",
+                    EXPECTED_LOGGER_NAME,
+                    Level.WARN,
+                    "handling response*/configuration-reference/networking-settings?version=*#modules-network-threading-model"
+                )
             );
 
             final long responseId = randomNonNegativeLong();
@@ -315,16 +324,12 @@ public class InboundHandlerTests extends ESTestCase {
                 @SuppressWarnings("rawtypes")
                 public void onResponseReceived(long requestId, Transport.ResponseContext context) {
                     assertEquals(responseId, requestId);
-                    try {
-                        TimeUnit.SECONDS.sleep(1L);
-                    } catch (InterruptedException e) {
-                        throw new AssertionError(e);
-                    }
+                    safeSleep(TimeValue.timeValueSeconds(1));
                 }
             });
             handler.inboundMessage(channel, new InboundMessage(responseHeader, ReleasableBytesReference.empty(), () -> {}));
 
-            mockAppender.assertAllExpectationsMatched();
+            mockLog.assertAllExpectationsMatched();
         }
     }
 

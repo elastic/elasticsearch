@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.readiness;
@@ -33,7 +34,7 @@ import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.http.HttpStats;
 import org.elasticsearch.reservedstate.service.FileSettingsService;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.MockLogAppender;
+import org.elasticsearch.test.MockLog;
 import org.elasticsearch.test.readiness.ReadinessClientProbe;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -205,21 +206,8 @@ public class ReadinessServiceTests extends ESTestCase implements ReadinessClient
         // initially the service isn't ready
         assertFalse(readinessService.ready());
 
-        ClusterState emptyState = ClusterState.builder(new ClusterName("cluster"))
-            .nodes(
-                DiscoveryNodes.builder().add(DiscoveryNodeUtils.create("node2", new TransportAddress(TransportAddress.META_ADDRESS, 9201)))
-            )
-            .build();
-
-        ClusterState noFileSettingsState = ClusterState.builder(emptyState)
-            .nodes(
-                DiscoveryNodes.builder(emptyState.nodes())
-                    .add(httpTransport.node)
-                    .masterNodeId(httpTransport.node.getId())
-                    .localNodeId(httpTransport.node.getId())
-            )
-            .build();
-        ClusterChangedEvent event = new ClusterChangedEvent("test", noFileSettingsState, emptyState);
+        ClusterState noFileSettingsState = noFileSettingsState();
+        ClusterChangedEvent event = new ClusterChangedEvent("test", noFileSettingsState, emptyState());
         readinessService.clusterChanged(event);
 
         // sending a cluster state with active master should not yet bring up the service, file settings still are not applied
@@ -255,6 +243,7 @@ public class ReadinessServiceTests extends ESTestCase implements ReadinessClient
                                 httpTransport.node.getId(),
                                 SingleNodeShutdownMetadata.builder()
                                     .setNodeId(httpTransport.node.getId())
+                                    .setNodeEphemeralId(httpTransport.node.getEphemeralId())
                                     .setReason("testing")
                                     .setType(SingleNodeShutdownMetadata.Type.RESTART)
                                     .setStartedAtMillis(randomNonNegativeLong())
@@ -266,9 +255,9 @@ public class ReadinessServiceTests extends ESTestCase implements ReadinessClient
             )
             .build();
         event = new ClusterChangedEvent("test", nodeShuttingDownState, completeState);
-        try (var mockAppender = MockLogAppender.capture(ReadinessService.class)) {
-            mockAppender.addExpectation(
-                new MockLogAppender.SeenEventExpectation(
+        try (var mockLog = MockLog.capture(ReadinessService.class)) {
+            mockLog.addExpectation(
+                new MockLog.SeenEventExpectation(
                     "node shutting down logged",
                     ReadinessService.class.getCanonicalName(),
                     Level.INFO,
@@ -276,10 +265,10 @@ public class ReadinessServiceTests extends ESTestCase implements ReadinessClient
                 )
             );
             readinessService.clusterChanged(event);
-            mockAppender.assertAllExpectationsMatched();
+            mockLog.assertAllExpectationsMatched();
 
-            mockAppender.addExpectation(
-                new MockLogAppender.UnseenEventExpectation(
+            mockLog.addExpectation(
+                new MockLog.UnseenEventExpectation(
                     "node shutting down not logged twice",
                     ReadinessService.class.getCanonicalName(),
                     Level.INFO,
@@ -287,7 +276,7 @@ public class ReadinessServiceTests extends ESTestCase implements ReadinessClient
                 )
             );
             readinessService.clusterChanged(event);
-            mockAppender.assertAllExpectationsMatched();
+            mockLog.assertAllExpectationsMatched();
         }
         assertFalse(readinessService.ready());
         tcpReadinessProbeFalse(readinessService);
@@ -306,14 +295,7 @@ public class ReadinessServiceTests extends ESTestCase implements ReadinessClient
 
         var fileSettingsState = new ReservedStateMetadata.Builder(FileSettingsService.NAMESPACE).version(21L)
             .errorMetadata(new ReservedStateErrorMetadata(22L, TRANSIENT, List.of("dummy error")));
-        ClusterState state = ClusterState.builder(new ClusterName("cluster"))
-            .nodes(
-                DiscoveryNodes.builder()
-                    .add(DiscoveryNodeUtils.create("node2", new TransportAddress(TransportAddress.META_ADDRESS, 9201)))
-                    .add(httpTransport.node)
-                    .masterNodeId(httpTransport.node.getId())
-                    .localNodeId(httpTransport.node.getId())
-            )
+        ClusterState state = ClusterState.builder(noFileSettingsState())
             .metadata(new Metadata.Builder().put(fileSettingsState.build()))
             .build();
 
@@ -323,5 +305,25 @@ public class ReadinessServiceTests extends ESTestCase implements ReadinessClient
 
         readinessService.stop();
         readinessService.close();
+    }
+
+    private ClusterState emptyState() {
+        return ClusterState.builder(new ClusterName("cluster"))
+            .nodes(
+                DiscoveryNodes.builder().add(DiscoveryNodeUtils.create("node2", new TransportAddress(TransportAddress.META_ADDRESS, 9201)))
+            )
+            .build();
+    }
+
+    private ClusterState noFileSettingsState() {
+        ClusterState emptyState = emptyState();
+        return ClusterState.builder(emptyState)
+            .nodes(
+                DiscoveryNodes.builder(emptyState.nodes())
+                    .add(httpTransport.node)
+                    .masterNodeId(httpTransport.node.getId())
+                    .localNodeId(httpTransport.node.getId())
+            )
+            .build();
     }
 }

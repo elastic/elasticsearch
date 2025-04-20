@@ -11,6 +11,7 @@ import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.indices.TestIndexNameExpressionResolver;
 import org.elasticsearch.plugins.Plugin;
@@ -37,7 +38,7 @@ public abstract class AbstractEnrichTestCase extends ESSingleNodeTestCase {
         IndexNameExpressionResolver resolver = TestIndexNameExpressionResolver.newInstance();
         CountDownLatch latch = new CountDownLatch(1);
         AtomicReference<Exception> error = new AtomicReference<>();
-        EnrichStore.putPolicy(name, policy, clusterService, resolver, e -> {
+        EnrichStore.putPolicy(Metadata.DEFAULT_PROJECT_ID, name, policy, clusterService, resolver, e -> {
             error.set(e);
             latch.countDown();
         });
@@ -48,7 +49,7 @@ public abstract class AbstractEnrichTestCase extends ESSingleNodeTestCase {
     protected void deleteEnrichPolicy(String name, ClusterService clusterService) throws Exception {
         CountDownLatch latch = new CountDownLatch(1);
         AtomicReference<Exception> error = new AtomicReference<>();
-        EnrichStore.deletePolicy(name, clusterService, e -> {
+        EnrichStore.deletePolicy(Metadata.DEFAULT_PROJECT_ID, name, clusterService, e -> {
             error.set(e);
             latch.countDown();
         });

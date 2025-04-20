@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.mapper;
@@ -84,7 +85,6 @@ public class FieldNamesFieldMapperTests extends MetadataMapperTestCase {
      * disabling the _field_names should still work for indices before 8.0
      */
     public void testUsingEnabledBefore8() throws Exception {
-
         DocumentMapper docMapper = createDocumentMapper(
             IndexVersionUtils.randomPreviousCompatibleVersion(random(), IndexVersions.V_8_0_0),
             topMapping(b -> b.startObject("_field_names").field("enabled", false).endObject())

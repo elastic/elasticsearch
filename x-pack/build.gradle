@@ -10,8 +10,8 @@ subprojects {
   // see: https://wiki.shibboleth.net/confluence/display/DEV/Use+of+Maven+Central
   repositories {
     maven {
-      name "opensaml"
-      url "https://artifactory.elstc.co/artifactory/shibboleth-releases/"
+      name = "opensaml"
+      url = "https://artifactory.elstc.co/artifactory/shibboleth-releases/"
       content {
         includeGroup "org.opensaml"
         includeGroup "net.shibboleth.utilities"
@@ -26,7 +26,7 @@ subprojects {
   ext.xpackModule = { String moduleName -> ":x-pack:plugin:${moduleName}" }
 
   plugins.withType(PluginBuildPlugin).whenPluginAdded {
-    project.esplugin.licenseFile = rootProject.file('licenses/ELASTIC-LICENSE-2.0.txt')
+    project.esplugin.licenseFile = layout.settingsDirectory.file('licenses/ELASTIC-LICENSE-2.0.txt').asFile
     project.esplugin.noticeFile = xpackRootProject.file('NOTICE.txt')
   }
 
@@ -36,11 +36,11 @@ subprojects {
   }
 
   project.pluginManager.withPlugin("elasticsearch.licensing") {
-    ext.projectLicenses.set(['Elastic License 2.0': ext.elasticLicenseUrl.get()])
+    ext.projectLicenses.set(['Elastic License 2.0': ext.elasticLicenseUrl])
   }
 
   project.pluginManager.withPlugin("elasticsearch.build") {
-    project.ext.licenseFile.set(rootProject.file('licenses/ELASTIC-LICENSE-2.0.txt'))
+    project.ext.licenseFile.set(layout.settingsDirectory.file('licenses/ELASTIC-LICENSE-2.0.txt').asFile)
     project.ext.noticeFile.set(xpackRootProject.file('NOTICE.txt'))
   }
 }

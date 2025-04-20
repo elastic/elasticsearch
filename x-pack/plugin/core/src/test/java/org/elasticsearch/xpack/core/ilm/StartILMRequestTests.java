@@ -14,7 +14,7 @@ public class StartILMRequestTests extends AbstractWireSerializingTestCase<StartI
 
     @Override
     protected StartILMRequest createTestInstance() {
-        return new StartILMRequest();
+        return new StartILMRequest(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT);
     }
 
     @Override

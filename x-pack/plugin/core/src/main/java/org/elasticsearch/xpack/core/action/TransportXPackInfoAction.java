@@ -6,13 +6,14 @@
  */
 package org.elasticsearch.xpack.core.action;
 
+import org.elasticsearch.Build;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.client.internal.node.NodeClient;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.license.License;
 import org.elasticsearch.license.LicenseService;
 import org.elasticsearch.license.LicenseUtils;
@@ -23,7 +24,6 @@ import org.elasticsearch.protocol.xpack.XPackInfoResponse.FeatureSetsInfo.Featur
 import org.elasticsearch.protocol.xpack.XPackInfoResponse.LicenseInfo;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.xpack.core.XPackBuild;
 
 import java.util.HashSet;
 import java.util.List;
@@ -58,7 +58,7 @@ public class TransportXPackInfoAction extends HandledTransportAction<XPackInfoRe
 
         XPackInfoResponse.BuildInfo buildInfo = null;
         if (request.getCategories().contains(XPackInfoRequest.Category.BUILD)) {
-            buildInfo = new XPackInfoResponse.BuildInfo(XPackBuild.CURRENT.shortHash(), XPackBuild.CURRENT.date());
+            buildInfo = new XPackInfoResponse.BuildInfo(Build.current().hash(), Build.current().date());
         }
 
         LicenseInfo licenseInfo = null;

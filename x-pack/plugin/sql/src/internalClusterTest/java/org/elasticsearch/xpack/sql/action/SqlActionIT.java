@@ -6,11 +6,11 @@
  */
 package org.elasticsearch.xpack.sql.action;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.xpack.sql.proto.ColumnInfo;
 import org.elasticsearch.xpack.sql.proto.Mode;
+import org.elasticsearch.xpack.sql.proto.SqlVersions;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.equalTo;
@@ -31,7 +31,7 @@ public class SqlActionIT extends AbstractSqlIntegTestCase {
         String columns = dataBeforeCount ? "data, count" : "count, data";
         SqlQueryResponse response = new SqlQueryRequestBuilder(client()).query("SELECT " + columns + " FROM test ORDER BY count")
             .mode(Mode.JDBC)
-            .version(Version.CURRENT.toString())
+            .version(SqlVersions.SERVER_COMPAT_VERSION.toString())
             .get();
         assertThat(response.size(), equalTo(2L));
         assertThat(response.columns(), hasSize(2));
@@ -50,7 +50,7 @@ public class SqlActionIT extends AbstractSqlIntegTestCase {
     public void testSqlActionCurrentVersion() {
         SqlQueryResponse response = new SqlQueryRequestBuilder(client()).query("SELECT true")
             .mode(randomFrom(Mode.CLI, Mode.JDBC))
-            .version(Version.CURRENT.toString())
+            .version(SqlVersions.SERVER_COMPAT_VERSION.toString())
             .get();
         assertThat(response.size(), equalTo(1L));
         assertEquals(true, response.rows().get(0).get(0));

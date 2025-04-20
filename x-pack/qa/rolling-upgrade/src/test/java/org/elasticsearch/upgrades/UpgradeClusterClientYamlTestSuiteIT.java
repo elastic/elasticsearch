@@ -27,7 +27,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
-import static org.elasticsearch.test.rest.RestTestLegacyFeatures.COMPONENT_TEMPLATE_SUPPORTED;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 
@@ -43,12 +42,7 @@ public class UpgradeClusterClientYamlTestSuiteIT extends ESClientYamlSuiteTestCa
     public void waitForTemplates() throws Exception {
         if (AbstractUpgradeTestCase.CLUSTER_TYPE == AbstractUpgradeTestCase.ClusterType.OLD) {
             try {
-                boolean clusterUnderstandsComposableTemplates = clusterHasFeature(COMPONENT_TEMPLATE_SUPPORTED);
-                XPackRestTestHelper.waitForTemplates(
-                    client(),
-                    XPackRestTestConstants.ML_POST_V7120_TEMPLATES,
-                    clusterUnderstandsComposableTemplates
-                );
+                XPackRestTestHelper.waitForTemplates(client(), XPackRestTestConstants.ML_POST_V7120_TEMPLATES);
             } catch (AssertionError e) {
                 throw new AssertionError("Failure in test setup: Failed to initialize ML index templates", e);
             }

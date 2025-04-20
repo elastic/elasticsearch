@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.ccr.rest;
 
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.client.internal.node.NodeClient;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestToXContentListener;
@@ -41,10 +42,9 @@ public class RestPutFollowAction extends BaseRestHandler {
 
     private static Request createRequest(RestRequest restRequest) throws IOException {
         try (XContentParser parser = restRequest.contentOrSourceParamParser()) {
-            final Request request = Request.fromXContent(parser);
+            final var request = Request.fromXContent(getMasterNodeTimeout(restRequest), TimeValue.THIRTY_SECONDS, parser);
             request.waitForActiveShards(ActiveShardCount.parseString(restRequest.param("wait_for_active_shards")));
             request.setFollowerIndex(restRequest.param("index"));
-            request.masterNodeTimeout(getMasterNodeTimeout(restRequest));
             return request;
         }
     }

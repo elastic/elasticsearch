@@ -23,7 +23,6 @@ public class GetConnectorSecretResponse extends ActionResponse implements ToXCon
     private final String value;
 
     public GetConnectorSecretResponse(StreamInput in) throws IOException {
-        super(in);
         id = in.readString();
         value = in.readString();
     }

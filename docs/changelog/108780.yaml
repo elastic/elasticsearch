@@ -1,6 +1,0 @@
-pr: 108780
-summary: Add `continent_code` support to the geoip processor
-area: Ingest Node
-type: enhancement
-issues:
- - 85820

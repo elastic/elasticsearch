@@ -11,6 +11,7 @@ import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.mapper.TimeSeriesParams;
+import org.elasticsearch.index.mapper.flattened.FlattenedFieldMapper;
 
 import java.io.IOException;
 import java.util.List;
@@ -47,6 +48,19 @@ class TimeseriesFieldTypeHelper {
 
     public boolean isTimeSeriesDimension(final String unused, final Map<String, ?> fieldMapping) {
         return Boolean.TRUE.equals(fieldMapping.get(TIME_SERIES_DIMENSION_PARAM));
+    }
+
+    public List<String> extractFlattenedDimensions(final String field, final Map<String, ?> fieldMapping) {
+        var mapper = mapperService.mappingLookup().getMapper(field);
+        if (mapper instanceof FlattenedFieldMapper == false) {
+            return null;
+        }
+        Object dimensions = fieldMapping.get(FlattenedFieldMapper.TIME_SERIES_DIMENSIONS_ARRAY_PARAM);
+        if (dimensions instanceof List<?> actualList) {
+            return actualList.stream().map(field_in_flattened -> field + '.' + field_in_flattened).toList();
+        }
+
+        return null;
     }
 
     static class Builder {

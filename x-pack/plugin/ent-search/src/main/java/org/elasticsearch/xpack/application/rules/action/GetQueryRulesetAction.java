@@ -31,7 +31,8 @@ import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg
 
 public class GetQueryRulesetAction {
 
-    public static final String NAME = "cluster:admin/xpack/query_rules/get";
+    public static final ActionType<GetQueryRulesetAction.Response> TYPE = new ActionType<>("cluster:admin/xpack/query_rules/get");
+    public static final String NAME = TYPE.name();
     public static final ActionType<GetQueryRulesetAction.Response> INSTANCE = new ActionType<>(NAME);
 
     private GetQueryRulesetAction() {/* no instances */}
@@ -114,7 +115,6 @@ public class GetQueryRulesetAction {
         private final QueryRuleset queryRuleset;
 
         public Response(StreamInput in) throws IOException {
-            super(in);
             this.queryRuleset = new QueryRuleset(in);
         }
 

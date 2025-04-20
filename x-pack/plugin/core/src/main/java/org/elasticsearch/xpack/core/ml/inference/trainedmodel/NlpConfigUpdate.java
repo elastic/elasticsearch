@@ -42,7 +42,9 @@ public abstract class NlpConfigUpdate implements InferenceConfigUpdate, NamedXCo
             RobertaTokenizationUpdate.NAME.getPreferredName(),
             RobertaTokenizationUpdate::new,
             XLMRobertaTokenizationUpdate.NAME.getPreferredName(),
-            XLMRobertaTokenizationUpdate::new
+            XLMRobertaTokenizationUpdate::new,
+            DebertaV2Tokenization.NAME,
+            DebertaV2TokenizationUpdate::new
         );
 
         Map<String, Object> tokenizationConfig = null;

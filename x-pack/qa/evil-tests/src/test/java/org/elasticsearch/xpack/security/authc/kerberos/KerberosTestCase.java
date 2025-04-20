@@ -59,8 +59,10 @@ public abstract class KerberosTestCase extends ESTestCase {
     /*
      * Arabic and other language have problems due to handling of generalized time in SimpleKdcServer. For more, look at
      * org.apache.kerby.asn1.type.Asn1GeneralizedTime#toBytes
+     *
+     * Note: several unsupported locales were added in CLDR. #109670 included these below.
      */
-    private static Set<String> UNSUPPORTED_LOCALE_LANGUAGES = Set.of(
+    private static final Set<String> UNSUPPORTED_LOCALE_LANGUAGES = Set.of(
         "ar",
         "ja",
         "th",
@@ -81,7 +83,14 @@ public abstract class KerberosTestCase extends ESTestCase {
         "ur",
         "pa",
         "ig",
-        "sd"
+        "sd",
+        "mni",
+        "sat",
+        "sa",
+        "bgc",
+        "raj",
+        "nqo",
+        "bho"
     );
 
     @BeforeClass
@@ -143,7 +152,7 @@ public abstract class KerberosTestCase extends ESTestCase {
 
     protected Path getKeytabPath(Environment env) {
         final Setting<String> setting = KerberosRealmSettings.HTTP_SERVICE_KEYTAB_PATH.getConcreteSettingForNamespace(REALM_NAME);
-        return env.configFile().resolve(setting.get(settings));
+        return env.configDir().resolve(setting.get(settings));
     }
 
     /**

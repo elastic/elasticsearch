@@ -1,14 +1,14 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.get;
 
-import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
@@ -20,7 +20,6 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
@@ -31,6 +30,7 @@ import org.elasticsearch.index.get.GetResult;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesService;
+import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.tasks.Task;
@@ -64,25 +64,24 @@ public class TransportGetFromTranslogAction extends HandledTransportAction<
         assert indexShard.routingEntry().isPromotableToPrimary() : "not an indexing shard" + indexShard.routingEntry();
         assert getRequest.realtime();
         ActionListener.completeWith(listener, () -> {
-            var result = indexShard.getService()
-                .getFromTranslog(
-                    getRequest.id(),
-                    getRequest.storedFields(),
-                    getRequest.realtime(),
-                    getRequest.version(),
-                    getRequest.versionType(),
-                    getRequest.fetchSourceContext(),
-                    getRequest.isForceSyntheticSource()
-                );
-            long segmentGeneration = -1;
-            if (result == null) {
-                Engine engine = indexShard.getEngineOrNull();
-                if (engine == null) {
-                    throw new AlreadyClosedException("engine closed");
+            // Allows to keep the same engine instance for getFromTranslog and getLastUnsafeSegmentGenerationForGets
+            return indexShard.withEngineException(engine -> {
+                var result = indexShard.getService()
+                    .getFromTranslog(
+                        getRequest.id(),
+                        getRequest.storedFields(),
+                        getRequest.realtime(),
+                        getRequest.version(),
+                        getRequest.versionType(),
+                        getRequest.fetchSourceContext(),
+                        getRequest.isForceSyntheticSource()
+                    );
+                long segmentGeneration = -1;
+                if (result == null) {
+                    segmentGeneration = engine.getLastUnsafeSegmentGenerationForGets();
                 }
-                segmentGeneration = ((InternalEngine) engine).getLastUnsafeSegmentGenerationForGets();
-            }
-            return new Response(result, indexShard.getOperationPrimaryTerm(), segmentGeneration);
+                return new Response(result, indexShard.getOperationPrimaryTerm(), segmentGeneration);
+            });
         });
     }
 
@@ -151,7 +150,6 @@ public class TransportGetFromTranslogAction extends HandledTransportAction<
         }
 
         public Response(StreamInput in) throws IOException {
-            super(in);
             segmentGeneration = in.readZLong();
             getResult = in.readOptionalWriteable(GetResult::new);
             primaryTerm = in.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0) ? in.readVLong() : Engine.UNKNOWN_PRIMARY_TERM;

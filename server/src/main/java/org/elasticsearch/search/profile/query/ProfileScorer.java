@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.profile.query;
@@ -11,7 +12,6 @@ package org.elasticsearch.search.profile.query;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.TwoPhaseIterator;
-import org.apache.lucene.search.Weight;
 import org.elasticsearch.search.profile.Timer;
 
 import java.io.IOException;
@@ -24,15 +24,12 @@ import java.util.Collection;
 final class ProfileScorer extends Scorer {
 
     private final Scorer scorer;
-    private final ProfileWeight profileWeight;
 
     private final Timer scoreTimer, nextDocTimer, advanceTimer, matchTimer, shallowAdvanceTimer, computeMaxScoreTimer,
         setMinCompetitiveScoreTimer;
 
-    ProfileScorer(ProfileWeight w, Scorer scorer, QueryProfileBreakdown profile) {
-        super(w);
+    ProfileScorer(Scorer scorer, QueryProfileBreakdown profile) {
         this.scorer = scorer;
-        this.profileWeight = w;
         scoreTimer = profile.getNewTimer(QueryTimingType.SCORE);
         nextDocTimer = profile.getNewTimer(QueryTimingType.NEXT_DOC);
         advanceTimer = profile.getNewTimer(QueryTimingType.ADVANCE);
@@ -55,11 +52,6 @@ final class ProfileScorer extends Scorer {
         } finally {
             scoreTimer.stop();
         }
-    }
-
-    @Override
-    public Weight getWeight() {
-        return profileWeight;
     }
 
     @Override

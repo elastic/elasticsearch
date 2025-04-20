@@ -13,7 +13,7 @@ import org.apache.logging.log4j.core.LogEvent;
 import org.apache.logging.log4j.message.Message;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.MockLogAppender;
+import org.elasticsearch.test.MockLog;
 import org.elasticsearch.xpack.core.security.authc.support.mapper.expressiondsl.FieldExpression.FieldValue;
 import org.junit.Before;
 
@@ -34,10 +34,10 @@ public class ExpressionModelTests extends ESTestCase {
         ExpressionModel model = new ExpressionModel();
         model.defineField("some_int", randomIntBetween(1, 99));
 
-        MockLogAppender.assertThatLogger(
+        MockLog.assertThatLogger(
             () -> assertThat(model.test("another_field", List.of(new FieldValue("bork"), new FieldValue("bork!"))), is(false)),
             ExpressionModel.class,
-            new MockLogAppender.SeenEventExpectation(
+            new MockLog.SeenEventExpectation(
                 "undefined field",
                 model.getClass().getName(),
                 Level.DEBUG,
@@ -51,7 +51,7 @@ public class ExpressionModelTests extends ESTestCase {
         ExpressionModel model = new ExpressionModel();
         model.defineField("some_int", randomIntBetween(1, 99));
 
-        MockLogAppender.assertThatLogger(
+        MockLog.assertThatLogger(
             () -> assertThat(model.test("another_field", List.of(new FieldValue(null))), is(true)),
             ExpressionModel.class,
             new NoMessagesExpectation()
@@ -62,14 +62,14 @@ public class ExpressionModelTests extends ESTestCase {
         ExpressionModel model = new ExpressionModel();
         model.defineField("some_int", randomIntBetween(1, 99));
 
-        MockLogAppender.assertThatLogger(
+        MockLog.assertThatLogger(
             () -> assertThat(model.test("some_int", List.of(new FieldValue(randomIntBetween(100, 200)))), is(false)),
             ExpressionModel.class,
             new NoMessagesExpectation()
         );
     }
 
-    private class NoMessagesExpectation implements MockLogAppender.LoggingExpectation {
+    private class NoMessagesExpectation implements MockLog.LoggingExpectation {
 
         private final List<Message> messages = new ArrayList<>();
 

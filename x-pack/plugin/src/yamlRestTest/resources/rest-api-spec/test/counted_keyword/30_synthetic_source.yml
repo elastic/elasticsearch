@@ -1,0 +1,598 @@
+"Source values are mutated as expected":
+  - requires:
+      cluster_features: ["mapper.counted_keyword.synthetic_source_native_support"]
+      reason: "Feature implemented"
+
+  - do:
+      indices.create:
+        index: test-events
+        body:
+          settings:
+            index:
+              mapping.source.mode: synthetic
+          mappings:
+            properties:
+              events:
+                type: counted_keyword
+
+  - do:
+      bulk:
+        index: test-events
+        refresh: true
+        body:
+          - '{"create":{"_id": "1"}}'
+          - '{"events": [ "a", "b", "a", "c" ] }'
+          - '{"create":{"_id": "2"}}'
+          - '{"events": ["b", "b", "c", "a", "b"] }'
+          - '{"create":{"_id": "3"}}'
+          - '{"events": ["c", "a", null, "b", null, "c"] }'
+          - '{"create":{"_id": "4"}}'
+          - '{"events": ["a"] }'
+          - '{"create":{"_id": "5"}}'
+          - '{"events": [] }'
+          - '{"create":{"_id": "6"}}'
+          - '{"events": [null, null] }'
+          - '{"create":{"_id": "7"}}'
+          - '{"events": [["a", "b"], "a", ["c"], [["b"], "c"]] }'
+          - '{"create": {"_id": "8"}}'
+
+  - do:
+      search:
+        index: test-events
+        body:
+          query:
+            ids:
+              values: [1]
+  - match:
+      hits.hits.0._source:
+        events: ["a", "a", "b", "c"]
+
+  - do:
+      search:
+        index: test-events
+        body:
+         query:
+           ids:
+             values: [2]
+  - match:
+     hits.hits.0._source:
+       events: ["a", "b", "b", "b", "c"]
+
+  - do:
+      search:
+        index: test-events
+        body:
+         query:
+           ids:
+             values: [3]
+  - match:
+     hits.hits.0._source:
+       events: ["a", "b", "c", "c"]
+
+  - do:
+      search:
+        index: test-events
+        body:
+         query:
+           ids:
+             values: [4]
+  - match:
+     hits.hits.0._source:
+       events: "a"
+
+  - do:
+      search:
+        index: test-events
+        body:
+         query:
+           ids:
+             values: [5]
+  - match:
+     hits.hits.0._source: {}
+
+  - do:
+      search:
+        index: test-events
+        body:
+         query:
+           ids:
+             values: [6]
+  - match:
+     hits.hits.0._source: {}
+
+  - do:
+      search:
+        index: test-events
+        body:
+          query:
+            ids:
+              values: [7]
+  - match:
+      hits.hits.0._source:
+        events: ["a", "a", "b", "b", "c", "c"]
+
+---
+
+"synthetic_source_keep value is respected":
+  - requires:
+      cluster_features: ["mapper.counted_keyword.synthetic_source_native_support"]
+      reason: "Feature implemented"
+
+  - do:
+      indices.create:
+        index: test-events
+        body:
+          settings:
+            index:
+              mapping.source.mode: synthetic
+          mappings:
+            properties:
+              events:
+                type: counted_keyword
+                synthetic_source_keep: all
+
+  - do:
+      bulk:
+        index: test-events
+        refresh: true
+        body:
+          - '{"create":{"_id": "1"}}'
+          - '{"events": [ "a", "b", "a", "c" ] }'
+          - '{"create":{"_id": "2"}}'
+          - '{"events": ["b", "b", "c", "a", "b"] }'
+          - '{"create":{"_id": "3"}}'
+          - '{"events": ["c", "a", null, "b", null, "c"] }'
+          - '{"create":{"_id": "4"}}'
+          - '{"events": ["a"] }'
+          - '{"create":{"_id": "5"}}'
+          - '{"events": [] }'
+          - '{"create":{"_id": "6"}}'
+          - '{"events": [null, null] }'
+          - '{"create":{"_id": "7"}}'
+          - '{"events": [["a", "b"], "a", ["c"], [["b"], "c"]] }'
+
+  - do:
+      search:
+        index: test-events
+        body:
+          query:
+            ids:
+              values: [ 1 ]
+  - match:
+      hits.hits.0._source:
+        events: [ "a", "b", "a", "c" ]
+
+  - do:
+      search:
+        index: test-events
+        body:
+          query:
+            ids:
+              values: [ 2 ]
+  - match:
+      hits.hits.0._source:
+        events: [ "b", "b", "c", "a", "b" ]
+
+  - do:
+      search:
+        index: test-events
+        body:
+          query:
+            ids:
+              values: [ 3 ]
+  - match:
+      hits.hits.0._source:
+        events: [ "c", "a", null, "b", null, "c" ]
+
+  - do:
+      search:
+        index: test-events
+        body:
+          query:
+            ids:
+              values: [ 4 ]
+  - match:
+      hits.hits.0._source:
+        events: [ "a" ]
+
+  - do:
+      search:
+        index: test-events
+        body:
+          query:
+            ids:
+              values: [ 5 ]
+  - match:
+      hits.hits.0._source:
+        events: [ ]
+
+  - do:
+      search:
+        index: test-events
+        body:
+          query:
+            ids:
+              values: [ 6 ]
+  - match:
+      hits.hits.0._source:
+        events: [ null, null ]
+
+  - do:
+      search:
+        index: test-events
+        body:
+          query:
+            ids:
+              values: [ 7 ]
+  - match:
+      hits.hits.0._source:
+        events: [["a", "b"], "a", ["c"], [["b"], "c"]]
+
+---
+
+"synthetic_source_keep value is not inherited":
+  - requires:
+      cluster_features: ["mapper.counted_keyword.synthetic_source_native_support"]
+      reason: "Feature implemented"
+
+  - do:
+      indices.create:
+        index: test-events
+        body:
+          settings:
+            index:
+              mapping.source.mode: synthetic
+          mappings:
+            properties:
+              event-object:
+                type: object
+                synthetic_source_keep: arrays
+                properties:
+                  event-object-2:
+                    type: object
+                    properties:
+                      events:
+                        type: counted_keyword
+
+  - do:
+      bulk:
+        index: test-events
+        refresh: true
+        body:
+          - '{"create":{"_id": "1"}}'
+          - '{ "event-object": { "event-object-2": { "events": [ "a", "b", "a", "c" ] } } }'
+          - '{"create":{"_id": "2"}}'
+          - '{ "event-object": { "event-object-2": { "events": [ "b", "b", "c", "a", "b" ] } } }'
+          - '{"create":{"_id": "3"}}'
+          - '{ "event-object": { "event-object-2": { "events": [ "c", "a", null, "b", null, "c" ] } } }'
+          - '{"create":{"_id": "4"}}'
+          - '{ "event-object": { "event-object-2": { "events": [ "a" ] } } }'
+          - '{"create":{"_id": "5"}}'
+          - '{ "event-object": { "event-object-2": { "events": [ ] } } }'
+          - '{"create":{"_id": "6"}}'
+          - '{ "event-object": { "event-object-2": { "events": [ null, null ] } } }'
+          - '{"create":{"_id": "7"}}'
+          - '{ "event-object": { "event-object-2": { "events": [["a", "b"], "a", ["c"], [["b"], "c"]] } } }'
+
+  - do:
+      search:
+        index: test-events
+        body:
+          query:
+            ids:
+              values: [ 1 ]
+  - match:
+      hits.hits.0._source:
+        event-object:
+          event-object-2:
+            events: [ "a", "a", "b", "c" ]
+
+  - do:
+      search:
+        index: test-events
+        body:
+          query:
+            ids:
+              values: [ 2 ]
+  - match:
+      hits.hits.0._source:
+        event-object:
+          event-object-2:
+            events: [ "a", "b", "b", "b", "c" ]
+
+  - do:
+      search:
+        index: test-events
+        body:
+          query:
+            ids:
+              values: [ 3 ]
+  - match:
+      hits.hits.0._source:
+        event-object:
+          event-object-2:
+            events: [ "a", "b", "c", "c" ]
+
+  - do:
+      search:
+        index: test-events
+        body:
+          query:
+            ids:
+              values: [ 4 ]
+  - match:
+      hits.hits.0._source:
+        event-object:
+          event-object-2:
+            events: "a"
+
+  - do:
+      search:
+        index: test-events
+        body:
+          query:
+            ids:
+              values: [ 5 ]
+  - match:
+      hits.hits.0._source: {}
+
+  - do:
+      search:
+        index: test-events
+        body:
+          query:
+            ids:
+              values: [ 6 ]
+  - match:
+      hits.hits.0._source: {}
+
+  - do:
+      search:
+        index: test-events
+        body:
+          query:
+            ids:
+              values: [ 7 ]
+  - match:
+      hits.hits.0._source:
+        event-object:
+          event-object-2:
+            events: [ "a", "a", "b", "b", "c", "c" ]
+
+---
+
+"Index-level synthetic_source_keep value is respected":
+  - requires:
+      cluster_features: ["mapper.counted_keyword.synthetic_source_native_support"]
+      reason: "Feature implemented"
+
+  - do:
+      indices.create:
+        index: test-events
+        body:
+          settings:
+            index:
+              mapping.source.mode: synthetic
+              mapping.synthetic_source_keep: arrays
+          mappings:
+            properties:
+              events:
+                type: counted_keyword
+  - do:
+      bulk:
+        index: test-events
+        refresh: true
+        body:
+          - '{"create":{"_id": "1"}}'
+          - '{"events": [ "a", "b", "a", "c" ] }'
+          - '{"create":{"_id": "2"}}'
+          - '{"events": ["b", "b", "c", "a", "b"] }'
+          - '{"create":{"_id": "3"}}'
+          - '{"events": ["c", "a", null, "b", null, "c"] }'
+          - '{"create":{"_id": "4"}}'
+          - '{"events": ["a"] }'
+          - '{"create":{"_id": "5"}}'
+          - '{"events": [] }'
+          - '{"create":{"_id": "6"}}'
+          - '{"events": [null, null] }'
+          - '{"create":{"_id": "7"}}'
+          - '{"events": [["a", "b"], "a", ["c"], [["b"], "c"]] }'
+
+  - do:
+      search:
+        index: test-events
+        body:
+          query:
+            ids:
+              values: [ 1 ]
+  - match:
+      hits.hits.0._source:
+        events: [ "a", "b", "a", "c" ]
+
+  - do:
+      search:
+        index: test-events
+        body:
+          query:
+            ids:
+              values: [ 2 ]
+  - match:
+      hits.hits.0._source:
+        events: [ "b", "b", "c", "a", "b" ]
+
+  - do:
+      search:
+        index: test-events
+        body:
+          query:
+            ids:
+              values: [ 3 ]
+  - match:
+      hits.hits.0._source:
+        events: [ "c", "a", null, "b", null, "c" ]
+
+  - do:
+      search:
+        index: test-events
+        body:
+          query:
+            ids:
+              values: [ 4 ]
+  - match:
+      hits.hits.0._source:
+        events: [ "a" ]
+
+  - do:
+      search:
+        index: test-events
+        body:
+          query:
+            ids:
+              values: [ 5 ]
+  - match:
+      hits.hits.0._source:
+        events: [ ]
+
+  - do:
+      search:
+        index: test-events
+        body:
+          query:
+            ids:
+              values: [ 6 ]
+  - match:
+      hits.hits.0._source:
+        events: [ null, null ]
+
+  - do:
+      search:
+        index: test-events
+        body:
+          query:
+            ids:
+              values: [ 7 ]
+  - match:
+      hits.hits.0._source:
+        events: [["a", "b"], "a", ["c"], [["b"], "c"]]
+
+---
+
+"synthetic source arrays moved to leaf fields":
+  - requires:
+      cluster_features: ["mapper.counted_keyword.synthetic_source_native_support"]
+      reason: "Feature implemented"
+
+  - do:
+      indices.create:
+        index: test-events
+        body:
+          settings:
+            index:
+              mapping.source.mode: synthetic
+          mappings:
+            properties:
+              event-object:
+                type: object
+                properties:
+                  events:
+                    type: counted_keyword
+
+  - do:
+      bulk:
+        index: test-events
+        refresh: true
+        body:
+          - '{"create":{"_id": "1"}}'
+          - '{ "event-object": [ { "events": [ "a", "b"] }, { "events": [ "a", "c" ] } ] }'
+          - '{"create":{"_id": "2"}}'
+          - '{ "event-object": [ { "events": [ "b", "b"] }, { "events": "c" }, { "events": [ "a", "b" ] } ] }'
+          - '{"create":{"_id": "3"}}'
+          - '{ "event-object": [ { "events": [ "c", "a", null ] }, { "events": [ "b", null, "c" ] } ] }'
+          - '{"create":{"_id": "4"}}'
+          - '{ "event-object": [ { "events": [ "a" ] }, { "events": [] }, { "events": [ null ] } ] }'
+          - '{"create":{"_id": "5"}}'
+          - '{ "event-object": [] }'
+          - '{"create":{"_id": "6"}}'
+          - '{ "event-object": [ { "events": [ null ] }, { "events": null } ] }'
+          - '{"create":{"_id": "7"}}'
+          - '{ "event-object": [ { "events": [["a", "b"], "a"]}, { "events": [["c"], [["b"], "c"]] } ] }'
+
+  - do:
+      search:
+        index: test-events
+        body:
+          query:
+            ids:
+              values: [ 1 ]
+  - match:
+      hits.hits.0._source:
+        event-object:
+          events: [ "a", "a", "b", "c" ]
+
+  - do:
+      search:
+        index: test-events
+        body:
+          query:
+            ids:
+              values: [ 2 ]
+  - match:
+      hits.hits.0._source:
+        event-object:
+          events: [ "a", "b", "b", "b", "c" ]
+
+  - do:
+      search:
+        index: test-events
+        body:
+          query:
+            ids:
+              values: [ 3 ]
+  - match:
+      hits.hits.0._source:
+        event-object:
+          events: [ "a", "b", "c", "c" ]
+
+  - do:
+      search:
+        index: test-events
+        body:
+          query:
+            ids:
+              values: [ 4 ]
+  - match:
+      hits.hits.0._source:
+        event-object:
+          events: "a"
+
+  - do:
+      search:
+        index: test-events
+        body:
+          query:
+            ids:
+              values: [ 5 ]
+  - match:
+      hits.hits.0._source: {}
+
+  - do:
+      search:
+        index: test-events
+        body:
+          query:
+            ids:
+              values: [ 6 ]
+  - match:
+      hits.hits.0._source: {}
+
+  - do:
+      search:
+        index: test-events
+        body:
+          query:
+            ids:
+              values: [ 7 ]
+  - match:
+      hits.hits.0._source:
+        event-object:
+          events: [ "a", "a", "b", "b", "c", "c" ]

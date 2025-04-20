@@ -11,6 +11,7 @@ import org.apache.lucene.search.DocIdStream;
 import org.apache.lucene.search.LeafCollector;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.Scorable;
+import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Weight;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BooleanBlock;
@@ -48,7 +49,16 @@ public class LuceneCountOperator extends LuceneOperator {
             int taskConcurrency,
             int limit
         ) {
-            super(contexts, queryFunction, dataPartitioning, taskConcurrency, limit);
+            super(
+                contexts,
+                queryFunction,
+                dataPartitioning,
+                query -> LuceneSliceQueue.PartitioningStrategy.SHARD,
+                taskConcurrency,
+                limit,
+                false,
+                ScoreMode.COMPLETE_NO_SCORES
+            );
         }
 
         @Override
@@ -137,7 +147,6 @@ public class LuceneCountOperator extends LuceneOperator {
             Page page = null;
             // emit only one page
             if (remainingDocs <= 0 && pagesEmitted == 0) {
-                pagesEmitted++;
                 LongBlock count = null;
                 BooleanBlock seen = null;
                 try {

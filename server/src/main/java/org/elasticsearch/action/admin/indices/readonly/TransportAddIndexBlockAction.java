@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.admin.indices.readonly;
@@ -20,10 +21,12 @@ import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MetadataIndexStateService;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -45,6 +48,8 @@ public class TransportAddIndexBlockAction extends TransportMasterNodeAction<AddI
     private static final Logger logger = LogManager.getLogger(TransportAddIndexBlockAction.class);
 
     private final MetadataIndexStateService indexStateService;
+    private final ProjectResolver projectResolver;
+    private final IndexNameExpressionResolver indexNameExpressionResolver;
     private final DestructiveOperations destructiveOperations;
 
     @Inject
@@ -54,6 +59,7 @@ public class TransportAddIndexBlockAction extends TransportMasterNodeAction<AddI
         ThreadPool threadPool,
         MetadataIndexStateService indexStateService,
         ActionFilters actionFilters,
+        ProjectResolver projectResolver,
         IndexNameExpressionResolver indexNameExpressionResolver,
         DestructiveOperations destructiveOperations
     ) {
@@ -64,11 +70,12 @@ public class TransportAddIndexBlockAction extends TransportMasterNodeAction<AddI
             threadPool,
             actionFilters,
             AddIndexBlockRequest::new,
-            indexNameExpressionResolver,
             AddIndexBlockResponse::new,
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
         this.indexStateService = indexStateService;
+        this.projectResolver = projectResolver;
+        this.indexNameExpressionResolver = indexNameExpressionResolver;
         this.destructiveOperations = destructiveOperations;
     }
 
@@ -84,8 +91,13 @@ public class TransportAddIndexBlockAction extends TransportMasterNodeAction<AddI
             && state.blocks().global(ClusterBlockLevel.METADATA_WRITE).isEmpty()) {
             return null;
         }
+        final ProjectMetadata projectMetadata = projectResolver.getProjectMetadata(state);
         return state.blocks()
-            .indicesBlockedException(ClusterBlockLevel.METADATA_WRITE, indexNameExpressionResolver.concreteIndexNames(state, request));
+            .indicesBlockedException(
+                projectMetadata.id(),
+                ClusterBlockLevel.METADATA_WRITE,
+                indexNameExpressionResolver.concreteIndexNames(projectMetadata, request)
+            );
     }
 
     @Override
@@ -101,13 +113,20 @@ public class TransportAddIndexBlockAction extends TransportMasterNodeAction<AddI
             return;
         }
 
-        final AddIndexBlockClusterStateUpdateRequest addBlockRequest = new AddIndexBlockClusterStateUpdateRequest(
-            request.getBlock(),
-            task.getId()
-        ).ackTimeout(request.ackTimeout()).masterNodeTimeout(request.masterNodeTimeout()).indices(concreteIndices);
-        indexStateService.addIndexBlock(addBlockRequest, listener.delegateResponse((delegatedListener, t) -> {
-            logger.debug(() -> "failed to mark indices as readonly [" + Arrays.toString(concreteIndices) + "]", t);
-            delegatedListener.onFailure(t);
-        }));
+        indexStateService.addIndexBlock(
+            new AddIndexBlockClusterStateUpdateRequest(
+                request.masterNodeTimeout(),
+                request.ackTimeout(),
+                projectResolver.getProjectId(),
+                request.getBlock(),
+                request.markVerified(),
+                task.getId(),
+                concreteIndices
+            ),
+            listener.delegateResponse((delegatedListener, t) -> {
+                logger.debug(() -> "failed to mark indices as readonly [" + Arrays.toString(concreteIndices) + "]", t);
+                delegatedListener.onFailure(t);
+            })
+        );
     }
 }

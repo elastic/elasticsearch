@@ -130,7 +130,7 @@ public class PhaseExecutionInfo implements ToXContentObject, Writeable {
             builder.field(PHASE_DEFINITION_FIELD.getPreferredName(), phase);
         }
         builder.field(VERSION_FIELD.getPreferredName(), version);
-        builder.timeField(MODIFIED_DATE_IN_MILLIS_FIELD.getPreferredName(), "modified_date", modifiedDate);
+        builder.timestampFieldsFromUnixEpochMillis(MODIFIED_DATE_IN_MILLIS_FIELD.getPreferredName(), "modified_date", modifiedDate);
         builder.endObject();
         return builder;
     }

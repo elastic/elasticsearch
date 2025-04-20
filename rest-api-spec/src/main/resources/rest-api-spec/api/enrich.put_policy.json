@@ -27,6 +27,12 @@
     "body": {
       "description": "The enrich policy to register",
       "required": true
+    },
+    "params": {
+      "master_timeout":{
+        "type":"time",
+        "description":"Timeout for processing on master node"
+      }
     }
   }
 }

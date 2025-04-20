@@ -17,7 +17,7 @@ import org.elasticsearch.core.Releasables;
 
 /**
  * Generic {@link Block#lookup} implementation {@link $Type$Block}s.
- * This class is generated. Do not edit it.
+ * This class is generated. Edit {@code X-Lookup.java.st} instead.
  */
 final class $Type$Lookup implements ReleasableIterator<$Type$Block> {
 $if(BytesRef)$

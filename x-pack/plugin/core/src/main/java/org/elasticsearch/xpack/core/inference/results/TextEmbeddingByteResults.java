@@ -10,17 +10,21 @@
 package org.elasticsearch.xpack.core.inference.results;
 
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.xcontent.ChunkedToXContentHelper;
 import org.elasticsearch.inference.InferenceResults;
-import org.elasticsearch.inference.InferenceServiceResults;
+import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContent;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xpack.core.ml.inference.results.MlTextEmbeddingResults;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -29,7 +33,7 @@ import java.util.Objects;
 /**
  * Writes a text embedding result in the follow json format
  * {
- *     "text_embedding": [
+ *     "text_embedding_bytes": [
  *         {
  *             "embedding": [
  *                 23
@@ -43,27 +47,25 @@ import java.util.Objects;
  *     ]
  * }
  */
-public record TextEmbeddingByteResults(List<Embedding> embeddings) implements InferenceServiceResults, TextEmbedding {
+public record TextEmbeddingByteResults(List<Embedding> embeddings) implements TextEmbeddingResults<TextEmbeddingByteResults.Embedding> {
     public static final String NAME = "text_embedding_service_byte_results";
     public static final String TEXT_EMBEDDING_BYTES = "text_embedding_bytes";
 
     public TextEmbeddingByteResults(StreamInput in) throws IOException {
-        this(in.readCollectionAsList(Embedding::new));
+        this(in.readCollectionAsList(TextEmbeddingByteResults.Embedding::new));
     }
 
     @Override
     public int getFirstEmbeddingSize() {
-        return TextEmbeddingUtils.getFirstEmbeddingSize(new ArrayList<>(embeddings));
+        if (embeddings.isEmpty()) {
+            throw new IllegalStateException("Embeddings list is empty");
+        }
+        return embeddings.getFirst().values().length;
     }
 
     @Override
-    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startArray(TEXT_EMBEDDING_BYTES);
-        for (Embedding embedding : embeddings) {
-            embedding.toXContent(builder, params);
-        }
-        builder.endArray();
-        return builder;
+    public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params params) {
+        return ChunkedToXContentHelper.array(TEXT_EMBEDDING_BYTES, embeddings.iterator());
     }
 
     @Override
@@ -79,24 +81,8 @@ public record TextEmbeddingByteResults(List<Embedding> embeddings) implements In
     @Override
     public List<? extends InferenceResults> transformToCoordinationFormat() {
         return embeddings.stream()
-            .map(
-                embedding -> new org.elasticsearch.xpack.core.ml.inference.results.TextEmbeddingResults(
-                    TEXT_EMBEDDING_BYTES,
-                    embedding.toDoubleArray(),
-                    false
-                )
-            )
+            .map(embedding -> new MlTextEmbeddingResults(TEXT_EMBEDDING_BYTES, embedding.toDoubleArray(), false))
             .toList();
-    }
-
-    @Override
-    @SuppressWarnings("deprecation")
-    public List<? extends InferenceResults> transformToLegacyFormat() {
-        var legacyEmbedding = new LegacyTextEmbeddingResults(
-            embeddings.stream().map(embedding -> new LegacyTextEmbeddingResults.Embedding(embedding.toFloatArray())).toList()
-        );
-
-        return List.of(legacyEmbedding);
     }
 
     public Map<String, Object> asMap() {
@@ -119,8 +105,19 @@ public record TextEmbeddingByteResults(List<Embedding> embeddings) implements In
         return Objects.hash(embeddings);
     }
 
-    public record Embedding(byte[] values) implements Writeable, ToXContentObject, EmbeddingInt {
+    // Note: the field "numberOfMergedEmbeddings" is not serialized, so merging
+    // embeddings should happen inbetween serializations.
+    public record Embedding(byte[] values, int[] sumMergedValues, int numberOfMergedEmbeddings)
+        implements
+            Writeable,
+            ToXContentObject,
+            EmbeddingResults.Embedding<Embedding> {
+
         public static final String EMBEDDING = "embedding";
+
+        public Embedding(byte[] values) {
+            this(values, null, 1);
+        }
 
         public Embedding(StreamInput in) throws IOException {
             this(in.readByteArray());
@@ -158,7 +155,7 @@ public record TextEmbeddingByteResults(List<Embedding> embeddings) implements In
             return Strings.toString(this);
         }
 
-        private float[] toFloatArray() {
+        float[] toFloatArray() {
             float[] floatArray = new float[values.length];
             for (int i = 0; i < values.length; i++) {
                 floatArray[i] = ((Byte) values[i]).floatValue();
@@ -166,17 +163,12 @@ public record TextEmbeddingByteResults(List<Embedding> embeddings) implements In
             return floatArray;
         }
 
-        private double[] toDoubleArray() {
+        double[] toDoubleArray() {
             double[] doubleArray = new double[values.length];
             for (int i = 0; i < values.length; i++) {
-                doubleArray[i] = ((Byte) values[i]).floatValue();
+                doubleArray[i] = ((Byte) values[i]).doubleValue();
             }
             return doubleArray;
-        }
-
-        @Override
-        public int getSize() {
-            return values().length;
         }
 
         @Override
@@ -190,6 +182,32 @@ public record TextEmbeddingByteResults(List<Embedding> embeddings) implements In
         @Override
         public int hashCode() {
             return Arrays.hashCode(values);
+        }
+
+        @Override
+        public Embedding merge(Embedding embedding) {
+            byte[] newValues = new byte[values.length];
+            int[] newSumMergedValues = new int[values.length];
+            int newNumberOfMergedEmbeddings = numberOfMergedEmbeddings + embedding.numberOfMergedEmbeddings;
+            for (int i = 0; i < values.length; i++) {
+                newSumMergedValues[i] = (numberOfMergedEmbeddings == 1 ? values[i] : sumMergedValues[i])
+                    + (embedding.numberOfMergedEmbeddings == 1 ? embedding.values[i] : embedding.sumMergedValues[i]);
+                // Add (newNumberOfMergedEmbeddings / 2) in the numerator to round towards the
+                // closest byte instead of truncating.
+                newValues[i] = (byte) ((newSumMergedValues[i] + newNumberOfMergedEmbeddings / 2) / newNumberOfMergedEmbeddings);
+            }
+            return new Embedding(newValues, newSumMergedValues, newNumberOfMergedEmbeddings);
+        }
+
+        @Override
+        public BytesReference toBytesRef(XContent xContent) throws IOException {
+            XContentBuilder builder = XContentBuilder.builder(xContent);
+            builder.startArray();
+            for (byte value : values) {
+                builder.value(value);
+            }
+            builder.endArray();
+            return BytesReference.bytes(builder);
         }
     }
 }

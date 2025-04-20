@@ -193,4 +193,83 @@ public class DocumentMapper {
             this.mappingLookup.checkLimits(settings);
         }
     }
+
+    public void validate(IndexSettings settings, boolean checkLimits) {
+        this.mapping().validate(this.mappingLookup);
+    
+        // Check required routing for partitioned index
+        if (settings.getIndexMetadata().isRoutingPartitionedIndex()) {
+            if (routingFieldMapper().required() == false) {
+                throw new IllegalArgumentException(
+                    "mapping type [" + type() + "] must have routing required for partitioned index ["
+                        + settings.getIndex().getName() + "]"
+                );
+            }
+        }
+    
+        // Validate index mode compatibility
+        settings.getMode().validateMapping(mappingLookup);
+    
+        // Check source loader compatibility
+        try {
+            mappingLookup.newSourceLoader(null, mapperMetrics.sourceFieldMetrics());
+        } catch (IllegalArgumentException e) {
+            mapperMetrics.sourceFieldMetrics().recordSyntheticSourceIncompatibleMapping();
+            throw e;
+        }
+    
+        // Validate nested index sort compatibility
+        if (settings.getIndexSortConfig().hasIndexSort() && mappers().nestedLookup() != NestedLookup.EMPTY) {
+            if (indexVersion.before(IndexVersions.INDEX_SORTING_ON_NESTED)) {
+                throw new IllegalArgumentException("cannot have nested fields when index sort is activated");
+            }
+            for (String field : settings.getValue(IndexSortConfig.INDEX_SORT_FIELD_SETTING)) {
+                NestedObjectMapper nestedMapper = mappers().nestedLookup().getNestedMappers().get(field);
+                String nestedParent = nestedMapper != null ? nestedMapper.fullPath() : mappers().nestedLookup().getNestedParent(field);
+                if (nestedParent != null) {
+                    throw new IllegalArgumentException(
+                        "cannot apply index sort to field [" + field + "] under nested object [" + nestedParent + "]"
+                    );
+                }
+            }
+        }
+    
+        // Validate routing paths
+        List<String> routingPaths = settings.getIndexMetadata().getRoutingPaths();
+        for (String path : routingPaths) {
+            if (settings.getMode() == IndexMode.TIME_SERIES) {
+                for (String match : mappingLookup.getMatchingFieldNames(path)) {
+                    mappingLookup.getFieldType(match).validateMatchedRoutingPath(path);
+                }
+            }
+            for (String objectName : mappingLookup.objectMappers().keySet()) {
+                if (path.equals(objectName)) {
+                    throw new IllegalArgumentException(
+                        "All fields that match routing_path must be flattened fields. [" + objectName + "] was [object]."
+                    );
+                }
+            }
+        }
+    
+        // -------- Begin fix for issue #112812 --------
+        // If dynamic mapping is disabled, validate copy_to targets exist in mappings
+        if (settings.isDynamicMappingEnabled() == false) {
+            for (FieldMapper mapper : mapping().getRoot().mappers()) {
+                for (String copyToTarget : mapper.copyTo().copyToFields()) {
+                    if (mappingLookup.getFieldType(copyToTarget) == null) {
+                        throw new IllegalArgumentException(
+                            "Field [" + mapper.name() + "] specifies copy_to for a non-existent field [" + copyToTarget + "] " +
+                            "but dynamic mappings are disabled"
+                        );
+                    }
+                }
+            }
+        }
+        // -------- End fix for issue #112812 --------
+    
+        // Final check of mapping limits
+        if (checkLimits) {
+            this.mappingLookup.checkLimits(settings);
+        }
+    }
 }

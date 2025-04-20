@@ -404,32 +404,25 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
         int resultSetSize,
         AggregationReduceContext reduceContext
     ) {
-        Iterator<InternalAggregations> aggsIter = Iterators.map(toConsume, r -> {
-            try (var res = r.consumeAggs()) {
-                return res.expand();
-            }
-        });
-        aggsIter = partialResults.hasNext() ? Iterators.concat(Iterators.map(partialResults, r -> {
-            try (r) {
-                return r.expand();
-            }
-        }), aggsIter) : aggsIter;
-        final InternalAggregations first = aggsIter.next();
-        if (resultSetSize == 1) {
-            return InternalAggregations.reduce(first, reduceContext);
-        }
         try {
+            Iterator<InternalAggregations> aggsIter = Iterators.map(toConsume, r -> {
+                try (var res = r.consumeAggs()) {
+                    return res.expand();
+                }
+            });
+            aggsIter = partialResults.hasNext() ? Iterators.concat(Iterators.map(partialResults, r -> {
+                try (r) {
+                    return r.expand();
+                }
+            }), aggsIter) : aggsIter;
+            final InternalAggregations first = aggsIter.next();
+            if (resultSetSize == 1) {
+                return InternalAggregations.reduce(first, reduceContext);
+            }
             // general case
             try (var reducer = new AggregatorsReducer(first, reduceContext, resultSetSize)) {
                 reducer.accept(first);
                 aggsIter.forEachRemaining(reducer::accept);
-                while (toConsume.hasNext()) {
-                    final InternalAggregations next;
-                    try (var delayable = toConsume.next().consumeAggs()) {
-                        next = delayable.expand();
-                    }
-                    reducer.accept(next);
-                }
                 return reducer.get();
             }
         } finally {

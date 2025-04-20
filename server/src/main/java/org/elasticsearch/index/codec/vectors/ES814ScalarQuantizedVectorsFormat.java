@@ -38,6 +38,7 @@ import org.elasticsearch.simdvec.VectorScorerFactory;
 import org.elasticsearch.simdvec.VectorSimilarityType;
 
 import java.io.IOException;
+import java.util.Map;
 
 import static org.apache.lucene.codecs.lucene99.Lucene99ScalarQuantizedVectorsFormat.DYNAMIC_CONFIDENCE_INTERVAL;
 import static org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.MAX_DIMS_COUNT;
@@ -226,6 +227,11 @@ public class ES814ScalarQuantizedVectorsFormat extends FlatVectorsFormat {
         @Override
         public long ramBytesUsed() {
             return delegate.ramBytesUsed();
+        }
+
+        @Override
+        public Map<String, Long> getOffHeapByteSize(FieldInfo fieldInfo) {
+            return delegate.getOffHeapByteSize(fieldInfo);
         }
     }
 

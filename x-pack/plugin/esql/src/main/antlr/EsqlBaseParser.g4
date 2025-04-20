@@ -55,10 +55,10 @@ processingCommand
     | enrichCommand
     | mvExpandCommand
     | joinCommand
+    | changePointCommand
     // in development
     | {this.isDevVersion()}? inlinestatsCommand
     | {this.isDevVersion()}? lookupCommand
-    | {this.isDevVersion()}? changePointCommand
     | {this.isDevVersion()}? completionCommand
     | {this.isDevVersion()}? insistCommand
     | {this.isDevVersion()}? forkCommand
@@ -100,7 +100,7 @@ indexPatternAndMetadataFields:
 
 indexPattern
     : (clusterString COLON)? indexString
-    | {this.isDevVersion()}? indexString (CAST_OP selectorString)?
+    | indexString (CAST_OP selectorString)?
     ;
 
 clusterString
@@ -257,7 +257,7 @@ inlinestatsCommand
     ;
 
 changePointCommand
-    : DEV_CHANGE_POINT value=qualifiedName (ON key=qualifiedName)? (AS targetType=qualifiedName COMMA targetPvalue=qualifiedName)?
+    : CHANGE_POINT value=qualifiedName (ON key=qualifiedName)? (AS targetType=qualifiedName COMMA targetPvalue=qualifiedName)?
     ;
 
 insistCommand

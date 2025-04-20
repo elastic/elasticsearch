@@ -222,7 +222,7 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
         }
         final int resultSize = buffer.size() + (mergeResult == null ? 0 : 1) + batchedResults.size();
         final List<TopDocs> topDocsList = hasTopDocs ? new ArrayList<>(resultSize) : null;
-        final Deque<DelayableWriteable<InternalAggregations>> aggsList = hasAggs ? new ArrayDeque<>(resultSize) : null;
+        final Deque<DelayableWriteable<InternalAggregations>> aggsList = hasAggs && resultSize > 0 ? new ArrayDeque<>(resultSize) : null;
         // consume partial merge result from the un-batched execution path that is used for BwC, shard-level retries, and shard level
         // execution for shards on the coordinating node itself
         if (mergeResult != null) {

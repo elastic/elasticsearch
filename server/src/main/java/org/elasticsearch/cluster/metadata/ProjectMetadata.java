@@ -1944,11 +1944,10 @@ public class ProjectMetadata implements Iterable<IndexMetadata>, Diffable<Projec
         private static boolean assertContainsIndexIfDataStream(DataStream parent, IndexMetadata indexMetadata) {
             assert parent == null
                 || parent.getIndices().stream().anyMatch(index -> indexMetadata.getIndex().getName().equals(index.getName()))
-                || (DataStream.isFailureStoreFeatureFlagEnabled()
-                    && parent.getFailureComponent()
-                        .getIndices()
-                        .stream()
-                        .anyMatch(index -> indexMetadata.getIndex().getName().equals(index.getName())))
+                || parent.getFailureComponent()
+                    .getIndices()
+                    .stream()
+                    .anyMatch(index -> indexMetadata.getIndex().getName().equals(index.getName()))
                 : "Expected data stream [" + parent.getName() + "] to contain index " + indexMetadata.getIndex();
             return true;
         }
@@ -1970,10 +1969,8 @@ public class ProjectMetadata implements Iterable<IndexMetadata>, Diffable<Projec
                 for (Index i : dataStream.getIndices()) {
                     indexToDataStreamLookup.put(i.getName(), dataStream);
                 }
-                if (DataStream.isFailureStoreFeatureFlagEnabled()) {
-                    for (Index i : dataStream.getFailureIndices()) {
-                        indexToDataStreamLookup.put(i.getName(), dataStream);
-                    }
+                for (Index i : dataStream.getFailureIndices()) {
+                    indexToDataStreamLookup.put(i.getName(), dataStream);
                 }
             }
         }

@@ -426,6 +426,9 @@ tests:
 - class: org.elasticsearch.multiproject.test.XpackWithMultipleProjectsClientYamlTestSuiteIT
   method: test {yaml=esql/10_basic/basic with documents_found}
   issue: https://github.com/elastic/elasticsearch/issues/127088
+- class: org.elasticsearch.xpack.esql.qa.single_node.EsqlClientYamlAsyncIT
+  method: test {p0=esql/10_basic/basic with documents_found}
+  issue: https://github.com/elastic/elasticsearch/issues/127080
 
 # Examples:
 #

@@ -117,7 +117,7 @@ public class KnnSearchIT extends ESIntegTestCase {
         try {
             do {
                 assertThat(searchResponse.getScrollId(), notNullValue());
-                assertEquals(expectedNumHits, searchResponse.getHits().getTotalHits().value());
+                assertEquals(expectedNumHits, searchResponse.getHits().getTotalHits().value);
                 // assert correct order of returned hits
                 for (var searchHit : searchResponse.getHits()) {
                     assert (searchHit.getScore() <= prevScore);

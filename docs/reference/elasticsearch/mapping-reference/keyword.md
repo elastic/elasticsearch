@@ -70,7 +70,7 @@ The following parameters are accepted by `keyword` fields:
 :   Multi-fields allow the same string value to be indexed in multiple ways for different purposes, such as one field for search and a multi-field for sorting and aggregations.
 
 [`ignore_above`](/reference/elasticsearch/mapping-reference/ignore-above.md)
-:   Do not index any string longer than this value. Defaults to `2147483647` so that all values would be accepted. Please however note that default dynamic mapping rules create a sub `keyword` field that overrides this default by setting `ignore_above: 256`.
+:   Do not index any string longer than this value. Defaults to `2147483647` in standard indices so that all values would be accepted, and `8191` in logsdb indices to protect against Lucene's term byte-length limit of `32766`. Please however note that default dynamic mapping rules create a sub `keyword` field that overrides this default by setting `ignore_above: 256`.
 
 [`index`](/reference/elasticsearch/mapping-reference/mapping-index.md)
 :   Should the field be quickly searchable? Accepts `true` (default) and `false`. `keyword` fields that only have [`doc_values`](/reference/elasticsearch/mapping-reference/doc-values.md) enabled can still be queried, albeit slower.
@@ -376,7 +376,7 @@ The following parameters are accepted by `wildcard` fields:
 :   Accepts a string value which is substituted for any explicit `null` values. Defaults to `null`, which means the field is treated as missing.
 
 [`ignore_above`](/reference/elasticsearch/mapping-reference/ignore-above.md)
-:   Do not index any string longer than this value. Defaults to `2147483647` so that all values would be accepted.
+:   Do not index any string longer than this value. Defaults to `2147483647` in standard indices so that all values would be accepted, and `8191` in logsdb indices to protect against Lucene's term byte-length limit of `32766`.
 
 
 ### Limitations [_limitations]

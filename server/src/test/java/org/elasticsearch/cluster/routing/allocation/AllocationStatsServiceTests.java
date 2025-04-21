@@ -21,6 +21,7 @@ import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
+import org.elasticsearch.cluster.routing.allocation.allocator.BalancerSettings;
 import org.elasticsearch.cluster.routing.allocation.allocator.DesiredBalance;
 import org.elasticsearch.cluster.routing.allocation.allocator.DesiredBalanceShardsAllocator;
 import org.elasticsearch.cluster.routing.allocation.allocator.ShardAssignment;
@@ -84,7 +85,7 @@ public class AllocationStatsServiceTests extends ESAllocationTestCase {
                 clusterService,
                 () -> clusterInfo,
                 createShardAllocator(),
-                new NodeAllocationStatsAndWeightsCalculator(TEST_WRITE_LOAD_FORECASTER, ClusterSettings.createBuiltInClusterSettings())
+                new NodeAllocationStatsAndWeightsCalculator(TEST_WRITE_LOAD_FORECASTER, BalancerSettings.DEFAULT)
             );
             assertThat(
                 service.stats(),
@@ -125,7 +126,7 @@ public class AllocationStatsServiceTests extends ESAllocationTestCase {
                 clusterService,
                 EmptyClusterInfoService.INSTANCE,
                 createShardAllocator(),
-                new NodeAllocationStatsAndWeightsCalculator(TEST_WRITE_LOAD_FORECASTER, ClusterSettings.createBuiltInClusterSettings())
+                new NodeAllocationStatsAndWeightsCalculator(TEST_WRITE_LOAD_FORECASTER, BalancerSettings.DEFAULT)
             );
             assertThat(
                 service.stats(),
@@ -182,7 +183,7 @@ public class AllocationStatsServiceTests extends ESAllocationTestCase {
                         );
                     }
                 },
-                new NodeAllocationStatsAndWeightsCalculator(TEST_WRITE_LOAD_FORECASTER, ClusterSettings.createBuiltInClusterSettings())
+                new NodeAllocationStatsAndWeightsCalculator(TEST_WRITE_LOAD_FORECASTER, BalancerSettings.DEFAULT)
             );
             assertThat(
                 service.stats(),

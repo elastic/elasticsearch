@@ -9,6 +9,7 @@
 
 package org.elasticsearch.index.mapper;
 
+import org.apache.lucene.document.InetAddressPoint;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.PostingsEnum;
 import org.apache.lucene.index.SortedSetDocValues;
@@ -20,6 +21,7 @@ import org.apache.lucene.util.UnicodeUtil;
 import org.elasticsearch.search.fetch.StoredFieldsSpec;
 
 import java.io.IOException;
+import java.net.InetAddress;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
@@ -378,6 +380,46 @@ public abstract class BlockSourceReader implements BlockLoader.RowStrideReader {
         @Override
         public String toString() {
             return "BlockSourceReader.Longs";
+        }
+    }
+
+    /**
+     * Load {@code ip}s from {@code _source}.
+     */
+    public static class IpsBlockLoader extends SourceBlockLoader {
+        public IpsBlockLoader(ValueFetcher fetcher, LeafIteratorLookup lookup) {
+            super(fetcher, lookup);
+        }
+
+        @Override
+        public Builder builder(BlockFactory factory, int expectedCount) {
+            return factory.bytesRefs(expectedCount);
+        }
+
+        @Override
+        public RowStrideReader rowStrideReader(LeafReaderContext context, DocIdSetIterator iter) {
+            return new Ips(fetcher, iter);
+        }
+
+        @Override
+        protected String name() {
+            return "Ips";
+        }
+    }
+
+    private static class Ips extends BlockSourceReader {
+        Ips(ValueFetcher fetcher, DocIdSetIterator iter) {
+            super(fetcher, iter);
+        }
+
+        @Override
+        protected void append(BlockLoader.Builder builder, Object v) {
+            ((BlockLoader.BytesRefBuilder) builder).appendBytesRef(new BytesRef(InetAddressPoint.encode((InetAddress) v)));
+        }
+
+        @Override
+        public String toString() {
+            return "BlockSourceReader.Ips";
         }
     }
 

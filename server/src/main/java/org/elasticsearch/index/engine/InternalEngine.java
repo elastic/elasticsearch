@@ -2063,6 +2063,7 @@ public class InternalEngine extends Engine {
                         engineReadLock.lock();
                         try {
                             referenceManager.maybeRefreshBlocking();
+                            segmentGeneration = segmentGenerationAfterRefresh(referenceManager, generationBeforeRefresh);
                             refreshed = true;
                         } finally {
                             engineReadLock.unlock();
@@ -2071,18 +2072,12 @@ public class InternalEngine extends Engine {
                         if (engineReadLock.tryLock()) {
                             try {
                                 refreshed = referenceManager.maybeRefresh();
+                                if (refreshed) {
+                                    segmentGeneration = segmentGenerationAfterRefresh(referenceManager, generationBeforeRefresh);
+                                }
                             } finally {
                                 engineReadLock.unlock();
                             }
-                        }
-                    }
-                    if (refreshed) {
-                        final ElasticsearchDirectoryReader current = referenceManager.acquire();
-                        try {
-                            // Just use the generation from the reader when https://github.com/apache/lucene/pull/12177 is included.
-                            segmentGeneration = Math.max(current.getIndexCommit().getGeneration(), generationBeforeRefresh);
-                        } finally {
-                            referenceManager.release(current);
                         }
                     }
                 } finally {
@@ -2118,6 +2113,21 @@ public class InternalEngine extends Engine {
         mergeScheduler.refreshConfig();
         long primaryTerm = config().getPrimaryTermSupplier().getAsLong();
         return new RefreshResult(refreshed, primaryTerm, segmentGeneration);
+    }
+
+    private long segmentGenerationAfterRefresh(
+        ReferenceManager<ElasticsearchDirectoryReader> referenceManager,
+        long generationBeforeRefresh
+    ) throws IOException {
+        assert store.hasReferences();
+        assert engineConfig.getEngineResetLock().isReadLockedByCurrentThread() : "prevent concurrent engine resets";
+        final ElasticsearchDirectoryReader current = referenceManager.acquire();
+        try {
+            // Just use the generation from the reader when https://github.com/apache/lucene/pull/12177 is included.
+            return Math.max(current.getIndexCommit().getGeneration(), generationBeforeRefresh);
+        } finally {
+            referenceManager.release(current);
+        }
     }
 
     @Override

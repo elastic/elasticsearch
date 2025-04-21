@@ -7,15 +7,21 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-package org.elasticsearch.index.codec.vectors.es818;
+package org.elasticsearch.index.codec.vectors;
 
 import org.apache.lucene.index.VectorSimilarityFunction;
 import org.apache.lucene.util.VectorUtil;
+import org.elasticsearch.simdvec.ESVectorUtil;
 
 import static org.apache.lucene.index.VectorSimilarityFunction.COSINE;
 import static org.apache.lucene.index.VectorSimilarityFunction.EUCLIDEAN;
 
-class OptimizedScalarQuantizer {
+public class OptimizedScalarQuantizer {
+    public static void initInterval(byte bits, float vecStd, float vecMean, float min, float max, float[] initInterval) {
+        initInterval[0] = (float) clamp(MINIMUM_MSE_GRID[bits - 1][0] * vecStd + vecMean, min, max);
+        initInterval[1] = (float) clamp(MINIMUM_MSE_GRID[bits - 1][1] * vecStd + vecMean, min, max);
+    }
+
     // The initial interval is set to the minimum MSE grid for each number of bits
     // these starting points are derived from the optimal MSE grid for a uniform distribution
     static final float[][] MINIMUM_MSE_GRID = new float[][] {
@@ -27,19 +33,25 @@ class OptimizedScalarQuantizer {
         { -3.278f, 3.278f },
         { -3.611f, 3.611f },
         { -3.922f, 3.922f } };
-    private static final float DEFAULT_LAMBDA = 0.1f;
+    public static final float DEFAULT_LAMBDA = 0.1f;
     private static final int DEFAULT_ITERS = 5;
     private final VectorSimilarityFunction similarityFunction;
     private final float lambda;
     private final int iters;
+    private final float[] statsScratch;
+    private final float[] gridScratch;
+    private final float[] intervalScratch;
 
-    OptimizedScalarQuantizer(VectorSimilarityFunction similarityFunction, float lambda, int iters) {
+    public OptimizedScalarQuantizer(VectorSimilarityFunction similarityFunction, float lambda, int iters) {
         this.similarityFunction = similarityFunction;
         this.lambda = lambda;
         this.iters = iters;
+        this.statsScratch = new float[similarityFunction == EUCLIDEAN ? 5 : 6];
+        this.gridScratch = new float[5];
+        this.intervalScratch = new float[2];
     }
 
-    OptimizedScalarQuantizer(VectorSimilarityFunction similarityFunction) {
+    public OptimizedScalarQuantizer(VectorSimilarityFunction similarityFunction) {
         this(similarityFunction, DEFAULT_LAMBDA, DEFAULT_ITERS);
     }
 
@@ -49,34 +61,23 @@ class OptimizedScalarQuantizer {
         assert similarityFunction != COSINE || VectorUtil.isUnitVector(vector);
         assert similarityFunction != COSINE || VectorUtil.isUnitVector(centroid);
         assert bits.length == destinations.length;
-        float[] intervalScratch = new float[2];
-        double vecMean = 0;
-        double vecVar = 0;
-        float norm2 = 0;
-        float centroidDot = 0;
-        float min = Float.MAX_VALUE;
-        float max = -Float.MAX_VALUE;
-        for (int i = 0; i < vector.length; ++i) {
-            if (similarityFunction != EUCLIDEAN) {
-                centroidDot += vector[i] * centroid[i];
-            }
-            vector[i] = vector[i] - centroid[i];
-            min = Math.min(min, vector[i]);
-            max = Math.max(max, vector[i]);
-            norm2 += (vector[i] * vector[i]);
-            double delta = vector[i] - vecMean;
-            vecMean += delta / (i + 1);
-            vecVar += delta * (vector[i] - vecMean);
+        if (similarityFunction == EUCLIDEAN) {
+            ESVectorUtil.centerAndCalculateOSQStatsEuclidean(vector, centroid, vector, statsScratch);
+        } else {
+            ESVectorUtil.centerAndCalculateOSQStatsDp(vector, centroid, vector, statsScratch);
         }
-        vecVar /= vector.length;
-        double vecStd = Math.sqrt(vecVar);
+        float vecMean = statsScratch[0];
+        float vecVar = statsScratch[1];
+        float norm2 = statsScratch[2];
+        float min = statsScratch[3];
+        float max = statsScratch[4];
+        float vecStd = (float) Math.sqrt(vecVar);
         QuantizationResult[] results = new QuantizationResult[bits.length];
         for (int i = 0; i < bits.length; ++i) {
             assert bits[i] > 0 && bits[i] <= 8;
             int points = (1 << bits[i]);
             // Linearly scale the interval to the standard deviation of the vector, ensuring we are within the min/max bounds
-            intervalScratch[0] = (float) clamp(MINIMUM_MSE_GRID[bits[i] - 1][0] * vecStd + vecMean, min, max);
-            intervalScratch[1] = (float) clamp(MINIMUM_MSE_GRID[bits[i] - 1][1] * vecStd + vecMean, min, max);
+            initInterval(bits[i], vecStd, vecMean, min, max, intervalScratch);
             optimizeIntervals(intervalScratch, vector, norm2, points);
             float nSteps = ((1 << bits[i]) - 1);
             float a = intervalScratch[0];
@@ -93,7 +94,7 @@ class OptimizedScalarQuantizer {
             results[i] = new QuantizationResult(
                 intervalScratch[0],
                 intervalScratch[1],
-                similarityFunction == EUCLIDEAN ? norm2 : centroidDot,
+                similarityFunction == EUCLIDEAN ? norm2 : statsScratch[5],
                 sumQuery
             );
         }
@@ -105,31 +106,20 @@ class OptimizedScalarQuantizer {
         assert similarityFunction != COSINE || VectorUtil.isUnitVector(centroid);
         assert vector.length <= destination.length;
         assert bits > 0 && bits <= 8;
-        float[] intervalScratch = new float[2];
         int points = 1 << bits;
-        double vecMean = 0;
-        double vecVar = 0;
-        float norm2 = 0;
-        float centroidDot = 0;
-        float min = Float.MAX_VALUE;
-        float max = -Float.MAX_VALUE;
-        for (int i = 0; i < vector.length; ++i) {
-            if (similarityFunction != EUCLIDEAN) {
-                centroidDot += vector[i] * centroid[i];
-            }
-            vector[i] = vector[i] - centroid[i];
-            min = Math.min(min, vector[i]);
-            max = Math.max(max, vector[i]);
-            norm2 += (vector[i] * vector[i]);
-            double delta = vector[i] - vecMean;
-            vecMean += delta / (i + 1);
-            vecVar += delta * (vector[i] - vecMean);
+        if (similarityFunction == EUCLIDEAN) {
+            ESVectorUtil.centerAndCalculateOSQStatsEuclidean(vector, centroid, vector, statsScratch);
+        } else {
+            ESVectorUtil.centerAndCalculateOSQStatsDp(vector, centroid, vector, statsScratch);
         }
-        vecVar /= vector.length;
-        double vecStd = Math.sqrt(vecVar);
+        float vecMean = statsScratch[0];
+        float vecVar = statsScratch[1];
+        float norm2 = statsScratch[2];
+        float min = statsScratch[3];
+        float max = statsScratch[4];
+        float vecStd = (float) Math.sqrt(vecVar);
         // Linearly scale the interval to the standard deviation of the vector, ensuring we are within the min/max bounds
-        intervalScratch[0] = (float) clamp(MINIMUM_MSE_GRID[bits - 1][0] * vecStd + vecMean, min, max);
-        intervalScratch[1] = (float) clamp(MINIMUM_MSE_GRID[bits - 1][1] * vecStd + vecMean, min, max);
+        initInterval(bits, vecStd, vecMean, min, max, intervalScratch);
         optimizeIntervals(intervalScratch, vector, norm2, points);
         float nSteps = ((1 << bits) - 1);
         // Now we have the optimized intervals, quantize the vector
@@ -146,35 +136,9 @@ class OptimizedScalarQuantizer {
         return new QuantizationResult(
             intervalScratch[0],
             intervalScratch[1],
-            similarityFunction == EUCLIDEAN ? norm2 : centroidDot,
+            similarityFunction == EUCLIDEAN ? norm2 : statsScratch[5],
             sumQuery
         );
-    }
-
-    /**
-     * Compute the loss of the vector given the interval. Effectively, we are computing the MSE of a dequantized vector with the raw
-     * vector.
-     * @param vector raw vector
-     * @param interval interval to quantize the vector
-     * @param points number of quantization points
-     * @param norm2 squared norm of the vector
-     * @return the loss
-     */
-    private double loss(float[] vector, float[] interval, int points, float norm2) {
-        double a = interval[0];
-        double b = interval[1];
-        double step = ((b - a) / (points - 1.0F));
-        double stepInv = 1.0 / step;
-        double xe = 0.0;
-        double e = 0.0;
-        for (double xi : vector) {
-            // this is quantizing and then dequantizing the vector
-            double xiq = (a + step * Math.round((clamp(xi, a, b) - a) * stepInv));
-            // how much does the de-quantized value differ from the original value
-            xe += xi * (xi - xiq);
-            e += (xi - xiq) * (xi - xiq);
-        }
-        return (1.0 - lambda) * xe * xe / norm2 + lambda * e;
     }
 
     /**
@@ -187,30 +151,19 @@ class OptimizedScalarQuantizer {
      * @param points number of quantization points
      */
     private void optimizeIntervals(float[] initInterval, float[] vector, float norm2, int points) {
-        double initialLoss = loss(vector, initInterval, points, norm2);
+        double initialLoss = ESVectorUtil.calculateOSQLoss(vector, initInterval, points, norm2, lambda);
         final float scale = (1.0f - lambda) / norm2;
         if (Float.isFinite(scale) == false) {
             return;
         }
         for (int i = 0; i < iters; ++i) {
-            float a = initInterval[0];
-            float b = initInterval[1];
-            float stepInv = (points - 1.0f) / (b - a);
             // calculate the grid points for coordinate descent
-            double daa = 0;
-            double dab = 0;
-            double dbb = 0;
-            double dax = 0;
-            double dbx = 0;
-            for (float xi : vector) {
-                float k = Math.round((clamp(xi, a, b) - a) * stepInv);
-                float s = k / (points - 1);
-                daa += (1.0 - s) * (1.0 - s);
-                dab += (1.0 - s) * s;
-                dbb += s * s;
-                dax += xi * (1.0 - s);
-                dbx += xi * s;
-            }
+            ESVectorUtil.calculateOSQGridPoints(vector, initInterval, points, gridScratch);
+            float daa = gridScratch[0];
+            float dab = gridScratch[1];
+            float dbb = gridScratch[2];
+            float dax = gridScratch[3];
+            float dbx = gridScratch[4];
             double m0 = scale * dax * dax + lambda * daa;
             double m1 = scale * dax * dbx + lambda * dab;
             double m2 = scale * dbx * dbx + lambda * dbb;
@@ -225,7 +178,7 @@ class OptimizedScalarQuantizer {
             if ((Math.abs(initInterval[0] - aOpt) < 1e-8 && Math.abs(initInterval[1] - bOpt) < 1e-8)) {
                 return;
             }
-            double newLoss = loss(vector, new float[] { aOpt, bOpt }, points, norm2);
+            double newLoss = ESVectorUtil.calculateOSQLoss(vector, new float[] { aOpt, bOpt }, points, norm2, lambda);
             // If the new loss is worse, don't update the interval and exit
             // This optimization, unlike kMeans, does not always converge to better loss
             // So exit if we are getting worse

@@ -301,6 +301,7 @@ allprojects {
       // ensure we have best possible caching of bwc builds
       dependsOn ":distribution:bwc:bugfix:buildBwcLinuxTar"
       dependsOn ":distribution:bwc:bugfix2:buildBwcLinuxTar"
+      dependsOn ":distribution:bwc:bugfix3:buildBwcLinuxTar"
       dependsOn ":distribution:bwc:minor:buildBwcLinuxTar"
       dependsOn ":distribution:bwc:staged:buildBwcLinuxTar"
       dependsOn ":distribution:bwc:staged2:buildBwcLinuxTar"

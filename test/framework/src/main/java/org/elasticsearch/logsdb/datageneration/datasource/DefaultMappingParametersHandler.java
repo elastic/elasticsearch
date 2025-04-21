@@ -51,6 +51,8 @@ public class DefaultMappingParametersHandler implements DataSourceHandler {
             case GEO_POINT -> geoPointMapping(map);
             case TEXT -> textMapping(request, new HashMap<>());
             case IP -> ipMapping(map);
+            case CONSTANT_KEYWORD -> constantKeywordMapping(new HashMap<>());
+            case WILDCARD -> wildcardMapping(new HashMap<>());
         });
     }
 
@@ -219,6 +221,29 @@ public class DefaultMappingParametersHandler implements DataSourceHandler {
 
             if (ESTestCase.randomBoolean()) {
                 injected.put("ignore_malformed", ESTestCase.randomBoolean());
+            }
+
+            return injected;
+        };
+    }
+
+    private Supplier<Map<String, Object>> constantKeywordMapping(Map<String, Object> injected) {
+        return () -> {
+            // value is optional and can be set from the first document
+            // we don't cover this case here
+            injected.put("value", ESTestCase.randomAlphaOfLengthBetween(0, 10));
+
+            return injected;
+        };
+    }
+
+    private Supplier<Map<String, Object>> wildcardMapping(Map<String, Object> injected) {
+        return () -> {
+            if (ESTestCase.randomDouble() <= 0.2) {
+                injected.put("ignore_above", ESTestCase.randomIntBetween(1, 100));
+            }
+            if (ESTestCase.randomDouble() <= 0.2) {
+                injected.put("null_value", ESTestCase.randomAlphaOfLengthBetween(0, 10));
             }
 
             return injected;

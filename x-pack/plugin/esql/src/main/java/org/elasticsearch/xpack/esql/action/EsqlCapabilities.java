@@ -279,7 +279,7 @@ public class EsqlCapabilities {
 
         /**
          * Support for removing empty attribute in merging output.
-         * See <a href="https://github.com/elastic/elasticsearch/issues/126392"> ESQL: EVAL after STATS produces an empty column #126392 </a>
+         * See <a href="https://github.com/elastic/elasticsearch/issues/126392"> EVAL after STATS produces an empty column #126392 </a>
          */
         REMOVE_EMPTY_ATTRIBUTE_IN_MERGING_OUTPUT,
 

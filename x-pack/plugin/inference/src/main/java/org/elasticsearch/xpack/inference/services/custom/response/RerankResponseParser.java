@@ -11,10 +11,14 @@ import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.inference.results.RankedDocsResults;
+import org.elasticsearch.xpack.inference.common.MapPathExtractor;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
@@ -39,7 +43,7 @@ public class RerankResponseParser extends BaseCustomResponseParser<RankedDocsRes
         var rerankIndex = extractOptionalString(responseParserMap, RERANK_PARSER_INDEX, JSON_PARSER, validationException);
         var documentText = extractOptionalString(responseParserMap, RERANK_PARSER_DOCUMENT_TEXT, JSON_PARSER, validationException);
 
-        if (relevanceScore == null || rerankIndex == null || documentText == null) {
+        if (relevanceScore == null) {
             throw validationException;
         }
 
@@ -106,6 +110,49 @@ public class RerankResponseParser extends BaseCustomResponseParser<RankedDocsRes
 
     @Override
     public RankedDocsResults transform(Map<String, Object> map) {
-        return null;
+        var scores = convertToListOfFloats(MapPathExtractor.extract(map, relevanceScorePath));
+
+        List<Integer> indices = null;
+        if (rerankIndexPath != null) {
+            indices = convertToListOfIntegers(MapPathExtractor.extract(map, rerankIndexPath));
+        }
+
+        List<String> documents = null;
+        if (documentTextPath != null) {
+            documents = validateAndCastList(
+                validateList(MapPathExtractor.extract(map, documentTextPath)),
+                (obj) -> toType(obj, String.class)
+            );
+        }
+
+        if (indices != null && indices.size() != scores.size()) {
+            throw new IllegalStateException(
+                Strings.format(
+                    "The number of index paths [%d] was not the same as the number of scores [%d]",
+                    indices.size(),
+                    scores.size()
+                )
+            );
+        }
+
+        if (documents != null && documents.size() != scores.size()) {
+            throw new IllegalStateException(
+                Strings.format(
+                    "The number of document texts [%d] was no the same as the number of scores [%d]",
+                    documents.size(),
+                    scores.size()
+                )
+            );
+        }
+
+        var rankedDocs = new ArrayList<RankedDocsResults.RankedDoc>();
+        for (int i = 0; i < scores.size(); i++) {
+            var index = indices != null ? indices.get(i) : i;
+            var score = scores.get(i);
+            var document = documents != null ? documents.get(i) : null;
+            rankedDocs.add(new RankedDocsResults.RankedDoc(index, score, document));
+        }
+
+        return new RankedDocsResults(rankedDocs);
     }
 }

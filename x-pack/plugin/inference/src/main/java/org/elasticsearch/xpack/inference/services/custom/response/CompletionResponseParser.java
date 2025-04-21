@@ -12,6 +12,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.inference.results.ChatCompletionResults;
+import org.elasticsearch.xpack.inference.common.MapPathExtractor;
 
 import java.io.IOException;
 import java.util.Map;
@@ -78,6 +79,11 @@ public class CompletionResponseParser extends BaseCustomResponseParser<ChatCompl
 
     @Override
     public ChatCompletionResults transform(Map<String, Object> map) {
-        return null;
+        var completionList = validateAndCastList(
+            validateList(MapPathExtractor.extract(map, completionResultPath)),
+            (obj) -> toType(obj, String.class)
+        );
+
+        return new ChatCompletionResults(completionList.stream().map(ChatCompletionResults.Result::new).toList());
     }
 }

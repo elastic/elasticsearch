@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.inference.services.custom.response;
 
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -18,7 +17,6 @@ import org.elasticsearch.xpack.inference.common.MapPathExtractor;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
@@ -54,10 +52,6 @@ public class TextEmbeddingResponseParser extends BaseCustomResponseParser<TextEm
         out.writeString(textEmbeddingsPath);
     }
 
-    public String getPath() {
-        return textEmbeddingsPath;
-    }
-
     public XContentBuilder toXContent(XContentBuilder builder, ToXContent.Params params) throws IOException {
         builder.startObject(JSON_PARSER);
         {
@@ -86,24 +80,13 @@ public class TextEmbeddingResponseParser extends BaseCustomResponseParser<TextEm
     }
 
     @Override
-    public TextEmbeddingFloatResults transform(Map<String, Object> map) {
-        var mapResults = MapPathExtractor.extract(map, textEmbeddingsPath);
-        var mapResultsList = validateList(mapResults);
+    protected TextEmbeddingFloatResults transform(Map<String, Object> map) {
+        var mapResultsList = validateList(MapPathExtractor.extract(map, textEmbeddingsPath));
 
         var embeddings = new ArrayList<TextEmbeddingFloatResults.Embedding>(mapResultsList.size());
 
-
         for (var entry : mapResultsList) {
-            if (entry instanceof List<?> == false) {
-                throw new IllegalStateException(
-                    Strings.format(
-                        "Entry in extracted field was an invalid type, expected a list but received [%s]",
-                        entry.getClass().getSimpleName()
-                    )
-                );
-            }
-
-            var embeddingsAsListFloats = convertToListOfFloats((List<?>) entry);
+            var embeddingsAsListFloats = convertToListOfFloats(entry);
             embeddings.add(TextEmbeddingFloatResults.Embedding.of(embeddingsAsListFloats));
         }
 

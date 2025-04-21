@@ -20,11 +20,7 @@ import java.util.regex.Pattern;
  * Uses a subset of the JSONPath schema to extract fields from a map.
  * For more information <a href="https://en.wikipedia.org/wiki/JSONPath">see here</a>.
  *
-<<<<<<< HEAD
- * This implementation differs in out it handles lists in that JSONPath will flatten inner lists. This implementation
-=======
  * This implementation differs in how it handles lists in that JSONPath will flatten inner lists. This implementation
->>>>>>> 7c3e8507f4f94b1a8c6f926ebd5e5a9d00ab6378
  * preserves inner lists.
  *
  * Examples of the schema:

@@ -9,8 +9,13 @@ package org.elasticsearch.xpack.inference.services.custom.response;
 
 import org.apache.http.HttpResponse;
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentFactory;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.inference.results.TextEmbeddingFloatResults;
 import org.elasticsearch.xpack.core.ml.AbstractBWCWireSerializationTestCase;
 import org.elasticsearch.xpack.inference.external.http.HttpResult;
@@ -52,6 +57,28 @@ public class TextEmbeddingResponseParserTests extends AbstractBWCWireSerializati
             exception.getMessage(),
             is("Validation Failed: 1: [json_parser] does not contain " + "the required setting [text_embeddings];")
         );
+    }
+
+    public void testToXContent() throws IOException {
+        var entity = new TextEmbeddingResponseParser("$.result.path");
+
+        XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
+        {
+            builder.startObject();
+            entity.toXContent(builder, null);
+            builder.endObject();
+        }
+        String xContentResult = Strings.toString(builder);
+
+        var expected = XContentHelper.stripWhitespace("""
+            {
+                "json_parser": {
+                    "text_embeddings": "$.result.path"
+                }
+            }
+            """);
+
+        assertThat(xContentResult, is(expected));
     }
 
     public void testParse() throws IOException {
@@ -133,6 +160,34 @@ public class TextEmbeddingResponseParserTests extends AbstractBWCWireSerializati
                 )
             )
         );
+    }
+
+    public void testParse_ThrowsException_WhenExtractedField_IsNotAList() throws IOException {
+        String responseJson = """
+            {
+              "object": "list",
+              "data": [
+                  {
+                      "object": "embedding",
+                      "index": 0,
+                      "embedding": 1
+                  }
+              ],
+              "model": "text-embedding-ada-002-v2",
+              "usage": {
+                  "prompt_tokens": 8,
+                  "total_tokens": 8
+              }
+            }
+            """;
+
+        var parser = new TextEmbeddingResponseParser("$.data[*].embedding");
+        var exception = expectThrows(
+            IllegalArgumentException.class,
+            () -> parser.parse(new HttpResult(mock(HttpResponse.class), responseJson.getBytes(StandardCharsets.UTF_8)))
+        );
+
+        assertThat(exception.getMessage(), is("Extracted field is an invalid type, expected a list but received [Integer]"));
     }
 
     @Override

@@ -12,6 +12,11 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xcontent.ToXContentFragment;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentFactory;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParserConfiguration;
+import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xpack.inference.common.MapPathExtractor;
 import org.elasticsearch.xpack.inference.external.http.HttpResult;
 import org.elasticsearch.xpack.inference.external.http.retry.ErrorResponse;
 
@@ -23,6 +28,7 @@ import java.util.function.Function;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractRequiredString;
 import static org.elasticsearch.xpack.inference.services.custom.CustomServiceSettings.ERROR_PARSER;
 import static org.elasticsearch.xpack.inference.services.custom.CustomServiceSettings.RESPONSE;
+import static org.elasticsearch.xpack.inference.services.custom.response.BaseCustomResponseParser.toType;
 
 public class ErrorResponseParser implements ToXContentFragment, Function<HttpResult, ErrorResponse> {
 
@@ -52,10 +58,6 @@ public class ErrorResponseParser implements ToXContentFragment, Function<HttpRes
         out.writeString(messagePath);
     }
 
-    public String getMessagePath() {
-        return messagePath;
-    }
-
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(ERROR_PARSER);
         {
@@ -80,6 +82,25 @@ public class ErrorResponseParser implements ToXContentFragment, Function<HttpRes
 
     @Override
     public ErrorResponse apply(HttpResult httpResult) {
-        return null;
+        try (
+            XContentParser jsonParser = XContentFactory.xContent(XContentType.JSON)
+                .createParser(XContentParserConfiguration.EMPTY, httpResult.body())
+        ) {
+            var map = jsonParser.map();
+
+            // NOTE: This deviates from what we've done in the past. In the ErrorMessageResponseEntity logic
+            // if we find the top level error field we'll return a response with an empty message but indicate
+            // that we found the structure of the error object. Here if we're missing the final field we will return
+            // a ErrorResponse.UNDEFINED_ERROR with will indicate that we did not find the structure even if for example
+            // the outer error field does exist, but it doesn't contain the nested field we were looking for.
+            // If in the future we want the previous behavior, we can add a new message_path field or something and have
+            // the current path field point to the field that indicates whether we found an error object.
+            var errorText = toType(MapPathExtractor.extract(map, messagePath), String.class);
+            return new ErrorResponse(errorText);
+        } catch (Exception e) {
+            // swallow the error
+        }
+
+        return ErrorResponse.UNDEFINED_ERROR;
     }
 }

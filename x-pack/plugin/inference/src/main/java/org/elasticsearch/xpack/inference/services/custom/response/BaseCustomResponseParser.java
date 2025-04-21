@@ -43,7 +43,7 @@ public abstract class BaseCustomResponseParser<T extends InferenceServiceResults
 
         if (obj instanceof List<?> == false) {
             throw new IllegalArgumentException(
-                Strings.format("Extracted field was an invalid type, expected a list but received [%s]", obj.getClass().getSimpleName())
+                Strings.format("Extracted field is an invalid type, expected a list but received [%s]", obj.getClass().getSimpleName())
             );
         }
 
@@ -54,26 +54,76 @@ public abstract class BaseCustomResponseParser<T extends InferenceServiceResults
         Objects.requireNonNull(obj, "Failed to parse response, extracted field was null");
     }
 
-    static List<Float> convertToListOfFloats(List<?> items) {
-        return validateAndCastList(items, BaseCustomResponseParser::toFloat);
+    static Map<String, Object> validateMap(Object obj) {
+        validateNonNull(obj);
+
+        if (obj instanceof Map<?, ?> == false) {
+            throw new IllegalArgumentException(
+                Strings.format("Extracted field is an invalid type, expected a map but received [%s]", obj.getClass().getSimpleName())
+            );
+        }
+
+        var keys = ((Map<?, ?>) obj).keySet();
+        for (var key : keys) {
+            if (key instanceof String == false) {
+                throw new IllegalStateException(
+                    Strings.format(
+                        "Extracted map has an invalid key type. Expected a string but received [%s]",
+                        key.getClass().getSimpleName()
+                    )
+                );
+            }
+        }
+
+        @SuppressWarnings("unchecked")
+        var result = (Map<String, Object>) obj;
+        return result;
+    }
+
+    static List<Float> convertToListOfFloats(Object obj) {
+        return validateAndCastList(validateList(obj), BaseCustomResponseParser::toFloat);
     }
 
     static Float toFloat(Object obj) {
-        if (obj instanceof Number == false) {
-            throw new IllegalArgumentException(Strings.format("Unable to convert type [%s] to Float", obj.getClass().getSimpleName()));
-        }
-
-        return ((Number) obj).floatValue();
+        return toNumber(obj).floatValue();
     }
 
-    static <ReturnType> List<ReturnType> validateAndCastList(List<?> items, Function<Object, ReturnType> converter) {
+    private static Number toNumber(Object obj) {
+        if (obj instanceof Number == false) {
+            throw new IllegalArgumentException(Strings.format("Unable to convert type [%s] to Number", obj.getClass().getSimpleName()));
+        }
+
+        return ((Number) obj);
+    }
+
+    static List<Integer> convertToListOfIntegers(Object obj) {
+        return validateAndCastList(validateList(obj), BaseCustomResponseParser::toInteger);
+    }
+
+    private static Integer toInteger(Object obj) {
+        return toNumber(obj).intValue();
+    }
+
+    static <T> List<T> validateAndCastList(List<?> items, Function<Object, T> converter) {
         validateNonNull(items);
 
-        List<ReturnType> resultList = new ArrayList<>();
+        List<T> resultList = new ArrayList<>();
         for (var obj : items) {
             resultList.add(converter.apply(obj));
         }
 
         return resultList;
+    }
+
+    static <T> T toType(Object obj, Class<T> type) {
+        validateNonNull(obj);
+
+        if (type.isInstance(obj) == false) {
+            throw new IllegalArgumentException(
+                Strings.format("Unable to convert object of type [%s] to type [%s]", obj.getClass().getSimpleName(), type.getSimpleName())
+            );
+        }
+
+        return type.cast(obj);
     }
 }

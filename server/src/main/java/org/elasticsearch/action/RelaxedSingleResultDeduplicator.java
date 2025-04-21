@@ -13,8 +13,6 @@ import org.elasticsearch.action.support.ContextPreservingActionListener;
 import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 
-import java.util.ArrayList;
-import java.util.List;
 import java.util.function.Consumer;
 
 /**
@@ -27,7 +25,7 @@ import java.util.function.Consumer;
  */
 public class RelaxedSingleResultDeduplicator<T> extends SingleResultDeduplicator<T> {
 
-    private ActionListenerList<T> waitingListeners;
+    private SubscribableListener<T> waitingListeners;
 
     public RelaxedSingleResultDeduplicator(ThreadContext threadContext, Consumer<ActionListener<T>> executeAction) {
         super(threadContext, executeAction);
@@ -38,35 +36,16 @@ public class RelaxedSingleResultDeduplicator<T> extends SingleResultDeduplicator
         final var wrappedListener = ContextPreservingActionListener.wrapPreservingContext(listener, threadContext);
         synchronized (this) {
             if (waitingListeners != null) {
-                waitingListeners.add(wrappedListener);
+                waitingListeners.addListener(wrappedListener);
                 return;
             }
-            waitingListeners = new ActionListenerList<>();
-            waitingListeners.add(wrappedListener);
+            waitingListeners = new SubscribableListener<>();
+            waitingListeners.addListener(ActionListener.runBefore(wrappedListener, () -> {
+                synchronized (this) {
+                    waitingListeners = null;
+                }
+            }));
         }
-        final var currentWaitingListeners = waitingListeners;
-        SubscribableListener.newForked(executeAction::accept).addListener(ActionListener.runBefore(currentWaitingListeners, () -> {
-            synchronized (this) {
-                waitingListeners = null;
-            }
-        }));
-    }
-
-    private static class ActionListenerList<T> implements ActionListener<T> {
-        private final List<ActionListener<T>> listeners = new ArrayList<>();
-
-        void add(ActionListener<T> listener) {
-            listeners.add(listener);
-        }
-
-        @Override
-        public void onResponse(T response) {
-            ActionListener.onResponse(listeners, response);
-        }
-
-        @Override
-        public void onFailure(Exception e) {
-            ActionListener.onFailure(listeners, e);
-        }
+        ActionListener.run(waitingListeners, executeAction::accept);
     }
 }

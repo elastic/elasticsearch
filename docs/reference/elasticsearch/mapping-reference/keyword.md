@@ -13,7 +13,7 @@ The keyword family includes the following field types:
 * [`constant_keyword`](#constant-keyword-field-type) for keyword fields that always contain the same value.
 * [`wildcard`](#wildcard-field-type) for unstructured machine-generated content. The `wildcard` type is optimized for fields with large values or high cardinality.
 
-Keyword fields are often used in [sorting](/reference/elasticsearch/rest-apis/sort-search-results.md), [aggregations](/reference/data-analysis/aggregations/index.md), and [term-level queries](/reference/query-languages/query-dsl/term-level-queries.md), such as [`term`](/reference/query-languages/query-dsl/query-dsl-term-query.md).
+Keyword fields are often used in [sorting](/reference/elasticsearch/rest-apis/sort-search-results.md), [aggregations](/reference/aggregations/index.md), and [term-level queries](/reference/query-languages/query-dsl/term-level-queries.md), such as [`term`](/reference/query-languages/query-dsl/query-dsl-term-query.md).
 
 ::::{tip}
 Avoid using keyword fields for full-text search. Use the [`text`](/reference/elasticsearch/mapping-reference/text.md) field type instead.
@@ -70,7 +70,7 @@ The following parameters are accepted by `keyword` fields:
 :   Multi-fields allow the same string value to be indexed in multiple ways for different purposes, such as one field for search and a multi-field for sorting and aggregations.
 
 [`ignore_above`](/reference/elasticsearch/mapping-reference/ignore-above.md)
-:   Do not index any string longer than this value. Defaults to `2147483647` so that all values would be accepted. Please however note that default dynamic mapping rules create a sub `keyword` field that overrides this default by setting `ignore_above: 256`.
+:   Do not index any string longer than this value. Defaults to `2147483647` in standard indices so that all values would be accepted, and `8191` in logsdb indices to protect against Lucene's term byte-length limit of `32766`. Please however note that default dynamic mapping rules create a sub `keyword` field that overrides this default by setting `ignore_above: 256`.
 
 [`index`](/reference/elasticsearch/mapping-reference/mapping-index.md)
 :   Should the field be quickly searchable? Accepts `true` (default) and `false`. `keyword` fields that only have [`doc_values`](/reference/elasticsearch/mapping-reference/doc-values.md) enabled can still be queried, albeit slower.
@@ -376,7 +376,7 @@ The following parameters are accepted by `wildcard` fields:
 :   Accepts a string value which is substituted for any explicit `null` values. Defaults to `null`, which means the field is treated as missing.
 
 [`ignore_above`](/reference/elasticsearch/mapping-reference/ignore-above.md)
-:   Do not index any string longer than this value. Defaults to `2147483647` so that all values would be accepted.
+:   Do not index any string longer than this value. Defaults to `2147483647` in standard indices so that all values would be accepted, and `8191` in logsdb indices to protect against Lucene's term byte-length limit of `32766`.
 
 
 ### Limitations [_limitations]

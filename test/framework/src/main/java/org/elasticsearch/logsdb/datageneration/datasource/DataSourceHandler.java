@@ -66,6 +66,22 @@ public interface DataSourceHandler {
         return null;
     }
 
+    default DataSourceResponse.GeoPointGenerator handle(DataSourceRequest.GeoPointGenerator request) {
+        return null;
+    }
+
+    default DataSourceResponse.PointGenerator handle(DataSourceRequest.PointGenerator request) {
+        return null;
+    }
+
+    default DataSourceResponse.IpGenerator handle(DataSourceRequest.IpGenerator request) {
+        return null;
+    }
+
+    default DataSourceResponse.VersionStringGenerator handle(DataSourceRequest.VersionStringGenerator request) {
+        return null;
+    }
+
     default DataSourceResponse.NullWrapper handle(DataSourceRequest.NullWrapper request) {
         return null;
     }
@@ -83,6 +99,10 @@ public interface DataSourceHandler {
     }
 
     default DataSourceResponse.TransformWrapper handle(DataSourceRequest.TransformWrapper request) {
+        return null;
+    }
+
+    default DataSourceResponse.TransformWeightedWrapper handle(DataSourceRequest.TransformWeightedWrapper<?> request) {
         return null;
     }
 

@@ -23,7 +23,7 @@ import static org.hamcrest.Matchers.equalTo;
 
 public class ExponentiallyWeightedMovingRateTests extends ESTestCase {
 
-    private static final double TOLERANCE = 1.0e-13;
+    private static final double TOLERANCE = 2.0e-13;
     private static final double HALF_LIFE_MILLIS = 1.0e6; // Half-life of used by many tests
     private static final double LAMBDA = Math.log(2.0) / HALF_LIFE_MILLIS; // Equivalent value of lambda
     public static final int START_TIME_IN_MILLIS = 1234567;
@@ -214,14 +214,6 @@ public class ExponentiallyWeightedMovingRateTests extends ESTestCase {
         assertThrows(IllegalArgumentException.class, () -> new ExponentiallyWeightedMovingRate(-1.0e-6, START_TIME_IN_MILLIS));
     }
 
-    public void testEwmr_zeroStartTimeInMillis() {
-        assertThrows(IllegalArgumentException.class, () -> new ExponentiallyWeightedMovingRate(LAMBDA, 0));
-    }
-
-    public void testEwmr_negativeStartTimeInMillis() {
-        assertThrows(IllegalArgumentException.class, () -> new ExponentiallyWeightedMovingRate(LAMBDA, -1));
-    }
-
     // N.B. This test is not guaranteed to fail even if the implementation is not thread-safe. The operations are fast enough that there is
     // a chance each thread will complete before the next one has started. We use a high thread count to try to get a decent change of
     // hitting a race condition if there is one. This should be run with e.g. -Dtests.iters=20 to test thoroughly.
@@ -350,5 +342,15 @@ public class ExponentiallyWeightedMovingRateTests extends ESTestCase {
         assertThat(ewmr.calculateRateSince(START_TIME_IN_MILLIS + 1000, 123.0, START_TIME_IN_MILLIS + 1000, 456), equalTo(0.0));
         assertThat(ewmr.calculateRateSince(START_TIME_IN_MILLIS + 500, 123.0, START_TIME_IN_MILLIS + 1000, 123.0), equalTo(0.0));
         assertThat(ewmr.calculateRateSince(START_TIME_IN_MILLIS + 500, 123.0, START_TIME_IN_MILLIS + 1000, 456), equalTo(0.0));
+    }
+
+    public void testGetHalfLife() {
+        ExponentiallyWeightedMovingRate ewmr = new ExponentiallyWeightedMovingRate(LAMBDA, START_TIME_IN_MILLIS);
+        assertThat(ewmr.getHalfLife(), closeTo(HALF_LIFE_MILLIS, 1.0e-9));
+    }
+
+    public void testGetHalfLife_lambdaZero() {
+        ExponentiallyWeightedMovingRate ewmr = new ExponentiallyWeightedMovingRate(0.0, START_TIME_IN_MILLIS);
+        assertThat(ewmr.getHalfLife(), equalTo(Double.POSITIVE_INFINITY));
     }
 }

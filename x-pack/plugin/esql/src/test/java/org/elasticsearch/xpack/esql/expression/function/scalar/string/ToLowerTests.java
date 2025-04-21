@@ -13,6 +13,8 @@ import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
@@ -46,8 +48,6 @@ public class ToLowerTests extends AbstractConfigurationFunctionTestCase {
         suppliers(suppliers, "keyword unicode", DataType.KEYWORD, () -> randomUnicodeOfLengthBetween(1, 10));
         suppliers(suppliers, "text ascii", DataType.TEXT, () -> randomAlphaOfLengthBetween(1, 10));
         suppliers(suppliers, "text unicode", DataType.TEXT, () -> randomUnicodeOfLengthBetween(1, 10));
-        suppliers(suppliers, "semantic_text ascii", DataType.SEMANTIC_TEXT, () -> randomAlphaOfLengthBetween(1, 10));
-        suppliers(suppliers, "semantic_text unicode", DataType.SEMANTIC_TEXT, () -> randomUnicodeOfLengthBetween(1, 10));
         return parameterSuppliersFromTypedDataWithDefaultChecksNoErrors(true, suppliers);
     }
 
@@ -101,5 +101,10 @@ public class ToLowerTests extends AbstractConfigurationFunctionTestCase {
             List<BytesRef> expectedValue = strings.stream().map(s -> new BytesRef(s.toLowerCase(EsqlTestUtils.TEST_CFG.locale()))).toList();
             return new TestCaseSupplier.TestCase(values, expectedToString, type, equalTo(expectedValue));
         }));
+    }
+
+    @Override
+    protected void extraBlockTests(Page in, Block out) {
+        assertIsOrdIfInIsOrd(in, out);
     }
 }

@@ -5,7 +5,7 @@ mapped_pages:
 
 # Bucket selector aggregation context [painless-bucket-selector-agg-context]
 
-Use a Painless script in an [`bucket_selector` aggregation](/reference/data-analysis/aggregations/search-aggregations-pipeline-bucket-selector-aggregation.md) to determine if a bucket should be retained or filtered out.
+Use a Painless script in an [`bucket_selector` aggregation](/reference/aggregations/search-aggregations-pipeline-bucket-selector-aggregation.md) to determine if a bucket should be retained or filtered out.
 
 ## Variables [_variables_2]
 

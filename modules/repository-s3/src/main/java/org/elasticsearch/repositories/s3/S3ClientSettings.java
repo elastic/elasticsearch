@@ -121,28 +121,28 @@ final class S3ClientSettings {
     static final Setting.AffixSetting<TimeValue> READ_TIMEOUT_SETTING = Setting.affixKeySetting(
         PREFIX,
         "read_timeout",
-        key -> Setting.timeSetting(key, TimeValue.timeValueMillis(ClientConfiguration.DEFAULT_SOCKET_TIMEOUT), Property.NodeScope)
+        key -> Setting.timeSetting(key, Defaults.READ_TIMEOUT, Property.NodeScope)
     );
 
     /** The maximum number of concurrent connections to use. */
     static final Setting.AffixSetting<Integer> MAX_CONNECTIONS_SETTING = Setting.affixKeySetting(
         PREFIX,
         "max_connections",
-        key -> Setting.intSetting(key, ClientConfiguration.DEFAULT_MAX_CONNECTIONS, 1, Property.NodeScope)
+        key -> Setting.intSetting(key, Defaults.MAX_CONNECTIONS, 1, Property.NodeScope)
     );
 
     /** The number of retries to use when an s3 request fails. */
     static final Setting.AffixSetting<Integer> MAX_RETRIES_SETTING = Setting.affixKeySetting(
         PREFIX,
         "max_retries",
-        key -> Setting.intSetting(key, ClientConfiguration.DEFAULT_RETRY_POLICY.getMaxErrorRetry(), 0, Property.NodeScope)
+        key -> Setting.intSetting(key, Defaults.RETRY_COUNT, 0, Property.NodeScope)
     );
 
     /** Whether retries should be throttled (ie use backoff). */
     static final Setting.AffixSetting<Boolean> USE_THROTTLE_RETRIES_SETTING = Setting.affixKeySetting(
         PREFIX,
         "use_throttle_retries",
-        key -> Setting.boolSetting(key, ClientConfiguration.DEFAULT_THROTTLE_RETRIES, Property.NodeScope)
+        key -> Setting.boolSetting(key, Defaults.THROTTLE_RETRIES, Property.NodeScope)
     );
 
     /** Whether the s3 client should use path style access. */
@@ -335,7 +335,7 @@ final class S3ClientSettings {
 
     /**
      * Load all client settings from the given settings.
-     *
+     * <p>
      * Note this will always at least return a client named "default".
      */
     static Map<String, S3ClientSettings> load(Settings settings) {
@@ -500,5 +500,12 @@ final class S3ClientSettings {
             return getConfigValue(normalizedSettings, PLACEHOLDER_CLIENT, setting);
         }
         return defaultValue;
+    }
+
+    static final class Defaults {
+        static final TimeValue READ_TIMEOUT = TimeValue.timeValueMillis(ClientConfiguration.DEFAULT_SOCKET_TIMEOUT);
+        static final int MAX_CONNECTIONS = ClientConfiguration.DEFAULT_MAX_CONNECTIONS;
+        static final int RETRY_COUNT = ClientConfiguration.DEFAULT_RETRY_POLICY.getMaxErrorRetry();
+        static final boolean THROTTLE_RETRIES = ClientConfiguration.DEFAULT_THROTTLE_RETRIES;
     }
 }

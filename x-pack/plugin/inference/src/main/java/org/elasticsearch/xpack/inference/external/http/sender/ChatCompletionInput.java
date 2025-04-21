@@ -35,7 +35,8 @@ public class ChatCompletionInput extends InferenceInputs {
         return this.input;
     }
 
-    public int inputSize() {
-        return input.size();
+    @Override
+    public boolean isSingleInput() {
+        return input.size() == 1;
     }
 }

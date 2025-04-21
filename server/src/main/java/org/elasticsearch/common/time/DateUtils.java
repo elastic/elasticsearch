@@ -186,7 +186,7 @@ public class DateUtils {
 
     /**
      * convert a java time instant to a long value which is stored in lucene
-     * the long value resembles the nanoseconds since the epoch
+     * the long value represents the nanoseconds since the epoch
      *
      * @param instant the instant to convert
      * @return        the nano seconds and seconds as a single long
@@ -206,9 +206,34 @@ public class DateUtils {
     }
 
     /**
+     * Convert a java time instant to a long value which is stored in lucene,
+     * the long value represents the milliseconds since epoch
+     *
+     * @param instant the instant to convert
+     * @return        the total milliseconds as a single long
+     */
+    public static long toLongMillis(Instant instant) {
+        try {
+            return instant.toEpochMilli();
+        } catch (ArithmeticException e) {
+            if (instant.isAfter(Instant.now())) {
+                throw new IllegalArgumentException(
+                    "date[" + instant + "] is too far in the future to be represented in a long milliseconds variable",
+                    e
+                );
+            } else {
+                throw new IllegalArgumentException(
+                    "date[" + instant + "] is too far in the past to be represented in a long milliseconds variable",
+                    e
+                );
+            }
+        }
+    }
+
+    /**
      * Returns an instant that is with valid nanosecond resolution. If
      * the parameter is before the valid nanosecond range then this returns
-     * the minimum {@linkplain Instant} valid for nanosecond resultion. If
+     * the minimum {@linkplain Instant} valid for nanosecond resolution. If
      * the parameter is after the valid nanosecond range then this returns
      * the maximum {@linkplain Instant} valid for nanosecond resolution.
      * <p>
@@ -325,8 +350,8 @@ public class DateUtils {
     }
 
     /**
-     * Rounds the given utc milliseconds sicne the epoch down to the next unit millis
-     *
+     * Rounds the given utc milliseconds since the epoch down to the next unit millis
+     * <p>
      * Note: This does not check for correctness of the result, as this only works with units smaller or equal than a day
      *       In order to ensure the performance of this methods, there are no guards or checks in it
      *
@@ -367,6 +392,49 @@ public class DateUtils {
     }
 
     /**
+     * Round down to the beginning of the nearest multiple of the specified month interval based on the year
+     * @param utcMillis the milliseconds since the epoch
+     * @param monthInterval the interval in months to round down to
+     *
+     * @return The milliseconds since the epoch rounded down to the beginning of the nearest multiple of the
+     * specified month interval based on the year
+     */
+    public static long roundIntervalMonthOfYear(final long utcMillis, final int monthInterval) {
+        if (monthInterval <= 0) {
+            throw new IllegalArgumentException("month interval must be strictly positive, got [" + monthInterval + "]");
+        }
+        int year = getYear(utcMillis);
+        int month = getMonthOfYear(utcMillis, year);
+
+        // Convert date to total months since epoch reference point (year 1 BCE boundary which is year 0)
+        // 1. (year-1): Adjusts for 1-based year counting
+        // 2. * 12: Converts years to months
+        // 3. (month-1): Converts 1-based month to 0-based index
+        int totalMonths = (year - 1) * 12 + (month - 1);
+
+        // Calculate interval index using floor division to handle negative values correctly
+        // This ensures proper alignment for BCE dates (negative totalMonths)
+        int quotient = Math.floorDiv(totalMonths, monthInterval);
+
+        // Calculate the starting month of the interval period
+        int firstMonthOfInterval = quotient * monthInterval;
+
+        // Convert back to month-of-year (1-12):
+        // 1. Calculate modulo 12 to get 0-11 month index
+        // 2. Add 12 before final modulo to handle negative values
+        // 3. Convert to 1-based month numbering
+        int monthInYear = (firstMonthOfInterval % 12 + 12) % 12 + 1;
+
+        // Calculate corresponding year:
+        // 1. Subtract month offset (monthInYear - 1) to get total months at year boundary
+        // 2. Convert months to years
+        // 3. Add 1 to adjust back to 1-based year counting
+        int yearResult = (firstMonthOfInterval - (monthInYear - 1)) / 12 + 1;
+
+        return DateUtils.of(yearResult, monthInYear);
+    }
+
+    /**
      * Round down to the beginning of the year of the specified time
      * @param utcMillis the milliseconds since the epoch
      * @return The milliseconds since the epoch rounded down to the beginning of the year
@@ -377,12 +445,58 @@ public class DateUtils {
     }
 
     /**
+     * Round down to the beginning of the nearest multiple of the specified year interval
+     * @param utcMillis the milliseconds since the epoch
+     * @param yearInterval the interval in years to round down to
+     *
+     * @return The milliseconds since the epoch rounded down to the beginning of the nearest multiple of the specified year interval
+     */
+    public static long roundYearInterval(final long utcMillis, final int yearInterval) {
+        if (yearInterval <= 0) {
+            throw new IllegalArgumentException("year interval must be strictly positive, got [" + yearInterval + "]");
+        }
+        int year = getYear(utcMillis);
+
+        // Convert date to total years since epoch reference point (year 1 BCE boundary which is year 0)
+        int totalYears = year - 1;
+
+        // Calculate interval index using floor division to handle negative values correctly
+        // This ensures proper alignment for BCE dates (negative totalYears)
+        int quotient = Math.floorDiv(totalYears, yearInterval);
+
+        // Calculate the starting total years of the current interval
+        int startTotalYears = quotient * yearInterval;
+
+        // Convert back to actual calendar year by adding 1 (reverse the base year adjustment)
+        int startYear = startTotalYears + 1;
+
+        return utcMillisAtStartOfYear(startYear);
+    }
+
+    /**
      * Round down to the beginning of the week based on week year of the specified time
      * @param utcMillis the milliseconds since the epoch
      * @return The milliseconds since the epoch rounded down to the beginning of the week based on week year
      */
     public static long roundWeekOfWeekYear(final long utcMillis) {
-        return roundFloor(utcMillis + 3 * 86400 * 1000L, 604800000) - 3 * 86400 * 1000L;
+        return roundWeekIntervalOfWeekYear(utcMillis, 1);
+    }
+
+    /**
+     * Round down to the beginning of the nearest multiple of the specified week interval based on week year
+     * <p>
+     * Consider Sun Dec 29 1969 00:00:00.000 as the start of the first week.
+     * @param utcMillis the milliseconds since the epoch
+     * @param weekInterval the interval in weeks to round down to
+     *
+     * @return The milliseconds since the epoch rounded down to the beginning of the nearest multiple of the
+     * specified week interval based on week year
+     */
+    public static long roundWeekIntervalOfWeekYear(final long utcMillis, final int weekInterval) {
+        if (weekInterval <= 0) {
+            throw new IllegalArgumentException("week interval must be strictly positive, got [" + weekInterval + "]");
+        }
+        return roundFloor(utcMillis + 3 * 86400 * 1000L, 604800000L * weekInterval) - 3 * 86400 * 1000L;
     }
 
     /**

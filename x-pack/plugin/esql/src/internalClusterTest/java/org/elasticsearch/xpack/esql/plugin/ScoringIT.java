@@ -16,6 +16,7 @@ import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.action.AbstractEsqlIntegTestCase;
+import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.kql.KqlPlugin;
 import org.junit.Before;
 
@@ -45,10 +46,13 @@ public class ScoringIT extends AbstractEsqlIntegTestCase {
     public static List<Object[]> params() {
         List<Object[]> params = new ArrayList<>();
         params.add(new Object[] { "match(content, \"fox\")" });
+        params.add(new Object[] { "multi_match(\"fox\", content, {\"operator\": \"AND\"})" });
         params.add(new Object[] { "content:\"fox\"" });
         params.add(new Object[] { "qstr(\"content: fox\")" });
         params.add(new Object[] { "kql(\"content*: fox\")" });
-        params.add(new Object[] { "term(content, \"fox\")" });
+        if (EsqlCapabilities.Cap.TERM_FUNCTION.isEnabled()) {
+            params.add(new Object[] { "term(content, \"fox\")" });
+        }
         return params;
     }
 

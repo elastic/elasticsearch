@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.security.authc.jwt;
 
-import com.nimbusds.jose.JOSEObjectType;
 import com.nimbusds.jose.jwk.JWK;
 import com.nimbusds.jwt.SignedJWT;
 import com.nimbusds.openid.connect.sdk.Nonce;
@@ -134,7 +133,7 @@ public class JwtRealmAuthenticateAccessTokenTypeTests extends JwtRealmTestCase {
 
         final Instant now = Instant.now().truncatedTo(ChronoUnit.SECONDS);
         unsignedJwt = JwtTestCase.buildUnsignedJwt(
-            randomBoolean() ? null : JOSEObjectType.JWT.toString(), // kty
+            randomFrom("at+jwt", "JWT", null), // typ
             randomBoolean() ? null : jwk.getKeyID(), // kid
             algJwkPair.alg(), // alg
             randomAlphaOfLengthBetween(10, 20), // jwtID

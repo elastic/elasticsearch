@@ -38,6 +38,8 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 
+import static org.elasticsearch.TransportVersions.INFERENCE_MODEL_REGISTRY_METADATA;
+import static org.elasticsearch.TransportVersions.INFERENCE_MODEL_REGISTRY_METADATA_8_19;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
@@ -49,7 +51,8 @@ import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstr
 public class ModelRegistryMetadata implements Metadata.ProjectCustom {
     public static final String TYPE = "model_registry";
 
-    public static final ModelRegistryMetadata EMPTY = new ModelRegistryMetadata(ImmutableOpenMap.of(), Set.of());
+    public static final ModelRegistryMetadata EMPTY_NOT_UPGRADED = new ModelRegistryMetadata(ImmutableOpenMap.of(), Set.of());
+    public static final ModelRegistryMetadata EMPTY_UPGRADED = new ModelRegistryMetadata(ImmutableOpenMap.of());
 
     private static final ParseField UPGRADED_FIELD = new ParseField("upgraded");
     private static final ParseField MODELS_FIELD = new ParseField("models");
@@ -85,7 +88,7 @@ public class ModelRegistryMetadata implements Metadata.ProjectCustom {
 
     public static ModelRegistryMetadata fromState(ProjectMetadata projectMetadata) {
         ModelRegistryMetadata resp = projectMetadata.custom(TYPE);
-        return resp != null ? resp : EMPTY;
+        return resp != null ? resp : EMPTY_NOT_UPGRADED;
     }
 
     public ModelRegistryMetadata withAddedModel(String inferenceEntityId, MinimalServiceSettings settings) {
@@ -234,7 +237,12 @@ public class ModelRegistryMetadata implements Metadata.ProjectCustom {
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.INFERENCE_MODEL_REGISTRY_METADATA;
+        return INFERENCE_MODEL_REGISTRY_METADATA_8_19;
+    }
+
+    @Override
+    public boolean supportsVersion(TransportVersion version) {
+        return shouldSerialize(version);
     }
 
     @Override
@@ -300,7 +308,12 @@ public class ModelRegistryMetadata implements Metadata.ProjectCustom {
 
         @Override
         public TransportVersion getMinimalSupportedVersion() {
-            return TransportVersions.INFERENCE_MODEL_REGISTRY_METADATA;
+            return INFERENCE_MODEL_REGISTRY_METADATA_8_19;
+        }
+
+        @Override
+        public boolean supportsVersion(TransportVersion version) {
+            return shouldSerialize(version);
         }
 
         @Override
@@ -312,5 +325,9 @@ public class ModelRegistryMetadata implements Metadata.ProjectCustom {
                 return new ModelRegistryMetadata(settingsDiff.apply(metadata.modelMap), tombstone);
             }
         }
+    }
+
+    static boolean shouldSerialize(TransportVersion version) {
+        return version.isPatchFrom(INFERENCE_MODEL_REGISTRY_METADATA_8_19) || version.onOrAfter(INFERENCE_MODEL_REGISTRY_METADATA);
     }
 }

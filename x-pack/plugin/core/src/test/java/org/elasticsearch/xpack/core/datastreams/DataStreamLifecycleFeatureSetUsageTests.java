@@ -109,7 +109,7 @@ public class DataStreamLifecycleFeatureSetUsageTests extends AbstractWireSeriali
                 1L,
                 null,
                 false,
-                new DataStreamLifecycle()
+                DataStreamLifecycle.DEFAULT_DATA_LIFECYCLE
             ),
             DataStreamTestHelper.newInstance(
                 randomAlphaOfLength(10),

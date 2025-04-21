@@ -159,7 +159,7 @@ cidrMatch(source.address, null)                           // returns null
 
 
 `<cidr_block>`
-:   (Required{{multi-arg}}, string or `null`) CIDR block you wish to search. If `null`, the function returns `null`.
+:   (Required, string or `null`) CIDR block you wish to search. If `null`, the function returns `null`. This parameter accepts multiple arguments.
 
 **Returns:** boolean or `null`
 
@@ -202,7 +202,7 @@ concat(<value>[, <value>])
 **Parameters**
 
 `<value>`
-:   (Required{{multi-arg-ref}}) Value to concatenate. If any of the arguments are `null`, the function returns `null`.
+:   (Required) Value to concatenate. If any of the arguments are `null`, the function returns `null`. This parameter accepts multiple arguments.
 
     If using a field as the argument, this parameter does not support the [`text`](/reference/elasticsearch/mapping-reference/text.md) field data type.
 

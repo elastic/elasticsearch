@@ -9,10 +9,12 @@
 
 package org.elasticsearch.logsdb.datageneration.datasource;
 
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.mapper.ObjectMapper;
 import org.elasticsearch.logsdb.datageneration.DataGeneratorSpecification;
 import org.elasticsearch.logsdb.datageneration.fields.DynamicMapping;
 
+import java.util.List;
 import java.util.Set;
 import java.util.function.Function;
 import java.util.function.Supplier;
@@ -106,6 +108,30 @@ public interface DataSourceRequest<TResponse extends DataSourceResponse> {
         }
     }
 
+    record GeoPointGenerator() implements DataSourceRequest<DataSourceResponse.GeoPointGenerator> {
+        public DataSourceResponse.GeoPointGenerator accept(DataSourceHandler handler) {
+            return handler.handle(this);
+        }
+    }
+
+    record PointGenerator() implements DataSourceRequest<DataSourceResponse.PointGenerator> {
+        public DataSourceResponse.PointGenerator accept(DataSourceHandler handler) {
+            return handler.handle(this);
+        }
+    }
+
+    record IpGenerator() implements DataSourceRequest<DataSourceResponse.IpGenerator> {
+        public DataSourceResponse.IpGenerator accept(DataSourceHandler handler) {
+            return handler.handle(this);
+        }
+    }
+
+    record VersionStringGenerator() implements DataSourceRequest<DataSourceResponse.VersionStringGenerator> {
+        public DataSourceResponse.VersionStringGenerator accept(DataSourceHandler handler) {
+            return handler.handle(this);
+        }
+    }
+
     record NullWrapper() implements DataSourceRequest<DataSourceResponse.NullWrapper> {
         public DataSourceResponse.NullWrapper accept(DataSourceHandler handler) {
             return handler.handle(this);
@@ -134,6 +160,14 @@ public interface DataSourceRequest<TResponse extends DataSourceResponse> {
         implements
             DataSourceRequest<DataSourceResponse.TransformWrapper> {
         public DataSourceResponse.TransformWrapper accept(DataSourceHandler handler) {
+            return handler.handle(this);
+        }
+    }
+
+    record TransformWeightedWrapper<T>(List<Tuple<Double, Function<T, Object>>> transformations)
+        implements
+            DataSourceRequest<DataSourceResponse.TransformWeightedWrapper> {
+        public DataSourceResponse.TransformWeightedWrapper accept(DataSourceHandler handler) {
             return handler.handle(this);
         }
     }

@@ -65,10 +65,10 @@ GET /_search
 
 ### Avoid using the `term` query for `text` fields [avoid-term-query-text-fields]
 
-By default, {{es}} changes the values of `text` fields during analysis. For example, the default [standard analyzer](/reference/data-analysis/text-analysis/analysis-standard-analyzer.md) changes `text` field values as follows:
+By default, {{es}} changes the values of `text` fields during analysis. For example, the default [standard analyzer](/reference/text-analysis/analysis-standard-analyzer.md) changes `text` field values as follows:
 
 * Removes most punctuation
-* Divides the remaining content into individual words, called [tokens](/reference/data-analysis/text-analysis/tokenizer-reference.md)
+* Divides the remaining content into individual words, called [tokens](/reference/text-analysis/tokenizer-reference.md)
 * Lowercases the tokens
 
 To better search `text` fields, the `match` query also analyzes your provided search term before performing a search. This means the `match` query can search `text` fields for analyzed tokens rather than an exact term.

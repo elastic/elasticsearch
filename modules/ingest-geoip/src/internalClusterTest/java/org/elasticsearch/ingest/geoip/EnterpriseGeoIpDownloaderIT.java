@@ -14,6 +14,7 @@ import fixture.geoip.EnterpriseGeoIpHttpFixture;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.LatchedActionListener;
 import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkResponse;
@@ -22,6 +23,8 @@ import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.action.support.SubscribableListener;
+import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.Settings;
@@ -29,20 +32,25 @@ import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.ingest.EnterpriseGeoIpTask;
 import org.elasticsearch.ingest.geoip.direct.DatabaseConfiguration;
+import org.elasticsearch.ingest.geoip.direct.DeleteDatabaseConfigurationAction;
 import org.elasticsearch.ingest.geoip.direct.PutDatabaseConfigurationAction;
 import org.elasticsearch.persistent.PersistentTasksService;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.reindex.ReindexPlugin;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.transport.RemoteTransportException;
 import org.elasticsearch.xcontent.XContentType;
+import org.junit.After;
 import org.junit.ClassRule;
 
 import java.io.IOException;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.ingest.EnterpriseGeoIpTask.ENTERPRISE_GEOIP_DOWNLOADER;
 import static org.elasticsearch.ingest.geoip.EnterpriseGeoIpDownloaderTaskExecutor.IPINFO_TOKEN_SETTING;
@@ -53,6 +61,8 @@ public class EnterpriseGeoIpDownloaderIT extends ESIntegTestCase {
 
     private static final String MAXMIND_DATABASE_TYPE = "GeoIP2-City";
     private static final String IPINFO_DATABASE_TYPE = "asn";
+    private static final String MAXMIND_CONFIGURATION = "test-1";
+    private static final String IPINFO_CONFIGURATION = "test-2";
 
     @ClassRule
     public static final EnterpriseGeoIpHttpFixture fixture = new EnterpriseGeoIpHttpFixture(
@@ -87,6 +97,10 @@ public class EnterpriseGeoIpDownloaderIT extends ESIntegTestCase {
     }
 
     @SuppressWarnings("unchecked")
+    @TestLogging(
+        reason = "understanding why ipinfo asn database sometimes is not loaded",
+        value = "org.elasticsearch.ingest.geoip.DatabaseNodeService:TRACE"
+    )
     public void testEnterpriseDownloaderTask() throws Exception {
         /*
          * This test starts the enterprise geoip downloader task, and creates a database configuration. Then it creates an ingest
@@ -121,18 +135,40 @@ public class EnterpriseGeoIpDownloaderIT extends ESIntegTestCase {
             assertNotNull(returnedSource);
             Object targetFieldValue = returnedSource.get(targetField);
             assertNotNull(targetFieldValue);
-            assertThat(((Map<String, Object>) targetFieldValue).get("organization_name"), equalTo("Bredband2 AB"));
+            assertThat(((Map<String, Object>) targetFieldValue).get("city_name"), equalTo("Linköping"));
         });
         assertBusy(() -> {
             logger.info("Ingesting another test document");
-            String documentId = ingestDocument(indexName, iplocationPipelineName, sourceField, "12.10.66.1");
+            String documentId = ingestDocument(indexName, iplocationPipelineName, sourceField, "103.134.48.0");
             GetResponse getResponse = client().get(new GetRequest(indexName, documentId)).actionGet();
             Map<String, Object> returnedSource = getResponse.getSource();
             assertNotNull(returnedSource);
             Object targetFieldValue = returnedSource.get(targetField);
             assertNotNull(targetFieldValue);
-            assertThat(((Map<String, Object>) targetFieldValue).get("organization_name"), equalTo("OAKLAWN JOCKEY CLUB, INC."));
+            assertThat(((Map<String, Object>) targetFieldValue).get("organization_name"), equalTo("PT Nevigate Telekomunikasi Indonesia"));
         });
+    }
+
+    @After
+    public void cleanup() throws InterruptedException {
+        /*
+         * This method cleans up the database configurations that the test created. This allows the test to be run repeatedly.
+         */
+        CountDownLatch latch = new CountDownLatch(1);
+        LatchedActionListener<AcknowledgedResponse> listener = new LatchedActionListener<>(ActionListener.noop(), latch);
+        SubscribableListener.<AcknowledgedResponse>newForked(l -> deleteDatabaseConfiguration(MAXMIND_CONFIGURATION, l))
+            .<AcknowledgedResponse>andThen(l -> deleteDatabaseConfiguration(IPINFO_CONFIGURATION, l))
+            .addListener(listener);
+        latch.await(10, TimeUnit.SECONDS);
+    }
+
+    private void deleteDatabaseConfiguration(String configurationName, ActionListener<AcknowledgedResponse> listener) {
+        admin().cluster()
+            .execute(
+                DeleteDatabaseConfigurationAction.INSTANCE,
+                new DeleteDatabaseConfigurationAction.Request(TimeValue.MAX_VALUE, TimeValue.timeValueSeconds(10), configurationName),
+                listener
+            );
     }
 
     private void startEnterpriseGeoIpDownloaderTask() {
@@ -158,7 +194,7 @@ public class EnterpriseGeoIpDownloaderIT extends ESIntegTestCase {
                 new PutDatabaseConfigurationAction.Request(
                     TimeValue.MAX_VALUE,
                     TimeValue.MAX_VALUE,
-                    new DatabaseConfiguration("test-1", databaseType, new DatabaseConfiguration.Maxmind("test_account"))
+                    new DatabaseConfiguration(MAXMIND_CONFIGURATION, databaseType, new DatabaseConfiguration.Maxmind("test_account"))
                 )
             )
             .actionGet();
@@ -171,7 +207,7 @@ public class EnterpriseGeoIpDownloaderIT extends ESIntegTestCase {
                 new PutDatabaseConfigurationAction.Request(
                     TimeValue.MAX_VALUE,
                     TimeValue.MAX_VALUE,
-                    new DatabaseConfiguration("test-2", databaseType, new DatabaseConfiguration.Ipinfo())
+                    new DatabaseConfiguration(IPINFO_CONFIGURATION, databaseType, new DatabaseConfiguration.Ipinfo())
                 )
             )
             .actionGet();

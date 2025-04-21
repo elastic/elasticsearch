@@ -54,7 +54,7 @@ public class DataStreamLifecycleDownsampleIT extends ESIntegTestCase {
     public void testDownsampling() throws Exception {
         String dataStreamName = "metrics-foo";
 
-        DataStreamLifecycle.Template lifecycle = DataStreamLifecycle.Template.builder()
+        DataStreamLifecycle.Template lifecycle = DataStreamLifecycle.builder()
             .downsampling(
                 List.of(
                     new DataStreamLifecycle.DownsamplingRound(
@@ -67,7 +67,7 @@ public class DataStreamLifecycleDownsampleIT extends ESIntegTestCase {
                     )
                 )
             )
-            .build();
+            .buildTemplate();
 
         DataStreamLifecycleDriver.setupTSDBDataStreamAndIngestDocs(
             client(),
@@ -127,7 +127,7 @@ public class DataStreamLifecycleDownsampleIT extends ESIntegTestCase {
     public void testDownsamplingOnlyExecutesTheLastMatchingRound() throws Exception {
         String dataStreamName = "metrics-bar";
 
-        DataStreamLifecycle.Template lifecycle = DataStreamLifecycle.Template.builder()
+        DataStreamLifecycle.Template lifecycle = DataStreamLifecycle.builder()
             .downsampling(
                 List.of(
                     new DataStreamLifecycle.DownsamplingRound(
@@ -142,7 +142,7 @@ public class DataStreamLifecycleDownsampleIT extends ESIntegTestCase {
                     )
                 )
             )
-            .build();
+            .buildTemplate();
         DataStreamLifecycleDriver.setupTSDBDataStreamAndIngestDocs(
             client(),
             dataStreamName,
@@ -195,7 +195,7 @@ public class DataStreamLifecycleDownsampleIT extends ESIntegTestCase {
         // we expect the earlier round to be ignored
         String dataStreamName = "metrics-baz";
 
-        DataStreamLifecycle.Template lifecycle = DataStreamLifecycle.Template.builder()
+        DataStreamLifecycle.Template lifecycle = DataStreamLifecycle.builder()
             .downsampling(
                 List.of(
                     new DataStreamLifecycle.DownsamplingRound(
@@ -210,7 +210,7 @@ public class DataStreamLifecycleDownsampleIT extends ESIntegTestCase {
                     )
                 )
             )
-            .build();
+            .buildTemplate();
 
         DataStreamLifecycleDriver.setupTSDBDataStreamAndIngestDocs(
             client(),

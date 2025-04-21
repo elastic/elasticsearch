@@ -18,21 +18,20 @@ import org.elasticsearch.xpack.esql.capabilities.PostAnalysisPlanVerificationAwa
 import org.elasticsearch.xpack.esql.common.Failure;
 import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.core.InvalidArgumentException;
-import org.elasticsearch.xpack.esql.core.expression.EntryExpression;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
-import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.MapExpression;
 import org.elasticsearch.xpack.esql.core.querydsl.query.Query;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
-import org.elasticsearch.xpack.esql.core.type.DataTypeConverter;
 import org.elasticsearch.xpack.esql.core.type.MultiTypeEsField;
 import org.elasticsearch.xpack.esql.core.util.Check;
 import org.elasticsearch.xpack.esql.core.util.NumericUtils;
 import org.elasticsearch.xpack.esql.expression.function.Example;
+import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesTo;
+import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecycle;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.MapParam;
 import org.elasticsearch.xpack.esql.expression.function.OptionalArgument;
@@ -53,7 +52,6 @@ import java.util.Set;
 import java.util.function.BiConsumer;
 
 import static java.util.Map.entry;
-import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
 import static org.elasticsearch.index.query.AbstractQueryBuilder.BOOST_FIELD;
 import static org.elasticsearch.index.query.MatchQueryBuilder.ANALYZER_FIELD;
 import static org.elasticsearch.index.query.MatchQueryBuilder.FUZZY_REWRITE_FIELD;
@@ -68,7 +66,6 @@ import static org.elasticsearch.index.query.MatchQueryBuilder.ZERO_TERMS_QUERY_F
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.FIRST;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.SECOND;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.THIRD;
-import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isFoldable;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isMapExpression;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isNotNull;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isNotNullAndFoldable;
@@ -82,7 +79,6 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.INTEGER;
 import static org.elasticsearch.xpack.esql.core.type.DataType.IP;
 import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
 import static org.elasticsearch.xpack.esql.core.type.DataType.LONG;
-import static org.elasticsearch.xpack.esql.core.type.DataType.SEMANTIC_TEXT;
 import static org.elasticsearch.xpack.esql.core.type.DataType.TEXT;
 import static org.elasticsearch.xpack.esql.core.type.DataType.UNSIGNED_LONG;
 import static org.elasticsearch.xpack.esql.core.type.DataType.VERSION;
@@ -97,7 +93,6 @@ public class Match extends FullTextFunction implements OptionalArgument, PostAna
     public static final Set<DataType> FIELD_DATA_TYPES = Set.of(
         KEYWORD,
         TEXT,
-        SEMANTIC_TEXT,
         BOOLEAN,
         DATETIME,
         DATE_NANOS,
@@ -154,12 +149,17 @@ public class Match extends FullTextFunction implements OptionalArgument, PostAna
             Match can use <<esql-function-named-params,function named parameters>> to specify additional options for the match query.
             All <<match-field-params,match query parameters>> are supported.
 
-            For a simplified syntax, you can use the <<esql-search-operators,match operator>> `:` operator instead of `MATCH`.
+            For a simplified syntax, you can use the <<esql-match-operator,match operator>> `:` operator instead of `MATCH`.
 
             `MATCH` returns true if the provided query matches the row.""",
         examples = {
             @Example(file = "match-function", tag = "match-with-field"),
-            @Example(file = "match-function", tag = "match-with-named-function-params") }
+            @Example(file = "match-function", tag = "match-with-named-function-params") },
+        appliesTo = {
+            @FunctionAppliesTo(
+                lifeCycle = FunctionAppliesToLifecycle.COMING,
+                description = "Support for optional named parameters is only available in serverless, or in a future {{es}} release"
+            ) }
     )
     public Match(
         Source source,
@@ -180,13 +180,14 @@ public class Match extends FullTextFunction implements OptionalArgument, PostAna
                     name = "analyzer",
                     type = "keyword",
                     valueHint = { "standard" },
-                    description = "Analyzer used to convert the text in the query value into token."
+                    description = "Analyzer used to convert the text in the query value into token. Defaults to the index-time analyzer"
+                        + " mapped for the field. If no analyzer is mapped, the index’s default analyzer is used."
                 ),
                 @MapParam.MapParamEntry(
                     name = "auto_generate_synonyms_phrase_query",
                     type = "boolean",
                     valueHint = { "true", "false" },
-                    description = "If true, match phrase queries are automatically created for multi-term synonyms."
+                    description = "If true, match phrase queries are automatically created for multi-term synonyms. Defaults to true."
                 ),
                 @MapParam.MapParamEntry(
                     name = "fuzziness",
@@ -198,13 +199,14 @@ public class Match extends FullTextFunction implements OptionalArgument, PostAna
                     name = "boost",
                     type = "float",
                     valueHint = { "2.5" },
-                    description = "Floating point number used to decrease or increase the relevance scores of the query."
+                    description = "Floating point number used to decrease or increase the relevance scores of the query. Defaults to 1.0."
                 ),
                 @MapParam.MapParamEntry(
                     name = "fuzzy_transpositions",
                     type = "boolean",
                     valueHint = { "true", "false" },
-                    description = "If true, edits for fuzzy matching include transpositions of two adjacent characters (ab → ba)."
+                    description = "If true, edits for fuzzy matching include transpositions of two adjacent characters (ab → ba). "
+                        + "Defaults to true."
                 ),
                 @MapParam.MapParamEntry(
                     name = "fuzzy_rewrite",
@@ -216,19 +218,22 @@ public class Match extends FullTextFunction implements OptionalArgument, PostAna
                         "top_terms_blended_freqs_N",
                         "top_terms_boost_N",
                         "top_terms_N" },
-                    description = "Method used to rewrite the query. See the rewrite parameter for valid values and more information."
+                    description = "Method used to rewrite the query. See the rewrite parameter for valid values and more information. "
+                        + "If the fuzziness parameter is not 0, the match query uses a fuzzy_rewrite method of "
+                        + "top_terms_blended_freqs_${max_expansions} by default."
                 ),
                 @MapParam.MapParamEntry(
                     name = "lenient",
                     type = "boolean",
                     valueHint = { "true", "false" },
-                    description = "If false, format-based errors, such as providing a text query value for a numeric field, are returned."
+                    description = "If false, format-based errors, such as providing a text query value for a numeric field, are returned. "
+                        + "Defaults to false."
                 ),
                 @MapParam.MapParamEntry(
                     name = "max_expansions",
                     type = "integer",
                     valueHint = { "50" },
-                    description = "Maximum number of terms to which the query will expand."
+                    description = "Maximum number of terms to which the query will expand. Defaults to 50."
                 ),
                 @MapParam.MapParamEntry(
                     name = "minimum_should_match",
@@ -240,19 +245,20 @@ public class Match extends FullTextFunction implements OptionalArgument, PostAna
                     name = "operator",
                     type = "keyword",
                     valueHint = { "AND", "OR" },
-                    description = "Boolean logic used to interpret text in the query value."
+                    description = "Boolean logic used to interpret text in the query value. Defaults to OR."
                 ),
                 @MapParam.MapParamEntry(
                     name = "prefix_length",
                     type = "integer",
                     valueHint = { "1" },
-                    description = "Number of beginning characters left unchanged for fuzzy matching."
+                    description = "Number of beginning characters left unchanged for fuzzy matching. Defaults to 0."
                 ),
                 @MapParam.MapParamEntry(
                     name = "zero_terms_query",
                     type = "keyword",
                     valueHint = { "none", "all" },
-                    description = "Number of beginning characters left unchanged for fuzzy matching."
+                    description = "Indicates whether all documents or none are returned if the analyzer removes all tokens, such as "
+                        + "when using a stop filter. Defaults to none."
                 ) },
             description = "(Optional) Match additional options as <<esql-function-named-params,function named parameters>>."
                 + " See <<query-dsl-match-query,match query>> for more information.",
@@ -363,7 +369,6 @@ public class Match extends FullTextFunction implements OptionalArgument, PostAna
     }
 
     private Map<String, Object> matchQueryOptions() throws InvalidArgumentException {
-
         if (options() == null) {
             return Map.of(LENIENT_FIELD.getPreferredName(), true);
         }
@@ -372,33 +377,7 @@ public class Match extends FullTextFunction implements OptionalArgument, PostAna
         // Match is lenient by default to avoid failing on incompatible types
         matchOptions.put(LENIENT_FIELD.getPreferredName(), true);
 
-        for (EntryExpression entry : ((MapExpression) options()).entryExpressions()) {
-            Expression optionExpr = entry.key();
-            Expression valueExpr = entry.value();
-            TypeResolution resolution = isFoldable(optionExpr, sourceText(), SECOND).and(isFoldable(valueExpr, sourceText(), SECOND));
-            if (resolution.unresolved()) {
-                throw new InvalidArgumentException(resolution.message());
-            }
-            Object optionExprLiteral = ((Literal) optionExpr).value();
-            Object valueExprLiteral = ((Literal) valueExpr).value();
-            String optionName = optionExprLiteral instanceof BytesRef br ? br.utf8ToString() : optionExprLiteral.toString();
-            String optionValue = valueExprLiteral instanceof BytesRef br ? br.utf8ToString() : valueExprLiteral.toString();
-            // validate the optionExpr is supported
-            DataType dataType = ALLOWED_OPTIONS.get(optionName);
-            if (dataType == null) {
-                throw new InvalidArgumentException(
-                    format(null, "Invalid option [{}] in [{}], expected one of {}", optionName, sourceText(), ALLOWED_OPTIONS.keySet())
-                );
-            }
-            try {
-                matchOptions.put(optionName, DataTypeConverter.convert(optionValue, dataType));
-            } catch (InvalidArgumentException e) {
-                throw new InvalidArgumentException(
-                    format(null, "Invalid option [{}] in [{}], {}", optionName, sourceText(), e.getMessage())
-                );
-            }
-        }
-
+        populateOptionsMap((MapExpression) options(), matchOptions, SECOND, sourceText(), ALLOWED_OPTIONS);
         return matchOptions;
     }
 
@@ -481,22 +460,31 @@ public class Match extends FullTextFunction implements OptionalArgument, PostAna
     protected Query translate(TranslatorHandler handler) {
         var fieldAttribute = fieldAsFieldAttribute();
         Check.notNull(fieldAttribute, "Match must have a field attribute as the first argument");
+        String fieldName = getNameFromFieldAttribute(fieldAttribute);
+        // Make query lenient so mixed field types can be queried when a field type is incompatible with the value provided
+        return new MatchQuery(source(), fieldName, queryAsObject(), matchQueryOptions());
+    }
+
+    public static String getNameFromFieldAttribute(FieldAttribute fieldAttribute) {
         String fieldName = fieldAttribute.name();
         if (fieldAttribute.field() instanceof MultiTypeEsField multiTypeEsField) {
             // If we have multiple field types, we allow the query to be done, but getting the underlying field name
             fieldName = multiTypeEsField.getName();
         }
-        // Make query lenient so mixed field types can be queried when a field type is incompatible with the value provided
-        return new MatchQuery(source(), fieldName, queryAsObject(), matchQueryOptions());
+        return fieldName;
     }
 
-    private FieldAttribute fieldAsFieldAttribute() {
+    public static FieldAttribute fieldAsFieldAttribute(Expression field) {
         Expression fieldExpression = field;
         // Field may be converted to other data type (field_name :: data_type), so we need to check the original field
         if (fieldExpression instanceof AbstractConvertFunction convertFunction) {
             fieldExpression = convertFunction.field();
         }
         return fieldExpression instanceof FieldAttribute fieldAttribute ? fieldAttribute : null;
+    }
+
+    private FieldAttribute fieldAsFieldAttribute() {
+        return fieldAsFieldAttribute(field);
     }
 
     @Override

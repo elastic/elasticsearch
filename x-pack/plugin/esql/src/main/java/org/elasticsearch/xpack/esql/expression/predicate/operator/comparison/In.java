@@ -15,6 +15,8 @@ import org.elasticsearch.common.time.DateUtils;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.Vector;
 import org.elasticsearch.compute.operator.EvalOperator;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.capabilities.TranslationAware;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
@@ -115,6 +117,7 @@ import static org.elasticsearch.xpack.esql.core.util.StringUtils.ordinal;
  */
 public class In extends EsqlScalarFunction implements TranslationAware.SingleValueTranslationAware {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "In", In::new);
+    private static final Logger logger = LogManager.getLogger(In.class);
 
     private final Expression value;
     private final List<Expression> list;
@@ -468,13 +471,14 @@ public class In extends EsqlScalarFunction implements TranslationAware.SingleVal
     }
 
     private Query translate(TranslatorHandler handler) {
+        logger.trace("Attempting to generate lucene query for IN expression");
         TypedAttribute attribute = LucenePushdownPredicates.checkIsPushableAttribute(value());
 
         Set<Object> terms = new LinkedHashSet<>();
         List<Query> queries = new ArrayList<>();
 
         for (Expression rhs : list()) {
-            if (DataType.isNull(rhs.dataType()) == false) {
+            if (Expressions.isGuaranteedNull(rhs) == false) {
                 if (needsTypeSpecificValueHandling(attribute.dataType())) {
                     // delegates to BinaryComparisons translator to ensure consistent handling of date and time values
                     // TODO:
@@ -501,7 +505,7 @@ public class In extends EsqlScalarFunction implements TranslationAware.SingleVal
     }
 
     private static boolean needsTypeSpecificValueHandling(DataType fieldType) {
-        return DataType.isDateTime(fieldType) || fieldType == IP || fieldType == VERSION || fieldType == UNSIGNED_LONG;
+        return fieldType == DATETIME || fieldType == DATE_NANOS || fieldType == IP || fieldType == VERSION || fieldType == UNSIGNED_LONG;
     }
 
     private static Query or(Source source, Query left, Query right) {

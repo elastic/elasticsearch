@@ -18,6 +18,7 @@ import org.elasticsearch.compute.operator.AggregationOperator;
 import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.compute.operator.HashAggregationOperator.HashAggregationOperatorFactory;
 import org.elasticsearch.compute.operator.Operator;
+import org.elasticsearch.compute.operator.TimeSeriesAggregationOperator;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.InvalidArgumentException;
@@ -34,6 +35,7 @@ import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
 import org.elasticsearch.xpack.esql.expression.function.grouping.Categorize;
 import org.elasticsearch.xpack.esql.plan.physical.AggregateExec;
 import org.elasticsearch.xpack.esql.plan.physical.ExchangeSourceExec;
+import org.elasticsearch.xpack.esql.plan.physical.TimeSeriesAggregateExec;
 import org.elasticsearch.xpack.esql.planner.LocalExecutionPlanner.LocalExecutionPlannerContext;
 import org.elasticsearch.xpack.esql.planner.LocalExecutionPlanner.PhysicalOperation;
 
@@ -171,8 +173,17 @@ public abstract class AbstractPhysicalOperationProviders implements PhysicalOper
                 true, // grouping
                 s -> aggregatorFactories.add(s.supplier.groupingAggregatorFactory(s.mode, s.channels))
             );
-
-            if (groupSpecs.size() == 1 && groupSpecs.get(0).channel == null) {
+            // time-series aggregation
+            if (aggregateExec instanceof TimeSeriesAggregateExec ts) {
+                operatorFactory = new TimeSeriesAggregationOperator.Factory(
+                    ts.timeBucketRounding(context.foldCtx()),
+                    groupSpecs.stream().map(GroupSpec::toHashGroupSpec).toList(),
+                    aggregatorMode,
+                    aggregatorFactories,
+                    context.pageSize(aggregateExec.estimatedRowSize())
+                );
+                // ordinal grouping
+            } else if (groupSpecs.size() == 1 && groupSpecs.get(0).channel == null) {
                 operatorFactory = ordinalGroupingOperatorFactory(
                     source,
                     aggregateExec,

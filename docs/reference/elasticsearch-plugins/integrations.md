@@ -20,10 +20,10 @@ Integrations are not plugins, but are external tools or modules that make it eas
 
 ### Supported by Elastic: [_supported_by_elastic]
 
-* [Logstash output to Elasticsearch](logstash://reference/plugins-outputs-elasticsearch.md): The Logstash `elasticsearch` output plugin.
-* [Elasticsearch input to Logstash](logstash://reference/plugins-inputs-elasticsearch.md) The Logstash `elasticsearch` input plugin.
-* [Elasticsearch event filtering in Logstash](logstash://reference/plugins-filters-elasticsearch.md) The Logstash `elasticsearch` filter plugin.
-* [Elasticsearch bulk codec](logstash://reference/plugins-codecs-es_bulk.md) The Logstash `es_bulk` plugin decodes the Elasticsearch bulk format into individual events.
+* [Logstash output to Elasticsearch](logstash-docs-md://lsr//plugins-outputs-elasticsearch.md): The Logstash `elasticsearch` output plugin.
+* [Elasticsearch input to Logstash](logstash-docs-md://lsr/plugins-inputs-elasticsearch.md) The Logstash `elasticsearch` input plugin.
+* [Elasticsearch event filtering in Logstash](logstash-docs-md://lsr/plugins-filters-elasticsearch.md) The Logstash `elasticsearch` filter plugin.
+* [Elasticsearch bulk codec](logstash-docs-md://lsr//plugins-codecs-es_bulk.md) The Logstash `es_bulk` plugin decodes the Elasticsearch bulk format into individual events.
 
 
 ### Supported by the community: [_supported_by_the_community_2]

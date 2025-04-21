@@ -9,6 +9,9 @@
 
 package org.elasticsearch.logsdb.datageneration.datasource;
 
+import org.elasticsearch.common.network.NetworkAddress;
+import org.elasticsearch.geo.GeometryTestUtils;
+import org.elasticsearch.geometry.utils.WellKnownText;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.ObjectMapper;
 import org.elasticsearch.logsdb.datageneration.FieldType;
@@ -33,10 +36,7 @@ public class DefaultMappingParametersHandler implements DataSourceHandler {
             return null;
         }
 
-        var map = new HashMap<String, Object>();
-        map.put("store", ESTestCase.randomBoolean());
-        map.put("index", ESTestCase.randomBoolean());
-        map.put("doc_values", ESTestCase.randomBoolean());
+        var map = commonMappingParameters();
         if (ESTestCase.randomBoolean()) {
             map.put(Mapper.SYNTHETIC_SOURCE_KEEP_PARAM, ESTestCase.randomFrom("none", "arrays", "all"));
         }
@@ -48,6 +48,11 @@ public class DefaultMappingParametersHandler implements DataSourceHandler {
             case COUNTED_KEYWORD -> plain(Map.of("index", ESTestCase.randomBoolean()));
             case BOOLEAN -> booleanMapping(map);
             case DATE -> dateMapping(map);
+            case GEO_POINT -> geoPointMapping(map);
+            case TEXT -> textMapping(request, new HashMap<>());
+            case IP -> ipMapping(map);
+            case CONSTANT_KEYWORD -> constantKeywordMapping(new HashMap<>());
+            case WILDCARD -> wildcardMapping(new HashMap<>());
         });
     }
 
@@ -170,6 +175,87 @@ public class DefaultMappingParametersHandler implements DataSourceHandler {
 
             return injected;
         };
+    }
+
+    private Supplier<Map<String, Object>> geoPointMapping(Map<String, Object> injected) {
+        return () -> {
+            if (ESTestCase.randomDouble() <= 0.2) {
+                var point = GeometryTestUtils.randomPoint(false);
+                injected.put("null_value", WellKnownText.toWKT(point));
+            }
+
+            if (ESTestCase.randomBoolean()) {
+                injected.put("ignore_malformed", ESTestCase.randomBoolean());
+            }
+
+            return injected;
+        };
+    }
+
+    private Supplier<Map<String, Object>> textMapping(
+        DataSourceRequest.LeafMappingParametersGenerator request,
+        Map<String, Object> injected
+    ) {
+        return () -> {
+            injected.put("store", ESTestCase.randomBoolean());
+            injected.put("index", ESTestCase.randomBoolean());
+
+            if (ESTestCase.randomDouble() <= 0.1) {
+                var keywordMultiFieldMapping = keywordMapping(request, commonMappingParameters()).get();
+                keywordMultiFieldMapping.put("type", "keyword");
+                keywordMultiFieldMapping.remove("copy_to");
+
+                injected.put("fields", Map.of("kwd", keywordMultiFieldMapping));
+
+            }
+
+            return injected;
+        };
+    }
+
+    private Supplier<Map<String, Object>> ipMapping(Map<String, Object> injected) {
+        return () -> {
+            if (ESTestCase.randomDouble() <= 0.2) {
+                injected.put("null_value", NetworkAddress.format(ESTestCase.randomIp(ESTestCase.randomBoolean())));
+            }
+
+            if (ESTestCase.randomBoolean()) {
+                injected.put("ignore_malformed", ESTestCase.randomBoolean());
+            }
+
+            return injected;
+        };
+    }
+
+    private Supplier<Map<String, Object>> constantKeywordMapping(Map<String, Object> injected) {
+        return () -> {
+            // value is optional and can be set from the first document
+            // we don't cover this case here
+            injected.put("value", ESTestCase.randomAlphaOfLengthBetween(0, 10));
+
+            return injected;
+        };
+    }
+
+    private Supplier<Map<String, Object>> wildcardMapping(Map<String, Object> injected) {
+        return () -> {
+            if (ESTestCase.randomDouble() <= 0.2) {
+                injected.put("ignore_above", ESTestCase.randomIntBetween(1, 100));
+            }
+            if (ESTestCase.randomDouble() <= 0.2) {
+                injected.put("null_value", ESTestCase.randomAlphaOfLengthBetween(0, 10));
+            }
+
+            return injected;
+        };
+    }
+
+    private static HashMap<String, Object> commonMappingParameters() {
+        var map = new HashMap<String, Object>();
+        map.put("store", ESTestCase.randomBoolean());
+        map.put("index", ESTestCase.randomBoolean());
+        map.put("doc_values", ESTestCase.randomBoolean());
+        return map;
     }
 
     @Override

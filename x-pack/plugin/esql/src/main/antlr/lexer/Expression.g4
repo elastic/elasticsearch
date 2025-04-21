@@ -18,7 +18,9 @@ SORT : 'sort'                 -> pushMode(EXPRESSION_MODE);
 STATS : 'stats'               -> pushMode(EXPRESSION_MODE);
 WHERE : 'where'               -> pushMode(EXPRESSION_MODE);
 
+DEV_COMPLETION : {this.isDevVersion()}? 'completion'     -> pushMode(EXPRESSION_MODE);
 DEV_INLINESTATS : {this.isDevVersion()}? 'inlinestats'   -> pushMode(EXPRESSION_MODE);
+DEV_RERANK : {this.isDevVersion()}? 'rerank'             -> pushMode(EXPRESSION_MODE);
 
 
 mode EXPRESSION_MODE;
@@ -82,11 +84,12 @@ DECIMAL_LITERAL
     | DOT DIGIT+ EXPONENT
     ;
 
-BY : 'by';
 
 AND : 'and';
+AS: 'as';
 ASC : 'asc';
 ASSIGN : '=';
+BY : 'by';
 CAST_OP : '::';
 COLON : ':';
 COMMA : ',';
@@ -101,10 +104,12 @@ LIKE: 'like';
 NOT : 'not';
 NULL : 'null';
 NULLS : 'nulls';
+ON: 'on';
 OR : 'or';
 PARAM: '?';
 RLIKE: 'rlike';
 TRUE : 'true';
+WITH: 'with';
 
 EQ  : '==';
 CIEQ  : '=~';
@@ -123,7 +128,7 @@ PERCENT : '%';
 LEFT_BRACES : '{';
 RIGHT_BRACES : '}';
 
-DOUBLE_PARAMS: {this.isDevVersion()}? '??';
+DOUBLE_PARAMS: '??';
 
 NESTED_WHERE : WHERE -> type(WHERE);
 

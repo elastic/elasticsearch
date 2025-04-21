@@ -557,8 +557,8 @@ PERCENTILE(
 
 1. a numeric field. If this field contains only `null` values, the function returns `null`. Otherwise, the function ignores `null` values in this field.
 2. a numeric expression (must be a constant and not based on a field). If `null`, the function returns `null`.
-3. optional string literal for the [percentile algorithm](/reference/data-analysis/aggregations/search-aggregations-metrics-percentile-aggregation.md#search-aggregations-metrics-percentile-aggregation-approximation). Possible values: `tdigest` or `hdr`. Defaults to `tdigest`.
-4. optional numeric literal that configures the [percentile algorithm](/reference/data-analysis/aggregations/search-aggregations-metrics-percentile-aggregation.md#search-aggregations-metrics-percentile-aggregation-approximation). Configures `compression` for `tdigest` or `number_of_significant_value_digits` for `hdr`. The default is the same as that of the backing algorithm.
+3. optional string literal for the [percentile algorithm](/reference/aggregations/search-aggregations-metrics-percentile-aggregation.md#search-aggregations-metrics-percentile-aggregation-approximation). Possible values: `tdigest` or `hdr`. Defaults to `tdigest`.
+4. optional numeric literal that configures the [percentile algorithm](/reference/aggregations/search-aggregations-metrics-percentile-aggregation.md#search-aggregations-metrics-percentile-aggregation-approximation). Configures `compression` for `tdigest` or `number_of_significant_value_digits` for `hdr`. The default is the same as that of the backing algorithm.
 
 
 **Output**: `double` numeric value
@@ -628,8 +628,8 @@ PERCENTILE_RANK(
 
 1. a numeric field. If this field contains only `null` values, the function returns `null`. Otherwise, the function ignores `null` values in this field.
 2. a numeric expression (must be a constant and not based on a field). If `null`, the function returns `null`.
-3. optional string literal for the [percentile algorithm](/reference/data-analysis/aggregations/search-aggregations-metrics-percentile-aggregation.md#search-aggregations-metrics-percentile-aggregation-approximation). Possible values: `tdigest` or `hdr`. Defaults to `tdigest`.
-4. optional numeric literal that configures the [percentile algorithm](/reference/data-analysis/aggregations/search-aggregations-metrics-percentile-aggregation.md#search-aggregations-metrics-percentile-aggregation-approximation). Configures `compression` for `tdigest` or `number_of_significant_value_digits` for `hdr`. The default is the same as that of the backing algorithm.
+3. optional string literal for the [percentile algorithm](/reference/aggregations/search-aggregations-metrics-percentile-aggregation.md#search-aggregations-metrics-percentile-aggregation-approximation). Possible values: `tdigest` or `hdr`. Defaults to `tdigest`.
+4. optional numeric literal that configures the [percentile algorithm](/reference/aggregations/search-aggregations-metrics-percentile-aggregation.md#search-aggregations-metrics-percentile-aggregation-approximation). Configures `compression` for `tdigest` or `number_of_significant_value_digits` for `hdr`. The default is the same as that of the backing algorithm.
 
 
 **Output**: `double` numeric value

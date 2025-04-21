@@ -9,7 +9,12 @@
 
 package org.elasticsearch.entitlement.qa.test;
 
+import static org.elasticsearch.entitlement.qa.test.EntitlementTest.ExpectedAccess.PLUGINS;
+
+@SuppressWarnings({ "unused" /* called via reflection */ })
 class LoadNativeLibrariesCheckActions {
+
+    @EntitlementTest(expectedAccess = PLUGINS)
     static void runtimeLoad() {
         try {
             Runtime.getRuntime().load(FileCheckActions.readDir().resolve("libSomeLibFile.so").toString());
@@ -18,6 +23,7 @@ class LoadNativeLibrariesCheckActions {
         }
     }
 
+    @EntitlementTest(expectedAccess = PLUGINS)
     static void systemLoad() {
         try {
             System.load(FileCheckActions.readDir().resolve("libSomeLibFile.so").toString());
@@ -26,6 +32,7 @@ class LoadNativeLibrariesCheckActions {
         }
     }
 
+    @EntitlementTest(expectedAccess = PLUGINS)
     static void runtimeLoadLibrary() {
         try {
             Runtime.getRuntime().loadLibrary("SomeLib");
@@ -34,6 +41,7 @@ class LoadNativeLibrariesCheckActions {
         }
     }
 
+    @EntitlementTest(expectedAccess = PLUGINS)
     static void systemLoadLibrary() {
         try {
             System.loadLibrary("SomeLib");
@@ -41,4 +49,6 @@ class LoadNativeLibrariesCheckActions {
             // The library does not exist, so we expect to fail loading it
         }
     }
+
+    private LoadNativeLibrariesCheckActions() {}
 }

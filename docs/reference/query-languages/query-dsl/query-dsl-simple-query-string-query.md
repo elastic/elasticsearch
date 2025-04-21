@@ -60,7 +60,7 @@ There is a limit on the number of fields that can be queried at once. It is defi
 `analyze_wildcard`
 :   (Optional, Boolean) If `true`, the query attempts to analyze wildcard terms in the query string. Defaults to `false`. Note that, in case of  `true`, only queries that end with a `*`
 are fully analyzed. Queries that start with `*` or have it in the middle
-are only [normalized](/reference/data-analysis/text-analysis/normalizers.md).
+are only [normalized](/reference/text-analysis/normalizers.md).
 
 `analyzer`
 :   (Optional, string) [Analyzer](docs-content://manage-data/data-store/text-analysis.md) used to convert text in the query string into tokens. Defaults to the [index-time analyzer](docs-content://manage-data/data-store/text-analysis/specify-an-analyzer.md#specify-index-time-analyzer) mapped for the `default_field`. If no analyzer is mapped, the index’s default analyzer is used.

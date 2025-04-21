@@ -29,7 +29,7 @@ public class DateFieldBlockLoaderTests extends BlockLoaderTestCase {
 
     @Override
     @SuppressWarnings("unchecked")
-    protected Object expected(Map<String, Object> fieldMapping, Object value) {
+    protected Object expected(Map<String, Object> fieldMapping, Object value, TestContext testContext) {
         var format = (String) fieldMapping.get("format");
         var nullValue = fieldMapping.get("null_value") != null ? format(fieldMapping.get("null_value"), format) : null;
 

@@ -18,14 +18,15 @@ import org.elasticsearch.xpack.esql.rule.RuleExecutor;
 import java.util.Collection;
 import java.util.List;
 
-import static java.util.Arrays.asList;
-
 /**
  * This class is part of the planner. Performs global (coordinator) optimization of the physical plan. Local (data-node) optimizations
  * occur later by operating just on a plan {@link FragmentExec} (subplan).
  */
 public class PhysicalPlanOptimizer extends ParameterizedRuleExecutor<PhysicalPlan, PhysicalOptimizerContext> {
-    private static final Iterable<RuleExecutor.Batch<PhysicalPlan>> rules = initializeRules(true);
+
+    private static final List<RuleExecutor.Batch<PhysicalPlan>> RULES = List.of(
+        new Batch<>("Plan Boundary", Limiter.ONCE, new ProjectAwayColumns())
+    );
 
     private final PhysicalVerifier verifier = PhysicalVerifier.INSTANCE;
 
@@ -45,13 +46,8 @@ public class PhysicalPlanOptimizer extends ParameterizedRuleExecutor<PhysicalPla
         return plan;
     }
 
-    static List<RuleExecutor.Batch<PhysicalPlan>> initializeRules(boolean isOptimizedForEsSource) {
-        var boundary = new Batch<>("Plan Boundary", Limiter.ONCE, new ProjectAwayColumns());
-        return asList(boundary);
-    }
-
     @Override
-    protected Iterable<RuleExecutor.Batch<PhysicalPlan>> batches() {
-        return rules;
+    protected List<RuleExecutor.Batch<PhysicalPlan>> batches() {
+        return RULES;
     }
 }

@@ -72,7 +72,7 @@ GET /_search
 
 ## Notes [wildcard-query-notes]
 
-Wildcard queries using `*` can be resource-intensive, particularly with leading wildcards. To improve performance, minimize their use and consider alternatives like the [n-gram tokenizer](/reference/data-analysis/text-analysis/analysis-ngram-tokenizer.md). While this allows for more efficient searching, it may increase index size. For better performance and accuracy, combine wildcard queries with other query types like [`match`](/reference/query-languages/query-dsl/query-dsl-match-query.md) or [`bool`](/reference/query-languages/query-dsl/query-dsl-bool-query.md) to first narrow down results.
+Wildcard queries using `*` can be resource-intensive, particularly with leading wildcards. To improve performance, minimize their use and consider alternatives like the [n-gram tokenizer](/reference/text-analysis/analysis-ngram-tokenizer.md). While this allows for more efficient searching, it may increase index size. For better performance and accuracy, combine wildcard queries with other query types like [`match`](/reference/query-languages/query-dsl/query-dsl-match-query.md) or [`bool`](/reference/query-languages/query-dsl/query-dsl-bool-query.md) to first narrow down results.
 
 ### Allow expensive queries [_allow_expensive_queries_7]
 

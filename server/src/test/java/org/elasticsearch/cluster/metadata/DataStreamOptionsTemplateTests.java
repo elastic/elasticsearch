@@ -72,45 +72,31 @@ public class DataStreamOptionsTemplateTests extends AbstractXContentSerializingT
         return new DataStreamOptions.Template(ResettableValue.create(new DataStreamFailureStore.Template(ResettableValue.create(enabled))));
     }
 
-    public void testBuilder() {
+    public void testTemplateComposition() {
+        DataStreamOptions.Template fullyConfigured = new DataStreamOptions.Template(new DataStreamFailureStore.Template(randomBoolean()));
+        DataStreamOptions.Template negated = new DataStreamOptions.Template(
+            new DataStreamFailureStore.Template(fullyConfigured.failureStore().get().enabled().get() == false)
+        );
         // No updates
-        {
-            DataStreamOptions.Template.Builder builder = DataStreamOptions.Template.builder(null);
-            assertThat(builder.build(), equalTo(DataStreamOptions.Template.EMPTY));
+        DataStreamOptions.Template result = DataStreamOptions.builder(DataStreamOptions.Template.EMPTY).buildTemplate();
+        assertThat(result, equalTo(DataStreamOptions.Template.EMPTY));
+        result = DataStreamOptions.builder(fullyConfigured).buildTemplate();
+        assertThat(result, equalTo(fullyConfigured));
 
-            builder = DataStreamOptions.Template.builder(new DataStreamOptions.Template(ResettableValue.undefined()));
-            assertThat(builder.build(), equalTo(DataStreamOptions.Template.EMPTY));
-
-            builder = DataStreamOptions.Template.builder(RESET);
-            assertThat(builder.build(), equalTo(RESET));
-
-            DataStreamOptions.Template initial = new DataStreamOptions.Template(
-                ResettableValue.create(DataStreamFailureStoreTemplateTests.randomFailureStoreTemplate())
-            );
-            builder = DataStreamOptions.Template.builder(initial);
-            assertThat(builder.build(), equalTo(initial));
-        }
+        // Explicit nulls are normalised
+        result = DataStreamOptions.builder(RESET).buildTemplate();
+        assertThat(result, equalTo(DataStreamOptions.Template.EMPTY));
 
         // Merge
-        {
-            DataStreamOptions.Template initial = randomDataStreamOptions();
-            DataStreamOptions.Template.Builder builder = DataStreamOptions.Template.builder(initial);
-            builder.updateFailureStore(ResettableValue.undefined());
-            assertThat(builder.build(), equalTo(initial));
-        }
+        result = DataStreamOptions.builder(fullyConfigured).composeTemplate(DataStreamOptions.Template.EMPTY).buildTemplate();
+        assertThat(result, equalTo(fullyConfigured));
 
         // Override
-        {
-            DataStreamOptions.Template.Builder builder = DataStreamOptions.Template.builder(randomDataStreamOptions());
-            builder.updateFailureStore(ResettableValue.reset());
-            assertThat(builder.build(), equalTo(DataStreamOptions.Template.EMPTY));
+        result = DataStreamOptions.builder(fullyConfigured).composeTemplate(negated).buildTemplate();
+        assertThat(result, equalTo(negated));
 
-            builder = DataStreamOptions.Template.builder(randomDataStreamOptions());
-            DataStreamOptions.Template update = new DataStreamOptions.Template(
-                ResettableValue.create(DataStreamFailureStoreTemplateTests.randomFailureStoreTemplate())
-            );
-            builder.updateFailureStore(update.failureStore());
-            assertThat(builder.build(), equalTo(update));
-        }
+        // Reset
+        result = DataStreamOptions.builder(fullyConfigured).composeTemplate(RESET).buildTemplate();
+        assertThat(result, equalTo(DataStreamOptions.Template.EMPTY));
     }
 }

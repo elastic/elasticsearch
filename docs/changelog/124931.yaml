@@ -1,5 +1,0 @@
-pr: 124931
-summary: This PR fixes a bug whereby partial snapshots of system datastreams could be used to restore system features.
-area: "Snapshot/Restore"
-type: bug
-issues: []

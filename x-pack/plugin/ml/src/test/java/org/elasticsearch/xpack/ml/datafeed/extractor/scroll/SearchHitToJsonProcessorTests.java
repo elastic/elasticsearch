@@ -79,6 +79,6 @@ public class SearchHitToJsonProcessorTests extends ESTestCase {
                 hitProcessor.process(searchHits[i], new SourceSupplier(searchHits[i]));
             }
         }
-        return outputStream.toString(StandardCharsets.UTF_8.name());
+        return outputStream.toString(StandardCharsets.UTF_8);
     }
 }

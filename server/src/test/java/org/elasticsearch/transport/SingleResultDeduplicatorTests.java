@@ -9,11 +9,9 @@
 
 package org.elasticsearch.transport;
 
-import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.SingleResultDeduplicator;
-import org.elasticsearch.action.support.ActionTestUtils;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.RefCountingListener;
 import org.elasticsearch.common.settings.Settings;
@@ -31,6 +29,7 @@ import java.util.Set;
 import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.Consumer;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
@@ -39,48 +38,12 @@ import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.not;
 
-public class SingleResultDeduplicatorTests extends ESTestCase {
+public abstract class SingleResultDeduplicatorTests extends ESTestCase {
 
-    public void testDeduplicatesWithoutShowingStaleData() {
-        final SetOnce<ActionListener<Object>> firstListenerRef = new SetOnce<>();
-        final SetOnce<ActionListener<Object>> secondListenerRef = new SetOnce<>();
-        final var deduplicator = new SingleResultDeduplicator<>(new ThreadContext(Settings.EMPTY), l -> {
-            if (firstListenerRef.trySet(l) == false) {
-                secondListenerRef.set(l);
-            }
-        });
-        final Object result1 = new Object();
-        final Object result2 = new Object();
-
-        final int totalListeners = randomIntBetween(2, 10);
-        final boolean[] called = new boolean[totalListeners];
-        deduplicator.execute(ActionTestUtils.assertNoFailureListener(response -> {
-            assertFalse(called[0]);
-            called[0] = true;
-            assertEquals(result1, response);
-        }));
-
-        for (int i = 1; i < totalListeners; i++) {
-            final int index = i;
-            deduplicator.execute(ActionTestUtils.assertNoFailureListener(response -> {
-                assertFalse(called[index]);
-                called[index] = true;
-                assertEquals(result2, response);
-            }));
-        }
-        for (int i = 0; i < totalListeners; i++) {
-            assertFalse(called[i]);
-        }
-        firstListenerRef.get().onResponse(result1);
-        assertTrue(called[0]);
-        for (int i = 1; i < totalListeners; i++) {
-            assertFalse(called[i]);
-        }
-        secondListenerRef.get().onResponse(result2);
-        for (int i = 0; i < totalListeners; i++) {
-            assertTrue(called[i]);
-        }
-    }
+    protected abstract <T> SingleResultDeduplicator<T> makeSingleResultDeduplicator(
+        ThreadContext threadContext,
+        Consumer<ActionListener<T>> executeAction
+    );
 
     public void testThreadContextPreservation() {
         final var resources = new Releasable[1];
@@ -97,7 +60,7 @@ public class SingleResultDeduplicatorTests extends ESTestCase {
                 final var workerResponseHeaderName = "worker-response-header";
                 final var threadHeaderName = "test-header";
                 final var threadContext = new ThreadContext(Settings.EMPTY);
-                final var deduplicator = new SingleResultDeduplicator<Void>(threadContext, l -> {
+                final var deduplicator = this.<Void>makeSingleResultDeduplicator(threadContext, l -> {
                     threadContext.putHeader(workerRequestHeaderName, randomAlphaOfLength(5));
                     threadContext.addResponseHeader(
                         workerResponseHeaderName,

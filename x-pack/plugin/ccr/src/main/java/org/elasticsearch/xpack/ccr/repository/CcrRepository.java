@@ -18,6 +18,7 @@ import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.RemoteClusterActionType;
 import org.elasticsearch.action.SingleResultDeduplicator;
+import org.elasticsearch.action.StrictSingleResultDeduplicator;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateAction;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateRequest;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
@@ -161,7 +162,7 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
         this.threadPool = threadPool;
         this.remoteClientResponseExecutor = threadPool.executor(Ccr.CCR_THREAD_POOL_NAME);
         this.chunkResponseExecutor = threadPool.generic();
-        csDeduplicator = new SingleResultDeduplicator<>(
+        csDeduplicator = new StrictSingleResultDeduplicator<>(
             threadPool.getThreadContext(),
             l -> getRemoteClusterClient().execute(
                 ClusterStateAction.REMOTE_TYPE,

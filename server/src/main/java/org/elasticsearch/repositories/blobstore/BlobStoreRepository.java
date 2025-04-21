@@ -27,6 +27,7 @@ import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.SingleResultDeduplicator;
+import org.elasticsearch.action.StrictSingleResultDeduplicator;
 import org.elasticsearch.action.support.GroupedActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.RefCountingListener;
@@ -506,7 +507,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         this.namedXContentRegistry = namedXContentRegistry;
         this.basePath = basePath;
         this.maxSnapshotCount = MAX_SNAPSHOTS_SETTING.get(metadata.settings());
-        this.repoDataLoadDeduplicator = new SingleResultDeduplicator<>(
+        this.repoDataLoadDeduplicator = new StrictSingleResultDeduplicator<>(
             threadPool.getThreadContext(),
             listener -> threadPool.executor(ThreadPool.Names.SNAPSHOT_META)
                 .execute(ActionRunnable.wrap(listener, this::doGetRepositoryData))

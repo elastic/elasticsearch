@@ -15,6 +15,7 @@ import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.ActionType;
+import org.elasticsearch.action.RelaxedSingleResultDeduplicator;
 import org.elasticsearch.action.SingleResultDeduplicator;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsRequestParameters.Metric;
 import org.elasticsearch.action.support.ActionFilters;
@@ -87,7 +88,7 @@ public class TransportGetAllocationStatsAction extends TransportMasterNodeReadAc
         );
         final var managementExecutor = threadPool.executor(ThreadPool.Names.MANAGEMENT);
         this.allocationStatsCache = new AllocationStatsCache(threadPool, DEFAULT_CACHE_TTL);
-        this.allocationStatsSupplier = new SingleResultDeduplicator<>(threadPool.getThreadContext(), l -> {
+        this.allocationStatsSupplier = new RelaxedSingleResultDeduplicator<>(threadPool.getThreadContext(), l -> {
             final var cachedStats = allocationStatsCache.get();
             if (cachedStats != null) {
                 l.onResponse(cachedStats);

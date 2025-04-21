@@ -150,3 +150,60 @@ setup:
               my_field:
                 query: salute
   - match: { hits.total.value: 0 }
+
+---
+"Reload analyzers with refresh false":
+  - requires:
+      test_runner_features: [ capabilities ]
+      capabilities:
+        - method: PUT
+          path: /_synonyms/{rule_id}
+          capabilities: [ synonyms_refresh_param ]
+      reason: "synonyms refresh param capability needed"
+
+  - do:
+      synonyms.put_synonym:
+        id: synonyms_set1
+        refresh: false
+        body:
+          synonyms_set:
+            - synonyms: "hello, salute"
+
+  - match: { result: "updated" }
+  - not_exists: reload_analyzers_details
+
+  # Confirm that the index analyzers are not reloaded for my_index1
+  - do:
+      search:
+        index: my_index1
+        body:
+          query:
+            match:
+              my_field:
+                query: salute
+  - match: { hits.total.value: 0 }
+
+
+  # This is to ensure that all index shards (write and read) are available. As we won't be using synonyms API to refresh
+  # analyzers, this can be needed in serverless.
+  - do:
+      cluster.health:
+        index: .synonyms
+        wait_for_status: green
+
+  # Reloading analyzers makes synonyms refresh
+  - do:
+      indices.reload_search_analyzers:
+        index: my_index1
+  - length: { reload_details: 1 }
+
+  - do:
+      search:
+        index: my_index1
+        body:
+          query:
+            match:
+              my_field:
+                query: salute
+  - match: { hits.total.value: 1 }
+

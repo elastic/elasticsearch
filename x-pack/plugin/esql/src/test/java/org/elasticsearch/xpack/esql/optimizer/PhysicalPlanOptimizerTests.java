@@ -235,7 +235,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
 
     private final Configuration config;
 
-    public record TestDataSource(Map<String, EsField> mapping, EsIndex index, Analyzer analyzer, SearchStats stats) {}
+    private record TestDataSource(Map<String, EsField> mapping, EsIndex index, Analyzer analyzer, SearchStats stats) {}
 
     @ParametersFactory(argumentFormatting = PARAM_FORMATTING)
     public static List<Object[]> params() {
@@ -7996,7 +7996,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         return physicalPlan(query, testData);
     }
 
-    public PhysicalPlan physicalPlan(String query, TestDataSource dataSource) {
+    private PhysicalPlan physicalPlan(String query, TestDataSource dataSource) {
         return physicalPlan(query, dataSource, true);
     }
 

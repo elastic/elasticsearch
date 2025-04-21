@@ -19,7 +19,6 @@ import io.netty.handler.codec.http.DefaultHttpRequest;
 import io.netty.handler.codec.http.DefaultLastHttpContent;
 import io.netty.handler.codec.http.HttpMethod;
 import io.netty.handler.codec.http.HttpVersion;
-import io.netty.handler.flow.FlowControlHandler;
 
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -53,8 +52,7 @@ public class Netty4HttpHeaderThreadContextTests extends ESTestCase {
     @Override
     public void setUp() throws Exception {
         super.setUp();
-        channel = new EmbeddedChannel(new FlowControlHandler());
-        channel.config().setAutoRead(false);
+        channel = new EmbeddedChannel();
         threadPool = new TestThreadPool(TEST_MOCK_TRANSPORT_THREAD_PREFIX);
     }
 
@@ -183,7 +181,6 @@ public class Netty4HttpHeaderThreadContextTests extends ESTestCase {
         threadPool.generic().submit(() -> {
             DefaultHttpRequest request1 = new DefaultHttpRequest(HttpVersion.HTTP_1_1, HttpMethod.GET, "/uri");
             channel.writeInbound(request1);
-            channel.read();
             DefaultHttpContent content1 = randomBoolean() ? new DefaultHttpContent(Unpooled.buffer(4)) : null;
             if (content1 != null) {
                 channel.writeInbound(content1);
@@ -199,11 +196,9 @@ public class Netty4HttpHeaderThreadContextTests extends ESTestCase {
             }
             channel.runPendingTasks();
             assertThat(channel.readInbound(), sameInstance(request1));
-            channel.read();
             if (content1 != null && success) {
                 assertThat(channel.readInbound(), sameInstance(content1));
             }
-            channel.read();
             if (success) {
                 assertThat(channel.readInbound(), sameInstance(lastContent1));
             }

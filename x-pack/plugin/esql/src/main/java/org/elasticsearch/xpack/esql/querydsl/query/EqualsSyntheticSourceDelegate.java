@@ -53,6 +53,7 @@ public class EqualsSyntheticSourceDelegate extends Query {
 
         @Override
         public TransportVersion getMinimalSupportedVersion() {
+            // This is just translated on the data node and not sent over the wire.
             throw new UnsupportedOperationException();
         }
     }

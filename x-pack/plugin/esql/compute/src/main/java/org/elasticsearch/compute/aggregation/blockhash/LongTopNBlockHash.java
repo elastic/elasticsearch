@@ -273,6 +273,7 @@ public final class LongTopNBlockHash extends TopNBlockHash {
         int nullOffset = hasNull ? 1 : 0;
         final int[] ids = new int[topValues.size() + nullOffset];
         int idsIndex = nullOffset;
+        // TODO: Can we instead iterate the top and take the ids from the hash? To avoid checking unused values
         for (int i = 1; i < hash.size() + 1; i++) {
             long value = hash.get(i - 1);
             if (isInTop(value)) {
@@ -295,9 +296,12 @@ public final class LongTopNBlockHash extends TopNBlockHash {
     @Override
     public String toString() {
         StringBuilder b = new StringBuilder();
-        b.append("LongBlockHash{channel=").append(channel);
+        b.append("LongTopNBlockHash{channel=").append(channel);
+        b.append(", asc=").append(asc);
+        b.append(", nullsFirst=").append(nullsFirst);
+        b.append(", limit=").append(limit);
         b.append(", entries=").append(hash.size());
-        b.append(", seenNull=").append(hasNull);
+        b.append(", hasNull=").append(hasNull);
         return b.append('}').toString();
     }
 }

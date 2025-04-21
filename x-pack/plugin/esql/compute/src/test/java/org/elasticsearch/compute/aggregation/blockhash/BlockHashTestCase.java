@@ -28,6 +28,7 @@ import org.elasticsearch.core.ReleasableIterator;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.test.ESTestCase;
+import org.junit.After;
 
 import java.util.Arrays;
 import java.util.HashSet;
@@ -36,6 +37,7 @@ import java.util.function.Consumer;
 
 import static org.hamcrest.Matchers.arrayWithSize;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.is;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -44,6 +46,12 @@ public abstract class BlockHashTestCase extends ESTestCase {
     final CircuitBreaker breaker = newLimitedBreaker(ByteSizeValue.ofGb(1));
     final BigArrays bigArrays = new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, mockBreakerService(breaker));
     final MockBlockFactory blockFactory = new MockBlockFactory(breaker, bigArrays);
+
+    @After
+    public void checkBreaker() {
+        blockFactory.ensureAllBlocksAreReleased();
+        assertThat(breaker.getUsed(), is(0L));
+    }
 
     // A breaker service that always returns the given breaker for getBreaker(CircuitBreaker.REQUEST)
     private static CircuitBreakerService mockBreakerService(CircuitBreaker breaker) {

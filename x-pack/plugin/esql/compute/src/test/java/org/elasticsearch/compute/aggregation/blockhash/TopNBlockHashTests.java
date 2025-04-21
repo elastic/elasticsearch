@@ -1,0 +1,218 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
+ */
+
+package org.elasticsearch.compute.aggregation.blockhash;
+
+import com.carrotsearch.randomizedtesting.annotations.Name;
+import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
+
+import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.compute.data.IntBlock;
+import org.elasticsearch.compute.data.LongBlock;
+import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.core.ReleasableIterator;
+import org.elasticsearch.core.Releasables;
+import org.junit.After;
+
+import java.util.ArrayList;
+import java.util.List;
+import java.util.function.Consumer;
+
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.startsWith;
+
+public class TopNBlockHashTests extends BlockHashTestCase {
+
+    @ParametersFactory
+    public static List<Object[]> params() {
+        List<Object[]> params = new ArrayList<>();
+
+        // TODO: Uncomment "true" when implemented
+        for (boolean forcePackedHash : new boolean[]{/*true,*/false}) {
+            for (boolean asc : new boolean[]{true, false}) {
+                for (boolean nullsFirst : new boolean[]{true, false}) {
+                    for (int limit : new int[]{2, 10000}) {
+                        params.add(new Object[] { forcePackedHash, asc, nullsFirst, limit });
+                    }
+                }
+            }
+        }
+
+        return params;
+    }
+
+    private final boolean forcePackedHash;
+    private final boolean asc;
+    private final boolean nullsFirst;
+    private final int limit;
+
+    public TopNBlockHashTests(
+        @Name("forcePackedHash") boolean forcePackedHash,
+        @Name("asc") boolean asc,
+        @Name("nullsFirst") boolean nullsFirst,
+        @Name("limit") int limit
+    ) {
+        this.forcePackedHash = forcePackedHash;
+        this.asc = asc;
+        this.nullsFirst = nullsFirst;
+        this.limit = limit;
+    }
+
+    public void testLongHash() {
+        long[] values = new long[] { 2, 1, 4, 2, 4, 1, 3, 4 };
+
+        hash(ordsAndKeys -> {
+            if (forcePackedHash) {
+                // TODO: Not tested
+                assertThat(ordsAndKeys.description(), startsWith("PackedValuesBlockHash{groups=[0:LONG], entries=4, size="));
+                assertOrds(ordsAndKeys.ords(), 0, 1, 2, 0, 2, 1, 3, 2);
+                assertThat(ordsAndKeys.nonEmpty(), equalTo(intRange(0, 4)));
+            } else {
+                assertThat(ordsAndKeys.description(), equalTo("LongTopNBlockHash{channel=0, entries=4, seenNull=false}"));
+                assertOrds(ordsAndKeys.ords(), 1, 2, 3, 1, 3, 2, 4, 3);
+                assertThat(ordsAndKeys.nonEmpty(), equalTo(intRange(1, 5)));
+            }
+            assertKeys(ordsAndKeys.keys(), 2L, 1L, 4L, 3L);
+        }, blockFactory.newLongArrayVector(values, values.length).asBlock());
+    }
+
+    /*public void testLongHashWithNulls() {
+        try (LongBlock.Builder builder = blockFactory.newLongBlockBuilder(4)) {
+            builder.appendLong(0);
+            builder.appendNull();
+            builder.appendLong(2);
+            builder.appendNull();
+
+            hash(ordsAndKeys -> {
+                if (forcePackedHash) {
+                    assertThat(ordsAndKeys.description(), startsWith("PackedValuesBlockHash{groups=[0:LONG], entries=3, size="));
+                    assertOrds(ordsAndKeys.ords(), 0, 1, 2, 1);
+                    assertKeys(ordsAndKeys.keys(), 0L, null, 2L);
+                } else {
+                    assertThat(ordsAndKeys.description(), equalTo("LongBlockHash{channel=0, entries=2, seenNull=true}"));
+                    assertOrds(ordsAndKeys.ords(), 1, 0, 2, 0);
+                    assertKeys(ordsAndKeys.keys(), null, 0L, 2L);
+                }
+                assertThat(ordsAndKeys.nonEmpty(), equalTo(intRange(0, 3)));
+            }, builder);
+        }
+    }
+
+    public void testLongHashWithMultiValuedFields() {
+        try (LongBlock.Builder builder = blockFactory.newLongBlockBuilder(8)) {
+            builder.appendLong(1);
+            builder.beginPositionEntry();
+            builder.appendLong(1);
+            builder.appendLong(2);
+            builder.appendLong(3);
+            builder.endPositionEntry();
+            builder.beginPositionEntry();
+            builder.appendLong(1);
+            builder.appendLong(1);
+            builder.endPositionEntry();
+            builder.beginPositionEntry();
+            builder.appendLong(3);
+            builder.endPositionEntry();
+            builder.appendNull();
+            builder.beginPositionEntry();
+            builder.appendLong(3);
+            builder.appendLong(2);
+            builder.appendLong(1);
+            builder.endPositionEntry();
+
+            hash(ordsAndKeys -> {
+                if (forcePackedHash) {
+                    assertThat(ordsAndKeys.description(), startsWith("PackedValuesBlockHash{groups=[0:LONG], entries=4, size="));
+                    assertOrds(
+                        ordsAndKeys.ords(),
+                        new int[] { 0 },
+                        new int[] { 0, 1, 2 },
+                        new int[] { 0 },
+                        new int[] { 2 },
+                        new int[] { 3 },
+                        new int[] { 2, 1, 0 }
+                    );
+                    assertKeys(ordsAndKeys.keys(), 1L, 2L, 3L, null);
+                } else {
+                    assertThat(ordsAndKeys.description(), equalTo("LongBlockHash{channel=0, entries=3, seenNull=true}"));
+                    assertOrds(
+                        ordsAndKeys.ords(),
+                        new int[] { 1 },
+                        new int[] { 1, 2, 3 },
+                        new int[] { 1 },
+                        new int[] { 3 },
+                        new int[] { 0 },
+                        new int[] { 3, 2, 1 }
+                    );
+                    assertKeys(ordsAndKeys.keys(), null, 1L, 2L, 3L);
+                }
+                assertThat(ordsAndKeys.nonEmpty(), equalTo(intRange(0, 4)));
+            }, builder);
+        }
+    }*/
+
+    /**
+     * Hash some values into a single block of group ids. If the hash produces
+     * more than one block of group ids this will fail.
+     */
+    private void hash(Consumer<OrdsAndKeys> callback, Block.Builder... values) {
+        hash(callback, Block.Builder.buildAll(values));
+    }
+
+    /**
+     * Hash some values into a single block of group ids. If the hash produces
+     * more than one block of group ids this will fail.
+     */
+    private void hash(Consumer<OrdsAndKeys> callback, Block... values) {
+        boolean[] called = new boolean[] { false };
+        try (BlockHash hash = buildBlockHash(16 * 1024, values)) {
+            hash(true, hash, ordsAndKeys -> {
+                if (called[0]) {
+                    throw new IllegalStateException("hash produced more than one block");
+                }
+                called[0] = true;
+                callback.accept(ordsAndKeys);
+                if (hash instanceof LongLongBlockHash == false
+                    && hash instanceof BytesRefLongBlockHash == false
+                    && hash instanceof BytesRef3BlockHash == false) {
+                    try (ReleasableIterator<IntBlock> lookup = hash.lookup(new Page(values), ByteSizeValue.ofKb(between(1, 100)))) {
+                        assertThat(lookup.hasNext(), equalTo(true));
+                        try (IntBlock ords = lookup.next()) {
+                            assertThat(ords, equalTo(ordsAndKeys.ords()));
+                        }
+                    }
+                }
+            }, values);
+        } finally {
+            Releasables.close(values);
+        }
+    }
+
+    private void hash(Consumer<OrdsAndKeys> callback, int emitBatchSize, Block.Builder... values) {
+        Block[] blocks = Block.Builder.buildAll(values);
+        try (BlockHash hash = buildBlockHash(emitBatchSize, blocks)) {
+            hash(true, hash, callback, blocks);
+        } finally {
+            Releasables.closeExpectNoException(blocks);
+        }
+    }
+
+    private BlockHash buildBlockHash(int emitBatchSize, Block... values) {
+        List<BlockHash.GroupSpec> specs = new ArrayList<>(values.length);
+        for (int c = 0; c < values.length; c++) {
+            specs.add(new BlockHash.GroupSpec(c, values[c].elementType()));
+        }
+        assert forcePackedHash == false : "Packed TopN hash not implemented yet";
+        /*return forcePackedHash
+            ? new PackedValuesBlockHash(specs, blockFactory, emitBatchSize)
+            : BlockHash.build(specs, blockFactory, emitBatchSize, true);*/
+
+        return new LongTopNBlockHash(specs.get(0).channel(), asc, nullsFirst, limit, blockFactory);
+    }
+}

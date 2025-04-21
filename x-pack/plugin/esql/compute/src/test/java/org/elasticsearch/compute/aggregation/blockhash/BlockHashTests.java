@@ -54,12 +54,6 @@ public class BlockHashTests extends BlockHashTestCase {
         return params;
     }
 
-    @After
-    public void checkBreaker() {
-        blockFactory.ensureAllBlocksAreReleased();
-        assertThat(breaker.getUsed(), is(0L));
-    }
-
     private final boolean forcePackedHash;
 
     public BlockHashTests(@Name("forcePackedHash") boolean forcePackedHash) {

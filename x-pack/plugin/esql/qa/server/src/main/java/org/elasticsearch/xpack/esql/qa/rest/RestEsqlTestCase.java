@@ -178,6 +178,14 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
             return this;
         }
 
+        /**
+         * Allow sending pragmas even in non-snapshot builds.
+         */
+        public RequestObjectBuilder pragmasOk() throws IOException {
+            builder.field("accept_pragma_risks", true);
+            return this;
+        }
+
         Boolean keepOnCompletion() {
             return keepOnCompletion;
         }

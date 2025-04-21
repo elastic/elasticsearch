@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.esql.qa.rest;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.apache.http.util.EntityUtils;
-import org.elasticsearch.Build;
 import org.elasticsearch.Version;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
@@ -34,7 +33,6 @@ import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.hamcrest.Matcher;
-import org.junit.Before;
 
 import java.io.IOException;
 import java.math.BigDecimal;
@@ -80,17 +78,6 @@ public abstract class FieldExtractorTestCase extends ESRestTestCase {
 
     protected FieldExtractorTestCase(MappedFieldType.FieldExtractPreference preference) {
         this.preference = preference;
-        if (preference != null) {
-            assumeTrue("Requires pragma", Build.current().isSnapshot());
-        }
-    }
-
-    @Before
-    public void notOld() {
-        assumeTrue(
-            "support changed pretty radically in 8.12 so we don't test against 8.11",
-            getCachedNodesVersions().stream().allMatch(v -> Version.fromString(v).onOrAfter(Version.V_8_12_0))
-        );
     }
 
     public void testTextField() throws IOException {
@@ -1766,6 +1753,7 @@ public abstract class FieldExtractorTestCase extends ESRestTestCase {
             request = request.pragmas(
                 Settings.builder().put(QueryPragmas.FIELD_EXTRACT_PREFERENCE.getKey(), preference.toString()).build()
             );
+            request.pragmasOk();
         }
         return runEsqlSync(request);
     }

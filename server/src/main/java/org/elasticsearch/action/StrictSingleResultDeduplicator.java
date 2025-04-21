@@ -41,7 +41,6 @@ public final class StrictSingleResultDeduplicator<T> extends SingleResultDedupli
      */
     private ThreadContext.StoredContext waitingStoredContext;
 
-
     public StrictSingleResultDeduplicator(ThreadContext threadContext, Consumer<ActionListener<T>> executeAction) {
         super(threadContext, executeAction);
     }

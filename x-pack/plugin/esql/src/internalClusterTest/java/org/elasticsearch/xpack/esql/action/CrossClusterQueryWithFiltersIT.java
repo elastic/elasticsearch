@@ -13,7 +13,6 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.RangeQueryBuilder;
-import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.xpack.esql.VerificationException;
 
 import java.io.IOException;
@@ -32,7 +31,6 @@ import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
-@TestLogging(value = "org.elasticsearch.xpack.esql:DEBUG", reason = "debug")
 public class CrossClusterQueryWithFiltersIT extends AbstractCrossClusterTestCase {
     @Override
     protected Map<String, Boolean> skipUnavailableForRemoteClusters() {
@@ -187,6 +185,8 @@ public class CrossClusterQueryWithFiltersIT extends AbstractCrossClusterTestCase
         try (EsqlQueryResponse resp = runQuery("from logs-*,c*:logs-*", randomBoolean(), filter)) {
             List<List<Object>> values = getValuesList(resp);
             assertThat(values, hasSize(docsTest1));
+            // FIXME: this is currently inconsistent with the non-wildcard case, since empty wildcard is not an error,
+            // the second field-caps does not happen and the remote fields are not added to the response.
             // assertThat(resp.columns().stream().map(ColumnInfoImpl::name).toList(), hasItems("@timestamp", "tag-local", "tag-cluster-a"));
 
             EsqlExecutionInfo executionInfo = resp.getExecutionInfo();
@@ -209,7 +209,7 @@ public class CrossClusterQueryWithFiltersIT extends AbstractCrossClusterTestCase
         try (EsqlQueryResponse resp = runQuery("from logs-1,c*:logs-2", randomBoolean(), filter)) {
             List<List<Object>> values = getValuesList(resp);
             assertThat(values, hasSize(0));
-            // assertThat(resp.columns().stream().map(ColumnInfoImpl::name).toList(), hasItems("@timestamp", "tag-local", "tag-cluster-a"));
+            assertThat(resp.columns().stream().map(ColumnInfoImpl::name).toList(), hasItems("@timestamp", "tag-local", "tag-cluster-a"));
 
             EsqlExecutionInfo executionInfo = resp.getExecutionInfo();
             assertNotNull(executionInfo);
@@ -233,7 +233,7 @@ public class CrossClusterQueryWithFiltersIT extends AbstractCrossClusterTestCase
         try (EsqlQueryResponse resp = runQuery("from logs-*,c*:logs-*", randomBoolean(), filter)) {
             List<List<Object>> values = getValuesList(resp);
             assertThat(values, hasSize(0));
-            // assertThat(resp.columns().stream().map(ColumnInfoImpl::name).toList(), hasItems("@timestamp", "tag-local", "tag-cluster-a"));
+            assertThat(resp.columns().stream().map(ColumnInfoImpl::name).toList(), hasItems("@timestamp", "tag-local", "tag-cluster-a"));
 
             EsqlExecutionInfo executionInfo = resp.getExecutionInfo();
             assertNotNull(executionInfo);

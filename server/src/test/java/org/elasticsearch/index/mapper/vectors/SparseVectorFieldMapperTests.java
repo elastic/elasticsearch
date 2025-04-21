@@ -141,14 +141,52 @@ public class SparseVectorFieldMapperTests extends MapperTestCase {
         DocumentMapper mapper = createDocumentMapper(fieldMapping(this::mappingWithIndexOptionsPrune));
         assertEquals(Strings.toString(fieldMapping(this::mappingWithIndexOptionsPrune)), mapper.mappingSource().toString());
 
-        // TODO -- finish
+        ParsedDocument doc1 = mapper.parse(source(this::writeField));
+
+        List<IndexableField> fields = doc1.rootDoc().getFields("field");
+        assertEquals(2, fields.size());
+        assertThat(fields.get(0), Matchers.instanceOf(XFeatureField.class));
+        XFeatureField featureField1 = null;
+        XFeatureField featureField2 = null;
+        for (IndexableField field : fields) {
+            if (field.stringValue().equals("ten")) {
+                featureField1 = (XFeatureField) field;
+            } else if (field.stringValue().equals("twenty")) {
+                featureField2 = (XFeatureField) field;
+            } else {
+                throw new UnsupportedOperationException();
+            }
+        }
+
+        int freq1 = getFrequency(featureField1.tokenStream(null, null));
+        int freq2 = getFrequency(featureField2.tokenStream(null, null));
+        assertTrue(freq1 < freq2);
     }
 
     public void testWithIndexOptionsPruningConfig() throws Exception {
         DocumentMapper mapper = createDocumentMapper(fieldMapping(this::mappingWithIndexOptionsPruningConfig));
         assertEquals(Strings.toString(fieldMapping(this::mappingWithIndexOptionsPruningConfig)), mapper.mappingSource().toString());
 
-        // TODO -- finish
+        ParsedDocument doc1 = mapper.parse(source(this::writeField));
+
+        List<IndexableField> fields = doc1.rootDoc().getFields("field");
+        assertEquals(2, fields.size());
+        assertThat(fields.get(0), Matchers.instanceOf(XFeatureField.class));
+        XFeatureField featureField1 = null;
+        XFeatureField featureField2 = null;
+        for (IndexableField field : fields) {
+            if (field.stringValue().equals("ten")) {
+                featureField1 = (XFeatureField) field;
+            } else if (field.stringValue().equals("twenty")) {
+                featureField2 = (XFeatureField) field;
+            } else {
+                throw new UnsupportedOperationException();
+            }
+        }
+
+        int freq1 = getFrequency(featureField1.tokenStream(null, null));
+        int freq2 = getFrequency(featureField2.tokenStream(null, null));
+        assertTrue(freq1 < freq2);
     }
 
     public void testDotInFieldName() throws Exception {

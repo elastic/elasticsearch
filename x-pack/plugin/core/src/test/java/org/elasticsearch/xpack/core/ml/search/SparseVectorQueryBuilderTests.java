@@ -358,9 +358,9 @@ public class SparseVectorQueryBuilderTests extends AbstractQueryTestCase<SparseV
         wrapTestSparseVectorIndexOptions((c) -> {
             SearchExecutionContext searchExecutionContext = createSearchExecutionContext();
 
-            TokenPruningConfig TokenPruningConfig = randomBoolean() ? new TokenPruningConfig(2, 0.3f, false) : null;
+            TokenPruningConfig defaultTokenPruningConfig = new TokenPruningConfig(12, 0.6f, false);
 
-            SparseVectorQueryBuilder queryBuilder = createTestQueryBuilder(TokenPruningConfig);
+            SparseVectorQueryBuilder queryBuilder = createTestQueryBuilder(null);
             QueryBuilder rewrittenQueryBuilder = rewriteAndFetch(queryBuilder, searchExecutionContext);
             assertTrue(rewrittenQueryBuilder instanceof SparseVectorQueryBuilder);
             assertEquals(queryBuilder.shouldPruneTokens(), ((SparseVectorQueryBuilder) rewrittenQueryBuilder).shouldPruneTokens());

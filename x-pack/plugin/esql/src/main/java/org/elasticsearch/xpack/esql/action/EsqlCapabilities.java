@@ -308,9 +308,9 @@ public class EsqlCapabilities {
         STRING_LITERAL_AUTO_CASTING_TO_DATETIME_ADD_SUB,
 
         /**
-         * Support implicit casting for union typed numeric and date/date_nanos fields
+         * Support implicit casting for union typed fields that are mixed with date and date_nanos type.
          */
-        IMPLICIT_CASTING_UNION_TYPED_NUMERIC_AND_DATE,
+        IMPLICIT_CASTING_DATE_AND_DATE_NANOS(Build.current().isSnapshot()),
 
         /**
          * Support for named or positional parameters in EsqlQueryRequest.

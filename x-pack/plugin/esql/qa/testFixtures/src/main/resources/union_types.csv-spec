@@ -1640,107 +1640,116 @@ id:integer | name:keyword | count:long
 14         | mmmmm        | 2
 ;
 
-MultiTypedFieldsEvalKeepSort
-required_capability: implicit_casting_union_typed_numeric_and_date
+MultiTypedFieldsKeepSort
+required_capability: date_nanos_type
+required_capability: implicit_casting_date_and_date_nanos
 
 FROM employees, employees_incompatible
-| Eval x = emp_no
-| KEEP x, languages, hire_date, avg_worked_seconds
+| EVAL x = emp_no::long, avg_worked_seconds = avg_worked_seconds::unsigned_long, z = hire_date::datetime
+| KEEP x, languages, hire_date, avg_worked_seconds, z
 | SORT x, hire_date
-| limit 2
+| LIMIT 2
 ;
 
-x:long |languages:integer |hire_date:date_nanos     |avg_worked_seconds:unsigned_long
-10001  |2                 |1986-06-26T00:00:00.000Z |268728049
-10001  |2                 |1986-06-26T00:00:00.000Z |268728049
+x:long |languages:unsupported |hire_date:date_nanos     |avg_worked_seconds:unsigned_long |z:datetime
+10001  |null                  |1986-06-26T00:00:00.000Z |268728049                        |1986-06-26T00:00:00.000Z
+10001  |null                  |1986-06-26T00:00:00.000Z |268728049                        |1986-06-26T00:00:00.000Z
 ;
 
 MultiTypedFieldsDropKeepSort
-required_capability: implicit_casting_union_typed_numeric_and_date
+required_capability: date_nanos_type
+required_capability: implicit_casting_date_and_date_nanos
 
 FROM employees, employees_incompatible
+| EVAL emp_no = emp_no::long, avg_worked_seconds = avg_worked_seconds::unsigned_long, x = hire_date::datetime
 | DROP salary
-| KEEP emp_no, languages, hire_date, avg_worked_seconds
+| KEEP emp_no, languages, hire_date, avg_worked_seconds, x
 | SORT emp_no, hire_date
 | limit 2
 ;
 
-emp_no:long |languages:integer |hire_date:date_nanos     |avg_worked_seconds:unsigned_long
-10001       |2                 |1986-06-26T00:00:00.000Z |268728049
-10001       |2                 |1986-06-26T00:00:00.000Z |268728049
+emp_no:long |languages:unsupported |hire_date:date_nanos     |avg_worked_seconds:unsigned_long |x:datetime
+10001       |null                  |1986-06-26T00:00:00.000Z |268728049                        |1986-06-26T00:00:00.000Z
+10001       |null                  |1986-06-26T00:00:00.000Z |268728049                        |1986-06-26T00:00:00.000Z
 ;
 
 MultiTypedFieldsRenameKeepSort
-required_capability: implicit_casting_union_typed_numeric_and_date
+required_capability: date_nanos_type
+required_capability: implicit_casting_date_and_date_nanos
 
 from employees, employees_incompatible
-| RENAME emp_no as new_emp_no, languages as new_languages, hire_date as new_hire_date, avg_worked_seconds as new_avg_worked_seconds
-| KEEP new_emp_no, new_languages, new_hire_date, new_avg_worked_seconds
+| EVAL emp_no = emp_no::long, avg_worked_seconds = avg_worked_seconds::unsigned_long, languages = languages::integer, x = hire_date::datetime
+| RENAME emp_no as new_emp_no, languages as new_languages, hire_date as new_hire_date, avg_worked_seconds as new_avg_worked_seconds, x as y
+| KEEP new_emp_no, new_languages, new_hire_date, new_avg_worked_seconds, y
 | SORT new_emp_no, new_hire_date
 | limit 2
 ;
 
-new_emp_no:long |new_languages:integer |new_hire_date:date_nanos |new_avg_worked_seconds:unsigned_long
-10001           |2                     |1986-06-26T00:00:00.000Z |268728049
-10001           |2                     |1986-06-26T00:00:00.000Z |268728049
+new_emp_no:long |new_languages:integer |new_hire_date:date_nanos |new_avg_worked_seconds:unsigned_long |y:datetime
+10001           |2                     |1986-06-26T00:00:00.000Z |268728049                            |1986-06-26T00:00:00.000Z
+10001           |2                     |1986-06-26T00:00:00.000Z |268728049                            |1986-06-26T00:00:00.000Z
 ;
 
 MultiTypedFieldsDropEvalKeepSort
-required_capability: implicit_casting_union_typed_numeric_and_date
+required_capability: date_nanos_type
+required_capability: implicit_casting_date_and_date_nanos
 
 FROM employees, employees_incompatible
 | DROP birth_date
-| EVAL x = emp_no + 1, y = hire_date + 1 year, z = hire_date::datetime
-| KEEP emp_no, x, hire_date, y, z
-| SORT emp_no, hire_date
+| EVAL x = emp_no::long + 1, y = hire_date + 1 year, z = hire_date::datetime
+| KEEP x, hire_date, y, z
+| SORT x, hire_date
 | limit 2
 ;
 
-emp_no:long |x:long |hire_date:date_nanos     |y:date_nanos             |z:date
-10001       |10002  |1986-06-26T00:00:00.000Z |1987-06-26T00:00:00.000Z |1986-06-26T00:00:00.000Z
-10001       |10002  |1986-06-26T00:00:00.000Z |1987-06-26T00:00:00.000Z |1986-06-26T00:00:00.000Z
+x:long |hire_date:date_nanos     |y:date_nanos             |z:date
+10002  |1986-06-26T00:00:00.000Z |1987-06-26T00:00:00.000Z |1986-06-26T00:00:00.000Z
+10002  |1986-06-26T00:00:00.000Z |1987-06-26T00:00:00.000Z |1986-06-26T00:00:00.000Z
 ;
 
 MultiTypedFieldsEvalFilterKeepSort
-required_capability: implicit_casting_union_typed_numeric_and_date
+required_capability: date_nanos_type
+required_capability: implicit_casting_date_and_date_nanos
 
 FROM employees, employees_incompatible
-| EVAL x = emp_no + 1, y = hire_date + 1 day
-| WHERE emp_no > 10010 AND hire_date > "1992-01-01" AND languages < 3 AND height > 1.2
-| KEEP emp_no, hire_date
-| SORT emp_no, hire_date
+| EVAL x = emp_no::long + 1, y = hire_date + 1 day
+| WHERE x > 10011 AND hire_date > "1992-01-01" AND languages::integer < 3 AND height::double > 1.2
+| KEEP x, hire_date
+| SORT x, hire_date
 | limit 4
 ;
 
-emp_no:long |hire_date:date_nanos
-10016       | 1995-01-27T00:00:00.000Z
-10016       | 1995-01-27T00:00:00.000Z
-10017       | 1993-08-03T00:00:00.000Z
-10017       | 1993-08-03T00:00:00.000Z
+x:long |hire_date:date_nanos
+10017  | 1995-01-27T00:00:00.000Z
+10017  | 1995-01-27T00:00:00.000Z
+10018  | 1993-08-03T00:00:00.000Z
+10018  | 1993-08-03T00:00:00.000Z
 ;
 
 MultiTypedFieldsStatsByNumeric
-required_capability: implicit_casting_union_typed_numeric_and_date
+required_capability: date_nanos_type
+required_capability: implicit_casting_date_and_date_nanos
 
 FROM employees, employees_incompatible
-| STATS x=count(emp_no), y=max(hire_date), z=max(height) BY languages
+| STATS x=max(hire_date) BY languages = languages::integer
 | SORT languages
 ;
 
-x:long | y:date_nanos             | z:double | languages:integer
-30     | 1999-04-30T00:00:00.000Z | 2.06     | 1
-38     | 1995-01-27T00:00:00.000Z | 2.1      | 2
-34     | 1996-11-05T00:00:00.000Z | 2.1      | 3
-36     | 1995-03-13T00:00:00.000Z | 2.0      | 4
-42     | 1994-04-09T00:00:00.000Z | 2.1      | 5
-20     | 1997-05-19T00:00:00.000Z | 2.1      | null
+x:date_nanos             | languages:integer
+1999-04-30T00:00:00.000Z | 1
+1995-01-27T00:00:00.000Z | 2
+1996-11-05T00:00:00.000Z | 3
+1995-03-13T00:00:00.000Z | 4
+1994-04-09T00:00:00.000Z | 5
+1997-05-19T00:00:00.000Z | null
 ;
 
 MultiTypedFieldsStatsByDateNanos
-required_capability: implicit_casting_union_typed_numeric_and_date
+required_capability: date_nanos_type
+required_capability: implicit_casting_date_and_date_nanos
 
 FROM employees, employees_incompatible
-| STATS x=count(emp_no), y=avg(salary_change), z=max(height) BY hire_date
+| STATS x=count(emp_no::long), y=avg(salary_change::double), z=max(height::double) BY hire_date
 | Eval y = round(y, 1), z = round(z, 1)
 | KEEP x, y, z, hire_date
 | SORT hire_date
@@ -1755,130 +1764,103 @@ x:long | y:double | z:double | hire_date:date_nanos
 2      | 3.6      | 1.5      | 1985-09-17T00:00:00.000Z
 ;
 
-MultiTypedFieldsWhereMvExpandKeepSortNumeric
-required_capability: implicit_casting_union_typed_numeric_and_date
+MultiTypedFieldsMvExpandKeepSort
+required_capability: date_nanos_type
+required_capability: implicit_casting_date_and_date_nanos
 
-FROM employees, employees_incompatible
-| WHERE emp_no == 10003
-| MV_EXPAND salary_change
-| KEEP emp_no, salary_change
-| EVAL salary_change = round(salary_change, 2)
-| SORT salary_change
-;
-
-emp_no:long | salary_change:double
-10003       | 12.82
-10003       | 12.82
-10003       | 14.68
-10003       | 14.68
-;
-
-MultiTypedFieldsMvExpandKeepSortNumeric
-required_capability: implicit_casting_union_typed_numeric_and_date
-
-FROM employees, employees_incompatible
-| MV_EXPAND salary_change
-| KEEP emp_no, salary_change
-| EVAL salary_change = round(salary_change, 2)
-| SORT emp_no, salary_change
-| LIMIT 10
-;
-
-emp_no:long | salary_change:double
-10001       | 1.19
-10001       | 1.19
-10002       | -7.23
-10002       | -7.23
-10002       | 11.17
-10002       | 11.17
-10003       | 12.82
-10003       | 12.82
-10003       | 14.68
-10003       | 14.68
-;
-
-MultiTypedFieldsEvalLookupJoinNumeric
-required_capability: join_lookup_v12
-required_capability: implicit_casting_union_typed_numeric_and_date
-
-FROM employees, employees_incompatible
-| EVAL language_code = languages
-| LOOKUP JOIN languages_lookup ON language_code
-| WHERE emp_no >= 10091 AND emp_no < 10094
-| KEEP emp_no, language_code, language_name
-| SORT emp_no
-;
-
-emp_no:long | language_code:integer | language_name:keyword
-10091       | 3                     | Spanish
-10091       | 3                     | Spanish
-10092       | 1                     | English
-10092       | 1                     | English
-10093       | 3                     | Spanish
-10093       | 3                     | Spanish
-;
-
-MultiTypedMVFields
-required_capability: implicit_casting_union_typed_numeric_and_date
-
-FROM employees, employees_incompatible
-| WHERE emp_no <= 10002
-| EVAL x = ROUND(MV_MAX(salary_change),2)
-| KEEP emp_no, x
-| SORT emp_no
+FROM date_nanos, date_nanos_lookup
+| MV_EXPAND nanos
+| SORT nanos
 | LIMIT 4
 ;
 
-emp_no:long | x:double
-10001       | 1.19
-10001       | 1.19
-10002       | 11.17
-10002       | 11.17
+warning:Line 2:13: evaluation of [nanos] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 2:13: java.lang.IllegalArgumentException: milliSeconds [-1457696696640] are before the epoch in 1970 and cannot be converted to nanoseconds
+
+num:long | nanos:date_nanos               | millis:date_nanos
+0        | 2023-01-23T13:55:01.543Z       | 1999-10-23T12:15:03.360103847Z
+0        | 2023-01-23T13:55:01.543123456Z | 1999-10-23T12:15:03.360Z
+0        | 2023-02-23T13:33:34.937Z       | 1999-10-23T12:15:03.360103847Z
+0        | 2023-02-23T13:33:34.937193Z    | 1999-10-23T12:15:03.360Z
+;
+
+MultiTypedMVEval
+required_capability: date_nanos_type
+required_capability: implicit_casting_date_and_date_nanos
+
+FROM date_nanos, date_nanos_lookup
+| EVAL nanos = MV_MAX(nanos)
+| SORT nanos
+| LIMIT 4
+;
+
+warning:Line 2:23: evaluation of [nanos] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 2:23: java.lang.IllegalArgumentException: milliSeconds [-1457696696640] are before the epoch in 1970 and cannot be converted to nanoseconds
+
+num:long | nanos:date_nanos               | millis:date_nanos
+0        | 2023-03-23T12:15:03.360Z       | 1999-10-23T12:15:03.360103847Z
+0        | 2023-03-23T12:15:03.360Z       | 1999-10-22T12:15:03.360103847Z
+0        | 2023-03-23T12:15:03.360103847Z | 1999-10-22T12:15:03.360Z
+0        | 2023-03-23T12:15:03.360103847Z | 1999-10-23T12:15:03.360Z
 ;
 
 MultiTypedMVFieldsWhere
-required_capability: implicit_casting_union_typed_numeric_and_date
+required_capability: date_nanos_type
+required_capability: implicit_casting_date_and_date_nanos
 
-FROM employees, employees_incompatible
-| WHERE emp_no <= 10002 AND ROUND(MV_MAX(salary_change),2) > 10
-| KEEP emp_no
+FROM date_nanos, date_nanos_lookup
+| WHERE millis <= "2023-10-23T13:00:00" AND MV_MAX(nanos) > "2023-03-23T13:00:00"
+| KEEP millis, nanos, num
+| SORT millis
 ;
 
-emp_no:long
-10002
-10002
+warning:Line 2:52: evaluation of [nanos] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 2:52: java.lang.IllegalArgumentException: milliSeconds [-1457696696640] are before the epoch in 1970 and cannot be converted to nanoseconds
+millis:date_nanos              | nanos:date_nanos               | num:long
+2023-10-23T12:15:03.360Z       | 2023-10-23T12:15:03.360103847Z | 1698063303360103847
+2023-10-23T12:15:03.360Z       | 2023-10-23T12:15:03.360103847Z | 1698063303360103847
+2023-10-23T12:15:03.360103847Z | 2023-10-23T12:15:03.360Z       | 1698063303360103847
+2023-10-23T12:15:03.360103847Z | 2023-10-23T12:15:03.360Z       | 1698063303360103847
+2023-10-23T12:27:28.948Z       | 2023-10-23T12:27:28.948Z       | 1698064048948000000
+2023-10-23T12:27:28.948Z       | 2023-10-23T12:27:28.948Z       | 1698064048948000000
 ;
 
 MultiTypedMVFieldsStatsMaxMin
-required_capability: implicit_casting_union_typed_numeric_and_date
+required_capability: date_nanos_type
+required_capability: implicit_casting_date_and_date_nanos
 
-FROM employees, employees_incompatible
-| WHERE emp_no <= 10002
-| STATS max = MAX(salary_change), min = MIN(salary_change)
-| EVAL x = round(max, 2), y = round(min, 2)
-| KEEP x, y
+FROM date_nanos, date_nanos_lookup
+| STATS max = MAX(millis), min = MIN(nanos)
 ;
 
-x:double |y:double
-11.17    |-7.23
+warning:Line 2:38: evaluation of [nanos] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 2:38: java.lang.IllegalArgumentException: milliSeconds [-1457696696640] are before the epoch in 1970 and cannot be converted to nanoseconds
+
+max:date_nanos                 | min:date_nanos
+2023-10-23T13:55:01.543123456Z | 2023-01-23T13:55:01.543Z
 ;
 
 MultiTypedMVFieldsStatsValues
-required_capability: implicit_casting_union_typed_numeric_and_date
+required_capability: date_nanos_type
+required_capability: implicit_casting_date_and_date_nanos
 
-FROM employees, employees_incompatible
-| WHERE emp_no <= 10002
-| STATS c = MV_COUNT(VALUES(salary_change))
+FROM  date_nanos, date_nanos_lookup
+| STATS c = MV_COUNT(VALUES(nanos))
 ;
 
+warning:Line 2:29: evaluation of [nanos] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 2:29: java.lang.IllegalArgumentException: milliSeconds [-1457696696640] are before the epoch in 1970 and cannot be converted to nanoseconds
+
 c:integer
-6
+19
 ;
 
 MultiTypedDateDiff
-required_capability: implicit_casting_union_typed_numeric_and_date
+required_capability: date_nanos_type
+required_capability: implicit_casting_date_and_date_nanos
 
 FROM employees, employees_incompatible
+| EVAL emp_no = emp_no::long
 | WHERE emp_no <= 10003
 | EVAL diff_sec_1 = DATE_DIFF("seconds", TO_DATE_NANOS("1986-01-23T12:15:03.360103847Z"), hire_date)
 | EVAL diff_sec_2 = DATE_DIFF("seconds", TO_DATETIME("1986-01-23T12:15:03.360103847Z"), hire_date)
@@ -1896,9 +1878,11 @@ emp_no:long | hire_date:date_nanos     | diff_sec_1:integer | diff_sec_2:integer
 ;
 
 MultiTypedDateFormat
-required_capability: implicit_casting_union_typed_numeric_and_date
+required_capability: date_nanos_type
+required_capability: implicit_casting_date_and_date_nanos
 
 FROM employees, employees_incompatible
+| EVAL emp_no = emp_no::long
 | WHERE emp_no <= 10003
 | EVAL a = DATE_FORMAT(hire_date), b = DATE_FORMAT("yyyy-MM-dd", hire_date), c = DATE_FORMAT("strict_date_optional_time_nanos", hire_date)
 | KEEP emp_no, hire_date, a, b, c
@@ -1915,9 +1899,11 @@ emp_no:long | hire_date:date_nanos     | a:keyword                | b:keyword  |
 ;
 
 MultiTypedDateTrunc
-required_capability: implicit_casting_union_typed_numeric_and_date
+required_capability: date_nanos_type
+required_capability: implicit_casting_date_and_date_nanos
 
 FROM employees, employees_incompatible
+| EVAL emp_no = emp_no::long
 | WHERE emp_no <= 10003
 | EVAL yr = DATE_TRUNC(1 year, hire_date), mo = DATE_TRUNC(1 month, hire_date)
 | SORT hire_date DESC
@@ -1934,10 +1920,11 @@ emp_no:long | hire_date:date_nanos     | yr:date_nanos            | mo:date_nano
 ;
 
 MultiTypedDateTruncStatsBy
-required_capability: implicit_casting_union_typed_numeric_and_date
+required_capability: date_nanos_type
+required_capability: implicit_casting_date_and_date_nanos
 
 FROM employees, employees_incompatible
-| STATS c = count(emp_no) BY yr = DATE_TRUNC(1 year, hire_date)
+| STATS c = count(emp_no::long) BY yr = DATE_TRUNC(1 year, hire_date)
 | SORT yr DESC
 | LIMIT 5
 ;
@@ -1951,11 +1938,12 @@ c:long | yr:date_nanos
 ;
 
 MultiTypedDateTruncStatsByWithEval
-required_capability: implicit_casting_union_typed_numeric_and_date
+required_capability: date_nanos_type
+required_capability: implicit_casting_date_and_date_nanos
 
 FROM employees, employees_incompatible
 | EVAL yr = DATE_TRUNC(1 year, hire_date)
-| STATS c = count(emp_no) BY yr
+| STATS c = count(emp_no::long) BY yr
 | SORT yr DESC
 | LIMIT 5
 ;
@@ -1969,7 +1957,8 @@ c:long | yr:date_nanos
 ;
 
 MultiTypedBucketDateNanosByYear
-required_capability: implicit_casting_union_typed_numeric_and_date
+required_capability: date_nanos_type
+required_capability: implicit_casting_date_and_date_nanos
 
 FROM employees, employees_incompatible
 | STATS c = count(*) BY yr = BUCKET(hire_date, 1 year)
@@ -1994,7 +1983,8 @@ c:long | yr:date_nanos
 ;
 
 MultiTypedBucketDateNanosByMonth
-required_capability: implicit_casting_union_typed_numeric_and_date
+required_capability: date_nanos_type
+required_capability: implicit_casting_date_and_date_nanos
 
 FROM employees, employees_incompatible
 | STATS c = count(*) BY mo = BUCKET(hire_date, 20, "1986-01-01", "1999-12-31")
@@ -2019,7 +2009,8 @@ c:long | mo:date_nanos
 ;
 
 MultiTypedBucketDateNanosInBothStatsAndBy
-required_capability: implicit_casting_union_typed_numeric_and_date
+required_capability: date_nanos_type
+required_capability: implicit_casting_date_and_date_nanos
 
 FROM employees, employees_incompatible
 | STATS c = count(*), b = BUCKET(hire_date, 1 year) + 1 year BY yr = BUCKET(hire_date, 1 year)
@@ -2044,7 +2035,8 @@ c:long | b:date_nanos             | yr:date_nanos
 ;
 
 MultiTypedBucketDateNanosInBothStatsAndByWithAlias
-required_capability: implicit_casting_union_typed_numeric_and_date
+required_capability: date_nanos_type
+required_capability: implicit_casting_date_and_date_nanos
 
 FROM employees, employees_incompatible
 | STATS c = count(*), b = yr + 1 year BY yr = BUCKET(hire_date, 1 year)
@@ -2066,45 +2058,4 @@ c:long | b:date_nanos             | yr:date_nanos
 30     | 1988-01-01T00:00:00.000Z | 1987-01-01T00:00:00.000Z
 22     | 1987-01-01T00:00:00.000Z | 1986-01-01T00:00:00.000Z
 22     | 1986-01-01T00:00:00.000Z | 1985-01-01T00:00:00.000Z
-;
-
-MultiTypedEnrichOnNumericField
-required_capability: enrich_load
-required_capability: implicit_casting_union_typed_numeric_and_date
-
-from employees, employees_incompatible
-| enrich languages_policy on languages
-| keep emp_no, language_name
-| sort emp_no
-| limit 6
-;
-
-emp_no:long |language_name:keyword
-10001       | French
-10001       | French
-10002       | null
-10002       | null
-10003       | German
-10003       | German
-;
-
-MultiTypedEnrichOnNumericFieldWithEval
-required_capability: enrich_load
-required_capability: implicit_casting_union_typed_numeric_and_date
-
-from employees, employees_incompatible
-| eval languages = languages + 1
-| enrich languages_policy on languages
-| keep emp_no, language_name
-| sort emp_no
-| limit 6
-;
-
-emp_no:long |language_name:keyword
-10001       | Spanish
-10001       | Spanish
-10002       | null
-10002       | null
-10003       | null
-10003       | null
 ;

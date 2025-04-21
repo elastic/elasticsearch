@@ -959,9 +959,6 @@ public abstract class FieldExtractorTestCase extends ESRestTestCase {
      * In an ideal world we'd promote the {@code integer} to an {@code long} and just go.
      */
     public void testLongIntegerConflict() throws IOException {
-        if (EsqlCapabilities.Cap.IMPLICIT_CASTING_UNION_TYPED_NUMERIC_AND_DATE.isEnabled()) {
-            return;
-        }
         assumeOriginalTypesReported();
         longTest().sourceMode(SourceMode.DEFAULT).createIndex("test1", "emp_no");
         index("test1", """
@@ -1005,9 +1002,6 @@ public abstract class FieldExtractorTestCase extends ESRestTestCase {
      * In an ideal world we'd promote the {@code short} to an {@code integer} and just go.
      */
     public void testIntegerShortConflict() throws IOException {
-        if (EsqlCapabilities.Cap.IMPLICIT_CASTING_UNION_TYPED_NUMERIC_AND_DATE.isEnabled()) {
-            return;
-        }
         assumeOriginalTypesReported();
         intTest().sourceMode(SourceMode.DEFAULT).createIndex("test1", "emp_no");
         index("test1", """

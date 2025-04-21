@@ -35,6 +35,9 @@ import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.core.type.EsField;
+import org.elasticsearch.xpack.esql.core.type.InvalidMappedField;
+import org.elasticsearch.xpack.esql.core.type.MultiTypeEsField;
 import org.elasticsearch.xpack.esql.core.type.PotentiallyUnmappedKeywordEsField;
 import org.elasticsearch.xpack.esql.enrich.ResolvedEnrichPolicy;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
@@ -70,6 +73,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Lookup;
 import org.elasticsearch.xpack.esql.plan.logical.OrderBy;
+import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.Row;
 import org.elasticsearch.xpack.esql.plan.logical.RrfScoreEval;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
@@ -81,6 +85,7 @@ import org.elasticsearch.xpack.esql.session.IndexResolver;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -3758,6 +3763,71 @@ public class AnalyzerTests extends ESTestCase {
         EsRelation esRelation = as(completion.child(), EsRelation.class);
         assertThat(getAttributeByName(completion.output(), "description"), equalTo(completion.targetField()));
         assertThat(getAttributeByName(esRelation.output(), "description"), not(equalTo(completion.targetField())));
+    }
+
+    public void testImplicitCastingForDateAndDateNanosFields() {
+        String dateDateNanos = "date_and_date_nanos"; // mixed date and date_nanos
+        String dateDateNanosLong = "date_and_date_nanos_and_long"; // mixed date, date_nanos and long
+        LinkedHashMap<String, Set<String>> typesToIndices1 = new LinkedHashMap<>();
+        typesToIndices1.put("date", Set.of("index1", "index2"));
+        typesToIndices1.put("date_nanos", Set.of("index3"));
+        LinkedHashMap<String, Set<String>> typesToIndices2 = new LinkedHashMap<>();
+        typesToIndices2.put("date", Set.of("index1"));
+        typesToIndices2.put("date_nanos", Set.of("index2"));
+        typesToIndices2.put("long", Set.of("index3"));
+        EsField dateDateNanosField = new InvalidMappedField(dateDateNanos, typesToIndices1);
+        EsField dateDateNanosLongField = new InvalidMappedField(dateDateNanosLong, typesToIndices2);
+
+        IndexResolution indexWithUnionTypedFields = IndexResolution.valid(
+            new EsIndex("test*", Map.of(dateDateNanos, dateDateNanosField, dateDateNanosLong, dateDateNanosLongField))
+        );
+        Analyzer analyzer = AnalyzerTestUtils.analyzer(indexWithUnionTypedFields);
+
+        // validate if a union typed field is cast to a type explicitly, implicit casting won't be applied again
+        LogicalPlan plan = analyze("""
+            FROM tests
+            | Eval x = date_and_date_nanos::datetime, y = date_and_date_nanos
+            """, analyzer);
+
+        Project project = as(plan, Project.class);
+        List<? extends NamedExpression> projections = project.projections();
+        assertEquals(4, projections.size());
+        UnsupportedAttribute ua = as(projections.get(0), UnsupportedAttribute.class); // long is not casted to date_nanos
+        assertEquals("date_and_date_nanos_and_long", ua.name());
+        assertEquals(DataType.UNSUPPORTED, ua.dataType());
+        ReferenceAttribute ra = as(projections.get(1), ReferenceAttribute.class);
+        assertEquals("date_and_date_nanos", ra.name());
+        assertEquals(DataType.DATE_NANOS, ra.dataType()); // implicit casting
+        ra = as(projections.get(2), ReferenceAttribute.class);
+        assertEquals("x", ra.name());
+        assertEquals(DataType.DATETIME, ra.dataType()); // explicit casting
+        ra = as(projections.get(3), ReferenceAttribute.class);
+        assertEquals("y", ra.name());
+        assertEquals(DataType.DATE_NANOS, ra.dataType());  // implicit casting
+        Limit limit = as(project.child(), Limit.class);
+        Eval eval = as(limit.child(), Eval.class); // eval coded in the query
+        List<Alias> aliases = eval.fields();
+        assertEquals(2, aliases.size());
+        Alias a = aliases.get(0);
+        assertEquals("x", a.name());
+        assertEquals(DataType.DATETIME, a.dataType()); // explicit casting
+        assertTrue(isMultiTypeEsField(a.child())); // no double casting
+        a = aliases.get(1);
+        assertEquals("y", a.name());
+        assertEquals(DataType.DATE_NANOS, a.dataType()); // implicit casting
+        assertTrue(a.child() instanceof ReferenceAttribute);
+        eval = as(eval.child(), Eval.class); // a new eval added for implicit casting
+        aliases = eval.fields();
+        assertEquals(1, aliases.size());
+        a = aliases.get(0);
+        assertEquals("date_and_date_nanos", a.name());
+        assertEquals(DataType.DATE_NANOS, a.dataType());
+        assertTrue(isMultiTypeEsField(a.child()));
+        EsRelation esRelation = as(eval.child(), EsRelation.class);
+    }
+
+    private boolean isMultiTypeEsField(Expression e) {
+        return e instanceof FieldAttribute fa && fa.field() instanceof MultiTypeEsField;
     }
 
     @Override

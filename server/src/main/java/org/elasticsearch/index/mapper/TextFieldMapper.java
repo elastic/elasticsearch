@@ -74,6 +74,7 @@ import org.elasticsearch.script.field.TextDocValuesField;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -1016,8 +1017,51 @@ public final class TextFieldMapper extends FieldMapper {
             if (isStored()) {
                 return new BlockStoredFieldsReader.BytesFromStringsBlockLoader(name());
             }
+
+            // _ignored_source field will only be present if text field is not stored
+            // and there is no syntheticSourceDelegate
+            if (isSyntheticSource && syntheticSourceDelegate == null) {
+                return fallbackSyntheticSourceBlockLoader();
+            }
+
             SourceValueFetcher fetcher = SourceValueFetcher.toString(blContext.sourcePaths(name()));
             return new BlockSourceReader.BytesRefsBlockLoader(fetcher, blockReaderDisiLookup(blContext));
+        }
+
+        FallbackSyntheticSourceBlockLoader fallbackSyntheticSourceBlockLoader() {
+            var reader = new FallbackSyntheticSourceBlockLoader.SingleValueReader<BytesRef>(null) {
+                @Override
+                public void convertValue(Object value, List<BytesRef> accumulator) {
+                    if (value != null) {
+                        accumulator.add(new BytesRef(value.toString()));
+                    }
+                }
+
+                @Override
+                protected void parseNonNullValue(XContentParser parser, List<BytesRef> accumulator) throws IOException {
+                    var text = parser.textOrNull();
+
+                    if (text != null) {
+                        accumulator.add(new BytesRef(text));
+                    }
+                }
+
+                @Override
+                public void writeToBlock(List<BytesRef> values, BlockLoader.Builder blockBuilder) {
+                    var bytesRefBuilder = (BlockLoader.BytesRefBuilder) blockBuilder;
+
+                    for (var value : values) {
+                        bytesRefBuilder.appendBytesRef(value);
+                    }
+                }
+            };
+
+            return new FallbackSyntheticSourceBlockLoader(reader, name()) {
+                @Override
+                public Builder builder(BlockFactory factory, int expectedCount) {
+                    return factory.bytesRefs(expectedCount);
+                }
+            };
         }
 
         /**

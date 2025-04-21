@@ -146,7 +146,7 @@ public class DataStreamLifecycleServiceIT extends ESIntegTestCase {
 
     public void testRolloverLifecycle() throws Exception {
         // empty lifecycle contains the default rollover
-        DataStreamLifecycle.Template lifecycle = DataStreamLifecycle.Template.DEFAULT;
+        DataStreamLifecycle.Template lifecycle = DataStreamLifecycle.Template.DATA_DEFAULT;
 
         putComposableIndexTemplate("id1", null, List.of("metrics-foo*"), null, null, lifecycle, false);
         String dataStreamName = "metrics-foo";
@@ -353,7 +353,7 @@ public class DataStreamLifecycleServiceIT extends ESIntegTestCase {
     }
 
     public void testUpdatingLifecycleAppliesToAllBackingIndices() throws Exception {
-        DataStreamLifecycle.Template lifecycle = DataStreamLifecycle.Template.DEFAULT;
+        DataStreamLifecycle.Template lifecycle = DataStreamLifecycle.Template.DATA_DEFAULT;
 
         putComposableIndexTemplate("id1", null, List.of("metrics-foo*"), null, null, lifecycle, false);
 
@@ -384,7 +384,7 @@ public class DataStreamLifecycleServiceIT extends ESIntegTestCase {
          * because all necessary merging has already happened automatically. So in order to detect whether forcemerge has been called, we
          * use a SendRequestBehavior in the MockTransportService to detect it.
          */
-        DataStreamLifecycle.Template lifecycle = DataStreamLifecycle.Template.DEFAULT;
+        DataStreamLifecycle.Template lifecycle = DataStreamLifecycle.Template.DATA_DEFAULT;
         disableDataStreamLifecycle();
         String dataStreamName = "metrics-foo";
         putComposableIndexTemplate(
@@ -477,7 +477,7 @@ public class DataStreamLifecycleServiceIT extends ESIntegTestCase {
 
     public void testErrorRecordingOnRollover() throws Exception {
         // empty lifecycle contains the default rollover
-        DataStreamLifecycle.Template lifecycle = DataStreamLifecycle.Template.DEFAULT;
+        DataStreamLifecycle.Template lifecycle = DataStreamLifecycle.Template.DATA_DEFAULT;
         /*
          * We set index.auto_expand_replicas to 0-1 so that if we get a single-node cluster it is not yellow. The cluster being yellow
          * could result in data stream lifecycle's automatic forcemerge failing, which would result in an unexpected error in the error
@@ -613,7 +613,7 @@ public class DataStreamLifecycleServiceIT extends ESIntegTestCase {
     public void testErrorRecordingOnRetention() throws Exception {
         // starting with a lifecycle without retention so we can rollover the data stream and manipulate the second generation index such
         // that its retention execution fails
-        DataStreamLifecycle.Template lifecycle = DataStreamLifecycle.Template.DEFAULT;
+        DataStreamLifecycle.Template lifecycle = DataStreamLifecycle.Template.DATA_DEFAULT;
 
         /*
          * We set index.auto_expand_replicas to 0-1 so that if we get a single-node cluster it is not yellow. The cluster being yellow
@@ -750,7 +750,7 @@ public class DataStreamLifecycleServiceIT extends ESIntegTestCase {
     }
 
     public void testDataLifecycleServiceConfiguresTheMergePolicy() throws Exception {
-        DataStreamLifecycle.Template lifecycle = DataStreamLifecycle.Template.DEFAULT;
+        DataStreamLifecycle.Template lifecycle = DataStreamLifecycle.Template.DATA_DEFAULT;
 
         putComposableIndexTemplate(
             "id1",
@@ -1094,6 +1094,7 @@ public class DataStreamLifecycleServiceIT extends ESIntegTestCase {
                         .build(),
                     Map.of(),
                     List.of(),
+                    "test",
                     ExecutorNames.DEFAULT_SYSTEM_INDEX_THREAD_POOLS
                 )
             );

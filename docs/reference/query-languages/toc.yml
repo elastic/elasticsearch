@@ -86,7 +86,23 @@ toc:
     children:
       - file: esql/esql-syntax.md
       - file: esql/esql-commands.md
+        children:
+          - file: esql/commands/source-commands.md
+          - file: esql/commands/processing-commands.md
       - file: esql/esql-functions-operators.md
+        children:
+          - file: esql/functions-operators/aggregation-functions.md
+          - file: esql/functions-operators/grouping-functions.md
+          - file: esql/functions-operators/conditional-functions-and-expressions.md
+          - file: esql/functions-operators/date-time-functions.md
+          - file: esql/functions-operators/ip-functions.md
+          - file: esql/functions-operators/math-functions.md
+          - file: esql/functions-operators/search-functions.md
+          - file: esql/functions-operators/spatial-functions.md
+          - file: esql/functions-operators/string-functions.md
+          - file: esql/functions-operators/type-conversion-functions.md
+          - file: esql/functions-operators/mv-functions.md
+          - file: esql/functions-operators/operators.md
       - file: esql/esql-metadata-fields.md
       - file: esql/esql-multivalued-fields.md
       - file: esql/esql-process-data-with-dissect-grok.md

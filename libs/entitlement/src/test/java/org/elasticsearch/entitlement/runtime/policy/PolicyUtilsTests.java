@@ -27,6 +27,7 @@ import java.util.Base64;
 import java.util.List;
 import java.util.Set;
 
+import static org.elasticsearch.entitlement.runtime.policy.entitlements.FilesEntitlement.SEPARATOR;
 import static org.elasticsearch.test.LambdaMatchers.transformedMatch;
 import static org.hamcrest.Matchers.both;
 import static org.hamcrest.Matchers.containsInAnyOrder;
@@ -317,6 +318,7 @@ public class PolicyUtilsTests extends ESTestCase {
     /** Test that we can format some simple files entitlement properly */
     public void testFormatFilesEntitlement() {
         var pathAB = Path.of("/a/b");
+        var pathCD = Path.of("c/d");
         var policy = new Policy(
             "test-plugin",
             List.of(
@@ -326,11 +328,7 @@ public class PolicyUtilsTests extends ESTestCase {
                         new FilesEntitlement(
                             List.of(
                                 FilesEntitlement.FileData.ofPath(pathAB, FilesEntitlement.Mode.READ_WRITE),
-                                FilesEntitlement.FileData.ofRelativePath(
-                                    Path.of("c/d"),
-                                    FilesEntitlement.BaseDir.DATA,
-                                    FilesEntitlement.Mode.READ
-                                )
+                                FilesEntitlement.FileData.ofRelativePath(pathCD, FilesEntitlement.BaseDir.DATA, FilesEntitlement.Mode.READ)
                             )
                         )
                     )
@@ -353,7 +351,17 @@ public class PolicyUtilsTests extends ESTestCase {
             )
         );
         Set<String> actual = PolicyUtils.getEntitlementsDescriptions(policy);
-        assertThat(actual, containsInAnyOrder("files [READ_WRITE] " + pathAB, "files [READ] <DATA>/c/d", "files [READ] <DATA>/<setting>"));
+        var pathABString = pathAB.toAbsolutePath().toString();
+        var pathCDString = SEPARATOR + pathCD.toString();
+        var pathSettingString = SEPARATOR + "<setting>";
+        assertThat(
+            actual,
+            containsInAnyOrder(
+                "files [READ_WRITE] " + pathABString,
+                "files [READ] <DATA>" + pathCDString,
+                "files [READ] <DATA>" + pathSettingString
+            )
+        );
     }
 
     /** Test that we can format some simple files entitlement properly */

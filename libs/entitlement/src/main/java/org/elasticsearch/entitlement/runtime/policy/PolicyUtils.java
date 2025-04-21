@@ -141,7 +141,9 @@ public class PolicyUtils {
     public static Policy parsePolicyIfExists(String pluginName, Path pluginRoot, boolean isExternalPlugin) throws IOException {
         Path policyFile = pluginRoot.resolve(POLICY_FILE_NAME);
         if (Files.exists(policyFile)) {
-            return new PolicyParser(Files.newInputStream(policyFile, StandardOpenOption.READ), pluginName, isExternalPlugin).parsePolicy();
+            try (var inputStream = Files.newInputStream(policyFile, StandardOpenOption.READ)) {
+                return new PolicyParser(inputStream, pluginName, isExternalPlugin).parsePolicy();
+            }
         }
         return new Policy(pluginName, List.of());
     }

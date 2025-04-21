@@ -13,7 +13,7 @@ import org.elasticsearch.xpack.inference.external.http.retry.BaseResponseHandler
 import org.elasticsearch.xpack.inference.external.http.retry.ResponseParser;
 import org.elasticsearch.xpack.inference.external.http.retry.RetryException;
 import org.elasticsearch.xpack.inference.external.request.Request;
-import org.elasticsearch.xpack.inference.external.response.alibabacloudsearch.AlibabaCloudSearchErrorResponseEntity;
+import org.elasticsearch.xpack.inference.services.alibabacloudsearch.response.AlibabaCloudSearchErrorResponseEntity;
 
 /**
  * Defines how to handle various errors returned from the AlibabaCloudSearch integration.

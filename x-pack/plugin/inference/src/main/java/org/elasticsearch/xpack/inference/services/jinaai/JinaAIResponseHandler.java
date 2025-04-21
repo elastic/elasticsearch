@@ -12,7 +12,7 @@ import org.elasticsearch.xpack.inference.external.http.retry.BaseResponseHandler
 import org.elasticsearch.xpack.inference.external.http.retry.ResponseParser;
 import org.elasticsearch.xpack.inference.external.http.retry.RetryException;
 import org.elasticsearch.xpack.inference.external.request.Request;
-import org.elasticsearch.xpack.inference.external.response.jinaai.JinaAIErrorResponseEntity;
+import org.elasticsearch.xpack.inference.services.jinaai.response.JinaAIErrorResponseEntity;
 
 /**
  * Defines how to handle various errors returned from the JinaAI integration.

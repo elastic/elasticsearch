@@ -63,3 +63,4 @@ toc:
 - file: use-cases.md
   children:
   - file: es-connectors-overview-architecture.md
+- file: es-connectors-known-issues.md

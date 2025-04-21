@@ -15,6 +15,7 @@ import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.compute.operator.DriverCompletionInfo;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.indices.IndicesExpressionGrouper;
 import org.elasticsearch.license.XPackLicenseState;
@@ -27,8 +28,8 @@ import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.action.EsqlExecutionInfo;
 import org.elasticsearch.xpack.esql.action.EsqlExecutionInfo.Cluster;
 import org.elasticsearch.xpack.esql.analysis.Analyzer;
-import org.elasticsearch.xpack.esql.analysis.TableInfo;
 import org.elasticsearch.xpack.esql.index.IndexResolution;
+import org.elasticsearch.xpack.esql.plan.IndexPattern;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 
 import java.util.Collections;
@@ -75,7 +76,7 @@ public class EsqlCCSUtils {
         public void onFailure(Exception e) {
             if (returnSuccessWithEmptyResult(executionInfo, e)) {
                 updateExecutionInfoToReturnEmptyResult(executionInfo, e);
-                listener.onResponse(new Result(Analyzer.NO_FIELDS, Collections.emptyList(), Collections.emptyList(), executionInfo));
+                listener.onResponse(new Result(Analyzer.NO_FIELDS, Collections.emptyList(), DriverCompletionInfo.EMPTY, executionInfo));
             } else {
                 listener.onFailure(e);
             }
@@ -276,15 +277,15 @@ public class EsqlCCSUtils {
      */
     public static void checkForCcsLicense(
         EsqlExecutionInfo executionInfo,
-        List<TableInfo> indices,
+        List<IndexPattern> indices,
         IndicesExpressionGrouper indicesGrouper,
         Set<String> configuredClusters,
         XPackLicenseState licenseState
     ) {
-        for (TableInfo tableInfo : indices) {
+        for (IndexPattern index : indices) {
             Map<String, OriginalIndices> groupedIndices;
             try {
-                groupedIndices = indicesGrouper.groupIndices(configuredClusters, IndicesOptions.DEFAULT, tableInfo.id().indexPattern());
+                groupedIndices = indicesGrouper.groupIndices(configuredClusters, IndicesOptions.DEFAULT, index.indexPattern());
             } catch (NoSuchRemoteClusterException e) {
                 if (EsqlLicenseChecker.isCcsAllowed(licenseState)) {
                     throw e;

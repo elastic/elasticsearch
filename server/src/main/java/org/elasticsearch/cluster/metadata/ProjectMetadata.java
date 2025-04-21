@@ -66,6 +66,7 @@ import java.util.SortedMap;
 import java.util.TreeMap;
 import java.util.function.BiConsumer;
 import java.util.function.BiPredicate;
+import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
@@ -1117,6 +1118,12 @@ public class ProjectMetadata implements Iterable<IndexMetadata>, Diffable<Projec
         return new ProjectMetadata.Builder(projectMetadata);
     }
 
+    public ProjectMetadata copyAndUpdate(Consumer<Builder> updater) {
+        var builder = builder(this);
+        updater.accept(builder);
+        return builder.build();
+    }
+
     public static class Builder {
 
         private final ImmutableOpenMap.Builder<String, IndexMetadata> indices;
@@ -1937,11 +1944,10 @@ public class ProjectMetadata implements Iterable<IndexMetadata>, Diffable<Projec
         private static boolean assertContainsIndexIfDataStream(DataStream parent, IndexMetadata indexMetadata) {
             assert parent == null
                 || parent.getIndices().stream().anyMatch(index -> indexMetadata.getIndex().getName().equals(index.getName()))
-                || (DataStream.isFailureStoreFeatureFlagEnabled()
-                    && parent.getFailureComponent()
-                        .getIndices()
-                        .stream()
-                        .anyMatch(index -> indexMetadata.getIndex().getName().equals(index.getName())))
+                || parent.getFailureComponent()
+                    .getIndices()
+                    .stream()
+                    .anyMatch(index -> indexMetadata.getIndex().getName().equals(index.getName()))
                 : "Expected data stream [" + parent.getName() + "] to contain index " + indexMetadata.getIndex();
             return true;
         }
@@ -1963,10 +1969,8 @@ public class ProjectMetadata implements Iterable<IndexMetadata>, Diffable<Projec
                 for (Index i : dataStream.getIndices()) {
                     indexToDataStreamLookup.put(i.getName(), dataStream);
                 }
-                if (DataStream.isFailureStoreFeatureFlagEnabled()) {
-                    for (Index i : dataStream.getFailureIndices()) {
-                        indexToDataStreamLookup.put(i.getName(), dataStream);
-                    }
+                for (Index i : dataStream.getFailureIndices()) {
+                    indexToDataStreamLookup.put(i.getName(), dataStream);
                 }
             }
         }

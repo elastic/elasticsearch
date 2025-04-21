@@ -19,6 +19,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.inference.ChunkInferenceInput;
 import org.elasticsearch.inference.ChunkedInference;
 import org.elasticsearch.inference.ChunkingSettings;
 import org.elasticsearch.inference.InferenceServiceConfiguration;
@@ -48,7 +49,6 @@ import org.elasticsearch.xpack.inference.services.mistral.embeddings.MistralEmbe
 import org.elasticsearch.xpack.inference.services.mistral.embeddings.MistralEmbeddingsServiceSettings;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettingsTests;
 import org.hamcrest.CoreMatchers;
-import org.hamcrest.MatcherAssert;
 import org.hamcrest.Matchers;
 import org.junit.After;
 import org.junit.Before;
@@ -503,34 +503,6 @@ public class MistralServiceTests extends ESTestCase {
         }
     }
 
-    public void testCheckModelConfig_ForEmbeddingsModel_Works() throws IOException {
-        var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
-
-        try (var service = new MistralService(senderFactory, createWithEmptySettings(threadPool))) {
-            webServer.enqueue(new MockResponse().setResponseCode(200).setBody(testEmbeddingResultJson));
-
-            var model = MistralEmbeddingModelTests.createModel("id", "mistral-embed", "apikey", null, null, null, null);
-            model.setURI(getUrl(webServer));
-
-            PlainActionFuture<Model> listener = new PlainActionFuture<>();
-            service.checkModelConfig(model, listener);
-
-            var result = listener.actionGet(TIMEOUT);
-            assertThat(
-                result,
-                is(MistralEmbeddingModelTests.createModel("id", "mistral-embed", "apikey", 2, null, SimilarityMeasure.DOT_PRODUCT, null))
-            );
-
-            assertThat(webServer.requests(), hasSize(1));
-
-            var requestMap = entityAsMap(webServer.requests().get(0).getBody());
-            MatcherAssert.assertThat(
-                requestMap,
-                Matchers.is(Map.of("input", List.of("how big"), "encoding_format", "float", "model", "mistral-embed"))
-            );
-        }
-    }
-
     public void testUpdateModelWithEmbeddingDetails_InvalidModelProvided() throws IOException {
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
         try (var service = new MistralService(senderFactory, createWithEmptySettings(threadPool))) {
@@ -713,7 +685,7 @@ public class MistralServiceTests extends ESTestCase {
             service.chunkedInfer(
                 model,
                 null,
-                List.of("abc", "def"),
+                List.of(new ChunkInferenceInput("abc"), new ChunkInferenceInput("def")),
                 new HashMap<>(),
                 InputType.INTERNAL_INGEST,
                 InferenceAction.Request.DEFAULT_TIMEOUT,

@@ -20,6 +20,7 @@ import org.junit.ClassRule;
 import org.junit.rules.RuleChain;
 import org.junit.rules.TestRule;
 
+import static fixture.aws.AwsCredentialsUtils.ANY_REGION;
 import static fixture.aws.AwsCredentialsUtils.fixedAccessKey;
 
 @ThreadLeakFilters(filters = { TestContainersThreadFilter.class })
@@ -33,7 +34,7 @@ public class RepositoryS3BasicCredentialsRestIT extends AbstractRepositoryS3Rest
     private static final String SECRET_KEY = PREFIX + "secret-key";
     private static final String CLIENT = "basic_credentials_client";
 
-    private static final S3HttpFixture s3Fixture = new S3HttpFixture(true, BUCKET, BASE_PATH, fixedAccessKey(ACCESS_KEY, "*", "s3"));
+    private static final S3HttpFixture s3Fixture = new S3HttpFixture(true, BUCKET, BASE_PATH, fixedAccessKey(ACCESS_KEY, ANY_REGION, "s3"));
 
     public static ElasticsearchCluster cluster = ElasticsearchCluster.local()
         .module("repository-s3")

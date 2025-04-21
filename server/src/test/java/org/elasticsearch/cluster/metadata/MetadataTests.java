@@ -13,7 +13,6 @@ import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.admin.indices.alias.get.GetAliasesRequest;
-import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterModule;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.Diff;
@@ -31,7 +30,6 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.ClusterSettings;
-import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.Maps;
@@ -53,7 +51,6 @@ import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.alias.RandomAliasActionsGenerator;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.indices.IndicesModule;
-import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.ingest.IngestMetadata;
 import org.elasticsearch.persistent.ClusterPersistentTasksCustomMetadata;
 import org.elasticsearch.persistent.PersistentTasks;
@@ -68,8 +65,6 @@ import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.test.index.IndexVersionUtils;
 import org.elasticsearch.test.rest.ObjectPath;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.upgrades.SystemIndexMigrationExecutor;
-import org.elasticsearch.upgrades.SystemIndexMigrationTaskParams;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -770,10 +765,6 @@ public class MetadataTests extends ESTestCase {
                     {
                       "id": "health-node",
                       "task":{ "health-node": {"params":{}} }
-                    },
-                    {
-                      "id": "upgrade-system-indices",
-                      "task":{ "upgrade-system-indices": {"params":{}} }
                     }
                   ]
                 },
@@ -843,12 +834,6 @@ public class MetadataTests extends ESTestCase {
             metadata.getProject().customs().keySet(),
             containsInAnyOrder("persistent_tasks", "index-graveyard", "component_template", "repositories")
         );
-        final var projectTasks = PersistentTasksCustomMetadata.get(metadata.getProject());
-        assertThat(
-            projectTasks.tasks().stream().map(PersistentTasksCustomMetadata.PersistentTask::getTaskName).toList(),
-            containsInAnyOrder("upgrade-system-indices")
-        );
-        assertThat(clusterTasks.getLastAllocationId(), equalTo(projectTasks.getLastAllocationId()));
         assertThat(metadata.customs(), not(hasKey("repositories")));
         final var repositoriesMetadata = RepositoriesMetadata.get(metadata.getProject(ProjectId.DEFAULT));
         assertThat(
@@ -955,7 +940,6 @@ public class MetadataTests extends ESTestCase {
         registry.addAll(ClusterModule.getNamedXWriteables());
         registry.addAll(IndicesModule.getNamedXContents());
         registry.addAll(HealthNodeTaskExecutor.getNamedXContentParsers());
-        registry.addAll(SystemIndexMigrationExecutor.getNamedXContentParsers());
 
         final var clusterService = mock(ClusterService.class);
         when(clusterService.threadPool()).thenReturn(mock(ThreadPool.class));
@@ -965,15 +949,7 @@ public class MetadataTests extends ESTestCase {
             Settings.EMPTY,
             ClusterSettings.createBuiltInClusterSettings()
         );
-        final var systemIndexMigrationExecutor = new SystemIndexMigrationExecutor(
-            mock(Client.class),
-            clusterService,
-            mock(SystemIndices.class),
-            mock(MetadataUpdateSettingsService.class),
-            mock(MetadataCreateIndexService.class),
-            IndexScopedSettings.DEFAULT_SCOPED_SETTINGS
-        );
-        new PersistentTasksExecutorRegistry(List.of(healthNodeTaskExecutor, systemIndexMigrationExecutor));
+        new PersistentTasksExecutorRegistry(List.of(healthNodeTaskExecutor));
 
         XContentParserConfiguration config = XContentParserConfiguration.EMPTY.withRegistry(new NamedXContentRegistry(registry));
         try (XContentParser parser = JsonXContent.jsonXContent.createParser(config, json)) {
@@ -2710,22 +2686,6 @@ public class MetadataTests extends ESTestCase {
             .map(
                 project -> ProjectMetadata.builder(project)
                     .putCustom(
-                        PersistentTasksCustomMetadata.TYPE,
-                        new PersistentTasksCustomMetadata(
-                            lastAllocationId,
-                            Map.of(
-                                SystemIndexMigrationTaskParams.SYSTEM_INDEX_UPGRADE_TASK_NAME,
-                                new PersistentTasksCustomMetadata.PersistentTask<>(
-                                    SystemIndexMigrationTaskParams.SYSTEM_INDEX_UPGRADE_TASK_NAME,
-                                    SystemIndexMigrationTaskParams.SYSTEM_INDEX_UPGRADE_TASK_NAME,
-                                    new SystemIndexMigrationTaskParams(),
-                                    lastAllocationId,
-                                    PersistentTasks.INITIAL_ASSIGNMENT
-                                )
-                            )
-                        )
-                    )
-                    .putCustom(
                         RepositoriesMetadata.TYPE,
                         new RepositoriesMetadata(
                             List.of(
@@ -2784,22 +2744,9 @@ public class MetadataTests extends ESTestCase {
             equalTo(projects.stream().map(pp -> pp.id().id()).collect(Collectors.toUnmodifiableSet()))
         );
 
-        for (int i = 0; i < projects.size(); i++) {
-            assertThat(objectPath.evaluate("meta-data.projects." + i + ".persistent_tasks"), notNullValue());
-            assertThat(objectPath.evaluate("meta-data.projects." + i + ".persistent_tasks.last_allocation_id"), equalTo(lastAllocationId));
-            assertThat(objectPath.evaluate("meta-data.projects." + i + ".persistent_tasks.tasks"), hasSize(1));
-            assertThat(
-                objectPath.evaluate("meta-data.projects." + i + ".persistent_tasks.tasks.0.id"),
-                equalTo(SystemIndexMigrationTaskParams.SYSTEM_INDEX_UPGRADE_TASK_NAME)
-            );
-        }
-
         Metadata fromXContentMeta = fromJsonXContentStringWithPersistentTasks(bytes.utf8ToString());
         assertThat(fromXContentMeta.projects().keySet(), equalTo(originalMeta.projects().keySet()));
         for (var project : fromXContentMeta.projects().values()) {
-            final var projectTasks = PersistentTasksCustomMetadata.get(project);
-            assertThat(projectTasks.getLastAllocationId(), equalTo(lastAllocationId));
-            assertThat(projectTasks.taskMap().keySet(), equalTo(Set.of(SystemIndexMigrationTaskParams.SYSTEM_INDEX_UPGRADE_TASK_NAME)));
             assertThat(
                 RepositoriesMetadata.get(project).repositories(),
                 equalTo(
@@ -2824,25 +2771,6 @@ public class MetadataTests extends ESTestCase {
         final var originalMeta = Metadata.builder()
             .clusterUUID(randomUUID())
             .clusterUUIDCommitted(true)
-            .put(
-                ProjectMetadata.builder(ProjectId.DEFAULT)
-                    .putCustom(
-                        PersistentTasksCustomMetadata.TYPE,
-                        new PersistentTasksCustomMetadata(
-                            lastAllocationId,
-                            Map.of(
-                                SystemIndexMigrationTaskParams.SYSTEM_INDEX_UPGRADE_TASK_NAME,
-                                new PersistentTasksCustomMetadata.PersistentTask<>(
-                                    SystemIndexMigrationTaskParams.SYSTEM_INDEX_UPGRADE_TASK_NAME,
-                                    SystemIndexMigrationTaskParams.SYSTEM_INDEX_UPGRADE_TASK_NAME,
-                                    new SystemIndexMigrationTaskParams(),
-                                    lastAllocationId,
-                                    PersistentTasks.INITIAL_ASSIGNMENT
-                                )
-                            )
-                        )
-                    )
-            )
             .putCustom(
                 ClusterPersistentTasksCustomMetadata.TYPE,
                 new ClusterPersistentTasksCustomMetadata(
@@ -2872,14 +2800,7 @@ public class MetadataTests extends ESTestCase {
         assertThat(objectPath.evaluate("meta-data.cluster_persistent_tasks"), nullValue());
         // The combined lastAllocationId is the max between cluster and project tasks
         assertThat(objectPath.evaluate("meta-data.persistent_tasks.last_allocation_id"), equalTo(lastAllocationId + 1));
-        assertThat(objectPath.evaluate("meta-data.persistent_tasks.tasks"), hasSize(2));
-        assertThat(
-            Set.of(
-                objectPath.evaluate("meta-data.persistent_tasks.tasks.0.id"),
-                objectPath.evaluate("meta-data.persistent_tasks.tasks.1.id")
-            ),
-            equalTo(Set.of(HealthNode.TASK_NAME, SystemIndexMigrationTaskParams.SYSTEM_INDEX_UPGRADE_TASK_NAME))
-        );
+        assertThat(objectPath.evaluate("meta-data.persistent_tasks.tasks"), hasSize(1));
 
         // Deserialize from the XContent should separate cluster and project tasks
         final Metadata fromXContentMeta = fromJsonXContentStringWithPersistentTasks(bytes.utf8ToString());
@@ -2890,13 +2811,6 @@ public class MetadataTests extends ESTestCase {
         assertThat(
             clusterTasks.tasks().stream().map(PersistentTasksCustomMetadata.PersistentTask::getId).toList(),
             contains(HealthNode.TASK_NAME)
-        );
-        final var projectTasks = PersistentTasksCustomMetadata.get(fromXContentMeta.getProject(ProjectId.DEFAULT));
-        assertThat(projectTasks, notNullValue());
-        assertThat(projectTasks.getLastAllocationId(), equalTo(lastAllocationId + 1));
-        assertThat(
-            projectTasks.tasks().stream().map(PersistentTasksCustomMetadata.PersistentTask::getId).toList(),
-            contains(SystemIndexMigrationTaskParams.SYSTEM_INDEX_UPGRADE_TASK_NAME)
         );
     }
 

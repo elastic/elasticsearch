@@ -16,6 +16,7 @@ import org.elasticsearch.entitlement.runtime.policy.PathLookup;
 import org.elasticsearch.entitlement.runtime.policy.Platform;
 import org.elasticsearch.entitlement.runtime.policy.PolicyValidationException;
 
+import java.nio.file.FileSystems;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -30,6 +31,8 @@ import java.util.stream.Stream;
  * Describes a file entitlement with a path and mode.
  */
 public record FilesEntitlement(List<FileData> filesData) implements Entitlement {
+
+    public static final String SEPARATOR = FileSystems.getDefault().getSeparator();
 
     public static final FilesEntitlement EMPTY = new FilesEntitlement(List.of());
 
@@ -160,7 +163,7 @@ public record FilesEntitlement(List<FileData> filesData) implements Entitlement 
 
         @Override
         public String description() {
-            return Strings.format("[%s] <%s>/%s%s", mode, baseDir, relativePath, exclusive ? " (exclusive)" : "");
+            return Strings.format("[%s] <%s>%s%s%s", mode, baseDir, SEPARATOR, relativePath, exclusive ? " (exclusive)" : "");
         }
     }
 
@@ -192,7 +195,7 @@ public record FilesEntitlement(List<FileData> filesData) implements Entitlement 
 
         @Override
         public String description() {
-            return Strings.format("[%s] <%s>/<%s>%s", mode, baseDir, setting, exclusive ? " (exclusive)" : "");
+            return Strings.format("[%s] <%s>%s<%s>%s", mode, baseDir, SEPARATOR, setting, exclusive ? " (exclusive)" : "");
         }
     }
 

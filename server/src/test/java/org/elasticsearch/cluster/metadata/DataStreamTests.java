@@ -277,6 +277,39 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
         assertThat(rolledDs.getIndexMode(), equalTo(IndexMode.LOGSDB));
     }
 
+    public void testRolloverFromTSdbToLogsdb() {
+        DataStream ds = DataStreamTestHelper.randomInstance().copy().setReplicated(false).setIndexMode(IndexMode.TIME_SERIES).build();
+        final var project = ProjectMetadata.builder(randomProjectIdOrDefault()).build();
+        var newCoordinates = ds.nextWriteIndexAndGeneration(project, ds.getDataComponent());
+
+        var rolledDs = ds.rollover(new Index(newCoordinates.v1(), UUIDs.randomBase64UUID()), newCoordinates.v2(), IndexMode.LOGSDB, null);
+        assertThat(rolledDs.getName(), equalTo(ds.getName()));
+        assertThat(rolledDs.getGeneration(), equalTo(ds.getGeneration() + 1));
+        assertThat(rolledDs.getIndices().size(), equalTo(ds.getIndices().size() + 1));
+        assertTrue(rolledDs.getIndices().containsAll(ds.getIndices()));
+        assertTrue(rolledDs.getIndices().contains(rolledDs.getWriteIndex()));
+        assertThat(rolledDs.getIndexMode(), equalTo(IndexMode.LOGSDB));
+    }
+
+    public void testRolloverFromLogsdbToTsdb() {
+        DataStream ds = DataStreamTestHelper.randomInstance().copy().setReplicated(false).setIndexMode(IndexMode.LOGSDB).build();
+        final var project = ProjectMetadata.builder(randomProjectIdOrDefault()).build();
+        var newCoordinates = ds.nextWriteIndexAndGeneration(project, ds.getDataComponent());
+
+        var rolledDs = ds.rollover(
+            new Index(newCoordinates.v1(), UUIDs.randomBase64UUID()),
+            newCoordinates.v2(),
+            IndexMode.TIME_SERIES,
+            null
+        );
+        assertThat(rolledDs.getName(), equalTo(ds.getName()));
+        assertThat(rolledDs.getGeneration(), equalTo(ds.getGeneration() + 1));
+        assertThat(rolledDs.getIndices().size(), equalTo(ds.getIndices().size() + 1));
+        assertTrue(rolledDs.getIndices().containsAll(ds.getIndices()));
+        assertTrue(rolledDs.getIndices().contains(rolledDs.getWriteIndex()));
+        assertThat(rolledDs.getIndexMode(), equalTo(IndexMode.TIME_SERIES));
+    }
+
     public void testRolloverDowngradeFromTsdbToRegularDataStream() {
         DataStream ds = DataStreamTestHelper.randomInstance().copy().setReplicated(false).setIndexMode(IndexMode.TIME_SERIES).build();
         final var project = ProjectMetadata.builder(randomProjectIdOrDefault()).build();
@@ -1388,7 +1421,7 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
             dataStreamName,
             creationAndRolloverTimes,
             settings(IndexVersion.current()),
-            new DataStreamLifecycle() {
+            new DataStreamLifecycle(null, null, null) {
                 public TimeValue dataRetention() {
                     return retention.get();
                 }
@@ -1538,7 +1571,7 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
             dataStreamName,
             creationAndRolloverTimes,
             settings(IndexVersion.current()),
-            new DataStreamLifecycle() {
+            new DataStreamLifecycle(null, null, null) {
                 public TimeValue dataRetention() {
                     return retention.get();
                 }
@@ -1649,7 +1682,7 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
             dataStreamName,
             creationAndRolloverTimes,
             settings(IndexVersion.current()),
-            new DataStreamLifecycle() {
+            new DataStreamLifecycle(null, null, null) {
                 public TimeValue dataRetention() {
                     return testRetentionReference.get();
                 }
@@ -1700,7 +1733,7 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
             dataStreamName,
             creationAndRolloverTimes,
             settings(IndexVersion.current()),
-            new DataStreamLifecycle() {
+            new DataStreamLifecycle(null, null, null) {
                 public TimeValue dataRetention() {
                     return testRetentionReference.get();
                 }
@@ -1956,7 +1989,7 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
                 Settings.builder()
                     .put(IndexMetadata.LIFECYCLE_NAME, "ILM_policy")
                     .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current()),
-                new DataStreamLifecycle()
+                DataStreamLifecycle.DEFAULT_DATA_LIFECYCLE
             );
             Metadata metadataIlm = builderWithIlm.build();
             for (Index index : ds.getIndices()) {
@@ -1977,7 +2010,7 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
                         .put(IndexMetadata.LIFECYCLE_NAME, "ILM_policy")
                         .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
                         .put(IndexSettings.PREFER_ILM, false),
-                    new DataStreamLifecycle()
+                    DataStreamLifecycle.DEFAULT_DATA_LIFECYCLE
                 );
                 Metadata metadataIlm = builderWithIlm.build();
                 for (Index index : ds.getIndices()) {
@@ -2077,7 +2110,7 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
             failureIndices = randomNonEmptyIndexInstances();
         }
 
-        DataStreamLifecycle lifecycle = new DataStreamLifecycle();
+        DataStreamLifecycle lifecycle = DataStreamLifecycle.DEFAULT_DATA_LIFECYCLE;
         boolean isSystem = randomBoolean();
         DataStream dataStream = new DataStream(
             dataStreamName,

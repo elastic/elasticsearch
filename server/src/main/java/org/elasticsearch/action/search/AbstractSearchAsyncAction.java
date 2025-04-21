@@ -501,15 +501,15 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
         if (logger.isTraceEnabled()) {
             logger.trace("got first-phase result from {}", result != null ? result.getSearchShardTarget() : null);
         }
+        // clean a previous error on this shard group (note, this code will be serialized on the same shardIndex value level
+        // so it's ok concurrency wise to miss potentially the shard failures being created because of another failure
+        // in the #addShardFailure, because by definition, it will happen on *another* shardIndex
+        AtomicArray<ShardSearchFailure> shardFailures = this.shardFailures.get();
+        if (shardFailures != null) {
+            shardFailures.set(result.getShardIndex(), null);
+        }
         results.consumeResult(result, () -> {
             successfulOps.incrementAndGet();
-            // clean a previous error on this shard group (note, this code will be serialized on the same shardIndex value level
-            // so its ok concurrency wise to miss potentially the shard failures being created because of another failure
-            // in the #addShardFailure, because by definition, it will happen on *another* shardIndex
-            AtomicArray<ShardSearchFailure> shardFailures = this.shardFailures.get();
-            if (shardFailures != null) {
-                shardFailures.set(result.getShardIndex(), null);
-            }
             finishOneShard();
         });
     }

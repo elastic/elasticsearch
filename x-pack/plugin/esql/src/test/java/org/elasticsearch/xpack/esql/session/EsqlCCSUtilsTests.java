@@ -30,7 +30,6 @@ import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.transport.RemoteTransportException;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.action.EsqlExecutionInfo;
-import org.elasticsearch.xpack.esql.analysis.TableInfo;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.index.EsIndex;
 import org.elasticsearch.xpack.esql.index.IndexResolution;
@@ -503,12 +502,10 @@ public class EsqlCCSUtilsTests extends ESTestCase {
             (k, v) -> new EsqlExecutionInfo.Cluster(REMOTE1_ALIAS, "*", true, EsqlExecutionInfo.Cluster.Status.SKIPPED)
         );
         executionInfo.swapCluster(REMOTE2_ALIAS, (k, v) -> new EsqlExecutionInfo.Cluster(REMOTE2_ALIAS, "mylogs1,mylogs2,logs*", false));
-
         assertNull(executionInfo.planningTookTime());
         assertNull(executionInfo.overallTook());
-        try {
-            Thread.sleep(1);
-        } catch (InterruptedException e) {}
+
+        safeSleep(1);
 
         EsqlCCSUtils.updateExecutionInfoAtEndOfPlanning(executionInfo);
 
@@ -709,8 +706,7 @@ public class EsqlCCSUtilsTests extends ESTestCase {
 
         // local only search does not require an enterprise license
         {
-            List<TableInfo> indices = new ArrayList<>();
-            indices.add(new TableInfo(new IndexPattern(EMPTY, randomFrom("idx", "idx1,idx2*"))));
+            List<IndexPattern> indices = List.of(new IndexPattern(EMPTY, randomFrom("idx", "idx1,idx2*")));
 
             checkForCcsLicense(executionInfo, indices, indicesGrouper, Set.of(), enterpriseLicenseValid);
             checkForCcsLicense(executionInfo, indices, indicesGrouper, Set.of(), platinumLicenseValid);
@@ -732,13 +728,13 @@ public class EsqlCCSUtilsTests extends ESTestCase {
 
         // cross-cluster search requires a valid (active, non-expired) enterprise license OR a valid trial license
         {
-            List<TableInfo> indices = new ArrayList<>();
+            List<IndexPattern> indices = new ArrayList<>();
             final String indexExprWithRemotes = randomFrom("remote:idx", "idx1,remote:idx2*,remote:logs,c*:idx4");
             if (randomBoolean()) {
-                indices.add(new TableInfo(new IndexPattern(EMPTY, indexExprWithRemotes)));
+                indices.add(new IndexPattern(EMPTY, indexExprWithRemotes));
             } else {
-                indices.add(new TableInfo(new IndexPattern(EMPTY, randomFrom("idx", "idx1,idx2*"))));
-                indices.add(new TableInfo(new IndexPattern(EMPTY, indexExprWithRemotes)));
+                indices.add(new IndexPattern(EMPTY, randomFrom("idx", "idx1,idx2*")));
+                indices.add(new IndexPattern(EMPTY, indexExprWithRemotes));
             }
 
             // licenses that work
@@ -804,7 +800,7 @@ public class EsqlCCSUtilsTests extends ESTestCase {
     }
 
     private void assertLicenseCheckFails(
-        List<TableInfo> indices,
+        List<IndexPattern> indices,
         TestIndicesExpressionGrouper indicesGrouper,
         XPackLicenseState licenseState,
         String expectedErrorMessageSuffix

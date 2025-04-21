@@ -15,6 +15,7 @@ import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.support.IndexComponentSelector;
 import org.elasticsearch.action.support.IndicesOptions;
+import org.elasticsearch.action.support.UnsupportedSelectorException;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexAbstraction.Type;
 import org.elasticsearch.cluster.project.ProjectResolver;
@@ -2394,13 +2395,11 @@ public class IndexNameExpressionResolver {
          * Checks the selectors that have been returned from splitting an expression and throws an exception if any were present.
          * @param expression Original expression
          * @param selector Selectors to validate
-         * @throws IllegalArgumentException if selectors are present
+         * @throws UnsupportedSelectorException if selectors are present
          */
         private static void ensureNoSelectorsProvided(String expression, IndexComponentSelector selector) {
             if (selector != null) {
-                throw new IllegalArgumentException(
-                    "Index component selectors are not supported in this context but found selector in expression [" + expression + "]"
-                );
+                throw new UnsupportedSelectorException(expression);
             }
         }
 

@@ -19,7 +19,7 @@ import java.util.function.Supplier;
 public class KeywordFieldDataGenerator implements FieldDataGenerator {
     private final Supplier<Object> valueGenerator;
 
-    public KeywordFieldDataGenerator(String fieldName, DataSource dataSource) {
+    public KeywordFieldDataGenerator(DataSource dataSource) {
         var strings = dataSource.get(new DataSourceRequest.StringGenerator());
         var nulls = dataSource.get(new DataSourceRequest.NullWrapper());
         var arrays = dataSource.get(new DataSourceRequest.ArrayWrapper());

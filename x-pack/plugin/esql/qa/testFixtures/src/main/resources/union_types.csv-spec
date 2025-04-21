@@ -1640,7 +1640,7 @@ id:integer | name:keyword | count:long
 14         | mmmmm        | 2
 ;
 
-MultiTypedFieldsKeepSort
+ImplicitCastingMultiTypedFieldsKeepSort
 required_capability: date_nanos_type
 required_capability: implicit_casting_date_and_date_nanos
 
@@ -1656,7 +1656,7 @@ x:long |languages:unsupported |hire_date:date_nanos     |avg_worked_seconds:unsi
 10001  |null                  |1986-06-26T00:00:00.000Z |268728049                        |1986-06-26T00:00:00.000Z
 ;
 
-MultiTypedFieldsDropKeepSort
+ImplicitCastingMultiTypedFieldsDropKeepSort
 required_capability: date_nanos_type
 required_capability: implicit_casting_date_and_date_nanos
 
@@ -1673,7 +1673,7 @@ emp_no:long |languages:unsupported |hire_date:date_nanos     |avg_worked_seconds
 10001       |null                  |1986-06-26T00:00:00.000Z |268728049                        |1986-06-26T00:00:00.000Z
 ;
 
-MultiTypedFieldsRenameKeepSort
+ImplicitCastingMultiTypedFieldsRenameKeepSort
 required_capability: date_nanos_type
 required_capability: implicit_casting_date_and_date_nanos
 
@@ -1690,7 +1690,7 @@ new_emp_no:long |new_languages:integer |new_hire_date:date_nanos |new_avg_worked
 10001           |2                     |1986-06-26T00:00:00.000Z |268728049                            |1986-06-26T00:00:00.000Z
 ;
 
-MultiTypedFieldsDropEvalKeepSort
+ImplicitCastingMultiTypedFieldsDropEvalKeepSort
 required_capability: date_nanos_type
 required_capability: implicit_casting_date_and_date_nanos
 
@@ -1707,7 +1707,7 @@ x:long |hire_date:date_nanos     |y:date_nanos             |z:date
 10002  |1986-06-26T00:00:00.000Z |1987-06-26T00:00:00.000Z |1986-06-26T00:00:00.000Z
 ;
 
-MultiTypedFieldsEvalFilterKeepSort
+ImplicitCastingMultiTypedFieldsEvalFilterKeepSort
 required_capability: date_nanos_type
 required_capability: implicit_casting_date_and_date_nanos
 
@@ -1726,7 +1726,7 @@ x:long |hire_date:date_nanos
 10018  | 1993-08-03T00:00:00.000Z
 ;
 
-MultiTypedFieldsStatsByNumeric
+ImplicitCastingMultiTypedFieldsStatsByNumeric
 required_capability: date_nanos_type
 required_capability: implicit_casting_date_and_date_nanos
 
@@ -1744,7 +1744,7 @@ x:date_nanos             | languages:integer
 1997-05-19T00:00:00.000Z | null
 ;
 
-MultiTypedFieldsStatsByDateNanos
+ImplicitCastingMultiTypedFieldsStatsByDateNanos
 required_capability: date_nanos_type
 required_capability: implicit_casting_date_and_date_nanos
 
@@ -1764,7 +1764,7 @@ x:long | y:double | z:double | hire_date:date_nanos
 2      | 3.6      | 1.5      | 1985-09-17T00:00:00.000Z
 ;
 
-MultiTypedFieldsMvExpandKeepSort
+ImplicitCastingMultiTypedFieldsMvExpandKeepSort
 required_capability: date_nanos_type
 required_capability: implicit_casting_date_and_date_nanos
 
@@ -1784,13 +1784,13 @@ num:long | nanos:date_nanos               | millis:date_nanos
 0        | 2023-02-23T13:33:34.937193Z    | 1999-10-23T12:15:03.360Z
 ;
 
-MultiTypedMVEval
+ImplicitCastingMultiTypedMVFieldsEval
 required_capability: date_nanos_type
 required_capability: implicit_casting_date_and_date_nanos
 
 FROM date_nanos, date_nanos_lookup
 | EVAL nanos = MV_MAX(nanos)
-| SORT nanos
+| SORT nanos, millis
 | LIMIT 4
 ;
 
@@ -1798,13 +1798,13 @@ warning:Line 2:23: evaluation of [nanos] failed, treating result as null. Only f
 warning:Line 2:23: java.lang.IllegalArgumentException: milliSeconds [-1457696696640] are before the epoch in 1970 and cannot be converted to nanoseconds
 
 num:long | nanos:date_nanos               | millis:date_nanos
-0        | 2023-03-23T12:15:03.360Z       | 1999-10-23T12:15:03.360103847Z
 0        | 2023-03-23T12:15:03.360Z       | 1999-10-22T12:15:03.360103847Z
+0        | 2023-03-23T12:15:03.360Z       | 1999-10-23T12:15:03.360103847Z
 0        | 2023-03-23T12:15:03.360103847Z | 1999-10-22T12:15:03.360Z
 0        | 2023-03-23T12:15:03.360103847Z | 1999-10-23T12:15:03.360Z
 ;
 
-MultiTypedMVFieldsWhere
+ImplicitCastingMultiTypedMVFieldsWhere
 required_capability: date_nanos_type
 required_capability: implicit_casting_date_and_date_nanos
 
@@ -1825,7 +1825,7 @@ millis:date_nanos              | nanos:date_nanos               | num:long
 2023-10-23T12:27:28.948Z       | 2023-10-23T12:27:28.948Z       | 1698064048948000000
 ;
 
-MultiTypedMVFieldsStatsMaxMin
+ImplicitCastingMultiTypedMVFieldsStatsMaxMin
 required_capability: date_nanos_type
 required_capability: implicit_casting_date_and_date_nanos
 
@@ -1840,7 +1840,7 @@ max:date_nanos                 | min:date_nanos
 2023-10-23T13:55:01.543123456Z | 2023-01-23T13:55:01.543Z
 ;
 
-MultiTypedMVFieldsStatsValues
+ImplicitCastingMultiTypedMVFieldsStatsValues
 required_capability: date_nanos_type
 required_capability: implicit_casting_date_and_date_nanos
 
@@ -1855,7 +1855,7 @@ c:integer
 19
 ;
 
-MultiTypedDateDiff
+ImplicitCastingMultiTypedDateDiff
 required_capability: date_nanos_type
 required_capability: implicit_casting_date_and_date_nanos
 
@@ -1877,7 +1877,7 @@ emp_no:long | hire_date:date_nanos     | diff_sec_1:integer | diff_sec_2:integer
 10003       | 1986-08-28T00:00:00.000Z | 18704696           | 18704696
 ;
 
-MultiTypedDateFormat
+ImplicitCastingMultiTypedDateFormat
 required_capability: date_nanos_type
 required_capability: implicit_casting_date_and_date_nanos
 
@@ -1898,7 +1898,7 @@ emp_no:long | hire_date:date_nanos     | a:keyword                | b:keyword  |
 10003       | 1986-08-28T00:00:00.000Z | 1986-08-28T00:00:00.000Z | 1986-08-28 | 1986-08-28T00:00:00.000Z
 ;
 
-MultiTypedDateTrunc
+ImplicitCastingMultiTypedDateTrunc
 required_capability: date_nanos_type
 required_capability: implicit_casting_date_and_date_nanos
 
@@ -1919,7 +1919,7 @@ emp_no:long | hire_date:date_nanos     | yr:date_nanos            | mo:date_nano
 10002       | 1985-11-21T00:00:00.000Z | 1985-01-01T00:00:00.000Z | 1985-11-01T00:00:00.000Z
 ;
 
-MultiTypedDateTruncStatsBy
+ImplicitCastingMultiTypedDateTruncStatsBy
 required_capability: date_nanos_type
 required_capability: implicit_casting_date_and_date_nanos
 
@@ -1937,7 +1937,7 @@ c:long | yr:date_nanos
 8      | 1994-01-01T00:00:00.000Z
 ;
 
-MultiTypedDateTruncStatsByWithEval
+ImplicitCastingMultiTypedDateTruncStatsByWithEval
 required_capability: date_nanos_type
 required_capability: implicit_casting_date_and_date_nanos
 
@@ -1956,7 +1956,7 @@ c:long | yr:date_nanos
 8      | 1994-01-01T00:00:00.000Z
 ;
 
-MultiTypedBucketDateNanosByYear
+ImplicitCastingMultiTypedBucketDateNanosByYear
 required_capability: date_nanos_type
 required_capability: implicit_casting_date_and_date_nanos
 
@@ -1982,7 +1982,7 @@ c:long | yr:date_nanos
 22     | 1985-01-01T00:00:00.000Z
 ;
 
-MultiTypedBucketDateNanosByMonth
+ImplicitCastingMultiTypedBucketDateNanosByMonth
 required_capability: date_nanos_type
 required_capability: implicit_casting_date_and_date_nanos
 
@@ -2008,7 +2008,7 @@ c:long | mo:date_nanos
 22     | 1985-01-01T00:00:00.000Z
 ;
 
-MultiTypedBucketDateNanosInBothStatsAndBy
+ImplicitCastingMultiTypedBucketDateNanosInBothStatsAndBy
 required_capability: date_nanos_type
 required_capability: implicit_casting_date_and_date_nanos
 
@@ -2034,7 +2034,7 @@ c:long | b:date_nanos             | yr:date_nanos
 22     | 1986-01-01T00:00:00.000Z | 1985-01-01T00:00:00.000Z
 ;
 
-MultiTypedBucketDateNanosInBothStatsAndByWithAlias
+ImplicitCastingMultiTypedBucketDateNanosInBothStatsAndByWithAlias
 required_capability: date_nanos_type
 required_capability: implicit_casting_date_and_date_nanos
 

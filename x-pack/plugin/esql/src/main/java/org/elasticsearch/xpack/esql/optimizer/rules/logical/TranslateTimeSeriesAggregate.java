@@ -124,6 +124,15 @@ import java.util.Map;
  * | STATS max_memory_usage = max(memory_usage), host_values=VALUES(host) BY _tsid, time_bucket=bucket(@timestamp, 1minute)
  * | STATS sum(max_memory_usage) BY host_values, time_bucket
  *
+ *
+ * TS k8s | STATS sum(avg_over_time(memory_usage)) BY host, bucket(@timestamp, 1minute)
+ *
+ * becomes
+ *
+ * TS k8s
+ * | STATS avg_memory_usage = avg(memory_usage), host_values=VALUES(host) BY _tsid, time_bucket=bucket(@timestamp, 1minute)
+ * | STATS sum(avg_memory_usage) BY host_values, time_bucket
+ *
  * </pre>
  */
 public final class TranslateTimeSeriesAggregate extends OptimizerRules.OptimizerRule<Aggregate> {

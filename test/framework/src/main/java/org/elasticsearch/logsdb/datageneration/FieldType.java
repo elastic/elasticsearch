@@ -12,6 +12,7 @@ package org.elasticsearch.logsdb.datageneration;
 import org.elasticsearch.logsdb.datageneration.datasource.DataSource;
 import org.elasticsearch.logsdb.datageneration.fields.leaf.BooleanFieldDataGenerator;
 import org.elasticsearch.logsdb.datageneration.fields.leaf.ByteFieldDataGenerator;
+import org.elasticsearch.logsdb.datageneration.fields.leaf.ConstantKeywordFieldDataGenerator;
 import org.elasticsearch.logsdb.datageneration.fields.leaf.CountedKeywordFieldDataGenerator;
 import org.elasticsearch.logsdb.datageneration.fields.leaf.DateFieldDataGenerator;
 import org.elasticsearch.logsdb.datageneration.fields.leaf.DoubleFieldDataGenerator;
@@ -19,12 +20,14 @@ import org.elasticsearch.logsdb.datageneration.fields.leaf.FloatFieldDataGenerat
 import org.elasticsearch.logsdb.datageneration.fields.leaf.GeoPointFieldDataGenerator;
 import org.elasticsearch.logsdb.datageneration.fields.leaf.HalfFloatFieldDataGenerator;
 import org.elasticsearch.logsdb.datageneration.fields.leaf.IntegerFieldDataGenerator;
+import org.elasticsearch.logsdb.datageneration.fields.leaf.IpFieldDataGenerator;
 import org.elasticsearch.logsdb.datageneration.fields.leaf.KeywordFieldDataGenerator;
 import org.elasticsearch.logsdb.datageneration.fields.leaf.LongFieldDataGenerator;
 import org.elasticsearch.logsdb.datageneration.fields.leaf.ScaledFloatFieldDataGenerator;
 import org.elasticsearch.logsdb.datageneration.fields.leaf.ShortFieldDataGenerator;
 import org.elasticsearch.logsdb.datageneration.fields.leaf.TextFieldDataGenerator;
 import org.elasticsearch.logsdb.datageneration.fields.leaf.UnsignedLongFieldDataGenerator;
+import org.elasticsearch.logsdb.datageneration.fields.leaf.WildcardFieldDataGenerator;
 
 /**
  * Lists all leaf field types that are supported for data generation by default.
@@ -44,7 +47,10 @@ public enum FieldType {
     BOOLEAN("boolean"),
     DATE("date"),
     GEO_POINT("geo_point"),
-    TEXT("text");
+    TEXT("text"),
+    IP("ip"),
+    CONSTANT_KEYWORD("constant_keyword"),
+    WILDCARD("wildcard");
 
     private final String name;
 
@@ -54,7 +60,7 @@ public enum FieldType {
 
     public FieldDataGenerator generator(String fieldName, DataSource dataSource) {
         return switch (this) {
-            case KEYWORD -> new KeywordFieldDataGenerator(fieldName, dataSource);
+            case KEYWORD -> new KeywordFieldDataGenerator(dataSource);
             case LONG -> new LongFieldDataGenerator(fieldName, dataSource);
             case UNSIGNED_LONG -> new UnsignedLongFieldDataGenerator(fieldName, dataSource);
             case INTEGER -> new IntegerFieldDataGenerator(fieldName, dataSource);
@@ -69,6 +75,9 @@ public enum FieldType {
             case DATE -> new DateFieldDataGenerator(dataSource);
             case GEO_POINT -> new GeoPointFieldDataGenerator(dataSource);
             case TEXT -> new TextFieldDataGenerator(dataSource);
+            case IP -> new IpFieldDataGenerator(dataSource);
+            case CONSTANT_KEYWORD -> new ConstantKeywordFieldDataGenerator();
+            case WILDCARD -> new WildcardFieldDataGenerator(dataSource);
         };
     }
 
@@ -89,6 +98,9 @@ public enum FieldType {
             case "date" -> FieldType.DATE;
             case "geo_point" -> FieldType.GEO_POINT;
             case "text" -> FieldType.TEXT;
+            case "ip" -> FieldType.IP;
+            case "constant_keyword" -> FieldType.CONSTANT_KEYWORD;
+            case "wildcard" -> FieldType.WILDCARD;
             default -> null;
         };
     }

@@ -125,7 +125,7 @@ public final class TransportActionProxy {
         }
     }
 
-    static class ProxyRequest<T extends TransportRequest> extends TransportRequest {
+    static class ProxyRequest<T extends TransportRequest> extends AbstractTransportRequest {
         final T wrapped;
         final DiscoveryNode targetNode;
 

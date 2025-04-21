@@ -478,13 +478,16 @@ public class IndexResolverFieldNamesTests extends ESTestCase {
     }
 
     public void testEnrichOn() {
-        assertFieldNames("""
-            from employees
-            | sort emp_no
-            | limit 1
-            | eval x = to_string(languages)
-            | enrich languages_policy on x
-            | keep emp_no, language_name""", Set.of("emp_no", "emp_no.*", "languages", "languages.*", "language_name", "language_name.*"));
+        assertFieldNames(
+            """
+                from employees
+                | sort emp_no
+                | limit 1
+                | eval x = to_string(languages)
+                | enrich languages_policy on x
+                | keep emp_no, language_name""",
+            Set.of("emp_no", "emp_no.*", "languages", "languages.*", "language_name", "language_name.*", "x", "x.*")
+        );
     }
 
     public void testEnrichOn2() {
@@ -494,7 +497,7 @@ public class IndexResolverFieldNamesTests extends ESTestCase {
             | enrich languages_policy on x
             | keep emp_no, language_name
             | sort emp_no
-            | limit 1""", Set.of("emp_no", "emp_no.*", "languages", "languages.*", "language_name", "language_name.*"));
+            | limit 1""", Set.of("emp_no", "emp_no.*", "languages", "languages.*", "language_name", "language_name.*", "x", "x.*"));
     }
 
     public void testUselessEnrich() {
@@ -512,7 +515,7 @@ public class IndexResolverFieldNamesTests extends ESTestCase {
             | enrich languages_policy on x
             | keep emp_no, language_name
             | sort emp_no
-            | limit 1""", Set.of("languages", "languages.*", "emp_no", "emp_no.*", "language_name", "language_name.*"));
+            | limit 1""", Set.of("languages", "languages.*", "emp_no", "emp_no.*", "language_name", "language_name.*", "x", "x.*"));
     }
 
     public void testWith() {
@@ -520,7 +523,7 @@ public class IndexResolverFieldNamesTests extends ESTestCase {
             """
                 from employees | eval x = to_string(languages) | keep emp_no, x | sort emp_no | limit 1
                 | enrich languages_policy on x with language_name""",
-            Set.of("emp_no", "emp_no.*", "languages", "languages.*", "language_name", "language_name.*")
+            Set.of("emp_no", "emp_no.*", "languages", "languages.*", "language_name", "language_name.*", "x", "x.*")
         );
     }
 
@@ -529,7 +532,7 @@ public class IndexResolverFieldNamesTests extends ESTestCase {
             """
                 from employees  | sort emp_no | limit 3 | eval x = to_string(languages) | keep emp_no, x
                 | enrich languages_policy on x with lang = language_name""",
-            Set.of("emp_no", "emp_no.*", "languages", "languages.*", "language_name", "language_name.*")
+            Set.of("emp_no", "emp_no.*", "languages", "languages.*", "language_name", "language_name.*", "x", "x.*")
         );
     }
 
@@ -538,7 +541,7 @@ public class IndexResolverFieldNamesTests extends ESTestCase {
             """
                 from employees | eval x = to_string(languages) | keep emp_no, x  | sort emp_no | limit 3
                 | enrich languages_policy on x with lang = language_name""",
-            Set.of("emp_no", "emp_no.*", "languages", "languages.*", "language_name", "language_name.*")
+            Set.of("emp_no", "emp_no.*", "languages", "languages.*", "language_name", "language_name.*", "x", "x.*")
         );
     }
 
@@ -547,7 +550,7 @@ public class IndexResolverFieldNamesTests extends ESTestCase {
             """
                 from employees  | sort emp_no desc | limit 3 | eval x = to_string(languages) | keep emp_no, x
                 | enrich languages_policy on x with lang = language_name, language_name""",
-            Set.of("emp_no", "emp_no.*", "languages", "languages.*", "language_name", "language_name.*")
+            Set.of("emp_no", "emp_no.*", "languages", "languages.*", "language_name", "language_name.*", "x", "x.*")
         );
     }
 
@@ -556,7 +559,7 @@ public class IndexResolverFieldNamesTests extends ESTestCase {
             """
                 from employees  | sort emp_no | limit 1 | eval x = to_string(languages) | keep emp_no, x
                 | enrich languages_policy on x with lang = language_name, lang2 = language_name""",
-            Set.of("emp_no", "emp_no.*", "languages", "languages.*", "language_name", "language_name.*")
+            Set.of("emp_no", "emp_no.*", "languages", "languages.*", "language_name", "language_name.*", "x", "x.*")
         );
     }
 
@@ -565,7 +568,7 @@ public class IndexResolverFieldNamesTests extends ESTestCase {
             """
                 from employees  | sort emp_no | limit 1 | eval x = to_string(languages) | keep emp_no, x
                 | enrich languages_policy on x with language_name, language_name""",
-            Set.of("emp_no", "emp_no.*", "languages", "languages.*", "language_name", "language_name.*")
+            Set.of("emp_no", "emp_no.*", "languages", "languages.*", "language_name", "language_name.*", "x", "x.*")
         );
     }
 
@@ -588,28 +591,34 @@ public class IndexResolverFieldNamesTests extends ESTestCase {
                 | eval x = to_string(languages)
                 | keep emp_no, x
                 | enrich languages_policy on x with language_name, language_name""",
-            Set.of("languages", "languages.*", "emp_no", "emp_no.*", "language_name", "language_name.*")
+            Set.of("languages", "languages.*", "emp_no", "emp_no.*", "language_name", "language_name.*", "x", "x.*")
         );
     }
 
     public void testEnrichEval() {
-        assertFieldNames("""
-            from employees
-            | eval x = to_string(languages)
-            | enrich languages_policy on x with lang = language_name
-            | eval language = concat(x, "-", lang)
-            | keep emp_no, x, lang, language
-            | sort emp_no desc | limit 3""", Set.of("languages", "languages.*", "emp_no", "emp_no.*", "language_name", "language_name.*"));
+        assertFieldNames(
+            """
+                from employees
+                | eval x = to_string(languages)
+                | enrich languages_policy on x with lang = language_name
+                | eval language = concat(x, "-", lang)
+                | keep emp_no, x, lang, language
+                | sort emp_no desc | limit 3""",
+            Set.of("languages", "languages.*", "emp_no", "emp_no.*", "language_name", "language_name.*", "x", "x.*", "lang", "lang.*")
+        );
     }
 
     public void testSimple() {
-        assertFieldNames("""
-            from employees
-            | eval x = 1, y = to_string(languages)
-            | enrich languages_policy on y
-            | where x > 1
-            | keep emp_no, language_name
-            | limit 1""", Set.of("emp_no", "emp_no.*", "languages", "languages.*", "language_name", "language_name.*"));
+        assertFieldNames(
+            """
+                from employees
+                | eval x = 1, y = to_string(languages)
+                | enrich languages_policy on y
+                | where x > 1
+                | keep emp_no, language_name
+                | limit 1""",
+            Set.of("emp_no", "emp_no.*", "languages", "languages.*", "language_name", "language_name.*", "x", "y", "x.*", "y.*")
+        );
     }
 
     public void testEvalNullSort() {
@@ -1651,6 +1660,54 @@ public class IndexResolverFieldNamesTests extends ESTestCase {
             Set.of("@timestamp", "@timestamp.*", "message", "message.*", "unmapped_message", "unmapped_message.*", "foo", "foo.*"),
             Set.of()
         );
+    }
+
+    public void testJoinMaskingKeep() {
+        assertFieldNames(
+            """
+                from languag*
+                | eval type = null
+                | rename language_name as message
+                | lookup join message_types_lookup on message
+                | rename type as message
+                | lookup join message_types_lookup on message
+                | keep `language.name`""",
+            Set.of("language.name", "type", "language_name", "message", "language_name.*", "message.*", "type.*", "language.name.*")
+        );
+    }
+
+    public void testJoinMaskingKeep2() {
+        assertFieldNames("""
+            from languag*
+            | eval type = "foo"
+            | rename type as message
+            | lookup join message_types_lookup on message
+            | rename type as message
+            | lookup join message_types_lookup on message
+            | keep `language.name`""", Set.of("language.name", "type", "message", "message.*", "type.*", "language.name.*"));
+    }
+
+    public void testEnrichMaskingEvalOn() {
+        assertFieldNames("""
+            from employees
+            | eval language_name = null
+            | enrich languages_policy on languages
+            | rename language_name as languages
+            | eval languages = length(languages)
+            | enrich languages_policy on languages
+            | keep emp_no, language_name""", Set.of("emp_no", "language_name", "languages", "language_name.*", "languages.*", "emp_no.*"));
+    }
+
+    public void testEnrichAndJoinMaskingEvalWh() {
+        assertFieldNames("""
+            from employees
+            | eval language_name = null
+            | enrich languages_policy on languages
+            | rename language_name as languages
+            | eval languages = length(languages)
+            | enrich languages_policy on languages
+            | lookup join message_types_lookup on language_name
+            | keep emp_no, language_name""", Set.of("emp_no", "language_name", "languages", "language_name.*", "languages.*", "emp_no.*"));
     }
 
     private Set<String> fieldNames(String query, Set<String> enrichPolicyMatchFields) {

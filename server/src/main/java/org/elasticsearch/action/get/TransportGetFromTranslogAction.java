@@ -9,7 +9,6 @@
 
 package org.elasticsearch.action.get;
 
-import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
@@ -65,25 +64,24 @@ public class TransportGetFromTranslogAction extends HandledTransportAction<
         assert indexShard.routingEntry().isPromotableToPrimary() : "not an indexing shard" + indexShard.routingEntry();
         assert getRequest.realtime();
         ActionListener.completeWith(listener, () -> {
-            var result = indexShard.getService()
-                .getFromTranslog(
-                    getRequest.id(),
-                    getRequest.storedFields(),
-                    getRequest.realtime(),
-                    getRequest.version(),
-                    getRequest.versionType(),
-                    getRequest.fetchSourceContext(),
-                    getRequest.isForceSyntheticSource()
-                );
-            long segmentGeneration = -1;
-            if (result == null) {
-                Engine engine = indexShard.getEngineOrNull();
-                if (engine == null) {
-                    throw new AlreadyClosedException("engine closed");
+            // Allows to keep the same engine instance for getFromTranslog and getLastUnsafeSegmentGenerationForGets
+            return indexShard.withEngineException(engine -> {
+                var result = indexShard.getService()
+                    .getFromTranslog(
+                        getRequest.id(),
+                        getRequest.storedFields(),
+                        getRequest.realtime(),
+                        getRequest.version(),
+                        getRequest.versionType(),
+                        getRequest.fetchSourceContext(),
+                        getRequest.isForceSyntheticSource()
+                    );
+                long segmentGeneration = -1;
+                if (result == null) {
+                    segmentGeneration = engine.getLastUnsafeSegmentGenerationForGets();
                 }
-                segmentGeneration = engine.getLastUnsafeSegmentGenerationForGets();
-            }
-            return new Response(result, indexShard.getOperationPrimaryTerm(), segmentGeneration);
+                return new Response(result, indexShard.getOperationPrimaryTerm(), segmentGeneration);
+            });
         });
     }
 

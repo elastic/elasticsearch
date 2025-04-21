@@ -1735,17 +1735,25 @@ public abstract class ESIntegTestCase extends ESTestCase {
     }
 
     public static void awaitIndexExists(String index) {
-        awaitIndexExists(index, client());
+        awaitIndexExists(index, client(), SAFE_AWAIT_TIMEOUT);
+    }
+
+    public static void awaitIndexExists(String index, TimeValue timeout) {
+        awaitIndexExists(index, client(), timeout);
     }
 
     public static void awaitIndexExists(String index, Client client) {
+        awaitIndexExists(index, client, SAFE_AWAIT_TIMEOUT);
+    }
+
+    public static void awaitIndexExists(String index, Client client, TimeValue timeout) {
         assertThat("wildcards not supported", index, allOf(not(Metadata.ALL), not(containsString("*"))));
-        safeGet(
+        assertNoTimeout(
             client.admin()
                 .cluster()
-                .prepareHealth(SAFE_AWAIT_TIMEOUT, index)
+                .prepareHealth(timeout, index)
+                .setTimeout(timeout)
                 .setIndicesOptions(IndicesOptions.LENIENT_EXPAND_OPEN_CLOSED)
-                .execute()
         );
     }
 

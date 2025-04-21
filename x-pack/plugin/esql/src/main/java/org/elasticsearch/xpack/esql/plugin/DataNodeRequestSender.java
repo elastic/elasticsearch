@@ -21,7 +21,7 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
-import org.elasticsearch.compute.operator.DriverProfile;
+import org.elasticsearch.compute.operator.DriverCompletionInfo;
 import org.elasticsearch.compute.operator.FailureCollector;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
@@ -30,7 +30,6 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.tasks.CancellableTask;
-import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.transport.TransportException;
 import org.elasticsearch.transport.TransportRequestOptions;
@@ -104,7 +103,6 @@ abstract class DataNodeRequestSender {
     }
 
     final void startComputeOnDataNodes(
-        String clusterAlias,
         Set<String> concreteIndices,
         OriginalIndices originalIndices,
         QueryBuilder requestFilter,
@@ -112,18 +110,24 @@ abstract class DataNodeRequestSender {
         ActionListener<ComputeResponse> listener
     ) {
         final long startTimeInNanos = System.nanoTime();
-        searchShards(rootTask, clusterAlias, requestFilter, concreteIndices, originalIndices, ActionListener.wrap(targetShards -> {
-            try (var computeListener = new ComputeListener(transportService.getThreadPool(), runOnTaskFailure, listener.map(profiles -> {
-                return new ComputeResponse(
-                    profiles,
-                    TimeValue.timeValueNanos(System.nanoTime() - startTimeInNanos),
-                    targetShards.totalShards(),
-                    targetShards.totalShards() - shardFailures.size() - skippedShards.get(),
-                    targetShards.skippedShards() + skippedShards.get(),
-                    shardFailures.size(),
-                    selectFailures()
-                );
-            }))) {
+        searchShards(requestFilter, concreteIndices, originalIndices, ActionListener.wrap(targetShards -> {
+            try (
+                var computeListener = new ComputeListener(
+                    transportService.getThreadPool(),
+                    runOnTaskFailure,
+                    listener.map(
+                        completionInfo -> new ComputeResponse(
+                            completionInfo,
+                            TimeValue.timeValueNanos(System.nanoTime() - startTimeInNanos),
+                            targetShards.totalShards(),
+                            targetShards.totalShards() - shardFailures.size() - skippedShards.get(),
+                            targetShards.skippedShards() + skippedShards.get(),
+                            shardFailures.size(),
+                            selectFailures()
+                        )
+                    )
+                )
+            ) {
                 for (TargetShard shard : targetShards.shards.values()) {
                     for (DiscoveryNode node : shard.remainingNodes) {
                         nodePermits.putIfAbsent(node, new Semaphore(1));
@@ -236,15 +240,15 @@ abstract class DataNodeRequestSender {
     }
 
     private void sendOneNodeRequest(TargetShards targetShards, ComputeListener computeListener, NodeRequest request) {
-        final ActionListener<List<DriverProfile>> listener = computeListener.acquireCompute();
+        final ActionListener<DriverCompletionInfo> listener = computeListener.acquireCompute();
         sendRequest(request.node, request.shardIds, request.aliasFilters, new NodeListener() {
-            void onAfter(List<DriverProfile> profiles) {
+            void onAfter(DriverCompletionInfo info) {
                 nodePermits.get(request.node).release();
                 if (concurrentRequests != null) {
                     concurrentRequests.release();
                 }
                 trySendingRequestsForPendingShards(targetShards, computeListener);
-                listener.onResponse(profiles);
+                listener.onResponse(info);
             }
 
             @Override
@@ -260,7 +264,7 @@ abstract class DataNodeRequestSender {
                     trackShardLevelFailure(shardId, false, e.getValue());
                     pendingShardIds.add(shardId);
                 }
-                onAfter(response.profiles());
+                onAfter(response.completionInfo());
             }
 
             @Override
@@ -269,7 +273,7 @@ abstract class DataNodeRequestSender {
                     trackShardLevelFailure(shardId, receivedData, e);
                     pendingShardIds.add(shardId);
                 }
-                onAfter(List.of());
+                onAfter(DriverCompletionInfo.EMPTY);
             }
 
             @Override
@@ -278,7 +282,7 @@ abstract class DataNodeRequestSender {
                 if (rootTask.isCancelled()) {
                     onFailure(new TaskCancelledException("null"), true);
                 } else {
-                    onResponse(new DataNodeComputeResponse(List.of(), Map.of()));
+                    onResponse(new DataNodeComputeResponse(DriverCompletionInfo.EMPTY, Map.of()));
                 }
             }
         });
@@ -321,7 +325,7 @@ abstract class DataNodeRequestSender {
     }
 
     /**
-     * Result from {@link #searchShards(Task, String, QueryBuilder, Set, OriginalIndices, ActionListener)} where can_match is performed to
+     * Result from {@link #searchShards(QueryBuilder, Set, OriginalIndices, ActionListener)} where can_match is performed to
      * determine what shards can be skipped and which target nodes are needed for running the ES|QL query
      *
      * @param shards        List of target shards to perform the ES|QL query on
@@ -412,8 +416,6 @@ abstract class DataNodeRequestSender {
      * to a situation where the column structure (i.e., matched data types) differs depending on the query.
      */
     void searchShards(
-        Task parentTask,
-        String clusterAlias,
         QueryBuilder filter,
         Set<String> concreteIndices,
         OriginalIndices originalIndices,
@@ -459,7 +461,7 @@ abstract class DataNodeRequestSender {
             transportService.getLocalNode(),
             EsqlSearchShardsAction.TYPE.name(),
             searchShardsRequest,
-            parentTask,
+            rootTask,
             TransportRequestOptions.EMPTY,
             new ActionListenerResponseHandler<>(searchShardsListener, SearchShardsResponse::new, esqlExecutor)
         );

@@ -161,6 +161,7 @@ public class TransportVersions {
     public static final TransportVersion REMOTE_EXCEPTION_8_19 = def(8_841_0_16);
     public static final TransportVersion AMAZON_BEDROCK_TASK_SETTINGS_8_19 = def(8_841_0_17);
     public static final TransportVersion BATCHED_QUERY_PHASE_VERSION_BACKPORT_8_X = def(8_841_0_19);
+    public static final TransportVersion SEARCH_INCREMENTAL_TOP_DOCS_NULL_BACKPORT_8_19 = def(8_841_0_20);
     public static final TransportVersion INITIAL_ELASTICSEARCH_9_0 = def(9_000_0_00);
     public static final TransportVersion REMOVE_SNAPSHOT_FAILURES_90 = def(9_000_0_01);
     public static final TransportVersion TRANSPORT_STATS_HANDLING_TIME_REQUIRED_90 = def(9_000_0_02);
@@ -230,7 +231,8 @@ public class TransportVersions {
     public static final TransportVersion ESQL_DOCUMENTS_FOUND_AND_VALUES_LOADED = def(9_056_0_00);
     public static final TransportVersion BATCHED_QUERY_EXECUTION_DELAYABLE_WRITABLE = def(9_057_0_00);
     public static final TransportVersion SEARCH_INCREMENTAL_TOP_DOCS_NULL = def(9_058_0_00);
-    public static final TransportVersion SETTINGS_IN_DATA_STREAMS = def(9_059_00_0);
+    public static final TransportVersion COMPRESS_DELAYABLE_WRITEABLE = def(9_059_0_00);
+    public static final TransportVersion SETTINGS_IN_DATA_STREAMS = def(9_060_00_0);
 
     /*
      * STOP! READ THIS FIRST! No, really,

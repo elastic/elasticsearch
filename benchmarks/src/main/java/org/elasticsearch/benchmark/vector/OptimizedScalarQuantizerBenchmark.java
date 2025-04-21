@@ -31,9 +31,9 @@ import java.util.concurrent.TimeUnit;
 @BenchmarkMode(Mode.Throughput)
 @OutputTimeUnit(TimeUnit.MILLISECONDS)
 @State(Scope.Benchmark)
-@Warmup(iterations = 4, time = 1)
+@Warmup(iterations = 3, time = 1)
 @Measurement(iterations = 5, time = 1)
-@Fork(value = 1)
+@Fork(value = 3)
 public class OptimizedScalarQuantizerBenchmark {
     static {
         LogConfigurator.configureESLogging(); // native access requires logging to be initialized

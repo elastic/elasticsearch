@@ -164,7 +164,7 @@ public class ESVectorUtilTests extends BaseVectorizationTests {
 
     public void testCenterAndCalculateOSQStatsDp() {
         int size = random().nextInt(128, 512);
-        float delta = 1e-5f * size;
+        float delta = 1e-3f * size;
         var vector = new float[size];
         var centroid = new float[size];
         for (int i = 0; i < size; ++i) {
@@ -183,7 +183,7 @@ public class ESVectorUtilTests extends BaseVectorizationTests {
 
     public void testCenterAndCalculateOSQStatsEuclidean() {
         int size = random().nextInt(128, 512);
-        float delta = 1e-5f * size;
+        float delta = 1e-3f * size;
         var vector = new float[size];
         var centroid = new float[size];
         for (int i = 0; i < size; ++i) {

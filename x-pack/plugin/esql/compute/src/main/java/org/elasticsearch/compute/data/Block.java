@@ -9,6 +9,7 @@ package org.elasticsearch.compute.data;
 
 import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.RamUsageEstimator;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -343,8 +344,14 @@ public interface Block extends Accountable, BlockLoader.Block, Writeable, RefCou
      * This should be paired with {@link #readTypedBlock(BlockStreamInput)}
      */
     static void writeTypedBlock(Block block, StreamOutput out) throws IOException {
-        block.elementType().writeTo(out);
-        block.writeTo(out);
+        if (out.getTransportVersion().before(TransportVersions.AGGREGATE_METRIC_DOUBLE_BLOCK)
+            && block.elementType() == ElementType.AGGREGATE_METRIC_DOUBLE) {
+            ElementType.COMPOSITE.writeTo(out);
+            CompositeBlock.fromAggregateMetricDoubleBlock((AggregateMetricDoubleBlock) block).writeTo(out);
+        } else {
+            block.elementType().writeTo(out);
+            block.writeTo(out);
+        }
     }
 
     /**

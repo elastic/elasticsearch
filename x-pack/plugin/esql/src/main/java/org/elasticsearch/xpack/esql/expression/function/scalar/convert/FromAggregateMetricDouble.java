@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.convert;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.compute.data.AggregateMetricDoubleBlock;
 import org.elasticsearch.compute.data.AggregateMetricDoubleBlockBuilder;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.CompositeBlock;
@@ -145,8 +146,10 @@ public class FromAggregateMetricDouble extends EsqlScalarFunction {
                             return block;
                         }
                         try {
-                            CompositeBlock compositeBlock = (CompositeBlock) block;
-                            Block resultBlock = compositeBlock.getBlock(((Number) subfieldIndex.fold(FoldContext.small())).intValue());
+                            AggregateMetricDoubleBlock aggBlock = block instanceof AggregateMetricDoubleBlock
+                                ? (AggregateMetricDoubleBlock) block
+                                : AggregateMetricDoubleBlock.fromCompositeBlock((CompositeBlock) block);
+                            Block resultBlock = aggBlock.getMetricBlock(((Number) subfieldIndex.fold(FoldContext.small())).intValue());
                             resultBlock.incRef();
                             return resultBlock;
                         } finally {

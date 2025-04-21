@@ -7,6 +7,7 @@
 
 package org.elasticsearch.compute.operator.topn;
 
+import org.elasticsearch.compute.data.AggregateMetricDoubleBlock;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.BytesRefBlock;
@@ -26,11 +27,16 @@ interface ValueExtractor {
     void writeValue(BreakingBytesRefBuilder values, int position);
 
     static ValueExtractor extractorFor(ElementType elementType, TopNEncoder encoder, boolean inKey, Block block) {
-        if (false == (elementType == block.elementType() || ElementType.NULL == block.elementType())) {
+        if (false == (elementType == block.elementType()
+            || ElementType.NULL == block.elementType()
+            || ElementType.COMPOSITE == block.elementType())) {
             // While this maybe should be an IllegalArgumentException, it's important to throw an exception that causes a 500 response.
             // If we reach here, that's a bug. Arguably, the operators are in an illegal state because the layout doesn't match the
             // actual pages.
             throw new IllegalStateException("Expected [" + elementType + "] but was [" + block.elementType() + "]");
+        }
+        if (elementType == ElementType.AGGREGATE_METRIC_DOUBLE && block.elementType() == ElementType.COMPOSITE) {
+            block = AggregateMetricDoubleBlock.fromCompositeBlock((CompositeBlock) block);
         }
         return switch (block.elementType()) {
             case BOOLEAN -> ValueExtractorForBoolean.extractorFor(encoder, inKey, (BooleanBlock) block);
@@ -41,7 +47,7 @@ interface ValueExtractor {
             case DOUBLE -> ValueExtractorForDouble.extractorFor(encoder, inKey, (DoubleBlock) block);
             case NULL -> new ValueExtractorForNull();
             case DOC -> new ValueExtractorForDoc(encoder, ((DocBlock) block).asVector());
-            case COMPOSITE -> new ValueExtractorForComposite(encoder, (CompositeBlock) block);
+            case AGGREGATE_METRIC_DOUBLE -> new ValueExtractorForAggregateMetricDouble(encoder, (AggregateMetricDoubleBlock) block);
             default -> {
                 assert false : "No value extractor for [" + block.elementType() + "]";
                 throw new UnsupportedOperationException("No value extractor for [" + block.elementType() + "]");

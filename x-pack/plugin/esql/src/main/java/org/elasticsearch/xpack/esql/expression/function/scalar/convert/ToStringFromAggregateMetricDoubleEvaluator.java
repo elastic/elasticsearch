@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.expression.function.scalar.convert;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.compute.data.AggregateMetricDoubleBlock;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.CompositeBlock;
@@ -37,13 +38,15 @@ public class ToStringFromAggregateMetricDoubleEvaluator extends AbstractConvertF
         return evalBlock(v.asBlock());
     }
 
-    private static BytesRef evalValue(CompositeBlock compositeBlock, int index) {
-        return new BytesRef(aggregateMetricDoubleBlockToString(compositeBlock, index));
+    private static BytesRef evalValue(AggregateMetricDoubleBlock aggBlock, int index) {
+        return new BytesRef(aggregateMetricDoubleBlockToString(aggBlock, index));
     }
 
     @Override
     public Block evalBlock(Block b) {
-        CompositeBlock block = (CompositeBlock) b;
+        AggregateMetricDoubleBlock block = b instanceof AggregateMetricDoubleBlock
+            ? (AggregateMetricDoubleBlock) b
+            : AggregateMetricDoubleBlock.fromCompositeBlock((CompositeBlock) b);
         int positionCount = block.getPositionCount();
         try (BytesRefBlock.Builder builder = driverContext.blockFactory().newBytesRefBlockBuilder(positionCount)) {
             for (int p = 0; p < positionCount; p++) {

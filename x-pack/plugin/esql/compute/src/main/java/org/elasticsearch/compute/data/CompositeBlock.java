@@ -92,16 +92,12 @@ public final class CompositeBlock extends AbstractNonThreadSafeRefCounted implem
 
     @Override
     public int getFirstValueIndex(int position) {
-        return blocks[0].getFirstValueIndex(position);
+        throw new UnsupportedOperationException("Composite block");
     }
 
     @Override
     public int getValueCount(int position) {
-        int max = 0;
-        for (var block : blocks) {
-            max = Math.max(max, block.getValueCount(position));
-        }
-        return max;
+        throw new UnsupportedOperationException("Composite block");
     }
 
     @Override
@@ -169,6 +165,15 @@ public final class CompositeBlock extends AbstractNonThreadSafeRefCounted implem
                 Releasables.close(filteredBlocks);
             }
         }
+    }
+
+    public static CompositeBlock fromAggregateMetricDoubleBlock(AggregateMetricDoubleBlock block) {
+        final Block[] blocks = new Block[4];
+        blocks[AggregateMetricDoubleBlockBuilder.Metric.MIN.getIndex()] = block.minBlock();
+        blocks[AggregateMetricDoubleBlockBuilder.Metric.MAX.getIndex()] = block.maxBlock();
+        blocks[AggregateMetricDoubleBlockBuilder.Metric.SUM.getIndex()] = block.sumBlock();
+        blocks[AggregateMetricDoubleBlockBuilder.Metric.COUNT.getIndex()] = block.countBlock();
+        return new CompositeBlock(blocks);
     }
 
     @Override

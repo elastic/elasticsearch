@@ -10,9 +10,13 @@ package org.elasticsearch.xpack.esql.action;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.xcontent.ChunkedToXContentHelper;
+import org.elasticsearch.compute.data.AggregateMetricDoubleBlock;
+import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.compute.data.CompositeBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xpack.core.esql.action.ColumnInfo;
+import org.elasticsearch.xpack.esql.core.type.DataType;
 
 import java.util.Collections;
 import java.util.Iterator;
@@ -103,7 +107,11 @@ final class ResponseXContentUtils {
             assert page.getBlockCount() == columnCount : page.getBlockCount() + " != " + columnCount;
             final PositionToXContent[] toXContents = new PositionToXContent[columnCount];
             for (int column = 0; column < columnCount; column++) {
-                toXContents[column] = PositionToXContent.positionToXContent(columns.get(column), page.getBlock(column), scratch);
+                Block block = page.getBlock(column);
+                if (columns.get(column).type() == DataType.AGGREGATE_METRIC_DOUBLE && block instanceof CompositeBlock compositeBlock) {
+                    block = AggregateMetricDoubleBlock.fromCompositeBlock(compositeBlock);
+                }
+                toXContents[column] = PositionToXContent.positionToXContent(columns.get(column), block, scratch);
             }
             return Iterators.forRange(0, page.getPositionCount(), position -> (builder, params) -> {
                 builder.startArray();

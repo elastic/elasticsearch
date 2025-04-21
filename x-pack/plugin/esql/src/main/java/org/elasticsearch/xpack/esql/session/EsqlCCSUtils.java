@@ -147,6 +147,7 @@ public class EsqlCCSUtils {
         StringBuilder sb = new StringBuilder();
         for (String clusterAlias : executionInfo.clusterAliases()) {
             EsqlExecutionInfo.Cluster cluster = executionInfo.getCluster(clusterAlias);
+            // Exclude clusters which are either skipped or have no indices matching wildcard, or filtered out.
             if (cluster.getStatus() != Cluster.Status.SKIPPED && cluster.getStatus() != Cluster.Status.SUCCESSFUL) {
                 if (cluster.getClusterAlias().equals(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY)) {
                     sb.append(executionInfo.getCluster(clusterAlias).getIndexExpression()).append(',');
@@ -209,7 +210,7 @@ public class EsqlCCSUtils {
          */
         for (String c : clustersWithNoMatchingIndices) {
             if (executionInfo.getCluster(c).getStatus() != Cluster.Status.RUNNING) {
-                // if cluster was already in the terminal state and not filtered, do not overwrite
+                // if cluster was already in a terminal state, we don't need to check it again
                 continue;
             }
             final String indexExpression = executionInfo.getCluster(c).getIndexExpression();
@@ -224,11 +225,14 @@ public class EsqlCCSUtils {
                     fatalErrorMessage += "; " + error;
                 }
                 if (filter == null) {
+                    // Not very useful since we don't send metadata on errors now, but may be useful in the future
+                    // We check for filter since the filter may be the reason why the index is missing, and then it's ok
                     markClusterWithFinalStateAndNoShards(executionInfo, c, Cluster.Status.FAILED, new VerificationException(error));
                 }
             } else {
-                // no matching indices and no concrete index requested - just mark it as done, no error
                 if (indexResolution.isValid()) {
+                    // no matching indices and no concrete index requested - just mark it as done, no error
+                    // We check for the valid resolution because if we have empty resolution it's still an error.
                     markClusterWithFinalStateAndNoShards(executionInfo, c, Cluster.Status.SUCCESSFUL, null);
                 }
             }
@@ -238,7 +242,7 @@ public class EsqlCCSUtils {
         }
     }
 
-    // Filter-less version
+    // Filter-less version, mainly for testing where we don't need filter support
     static void updateExecutionInfoWithClustersWithNoMatchingIndices(EsqlExecutionInfo executionInfo, IndexResolution indexResolution) {
         updateExecutionInfoWithClustersWithNoMatchingIndices(executionInfo, indexResolution, null);
     }

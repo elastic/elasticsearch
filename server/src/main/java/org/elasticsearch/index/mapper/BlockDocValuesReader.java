@@ -542,7 +542,7 @@ public abstract class BlockDocValuesReader implements BlockLoader.AllReader {
         @Override
         public BlockLoader.Block read(BlockFactory factory, Docs docs) throws IOException {
             // Doubles from doc values ensures that the values are in order
-            try (BlockLoader.FloatBuilder builder = factory.floatsFromDocValues(docs.count())) {
+            try (BlockLoader.FloatBuilder builder = factory.floats(docs.count())) {
                 for (int i = 0; i < docs.count(); i++) {
                     int doc = docs.get(i);
                     if (doc < iterator.docID()) {

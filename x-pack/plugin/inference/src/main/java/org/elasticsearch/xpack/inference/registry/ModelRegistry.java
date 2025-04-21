@@ -36,7 +36,6 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateAckListener;
 import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.SimpleBatchedAckListenerTaskExecutor;
-import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -141,6 +140,7 @@ public class ModelRegistry implements ClusterStateListener {
     private static final String MODEL_ID_FIELD = "model_id";
     private static final Logger logger = LogManager.getLogger(ModelRegistry.class);
 
+    private final ClusterService clusterService;
     private final OriginSettingClient client;
     private final Map<String, InferenceService.DefaultConfigId> defaultConfigIds;
 
@@ -148,11 +148,10 @@ public class ModelRegistry implements ClusterStateListener {
     private final AtomicBoolean upgradeMetadataInProgress = new AtomicBoolean(false);
     private final Set<String> preventDeletionLock = Collections.newSetFromMap(new ConcurrentHashMap<>());
 
-    private volatile Metadata lastMetadata;
-
     public ModelRegistry(ClusterService clusterService, Client client) {
         this.client = new OriginSettingClient(client, ClientHelper.INFERENCE_ORIGIN);
         this.defaultConfigIds = new ConcurrentHashMap<>();
+        this.clusterService = clusterService;
         var executor = new SimpleBatchedAckListenerTaskExecutor<MetadataTask>() {
             @Override
             public Tuple<ClusterState, ClusterStateAckListener> executeTask(MetadataTask task, ClusterState clusterState) throws Exception {
@@ -225,18 +224,11 @@ public class ModelRegistry implements ClusterStateListener {
      * @throws ResourceNotFoundException if the specified id is guaranteed to not exist in the cluster.
      */
     public MinimalServiceSettings getMinimalServiceSettings(String inferenceEntityId) throws ResourceNotFoundException {
-        synchronized (this) {
-            assert lastMetadata != null : "initial cluster state not set yet";
-            if (lastMetadata == null) {
-                throw new IllegalStateException("initial cluster state not set yet");
-            }
-        }
         var config = defaultConfigIds.get(inferenceEntityId);
         if (config != null) {
             return config.settings();
         }
-        var project = lastMetadata.getProject(ProjectId.DEFAULT);
-        var state = ModelRegistryMetadata.fromState(project);
+        var state = ModelRegistryMetadata.fromState(clusterService.state().projectState().metadata());
         var existing = state.getMinimalServiceSettings(inferenceEntityId);
         if (state.isUpgraded() && existing == null) {
             throw new ResourceNotFoundException(inferenceEntityId + " does not exist in this cluster.");
@@ -692,14 +684,10 @@ public class ModelRegistry implements ClusterStateListener {
                 if (updateClusterState) {
                     var storeListener = getStoreMetadataListener(inferenceEntityId, listener);
                     try {
+                        var projectId = clusterService.state().projectState().projectId();
                         metadataTaskQueue.submitTask(
                             "add model [" + inferenceEntityId + "]",
-                            new AddModelMetadataTask(
-                                ProjectId.DEFAULT,
-                                inferenceEntityId,
-                                new MinimalServiceSettings(model),
-                                storeListener
-                            ),
+                            new AddModelMetadataTask(projectId, inferenceEntityId, new MinimalServiceSettings(model), storeListener),
                             timeout
                         );
                     } catch (Exception exc) {
@@ -866,9 +854,10 @@ public class ModelRegistry implements ClusterStateListener {
                     }
                 };
                 try {
+                    var projectId = clusterService.state().projectState().projectId();
                     metadataTaskQueue.submitTask(
                         "delete models [" + inferenceEntityIds + "]",
-                        new DeleteModelMetadataTask(ProjectId.DEFAULT, inferenceEntityIds, clusterStateListener),
+                        new DeleteModelMetadataTask(projectId, inferenceEntityIds, clusterStateListener),
                         null
                     );
                 } catch (Exception exc) {
@@ -946,13 +935,6 @@ public class ModelRegistry implements ClusterStateListener {
 
     @Override
     public void clusterChanged(ClusterChangedEvent event) {
-        if (lastMetadata == null || event.metadataChanged()) {
-            // keep track of the last applied cluster state
-            synchronized (this) {
-                lastMetadata = event.state().metadata();
-            }
-        }
-
         if (event.localNodeMaster() == false) {
             return;
         }
@@ -1002,7 +984,7 @@ public class ModelRegistry implements ClusterStateListener {
                     metadataTaskQueue.submitTask(
                         "model registry auto upgrade",
                         new UpgradeModelsMetadataTask(
-                            ProjectId.DEFAULT,
+                            clusterService.state().metadata().getProject().id(),
                             map,
                             ActionListener.running(() -> upgradeMetadataInProgress.set(false))
                         ),

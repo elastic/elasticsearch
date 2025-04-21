@@ -20,6 +20,7 @@
 package org.elasticsearch.index.codec.vectors.es816;
 
 import org.apache.lucene.codecs.CodecUtil;
+import org.apache.lucene.codecs.KnnVectorsReader;
 import org.apache.lucene.codecs.hnsw.FlatVectorsReader;
 import org.apache.lucene.codecs.lucene95.OrdToDocDISIReaderConfiguration;
 import org.apache.lucene.index.ByteVectorValues;
@@ -51,6 +52,7 @@ import java.util.Map;
 
 import static org.apache.lucene.codecs.lucene99.Lucene99HnswVectorsReader.readSimilarityFunction;
 import static org.apache.lucene.codecs.lucene99.Lucene99HnswVectorsReader.readVectorEncoding;
+import static org.elasticsearch.index.codec.vectors.es816.ES816BinaryQuantizedVectorsFormat.VECTOR_DATA_EXTENSION;
 
 /**
  * Copied from Lucene, replace with Lucene's implementation sometime after Lucene 10
@@ -251,6 +253,18 @@ class ES816BinaryQuantizedVectorsReader extends FlatVectorsReader {
         size += RamUsageEstimator.sizeOfMap(fields, RamUsageEstimator.shallowSizeOfInstance(FieldEntry.class));
         size += rawVectorsReader.ramBytesUsed();
         return size;
+    }
+
+    @Override
+    public Map<String, Long> getOffHeapByteSize(FieldInfo fieldInfo) {
+        var raw = rawVectorsReader.getOffHeapByteSize(fieldInfo);
+        FieldEntry fe = fields.get(fieldInfo.name);
+        if (fe == null) {
+            assert fieldInfo.getVectorEncoding() == VectorEncoding.BYTE;
+            return raw;
+        }
+        var quant = Map.of(VECTOR_DATA_EXTENSION, fe.vectorDataLength());
+        return KnnVectorsReader.mergeOffHeapByteSizeMaps(raw, quant);
     }
 
     public float[] getCentroid(String field) {

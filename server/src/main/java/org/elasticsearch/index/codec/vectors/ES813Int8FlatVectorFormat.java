@@ -29,6 +29,7 @@ import org.apache.lucene.util.hnsw.OrdinalTranslatedKnnCollector;
 import org.apache.lucene.util.hnsw.RandomVectorScorer;
 
 import java.io.IOException;
+import java.util.Map;
 
 import static org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.MAX_DIMS_COUNT;
 
@@ -154,6 +155,11 @@ public class ES813Int8FlatVectorFormat extends KnnVectorsFormat {
         @Override
         public void search(String field, byte[] target, KnnCollector knnCollector, Bits acceptDocs) throws IOException {
             collectAllMatchingDocs(knnCollector, acceptDocs, reader.getRandomVectorScorer(field, target));
+        }
+
+        @Override
+        public Map<String, Long> getOffHeapByteSize(FieldInfo fieldInfo) {
+            return reader.getOffHeapByteSize(fieldInfo);
         }
 
         @Override

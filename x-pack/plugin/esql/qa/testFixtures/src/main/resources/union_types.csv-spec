@@ -1768,7 +1768,7 @@ ImplicitCastingMultiTypedFieldsMvExpandKeepSort
 required_capability: date_nanos_type
 required_capability: implicit_casting_date_and_date_nanos
 
-FROM date_nanos, date_nanos_lookup
+FROM date_nanos, date_nanos_union_types
 | MV_EXPAND nanos
 | SORT nanos
 | LIMIT 4
@@ -1788,7 +1788,7 @@ ImplicitCastingMultiTypedMVFieldsEval
 required_capability: date_nanos_type
 required_capability: implicit_casting_date_and_date_nanos
 
-FROM date_nanos, date_nanos_lookup
+FROM date_nanos, date_nanos_union_types
 | EVAL nanos = MV_MAX(nanos)
 | SORT nanos, millis
 | LIMIT 4
@@ -1808,7 +1808,7 @@ ImplicitCastingMultiTypedMVFieldsWhere
 required_capability: date_nanos_type
 required_capability: implicit_casting_date_and_date_nanos
 
-FROM date_nanos, date_nanos_lookup
+FROM date_nanos, date_nanos_union_types
 | WHERE millis <= "2023-10-23T13:00:00" AND MV_MAX(nanos) > "2023-03-23T13:00:00"
 | KEEP millis, nanos, num
 | SORT millis
@@ -1829,7 +1829,7 @@ ImplicitCastingMultiTypedMVFieldsStatsMaxMin
 required_capability: date_nanos_type
 required_capability: implicit_casting_date_and_date_nanos
 
-FROM date_nanos, date_nanos_lookup
+FROM date_nanos, date_nanos_union_types
 | STATS max = MAX(millis), min = MIN(nanos)
 ;
 
@@ -1844,7 +1844,7 @@ ImplicitCastingMultiTypedMVFieldsStatsValues
 required_capability: date_nanos_type
 required_capability: implicit_casting_date_and_date_nanos
 
-FROM  date_nanos, date_nanos_lookup
+FROM  date_nanos, date_nanos_union_types
 | STATS c = MV_COUNT(VALUES(nanos))
 ;
 

@@ -1791,17 +1791,6 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         }
     }
 
-    private static InvalidMappedField multiTypedField(Expression e) {
-        Expression exp = Alias.unwrap(e);
-        if (exp.resolved()
-            && exp.dataType() == UNSUPPORTED
-            && exp instanceof FieldAttribute fa
-            && fa.field() instanceof InvalidMappedField imf) {
-            return imf;
-        }
-        return null;
-    }
-
     /**
      * Cast union typed fields that are mixed of date and date_nanos types into date_nanos.
      */

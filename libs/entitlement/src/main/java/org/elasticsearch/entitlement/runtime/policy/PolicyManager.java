@@ -101,18 +101,13 @@ public class PolicyManager {
         }
     }
 
-    private FileAccessTree getDefaultFileAccess(String componentName, Path componentPath) {
-        return FileAccessTree.of(componentName, UNKNOWN_COMPONENT_NAME, FilesEntitlement.EMPTY, pathLookup, componentPath, List.of());
+    private FileAccessTree getDefaultFileAccess(Path componentPath) {
+        return FileAccessTree.withoutExclusivePaths(FilesEntitlement.EMPTY, pathLookup, componentPath);
     }
 
     // pkg private for testing
     ModuleEntitlements defaultEntitlements(String componentName, Path componentPath, String moduleName) {
-        return new ModuleEntitlements(
-            componentName,
-            Map.of(),
-            getDefaultFileAccess(componentName, componentPath),
-            getLogger(componentName, moduleName)
-        );
+        return new ModuleEntitlements(componentName, Map.of(), getDefaultFileAccess(componentPath), getLogger(componentName, moduleName));
     }
 
     // pkg private for testing

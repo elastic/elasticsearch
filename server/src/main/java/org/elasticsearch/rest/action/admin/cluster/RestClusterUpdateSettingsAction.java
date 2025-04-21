@@ -11,7 +11,6 @@ package org.elasticsearch.rest.action.admin.cluster;
 
 import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsRequest;
 import org.elasticsearch.client.internal.node.NodeClient;
-import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
@@ -33,9 +32,6 @@ import static org.elasticsearch.rest.RestUtils.getMasterNodeTimeout;
 public class RestClusterUpdateSettingsAction extends BaseRestHandler {
     private static final String PERSISTENT = "persistent";
     private static final String TRANSIENT = "transient";
-
-    // TODO: Remove this and use a single cluster feature / capability for the whole failure store feature when the feature flag is removed
-    private static final String DATA_STREAM_FAILURE_STORE_CLUSTER_SETTING_CAPABILITY = "data_stream_failure_store_cluster_setting";
 
     @Override
     public List<Route> routes() {
@@ -78,8 +74,4 @@ public class RestClusterUpdateSettingsAction extends BaseRestHandler {
         return false;
     }
 
-    @Override
-    public Set<String> supportedCapabilities() {
-        return DataStream.isFailureStoreFeatureFlagEnabled() ? Set.of(DATA_STREAM_FAILURE_STORE_CLUSTER_SETTING_CAPABILITY) : Set.of();
-    }
 }

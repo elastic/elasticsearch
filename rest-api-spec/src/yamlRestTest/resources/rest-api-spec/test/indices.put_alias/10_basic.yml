@@ -106,6 +106,9 @@
 
 ---
 "Throw exception for unknown token":
+  - requires:
+      cluster_features: [ "index.throw_exception_for_unknown_token_in_rest_index_put_alias_action" ]
+      reason: "Throw exception for unknown token in RestIndexPutAliasAction"
 
   - do:
       indices.create:

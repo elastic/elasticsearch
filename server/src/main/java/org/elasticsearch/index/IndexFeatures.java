@@ -25,8 +25,16 @@ public class IndexFeatures implements FeatureSpecification {
 
     private static final NodeFeature SYNONYMS_SET_LENIENT_ON_NON_EXISTING = new NodeFeature("index.synonyms_set_lenient_on_non_existing");
 
+    private static final NodeFeature THROW_EXCEPTION_FOR_UNKNOWN_TOKEN_IN_REST_INDEX_PUT_ALIAS_ACTION = new NodeFeature(
+        "index.throw_exception_for_unknown_token_in_rest_index_put_alias_action"
+    );
+
     @Override
     public Set<NodeFeature> getTestFeatures() {
-        return Set.of(LOGSDB_NO_HOST_NAME_FIELD, SYNONYMS_SET_LENIENT_ON_NON_EXISTING);
+        return Set.of(
+            LOGSDB_NO_HOST_NAME_FIELD,
+            SYNONYMS_SET_LENIENT_ON_NON_EXISTING,
+            THROW_EXCEPTION_FOR_UNKNOWN_TOKEN_IN_REST_INDEX_PUT_ALIAS_ACTION
+        );
     }
 }

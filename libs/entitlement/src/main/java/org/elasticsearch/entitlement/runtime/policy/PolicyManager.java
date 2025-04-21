@@ -58,6 +58,10 @@ import static java.util.stream.Collectors.toUnmodifiableMap;
 import static java.util.zip.ZipFile.OPEN_DELETE;
 import static java.util.zip.ZipFile.OPEN_READ;
 import static org.elasticsearch.entitlement.bridge.Util.NO_CLASS;
+import static org.elasticsearch.entitlement.runtime.policy.PolicyManager.ComponentKind.APM_AGENT;
+import static org.elasticsearch.entitlement.runtime.policy.PolicyManager.ComponentKind.PLUGIN;
+import static org.elasticsearch.entitlement.runtime.policy.PolicyManager.ComponentKind.SERVER;
+import static org.elasticsearch.entitlement.runtime.policy.PolicyManager.ComponentKind.UNKNOWN;
 
 public class PolicyManager {
     /**
@@ -65,30 +69,55 @@ public class PolicyManager {
      */
     private static final Logger generalLogger = LogManager.getLogger(PolicyManager.class);
 
-    public static final String UNKNOWN_COMPONENT_NAME = "(unknown)";
-    public static final String SERVER_COMPONENT_NAME = "(server)";
-    public static final String APM_AGENT_COMPONENT_NAME = "(APM agent)";
-
     static final Class<?> DEFAULT_FILESYSTEM_CLASS = PathUtils.getDefaultFileSystem().getClass();
 
     static final Set<String> MODULES_EXCLUDED_FROM_SYSTEM_MODULES = Set.of("java.desktop");
 
     /**
      * Identifies a particular entitlement {@link Scope} within a {@link Policy}.
-     * @param componentName
-     * @param moduleName
      */
-    public record PolicyScope(String componentName, String moduleName) {
+    public record PolicyScope(ComponentKind kind, String componentName, String moduleName) {
         public PolicyScope {
+            requireNonNull(kind);
             requireNonNull(componentName);
             requireNonNull(moduleName);
+            assert kind.componentName == null || kind.componentName.equals(componentName);
+        }
+
+        public static PolicyScope unknown(String moduleName) {
+            return new PolicyScope(UNKNOWN, UNKNOWN.componentName, moduleName);
+        }
+
+        public static PolicyScope server(String moduleName) {
+            return new PolicyScope(SERVER, SERVER.componentName, moduleName);
+        }
+
+        public static PolicyScope apmAgent(String moduleName) {
+            return new PolicyScope(APM_AGENT, APM_AGENT.componentName, moduleName);
+        }
+
+        public static PolicyScope plugin(String componentName, String moduleName) {
+            return new PolicyScope(PLUGIN, componentName, moduleName);
         }
     }
 
-    /**
-     * @param componentName the plugin name; or else one of the special component names
-     *                      like {@link #SERVER_COMPONENT_NAME} or {@link #APM_AGENT_COMPONENT_NAME}.
-     */
+    public enum ComponentKind {
+        UNKNOWN("(unknown)"),
+        SERVER("(server)"),
+        APM_AGENT("(APM agent)"),
+        PLUGIN(null);
+
+        /**
+         * If this kind corresponds to a single component, this is that component's name;
+         * otherwise null.
+         */
+        public final String componentName;
+
+        ComponentKind(String componentName) {
+            this.componentName = componentName;
+        }
+    }
+
     record ModuleEntitlements(
         String componentName,
         Map<Class<? extends Entitlement>, List<Entitlement>> entitlementsByType,
@@ -215,9 +244,9 @@ public class PolicyManager {
 
         List<ExclusiveFileEntitlement> exclusiveFileEntitlements = new ArrayList<>();
         for (var e : serverEntitlements.entrySet()) {
-            validateEntitlementsPerModule(SERVER_COMPONENT_NAME, e.getKey(), e.getValue(), exclusiveFileEntitlements);
+            validateEntitlementsPerModule(SERVER.componentName, e.getKey(), e.getValue(), exclusiveFileEntitlements);
         }
-        validateEntitlementsPerModule(APM_AGENT_COMPONENT_NAME, ALL_UNNAMED, apmAgentEntitlements, exclusiveFileEntitlements);
+        validateEntitlementsPerModule(APM_AGENT.componentName, ALL_UNNAMED, apmAgentEntitlements, exclusiveFileEntitlements);
         for (var p : pluginsEntitlements.entrySet()) {
             for (var m : p.getValue().entrySet()) {
                 validateEntitlementsPerModule(p.getKey(), m.getKey(), m.getValue(), exclusiveFileEntitlements);
@@ -614,31 +643,29 @@ public class PolicyManager {
         var componentName = policyScope.componentName();
         var moduleName = policyScope.moduleName();
 
-        switch (componentName) {
-            case SERVER_COMPONENT_NAME -> {
+        switch (policyScope.kind()) {
+            case SERVER -> {
                 return getModuleScopeEntitlements(
                     serverEntitlements,
                     moduleName,
-                    SERVER_COMPONENT_NAME,
+                    SERVER.componentName,
                     getComponentPathFromClass(requestingClass)
                 );
             }
-            case APM_AGENT_COMPONENT_NAME -> {
+            case APM_AGENT -> {
                 // The APM agent is the only thing running non-modular in the system classloader
                 return policyEntitlements(
-                    APM_AGENT_COMPONENT_NAME,
+                    APM_AGENT.componentName,
                     getComponentPathFromClass(requestingClass),
                     ALL_UNNAMED,
                     apmAgentEntitlements
                 );
             }
-            case UNKNOWN_COMPONENT_NAME -> {
-                return defaultEntitlements(UNKNOWN_COMPONENT_NAME, null, moduleName);
+            case UNKNOWN -> {
+                return defaultEntitlements(UNKNOWN.componentName, null, moduleName);
             }
             default -> {
-                // Must be a plugin
-                assert componentName.startsWith("(") == false
-                    : "Parentheses indicate a special component name that isn't a plugin: " + componentName;
+                assert policyScope.kind() == PLUGIN;
                 var pluginEntitlements = pluginsEntitlements.get(componentName);
                 if (pluginEntitlements == null) {
                     return defaultEntitlements(componentName, sourcePaths.get(componentName), moduleName);

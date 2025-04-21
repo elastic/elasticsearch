@@ -39,8 +39,7 @@ import java.util.stream.Stream;
 
 import static java.util.Map.entry;
 import static org.elasticsearch.entitlement.runtime.policy.PolicyManager.ALL_UNNAMED;
-import static org.elasticsearch.entitlement.runtime.policy.PolicyManager.APM_AGENT_COMPONENT_NAME;
-import static org.elasticsearch.entitlement.runtime.policy.PolicyManager.SERVER_COMPONENT_NAME;
+import static org.elasticsearch.entitlement.runtime.policy.PolicyManager.ComponentKind.SERVER;
 import static org.hamcrest.Matchers.aMapWithSize;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsString;
@@ -91,7 +90,7 @@ public class PolicyManagerTests extends ESTestCase {
             createEmptyTestServerPolicy(),
             List.of(),
             Map.of("plugin1", createPluginPolicy("plugin.module")),
-            c -> new PolicyScope("plugin1", moduleName(c)),
+            c -> PolicyScope.plugin("plugin1", moduleName(c)),
             Map.of("plugin1", plugin1SourcePath),
             NO_ENTITLEMENTS_MODULE,
             TEST_PATH_LOOKUP,
@@ -120,7 +119,7 @@ public class PolicyManagerTests extends ESTestCase {
             createEmptyTestServerPolicy(),
             List.of(),
             Map.of(),
-            c -> new PolicyScope("plugin1", moduleName(c)),
+            c -> PolicyScope.plugin("plugin1", moduleName(c)),
             Map.of("plugin1", plugin1SourcePath),
             NO_ENTITLEMENTS_MODULE,
             TEST_PATH_LOOKUP,
@@ -149,7 +148,7 @@ public class PolicyManagerTests extends ESTestCase {
             createEmptyTestServerPolicy(),
             List.of(),
             Map.of(),
-            c -> new PolicyScope("plugin1", moduleName(c)),
+            c -> PolicyScope.plugin("plugin1", moduleName(c)),
             Map.of("plugin1", plugin1SourcePath),
             NO_ENTITLEMENTS_MODULE,
             TEST_PATH_LOOKUP,
@@ -187,7 +186,7 @@ public class PolicyManagerTests extends ESTestCase {
             createEmptyTestServerPolicy(),
             List.of(),
             Map.ofEntries(entry("plugin2", createPluginPolicy(ALL_UNNAMED))),
-            c -> new PolicyScope("plugin2", moduleName(c)),
+            c -> PolicyScope.plugin("plugin2", moduleName(c)),
             Map.of("plugin2", Path.of("modules", "plugin2")),
             NO_ENTITLEMENTS_MODULE,
             TEST_PATH_LOOKUP,
@@ -206,7 +205,7 @@ public class PolicyManagerTests extends ESTestCase {
             createTestServerPolicy("example"),
             List.of(),
             Map.of(),
-            c -> new PolicyScope(SERVER_COMPONENT_NAME, moduleName(c)),
+            c -> PolicyScope.server(moduleName(c)),
             Map.of(),
             NO_ENTITLEMENTS_MODULE,
             TEST_PATH_LOOKUP,
@@ -222,12 +221,12 @@ public class PolicyManagerTests extends ESTestCase {
 
         assertEquals(
             "No policy for this module in server",
-            policyManager.defaultEntitlements(SERVER_COMPONENT_NAME, mockServerSourcePath, httpserverModuleName),
+            policyManager.defaultEntitlements(SERVER.componentName, mockServerSourcePath, httpserverModuleName),
             policyManager.getEntitlements(mockServerClass)
         );
 
         assertEquals(
-            Map.of(requestingModule, policyManager.defaultEntitlements(SERVER_COMPONENT_NAME, mockServerSourcePath, httpserverModuleName)),
+            Map.of(requestingModule, policyManager.defaultEntitlements(SERVER.componentName, mockServerSourcePath, httpserverModuleName)),
             policyManager.moduleEntitlementsMap
         );
     }
@@ -238,7 +237,7 @@ public class PolicyManagerTests extends ESTestCase {
             createTestServerPolicy(httpserverModuleName),
             List.of(),
             Map.of(),
-            c -> new PolicyScope(SERVER_COMPONENT_NAME, moduleName(c)),
+            c -> PolicyScope.server(moduleName(c)),
             Map.of(),
             NO_ENTITLEMENTS_MODULE,
             TEST_PATH_LOOKUP,
@@ -263,7 +262,7 @@ public class PolicyManagerTests extends ESTestCase {
             createEmptyTestServerPolicy(),
             List.of(),
             Map.of("mock-plugin", createPluginPolicy("org.example.plugin")),
-            c -> new PolicyScope("mock-plugin", moduleName(c)),
+            c -> PolicyScope.plugin("mock-plugin", moduleName(c)),
             Map.of("mock-plugin", Path.of("modules", "mock-plugin")),
             NO_ENTITLEMENTS_MODULE,
             TEST_PATH_LOOKUP,
@@ -283,7 +282,7 @@ public class PolicyManagerTests extends ESTestCase {
             createEmptyTestServerPolicy(),
             List.of(),
             Map.ofEntries(entry("plugin2", createPluginPolicy(ALL_UNNAMED))),
-            c -> new PolicyScope("plugin2", moduleName(c)),
+            c -> PolicyScope.plugin("plugin2", moduleName(c)),
             Map.of("plugin2", Path.of("modules", "plugin2")),
             NO_ENTITLEMENTS_MODULE,
             TEST_PATH_LOOKUP,
@@ -347,8 +346,8 @@ public class PolicyManagerTests extends ESTestCase {
             List.of(new CreateClassLoaderEntitlement()),
             Map.of(),
             c -> c.getPackageName().startsWith(TEST_AGENTS_PACKAGE_NAME)
-                ? new PolicyScope(APM_AGENT_COMPONENT_NAME, "test.agent.module")
-                : new PolicyScope("test", "test.plugin.module"),
+                ? PolicyScope.apmAgent("test.agent.module")
+                : PolicyScope.plugin("test", "test.plugin.module"),
             Map.of(),
             NO_ENTITLEMENTS_MODULE,
             TEST_PATH_LOOKUP,
@@ -377,7 +376,7 @@ public class PolicyManagerTests extends ESTestCase {
                 ),
                 List.of(),
                 Map.of(),
-                c -> new PolicyScope("test", moduleName(c)),
+                c -> PolicyScope.plugin("test", moduleName(c)),
                 Map.of(),
                 NO_ENTITLEMENTS_MODULE,
                 TEST_PATH_LOOKUP,
@@ -395,7 +394,7 @@ public class PolicyManagerTests extends ESTestCase {
                 createEmptyTestServerPolicy(),
                 List.of(new CreateClassLoaderEntitlement(), new CreateClassLoaderEntitlement()),
                 Map.of(),
-                c -> new PolicyScope("test", moduleName(c)),
+                c -> PolicyScope.plugin("test", moduleName(c)),
                 Map.of(),
                 NO_ENTITLEMENTS_MODULE,
                 TEST_PATH_LOOKUP,
@@ -433,7 +432,7 @@ public class PolicyManagerTests extends ESTestCase {
                         )
                     )
                 ),
-                c -> new PolicyScope("plugin1", moduleName(c)),
+                c -> PolicyScope.plugin("plugin1", moduleName(c)),
                 Map.of("plugin1", Path.of("modules", "plugin1")),
                 NO_ENTITLEMENTS_MODULE,
                 TEST_PATH_LOOKUP,
@@ -485,7 +484,7 @@ public class PolicyManagerTests extends ESTestCase {
                         )
                     )
                 ),
-                c -> new PolicyScope("", moduleName(c)),
+                c -> PolicyScope.plugin("", moduleName(c)),
                 Map.of("plugin1", Path.of("modules", "plugin1"), "plugin2", Path.of("modules", "plugin2")),
                 NO_ENTITLEMENTS_MODULE,
                 TEST_PATH_LOOKUP,
@@ -538,7 +537,7 @@ public class PolicyManagerTests extends ESTestCase {
                         )
                     )
                 ),
-                c -> new PolicyScope("", moduleName(c)),
+                c -> PolicyScope.plugin("", moduleName(c)),
                 Map.of(),
                 NO_ENTITLEMENTS_MODULE,
                 TEST_PATH_LOOKUP,
@@ -564,7 +563,7 @@ public class PolicyManagerTests extends ESTestCase {
             createEmptyTestServerPolicy(),
             List.of(new CreateClassLoaderEntitlement()),
             Map.of(),
-            c -> new PolicyScope("test", moduleName(c)), // Insist that the class is in a plugin
+            c -> PolicyScope.plugin("test", moduleName(c)), // Insist that the class is in a plugin
             Map.of(),
             NO_ENTITLEMENTS_MODULE,
             TEST_PATH_LOOKUP,
@@ -586,7 +585,7 @@ public class PolicyManagerTests extends ESTestCase {
             createEmptyTestServerPolicy(),
             List.of(),
             Map.of(),
-            c -> new PolicyScope("test", moduleName(c)),
+            c -> PolicyScope.plugin("test", moduleName(c)),
             Map.of(),
             entitlementsModule,
             TEST_PATH_LOOKUP,

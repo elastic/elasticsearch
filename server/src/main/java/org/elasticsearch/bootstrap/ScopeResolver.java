@@ -17,9 +17,6 @@ import java.util.Map;
 import java.util.stream.Stream;
 
 import static org.elasticsearch.entitlement.runtime.policy.PolicyManager.ALL_UNNAMED;
-import static org.elasticsearch.entitlement.runtime.policy.PolicyManager.APM_AGENT_COMPONENT_NAME;
-import static org.elasticsearch.entitlement.runtime.policy.PolicyManager.SERVER_COMPONENT_NAME;
-import static org.elasticsearch.entitlement.runtime.policy.PolicyManager.UNKNOWN_COMPONENT_NAME;
 
 public class ScopeResolver {
     private final Map<Module, String> pluginNameByModule;
@@ -57,17 +54,17 @@ public class ScopeResolver {
         var module = clazz.getModule();
         var scopeName = getScopeName(module);
         if (isServerModule(module)) {
-            return new PolicyScope(SERVER_COMPONENT_NAME, scopeName);
+            return PolicyScope.server(scopeName);
         }
         String pluginName = pluginNameByModule.get(module);
         if (pluginName != null) {
-            return new PolicyScope(pluginName, scopeName);
+            return PolicyScope.plugin(pluginName, scopeName);
         }
         if (module.isNamed() == false && clazz.getPackageName().startsWith(apmAgentPackageName)) {
             // The APM agent is the only thing running non-modular in the system classloader
-            return new PolicyScope(APM_AGENT_COMPONENT_NAME, ALL_UNNAMED);
+            return PolicyScope.apmAgent(ALL_UNNAMED);
         }
-        return new PolicyScope(UNKNOWN_COMPONENT_NAME, scopeName);
+        return PolicyScope.unknown(scopeName);
     }
 
     private static boolean isServerModule(Module requestingModule) {

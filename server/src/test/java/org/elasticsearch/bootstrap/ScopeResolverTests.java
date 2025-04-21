@@ -31,8 +31,6 @@ import java.util.stream.Stream;
 
 import static java.util.Map.entry;
 import static org.elasticsearch.entitlement.runtime.policy.PolicyManager.ALL_UNNAMED;
-import static org.elasticsearch.entitlement.runtime.policy.PolicyManager.SERVER_COMPONENT_NAME;
-import static org.elasticsearch.entitlement.runtime.policy.PolicyManager.UNKNOWN_COMPONENT_NAME;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -56,7 +54,7 @@ public class ScopeResolverTests extends ESTestCase {
         // loaded too early) to mimic a class that would be in the server module.
         var mockServerClass = ModuleLayer.boot().findLoader("jdk.httpserver").loadClass("com.sun.net.httpserver.HttpServer");
 
-        assertEquals(new PolicyScope(SERVER_COMPONENT_NAME, "jdk.httpserver"), scopeResolver.resolveClassToScope(mockServerClass));
+        assertEquals(PolicyScope.server("jdk.httpserver"), scopeResolver.resolveClassToScope(mockServerClass));
     }
 
     public void testResolveModularPlugin() throws IOException, ClassNotFoundException {
@@ -74,9 +72,9 @@ public class ScopeResolverTests extends ESTestCase {
         Stream<PluginsLoader.PluginLayer> pluginLayers = Stream.of(new TestPluginLayer(bundle, loader, layer));
         ScopeResolver scopeResolver = ScopeResolver.create(pluginLayers, TEST_AGENTS_PACKAGE_NAME);
 
-        assertEquals(new PolicyScope(pluginName, moduleName), scopeResolver.resolveClassToScope(loader.loadClass("p.A")));
-        assertEquals(new PolicyScope(UNKNOWN_COMPONENT_NAME, ALL_UNNAMED), scopeResolver.resolveClassToScope(ScopeResolver.class));
-        assertEquals(new PolicyScope(SERVER_COMPONENT_NAME, "java.base"), scopeResolver.resolveClassToScope(String.class));
+        assertEquals(PolicyScope.plugin(pluginName, moduleName), scopeResolver.resolveClassToScope(loader.loadClass("p.A")));
+        assertEquals(PolicyScope.unknown(ALL_UNNAMED), scopeResolver.resolveClassToScope(ScopeResolver.class));
+        assertEquals(PolicyScope.server("java.base"), scopeResolver.resolveClassToScope(String.class));
     }
 
     public void testResolveMultipleModularPlugins() throws IOException, ClassNotFoundException {
@@ -98,8 +96,8 @@ public class ScopeResolverTests extends ESTestCase {
         );
         ScopeResolver scopeResolver = ScopeResolver.create(pluginLayers, TEST_AGENTS_PACKAGE_NAME);
 
-        assertEquals(new PolicyScope("plugin1", "module.one"), scopeResolver.resolveClassToScope(loader1.loadClass("p.A")));
-        assertEquals(new PolicyScope("plugin2", "module.two"), scopeResolver.resolveClassToScope(loader2.loadClass("q.B")));
+        assertEquals(PolicyScope.plugin("plugin1", "module.one"), scopeResolver.resolveClassToScope(loader1.loadClass("p.A")));
+        assertEquals(PolicyScope.plugin("plugin2", "module.two"), scopeResolver.resolveClassToScope(loader2.loadClass("q.B")));
     }
 
     public void testResolveReferencedModulesInModularPlugins() throws IOException, ClassNotFoundException {
@@ -126,8 +124,8 @@ public class ScopeResolverTests extends ESTestCase {
         Stream<PluginsLoader.PluginLayer> pluginLayers = Stream.of(new TestPluginLayer(bundle, loader, layer));
         ScopeResolver scopeResolver = ScopeResolver.create(pluginLayers, TEST_AGENTS_PACKAGE_NAME);
 
-        assertEquals(new PolicyScope("plugin2", "module.one"), scopeResolver.resolveClassToScope(loader.loadClass("p.A")));
-        assertEquals(new PolicyScope("plugin2", "module.two"), scopeResolver.resolveClassToScope(loader.loadClass("q.B")));
+        assertEquals(PolicyScope.plugin("plugin2", "module.one"), scopeResolver.resolveClassToScope(loader.loadClass("p.A")));
+        assertEquals(PolicyScope.plugin("plugin2", "module.two"), scopeResolver.resolveClassToScope(loader.loadClass("q.B")));
     }
 
     public void testResolveMultipleNonModularPlugins() throws IOException, ClassNotFoundException {
@@ -145,8 +143,8 @@ public class ScopeResolverTests extends ESTestCase {
             );
             ScopeResolver scopeResolver = ScopeResolver.create(pluginLayers, TEST_AGENTS_PACKAGE_NAME);
 
-            assertEquals(new PolicyScope("plugin1", ALL_UNNAMED), scopeResolver.resolveClassToScope(loader1.loadClass("p.A")));
-            assertEquals(new PolicyScope("plugin2", ALL_UNNAMED), scopeResolver.resolveClassToScope(loader2.loadClass("q.B")));
+            assertEquals(PolicyScope.plugin("plugin1", ALL_UNNAMED), scopeResolver.resolveClassToScope(loader1.loadClass("p.A")));
+            assertEquals(PolicyScope.plugin("plugin2", ALL_UNNAMED), scopeResolver.resolveClassToScope(loader2.loadClass("q.B")));
         }
     }
 
@@ -162,9 +160,9 @@ public class ScopeResolverTests extends ESTestCase {
             Stream<PluginsLoader.PluginLayer> pluginLayers = Stream.of(new TestPluginLayer(bundle, loader, ModuleLayer.boot()));
             ScopeResolver scopeResolver = ScopeResolver.create(pluginLayers, TEST_AGENTS_PACKAGE_NAME);
 
-            assertEquals(new PolicyScope(pluginName, ALL_UNNAMED), scopeResolver.resolveClassToScope(loader.loadClass("p.A")));
-            assertEquals(new PolicyScope(UNKNOWN_COMPONENT_NAME, ALL_UNNAMED), scopeResolver.resolveClassToScope(ScopeResolver.class));
-            assertEquals(new PolicyScope(SERVER_COMPONENT_NAME, "java.base"), scopeResolver.resolveClassToScope(String.class));
+            assertEquals(PolicyScope.plugin(pluginName, ALL_UNNAMED), scopeResolver.resolveClassToScope(loader.loadClass("p.A")));
+            assertEquals(PolicyScope.unknown(ALL_UNNAMED), scopeResolver.resolveClassToScope(ScopeResolver.class));
+            assertEquals(PolicyScope.server("java.base"), scopeResolver.resolveClassToScope(String.class));
         }
     }
 

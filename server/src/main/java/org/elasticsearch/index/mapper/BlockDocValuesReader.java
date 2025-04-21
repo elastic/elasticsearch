@@ -510,39 +510,43 @@ public abstract class BlockDocValuesReader implements BlockLoader.AllReader {
 
     public static class DenseVectorBlockLoader extends DocValuesBlockLoader {
         private final String fieldName;
+        private final int dimensions;
 
-        public DenseVectorBlockLoader(String fieldName) {
+        public DenseVectorBlockLoader(String fieldName, int dimensions) {
             this.fieldName = fieldName;
+            this.dimensions = dimensions;
         }
 
         @Override
         public Builder builder(BlockFactory factory, int expectedCount) {
-            return factory.floats(expectedCount);
+            return factory.denseVectors(expectedCount, dimensions);
         }
 
         @Override
         public AllReader reader(LeafReaderContext context) throws IOException {
             FloatVectorValues floatVectorValues = context.reader().getFloatVectorValues(fieldName);
             if (floatVectorValues != null) {
-                return new FloatVectorValuesBlockReader(floatVectorValues);
+                return new DenseVectorValuesBlockReader(floatVectorValues, dimensions);
             }
             return new ConstantNullsReader();
         }
     }
 
-    private static class FloatVectorValuesBlockReader extends BlockDocValuesReader {
+    private static class DenseVectorValuesBlockReader extends BlockDocValuesReader {
         private final FloatVectorValues floatVectorValues;
         private final KnnVectorValues.DocIndexIterator iterator;
+        private final int dimensions;
 
-        FloatVectorValuesBlockReader(FloatVectorValues floatVectorValues) {
+        DenseVectorValuesBlockReader(FloatVectorValues floatVectorValues, int dimensions) {
             this.floatVectorValues = floatVectorValues;
             iterator = floatVectorValues.iterator();
+            this.dimensions = dimensions;
         }
 
         @Override
         public BlockLoader.Block read(BlockFactory factory, Docs docs) throws IOException {
             // Doubles from doc values ensures that the values are in order
-            try (BlockLoader.FloatBuilder builder = factory.floats(docs.count())) {
+            try (BlockLoader.FloatBuilder builder = factory.denseVectors(docs.count(), dimensions)) {
                 for (int i = 0; i < docs.count(); i++) {
                     int doc = docs.get(i);
                     if (doc < iterator.docID()) {
@@ -563,6 +567,8 @@ public abstract class BlockDocValuesReader implements BlockLoader.AllReader {
             if (iterator.advance(doc) == doc) {
                 builder.beginPositionEntry();
                 float[] floats = floatVectorValues.vectorValue(iterator.index());
+                assert floats.length == dimensions
+                    : "unexpected dimensions for vector value; expected " + dimensions + " but got " + floats.length;
                 for (float aFloat : floats) {
                     builder.appendFloat(aFloat);
                 }
@@ -844,7 +850,7 @@ public abstract class BlockDocValuesReader implements BlockLoader.AllReader {
 
         @Override
         public Builder builder(BlockFactory factory, int expectedCount) {
-            return factory.floats(expectedCount);
+            return factory.denseVectors(expectedCount, dims);
         }
 
         @Override
@@ -860,6 +866,7 @@ public abstract class BlockDocValuesReader implements BlockLoader.AllReader {
     private static class DenseVectorFromBinary extends BlockDocValuesReader {
         private final BinaryDocValues docValues;
         private final IndexVersion indexVersion;
+        private final int dimensions;
         private final float[] scratch;
 
         private int docID = -1;
@@ -868,11 +875,12 @@ public abstract class BlockDocValuesReader implements BlockLoader.AllReader {
             this.docValues = docValues;
             this.scratch = new float[dims];
             this.indexVersion = indexVersion;
+            this.dimensions = dims;
         }
 
         @Override
         public BlockLoader.Block read(BlockFactory factory, Docs docs) throws IOException {
-            try (BlockLoader.FloatBuilder builder = factory.floats(docs.count())) {
+            try (BlockLoader.FloatBuilder builder = factory.denseVectors(docs.count(), dimensions)) {
                 for (int i = 0; i < docs.count(); i++) {
                     int doc = docs.get(i);
                     if (doc < docID) {

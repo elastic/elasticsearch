@@ -21,6 +21,7 @@ import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.DocBlock;
 import org.elasticsearch.compute.data.DocVector;
 import org.elasticsearch.compute.data.ElementType;
+import org.elasticsearch.compute.data.FloatBlock;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.data.SingletonOrdinalsBuilder;
@@ -655,13 +656,46 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingOperator {
         }
 
         @Override
-        public BlockLoader.FloatBuilder floatsFromDocValues(int expectedCount) {
-            return factory.newFloatBlockBuilder(expectedCount).mvOrdering(Block.MvOrdering.SORTED_ASCENDING);
-        }
+        public BlockLoader.FloatBuilder denseVectors(int expectedVectorsCount, int dimensions) {
+            FloatBlock.Builder builder = factory.newFloatBlockBuilder(expectedVectorsCount * dimensions);
 
-        @Override
-        public BlockLoader.FloatBuilder floats(int expectedCount) {
-            return factory.newFloatBlockBuilder(expectedCount);
+            return new BlockLoader.FloatBuilder() {
+                int numElements = 0;
+
+                @Override
+                public BlockLoader.FloatBuilder appendFloat(float value) {
+                    numElements++;
+                    return builder.appendFloat(value);
+                }
+
+                @Override
+                public BlockLoader.Block build() {
+                    assert numElements == 0 : "endPositionEntry() was not called before build()";
+                    return builder.build();
+                }
+
+                @Override
+                public BlockLoader.Builder appendNull() {
+                    throw new IllegalArgumentException("null values are not expected for dense vectors");
+                }
+
+                @Override
+                public BlockLoader.Builder beginPositionEntry() {
+                    return builder.beginPositionEntry();
+                }
+
+                @Override
+                public BlockLoader.Builder endPositionEntry() {
+                    assert numElements == dimensions : "expected " + dimensions + " dimensions, but got " + numElements + " elements";
+                    numElements = 0;
+                    return builder.endPositionEntry();
+                }
+
+                @Override
+                public void close() {
+                    builder.close();
+                }
+            };
         }
 
         @Override

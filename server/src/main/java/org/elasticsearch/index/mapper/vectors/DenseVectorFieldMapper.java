@@ -70,6 +70,7 @@ import org.elasticsearch.index.mapper.ValueFetcher;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
+import org.elasticsearch.search.lookup.Source;
 import org.elasticsearch.search.vectors.DenseVectorQuery;
 import org.elasticsearch.search.vectors.ESDiversifyingChildrenByteKnnVectorQuery;
 import org.elasticsearch.search.vectors.ESDiversifyingChildrenFloatKnnVectorQuery;
@@ -90,6 +91,7 @@ import java.nio.ByteOrder;
 import java.time.ZoneId;
 import java.util.Arrays;
 import java.util.HexFormat;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
@@ -2330,7 +2332,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
             }
 
             if (indexed) {
-                return new BlockDocValuesReader.DenseVectorBlockLoader(name());
+                return new BlockDocValuesReader.DenseVectorBlockLoader(name(), dims);
             }
 
             if (hasDocValues() && (blContext.fieldExtractPreference() != FieldExtractPreference.STORED || isSyntheticSource)) {
@@ -2338,7 +2340,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
             }
 
             BlockSourceReader.LeafIteratorLookup lookup = BlockSourceReader.lookupMatchingAll();
-            return new BlockSourceReader.FloatsBlockLoader(sourceValueFetcher(blContext.sourcePaths(name())), lookup);
+            return new BlockSourceReader.DenseVectorBlockLoader(sourceValueFetcher(blContext.sourcePaths(name())), lookup, dims);
         }
 
         private SourceValueFetcher sourceValueFetcher(Set<String> sourcePaths) {
@@ -2349,6 +2351,13 @@ public class DenseVectorFieldMapper extends FieldMapper {
                         return null;
                     }
                     return NumberFieldMapper.NumberType.FLOAT.parse(value, false);
+                }
+
+                @Override
+                public List<Object> fetchValues(Source source, int doc, List<Object> ignoredValues) {
+                    List<Object> result = super.fetchValues(source, doc, ignoredValues);
+                    assert result.size() == dims : "Unexpected number of dimensions; got " + result.size() + " but expected " + dims;
+                    return result;
                 }
             };
         }

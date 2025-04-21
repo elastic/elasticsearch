@@ -13,9 +13,9 @@ mapped_pages:
 * [`_id`](/reference/elasticsearch/mapping-reference/mapping-id-field.md): the source document’s ID. The field is of the type [keyword](/reference/elasticsearch/mapping-reference/keyword.md).
 * `_version`: the source document’s version. The field is of the type [long](/reference/elasticsearch/mapping-reference/number.md).
 * [`_ignored`](/reference/elasticsearch/mapping-reference/mapping-ignored-field.md): the ignored source document fields. The field is of the type [keyword](/reference/elasticsearch/mapping-reference/keyword.md).
-* `_score`: when enabled, the final score assigned to each row matching an ES|QL query. Scoring will be updated when using [full text search functions](/reference/query-languages/esql/esql-functions-operators.md#esql-search-functions).
+* `_score`: when enabled, the final score assigned to each row matching an ES|QL query. Scoring will be updated when using [full text search functions](/reference/query-languages/esql/functions-operators/search-functions.md).
 
-To enable the access to these fields, the [`FROM`](/reference/query-languages/esql/esql-commands.md#esql-from) source command needs to be provided with a dedicated directive:
+To enable the access to these fields, the [`FROM`](/reference/query-languages/esql/commands/source-commands.md#esql-from) source command needs to be provided with a dedicated directive:
 
 ```esql
 FROM index METADATA _index, _id

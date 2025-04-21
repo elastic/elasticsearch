@@ -156,7 +156,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
         // Enabled is always true unless it's explicitly set to false
         {
             DataStreamLifecycle.Template lifecycle = new DataStreamLifecycle.Template(false, randomPositiveTimeValue(), randomRounds());
-            List<DataStreamLifecycle.Template> lifecycles = List.of(lifecycle, DataStreamLifecycle.Template.DEFAULT);
+            List<DataStreamLifecycle.Template> lifecycles = List.of(lifecycle, DataStreamLifecycle.Template.DATA_DEFAULT);
             DataStreamLifecycle result = composeDataLifecycles(lifecycles).build();
             assertThat(result.enabled(), equalTo(true));
             assertThat(result.dataRetention(), equalTo(lifecycle.dataRetention().get()));

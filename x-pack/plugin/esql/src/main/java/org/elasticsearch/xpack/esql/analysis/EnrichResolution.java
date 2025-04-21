@@ -23,7 +23,6 @@ public final class EnrichResolution {
 
     private final Map<Key, ResolvedEnrichPolicy> resolvedPolicies = ConcurrentCollections.newConcurrentMap();
     private final Map<Key, String> errors = ConcurrentCollections.newConcurrentMap();
-    private final Map<String, Exception> unavailableClusters = ConcurrentCollections.newConcurrentMap();
 
     public ResolvedEnrichPolicy getResolvedPolicy(String policyName, Enrich.Mode mode) {
         return resolvedPolicies.get(new Key(policyName, mode));
@@ -50,14 +49,6 @@ public final class EnrichResolution {
 
     public void addError(String policyName, Enrich.Mode mode, String reason) {
         errors.putIfAbsent(new Key(policyName, mode), reason);
-    }
-
-    public void addUnavailableCluster(String clusterAlias, Exception e) {
-        unavailableClusters.put(clusterAlias, e);
-    }
-
-    public Map<String, Exception> getUnavailableClusters() {
-        return unavailableClusters;
     }
 
     private record Key(String policyName, Enrich.Mode mode) {

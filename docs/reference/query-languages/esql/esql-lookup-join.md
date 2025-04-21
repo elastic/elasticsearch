@@ -1,12 +1,12 @@
 ---
 navigation_title: "Correlate data with LOOKUP JOIN"
 mapped_pages:
- - https://www.elastic.co/guide/en/elasticsearch/reference/current/esql-enrich-data.html
+ - https://www.elastic.co/guide/en/elasticsearch/reference/8.18/_lookup_join.html
 ---
 
 # LOOKUP JOIN [esql-lookup-join-reference]
 
-The {{esql}} [`LOOKUP JOIN`](/reference/query-languages/esql/esql-commands.md#esql-lookup-join) processing command combines data from your {{esql}} query results table with matching records from a specified lookup index. It adds fields from the lookup index as new columns to your results table based on matching values in the join field.
+The {{esql}} [`LOOKUP JOIN`](/reference/query-languages/esql/commands/processing-commands.md#esql-lookup-join) processing command combines data from your {{esql}} query results table with matching records from a specified lookup index. It adds fields from the lookup index as new columns to your results table based on matching values in the join field.
 
 Teams often have data scattered across multiple indices – like logs, IPs, user IDs, hosts, employees etc. Without a direct way to enrich or correlate each event with reference data, root-cause analysis, security checks, and operational insights become time-consuming.
 
@@ -16,7 +16,7 @@ For example, you can use `LOOKUP JOIN` to:
 * Quickly see if any source IPs match known malicious addresses.
 * Tag logs with the owning team or escalation info for faster triage and incident response.
 
-[`LOOKUP join`](/reference/query-languages/esql/esql-commands.md#esql-lookup-join) is similar to [`ENRICH`](/reference/query-languages/esql/esql-commands.md#esql-enrich) in the fact that they both help you join data together. You should use `LOOKUP JOIN` when:
+[`LOOKUP join`](/reference/query-languages/esql/commands/processing-commands.md#esql-lookup-join) is similar to [`ENRICH`](/reference/query-languages/esql/commands/processing-commands.md#esql-enrich) in the fact that they both help you join data together. You should use `LOOKUP JOIN` when:
 
 * Your enrichment data changes frequently
 * You want to avoid index-time processing
@@ -35,7 +35,7 @@ The `LOOKUP JOIN` command adds new columns to a table, with data from {{es}} ind
 :::
 
 `<lookup_index>`
-: The name of the lookup index. This must be a specific index name - wildcards, aliases, and remote cluster references are not supported.
+: The name of the lookup index. This must be a specific index name - wildcards, aliases, and remote cluster references are not supported. Indices used for lookups must be configured with the [`lookup` index mode](/reference/elasticsearch/index-settings/index-modules.md#index-mode-setting).
 
 `<field_name>`
 : The field to join on. This field must exist in both your current query results and in the lookup index. If the field contains multi-valued entries, those entries will not match anything (the added fields will contain `null` for those rows).
@@ -99,7 +99,7 @@ FROM employees
 |    10095      | 5                     | null                  | France|
 
 ::::{important}
-`LOOKUP JOIN` does not guarantee the output to be in any particular order. If a certain order is required, users should use a [`SORT`](/reference/query-languages/esql/esql-commands.md#esql-sort) somewhere after the `LOOKUP JOIN`.
+`LOOKUP JOIN` does not guarantee the output to be in any particular order. If a certain order is required, users should use a [`SORT`](/reference/query-languages/esql/commands/processing-commands.md#esql-sort) somewhere after the `LOOKUP JOIN`.
 
 ::::
 
@@ -107,6 +107,7 @@ FROM employees
 
 To use `LOOKUP JOIN`, the following requirements must be met:
 
+* Indices used for lookups must be configured with the [`lookup` index mode](/reference/elasticsearch/index-settings/index-modules.md#index-mode-setting)
 * **Compatible data types**: The join key and join field in the lookup index must have compatible data types. This means:
   * The data types must either be identical or be internally represented as the same type in {{esql}}
   * Numeric types follow these compatibility rules:
@@ -114,7 +115,7 @@ To use `LOOKUP JOIN`, the following requirements must be met:
     * `float`, `half_float`, and `scaled_float` are compatible with `double` (all represented as `double`)
   * For text fields: You can only use text fields as the join key on the left-hand side of the join and only if they have a `.keyword` subfield
 
-To obtain a join key with a compatible type, use a [conversion function](/reference/query-languages/esql/esql-functions-operators.md#esql-type-conversion-functions) if needed.
+To obtain a join key with a compatible type, use a [conversion function](/reference/query-languages/esql/functions-operators/type-conversion-functions.md) if needed.
 
 For a complete list of supported data types and their internal representations, see the [Supported Field Types documentation](/reference/query-languages/esql/limitations.md#_supported_types).
 
@@ -122,7 +123,7 @@ For a complete list of supported data types and their internal representations, 
 
 The following are the current limitations with `LOOKUP JOIN`
 
-* Indices in [lookup](/reference/elasticsearch/index-settings/index-modules.md#index-mode-setting) mode are always single-sharded.
+* Indices in [`lookup` mode](/reference/elasticsearch/index-settings/index-modules.md#index-mode-setting) are always single-sharded.
 * Cross cluster search is unsupported initially. Both source and lookup indices must be local.
 * Currently, only matching on equality is supported.
 * `LOOKUP JOIN` can only use a single match field and a single index. Wildcards, aliases, datemath, and datastreams are not supported.

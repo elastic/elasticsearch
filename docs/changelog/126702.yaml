@@ -1,0 +1,5 @@
+pr: 126702
+summary: "Return float[] instead of List<Double> in `valueFetcher`"
+area: Search
+type: enhancement
+issues: []

@@ -180,6 +180,11 @@ setup:
   - requires:
       cluster_features: ["gte_v8.8.0"]
       reason: "reset API added in in 8.8.0"
+      test_runner_features: [ capabilities ]
+      capabilities:
+        - method: DELETE
+          path: /_internal/desired_balance
+          capabilities: [ plain_text_empty_response ]
 
   - do:
       _internal.delete_desired_balance: { }

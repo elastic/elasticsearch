@@ -46,7 +46,7 @@ class MappingTransforms {
             if (entry.getKey().equals("_doc") || entry.getKey().equals("properties")) {
                 descend(pathFromRoot, (Map<String, Object>) entry.getValue(), flattened);
             } else {
-                if (entry.getValue() instanceof Map<?, ?> map) {
+                if (entry.getKey().equals("fields") == false && entry.getValue() instanceof Map<?, ?> map) {
                     var pathToField = pathFromRoot == null ? entry.getKey() : pathFromRoot + "." + entry.getKey();
 
                     // Descending to subobject, we need to remember parent mapping

@@ -61,6 +61,7 @@ public class S3RepositoryAnalysisRestIT extends AbstractRepositoryAnalysisRestTe
             .put("base_path", basePath)
             .put("delete_objects_max_size", between(1, 1000))
             .put("buffer_size", ByteSizeValue.ofMb(5)) // so some uploads are multipart ones
+            .put("max_copy_size_before_multipart", ByteSizeValue.ofMb(5))
             .build();
     }
 }

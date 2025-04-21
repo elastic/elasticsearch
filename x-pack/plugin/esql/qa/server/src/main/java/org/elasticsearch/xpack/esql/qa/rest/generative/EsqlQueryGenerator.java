@@ -160,11 +160,11 @@ public class EsqlQueryGenerator {
             }
             result.append("%{WORD:");
             if (randomBoolean()) {
-                result.append(randomAlphaOfLength(5));
+                result.append(randomIdentifier());
             } else {
                 String fieldName = randomRawName(previousOutput);
                 if (fieldName.isEmpty()) { // it's a bug, managed later, skipping for now
-                    fieldName = randomAlphaOfLength(5);
+                    fieldName = randomIdentifier();
                 }
                 result.append(fieldName);
             }
@@ -188,11 +188,11 @@ public class EsqlQueryGenerator {
             }
             result.append("%{");
             if (randomBoolean()) {
-                result.append(randomAlphaOfLength(5));
+                result.append(randomIdentifier());
             } else {
                 String fieldName = randomRawName(previousOutput);
                 if (fieldName.isEmpty()) { // it's a bug, managed later, skipping for now
-                    fieldName = randomAlphaOfLength(5);
+                    fieldName = randomIdentifier();
                 }
                 result.append(fieldName);
             }
@@ -302,7 +302,7 @@ public class EsqlQueryGenerator {
 
             String newName;
             if (names.isEmpty() || randomBoolean()) {
-                newName = randomAlphaOfLength(5);
+                newName = randomIdentifier();
                 names.add(newName);
             } else {
                 newName = names.get(randomIntBetween(0, names.size() - 1));
@@ -376,7 +376,7 @@ public class EsqlQueryGenerator {
         for (int i = 0; i < nFields; i++) {
             String name;
             if (randomBoolean()) {
-                name = randomAlphaOfLength(randomIntBetween(3, 10));
+                name = randomIdentifier();
             } else {
                 name = randomName(previousOutput);
             }
@@ -402,7 +402,7 @@ public class EsqlQueryGenerator {
         for (int i = 0; i < nStats; i++) {
             String name;
             if (randomBoolean()) {
-                name = randomAlphaOfLength(randomIntBetween(3, 10));
+                name = randomIdentifier();
             } else {
                 name = randomName(previousOutput);
             }
@@ -501,7 +501,7 @@ public class EsqlQueryGenerator {
         StringBuilder cmd = new StringBuilder("row ");
         int nFields = randomIntBetween(1, 10);
         for (int i = 0; i < nFields; i++) {
-            String name = randomAlphaOfLength(randomIntBetween(3, 10));
+            String name = randomIdentifier();
             String expression = constantExpression();
             if (i > 0) {
                 cmd.append(",");
@@ -524,6 +524,12 @@ public class EsqlQueryGenerator {
             default -> "null";
         };
 
+    }
+
+    private static String randomIdentifier() {
+        // Let's create identifiers that are long enough to avoid collisions with reserved keywords.
+        // There could be a smarter way (introspection on the lexer class?), but probably it's not worth the effort
+        return randomAlphaOfLength(randomIntBetween(8, 12));
     }
 
 }

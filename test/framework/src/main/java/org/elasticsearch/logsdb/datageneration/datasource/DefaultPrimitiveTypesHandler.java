@@ -78,4 +78,9 @@ public class DefaultPrimitiveTypesHandler implements DataSourceHandler {
     public DataSourceResponse.GeoPointGenerator handle(DataSourceRequest.GeoPointGenerator request) {
         return new DataSourceResponse.GeoPointGenerator(() -> RandomGeoGenerator.randomPoint(ESTestCase.random()));
     }
+
+    @Override
+    public DataSourceResponse.IpGenerator handle(DataSourceRequest.IpGenerator request) {
+        return new DataSourceResponse.IpGenerator(() -> ESTestCase.randomIp(ESTestCase.randomBoolean()));
+    }
 }

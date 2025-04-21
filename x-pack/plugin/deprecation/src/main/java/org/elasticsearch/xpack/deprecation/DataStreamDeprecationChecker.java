@@ -137,7 +137,9 @@ public class DataStreamDeprecationChecker implements ResourceDeprecationChecker 
         boolean filterToBlockedStatus
     ) {
         return backingIndices.stream()
-            .filter(DeprecatedIndexPredicate.getReindexRequiredPredicate(clusterState.metadata().getProject(), filterToBlockedStatus))
+            .filter(
+                DeprecatedIndexPredicate.getReindexRequiredPredicate(clusterState.metadata().getProject(), filterToBlockedStatus, false)
+            )
             .map(Index::getName)
             .collect(Collectors.toUnmodifiableSet());
     }

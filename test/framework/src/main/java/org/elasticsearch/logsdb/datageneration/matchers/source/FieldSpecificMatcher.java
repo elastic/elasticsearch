@@ -46,7 +46,6 @@ interface FieldSpecificMatcher {
         return new HashMap<>() {
             {
                 put("keyword", new KeywordMatcher(actualMappings, actualSettings, expectedMappings, expectedSettings));
-                put("date", new DateMatcher(actualMappings, actualSettings, expectedMappings, expectedSettings));
                 put("long", new NumberMatcher("long", actualMappings, actualSettings, expectedMappings, expectedSettings));
                 put("unsigned_long", new UnsignedLongMatcher(actualMappings, actualSettings, expectedMappings, expectedSettings));
                 put("integer", new NumberMatcher("integer", actualMappings, actualSettings, expectedMappings, expectedSettings));
@@ -58,9 +57,14 @@ interface FieldSpecificMatcher {
                 put("scaled_float", new ScaledFloatMatcher(actualMappings, actualSettings, expectedMappings, expectedSettings));
                 put("counted_keyword", new CountedKeywordMatcher(actualMappings, actualSettings, expectedMappings, expectedSettings));
                 put("boolean", new BooleanMatcher(actualMappings, actualSettings, expectedMappings, expectedSettings));
+                put("date", new DateMatcher(actualMappings, actualSettings, expectedMappings, expectedSettings));
                 put("geo_shape", new ExactMatcher("geo_shape", actualMappings, actualSettings, expectedMappings, expectedSettings));
                 put("shape", new ExactMatcher("shape", actualMappings, actualSettings, expectedMappings, expectedSettings));
                 put("geo_point", new GeoPointMatcher(actualMappings, actualSettings, expectedMappings, expectedSettings));
+                put("text", new TextMatcher(actualMappings, actualSettings, expectedMappings, expectedSettings));
+                put("ip", new IpMatcher(actualMappings, actualSettings, expectedMappings, expectedSettings));
+                put("constant_keyword", new ConstantKeywordMatcher(actualMappings, actualSettings, expectedMappings, expectedSettings));
+                put("wildcard", new WildcardMatcher(actualMappings, actualSettings, expectedMappings, expectedSettings));
             }
         };
     }
@@ -595,6 +599,137 @@ interface FieldSpecificMatcher {
                             + prettyPrintCollections(actual, expected)
                     )
                 );
+        }
+    }
+
+    class TextMatcher implements FieldSpecificMatcher {
+        private final XContentBuilder actualMappings;
+        private final Settings.Builder actualSettings;
+        private final XContentBuilder expectedMappings;
+        private final Settings.Builder expectedSettings;
+
+        TextMatcher(
+            XContentBuilder actualMappings,
+            Settings.Builder actualSettings,
+            XContentBuilder expectedMappings,
+            Settings.Builder expectedSettings
+        ) {
+            this.actualMappings = actualMappings;
+            this.actualSettings = actualSettings;
+            this.expectedMappings = expectedMappings;
+            this.expectedSettings = expectedSettings;
+        }
+
+        @Override
+        @SuppressWarnings("unchecked")
+        public MatchResult match(
+            List<Object> actual,
+            List<Object> expected,
+            Map<String, Object> actualMapping,
+            Map<String, Object> expectedMapping
+        ) {
+            var expectedNormalized = normalize(expected);
+            var actualNormalized = normalize(actual);
+
+            // Match simply as text first.
+            if (actualNormalized.equals(expectedNormalized)) {
+                return MatchResult.match();
+            }
+
+            // In some cases synthetic source for text fields is synthesized using the keyword multi field.
+            // So in this case it's appropriate to match it using keyword matching logic (mainly to cover `null_value`).
+            var multiFields = (Map<String, Object>) getMappingParameter("fields", actualMapping, expectedMapping);
+            if (multiFields != null) {
+                var keywordMatcher = new KeywordMatcher(actualMappings, actualSettings, expectedMappings, expectedSettings);
+
+                var keywordFieldMapping = (Map<String, Object>) multiFields.get("kwd");
+                var keywordMatchResult = keywordMatcher.match(actual, expected, keywordFieldMapping, keywordFieldMapping);
+                if (keywordMatchResult.isMatch()) {
+                    return MatchResult.match();
+                }
+            }
+
+            return MatchResult.noMatch(
+                formatErrorMessage(
+                    actualMappings,
+                    actualSettings,
+                    expectedMappings,
+                    expectedSettings,
+                    "Values of type [text] don't match, " + prettyPrintCollections(actual, expected)
+                )
+            );
+        }
+
+        private Set<Object> normalize(List<Object> values) {
+            if (values == null) {
+                return Set.of();
+            }
+
+            return values.stream().filter(Objects::nonNull).collect(Collectors.toSet());
+        }
+    }
+
+    class IpMatcher extends GenericMappingAwareMatcher {
+        IpMatcher(
+            XContentBuilder actualMappings,
+            Settings.Builder actualSettings,
+            XContentBuilder expectedMappings,
+            Settings.Builder expectedSettings
+        ) {
+            super("ip", actualMappings, actualSettings, expectedMappings, expectedSettings);
+        }
+
+        @Override
+        Object convert(Object value, Object nullValue) {
+            if (value == null) {
+                if (nullValue != null) {
+                    return nullValue;
+                }
+                return null;
+            }
+
+            // We should be always able to convert an IP back to original string.
+            return value;
+        }
+    }
+
+    class ConstantKeywordMatcher extends GenericMappingAwareMatcher {
+        ConstantKeywordMatcher(
+            XContentBuilder actualMappings,
+            Settings.Builder actualSettings,
+            XContentBuilder expectedMappings,
+            Settings.Builder expectedSettings
+        ) {
+            super("constant_keyword", actualMappings, actualSettings, expectedMappings, expectedSettings);
+        }
+
+        @Override
+        Object convert(Object value, Object nullValue) {
+            // We just need to get rid of literal `null`s which is done in the caller.
+            return value;
+        }
+    }
+
+    class WildcardMatcher extends GenericMappingAwareMatcher {
+        WildcardMatcher(
+            XContentBuilder actualMappings,
+            Settings.Builder actualSettings,
+            XContentBuilder expectedMappings,
+            Settings.Builder expectedSettings
+        ) {
+            super("wildcard", actualMappings, actualSettings, expectedMappings, expectedSettings);
+        }
+
+        @Override
+        Object convert(Object value, Object nullValue) {
+            if (value == null) {
+                if (nullValue != null) {
+                    return nullValue;
+                }
+                return null;
+            }
+
+            return value;
         }
     }
 

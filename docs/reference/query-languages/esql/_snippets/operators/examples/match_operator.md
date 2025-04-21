@@ -4,7 +4,7 @@
 
 ```esql
 FROM books
-| WHERE MATCH(author, "Faulkner")
+| WHERE author:"Faulkner"
 ```
 
 | book_no:keyword | author:text |

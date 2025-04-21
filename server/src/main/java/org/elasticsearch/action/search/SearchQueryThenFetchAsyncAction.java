@@ -226,18 +226,15 @@ public class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<S
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            out.writeArray((o, v) -> {
-                if (v instanceof Exception e) {
-                    o.writeBoolean(false);
-                    o.writeException(e);
+            out.writeVInt(results.length);
+            for (Object result : results) {
+                if (result instanceof Exception e) {
+                    writePerShardException(out, e);
                 } else {
-                    o.writeBoolean(true);
-                    assert v instanceof QuerySearchResult : v;
-                    ((QuerySearchResult) v).writeTo(o);
+                    writePerShardResult(out, (QuerySearchResult) result);
                 }
-            }, results);
-            mergeResult.writeTo(out);
-            topDocsStats.writeTo(out);
+            }
+            writeMergeResult(out, mergeResult, topDocsStats);
         }
 
         @Override
@@ -267,6 +264,25 @@ public class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<S
                 return true;
             }
             return false;
+        }
+
+        private static void writeMergeResult(
+            StreamOutput out,
+            QueryPhaseResultConsumer.MergeResult mergeResult,
+            SearchPhaseController.TopDocsStats topDocsStats
+        ) throws IOException {
+            mergeResult.writeTo(out);
+            topDocsStats.writeTo(out);
+        }
+
+        private static void writePerShardException(StreamOutput o, Exception e) throws IOException {
+            o.writeBoolean(false);
+            o.writeException(e);
+        }
+
+        private static void writePerShardResult(StreamOutput out, SearchPhaseResult result) throws IOException {
+            out.writeBoolean(true);
+            result.writeTo(out);
         }
     }
 
@@ -786,27 +802,14 @@ public class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<S
                     for (int i = 0; i < resultCount; i++) {
                         var result = queryPhaseResultConsumer.results.get(i);
                         if (result == null) {
-                            out.writeBoolean(false);
-                            out.writeException(failures.remove(i));
+                            NodeQueryResponse.writePerShardException(out, failures.remove(i));
                         } else {
                             // free context id and remove it from the result right away in case we don't need it anymore
-                            if (result instanceof QuerySearchResult q
-                                && q.getContextId() != null
-                                && relevantShardIndices.get(q.getShardIndex()) == false
-                                && q.hasSuggestHits() == false
-                                && q.getRankShardResult() == null
-                                && searchRequest.searchRequest.scroll() == null
-                                && isPartOfPIT(searchRequest.searchRequest, q.getContextId()) == false) {
-                                if (dependencies.searchService.freeReaderContext(q.getContextId())) {
-                                    q.clearContextId();
-                                }
-                            }
-                            out.writeBoolean(true);
-                            result.writeTo(out);
+                            maybeFreeContext(result, relevantShardIndices);
+                            NodeQueryResponse.writePerShardResult(out, result);
                         }
                     }
-                    mergeResult.writeTo(out);
-                    queryPhaseResultConsumer.topDocsStats.writeTo(out);
+                    NodeQueryResponse.writeMergeResult(out, mergeResult, queryPhaseResultConsumer.topDocsStats);
                     success = true;
                 } catch (IOException e) {
                     handleMergeFailure(e, channelListener);
@@ -818,6 +821,20 @@ public class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<S
                 }
             }
             ActionListener.respondAndRelease(channelListener, new BytesTransportResponse(new ReleasableBytesReference(out.bytes(), out)));
+        }
+
+        private void maybeFreeContext(SearchPhaseResult result, BitSet relevantShardIndices) {
+            if (result instanceof QuerySearchResult q
+                && q.getContextId() != null
+                && relevantShardIndices.get(q.getShardIndex()) == false
+                && q.hasSuggestHits() == false
+                && q.getRankShardResult() == null
+                && searchRequest.searchRequest.scroll() == null
+                && isPartOfPIT(searchRequest.searchRequest, q.getContextId()) == false) {
+                if (dependencies.searchService.freeReaderContext(q.getContextId())) {
+                    q.clearContextId();
+                }
+            }
         }
 
         private void handleMergeFailure(Exception e, ChannelActionListener<TransportResponse> channelListener) {

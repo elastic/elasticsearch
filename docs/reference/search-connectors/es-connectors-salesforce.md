@@ -494,9 +494,11 @@ See [content extraction](/reference/search-connectors/es-connectors-content-extr
 
     Salesforce DLS, added in 8.13.0, does not accomodate specific access controls to specific Salesforce Objects. Instead, if a given user/group can have access to *any* Objects of a given type (`Case`, `Lead`, `Opportunity`, etc), that user/group will appear in the `\_allow_access_control` list for *all* of the Objects of that type. See [https://github.com/elastic/connectors/issues/3028](https://github.com/elastic/connectors/issues/3028) for more details.
 
-    Refer to [connector known issues](/release-notes/known-issues.md) for a list of known issues for all connectors.
+* **Only first 500 nested entities are ingested**
+    
+    Some of the entities that Salesforce connector fetches are nested - they are ingested along the parent objects using a `JOIN` query. Examples of such entities are `EmailMessages`, `CaseComments` and `FeedComments`. When Salesforce connector fetches these entities it sets a limit to fetch only first 500 entities per parent object. The only possible workaround for it now is to fork the Connectors repository and modify the code in Salesforce connector to increase these limits.
 
-
+Refer to [connector known issues](/release-notes/known-issues.md) for a list of known issues for all connectors.
 
 ### Security [es-connectors-salesforce-client-security]
 

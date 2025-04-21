@@ -11,6 +11,7 @@ package org.elasticsearch.entitlement.initialization;
 
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.entitlement.runtime.policy.PathLookup;
+import org.elasticsearch.entitlement.runtime.policy.PathLookupImpl;
 import org.elasticsearch.entitlement.runtime.policy.Policy;
 import org.elasticsearch.entitlement.runtime.policy.Scope;
 import org.elasticsearch.entitlement.runtime.policy.entitlements.CreateClassLoaderEntitlement;
@@ -26,6 +27,7 @@ import static org.hamcrest.Matchers.both;
 import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.startsWith;
 
+@ESTestCase.WithoutSecurityManager
 public class EntitlementInitializationTests extends ESTestCase {
 
     private static PathLookup TEST_PATH_LOOKUP;
@@ -33,7 +35,6 @@ public class EntitlementInitializationTests extends ESTestCase {
     private static Path TEST_CONFIG_DIR;
 
     private static Path TEST_PLUGINS_DIR;
-    private static Path TEST_MODULES_DIR;
     private static Path TEST_LIBS_DIR;
 
     @BeforeClass
@@ -42,15 +43,19 @@ public class EntitlementInitializationTests extends ESTestCase {
             Path testBaseDir = createTempDir().toAbsolutePath();
             TEST_CONFIG_DIR = testBaseDir.resolve("config");
             TEST_PLUGINS_DIR = testBaseDir.resolve("plugins");
-            TEST_MODULES_DIR = testBaseDir.resolve("modules");
             TEST_LIBS_DIR = testBaseDir.resolve("libs");
 
-            TEST_PATH_LOOKUP = new PathLookup(
+            TEST_PATH_LOOKUP = new PathLookupImpl(
                 testBaseDir.resolve("user/home"),
                 TEST_CONFIG_DIR,
                 new Path[] { testBaseDir.resolve("data1"), testBaseDir.resolve("data2") },
                 new Path[] { testBaseDir.resolve("shared1"), testBaseDir.resolve("shared2") },
+                TEST_LIBS_DIR,
+                testBaseDir.resolve("modules"),
+                TEST_PLUGINS_DIR,
+                testBaseDir.resolve("logs"),
                 testBaseDir.resolve("temp"),
+                null,
                 Settings.EMPTY::getValues
             );
         } catch (Exception e) {
@@ -71,14 +76,7 @@ public class EntitlementInitializationTests extends ESTestCase {
                 )
             )
         );
-        EntitlementInitialization.validateFilesEntitlements(
-            Map.of("plugin", policy),
-            TEST_PATH_LOOKUP,
-            TEST_CONFIG_DIR,
-            TEST_PLUGINS_DIR,
-            TEST_MODULES_DIR,
-            TEST_LIBS_DIR
-        );
+        EntitlementInitialization.validateFilesEntitlements(Map.of("plugin", policy), TEST_PATH_LOOKUP);
     }
 
     public void testValidationFailForRead() {
@@ -97,14 +95,7 @@ public class EntitlementInitializationTests extends ESTestCase {
 
         var ex = expectThrows(
             IllegalArgumentException.class,
-            () -> EntitlementInitialization.validateFilesEntitlements(
-                Map.of("plugin", policy),
-                TEST_PATH_LOOKUP,
-                TEST_CONFIG_DIR,
-                TEST_PLUGINS_DIR,
-                TEST_MODULES_DIR,
-                TEST_LIBS_DIR
-            )
+            () -> EntitlementInitialization.validateFilesEntitlements(Map.of("plugin", policy), TEST_PATH_LOOKUP)
         );
         assertThat(
             ex.getMessage(),
@@ -129,14 +120,7 @@ public class EntitlementInitializationTests extends ESTestCase {
 
         ex = expectThrows(
             IllegalArgumentException.class,
-            () -> EntitlementInitialization.validateFilesEntitlements(
-                Map.of("plugin2", policy2),
-                TEST_PATH_LOOKUP,
-                TEST_CONFIG_DIR,
-                TEST_PLUGINS_DIR,
-                TEST_MODULES_DIR,
-                TEST_LIBS_DIR
-            )
+            () -> EntitlementInitialization.validateFilesEntitlements(Map.of("plugin2", policy2), TEST_PATH_LOOKUP)
         );
         assertThat(
             ex.getMessage(),
@@ -162,14 +146,7 @@ public class EntitlementInitializationTests extends ESTestCase {
 
         var ex = expectThrows(
             IllegalArgumentException.class,
-            () -> EntitlementInitialization.validateFilesEntitlements(
-                Map.of("plugin", policy),
-                TEST_PATH_LOOKUP,
-                TEST_CONFIG_DIR,
-                TEST_PLUGINS_DIR,
-                TEST_MODULES_DIR,
-                TEST_LIBS_DIR
-            )
+            () -> EntitlementInitialization.validateFilesEntitlements(Map.of("plugin", policy), TEST_PATH_LOOKUP)
         );
         assertThat(
             ex.getMessage(),

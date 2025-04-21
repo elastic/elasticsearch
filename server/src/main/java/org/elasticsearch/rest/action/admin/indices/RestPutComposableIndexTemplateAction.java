@@ -12,7 +12,6 @@ package org.elasticsearch.rest.action.admin.indices;
 import org.elasticsearch.action.admin.indices.template.put.TransportPutComposableIndexTemplateAction;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
-import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.Scope;
@@ -61,6 +60,6 @@ public class RestPutComposableIndexTemplateAction extends BaseRestHandler {
 
     @Override
     public Set<String> supportedCapabilities() {
-        return DataStream.isFailureStoreFeatureFlagEnabled() ? capabilities : Set.of();
+        return capabilities;
     }
 }

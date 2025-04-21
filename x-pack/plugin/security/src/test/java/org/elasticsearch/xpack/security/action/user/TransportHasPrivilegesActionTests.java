@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.security.action.user;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.PlainActionFuture;
-import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -92,8 +91,6 @@ public class TransportHasPrivilegesActionTests extends ESTestCase {
     }
 
     public void testHasPrivilegesRequestDoesNotAllowSelectorsInIndexPatterns() {
-        assumeTrue("failure store required", DataStream.isFailureStoreFeatureFlagEnabled());
-
         final ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
         final SecurityContext context = mock(SecurityContext.class);
         final User user = new User("user-1", "superuser");

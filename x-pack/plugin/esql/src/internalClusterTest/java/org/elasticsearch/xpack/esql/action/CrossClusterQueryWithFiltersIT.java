@@ -13,6 +13,11 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.RangeQueryBuilder;
+import org.elasticsearch.test.transport.MockTransportService;
+import org.elasticsearch.transport.NoSuchRemoteClusterException;
+import org.elasticsearch.transport.TransportChannel;
+import org.elasticsearch.transport.TransportResponse;
+import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.esql.VerificationException;
 
 import java.io.IOException;
@@ -346,12 +351,7 @@ public class CrossClusterQueryWithFiltersIT extends AbstractCrossClusterTestCase
         }
     }
 
-    public void testFilterWithUnavailableRemote() throws IOException {
-        int docsTest1 = 50;
-        int localShards = randomIntBetween(1, 5);
-        populateDateIndex(LOCAL_CLUSTER, LOCAL_INDEX, localShards, docsTest1, "2024-11-26");
-        cluster(REMOTE_CLUSTER_1).close();
-
+    private void checkRemoteFailures() {
         for (var filter : List.of(
             new RangeQueryBuilder("@timestamp").from("2024-01-01").to("now"),
             new RangeQueryBuilder("@timestamp").from("2025-01-01").to("now")
@@ -365,13 +365,11 @@ public class CrossClusterQueryWithFiltersIT extends AbstractCrossClusterTestCase
         }
     }
 
-    public void testFilterWithUnavailableRemoteAndSkipUnavailable() throws IOException {
-        setSkipUnavailable(REMOTE_CLUSTER_1, true);
+    private void checkRemoteWithSkipUnavailable() {
+        int count = 0;
         int docsTest1 = 50;
         int localShards = randomIntBetween(1, 5);
         populateDateIndex(LOCAL_CLUSTER, LOCAL_INDEX, localShards, docsTest1, "2024-11-26");
-        cluster(REMOTE_CLUSTER_1).close();
-        int count = 0;
 
         for (var filter : List.of(
             new RangeQueryBuilder("@timestamp").from("2024-01-01").to("now"),
@@ -438,7 +436,75 @@ public class CrossClusterQueryWithFiltersIT extends AbstractCrossClusterTestCase
                 }
             }
         }
+    }
 
+    public void testFilterWithUnavailableRemote() throws IOException {
+        int docsTest1 = 50;
+        int localShards = randomIntBetween(1, 5);
+        populateDateIndex(LOCAL_CLUSTER, LOCAL_INDEX, localShards, docsTest1, "2024-11-26");
+        cluster(REMOTE_CLUSTER_1).close();
+        checkRemoteFailures();
+    }
+
+    private void makeRemoteFailFieldCaps() {
+        for (TransportService transportService : cluster(REMOTE_CLUSTER_1).getInstances(TransportService.class)) {
+            MockTransportService ts = asInstanceOf(MockTransportService.class, transportService);
+            ts.addRequestHandlingBehavior(
+                EsqlResolveFieldsAction.NAME,
+                (handler, request, channel, task) -> handler.messageReceived(request, new TransportChannel() {
+                    @Override
+                    public String getProfileName() {
+                        return channel.getProfileName();
+                    }
+
+                    @Override
+                    public void sendResponse(TransportResponse response) {
+                        sendResponse(new NoSuchRemoteClusterException("cluster [cluster-a] not found, skipping"));
+                    }
+
+                    @Override
+                    public void sendResponse(Exception exception) {
+                        channel.sendResponse(exception);
+                    }
+                }, task)
+            );
+        }
+    }
+
+    private void clearRemoteRules() {
+        for (TransportService transportService : cluster(REMOTE_CLUSTER_1).getInstances(TransportService.class)) {
+            MockTransportService ts = asInstanceOf(MockTransportService.class, transportService);
+            ts.clearAllRules();
+        }
+    }
+
+    // Test when the disconnect happens on the field-caps call itself
+    public void testFilterWithUnavailableOnFieldcaps() throws IOException {
+        int docsTest1 = 50;
+        int localShards = randomIntBetween(1, 5);
+        populateDateIndex(LOCAL_CLUSTER, LOCAL_INDEX, localShards, docsTest1, "2024-11-26");
+        makeRemoteFailFieldCaps();
+        try {
+            checkRemoteFailures();
+        } finally {
+            clearRemoteRules();
+        }
+    }
+
+    public void testFilterWithUnavailableRemoteAndSkipUnavailable() throws IOException {
+        setSkipUnavailable(REMOTE_CLUSTER_1, true);
+        cluster(REMOTE_CLUSTER_1).close();
+        checkRemoteWithSkipUnavailable();
+    }
+
+    public void testFilterWithUnavailableFieldCapsAndSkipUnavailable() throws IOException {
+        setSkipUnavailable(REMOTE_CLUSTER_1, true);
+        makeRemoteFailFieldCaps();
+        try {
+            checkRemoteWithSkipUnavailable();
+        } finally {
+            clearRemoteRules();
+        }
     }
 
     protected void populateDateIndex(String clusterAlias, String indexName, int numShards, int numDocs, String date) {

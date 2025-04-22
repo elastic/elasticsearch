@@ -43,8 +43,8 @@ public class CustomTaskSettingsTests extends AbstractBWCWireSerializationTestCas
     }
 
     public void testFromMap_Null_EmptyMap_Returns_EmptySettings() {
-        assertThat(CustomTaskSettings.fromMap(Map.of()), is(CustomTaskSettings.EMPTY));
-        assertThat(CustomTaskSettings.fromMap(null), is(CustomTaskSettings.EMPTY));
+        assertThat(CustomTaskSettings.fromMap(Map.of()), is(CustomTaskSettings.EMPTY_SETTINGS));
+        assertThat(CustomTaskSettings.fromMap(null), is(CustomTaskSettings.EMPTY_SETTINGS));
     }
 
     public void testFromMap_RemovesNullValues() {
@@ -69,9 +69,8 @@ public class CustomTaskSettingsTests extends AbstractBWCWireSerializationTestCas
         assertThat(
             exception.getMessage(),
             is(
-                "Validation Failed: 1: Map field [parameters] has an entry that is not valid, "
-                    + "[key => {another_key=value}]. Value type is not one of [class java.lang.Boolean, "
-                    + "class java.lang.Double, class java.lang.Float, class java.lang.Integer, class java.lang.String].;"
+                "Validation Failed: 1: Map field [parameters] has an entry that is not valid, [key => {another_key=value}]. "
+                    + "Value type of [{another_key=value}] is not one of [Boolean, Double, Float, Integer, String].;"
             )
         );
     }

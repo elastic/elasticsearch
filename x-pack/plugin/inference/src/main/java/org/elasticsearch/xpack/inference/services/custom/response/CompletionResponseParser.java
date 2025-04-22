@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.inference.services.custom.response;
 
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -15,6 +16,7 @@ import org.elasticsearch.xpack.core.inference.results.ChatCompletionResults;
 import org.elasticsearch.xpack.inference.common.MapPathExtractor;
 
 import java.io.IOException;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
@@ -79,11 +81,22 @@ public class CompletionResponseParser extends BaseCustomResponseParser<ChatCompl
 
     @Override
     public ChatCompletionResults transform(Map<String, Object> map) {
-        var completionList = validateAndCastList(
-            validateList(MapPathExtractor.extract(map, completionResultPath)),
-            (obj) -> toType(obj, String.class)
-        );
+        var extractedField = MapPathExtractor.extract(map, completionResultPath);
 
-        return new ChatCompletionResults(completionList.stream().map(ChatCompletionResults.Result::new).toList());
+        validateNonNull(extractedField);
+
+        if (extractedField instanceof List<?> extractedList) {
+            var completionList = validateAndCastList(extractedList, (obj) -> toType(obj, String.class));
+            return new ChatCompletionResults(completionList.stream().map(ChatCompletionResults.Result::new).toList());
+        } else if (extractedField instanceof String extractedString) {
+            return new ChatCompletionResults(List.of(new ChatCompletionResults.Result(extractedString)));
+        } else {
+            throw new IllegalArgumentException(
+                Strings.format(
+                    "Extracted field is an invalid type, expected a list or a string but received [%s]",
+                    extractedField.getClass().getSimpleName()
+                )
+            );
+        }
     }
 }

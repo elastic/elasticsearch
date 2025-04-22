@@ -104,6 +104,30 @@ public class CompletionResponseParserTests extends AbstractBWCWireSerializationT
         assertThat(parsedResults, is(new ChatCompletionResults(List.of(new ChatCompletionResults.Result("completion results")))));
     }
 
+    public void testParse_String() throws IOException {
+        String responseJson = """
+            {
+              "request_id": "450fcb80-f796-****-8d69-e1e86d29aa9f",
+              "latency": 564.903929,
+              "result": {
+                "text":"completion results"
+              },
+              "usage": {
+                  "output_tokens": 6320,
+                  "input_tokens": 35,
+                  "total_tokens": 6355
+              }
+            }
+            """;
+
+        var parser = new CompletionResponseParser("$.result.text");
+        ChatCompletionResults parsedResults = (ChatCompletionResults) parser.parse(
+            new HttpResult(mock(HttpResponse.class), responseJson.getBytes(StandardCharsets.UTF_8))
+        );
+
+        assertThat(parsedResults, is(new ChatCompletionResults(List.of(new ChatCompletionResults.Result("completion results")))));
+    }
+
     public void testParse_MultipleResults() throws IOException {
         String responseJson = """
             {
@@ -204,6 +228,29 @@ public class CompletionResponseParserTests extends AbstractBWCWireSerializationT
                     + "but the current object is not a list, found invalid type [String] instead."
             )
         );
+    }
+
+    public void testParse_ThrowsException_WhenExtractedField_IsNotAListOrString() {
+        String responseJson = """
+            {
+              "request_id": "450fcb80-f796-****-8d69-e1e86d29aa9f",
+              "latency": 564.903929,
+              "result": 123,
+              "usage": {
+                  "output_tokens": 6320,
+                  "input_tokens": 35,
+                  "total_tokens": 6355
+              }
+            }
+            """;
+
+        var parser = new CompletionResponseParser("$.result");
+        var exception = expectThrows(
+            IllegalArgumentException.class,
+            () -> parser.parse(new HttpResult(mock(HttpResponse.class), responseJson.getBytes(StandardCharsets.UTF_8)))
+        );
+
+        assertThat(exception.getMessage(), is("Extracted field is an invalid type, expected a list or a string but received [Integer]"));
     }
 
     @Override

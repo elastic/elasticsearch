@@ -44,7 +44,7 @@ public class CustomRequestTests extends ESTestCase {
 
         String requestBody = convertToString(httpPost.getEntity().getContent());
 
-        MatcherAssert.assertThat(entityAsMap(httpPost.getEntity().getContent()), is(Map.of("input", List.of("abc"))));
+        assertThat(entityAsMap(httpPost.getEntity().getContent()), is(Map.of("input", List.of("abc"))));
     }
 
 //    public void testPlaceholderValidation() {

@@ -64,7 +64,8 @@ public class CustomRequest implements Request {
         uri = buildUri();
     }
 
-    private static <T> String toJson(T value, String field) {
+    // default for testing
+    static <T> String toJson(T value, String field) {
         try {
             XContentBuilder builder = JsonXContent.contentBuilder();
             // TODO test this, I think it'll write the quotes for us so we don't need to include them in the content string

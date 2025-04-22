@@ -57,9 +57,8 @@ public class CustomServiceSettingsTests extends AbstractBWCWireSerializationTest
         var responseJsonParser = switch (taskType) {
             case TEXT_EMBEDDING -> new TextEmbeddingResponseParser("$.result.embeddings[*].embedding");
             case SPARSE_EMBEDDING -> new SparseEmbeddingResponseParser(
-                "$.result.sparse_embeddings[*]",
-                "$.embedding[*].token_id",
-                "$.embedding[*].weights"
+                "$.result.sparse_embeddings[*].embedding[*].token_id",
+                "$.result.sparse_embeddings[*].embedding[*].weights"
             );
             case RERANK -> new RerankResponseParser(
                 "$.result.reranked_results[*].index",
@@ -307,7 +306,7 @@ public class CustomServiceSettingsTests extends AbstractBWCWireSerializationTest
             exception.getMessage(),
             is(
                 "Validation Failed: 1: Map field [headers] has an entry that is not valid, [key => 1]. "
-                    + "Value type is not one of [class java.lang.String].;"
+                    + "Value type of [1] is not one of [String].;"
             )
         );
     }

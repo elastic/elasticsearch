@@ -15,15 +15,11 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentType;
-import org.elasticsearch.xpack.core.inference.results.ChatCompletionResults;
 import org.elasticsearch.xpack.inference.external.http.HttpResult;
 import org.elasticsearch.xpack.inference.external.http.retry.ErrorResponse;
-import org.elasticsearch.xpack.inference.external.response.ErrorMessageResponseEntity;
 
 import java.io.IOException;
-import java.nio.charset.StandardCharsets;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.xpack.inference.services.custom.response.ErrorResponseParser.MESSAGE_PATH;
@@ -53,7 +49,7 @@ public class ErrorResponseParserTests extends ESTestCase {
 
         assertThat(
             exception.getMessage(),
-            is("Validation Failed: 1: [json_parser] does not contain the required setting [path];")
+            is("Validation Failed: 1: [error_parser] does not contain the required setting [path];")
         );
     }
 
@@ -70,7 +66,7 @@ public class ErrorResponseParserTests extends ESTestCase {
 
         var expected = XContentHelper.stripWhitespace("""
             {
-                "json_parser": {
+                "error_parser": {
                     "path": "$.error.message"
                 }
             }
@@ -128,104 +124,22 @@ public class ErrorResponseParserTests extends ESTestCase {
     }
 
     public void testErrorResponse_ReturnsUndefinedObjectIfNoError() throws IOException {
-        var result = getMockResult("""
+        var mockResult
+            = getMockResult("""
             {"noerror":true}""");
 
-        var error = ErrorMessageResponseEntity.fromResponse(result);
+        var parser = new ErrorResponseParser("$.error.message");
+        var error = parser.apply(mockResult);
+
         assertThat(error, sameInstance(ErrorResponse.UNDEFINED_ERROR));
     }
 
-    public void testErrorResponse_ReturnsUndefinedObjectIfNotJson() throws IOException {
-        var result = getMockResult("not a json string");
+    public void testErrorResponse_ReturnsUndefinedObjectIfNotJson() {
+        var result = new HttpResult(mock(HttpResponse.class), Strings.toUTF8Bytes("not a json string"));
 
-        var error = ErrorMessageResponseEntity.fromResponse(result);
+        var parser = new ErrorResponseParser("$.error.message");
+        var error = parser.apply(result);
         assertThat(error, sameInstance(ErrorResponse.UNDEFINED_ERROR));
-    }
-
-    public void testParse() throws IOException {
-        String responseJson = """
-            {
-                "error": {
-                    "message": "You didn't provide an API key",
-                    "type": "invalid_request_error",
-                    "param": null,
-                    "code": null
-                }
-            }
-            """;
-
-        var parser = new CompletionResponseParser("$.result[*].text");
-        ChatCompletionResults parsedResults = (ChatCompletionResults) parser.parse(
-            new HttpResult(mock(HttpResponse.class), responseJson.getBytes(StandardCharsets.UTF_8))
-        );
-
-        assertThat(parsedResults, is(new ChatCompletionResults(List.of(new ChatCompletionResults.Result("completion results")))));
-    }
-
-    public void testParse_AnthropicFormat() throws IOException {
-        String responseJson = """
-            {
-                "id": "msg_01XzZQmG41BMGe5NZ5p2vEWb",
-                "type": "message",
-                "role": "assistant",
-                "model": "claude-3-opus-20240229",
-                "content": [
-                    {
-                        "type": "text",
-                        "text": "result"
-                    },
-                    {
-                        "type": "text",
-                        "text": "result2"
-                    }
-                ],
-                "stop_reason": "end_turn",
-                "stop_sequence": null,
-                "usage": {
-                    "input_tokens": 16,
-                    "output_tokens": 326
-                }
-            }
-            """;
-
-        var parser = new CompletionResponseParser("$.content[*].text");
-        ChatCompletionResults parsedResults = (ChatCompletionResults) parser.parse(
-            new HttpResult(mock(HttpResponse.class), responseJson.getBytes(StandardCharsets.UTF_8))
-        );
-
-        assertThat(
-            parsedResults,
-            is(new ChatCompletionResults(List.of(new ChatCompletionResults.Result("result"), new ChatCompletionResults.Result("result2"))))
-        );
-    }
-
-    public void testParse_ThrowsException_WhenExtractedField_IsNotAList() {
-        String responseJson = """
-            {
-              "request_id": "450fcb80-f796-****-8d69-e1e86d29aa9f",
-              "latency": 564.903929,
-              "result": "invalid_field",
-              "usage": {
-                  "output_tokens": 6320,
-                  "input_tokens": 35,
-                  "total_tokens": 6355
-              }
-            }
-            """;
-
-        var parser = new CompletionResponseParser("$.result[*].text");
-        var exception = expectThrows(
-            IllegalArgumentException.class,
-            () -> parser.parse(new HttpResult(mock(HttpResponse.class), responseJson.getBytes(StandardCharsets.UTF_8)))
-        );
-
-        assertThat(
-            exception.getMessage(),
-            is(
-                "Current path [[*].text] matched the array field pattern "
-                    + "but the current object is not a list, found invalid type [String] instead."
-            )
-        );
     }
 
     private static HttpResult getMockResult(String jsonString) throws IOException {

@@ -27,7 +27,6 @@ import java.util.function.Function;
 
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractRequiredString;
 import static org.elasticsearch.xpack.inference.services.custom.CustomServiceSettings.ERROR_PARSER;
-import static org.elasticsearch.xpack.inference.services.custom.CustomServiceSettings.RESPONSE;
 import static org.elasticsearch.xpack.inference.services.custom.response.BaseCustomResponseParser.toType;
 
 public class ErrorResponseParser implements ToXContentFragment, Function<HttpResult, ErrorResponse> {
@@ -37,7 +36,7 @@ public class ErrorResponseParser implements ToXContentFragment, Function<HttpRes
     private final String messagePath;
 
     public static ErrorResponseParser fromMap(Map<String, Object> responseParserMap, ValidationException validationException) {
-        var path = extractRequiredString(responseParserMap, MESSAGE_PATH, RESPONSE, validationException);
+        var path = extractRequiredString(responseParserMap, MESSAGE_PATH, ERROR_PARSER, validationException);
 
         if (path == null) {
             throw validationException;

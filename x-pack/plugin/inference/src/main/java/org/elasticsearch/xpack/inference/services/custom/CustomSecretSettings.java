@@ -12,10 +12,10 @@ import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.SecretSettings;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xpack.inference.services.settings.SerializableSecureString;
 
 import java.io.IOException;
 import java.util.HashMap;
@@ -48,22 +48,22 @@ public class CustomSecretSettings implements SecretSettings {
         return new CustomSecretSettings(secureStringMap);
     }
 
-    private final Map<String, SecureString> secretParameters;
+    private final Map<String, SerializableSecureString> secretParameters;
 
     @Override
     public SecretSettings newSecretSettings(Map<String, Object> newSecrets) {
         return fromMap(new HashMap<>(newSecrets));
     }
 
-    public CustomSecretSettings(@Nullable Map<String, SecureString> secretParameters) {
+    public CustomSecretSettings(@Nullable Map<String, SerializableSecureString> secretParameters) {
         this.secretParameters = Objects.requireNonNullElse(secretParameters, Map.of());
     }
 
     public CustomSecretSettings(StreamInput in) throws IOException {
-        secretParameters = in.readImmutableMap(StreamInput::readString, StreamInput::readSecureString);
+        secretParameters = in.readImmutableMap(SerializableSecureString::new);
     }
 
-    public Map<String, SecureString> getSecretParameters() {
+    public Map<String, SerializableSecureString> getSecretParameters() {
         return secretParameters;
     }
 
@@ -74,7 +74,7 @@ public class CustomSecretSettings implements SecretSettings {
             builder.startObject(SECRET_PARAMETERS);
             {
                 for (var entry : secretParameters.entrySet()) {
-                    builder.field(entry.getKey(), entry.getValue().toString());
+                    builder.field(entry.getKey(), entry.getValue());
                 }
             }
             builder.endObject();
@@ -95,7 +95,9 @@ public class CustomSecretSettings implements SecretSettings {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeMap(secretParameters, StreamOutput::writeString, StreamOutput::writeSecureString);
+        out.writeMap(secretParameters, (streamOutput, v) -> {
+            v.writeTo(streamOutput);
+        });
     }
 
     @Override

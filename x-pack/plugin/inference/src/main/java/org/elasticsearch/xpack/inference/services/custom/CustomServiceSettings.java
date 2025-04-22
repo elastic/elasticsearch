@@ -22,7 +22,6 @@ import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
-import org.elasticsearch.xpack.inference.services.custom.response.BaseCustomResponseParser;
 import org.elasticsearch.xpack.inference.services.custom.response.CompletionResponseParser;
 import org.elasticsearch.xpack.inference.services.custom.response.CustomResponseParser;
 import org.elasticsearch.xpack.inference.services.custom.response.ErrorResponseParser;
@@ -183,7 +182,7 @@ public class CustomServiceSettings extends FilteredXContentObject implements Ser
         url = in.readString();
         headers = in.readImmutableMap(StreamInput::readString);
         requestContentString = in.readString();
-        responseJsonParser = in.readNamedWriteable(BaseCustomResponseParser.class);
+        responseJsonParser = in.readNamedWriteable(CustomResponseParser.class);
         rateLimitSettings = new RateLimitSettings(in);
         errorParser = new ErrorResponseParser(in);
     }

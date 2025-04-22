@@ -27,16 +27,15 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-import static org.elasticsearch.xpack.inference.services.custom.response.SparseEmbeddingResponseParser.SPARSE_EMBEDDING_TOKEN_FIELD_NAME;
-import static org.elasticsearch.xpack.inference.services.custom.response.SparseEmbeddingResponseParser.SPARSE_EMBEDDING_WEIGHT_FIELD_NAME;
-import static org.elasticsearch.xpack.inference.services.custom.response.SparseEmbeddingResponseParser.SPARSE_RESULT_PATH;
+import static org.elasticsearch.xpack.inference.services.custom.response.SparseEmbeddingResponseParser.SPARSE_EMBEDDING_TOKEN_PATH;
+import static org.elasticsearch.xpack.inference.services.custom.response.SparseEmbeddingResponseParser.SPARSE_EMBEDDING_WEIGHT_PATH;
 import static org.hamcrest.Matchers.is;
 import static org.mockito.Mockito.mock;
 
 public class SparseEmbeddingResponseParserTests extends AbstractBWCWireSerializationTestCase<SparseEmbeddingResponseParser> {
 
     public static SparseEmbeddingResponseParser createRandom() {
-        return new SparseEmbeddingResponseParser("$." + randomAlphaOfLength(5), randomAlphaOfLength(5), randomAlphaOfLength(5));
+        return new SparseEmbeddingResponseParser(randomAlphaOfLength(5), randomAlphaOfLength(5));
     }
 
     public void testFromMap() {
@@ -44,18 +43,16 @@ public class SparseEmbeddingResponseParserTests extends AbstractBWCWireSerializa
         var parser = SparseEmbeddingResponseParser.fromMap(
             new HashMap<>(
                 Map.of(
-                    SPARSE_RESULT_PATH,
-                    "$.result[*].embeddings",
-                    SPARSE_EMBEDDING_TOKEN_FIELD_NAME,
-                    "token_id",
-                    SPARSE_EMBEDDING_WEIGHT_FIELD_NAME,
-                    "weight_id"
+                    SPARSE_EMBEDDING_TOKEN_PATH,
+                    "$.result[*].embeddings[*].token",
+                    SPARSE_EMBEDDING_WEIGHT_PATH,
+                    "$.result[*].embeddings[*].weight"
                 )
             ),
             validation
         );
 
-        assertThat(parser, is(new SparseEmbeddingResponseParser("$.result[*].embeddings", "token_id", "weight_id")));
+        assertThat(parser, is(new SparseEmbeddingResponseParser("$.result[*].embeddings[*].token", "$.result[*].embeddings[*].weight")));
     }
 
     public void testFromMap_ThrowsException_WhenRequiredFieldsAreNotPresent() {
@@ -68,15 +65,14 @@ public class SparseEmbeddingResponseParserTests extends AbstractBWCWireSerializa
         assertThat(
             exception.getMessage(),
             is(
-                "Validation Failed: 1: [json_parser] does not contain the required setting [path];"
-                    + "2: [json_parser] does not contain the required setting [token_field_name];"
-                    + "3: [json_parser] does not contain the required setting [weight_field_name];"
+                "Validation Failed: 1: [json_parser] does not contain the required setting [token_path];"
+                    + "2: [json_parser] does not contain the required setting [weight_path];"
             )
         );
     }
 
     public void testToXContent() throws IOException {
-        var entity = new SparseEmbeddingResponseParser("$.result.path", "token_id", "weight_id");
+        var entity = new SparseEmbeddingResponseParser("$.result.path.token", "$.result.path.weight");
 
         XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
         {
@@ -89,9 +85,8 @@ public class SparseEmbeddingResponseParserTests extends AbstractBWCWireSerializa
         var expected = XContentHelper.stripWhitespace("""
             {
                 "json_parser": {
-                    "path": "$.result.path",
-                    "token_field_name": "token_id",
-                    "weight_field_name": "weight_id"
+                    "token_path": "$.result.path.token",
+                    "weight_path": "$.result.path.weight"
                 }
             }
             """);
@@ -127,7 +122,10 @@ public class SparseEmbeddingResponseParserTests extends AbstractBWCWireSerializa
             }
             """;
 
-        var parser = new SparseEmbeddingResponseParser("$.result.sparse_embeddings[*].embedding[*]", "tokenId", "weight");
+        var parser = new SparseEmbeddingResponseParser(
+            "$.result.sparse_embeddings[*].embedding[*].tokenId",
+            "$.result.sparse_embeddings[*].embedding[*].weight"
+        );
         SparseEmbeddingResults parsedResults = (SparseEmbeddingResults) parser.parse(
             new HttpResult(mock(HttpResponse.class), responseJson.getBytes(StandardCharsets.UTF_8))
         );
@@ -174,13 +172,16 @@ public class SparseEmbeddingResponseParserTests extends AbstractBWCWireSerializa
             }
             """;
 
-        var parser = new SparseEmbeddingResponseParser("$.result.sparse_embeddings[*].embedding", "tokenId", "weight");
+        var parser = new SparseEmbeddingResponseParser(
+            "$.result.sparse_embeddings[*].embedding[*].tokenId",
+            "$.result.sparse_embeddings[*].embedding[*].weight"
+        );
         var exception = expectThrows(
-            IllegalStateException.class,
+            IllegalArgumentException.class,
             () -> parser.parse(new HttpResult(mock(HttpResponse.class), responseJson.getBytes(StandardCharsets.UTF_8)))
         );
 
-        assertThat(exception.getMessage(), is("Failed to find token id field: [tokenId]"));
+        assertThat(exception.getMessage(), is("Unable to find field [tokenId] in map"));
     }
 
     @Override

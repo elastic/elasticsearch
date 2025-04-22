@@ -21,6 +21,7 @@ import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.core.ml.inference.assignment.AdaptiveAllocationsSettings;
 import org.elasticsearch.xpack.inference.services.settings.ApiKeySecrets;
+import org.elasticsearch.xpack.inference.services.settings.SerializableSecureString;
 
 import java.net.URI;
 import java.net.URISyntaxException;
@@ -557,9 +558,10 @@ public final class ServiceUtils {
                     );
                 } else {
                     return Strings.format(
-                        "Map field [%s] has an entry that is not valid, [%s => %s]. Value type is not one of [%s].",
+                        "Map field [%s] has an entry that is not valid, [%s => %s]. Value type of [%s] is not one of [%s].",
                         settingName,
                         entry.getKey(),
+                        entry.getValue(),
                         entry.getValue(),
                         String.join(", ", validTypesAsStrings)
                     );
@@ -567,7 +569,7 @@ public final class ServiceUtils {
             };
 
             if (isAllowed == false) {
-                var validTypesAsStrings = allowedTypes.stream().map(Class::toString).toArray(String[]::new);
+                var validTypesAsStrings = allowedTypes.stream().map(Class::getSimpleName).toArray(String[]::new);
                 Arrays.sort(validTypesAsStrings);
 
                 validationException.addValidationError(errorMessage.apply(validTypesAsStrings));
@@ -576,7 +578,7 @@ public final class ServiceUtils {
         }
     }
 
-    public static Map<String, SecureString> convertMapStringsToSecureString(
+    public static Map<String, SerializableSecureString> convertMapStringsToSecureString(
         Map<String, ?> map,
         String settingName,
         ValidationException validationException
@@ -585,22 +587,24 @@ public final class ServiceUtils {
             return Map.of();
         }
 
-        validateMapValues(map, List.of(String.class), settingName, validationException, true);
+        validateMapStringValues(map, settingName, validationException, true);
 
         return map.entrySet()
             .stream()
-            .collect(Collectors.toMap(Map.Entry::getKey, e -> new SecureString(((String) e.getValue()).toCharArray())));
+            .collect(Collectors.toMap(Map.Entry::getKey, e -> new SerializableSecureString((String) e.getValue())));
     }
 
     /**
      * Removes null values.
      */
-    public static void removeNullValues(Map<String, Object> map) {
+    public static Map<String, Object> removeNullValues(Map<String, Object> map) {
         if (map == null) {
-            return;
+            return map;
         }
 
         map.values().removeIf(Objects::isNull);
+
+        return map;
     }
 
     public static Integer extractRequiredPositiveIntegerLessThanOrEqualToMax(

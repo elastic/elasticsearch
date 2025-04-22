@@ -19,6 +19,7 @@ import org.elasticsearch.xpack.inference.common.MapPathExtractor;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
@@ -28,57 +29,44 @@ import static org.elasticsearch.xpack.inference.services.custom.CustomServiceSet
 public class SparseEmbeddingResponseParser extends BaseCustomResponseParser<SparseEmbeddingResults> {
 
     public static final String NAME = "sparse_embedding_response_parser";
-    public static final String SPARSE_RESULT_PATH = "path";
-    public static final String SPARSE_EMBEDDING_TOKEN_FIELD_NAME = "token_field_name";
-    public static final String SPARSE_EMBEDDING_WEIGHT_FIELD_NAME = "weight_field_name";
+    public static final String SPARSE_EMBEDDING_TOKEN_PATH = "token_path";
+    public static final String SPARSE_EMBEDDING_WEIGHT_PATH = "weight_path";
 
-    private final String path;
-    private final String tokenFieldName;
-    private final String weightFieldName;
+    private final String tokenPath;
+    private final String weightPath;
 
     public static SparseEmbeddingResponseParser fromMap(Map<String, Object> responseParserMap, ValidationException validationException) {
-        var path = extractRequiredString(responseParserMap, SPARSE_RESULT_PATH, JSON_PARSER, validationException);
+        var tokenPath = extractRequiredString(responseParserMap, SPARSE_EMBEDDING_TOKEN_PATH, JSON_PARSER, validationException);
 
-        var tokenFieldName = extractRequiredString(responseParserMap, SPARSE_EMBEDDING_TOKEN_FIELD_NAME, JSON_PARSER, validationException);
+        var weightPath = extractRequiredString(responseParserMap, SPARSE_EMBEDDING_WEIGHT_PATH, JSON_PARSER, validationException);
 
-        var weightFieldName = extractRequiredString(
-            responseParserMap,
-            SPARSE_EMBEDDING_WEIGHT_FIELD_NAME,
-            JSON_PARSER,
-            validationException
-        );
-
-        if (path == null || tokenFieldName == null || weightFieldName == null) {
+        if (tokenPath == null || weightPath == null) {
             throw validationException;
         }
 
-        return new SparseEmbeddingResponseParser(path, tokenFieldName, weightFieldName);
+        return new SparseEmbeddingResponseParser(tokenPath, weightPath);
     }
 
-    public SparseEmbeddingResponseParser(String path, String tokenFieldName, String weightFieldName) {
-        this.path = Objects.requireNonNull(path);
-        this.tokenFieldName = Objects.requireNonNull(tokenFieldName);
-        this.weightFieldName = Objects.requireNonNull(weightFieldName);
+    public SparseEmbeddingResponseParser(String tokenPath, String weightPath) {
+        this.tokenPath = Objects.requireNonNull(tokenPath);
+        this.weightPath = Objects.requireNonNull(weightPath);
     }
 
     public SparseEmbeddingResponseParser(StreamInput in) throws IOException {
-        this.path = in.readString();
-        this.tokenFieldName = in.readString();
-        this.weightFieldName = in.readString();
+        this.tokenPath = in.readString();
+        this.weightPath = in.readString();
     }
 
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeString(path);
-        out.writeString(tokenFieldName);
-        out.writeString(weightFieldName);
+        out.writeString(tokenPath);
+        out.writeString(weightPath);
     }
 
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(JSON_PARSER);
         {
-            builder.field(SPARSE_RESULT_PATH, path);
-            builder.field(SPARSE_EMBEDDING_TOKEN_FIELD_NAME, tokenFieldName);
-            builder.field(SPARSE_EMBEDDING_WEIGHT_FIELD_NAME, weightFieldName);
+            builder.field(SPARSE_EMBEDDING_TOKEN_PATH, tokenPath);
+            builder.field(SPARSE_EMBEDDING_WEIGHT_PATH, weightPath);
         }
         builder.endObject();
         return builder;
@@ -89,14 +77,12 @@ public class SparseEmbeddingResponseParser extends BaseCustomResponseParser<Spar
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         SparseEmbeddingResponseParser that = (SparseEmbeddingResponseParser) o;
-        return Objects.equals(path, that.path)
-            && Objects.equals(tokenFieldName, that.tokenFieldName)
-            && Objects.equals(weightFieldName, that.weightFieldName);
+        return Objects.equals(tokenPath, that.tokenPath) && Objects.equals(weightPath, that.weightPath);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(path, tokenFieldName, weightFieldName);
+        return Objects.hash(tokenPath, weightPath);
     }
 
     @Override
@@ -104,66 +90,48 @@ public class SparseEmbeddingResponseParser extends BaseCustomResponseParser<Spar
         return NAME;
     }
 
-    /**
-     * The result from the upstream server must be in the following format
-     * <pre>
-     * {@code
-     *   {
-     *      "sparse_embeddings": [
-     *            {
-     *                "embedding": [
-     *                    {
-     *                        "tokenId": 6,
-     *                        "weight": 0.10137939453125
-     *                    },
-     *                    {
-     *                        "tokenId": 163040,
-     *                        "weight": 0.2841796875
-     *                    }
-     *                ]
-     *            }
-     *        ]
-     *    }
-     * }
-     *
-     * Where the token ids and weight are in a map.
-     * </pre>
-     */
     @Override
     protected SparseEmbeddingResults transform(Map<String, Object> map) {
-        // This should be a List<List<Map<String, Object>>>
-        var pathList = validateList(MapPathExtractor.extract(map, path));
+        // These will be List<List<T>>
+        var tokens = validateList(MapPathExtractor.extract(map, tokenPath));
+        var weights = validateList(MapPathExtractor.extract(map, weightPath));
+
+        validateListsSize(tokens, weights);
 
         var embeddings = new ArrayList<SparseEmbeddingResults.Embedding>();
+        for (int responseCounter = 0; responseCounter < tokens.size(); responseCounter++) {
+            var tokenEntryList = validateList(tokens.get(responseCounter));
+            var weightEntryList = validateList(weights.get(responseCounter));
 
-        for (var listEntry : pathList) {
-            embeddings.add(parseExpansionResult(listEntry));
+            validateListsSize(tokenEntryList, weightEntryList);
+
+            embeddings.add(createEmbedding(tokenEntryList, weightEntryList));
         }
 
         return new SparseEmbeddingResults(Collections.unmodifiableList(embeddings));
     }
 
-    private SparseEmbeddingResults.Embedding parseExpansionResult(Object listEntry) {
+    private static void validateListsSize(List<?> tokens, List<?> weights) {
+        if (tokens.size() != weights.size()) {
+            throw new IllegalStateException(
+                Strings.format(
+                    "The extracted tokens list is size [%d] but the weights list is size [%d]. The list sizes must be equal.",
+                    tokens.size(),
+                    weights.size()
+                )
+            );
+        }
+    }
+
+    private static SparseEmbeddingResults.Embedding createEmbedding(List<?> tokenEntryList, List<?> weightEntryList) {
         var weightedTokens = new ArrayList<WeightedToken>();
 
-        // This should be a List<Map<String, Object>>
-        var listTokenIdWeights = validateList(listEntry);
-
-        for (var tokenIdWeightEntry : listTokenIdWeights) {
-            var tokenIdWeightMap = validateMap(tokenIdWeightEntry);
-            var tokenId = tokenIdWeightMap.get(tokenFieldName);
-            if (tokenId == null) {
-                throw new IllegalStateException(Strings.format("Failed to find token id field: [%s]", tokenFieldName));
-            }
+        for (int embeddingCounter = 0; embeddingCounter < tokenEntryList.size(); embeddingCounter++) {
+            var token = tokenEntryList.get(embeddingCounter);
+            var weight = weightEntryList.get(embeddingCounter);
 
             // Alibaba can return a token id which is an integer and needs to be converted to a string
-            var tokenIdAsString = tokenId.toString();
-
-            var weight = tokenIdWeightMap.get(weightFieldName);
-            if (weight == null) {
-                throw new IllegalStateException(Strings.format("Failed to find weight field: [%s]", weightFieldName));
-            }
-
+            var tokenIdAsString = token.toString();
             var weightAsFloat = toFloat(weight);
             weightedTokens.add(new WeightedToken(tokenIdAsString, weightAsFloat));
         }

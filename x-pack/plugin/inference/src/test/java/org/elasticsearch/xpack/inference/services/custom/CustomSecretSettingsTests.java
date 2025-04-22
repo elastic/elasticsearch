@@ -11,12 +11,12 @@ import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.ml.AbstractBWCWireSerializationTestCase;
+import org.elasticsearch.xpack.inference.services.settings.SerializableSecureString;
 
 import java.io.IOException;
 import java.util.HashMap;
@@ -28,10 +28,10 @@ import static org.hamcrest.Matchers.is;
 
 public class CustomSecretSettingsTests extends AbstractBWCWireSerializationTestCase<CustomSecretSettings> {
     public static CustomSecretSettings createRandom() {
-        Map<String, SecureString> secretParameters = randomMap(
+        Map<String, SerializableSecureString> secretParameters = randomMap(
             0,
             5,
-            () -> tuple(randomAlphaOfLength(5), new SecureString(randomAlphaOfLength(5).toCharArray()))
+            () -> tuple(randomAlphaOfLength(5), new SerializableSecureString(randomAlphaOfLength(5)))
         );
 
         return new CustomSecretSettings(secretParameters);
@@ -44,7 +44,7 @@ public class CustomSecretSettingsTests extends AbstractBWCWireSerializationTestC
 
         assertThat(
             CustomSecretSettings.fromMap(secretParameters),
-            is(new CustomSecretSettings(Map.of("test_key", new SecureString("test_value".toCharArray()))))
+            is(new CustomSecretSettings(Map.of("test_key", new SerializableSecureString("test_value"))))
         );
     }
 
@@ -59,7 +59,7 @@ public class CustomSecretSettingsTests extends AbstractBWCWireSerializationTestC
 
         assertThat(
             CustomSecretSettings.fromMap(modifiableMap(Map.of(CustomSecretSettings.SECRET_PARAMETERS, mapWithNulls))),
-            is(new CustomSecretSettings(Map.of("value", new SecureString("abc".toCharArray()))))
+            is(new CustomSecretSettings(Map.of("value", new SerializableSecureString("abc"))))
         );
     }
 
@@ -75,7 +75,7 @@ public class CustomSecretSettingsTests extends AbstractBWCWireSerializationTestC
             exception.getMessage(),
             is(
                 "Validation Failed: 1: Map field [secret_parameters] has an entry that is not valid. "
-                    + "Value type is not one of [class java.lang.String].;"
+                    + "Value type is not one of [String].;"
             )
         );
     }
@@ -87,7 +87,7 @@ public class CustomSecretSettingsTests extends AbstractBWCWireSerializationTestC
     }
 
     public void testXContent() throws IOException {
-        var entity = new CustomSecretSettings(Map.of("test_key", new SecureString("test_value".toCharArray())));
+        var entity = new CustomSecretSettings(Map.of("test_key", new SerializableSecureString("test_value")));
 
         XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
         entity.toXContent(builder, null);

@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.inference.services.custom;
 
 import org.apache.http.HttpHeaders;
-import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.inference.TaskType;
@@ -17,6 +16,7 @@ import org.elasticsearch.xpack.inference.services.custom.response.CustomResponse
 import org.elasticsearch.xpack.inference.services.custom.response.ErrorResponseParser;
 import org.elasticsearch.xpack.inference.services.custom.response.TextEmbeddingResponseParser;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
+import org.elasticsearch.xpack.inference.services.settings.SerializableSecureString;
 import org.hamcrest.MatcherAssert;
 
 import java.util.HashMap;
@@ -29,7 +29,7 @@ public class CustomModelTests extends ESTestCase {
     public static String taskSettingsValue = "test_taskSettings_value";
 
     public static String secretSettingsKey = "test_secret_key";
-    public static SecureString secretSettingsValue = new SecureString("test_secret_value".toCharArray());
+    public static SerializableSecureString secretSettingsValue = new SerializableSecureString("test_secret_value");
     public static String url = "http://www.abc.com";
     public static String path = "/endpoint";
 
@@ -115,10 +115,7 @@ public class CustomModelTests extends ESTestCase {
             new ErrorResponseParser("$.error.message")
         );
 
-        // task settings
         CustomTaskSettings taskSettings = new CustomTaskSettings(Map.of(taskSettingsKey, taskSettingsValue));
-
-        // secret settings
         CustomSecretSettings secretSettings = new CustomSecretSettings(Map.of(secretSettingsKey, secretSettingsValue));
 
         return CustomModelTests.createModel("service", taskType, serviceSettings, taskSettings, secretSettings);

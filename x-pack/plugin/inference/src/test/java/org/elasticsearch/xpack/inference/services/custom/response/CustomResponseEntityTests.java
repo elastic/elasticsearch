@@ -53,7 +53,11 @@ public class CustomResponseEntityTests extends ESTestCase {
             }
             """;
 
-        var request = CustomRequestTests.createRequest(null, List.of("abc"), CustomModelTests.getTestModel());
+        var request = CustomRequestTests.createRequest(
+            null,
+            List.of("abc"),
+            CustomModelTests.getTestModel(TaskType.TEXT_EMBEDDING, new TextEmbeddingResponseParser("$.result.embeddings[*].embedding"))
+        );
         InferenceServiceResults results = CustomResponseEntity.fromResponse(
             request,
             new HttpResult(mock(HttpResponse.class), responseJson.getBytes(StandardCharsets.UTF_8))
@@ -99,7 +103,10 @@ public class CustomResponseEntityTests extends ESTestCase {
             List.of("abc"),
             CustomModelTests.getTestModel(
                 TaskType.SPARSE_EMBEDDING,
-                new SparseEmbeddingResponseParser("$.result.sparse_embeddings[*]", "$.embedding[*].tokenId", "$.embedding[*].weight")
+                new SparseEmbeddingResponseParser(
+                    "$.result.sparse_embeddings[*].embedding[*].tokenId",
+                    "$.result.sparse_embeddings[*].embedding[*].weight"
+                )
             )
         );
 

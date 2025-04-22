@@ -429,15 +429,11 @@ public class DataNodeRequestSenderTests extends ComputeTestCase {
     public void testRetryMovedShard() {
         var attempt = new AtomicInteger(0);
         var response = safeGet(
-            sendRequests(
-                randomBoolean(),
-                -1,
-                List.of(targetShard(shard1, node1)),
-                (shardIds, listener) -> runWithDelay(() -> listener.onResponse(switch (attempt.incrementAndGet()) {
-                    case 1 -> Map.of(shard1, List.of(node2));
-                    case 2 -> Map.of(shard1, List.of(node3));
-                    default -> Map.of(shard1, List.of(node4));
-                })),
+            sendRequests(randomBoolean(), -1, List.of(targetShard(shard1, node1)), shardIds -> switch (attempt.incrementAndGet()) {
+                case 1 -> Map.of(shard1, List.of(node2));
+                case 2 -> Map.of(shard1, List.of(node3));
+                default -> Map.of(shard1, List.of(node4));
+            },
                 (node, shardIds, aliasFilters, listener) -> runWithDelay(
                     () -> listener.onResponse(
                         Objects.equals(node, node4)
@@ -456,10 +452,10 @@ public class DataNodeRequestSenderTests extends ComputeTestCase {
 
     public void testDoesNotRetryMovedShardIndefinitely() {
         var attempt = new AtomicInteger(0);
-        var response = safeGet(sendRequests(true, -1, List.of(targetShard(shard1, node1)), (shardIds, listener) -> runWithDelay(() -> {
-            logger.info("Attempt {}", attempt.incrementAndGet());
-            listener.onResponse(Map.of(shard1, List.of(node2)));
-        }),
+        var response = safeGet(sendRequests(true, -1, List.of(targetShard(shard1, node1)), shardIds -> {
+            attempt.incrementAndGet();
+            return Map.of(shard1, List.of(node2));
+        },
             (node, shardIds, aliasFilters, listener) -> runWithDelay(
                 () -> listener.onResponse(
                     new DataNodeComputeResponse(DriverCompletionInfo.EMPTY, Map.of(shard1, new ShardNotFoundException(shard1)))
@@ -477,31 +473,25 @@ public class DataNodeRequestSenderTests extends ComputeTestCase {
         var attempt = new AtomicInteger(0);
         var resolvedShards = Collections.synchronizedSet(new HashSet<>());
         var response = safeGet(
-            sendRequests(
-                randomBoolean(),
-                -1,
-                List.of(targetShard(shard1, node1, node3), targetShard(shard2, node2)),
-                (shardIds, listener) -> runWithDelay(() -> {
-                    attempt.incrementAndGet();
-                    resolvedShards.addAll(shardIds);
-                    listener.onResponse(Map.of(shard2, List.of(node4)));
-                }),
-                (node, shardIds, aliasFilters, listener) -> runWithDelay(() -> {
-                    if (Objects.equals(node, node1)) {
-                        // search is going to be retried from replica on node3 without shard resolution
-                        listener.onResponse(
-                            new DataNodeComputeResponse(DriverCompletionInfo.EMPTY, Map.of(shard1, new ShardNotFoundException(shard1)))
-                        );
-                    } else if (Objects.equals(node, node2)) {
-                        // search is going to be retried after resolving new shard node since there are no replicas
-                        listener.onResponse(
-                            new DataNodeComputeResponse(DriverCompletionInfo.EMPTY, Map.of(shard2, new ShardNotFoundException(shard2)))
-                        );
-                    } else {
-                        listener.onResponse(new DataNodeComputeResponse(DriverCompletionInfo.EMPTY, Map.of()));
-                    }
-                })
-            )
+            sendRequests(randomBoolean(), -1, List.of(targetShard(shard1, node1, node3), targetShard(shard2, node2)), shardIds -> {
+                attempt.incrementAndGet();
+                resolvedShards.addAll(shardIds);
+                return Map.of(shard2, List.of(node4));
+            }, (node, shardIds, aliasFilters, listener) -> runWithDelay(() -> {
+                if (Objects.equals(node, node1)) {
+                    // search is going to be retried from replica on node3 without shard resolution
+                    listener.onResponse(
+                        new DataNodeComputeResponse(DriverCompletionInfo.EMPTY, Map.of(shard1, new ShardNotFoundException(shard1)))
+                    );
+                } else if (Objects.equals(node, node2)) {
+                    // search is going to be retried after resolving new shard node since there are no replicas
+                    listener.onResponse(
+                        new DataNodeComputeResponse(DriverCompletionInfo.EMPTY, Map.of(shard2, new ShardNotFoundException(shard2)))
+                    );
+                } else {
+                    listener.onResponse(new DataNodeComputeResponse(DriverCompletionInfo.EMPTY, Map.of()));
+                }
+            }))
         );
         assertThat(response.totalShards, equalTo(2));
         assertThat(response.successfulShards, equalTo(2));
@@ -547,7 +537,7 @@ public class DataNodeRequestSenderTests extends ComputeTestCase {
         List<DataNodeRequestSender.TargetShard> shards,
         Sender sender
     ) {
-        return sendRequests(allowPartialResults, concurrentRequests, shards, (shardIds, listener) -> {
+        return sendRequests(allowPartialResults, concurrentRequests, shards, shardIds -> {
             throw new AssertionError("No shard resolution is expected here");
         }, sender);
     }
@@ -600,8 +590,8 @@ public class DataNodeRequestSenderTests extends ComputeTestCase {
             }
 
             @Override
-            void resolveShards(Set<ShardId> shardIds, ActionListener<Map<ShardId, List<DiscoveryNode>>> listener) {
-                resolver.resolve(shardIds, listener);
+            Map<ShardId, List<DiscoveryNode>> resolveShards(Set<ShardId> shardIds) {
+                return resolver.resolve(shardIds);
             }
 
             @Override
@@ -618,7 +608,7 @@ public class DataNodeRequestSenderTests extends ComputeTestCase {
     }
 
     interface Resolver {
-        void resolve(Set<ShardId> shardIds, ActionListener<Map<ShardId, List<DiscoveryNode>>> listener);
+        Map<ShardId, List<DiscoveryNode>> resolve(Set<ShardId> shardIds);
     }
 
     interface Sender {

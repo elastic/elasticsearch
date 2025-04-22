@@ -98,9 +98,6 @@ abstract class DataNodeRequestSender {
     private final AtomicBoolean changed = new AtomicBoolean();
     private boolean reportedFailure = false; // guarded by sendingLock
 
-    private final AtomicInteger ongoingTargetShardResolutionAttempts = new AtomicInteger(0);
-    private final AtomicInteger remainingTargetShardSearchAttempts = new AtomicInteger(10);
-
     DataNodeRequestSender(
         ClusterService clusterService,
         ProjectResolver projectResolver,
@@ -187,17 +184,15 @@ abstract class DataNodeRequestSender {
                     if (changed.compareAndSet(true, false) == false) {
                         break;
                     }
-                    if (ongoingTargetShardResolutionAttempts.get() == 0) {
-                        for (ShardId shardId : pendingShardIds) {
-                            if (targetShards.getShard(shardId).remainingNodes.isEmpty()) {
-                                shardFailures.compute(
-                                    shardId,
-                                    (k, v) -> new ShardFailure(
-                                        true,
-                                        v == null ? new NoShardAvailableActionException(shardId, "no shard copies found") : v.failure
-                                    )
-                                );
-                            }
+                    for (ShardId shardId : pendingShardIds) {
+                        if (targetShards.getShard(shardId).remainingNodes.isEmpty()) {
+                            shardFailures.compute(
+                                shardId,
+                                (k, v) -> new ShardFailure(
+                                    true,
+                                    v == null ? new NoShardAvailableActionException(shardId, "no shard copies found") : v.failure
+                                )
+                            );
                         }
                     }
                     if (reportedFailure
@@ -265,14 +260,16 @@ abstract class DataNodeRequestSender {
                     concurrentRequests.release();
                 }
 
-                if (pendingRetries.isEmpty() == false && remainingTargetShardSearchAttempts.getAndDecrement() > 0) {
-                    ongoingTargetShardResolutionAttempts.incrementAndGet();
-                    resolveShards(pendingRetries, computeListener.acquireAvoid().delegateFailure((l, resolutions) -> {
-                        addRemainingNodes(targetShards, resolutions);
-                        ongoingTargetShardResolutionAttempts.decrementAndGet();
-                        trySendingRequestsForPendingShards(targetShards, computeListener);
-                        l.onResponse(null);
-                    }));
+                if (pendingRetries.isEmpty() == false) {
+                    try {
+                        sendingLock.lock();
+                        var resolutions = resolveShards(pendingRetries);
+                        for (var entry : resolutions.entrySet()) {
+                            targetShards.shards.get(entry.getKey()).remainingNodes.addAll(entry.getValue());
+                        }
+                    } finally {
+                        sendingLock.unlock();
+                    }
                 }
 
                 trySendingRequestsForPendingShards(targetShards, computeListener);
@@ -360,17 +357,6 @@ abstract class DataNodeRequestSender {
                     isTaskCanceledException || e instanceof NoShardAvailableActionException ? current.failure : e
                 );
         });
-    }
-
-    private void addRemainingNodes(TargetShards targetShards, Map<ShardId, List<DiscoveryNode>> resolutions) {
-        sendingLock.lock();
-        try {
-            for (var entry : resolutions.entrySet()) {
-                targetShards.shards.get(entry.getKey()).remainingNodes.addAll(entry.getValue());
-            }
-        } finally {
-            sendingLock.unlock();
-        }
     }
 
     /**
@@ -511,11 +497,10 @@ abstract class DataNodeRequestSender {
         );
     }
 
-    void resolveShards(Set<ShardId> shardIds, ActionListener<Map<ShardId, List<DiscoveryNode>>> listener) {
-        ActionListener.completeWith(listener, () -> doResolveShards(shardIds));
-    }
-
-    private Map<ShardId, List<DiscoveryNode>> doResolveShards(Set<ShardId> shardIds) {
+    /**
+     * Attempts to resolve shards locations after they have been moved
+     */
+    Map<ShardId, List<DiscoveryNode>> resolveShards(Set<ShardId> shardIds) {
         var project = projectResolver.getProjectState(clusterService.state());
         var nodes = Maps.<ShardId, List<DiscoveryNode>>newMapWithExpectedSize(shardIds.size());
         for (var shardId : shardIds) {

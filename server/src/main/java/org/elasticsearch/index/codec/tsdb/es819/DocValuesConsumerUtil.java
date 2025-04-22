@@ -47,6 +47,10 @@ class DocValuesConsumerUtil {
 
             if (docValuesProducer instanceof XPerFieldDocValuesFormat.FieldsReader perFieldReader) {
                 var wrapped = perFieldReader.getDocValuesProducer(fieldInfo);
+                if (wrapped == null) {
+                    continue;
+                }
+
                 if (wrapped instanceof ES819TSDBDocValuesProducer tsdbDocValuesProducer) {
                     switch (fieldInfo.getDocValuesType()) {
                         case NUMERIC -> {

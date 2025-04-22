@@ -240,7 +240,7 @@ public final class SingleValueMatchQuery extends Query {
                 }
             } else if (lfd instanceof LeafOrdinalsFieldData) {
                 final Terms terms = context.reader().terms(fieldData.getFieldName());
-                if (terms == null || terms.getDocCount() != context.reader().maxDoc() || terms.size() != terms.getDocCount()) {
+                if (terms == null || terms.getDocCount() != context.reader().maxDoc() || terms.getSumDocFreq() != terms.getDocCount()) {
                     return super.rewrite(indexSearcher);
                 }
             } else {

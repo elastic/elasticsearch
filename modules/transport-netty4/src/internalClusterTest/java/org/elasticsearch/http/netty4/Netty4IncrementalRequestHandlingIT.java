@@ -148,7 +148,7 @@ public class Netty4IncrementalRequestHandlingIT extends ESNetty4IntegTestCase {
         }
     }
 
-    // ensures content integrity, no loses and re-order
+    // ensures content integrity, no losses or re-ordering
     public void testReceiveAllChunks() throws Exception {
         try (var clientContext = newClientContext()) {
             var totalRequests = randomIntBetween(1, 10);

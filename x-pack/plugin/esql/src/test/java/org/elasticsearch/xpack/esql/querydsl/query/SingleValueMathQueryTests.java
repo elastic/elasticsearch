@@ -215,18 +215,13 @@ public class SingleValueMathQueryTests extends MapperServiceTestCase {
     private static List<IndexableField> docFor(Iterable<Object> values) {
         List<IndexableField> fields = new ArrayList<>();
         for (Object v : values) {
-            if (v instanceof Double n) {
-                fields.add(new DoubleField("foo", n, Field.Store.NO));
-            } else if (v instanceof Float n) {
-                fields.add(new DoubleField("foo", n, Field.Store.NO));
-            } else if (v instanceof Number n) {
-                long l = n.longValue();
-                fields.add(new LongField("foo", l, Field.Store.NO));
-            } else if (v instanceof String s) {
-                fields.add(new KeywordField("foo", v.toString(), Field.Store.NO));
-            } else {
-                throw new UnsupportedOperationException();
-            }
+            fields.add(switch (v) {
+                case Double n -> new DoubleField("foo", n, Field.Store.NO);
+                case Float n -> new DoubleField("foo", n, Field.Store.NO);
+                case Number n -> new LongField("foo", n.longValue(), Field.Store.NO);
+                case String s -> new KeywordField("foo", s, Field.Store.NO);
+                default -> throw new UnsupportedOperationException();
+            });
         }
         return fields;
     }

@@ -178,10 +178,10 @@ public abstract class BlockHashTestCase extends ESTestCase {
         for (int r = 0; r < expectedKeys.length; r++) {
             for (int c = 0; c < actualKeys.length; c++) {
                 if (expectedKeys[r][c] == null) {
-                    assertThat("expected null", actualKeys[c].isNull(r), equalTo(true));
-                    return;
+                    assertThat("expected null key", actualKeys[c].isNull(r), equalTo(true));
+                    continue;
                 }
-                assertThat(actualKeys[c].isNull(r), equalTo(false));
+                assertThat("expected non-null key", actualKeys[c].isNull(r), equalTo(false));
                 if (expectedKeys[r][c] instanceof Integer v) {
                     assertThat(((IntBlock) actualKeys[c]).getInt(r), equalTo(v));
                 } else if (expectedKeys[r][c] instanceof Long v) {

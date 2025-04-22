@@ -1042,7 +1042,7 @@ public class BlockHashTests extends BlockHashTestCase {
                             new Object[] { 1L, "cat" },
                             new Object[] { null, null },
                             new Object[] { 0L, "dog" },
-                            new Object[] { 1L, null },
+                            new Object[] { 0L, null },
                             new Object[] { null, "nn" } }
                     );
                     assertThat(ordsAndKeys.nonEmpty(), equalTo(intRange(0, 5)));

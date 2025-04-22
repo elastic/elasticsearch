@@ -279,66 +279,66 @@ public class ComposableIndexTemplateTests extends SimpleDiffableSerializationTes
         }
     }
 
+    public void testMergeEmptySettingsIntoTemplateWithNonEmptySettings() {
+        // We only have settings from the template, so the effective template will just be the original template
+        Settings templateSettings = randomSettings();
+        Template.Builder templateBuilder = Template.builder().settings(templateSettings).mappings(randomMappings(null));
+        ComposableIndexTemplate indexTemplate = randomInstance();
+        assertThat(indexTemplate.mergeSettings(Settings.EMPTY), equalTo(indexTemplate));
+    }
+
+    public void testMergeNonEmptySettingsIntoTemplateWithEmptySettings() {
+        // We only have settings from the data stream, so we expect to get only those back in the effective template
+        Settings dataStreamSettings = randomSettings();
+        String dataStreamName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
+        Settings templateSettings = Settings.EMPTY;
+        CompressedXContent templateMappings = randomMappings(randomDataStreamTemplate());
+        Template.Builder templateBuilder = Template.builder().settings(templateSettings).mappings(templateMappings);
+        ComposableIndexTemplate indexTemplate = ComposableIndexTemplate.builder()
+            .indexPatterns(List.of(dataStreamName))
+            .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate())
+            .template(templateBuilder)
+            .build();
+        Template.Builder expectedTemplateBuilder = Template.builder().settings(dataStreamSettings).mappings(templateMappings);
+        ComposableIndexTemplate expectedEffectiveTemplate = ComposableIndexTemplate.builder()
+            .indexPatterns(List.of(dataStreamName))
+            .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate())
+            .template(expectedTemplateBuilder)
+            .build();
+        assertThat(indexTemplate.mergeSettings(dataStreamSettings), equalTo(expectedEffectiveTemplate));
+    }
+
     public void testMergeSettings() {
-        {
-            // We only have settings from the template, so the effective template will just be the original template
-            Settings templateSettings = randomSettings();
-            Template.Builder templateBuilder = Template.builder().settings(templateSettings).mappings(randomMappings(null));
-            ComposableIndexTemplate indexTemplate = randomInstance();
-            assertThat(indexTemplate.mergeSettings(Settings.EMPTY), equalTo(indexTemplate));
-        }
-        {
-            // We only have settings from the data stream, so we expect to get only those back in the effective template
-            Settings dataStreamSettings = randomSettings();
-            String dataStreamName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
-            Settings templateSettings = Settings.EMPTY;
-            CompressedXContent templateMappings = randomMappings(randomDataStreamTemplate());
-            Template.Builder templateBuilder = Template.builder().settings(templateSettings).mappings(templateMappings);
-            ComposableIndexTemplate indexTemplate = ComposableIndexTemplate.builder()
-                .indexPatterns(List.of(dataStreamName))
-                .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate())
-                .template(templateBuilder)
-                .build();
-            Template.Builder expectedTemplateBuilder = Template.builder().settings(dataStreamSettings).mappings(templateMappings);
-            ComposableIndexTemplate expectedEffectiveTemplate = ComposableIndexTemplate.builder()
-                .indexPatterns(List.of(dataStreamName))
-                .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate())
-                .template(expectedTemplateBuilder)
-                .build();
-            assertThat(indexTemplate.mergeSettings(dataStreamSettings), equalTo(expectedEffectiveTemplate));
-        }
-        {
-            // Here we have settings from both the template and the data stream, so we expect the data stream settings to take precedence
-            Settings dataStreamSettings = Settings.builder()
-                .put("index.setting1", "dataStreamValue")
-                .put("index.setting2", "dataStreamValue")
-                .put("index.setting3", (String) null) // This one gets removed from the effective settings
-                .build();
-            String dataStreamName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
-            Settings templateSettings = Settings.builder()
-                .put("index.setting1", "templateValue")
-                .put("index.setting3", "templateValue")
-                .put("index.setting4", "templateValue")
-                .build();
-            CompressedXContent templateMappings = randomMappings(randomDataStreamTemplate());
-            Template.Builder templateBuilder = Template.builder().settings(templateSettings).mappings(templateMappings);
-            ComposableIndexTemplate indexTemplate = ComposableIndexTemplate.builder()
-                .indexPatterns(List.of(dataStreamName))
-                .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate())
-                .template(templateBuilder)
-                .build();
-            Settings mergedSettings = Settings.builder()
-                .put("index.setting1", "dataStreamValue")
-                .put("index.setting2", "dataStreamValue")
-                .put("index.setting4", "templateValue")
-                .build();
-            Template.Builder expectedTemplateBuilder = Template.builder().settings(mergedSettings).mappings(templateMappings);
-            ComposableIndexTemplate expectedEffectiveTemplate = ComposableIndexTemplate.builder()
-                .indexPatterns(List.of(dataStreamName))
-                .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate())
-                .template(expectedTemplateBuilder)
-                .build();
-            assertThat(indexTemplate.mergeSettings(dataStreamSettings), equalTo(expectedEffectiveTemplate));
-        }
+        // Here we have settings from both the template and the data stream, so we expect the data stream settings to take precedence
+        Settings dataStreamSettings = Settings.builder()
+            .put("index.setting1", "dataStreamValue")
+            .put("index.setting2", "dataStreamValue")
+            .put("index.setting3", (String) null) // This one gets removed from the effective settings
+            .build();
+        String dataStreamName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
+        Settings templateSettings = Settings.builder()
+            .put("index.setting1", "templateValue")
+            .put("index.setting3", "templateValue")
+            .put("index.setting4", "templateValue")
+            .build();
+        CompressedXContent templateMappings = randomMappings(randomDataStreamTemplate());
+        Template.Builder templateBuilder = Template.builder().settings(templateSettings).mappings(templateMappings);
+        ComposableIndexTemplate indexTemplate = ComposableIndexTemplate.builder()
+            .indexPatterns(List.of(dataStreamName))
+            .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate())
+            .template(templateBuilder)
+            .build();
+        Settings mergedSettings = Settings.builder()
+            .put("index.setting1", "dataStreamValue")
+            .put("index.setting2", "dataStreamValue")
+            .put("index.setting4", "templateValue")
+            .build();
+        Template.Builder expectedTemplateBuilder = Template.builder().settings(mergedSettings).mappings(templateMappings);
+        ComposableIndexTemplate expectedEffectiveTemplate = ComposableIndexTemplate.builder()
+            .indexPatterns(List.of(dataStreamName))
+            .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate())
+            .template(expectedTemplateBuilder)
+            .build();
+        assertThat(indexTemplate.mergeSettings(dataStreamSettings), equalTo(expectedEffectiveTemplate));
     }
 }

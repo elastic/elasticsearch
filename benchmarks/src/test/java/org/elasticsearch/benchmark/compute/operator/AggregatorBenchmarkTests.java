@@ -7,10 +7,12 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-package org.elasticsearch.search.aggregations;
+package org.elasticsearch.benchmark.compute.operator;
 
-public interface HasAggregations {
+import org.elasticsearch.test.ESTestCase;
 
-    InternalAggregations getAggregations();
-
+public class AggregatorBenchmarkTests extends ESTestCase {
+    public void test() {
+        AggregatorBenchmark.selfTest();
+    }
 }

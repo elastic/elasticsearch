@@ -33,9 +33,8 @@ import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.aggregations.Aggregator.SubAggCollectionMode;
 import org.elasticsearch.search.aggregations.BucketOrder;
 import org.elasticsearch.search.aggregations.InternalAggregation;
-import org.elasticsearch.search.aggregations.bucket.global.Global;
+import org.elasticsearch.search.aggregations.bucket.SingleBucketAggregation;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
-import org.elasticsearch.search.aggregations.bucket.nested.Nested;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregatorFactory.ExecutionMode;
 import org.elasticsearch.search.fetch.FetchSubPhase;
@@ -465,7 +464,7 @@ public class TopHitsIT extends ESIntegTestCase {
         assertNoFailuresAndResponse(
             prepareSearch("idx").setQuery(matchAllQuery()).addAggregation(global("global").subAggregation(topHits("hits"))),
             response -> {
-                Global global = response.getAggregations().get("global");
+                SingleBucketAggregation global = response.getAggregations().get("global");
                 assertThat(global, notNullValue());
                 assertThat(global.getName(), equalTo("global"));
                 assertThat(global.getAggregations(), notNullValue());
@@ -744,7 +743,7 @@ public class TopHitsIT extends ESIntegTestCase {
                     )
                 ),
             response -> {
-                Nested nested = response.getAggregations().get("to-comments");
+                SingleBucketAggregation nested = response.getAggregations().get("to-comments");
                 assertThat(nested.getDocCount(), equalTo(4L));
 
                 Terms terms = nested.getAggregations().get("users");
@@ -793,7 +792,7 @@ public class TopHitsIT extends ESIntegTestCase {
                     ).subAggregation(topHits("top-comments").sort("comments.date", SortOrder.DESC).size(4))
                 ),
             response -> {
-                Nested toComments = response.getAggregations().get("to-comments");
+                SingleBucketAggregation toComments = response.getAggregations().get("to-comments");
                 assertThat(toComments.getDocCount(), equalTo(4L));
 
                 TopHits topComments = toComments.getAggregations().get("top-comments");
@@ -820,7 +819,7 @@ public class TopHitsIT extends ESIntegTestCase {
                 assertThat(topComments.getHits().getAt(3).getNestedIdentity().getOffset(), equalTo(0));
                 assertThat(topComments.getHits().getAt(3).getNestedIdentity().getChild(), nullValue());
 
-                Nested toReviewers = toComments.getAggregations().get("to-reviewers");
+                SingleBucketAggregation toReviewers = toComments.getAggregations().get("to-reviewers");
                 assertThat(toReviewers.getDocCount(), equalTo(7L));
 
                 TopHits topReviewers = toReviewers.getAggregations().get("top-reviewers");
@@ -903,7 +902,7 @@ public class TopHitsIT extends ESIntegTestCase {
                 ),
             response -> {
                 assertHitCount(response, 2);
-                Nested nested = response.getAggregations().get("to-comments");
+                SingleBucketAggregation nested = response.getAggregations().get("to-comments");
                 assertThat(nested.getDocCount(), equalTo(4L));
 
                 SearchHits hits = ((TopHits) nested.getAggregations().get("top-comments")).getHits();
@@ -964,7 +963,7 @@ public class TopHitsIT extends ESIntegTestCase {
                     assertThat(bucket.getDocCount(), equalTo(5L));
 
                     long numNestedDocs = 10 + (5 * i);
-                    Nested nested = bucket.getAggregations().get("to-comments");
+                    SingleBucketAggregation nested = bucket.getAggregations().get("to-comments");
                     assertThat(nested.getDocCount(), equalTo(numNestedDocs));
 
                     TopHits hits = nested.getAggregations().get("comments");
@@ -1328,8 +1327,7 @@ public class TopHitsIT extends ESIntegTestCase {
                         public void process(FetchSubPhase.HitContext hitContext) {
                             leafSearchLookup.setDocument(hitContext.docId());
                             FieldLookup fieldLookup = leafSearchLookup.fields().get("text");
-                            hitContext.hit()
-                                .setDocumentField("text_stored_lookup", new DocumentField("text_stored_lookup", fieldLookup.getValues()));
+                            hitContext.hit().setDocumentField(new DocumentField("text_stored_lookup", fieldLookup.getValues()));
                         }
 
                         @Override

@@ -47,10 +47,7 @@ public class ErrorResponseParserTests extends ESTestCase {
             () -> ErrorResponseParser.fromMap(new HashMap<>(Map.of("some_field", "$.error.message")), validation)
         );
 
-        assertThat(
-            exception.getMessage(),
-            is("Validation Failed: 1: [error_parser] does not contain the required setting [path];")
-        );
+        assertThat(exception.getMessage(), is("Validation Failed: 1: [error_parser] does not contain the required setting [path];"));
     }
 
     public void testToXContent() throws IOException {
@@ -124,8 +121,7 @@ public class ErrorResponseParserTests extends ESTestCase {
     }
 
     public void testErrorResponse_ReturnsUndefinedObjectIfNoError() throws IOException {
-        var mockResult
-            = getMockResult("""
+        var mockResult = getMockResult("""
             {"noerror":true}""");
 
         var parser = new ErrorResponseParser("$.error.message");

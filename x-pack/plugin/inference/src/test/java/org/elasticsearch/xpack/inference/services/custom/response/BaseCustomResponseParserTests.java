@@ -68,7 +68,7 @@ public class BaseCustomResponseParserTests extends ESTestCase {
     }
 
     public void testValidateMap() {
-        assertThat(validateMap(Map.of("abc",  123)), is(Map.of("abc",  123)));
+        assertThat(validateMap(Map.of("abc", 123)), is(Map.of("abc", 123)));
     }
 
     public void testValidateMap_ThrowsException_WhenObjectIsNotAMap() {

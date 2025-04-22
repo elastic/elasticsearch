@@ -435,6 +435,9 @@ tests:
 - class: org.elasticsearch.packaging.test.DockerTests
   method: test026InstallBundledRepositoryPluginsViaConfigFile
   issue: https://github.com/elastic/elasticsearch/issues/127158
+- class: org.elasticsearch.xpack.esql.plugin.DataNodeRequestSenderTests
+  method: testRetryOnlyMovedShards
+  issue: https://github.com/elastic/elasticsearch/issues/127168
 
 # Examples:
 #

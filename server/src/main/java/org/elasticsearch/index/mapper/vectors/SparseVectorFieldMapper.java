@@ -115,7 +115,8 @@ public class SparseVectorFieldMapper extends FieldMapper {
             IndexOptions buildIndexOptions = indexOptions.getValue();
 
             if (buildIndexOptions == null) {
-                buildIndexOptions = new IndexOptions(true,
+                buildIndexOptions = new IndexOptions(
+                    true,
                     new PruningConfig(PruningConfig.DEFAULT_TOKENS_FREQ_RATIO_THRESHOLD, PruningConfig.DEFAULT_TOKENS_WEIGHT_THRESHOLD)
                 );
             }
@@ -144,7 +145,8 @@ public class SparseVectorFieldMapper extends FieldMapper {
         // index options are not set - for new indices, we
         // need to set pruning to true by default
         // with a default pruning configuration
-        return new IndexOptions(true,
+        return new IndexOptions(
+            true,
             new PruningConfig(PruningConfig.DEFAULT_TOKENS_FREQ_RATIO_THRESHOLD, PruningConfig.DEFAULT_TOKENS_WEIGHT_THRESHOLD)
         );
     }

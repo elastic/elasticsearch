@@ -311,7 +311,10 @@ public class SparseVectorFieldMapperTests extends MapperTestCase {
             b.endObject();
             b.endObject();
         })));
-        assertThat(eTestInteger.getMessage(), containsString("[pruning_config] field [tokens_freq_ratio_threshold] field should be an integer between 1 and 100"));
+        assertThat(
+            eTestInteger.getMessage(),
+            containsString("[pruning_config] field [tokens_freq_ratio_threshold] field should be an integer between 1 and 100")
+        );
 
         Exception eTestRangeLower = expectThrows(MapperParsingException.class, () -> createMapperService(fieldMapping(b -> {
             b.field("type", "sparse_vector");
@@ -321,7 +324,10 @@ public class SparseVectorFieldMapperTests extends MapperTestCase {
             b.endObject();
             b.endObject();
         })));
-        assertThat(eTestRangeLower.getMessage(), containsString("[pruning_config] field [tokens_freq_ratio_threshold] field should be an integer between 1 and 100"));
+        assertThat(
+            eTestRangeLower.getMessage(),
+            containsString("[pruning_config] field [tokens_freq_ratio_threshold] field should be an integer between 1 and 100")
+        );
 
         Exception eTestRangeHigher = expectThrows(MapperParsingException.class, () -> createMapperService(fieldMapping(b -> {
             b.field("type", "sparse_vector");
@@ -331,7 +337,10 @@ public class SparseVectorFieldMapperTests extends MapperTestCase {
             b.endObject();
             b.endObject();
         })));
-        assertThat(eTestRangeHigher.getMessage(), containsString("[pruning_config] field [tokens_freq_ratio_threshold] field should be an integer between 1 and 100"));
+        assertThat(
+            eTestRangeHigher.getMessage(),
+            containsString("[pruning_config] field [tokens_freq_ratio_threshold] field should be an integer between 1 and 100")
+        );
     }
 
     public void testTokensWeightThresholdCorrect() {
@@ -343,7 +352,10 @@ public class SparseVectorFieldMapperTests extends MapperTestCase {
             b.endObject();
             b.endObject();
         })));
-        assertThat(eTestDouble.getMessage(), containsString("[pruning_config] field [tokens_weight_threshold] field should be an number between 0.0 and 1.0"));
+        assertThat(
+            eTestDouble.getMessage(),
+            containsString("[pruning_config] field [tokens_weight_threshold] field should be an number between 0.0 and 1.0")
+        );
 
         Exception eTestRangeLower = expectThrows(MapperParsingException.class, () -> createMapperService(fieldMapping(b -> {
             b.field("type", "sparse_vector");
@@ -353,7 +365,10 @@ public class SparseVectorFieldMapperTests extends MapperTestCase {
             b.endObject();
             b.endObject();
         })));
-        assertThat(eTestRangeLower.getMessage(), containsString("[pruning_config] field [tokens_weight_threshold] field should be an number between 0.0 and 1.0"));
+        assertThat(
+            eTestRangeLower.getMessage(),
+            containsString("[pruning_config] field [tokens_weight_threshold] field should be an number between 0.0 and 1.0")
+        );
 
         Exception eTestRangeHigher = expectThrows(MapperParsingException.class, () -> createMapperService(fieldMapping(b -> {
             b.field("type", "sparse_vector");
@@ -363,7 +378,10 @@ public class SparseVectorFieldMapperTests extends MapperTestCase {
             b.endObject();
             b.endObject();
         })));
-        assertThat(eTestRangeHigher.getMessage(), containsString("[pruning_config] field [tokens_weight_threshold] field should be an number between 0.0 and 1.0"));
+        assertThat(
+            eTestRangeHigher.getMessage(),
+            containsString("[pruning_config] field [tokens_weight_threshold] field should be an number between 0.0 and 1.0")
+        );
     }
 
     public void testStoreIsNotUpdateable() throws IOException {

@@ -233,6 +233,7 @@ public class TransportVersions {
     public static final TransportVersion SEARCH_INCREMENTAL_TOP_DOCS_NULL = def(9_058_0_00);
     public static final TransportVersion COMPRESS_DELAYABLE_WRITEABLE = def(9_059_0_00);
     public static final TransportVersion SYNONYMS_REFRESH_PARAM = def(9_060_0_00);
+    public static final TransportVersion DOC_FIELDS_AS_LIST = def(9_061_0_00);
 
     /*
      * STOP! READ THIS FIRST! No, really,

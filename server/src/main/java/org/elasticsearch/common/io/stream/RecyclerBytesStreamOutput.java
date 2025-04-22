@@ -155,7 +155,7 @@ public class RecyclerBytesStreamOutput extends BytesStream implements Releasable
     }
 
     @Override
-    public void writeWithSizePrefix(Writeable writeable) throws IOException {
+    public void legacyWriteWithSizePrefix(Writeable writeable) throws IOException {
         // TODO: do this without copying the bytes from tmp by calling writeBytes and just use the pages in tmp directly through
         // manipulation of the offsets on the pages after writing to tmp. This will require adjustments to the places in this class
         // that make assumptions about the page size
@@ -214,6 +214,7 @@ public class RecyclerBytesStreamOutput extends BytesStream implements Releasable
         // nothing to do
     }
 
+    @Override
     public void seek(long position) {
         ensureCapacityFromPosition(position);
         int offsetInPage = (int) (position % pageSize);

@@ -109,14 +109,9 @@ public interface XContentParser extends Closeable {
 
     String textOrNull() throws IOException;
 
-    /**
-     * Returns a {@link XBytesRef} containing UTF-8 bytes, if possible.
-     * This is only a best-effort attempt; if there is some reason the bytes cannot be retrieved, this method will return null.
-     * In this case, use {@link #textOrNull()} to get the string-encoded value.
-     */
-    default XBytesRef textRefOrNull() throws IOException {
-        return null;
-    }
+    XContentString xContentText() throws IOException;
+
+    XContentString xContentTextOrNull() throws IOException;
 
     CharBuffer charBufferOrNull() throws IOException;
 

@@ -12,9 +12,9 @@ package org.elasticsearch.index.mapper;
 import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.xcontent.FilterXContentParser;
 import org.elasticsearch.xcontent.FilterXContentParserWrapper;
-import org.elasticsearch.xcontent.XBytesRef;
 import org.elasticsearch.xcontent.XContentLocation;
 import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentString;
 import org.elasticsearch.xcontent.XContentSubParser;
 
 import java.io.IOException;
@@ -381,11 +381,11 @@ class DotExpandingXContentParser extends FilterXContentParserWrapper {
     }
 
     @Override
-    public XBytesRef textRefOrNull() throws IOException {
+    public XContentString xContentText() throws IOException {
         if (state == State.EXPANDING_START_OBJECT) {
             throw new IllegalStateException("Can't get text on a " + currentToken() + " at " + getTokenLocation());
         }
-        return super.textRefOrNull();
+        return super.xContentText();
     }
 
     @Override

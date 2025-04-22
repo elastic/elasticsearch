@@ -33,11 +33,11 @@ import org.elasticsearch.xcontent.DeprecationHandler;
 import org.elasticsearch.xcontent.FilterXContentParser;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ToXContent;
-import org.elasticsearch.xcontent.XBytesRef;
 import org.elasticsearch.xcontent.XContentLocation;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParser.NumberType;
 import org.elasticsearch.xcontent.XContentParser.Token;
+import org.elasticsearch.xcontent.XContentString;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.support.MapXContentParser;
 
@@ -709,11 +709,11 @@ public class CompletionFieldMapper extends FieldMapper {
         }
 
         @Override
-        public XBytesRef textRefOrNull() throws IOException {
+        public XContentString xContentTextOrNull() throws IOException {
             if (parsingObject == false) {
-                return null;
+                return new XContentString(textValue);
             }
-            return super.textRefOrNull();
+            return super.xContentTextOrNull();
         }
 
         @Override

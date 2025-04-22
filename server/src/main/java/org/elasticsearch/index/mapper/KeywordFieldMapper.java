@@ -34,7 +34,6 @@ import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.CompiledAutomaton;
 import org.apache.lucene.util.automaton.CompiledAutomaton.AUTOMATON_TYPE;
 import org.apache.lucene.util.automaton.Operations;
-import org.elasticsearch.common.bytes.EncodedString;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.search.AutomatonQueries;
@@ -69,6 +68,7 @@ import org.elasticsearch.search.runtime.StringScriptFieldTermQuery;
 import org.elasticsearch.search.runtime.StringScriptFieldWildcardQuery;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentString;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -1106,30 +1106,16 @@ public final class KeywordFieldMapper extends FieldMapper {
     }
 
     protected void parseCreateField(DocumentParserContext context) throws IOException {
-        EncodedString value;
-        var bytesValue = context.parser().textRefOrNull();
-        if (bytesValue != null) {
-            int len = bytesValue.end() - bytesValue.start();
-            // For now, we can use `len` for `charCount` because textRefOrNull only returns ascii-encoded unescaped strings,
-            // which means each character uses exactly 1 byte.
-            value = new EncodedString(new BytesRef(bytesValue.bytes(), bytesValue.start(), len), len);
-        } else {
-            var stringValue = context.parser().textOrNull();
-            if (stringValue != null) {
-                value = new EncodedString(stringValue);
-            } else {
-                value = null;
-            }
-        }
+        var value = context.parser().xContentTextOrNull();
 
         if (value == null && fieldType().nullValue != null) {
-            value = new EncodedString(fieldType().nullValue);
+            value = new XContentString(fieldType().nullValue);
         }
 
         boolean indexed = indexValue(context, value);
         if (offsetsFieldName != null && context.isImmediateParentAnArray() && context.canAddIgnoredField()) {
             if (indexed) {
-                context.getOffSetContext().recordOffset(offsetsFieldName, value.stringValue());
+                context.getOffSetContext().recordOffset(offsetsFieldName, value.getString());
             } else if (value == null) {
                 context.getOffSetContext().recordNull(offsetsFieldName);
             }
@@ -1147,10 +1133,10 @@ public final class KeywordFieldMapper extends FieldMapper {
     }
 
     private boolean indexValue(DocumentParserContext context, String value) {
-        return indexValue(context, new EncodedString(value));
+        return indexValue(context, new XContentString(value));
     }
 
-    private boolean indexValue(DocumentParserContext context, EncodedString value) {
+    private boolean indexValue(DocumentParserContext context, XContentString value) {
         if (value == null) {
             return false;
         }
@@ -1164,17 +1150,19 @@ public final class KeywordFieldMapper extends FieldMapper {
             context.addIgnoredField(fullPath());
             if (isSyntheticSource) {
                 // Save a copy of the field so synthetic source can load it
-                context.doc().add(new StoredField(originalName(), value.bytesValue()));
+                var encoded = value.getBytes();
+                context.doc().add(new StoredField(originalName(), new BytesRef(encoded.bytes(), encoded.offset(), encoded.length())));
             }
             return false;
         }
 
         if (fieldType().normalizer() != Lucene.KEYWORD_ANALYZER) {
-            String normalizedString = normalizeValue(fieldType().normalizer(), fullPath(), value.stringValue());
-            value = new EncodedString(normalizedString);
+            String normalizedString = normalizeValue(fieldType().normalizer(), fullPath(), value.getString());
+            value = new XContentString(normalizedString);
         }
 
-        BytesRef binaryValue = value.bytesValue();
+        var encoded = value.getBytes();
+        BytesRef binaryValue = new BytesRef(encoded.bytes(), encoded.offset(), encoded.length());
 
         if (fieldType().isDimension()) {
             context.getRoutingFields().addString(fieldType().name(), binaryValue);

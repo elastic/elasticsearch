@@ -34,6 +34,8 @@ import java.util.function.BiConsumer;
 import static java.util.Comparator.comparing;
 import static org.elasticsearch.core.PathUtils.getDefaultFileSystem;
 import static org.elasticsearch.entitlement.runtime.policy.FileUtils.PATH_ORDER;
+import static org.elasticsearch.entitlement.runtime.policy.PathLookup.BaseDir.CONFIG;
+import static org.elasticsearch.entitlement.runtime.policy.PathLookup.BaseDir.TEMP;
 import static org.elasticsearch.entitlement.runtime.policy.entitlements.FilesEntitlement.Mode.READ_WRITE;
 
 /**
@@ -239,9 +241,9 @@ public final class FileAccessTree {
         }
 
         // everything has access to the temp dir, config dir, to their own dir (their own jar files) and the jdk
-        addPathAndMaybeLink.accept(pathLookup.tempDir(), READ_WRITE);
+        pathLookup.getBaseDirPaths(TEMP).forEach(tempPath -> addPathAndMaybeLink.accept(tempPath, READ_WRITE));
         // TODO: this grants read access to the config dir for all modules until explicit read entitlements can be added
-        addPathAndMaybeLink.accept(pathLookup.configDir(), Mode.READ);
+        pathLookup.getBaseDirPaths(CONFIG).forEach(configPath -> addPathAndMaybeLink.accept(configPath, Mode.READ));
         if (componentPath != null) {
             addPathAndMaybeLink.accept(componentPath, Mode.READ);
         }

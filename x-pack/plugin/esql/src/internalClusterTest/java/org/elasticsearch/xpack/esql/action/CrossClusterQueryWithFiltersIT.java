@@ -19,6 +19,7 @@ import org.elasticsearch.transport.TransportChannel;
 import org.elasticsearch.transport.TransportResponse;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.esql.VerificationException;
+import org.elasticsearch.xpack.esql.action.EsqlExecutionInfo.Cluster.Status;
 
 import java.io.IOException;
 import java.util.HashSet;
@@ -47,26 +48,26 @@ public class CrossClusterQueryWithFiltersIT extends AbstractCrossClusterTestCase
         return false;
     }
 
-    protected void assertClusterMetadataSuccess(EsqlExecutionInfo.Cluster clusterMetatata, int shards, long took, String indexExpression) {
+    protected void assertClusterMetadata(EsqlExecutionInfo.Cluster clusterMetatata, long took, String indexExpression, Status status) {
         assertThat(clusterMetatata.getIndexExpression(), equalTo(indexExpression));
-        assertThat(clusterMetatata.getStatus(), equalTo(EsqlExecutionInfo.Cluster.Status.SUCCESSFUL));
+        assertThat(clusterMetatata.getStatus(), equalTo(status));
         assertThat(clusterMetatata.getTook().millis(), greaterThanOrEqualTo(0L));
         assertThat(clusterMetatata.getTook().millis(), lessThanOrEqualTo(took));
-        assertThat(clusterMetatata.getTotalShards(), equalTo(shards));
-        assertThat(clusterMetatata.getSuccessfulShards(), equalTo(shards));
-        assertThat(clusterMetatata.getSkippedShards(), equalTo(0));
         assertThat(clusterMetatata.getFailedShards(), equalTo(0));
     }
 
-    protected void assertClusterMetadataNoShards(EsqlExecutionInfo.Cluster clusterMetatata, int shards, long took, String indexExpression) {
-        assertThat(clusterMetatata.getIndexExpression(), equalTo(indexExpression));
-        assertThat(clusterMetatata.getStatus(), equalTo(EsqlExecutionInfo.Cluster.Status.SUCCESSFUL));
-        assertThat(clusterMetatata.getTook().millis(), greaterThanOrEqualTo(0L));
-        assertThat(clusterMetatata.getTook().millis(), lessThanOrEqualTo(took));
+    protected void assertClusterMetadataSuccess(EsqlExecutionInfo.Cluster clusterMetatata, int shards, long took, String indexExpression) {
+        assertClusterMetadata(clusterMetatata, took, indexExpression, Status.SUCCESSFUL);
+        assertThat(clusterMetatata.getTotalShards(), equalTo(shards));
+        assertThat(clusterMetatata.getSuccessfulShards(), equalTo(shards));
+        assertThat(clusterMetatata.getSkippedShards(), equalTo(0));
+    }
+
+    protected void assertClusterMetadataNoShards(EsqlExecutionInfo.Cluster clusterMetatata, long took, String indexExpression) {
+        assertClusterMetadata(clusterMetatata, took, indexExpression, Status.SUCCESSFUL);
         assertThat(clusterMetatata.getTotalShards(), equalTo(0));
         assertThat(clusterMetatata.getSuccessfulShards(), equalTo(0));
         assertThat(clusterMetatata.getSkippedShards(), equalTo(0));
-        assertThat(clusterMetatata.getFailedShards(), equalTo(0));
     }
 
     protected void assertClusterMetadataSkippedShards(
@@ -75,25 +76,17 @@ public class CrossClusterQueryWithFiltersIT extends AbstractCrossClusterTestCase
         long took,
         String indexExpression
     ) {
-        assertThat(clusterMetatata.getIndexExpression(), equalTo(indexExpression));
-        assertThat(clusterMetatata.getStatus(), equalTo(EsqlExecutionInfo.Cluster.Status.SUCCESSFUL));
-        assertThat(clusterMetatata.getTook().millis(), greaterThanOrEqualTo(0L));
-        assertThat(clusterMetatata.getTook().millis(), lessThanOrEqualTo(took));
+        assertClusterMetadata(clusterMetatata, took, indexExpression, Status.SUCCESSFUL);
         assertThat(clusterMetatata.getTotalShards(), equalTo(shards));
         assertThat(clusterMetatata.getSuccessfulShards(), equalTo(shards));
         assertThat(clusterMetatata.getSkippedShards(), equalTo(shards));
-        assertThat(clusterMetatata.getFailedShards(), equalTo(0));
     }
 
     protected void assertClusterMetadataSkipped(EsqlExecutionInfo.Cluster clusterMetatata, long took, String indexExpression) {
-        assertThat(clusterMetatata.getIndexExpression(), equalTo(indexExpression));
-        assertThat(clusterMetatata.getStatus(), equalTo(EsqlExecutionInfo.Cluster.Status.SKIPPED));
-        assertThat(clusterMetatata.getTook().millis(), greaterThanOrEqualTo(0L));
-        assertThat(clusterMetatata.getTook().millis(), lessThanOrEqualTo(took));
+        assertClusterMetadata(clusterMetatata, took, indexExpression, Status.SKIPPED);
         assertThat(clusterMetatata.getTotalShards(), equalTo(0));
         assertThat(clusterMetatata.getSuccessfulShards(), equalTo(0));
         assertThat(clusterMetatata.getSkippedShards(), equalTo(0));
-        assertThat(clusterMetatata.getFailedShards(), equalTo(0));
     }
 
     protected EsqlQueryResponse runQuery(String query, Boolean ccsMetadataInResponse, QueryBuilder filter) {
@@ -203,7 +196,7 @@ public class CrossClusterQueryWithFiltersIT extends AbstractCrossClusterTestCase
             assertThat(executionInfo.clusterAliases(), equalTo(Set.of(REMOTE_CLUSTER_1, LOCAL_CLUSTER)));
 
             EsqlExecutionInfo.Cluster remoteCluster = executionInfo.getCluster(REMOTE_CLUSTER_1);
-            assertClusterMetadataNoShards(remoteCluster, remoteShards, overallTookMillis, "logs-*");
+            assertClusterMetadataNoShards(remoteCluster, overallTookMillis, "logs-*");
 
             EsqlExecutionInfo.Cluster localCluster = executionInfo.getCluster(LOCAL_CLUSTER);
             assertClusterMetadataSuccess(localCluster, localShards, overallTookMillis, "logs-*");
@@ -408,7 +401,7 @@ public class CrossClusterQueryWithFiltersIT extends AbstractCrossClusterTestCase
 
                 EsqlExecutionInfo.Cluster localCluster = executionInfo.getCluster(LOCAL_CLUSTER);
                 if (count > 1) {
-                    assertClusterMetadataNoShards(localCluster, localShards, overallTookMillis, "logs-1");
+                    assertClusterMetadataNoShards(localCluster, overallTookMillis, "logs-1");
                 } else {
                     assertClusterMetadataSuccess(localCluster, localShards, overallTookMillis, "logs-1");
                 }
@@ -430,7 +423,7 @@ public class CrossClusterQueryWithFiltersIT extends AbstractCrossClusterTestCase
 
                 EsqlExecutionInfo.Cluster localCluster = executionInfo.getCluster(LOCAL_CLUSTER);
                 if (count > 1) {
-                    assertClusterMetadataNoShards(localCluster, localShards, overallTookMillis, "logs-1");
+                    assertClusterMetadataNoShards(localCluster, overallTookMillis, "logs-1");
                 } else {
                     assertClusterMetadataSuccess(localCluster, localShards, overallTookMillis, "logs-1");
                 }

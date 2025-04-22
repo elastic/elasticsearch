@@ -37,7 +37,6 @@ public abstract class AbstractXpackFullClusterRestartTestCase extends Parameteri
         .keystore("xpack.watcher.encryption_key", Resource.fromClasspath("system_key"))
         .keystore("xpack.security.transport.ssl.secure_key_passphrase", "testnode")
         .feature(FeatureFlag.TIME_SERIES_MODE)
-        .feature(FeatureFlag.FAILURE_STORE_ENABLED)
         .build();
 
     public AbstractXpackFullClusterRestartTestCase(FullClusterRestartUpgradeStatus upgradeStatus) {

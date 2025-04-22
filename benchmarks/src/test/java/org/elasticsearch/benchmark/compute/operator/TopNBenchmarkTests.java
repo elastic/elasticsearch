@@ -6,11 +6,13 @@
  * your election, the "Elastic License 2.0", the "GNU Affero General Public
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
-package org.elasticsearch.search.aggregations.bucket.filter;
 
-import org.elasticsearch.search.aggregations.bucket.SingleBucketAggregation;
+package org.elasticsearch.benchmark.compute.operator;
 
-/**
- * A {@code filter} aggregation. Defines a single bucket that holds all documents that match a specific filter.
- */
-public interface Filter extends SingleBucketAggregation {}
+import org.elasticsearch.test.ESTestCase;
+
+public class TopNBenchmarkTests extends ESTestCase {
+    public void test() {
+        TopNBenchmark.selfTest();
+    }
+}

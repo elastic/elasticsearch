@@ -50,7 +50,7 @@ public class FieldExtractorIT extends FieldExtractorTestCase {
         if (bwc == null) {
             throw new AssertionError("can't find bwc version");
         }
-        Version oldVersion = Version.fromString();
+        Version oldVersion = Version.fromString(bwc);
         assumeTrue("pragma ok not supported", oldVersion.onOrAfter("8.16.0"));
     }
 }

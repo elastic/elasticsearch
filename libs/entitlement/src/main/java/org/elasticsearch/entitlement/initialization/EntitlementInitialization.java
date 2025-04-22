@@ -11,6 +11,7 @@ package org.elasticsearch.entitlement.initialization;
 
 import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.PathUtils;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.internal.provider.ProviderLocator;
 import org.elasticsearch.entitlement.bootstrap.EntitlementBootstrap;
 import org.elasticsearch.entitlement.bridge.EntitlementChecker;
@@ -20,6 +21,7 @@ import org.elasticsearch.entitlement.instrumentation.Instrumenter;
 import org.elasticsearch.entitlement.instrumentation.MethodKey;
 import org.elasticsearch.entitlement.instrumentation.Transformer;
 import org.elasticsearch.entitlement.runtime.api.ElasticsearchEntitlementChecker;
+import org.elasticsearch.entitlement.runtime.policy.FileAccessTree;
 import org.elasticsearch.entitlement.runtime.policy.PathLookup;
 import org.elasticsearch.entitlement.runtime.policy.Policy;
 import org.elasticsearch.entitlement.runtime.policy.PolicyManager;
@@ -56,6 +58,7 @@ import java.nio.file.WatchService;
 import java.nio.file.attribute.FileAttribute;
 import java.nio.file.spi.FileSystemProvider;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -98,7 +101,42 @@ public class EntitlementInitialization {
         return manager;
     }
 
-    // Note: referenced by agent reflectively
+    /**
+     * Initializes the Entitlement system:
+     * <ol>
+     * <li>
+     * Finds the version-specific subclass of {@link EntitlementChecker} to use
+     * </li>
+     * <li>
+     * Builds the set of methods to instrument using {@link InstrumentationService#lookupMethods}
+     * </li>
+     * <li>
+     * Augment this set “dynamically” using {@link InstrumentationService#lookupImplementationMethod}
+     * </li>
+     * <li>
+     * Creates an {@link Instrumenter} via {@link InstrumentationService#newInstrumenter}, and adds a new {@link Transformer} (derived from
+     * {@link java.lang.instrument.ClassFileTransformer}) that uses it. Transformers are invoked when a class is about to load, after its
+     * bytes have been deserialized to memory but before the class is initialized.
+     * </li>
+     * <li>
+     * Re-transforms all already loaded classes: we force the {@link Instrumenter} to run on classes that might have been already loaded
+     * before entitlement initialization by calling the {@link java.lang.instrument.Instrumentation#retransformClasses} method on all
+     * classes that were already loaded.
+     * </li>
+     * </ol>
+     * <p>
+     * The third step is needed as the JDK exposes some API through interfaces that have different (internal) implementations
+     * depending on the JVM host platform. As we cannot instrument an interfaces, we find its concrete implementation.
+     * A prime example is {@link FileSystemProvider}, which has different implementations (e.g. {@code UnixFileSystemProvider} or
+     * {@code WindowsFileSystemProvider}). At runtime, we find the implementation class which is currently used by the JVM, and add
+     * its methods to the set of methods to instrument. See e.g. {@link EntitlementInitialization#fileSystemProviderChecks}.
+     * </p>
+     * <p>
+     * <strong>NOTE:</strong> this method is referenced by the agent reflectively
+     * </p>
+     *
+     * @param inst the JVM instrumentation class instance
+     */
     public static void initialize(Instrumentation inst) throws Exception {
         manager = initChecker();
 
@@ -231,7 +269,6 @@ public class EntitlementInitialization {
                     new ReadStoreAttributesEntitlement(),
                     new CreateClassLoaderEntitlement(),
                     new InboundNetworkEntitlement(),
-                    new OutboundNetworkEntitlement(),
                     new LoadNativeLibrariesEntitlement(),
                     new ManageThreadsEntitlement(),
                     new FilesEntitlement(serverModuleFileDatas)
@@ -239,7 +276,6 @@ public class EntitlementInitialization {
             ),
             new Scope("java.desktop", List.of(new LoadNativeLibrariesEntitlement())),
             new Scope("org.apache.httpcomponents.httpclient", List.of(new OutboundNetworkEntitlement())),
-            new Scope("io.netty.transport", List.of(new InboundNetworkEntitlement(), new OutboundNetworkEntitlement())),
             new Scope(
                 "org.apache.lucene.core",
                 List.of(
@@ -318,6 +354,16 @@ public class EntitlementInitialization {
                 )
             )
         );
+
+        validateFilesEntitlements(
+            pluginPolicies,
+            pathLookup,
+            bootstrapArgs.configDir(),
+            bootstrapArgs.pluginsDir(),
+            bootstrapArgs.modulesDir(),
+            bootstrapArgs.libDir()
+        );
+
         return new PolicyManager(
             serverPolicy,
             agentEntitlements,
@@ -329,6 +375,81 @@ public class EntitlementInitialization {
             pathLookup,
             bootstrapArgs.suppressFailureLogClasses()
         );
+    }
+
+    private static Set<Path> pathSet(Path... paths) {
+        return Arrays.stream(paths).map(x -> x.toAbsolutePath().normalize()).collect(Collectors.toUnmodifiableSet());
+    }
+
+    // package visible for tests
+    static void validateFilesEntitlements(
+        Map<String, Policy> pluginPolicies,
+        PathLookup pathLookup,
+        Path configDir,
+        Path pluginsDir,
+        Path modulesDir,
+        Path libDir
+    ) {
+        var readAccessForbidden = pathSet(pluginsDir, modulesDir, libDir);
+        var writeAccessForbidden = pathSet(configDir);
+        for (var pluginPolicy : pluginPolicies.entrySet()) {
+            for (var scope : pluginPolicy.getValue().scopes()) {
+                var filesEntitlement = scope.entitlements()
+                    .stream()
+                    .filter(x -> x instanceof FilesEntitlement)
+                    .map(x -> ((FilesEntitlement) x))
+                    .findFirst();
+                if (filesEntitlement.isPresent()) {
+                    var fileAccessTree = FileAccessTree.withoutExclusivePaths(filesEntitlement.get(), pathLookup, null);
+                    validateReadFilesEntitlements(pluginPolicy.getKey(), scope.moduleName(), fileAccessTree, readAccessForbidden);
+                    validateWriteFilesEntitlements(pluginPolicy.getKey(), scope.moduleName(), fileAccessTree, writeAccessForbidden);
+                }
+            }
+        }
+    }
+
+    private static IllegalArgumentException buildValidationException(
+        String componentName,
+        String moduleName,
+        Path forbiddenPath,
+        FilesEntitlement.Mode mode
+    ) {
+        return new IllegalArgumentException(
+            Strings.format(
+                "policy for module [%s] in [%s] has an invalid file entitlement. Any path under [%s] is forbidden for mode [%s].",
+                moduleName,
+                componentName,
+                forbiddenPath,
+                mode
+            )
+        );
+    }
+
+    private static void validateReadFilesEntitlements(
+        String componentName,
+        String moduleName,
+        FileAccessTree fileAccessTree,
+        Set<Path> readForbiddenPaths
+    ) {
+
+        for (Path forbiddenPath : readForbiddenPaths) {
+            if (fileAccessTree.canRead(forbiddenPath)) {
+                throw buildValidationException(componentName, moduleName, forbiddenPath, READ);
+            }
+        }
+    }
+
+    private static void validateWriteFilesEntitlements(
+        String componentName,
+        String moduleName,
+        FileAccessTree fileAccessTree,
+        Set<Path> writeForbiddenPaths
+    ) {
+        for (Path forbiddenPath : writeForbiddenPaths) {
+            if (fileAccessTree.canWrite(forbiddenPath)) {
+                throw buildValidationException(componentName, moduleName, forbiddenPath, READ_WRITE);
+            }
+        }
     }
 
     private static Path getUserHome() {

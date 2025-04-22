@@ -31,6 +31,7 @@ import org.apache.lucene.index.SegmentWriteState;
 import org.apache.lucene.index.VectorEncoding;
 import org.apache.lucene.index.VectorSimilarityFunction;
 import org.apache.lucene.search.FieldExistsQuery;
+import org.apache.lucene.search.PatienceKnnVectorQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.join.BitSetProducer;
 import org.apache.lucene.util.BitUtil;
@@ -2198,9 +2199,9 @@ public class DenseVectorFieldMapper extends FieldMapper {
             BitSetProducer parentFilter
         ) {
             elementType.checkDimensions(dims, queryVector.length);
-            Query knnQuery = parentFilter != null
+            Query knnQuery = PatienceKnnVectorQuery.fromByteQuery(parentFilter != null
                 ? new ESDiversifyingChildrenByteKnnVectorQuery(name(), queryVector, filter, k, numCands, parentFilter)
-                : new ESKnnByteVectorQuery(name(), queryVector, k, numCands, filter);
+                : new ESKnnByteVectorQuery(name(), queryVector, k, numCands, filter));
             if (similarityThreshold != null) {
                 knnQuery = new VectorSimilarityQuery(
                     knnQuery,
@@ -2225,9 +2226,9 @@ public class DenseVectorFieldMapper extends FieldMapper {
                 float squaredMagnitude = VectorUtil.dotProduct(queryVector, queryVector);
                 elementType.checkVectorMagnitude(similarity, ElementType.errorByteElementsAppender(queryVector), squaredMagnitude);
             }
-            Query knnQuery = parentFilter != null
+            Query knnQuery = PatienceKnnVectorQuery.fromByteQuery(parentFilter != null
                 ? new ESDiversifyingChildrenByteKnnVectorQuery(name(), queryVector, filter, k, numCands, parentFilter)
-                : new ESKnnByteVectorQuery(name(), queryVector, k, numCands, filter);
+                : new ESKnnByteVectorQuery(name(), queryVector, k, numCands, filter));
             if (similarityThreshold != null) {
                 knnQuery = new VectorSimilarityQuery(
                     knnQuery,
@@ -2278,9 +2279,9 @@ public class DenseVectorFieldMapper extends FieldMapper {
                 adjustedK = Math.min((int) Math.ceil(k * oversample), OVERSAMPLE_LIMIT);
                 numCands = Math.max(adjustedK, numCands);
             }
-            Query knnQuery = parentFilter != null
+            Query knnQuery = PatienceKnnVectorQuery.fromFloatQuery(parentFilter != null
                 ? new ESDiversifyingChildrenFloatKnnVectorQuery(name(), queryVector, filter, adjustedK, numCands, parentFilter)
-                : new ESKnnFloatVectorQuery(name(), queryVector, adjustedK, numCands, filter);
+                : new ESKnnFloatVectorQuery(name(), queryVector, adjustedK, numCands, filter));
             if (rescore) {
                 knnQuery = new RescoreKnnVectorQuery(
                     name(),

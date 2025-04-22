@@ -22,7 +22,6 @@ import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.client.internal.ClusterAdminClient;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
-import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.DataStreamFailureStore;
 import org.elasticsearch.cluster.metadata.DataStreamOptions;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -55,7 +54,6 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.parser.ParsingException;
 import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
-import org.junit.Assume;
 import org.junit.Before;
 
 import java.io.IOException;
@@ -1027,8 +1025,6 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
     }
 
     public void testDataStreamPatterns() throws Exception {
-        Assume.assumeTrue(DataStream.isFailureStoreFeatureFlagEnabled());
-
         Map<String, Long> testCases = new HashMap<>();
         // Concrete data stream with each selector
         testCases.put("test_ds_patterns_1", 5L);
@@ -1087,8 +1083,6 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
     }
 
     public void testDataStreamInvalidPatterns() throws Exception {
-        Assume.assumeTrue(DataStream.isFailureStoreFeatureFlagEnabled());
-
         Map<String, String> testCases = new HashMap<>();
         // === Errors
         // Only recognized components can be selected

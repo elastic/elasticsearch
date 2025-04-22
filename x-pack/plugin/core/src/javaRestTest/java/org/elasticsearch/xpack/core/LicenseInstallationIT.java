@@ -19,7 +19,6 @@ import org.elasticsearch.license.License;
 import org.elasticsearch.license.LicenseSettings;
 import org.elasticsearch.license.TestUtils;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
-import org.elasticsearch.test.cluster.FeatureFlag;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -46,7 +45,6 @@ public class LicenseInstallationIT extends ESRestTestCase {
     public static ElasticsearchCluster cluster = ElasticsearchCluster.local()
         .setting("xpack.security.enabled", "true")
         .setting("xpack.license.self_generated.type", "trial")
-        .feature(FeatureFlag.FAILURE_STORE_ENABLED)
         .keystore("bootstrap.password", "x-pack-test-password")
         .user("x_pack_rest_user", "x-pack-test-password")
         .systemProperty("es.queryable_built_in_roles_enabled", "false")

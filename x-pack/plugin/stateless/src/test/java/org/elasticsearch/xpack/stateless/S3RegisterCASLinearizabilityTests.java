@@ -73,7 +73,6 @@ import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 
-@ESTestCase.WithoutSecurityManager
 public class S3RegisterCASLinearizabilityTests extends ESTestCase {
     private ThreadPool threadPool;
 

@@ -1750,6 +1750,7 @@ public abstract class FieldExtractorTestCase extends ESRestTestCase {
     private Map<String, Object> runEsql(String query) throws IOException {
         RestEsqlTestCase.RequestObjectBuilder request = new RestEsqlTestCase.RequestObjectBuilder().query(query);
         if (preference != null) {
+            canUsePragmasOk();
             request = request.pragmas(
                 Settings.builder().put(QueryPragmas.FIELD_EXTRACT_PREFERENCE.getKey(), preference.toString()).build()
             );
@@ -1757,4 +1758,6 @@ public abstract class FieldExtractorTestCase extends ESRestTestCase {
         }
         return runEsqlSync(request);
     }
+
+    protected abstract void canUsePragmasOk();
 }

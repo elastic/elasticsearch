@@ -183,19 +183,20 @@ setup:
                 query: salute
   - match: { hits.total.value: 0 }
 
-
-  # This is to ensure that all index shards (write and read) are available. As we won't be using synonyms API to refresh
-  # analyzers, this can be needed in serverless.
-  - do:
-      cluster.health:
-        index: .synonyms
-        wait_for_status: green
-
   # Reloading analyzers makes synonyms refresh
   - do:
-      indices.reload_search_analyzers:
-        index: my_index1
-  - length: { reload_details: 1 }
+      synonyms.put_synonym:
+        id: synonyms_set1
+        refresh: true
+        body:
+          synonyms_set:
+            - synonyms: "hello, salute"
+            - synonyms: "ciao => goodbye"
+
+  - match: { result: "updated" }
+  - gt: { reload_analyzers_details._shards.total: 0 }
+  - gt: { reload_analyzers_details._shards.successful: 0 }
+  - length: { reload_analyzers_details.reload_details: 1 }
 
   - do:
       search:
@@ -205,5 +206,6 @@ setup:
             match:
               my_field:
                 query: salute
+
   - match: { hits.total.value: 1 }
 

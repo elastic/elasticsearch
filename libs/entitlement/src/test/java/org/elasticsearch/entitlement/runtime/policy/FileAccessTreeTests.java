@@ -31,6 +31,8 @@ import java.util.Set;
 import static org.elasticsearch.core.PathUtils.getDefaultFileSystem;
 import static org.elasticsearch.entitlement.runtime.policy.FileAccessTree.buildExclusivePathList;
 import static org.elasticsearch.entitlement.runtime.policy.FileAccessTree.normalizePath;
+import static org.elasticsearch.entitlement.runtime.policy.PathLookup.BaseDir.CONFIG;
+import static org.elasticsearch.entitlement.runtime.policy.PathLookup.BaseDir.TEMP;
 import static org.elasticsearch.entitlement.runtime.policy.Platform.WINDOWS;
 import static org.elasticsearch.entitlement.runtime.policy.entitlements.FilesEntitlement.Mode.READ;
 import static org.elasticsearch.entitlement.runtime.policy.entitlements.FilesEntitlement.Mode.READ_WRITE;
@@ -53,12 +55,17 @@ public class FileAccessTreeTests extends ESTestCase {
         return root.resolve(s);
     }
 
-    private static final PathLookup TEST_PATH_LOOKUP = new PathLookup(
+    private static final PathLookup TEST_PATH_LOOKUP = new PathLookupImpl(
         Path.of("/home"),
         Path.of("/config"),
         new Path[] { Path.of("/data1"), Path.of("/data2") },
         new Path[] { Path.of("/shared1"), Path.of("/shared2") },
+        Path.of("/lib"),
+        Path.of("/modules"),
+        Path.of("/plugins"),
+        Path.of("/logs"),
         Path.of("/tmp"),
+        null,
         pattern -> settings.getValues(pattern)
     );
 
@@ -293,14 +300,14 @@ public class FileAccessTreeTests extends ESTestCase {
 
     public void testTempDirAccess() {
         var tree = FileAccessTree.of("test-component", "test-module", FilesEntitlement.EMPTY, TEST_PATH_LOOKUP, null, List.of());
-        assertThat(tree.canRead(TEST_PATH_LOOKUP.tempDir()), is(true));
-        assertThat(tree.canWrite(TEST_PATH_LOOKUP.tempDir()), is(true));
+        assertThat(tree.canRead(TEST_PATH_LOOKUP.resolveRelativePaths(TEMP, Path.of("")).findFirst().get()), is(true));
+        assertThat(tree.canWrite(TEST_PATH_LOOKUP.resolveRelativePaths(TEMP, Path.of("")).findFirst().get()), is(true));
     }
 
     public void testConfigDirAccess() {
         var tree = FileAccessTree.of("test-component", "test-module", FilesEntitlement.EMPTY, TEST_PATH_LOOKUP, null, List.of());
-        assertThat(tree.canRead(TEST_PATH_LOOKUP.configDir()), is(true));
-        assertThat(tree.canWrite(TEST_PATH_LOOKUP.configDir()), is(false));
+        assertThat(tree.canRead(TEST_PATH_LOOKUP.resolveRelativePaths(CONFIG, Path.of("")).findFirst().get()), is(true));
+        assertThat(tree.canWrite(TEST_PATH_LOOKUP.resolveRelativePaths(CONFIG, Path.of("")).findFirst().get()), is(false));
     }
 
     public void testBasicExclusiveAccess() {

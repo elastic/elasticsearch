@@ -74,7 +74,7 @@ public abstract class EsqlRestValidationTestCase extends ESRestTestCase {
     }
 
     private String getInexistentIndexErrorMessage() {
-        return "Unknown index ";
+        return "\"reason\" : \"Found 1 problem\\nline 1:1: Unknown index ";
     }
 
     public void testInexistentIndexNameWithWildcard() throws IOException {

@@ -94,64 +94,6 @@ public class Netty4IncrementalRequestHandlingIT extends ESNetty4IntegTestCase {
 
     private static final int MAX_CONTENT_LENGTH = ByteSizeUnit.MB.toIntBytes(50);
 
-    private static long transportStatsRequestBytesSize(Ctx ctx) {
-        var httpTransport = internalCluster().getInstance(HttpServerTransport.class, ctx.nodeName);
-        var stats = httpTransport.stats().clientStats();
-        var bytes = 0L;
-        for (var s : stats) {
-            bytes += s.requestSizeBytes();
-        }
-        return bytes;
-    }
-
-    static int MBytes(int m) {
-        return m * 1024 * 1024;
-    }
-
-    static <T> T safePoll(BlockingDeque<T> queue) {
-        try {
-            var t = queue.poll(SAFE_AWAIT_TIMEOUT.seconds(), TimeUnit.SECONDS);
-            assertNotNull("queue is empty", t);
-            return t;
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-            throw new AssertionError(e);
-        }
-    }
-
-    private static FullHttpRequest fullHttpRequest(String opaqueId, ByteBuf content) {
-        var req = new DefaultFullHttpRequest(HTTP_1_1, POST, ControlServerRequestPlugin.ROUTE, Unpooled.wrappedBuffer(content));
-        req.headers().add(CONTENT_LENGTH, content.readableBytes());
-        req.headers().add(CONTENT_TYPE, APPLICATION_JSON);
-        req.headers().add(Task.X_OPAQUE_ID_HTTP_HEADER, opaqueId);
-        return req;
-    }
-
-    private static HttpRequest httpRequest(String opaqueId, int contentLength) {
-        return httpRequest(ControlServerRequestPlugin.ROUTE, opaqueId, contentLength);
-    }
-
-    private static HttpRequest httpRequest(String uri, String opaqueId, int contentLength) {
-        var req = new DefaultHttpRequest(HTTP_1_1, POST, uri);
-        req.headers().add(CONTENT_LENGTH, contentLength);
-        req.headers().add(CONTENT_TYPE, APPLICATION_JSON);
-        req.headers().add(Task.X_OPAQUE_ID_HTTP_HEADER, opaqueId);
-        return req;
-    }
-
-    private static HttpContent randomContent(int size, boolean isLast) {
-        var buf = Unpooled.wrappedBuffer(randomByteArrayOfLength(size));
-        if (isLast) {
-            return new DefaultLastHttpContent(buf);
-        } else {
-            return new DefaultHttpContent(buf);
-        }
-    }
-
-    private static ByteBuf randomByteBuf(int size) {
-        return Unpooled.wrappedBuffer(randomByteArrayOfLength(size));
-    }
-
     @Override
     protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
         Settings.Builder builder = Settings.builder().put(super.nodeSettings(nodeOrdinal, otherSettings));
@@ -236,6 +178,8 @@ public class Netty4IncrementalRequestHandlingIT extends ESNetty4IntegTestCase {
 
             // await stream handler is ready and request full content
             var handler = ctx.awaitRestChannelAccepted(opaqueId);
+            assertBusy(() -> assertNotEquals(0, handler.stream.bufSize()));
+
             assertFalse(handler.streamClosed);
 
             // terminate client connection
@@ -246,7 +190,10 @@ public class Netty4IncrementalRequestHandlingIT extends ESNetty4IntegTestCase {
             handler.stream.next();
 
             // wait for resources to be released
-            assertBusy(() -> assertTrue(handler.streamClosed));
+            assertBusy(() -> {
+                assertEquals(0, handler.stream.bufSize());
+                assertTrue(handler.streamClosed);
+            });
         }
     }
 
@@ -261,11 +208,15 @@ public class Netty4IncrementalRequestHandlingIT extends ESNetty4IntegTestCase {
 
             // await stream handler is ready and request full content
             var handler = ctx.awaitRestChannelAccepted(opaqueId);
+            assertBusy(() -> assertNotEquals(0, handler.stream.bufSize()));
             assertFalse(handler.streamClosed);
 
             // terminate connection on server and wait resources are released
             handler.channel.request().getHttpChannel().close();
-            assertBusy(() -> assertTrue(handler.streamClosed));
+            assertBusy(() -> {
+                assertEquals(0, handler.stream.bufSize());
+                assertTrue(handler.streamClosed);
+            });
         }
     }
 
@@ -279,12 +230,16 @@ public class Netty4IncrementalRequestHandlingIT extends ESNetty4IntegTestCase {
 
             // await stream handler is ready and request full content
             var handler = ctx.awaitRestChannelAccepted(opaqueId);
+            assertBusy(() -> assertNotEquals(0, handler.stream.bufSize()));
             assertFalse(handler.streamClosed);
 
             handler.shouldThrowInsideHandleChunk = true;
             handler.stream.next();
 
-            assertBusy(() -> assertTrue(handler.streamClosed));
+            assertBusy(() -> {
+                assertEquals(0, handler.stream.bufSize());
+                assertTrue(handler.streamClosed);
+            });
         }
     }
 
@@ -325,7 +280,7 @@ public class Netty4IncrementalRequestHandlingIT extends ESNetty4IntegTestCase {
                 });
                 handler.readBytes(partSize);
             }
-            assertTrue(handler.recvLast);
+            assertTrue(handler.stream.hasLast());
         }
     }
 
@@ -430,6 +385,16 @@ public class Netty4IncrementalRequestHandlingIT extends ESNetty4IntegTestCase {
         }
     }
 
+    private static long transportStatsRequestBytesSize(Ctx ctx) {
+        var httpTransport = internalCluster().getInstance(HttpServerTransport.class, ctx.nodeName);
+        var stats = httpTransport.stats().clientStats();
+        var bytes = 0L;
+        for (var s : stats) {
+            bytes += s.requestSizeBytes();
+        }
+        return bytes;
+    }
+
     /**
      * ensures that {@link org.elasticsearch.http.HttpClientStatsTracker} counts streamed content bytes
      */
@@ -524,7 +489,55 @@ public class Netty4IncrementalRequestHandlingIT extends ESNetty4IntegTestCase {
         return getTestName() + "-" + reqNo;
     }
 
-    private Ctx setupClientCtx() throws Exception {
+    static int MBytes(int m) {
+        return m * 1024 * 1024;
+    }
+
+    static <T> T safePoll(BlockingDeque<T> queue) {
+        try {
+            var t = queue.poll(SAFE_AWAIT_TIMEOUT.seconds(), TimeUnit.SECONDS);
+            assertNotNull("queue is empty", t);
+            return t;
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new AssertionError(e);
+        }
+    }
+
+    static FullHttpRequest fullHttpRequest(String opaqueId, ByteBuf content) {
+        var req = new DefaultFullHttpRequest(HTTP_1_1, POST, ControlServerRequestPlugin.ROUTE, Unpooled.wrappedBuffer(content));
+        req.headers().add(CONTENT_LENGTH, content.readableBytes());
+        req.headers().add(CONTENT_TYPE, APPLICATION_JSON);
+        req.headers().add(Task.X_OPAQUE_ID_HTTP_HEADER, opaqueId);
+        return req;
+    }
+
+    static HttpRequest httpRequest(String opaqueId, int contentLength) {
+        return httpRequest(ControlServerRequestPlugin.ROUTE, opaqueId, contentLength);
+    }
+
+    static HttpRequest httpRequest(String uri, String opaqueId, int contentLength) {
+        var req = new DefaultHttpRequest(HTTP_1_1, POST, uri);
+        req.headers().add(CONTENT_LENGTH, contentLength);
+        req.headers().add(CONTENT_TYPE, APPLICATION_JSON);
+        req.headers().add(Task.X_OPAQUE_ID_HTTP_HEADER, opaqueId);
+        return req;
+    }
+
+    static HttpContent randomContent(int size, boolean isLast) {
+        var buf = Unpooled.wrappedBuffer(randomByteArrayOfLength(size));
+        if (isLast) {
+            return new DefaultLastHttpContent(buf);
+        } else {
+            return new DefaultHttpContent(buf);
+        }
+    }
+
+    static ByteBuf randomByteBuf(int size) {
+        return Unpooled.wrappedBuffer(randomByteArrayOfLength(size));
+    }
+
+    Ctx setupClientCtx() throws Exception {
         var nodeName = internalCluster().getRandomNodeName();
         var clientRespQueue = new LinkedBlockingDeque<>(16);
         var bootstrap = bootstrapClient(nodeName, clientRespQueue);
@@ -532,7 +545,7 @@ public class Netty4IncrementalRequestHandlingIT extends ESNetty4IntegTestCase {
         return new Ctx(getTestName(), nodeName, bootstrap, channel, clientRespQueue);
     }
 
-    private Bootstrap bootstrapClient(String node, BlockingQueue<Object> queue) {
+    Bootstrap bootstrapClient(String node, BlockingQueue<Object> queue) {
         var httpServer = internalCluster().getInstance(HttpServerTransport.class, node);
         var remoteAddr = randomFrom(httpServer.boundAddress().boundAddresses());
         return new Bootstrap().group(new NioEventLoopGroup(1))
@@ -570,13 +583,9 @@ public class Netty4IncrementalRequestHandlingIT extends ESNetty4IntegTestCase {
         return false; // enable http
     }
 
-    private record Ctx(
-        String testName,
-        String nodeName,
-        Bootstrap clientBootstrap,
-        Channel clientChannel,
-        BlockingDeque<Object> clientRespQueue
-    ) implements AutoCloseable {
+    record Ctx(String testName, String nodeName, Bootstrap clientBootstrap, Channel clientChannel, BlockingDeque<Object> clientRespQueue)
+        implements
+            AutoCloseable {
 
         @Override
         public void close() throws Exception {
@@ -601,7 +610,7 @@ public class Netty4IncrementalRequestHandlingIT extends ESNetty4IntegTestCase {
         }
     }
 
-    private static class ServerRequestHandler implements BaseRestHandler.RequestBodyChunkConsumer {
+    static class ServerRequestHandler implements BaseRestHandler.RequestBodyChunkConsumer {
         final SubscribableListener<Void> channelAccepted = new SubscribableListener<>();
         final String opaqueId;
         final BlockingDeque<Chunk> recvChunks = new LinkedBlockingDeque<>();

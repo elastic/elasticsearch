@@ -205,7 +205,8 @@ public class SemanticTextFieldTests extends AbstractXContentTestCase<SemanticTex
         for (String input : inputs) {
             byte[] values = new byte[embeddingLength];
             for (int j = 0; j < values.length; j++) {
-                values[j] = randomByte();
+                // to avoid vectors with zero magnitude
+                values[j] = (byte) Math.max(1, randomByte());
             }
             chunks.add(
                 new EmbeddingResults.Chunk(
@@ -226,7 +227,8 @@ public class SemanticTextFieldTests extends AbstractXContentTestCase<SemanticTex
         for (String input : inputs) {
             float[] values = new float[embeddingLength];
             for (int j = 0; j < values.length; j++) {
-                values[j] = randomFloat();
+                // to avoid vectors with zero magnitude
+                values[j] = Math.max(1e-6f, randomFloat());
             }
             chunks.add(
                 new EmbeddingResults.Chunk(
@@ -247,7 +249,7 @@ public class SemanticTextFieldTests extends AbstractXContentTestCase<SemanticTex
         for (String input : inputs) {
             var tokens = new ArrayList<WeightedToken>();
             for (var token : input.split("\\s+")) {
-                tokens.add(new WeightedToken(token, withFloats ? randomFloat() : randomIntBetween(1, 255)));
+                tokens.add(new WeightedToken(token, withFloats ? Math.max(Float.MIN_NORMAL, randomFloat()) : randomIntBetween(1, 255)));
             }
             chunks.add(
                 new EmbeddingResults.Chunk(

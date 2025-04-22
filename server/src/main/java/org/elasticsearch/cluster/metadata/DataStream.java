@@ -58,7 +58,6 @@ import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -377,50 +376,17 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
     }
 
     public ComposableIndexTemplate getEffectiveIndexTemplate(ProjectMetadata projectMetadata) {
-        return mergeSettingsIntoTemplate(getMatchingIndexTemplate(projectMetadata), settings);
+        return getMatchingIndexTemplate(projectMetadata).mergeSettings(settings);
     }
 
     public Settings getEffectiveSettings(ProjectMetadata projectMetadata) {
         ComposableIndexTemplate template = getMatchingIndexTemplate(projectMetadata);
-        return mergeSettings(template.template() == null ? Settings.EMPTY : template.template().settings(), settings);
+        Settings templateSettings = template.template() == null ? Settings.EMPTY : template.template().settings();
+        return templateSettings.merge(settings);
     }
 
     private ComposableIndexTemplate getMatchingIndexTemplate(ProjectMetadata projectMetadata) {
         return lookupTemplateForDataStream(name, projectMetadata);
-    }
-
-    public static ComposableIndexTemplate mergeSettingsIntoTemplate(ComposableIndexTemplate template, Settings settings) {
-        if (Settings.EMPTY.equals(settings)) {
-            return template;
-        }
-        ComposableIndexTemplate.Builder mergedIndexTemplateBuilder = template.toBuilder();
-        Template.Builder mergedTemplateBuilder;
-        Settings templateSettings;
-        if (template.template() == null) {
-            mergedTemplateBuilder = Template.builder();
-            templateSettings = null;
-        } else {
-            mergedTemplateBuilder = Template.builder(template.template());
-            templateSettings = template.template().settings();
-        }
-        mergedTemplateBuilder.settings(mergeSettings(templateSettings, settings));
-        mergedIndexTemplateBuilder.template(mergedTemplateBuilder);
-        return mergedIndexTemplateBuilder.build();
-    }
-
-    private static Settings mergeSettings(Settings originalSettings, Settings newSettings) {
-        if (newSettings == null || Settings.EMPTY.equals(newSettings)) {
-            return Objects.requireNonNullElse(originalSettings, Settings.EMPTY);
-        } else if (originalSettings == null || Settings.EMPTY.equals(originalSettings)) {
-            return newSettings;
-        }
-        Settings.Builder settingsBuilder = Settings.builder().put(originalSettings).put(newSettings);
-        for (String settingName : new HashSet<>(settingsBuilder.keys())) {
-            if (settingsBuilder.get(settingName) == null) {
-                settingsBuilder.remove(settingName);
-            }
-        }
-        return settingsBuilder.build();
     }
 
     /**

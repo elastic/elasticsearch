@@ -150,9 +150,20 @@ To pass the settings values through standard input (stdin), use the `--stdin` fl
 ```sh
 cat /file/containing/setting/value | bin/elasticsearch-keystore add --stdin the.setting.name.to.set
 ```
+Alternatively you can use the echo command to input the password into the keystore. For example if the password is `your\!password` :
+
+```sh
+echo -n 'your\!password' | bin/elasticsearch-keystore add the.setting.name.to.set
+```
 
 Values for multiple settings must be separated by carriage returns or newlines.
 
+### Common Issues with Special Characters [special-chracter-issues]
+Exclamation Mark (`\!`): When using the shell, the combination `\!` is stored as just `!`. This can lead to authentication failures if the password is not stored as intended.
+
+Quotes: If quotes are used around the password, they are stored as part of the password. This can cause the password to be incorrect when retrieved from the keystore.
+
+Backslash (`\`): The backslash character needs to be escaped properly. If not escaped, it may be omitted or misinterpreted, leading to incorrect password storage.
 
 ### Add files to the keystore [add-file-to-keystore]
 

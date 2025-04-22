@@ -328,11 +328,13 @@ public abstract class FiltersAggregator extends BucketsAggregator {
                     hasOtherBucket
                 );
             }
-            if (usesCompetitiveIterator) {
-                return new MultiFilterCompetitiveLeafCollector(sub, filterWrappers, numFilters, totalNumKeys, hasOtherBucket);
-            } else {
-                return new MultiFilterLeafCollector(sub, filterWrappers, numFilters, totalNumKeys, hasOtherBucket);
-            }
+            // TODO: https://github.com/elastic/elasticsearch/issues/126955
+            // competitive iterator is currently broken, we would rather be slow than broken
+            return new MultiFilterLeafCollector(sub, filterWrappers, numFilters, totalNumKeys, hasOtherBucket);
+            // if (usesCompetitiveIterator) {
+            // return new MultiFilterCompetitiveLeafCollector(sub, filterWrappers, numFilters, totalNumKeys, hasOtherBucket);
+            // } else {
+            // }
         }
     }
 

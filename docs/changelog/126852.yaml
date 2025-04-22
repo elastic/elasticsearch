@@ -1,0 +1,5 @@
+pr: 126852
+summary: "Validation checks on paths allowed for 'files' entitlements. Restrict the paths we allow access to, forbidding plugins to specify/request entitlements for reading or writing to specific protected directories."
+area: Infra/Core
+type: enhancement
+issues: []

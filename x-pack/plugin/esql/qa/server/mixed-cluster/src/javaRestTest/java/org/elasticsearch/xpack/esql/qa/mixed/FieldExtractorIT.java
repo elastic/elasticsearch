@@ -43,7 +43,14 @@ public class FieldExtractorIT extends FieldExtractorTestCase {
 
     @Override
     protected void canUsePragmasOk() {
-        Version oldVersion = Version.fromString(System.getProperty("tests.old_cluster_version"));
+        String bwc = System.getProperty("tests.old_cluster_version");
+        if (bwc == null) {
+            bwc = System.getProperty("tests.tests.serverless.bwc_stack_version");
+        }
+        if (bwc == null) {
+            throw new AssertionError("can't find bwc version");
+        }
+        Version oldVersion = Version.fromString();
         assumeTrue("pragma ok not supported", oldVersion.onOrAfter("8.16.0"));
     }
 }

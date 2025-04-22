@@ -363,7 +363,7 @@ public class FileAccessTreeTests extends ESTestCase {
     }
 
     public void testDuplicatePrunedPaths() {
-        var comparison = new CaseSensitiveComparison();
+        var comparison = new CaseSensitiveComparison('/');
         List<String> inputPaths = List.of("/a", "/a", "/a/b", "/a/b", "/b/c", "b/c/d", "b/c/d", "b/c/d", "e/f", "e/f");
         List<String> outputPaths = List.of("/a", "/b/c", "b/c/d", "e/f");
         var actual = FileAccessTree.pruneSortedPaths(inputPaths.stream().map(p -> normalizePath(path(p))).toList(), comparison);
@@ -372,7 +372,7 @@ public class FileAccessTreeTests extends ESTestCase {
     }
 
     public void testDuplicatePrunedPathsWindows() {
-        var comparison = new CaseInsensitiveComparison();
+        var comparison = new CaseInsensitiveComparison('/');
         List<String> inputPaths = List.of("/a", "/A", "/a/b", "/a/B", "/b/c", "b/c/d", "B/c/d", "b/c/D", "e/f", "e/f");
         List<String> outputPaths = List.of("/a", "/b/c", "b/c/d", "e/f");
         var actual = FileAccessTree.pruneSortedPaths(inputPaths.stream().map(p -> normalizePath(path(p))).toList(), comparison);
@@ -384,7 +384,7 @@ public class FileAccessTreeTests extends ESTestCase {
         // Bunch o' handy definitions
         var pathAB = path("/a/b");
         var pathCD = path("/c/d");
-        var comparison = randomBoolean() ? new CaseSensitiveComparison() : new CaseInsensitiveComparison();
+        var comparison = randomBoolean() ? new CaseSensitiveComparison('/') : new CaseInsensitiveComparison('/');
         var originalFileData = FileData.ofPath(pathAB, READ).withExclusive(true);
         var fileDataWithWriteMode = FileData.ofPath(pathAB, READ_WRITE).withExclusive(true);
         var original = new ExclusiveFileEntitlement("component1", "module1", new FilesEntitlement(List.of(originalFileData)));

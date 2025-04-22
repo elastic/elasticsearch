@@ -11,8 +11,8 @@ package org.elasticsearch.entitlement.runtime.policy;
 
 class CaseInsensitiveComparison extends FileAccessTreeComparison {
 
-    CaseInsensitiveComparison() {
-        super(CaseInsensitiveComparison::caseInsensitiveCharacterComparator);
+    CaseInsensitiveComparison(char separatorChar) {
+        super(CaseInsensitiveComparison::caseInsensitiveCharacterComparator, separatorChar);
     }
 
     /**

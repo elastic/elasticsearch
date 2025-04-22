@@ -10,11 +10,9 @@
 package org.elasticsearch.entitlement.runtime.policy;
 
 import org.elasticsearch.core.Strings;
-import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 
-import java.io.File;
 import java.util.Comparator;
 
 abstract class FileAccessTreeComparison {
@@ -27,12 +25,14 @@ abstract class FileAccessTreeComparison {
 
     private final Comparator<String> pathComparator;
 
+    private final char separatorChar;
+
     /**
      * For our lexicographic sort trick to work correctly, we must have path separators sort before
      * any other character so that files in a directory appear immediately after that directory.
      * For example, we require [/a, /a/b, /a.xml] rather than the natural order [/a, /a.xml, /a/b].
      */
-    FileAccessTreeComparison(CharComparator charComparator) {
+    FileAccessTreeComparison(CharComparator charComparator, char separatorChar) {
         pathComparator = (s1, s2) -> {
             int len1 = s1.length();
             int len2 = s2.length();
@@ -44,8 +44,8 @@ abstract class FileAccessTreeComparison {
                 if (comp == 0) {
                     continue;
                 }
-                boolean c1IsSeparator = isPathSeparator(c1);
-                boolean c2IsSeparator = isPathSeparator(c2);
+                boolean c1IsSeparator = c1 == separatorChar;
+                boolean c2IsSeparator = c2 == separatorChar;
                 if (c1IsSeparator == false || c2IsSeparator == false) {
                     if (c1IsSeparator) {
                         return -1;
@@ -58,17 +58,17 @@ abstract class FileAccessTreeComparison {
             }
             return len1 - len2;
         };
+        this.separatorChar = separatorChar;
     }
 
     Comparator<String> pathComparator() {
         return pathComparator;
     }
 
-    @SuppressForbidden(reason = "we need the separator as a char, not a string")
     boolean isParent(String maybeParent, String path) {
         logger.trace(() -> Strings.format("checking isParent [%s] for [%s]", maybeParent, path));
         return pathStartsWith(path, maybeParent)
-            && (path.length() > maybeParent.length() && path.charAt(maybeParent.length()) == File.separatorChar);
+            && (path.length() > maybeParent.length() && path.charAt(maybeParent.length()) == separatorChar);
     }
 
     boolean samePath(String currentPath, String nextPath) {
@@ -78,9 +78,4 @@ abstract class FileAccessTreeComparison {
     protected abstract boolean pathStartsWith(String pathString, String pathPrefix);
 
     protected abstract boolean pathsAreEqual(String path1, String path2);
-
-    @SuppressForbidden(reason = "we need the separator as a char, not a string")
-    private static boolean isPathSeparator(char c) {
-        return c == File.separatorChar;
-    }
 }

@@ -11,11 +11,13 @@ package org.elasticsearch.entitlement.runtime.policy;
 
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Strings;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.entitlement.runtime.policy.entitlements.FilesEntitlement;
 import org.elasticsearch.entitlement.runtime.policy.entitlements.FilesEntitlement.Mode;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 
+import java.io.File;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.file.Files;
@@ -172,11 +174,16 @@ public final class FileAccessTree {
         }
     }
 
+    @SuppressForbidden(reason = "we need the separator as a char, not a string")
+    private static char separatorChar() {
+        return File.separatorChar;
+    }
+
     private static final Logger logger = LogManager.getLogger(FileAccessTree.class);
     private static final String FILE_SEPARATOR = getDefaultFileSystem().getSeparator();
     static final FileAccessTreeComparison DEFAULT_COMPARISON = Platform.LINUX.isCurrent()
-        ? new CaseSensitiveComparison()
-        : new CaseInsensitiveComparison();
+        ? new CaseSensitiveComparison(separatorChar())
+        : new CaseInsensitiveComparison(separatorChar());
 
     private final FileAccessTreeComparison comparison;
     /**

@@ -19,7 +19,7 @@ import static org.hamcrest.Matchers.lessThan;
 public class FileAccessTreeComparisonTests extends ESTestCase {
 
     public void testPathOrderPosix() {
-        var pathComparator = new CaseSensitiveComparison().pathComparator();
+        var pathComparator = new CaseSensitiveComparison('/').pathComparator();
 
         // Unix-style
         // Directories come BEFORE files; note that this differs from natural lexicographical order
@@ -43,8 +43,8 @@ public class FileAccessTreeComparisonTests extends ESTestCase {
         assertThat(pathComparator.compare("/a\\b", "/a/b.txt"), greaterThan(0));
     }
 
-    public void testPathOrderWindowsOrMac() {
-        var pathComparator = new CaseInsensitiveComparison().pathComparator();
+    public void testPathOrderWindows() {
+        var pathComparator = new CaseInsensitiveComparison('\\').pathComparator();
 
         // Directories come BEFORE files; note that this differs from natural lexicographical order
         assertThat(pathComparator.compare("C:\\a\\b", "C:\\a.xml"), lessThan(0));
@@ -56,7 +56,10 @@ public class FileAccessTreeComparisonTests extends ESTestCase {
     }
 
     public void testPathOrderingSpecialCharacters() {
-        var pathComparator = (randomBoolean() ? new CaseInsensitiveComparison() : new CaseSensitiveComparison()).pathComparator();
+        var separatorChar = randomFrom('/', '\\');
+        var pathComparator = (randomBoolean()
+            ? new CaseInsensitiveComparison(separatorChar)
+            : new CaseSensitiveComparison(separatorChar)).pathComparator();
 
         assertThat(pathComparator.compare("aa\uD801\uDC28", "aa\uD801\uDC28"), is(0));
         assertThat(pathComparator.compare("aa\uD801\uDC28", "aa\uD801\uDC28a"), lessThan(0));

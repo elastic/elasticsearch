@@ -15,10 +15,9 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.RoutingNodes;
 import org.elasticsearch.cluster.routing.ShardRouting;
-import org.elasticsearch.cluster.routing.allocation.allocator.BalancedShardsAllocator;
+import org.elasticsearch.cluster.routing.allocation.allocator.BalancerSettings;
 import org.elasticsearch.cluster.routing.allocation.allocator.DesiredBalance;
 import org.elasticsearch.cluster.routing.allocation.allocator.WeightFunction;
-import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.core.Nullable;
 
@@ -29,11 +28,7 @@ import java.util.Map;
  */
 public class NodeAllocationStatsAndWeightsCalculator {
     private final WriteLoadForecaster writeLoadForecaster;
-
-    private volatile float indexBalanceFactor;
-    private volatile float shardBalanceFactor;
-    private volatile float writeLoadBalanceFactor;
-    private volatile float diskUsageBalanceFactor;
+    private final BalancerSettings balancerSettings;
 
     /**
      * Node shard allocation stats and the total node weight.
@@ -47,18 +42,9 @@ public class NodeAllocationStatsAndWeightsCalculator {
         float currentNodeWeight
     ) {}
 
-    public NodeAllocationStatsAndWeightsCalculator(WriteLoadForecaster writeLoadForecaster, ClusterSettings clusterSettings) {
+    public NodeAllocationStatsAndWeightsCalculator(WriteLoadForecaster writeLoadForecaster, BalancerSettings balancerSettings) {
         this.writeLoadForecaster = writeLoadForecaster;
-        clusterSettings.initializeAndWatch(BalancedShardsAllocator.SHARD_BALANCE_FACTOR_SETTING, value -> this.shardBalanceFactor = value);
-        clusterSettings.initializeAndWatch(BalancedShardsAllocator.INDEX_BALANCE_FACTOR_SETTING, value -> this.indexBalanceFactor = value);
-        clusterSettings.initializeAndWatch(
-            BalancedShardsAllocator.WRITE_LOAD_BALANCE_FACTOR_SETTING,
-            value -> this.writeLoadBalanceFactor = value
-        );
-        clusterSettings.initializeAndWatch(
-            BalancedShardsAllocator.DISK_USAGE_BALANCE_FACTOR_SETTING,
-            value -> this.diskUsageBalanceFactor = value
-        );
+        this.balancerSettings = balancerSettings;
     }
 
     /**
@@ -74,7 +60,12 @@ public class NodeAllocationStatsAndWeightsCalculator {
             // must not use licensed features when just starting up
             writeLoadForecaster.refreshLicense();
         }
-        var weightFunction = new WeightFunction(shardBalanceFactor, indexBalanceFactor, writeLoadBalanceFactor, diskUsageBalanceFactor);
+        var weightFunction = new WeightFunction(
+            balancerSettings.getShardBalanceFactor(),
+            balancerSettings.getIndexBalanceFactor(),
+            balancerSettings.getWriteLoadBalanceFactor(),
+            balancerSettings.getDiskUsageBalanceFactor()
+        );
         var avgShardsPerNode = WeightFunction.avgShardPerNode(metadata, routingNodes);
         var avgWriteLoadPerNode = WeightFunction.avgWriteLoadPerNode(writeLoadForecaster, metadata, routingNodes);
         var avgDiskUsageInBytesPerNode = WeightFunction.avgDiskUsageInBytesPerNode(clusterInfo, metadata, routingNodes);

@@ -514,7 +514,8 @@ public class EsqlSession {
 
         try {
             if (result.indices.isValid() || requestFilter != null) {
-                // Capture filtered out indices
+                // We won't run this check with no filter and no valid indices since this may lead to false positive - missing index report
+                // when the resolution result is not valid for a different reason.
                 EsqlCCSUtils.updateExecutionInfoWithClustersWithNoMatchingIndices(executionInfo, result.indices, requestFilter);
             }
             plan = analyzeAction.apply(result);

@@ -2827,8 +2827,7 @@ public class InternalEngine extends Engine {
     @Override
     public void activateThrottling(boolean pauseIndexing) {
         int count = throttleRequestCount.incrementAndGet();
-        if (pauseIndexing)
-        {
+        if (pauseIndexing) {
             throttleShouldPauseIndexing.setRelease(true);
         }
         assert count >= 1 : "invalid post-increment throttleRequestCount=" + count;

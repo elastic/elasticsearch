@@ -451,8 +451,7 @@ public abstract class Engine implements Closeable {
             startOfThrottleNS = System.nanoTime();
             if (pauseIndexing.getAcquire()) {
                 lock = pauseLockReference;
-            }
-            else {
+            } else {
                 lock = lockReference;
             }
         }
@@ -461,8 +460,7 @@ public abstract class Engine implements Closeable {
         public void deactivate() {
             assert lock != NOOP_LOCK : "throttling deactivated but not active";
 
-            if(lock == pauseLockReference)
-            {
+            if (lock == pauseLockReference) {
                 lock.close();
             }
             lock = NOOP_LOCK;

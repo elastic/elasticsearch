@@ -132,4 +132,8 @@ public class ColumnInfoImpl implements ColumnInfo {
     public List<String> originalTypes() {
         return originalTypes;
     }
+
+    public String toString() {
+        return "ColumnInfoImpl{" + "name='" + name + '\'' + ", type=" + type + ", originalTypes=" + originalTypes + '}';
+    }
 }

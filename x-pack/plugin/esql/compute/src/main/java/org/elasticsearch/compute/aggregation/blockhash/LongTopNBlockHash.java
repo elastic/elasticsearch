@@ -115,7 +115,7 @@ public final class LongTopNBlockHash extends TopNBlockHash {
      * Tries to add the value to the top values, and returns true if it was successful.
      */
     private boolean acceptValue(long value) {
-        if (isAcceptable(value) == false && isTopComplete()) {
+        if (isAcceptable(value) == false) {
             return false;
         }
 
@@ -136,11 +136,14 @@ public final class LongTopNBlockHash extends TopNBlockHash {
      * Returns true if the value is in, or can be added to the top; false otherwise.
      */
     private boolean isAcceptable(long value) {
-        return isTopComplete() == false || isInTop(value);
+        return isTopComplete() == false || (hasNull && nullsFirst == false) || isInTop(value);
     }
 
     /**
      * Returns true if the value is in the top; false otherwise.
+     * <p>
+     *     This method does not check if the value is currently part of the top; only if it's better or equal than the current worst value.
+     * </p>
      */
     private boolean isInTop(long value) {
         return asc ? value <= topValues.last() : value >= topValues.last();
@@ -229,7 +232,7 @@ public final class LongTopNBlockHash extends TopNBlockHash {
             for (int i = 0; i < positions; i++) {
                 long v = vector.getLong(i);
                 long found = hash.find(v);
-                if (found < 0) {
+                if (found < 0 || isAcceptable(v) == false) {
                     builder.appendNull();
                 } else {
                     builder.appendInt(Math.toIntExact(hashOrdToGroupNullReserved(found)));
@@ -240,7 +243,7 @@ public final class LongTopNBlockHash extends TopNBlockHash {
     }
 
     private IntBlock lookup(LongBlock block) {
-        return new MultivalueDedupeLong(block).hashLookup(blockFactory, hash);
+        return new TopNMultivalueDedupeLong(block, hasNull, this::isAcceptable).hashLookup(blockFactory, hash);
     }
 
     @Override

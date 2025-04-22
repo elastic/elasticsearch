@@ -236,7 +236,13 @@ public class TopNMultivalueDedupeLong {
                 int count = block.getValueCount(p);
                 int first = block.getFirstValueIndex(p);
                 switch (count) {
-                    case 0 -> builder.appendInt(0);
+                    case 0 -> {
+                        if (hasNull) {
+                            builder.appendInt(0);
+                        } else {
+                            builder.appendNull();
+                        }
+                    }
                     case 1 -> {
                         long v = block.getLong(first);
                         hashLookupSingle(builder, hash, v);
@@ -626,7 +632,7 @@ public class TopNMultivalueDedupeLong {
     }
 
     private long hashLookup(LongHash hash, long v) {
-        return hash.find(v);
+        return isAcceptable.test(v) ? hash.find(v) : -1;
     }
 
     private void hashLookupSingle(IntBlock.Builder builder, LongHash hash, long v) {

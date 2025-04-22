@@ -96,7 +96,7 @@ public class TopNBlockHashTests extends BlockHashTestCase {
         }, blockFactory.newLongArrayVector(values, values.length).asBlock());
     }
 
-    /*public void testLongHashWithNulls() {
+    public void testLongHashWithNulls() {
         try (LongBlock.Builder builder = blockFactory.newLongBlockBuilder(4)) {
             builder.appendLong(0);
             builder.appendNull();
@@ -105,20 +105,42 @@ public class TopNBlockHashTests extends BlockHashTestCase {
 
             hash(ordsAndKeys -> {
                 if (forcePackedHash) {
-                    assertThat(ordsAndKeys.description(), startsWith("PackedValuesBlockHash{groups=[0:LONG], entries=3, size="));
-                    assertOrds(ordsAndKeys.ords(), 0, 1, 2, 1);
-                    assertKeys(ordsAndKeys.keys(), 0L, null, 2L);
+                    // TODO: Not tested yet
                 } else {
-                    assertThat(ordsAndKeys.description(), equalTo("LongBlockHash{channel=0, entries=2, seenNull=true}"));
-                    assertOrds(ordsAndKeys.ords(), 1, 0, 2, 0);
-                    assertKeys(ordsAndKeys.keys(), null, 0L, 2L);
+                    boolean hasTwoNonNullValues = nullsFirst == false || limit == LIMIT_HIGH;
+                    boolean hasNull = nullsFirst || limit == LIMIT_HIGH;
+                    assertThat(ordsAndKeys.description(), equalTo(
+                        "LongTopNBlockHash{channel=0, "
+                            + topNParametersString(hasTwoNonNullValues ? 2 : 1)
+                            + ", hasNull=" + hasNull + "}"
+                    ));
+                    if (limit == LIMIT_HIGH) {
+                        assertKeys(ordsAndKeys.keys(), null, 0L, 2L);
+                        assertOrds(ordsAndKeys.ords(), 1, 0, 2, 0);
+                        assertThat(ordsAndKeys.nonEmpty(), equalTo(intVector(0, 1, 2)));
+                    } else {
+                        if (nullsFirst) {
+                            if (asc) {
+                                assertKeys(ordsAndKeys.keys(), null, 0L);
+                                assertOrds(ordsAndKeys.ords(), 1, 0, null, 0);
+                                assertThat(ordsAndKeys.nonEmpty(), equalTo(intVector(0, 1)));
+                            } else {
+                                assertKeys(ordsAndKeys.keys(), null, 2L);
+                                assertOrds(ordsAndKeys.ords(), null, 0, 1, 0);
+                                assertThat(ordsAndKeys.nonEmpty(), equalTo(intVector(0, 1)));
+                            }
+                        } else {
+                            assertKeys(ordsAndKeys.keys(), 0L, 2L);
+                            assertOrds(ordsAndKeys.ords(), 1, null, 2, null);
+                            assertThat(ordsAndKeys.nonEmpty(), equalTo(intVector(1, 2)));
+                        }
+                    }
                 }
-                assertThat(ordsAndKeys.nonEmpty(), equalTo(intRange(0, 3)));
             }, builder);
         }
     }
 
-    public void testLongHashWithMultiValuedFields() {
+    /*public void testLongHashWithMultiValuedFields() {
         try (LongBlock.Builder builder = blockFactory.newLongBlockBuilder(8)) {
             builder.appendLong(1);
             builder.beginPositionEntry();
@@ -192,14 +214,10 @@ public class TopNBlockHashTests extends BlockHashTestCase {
                 }
                 called[0] = true;
                 callback.accept(ordsAndKeys);
-                if (hash instanceof LongLongBlockHash == false
-                    && hash instanceof BytesRefLongBlockHash == false
-                    && hash instanceof BytesRef3BlockHash == false) {
-                    try (ReleasableIterator<IntBlock> lookup = hash.lookup(new Page(values), ByteSizeValue.ofKb(between(1, 100)))) {
-                        assertThat(lookup.hasNext(), equalTo(true));
-                        try (IntBlock ords = lookup.next()) {
-                            assertThat(ords, equalTo(ordsAndKeys.ords()));
-                        }
+                try (ReleasableIterator<IntBlock> lookup = hash.lookup(new Page(values), ByteSizeValue.ofKb(between(1, 100)))) {
+                    assertThat(lookup.hasNext(), equalTo(true));
+                    try (IntBlock ords = lookup.next()) {
+                        assertThat(ords, equalTo(ordsAndKeys.ords()));
                     }
                 }
             }, values);

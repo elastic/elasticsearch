@@ -131,6 +131,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
                                                                         // vector
     public static final int MAGNITUDE_BYTES = 4;
     public static final int OVERSAMPLE_LIMIT = 10_000; // Max oversample allowed
+    private static final float DEFAULT_OVERSAMPLE = 3.0F; // Default oversample value
 
     private static DenseVectorFieldMapper toType(FieldMapper in) {
         return (DenseVectorFieldMapper) in;
@@ -1463,7 +1464,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
                 if (indexVersion.onOrAfter(ADD_RESCORE_PARAMS_TO_QUANTIZED_VECTORS)) {
                     rescoreVector = RescoreVector.fromIndexOptions(indexOptionsMap, indexVersion);
                     if (rescoreVector == null) {
-                        rescoreVector = new RescoreVector(3.0f);
+                        rescoreVector = new RescoreVector(DEFAULT_OVERSAMPLE);
                     }
                 }
                 MappingParser.checkNoRemainingFields(fieldName, indexOptionsMap);
@@ -1486,6 +1487,9 @@ public class DenseVectorFieldMapper extends FieldMapper {
                 RescoreVector rescoreVector = null;
                 if (indexVersion.onOrAfter(ADD_RESCORE_PARAMS_TO_QUANTIZED_VECTORS)) {
                     rescoreVector = RescoreVector.fromIndexOptions(indexOptionsMap, indexVersion);
+                    if (rescoreVector == null) {
+                        rescoreVector = new RescoreVector(DEFAULT_OVERSAMPLE);
+                    }
                 }
                 MappingParser.checkNoRemainingFields(fieldName, indexOptionsMap);
                 return new BBQFlatIndexOptions(rescoreVector);
@@ -2313,6 +2317,10 @@ public class DenseVectorFieldMapper extends FieldMapper {
 
         ElementType getElementType() {
             return elementType;
+        }
+
+        IndexOptions getIndexOptions() {
+            return indexOptions;
         }
     }
 

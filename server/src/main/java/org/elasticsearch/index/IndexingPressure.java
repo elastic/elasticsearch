@@ -19,11 +19,13 @@ import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.index.stats.IndexingPressureStats;
 
+import java.util.List;
 import java.util.Optional;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 
-public class IndexingPressure {
+public class IndexingPressure implements IndexingPressureMonitor {
 
     public static final Setting<ByteSizeValue> MAX_INDEXING_BYTES = Setting.memorySizeSetting(
         "indexing_pressure.memory.limit",
@@ -126,6 +128,8 @@ public class IndexingPressure {
     private final long primaryLimit;
     private final long replicaLimit;
     private final long operationLimit;
+
+    private final List<IndexingPressureListener> listeners = new CopyOnWriteArrayList<>();
 
     public IndexingPressure(Settings settings) {
         this.lowWatermark = SPLIT_BULK_LOW_WATERMARK.get(settings).getBytes();
@@ -339,12 +343,14 @@ public class IndexingPressure {
         long largestOperationSizeInBytes,
         boolean allowsOperationsBeyondSizeLimit
     ) {
+        listeners.forEach(l -> l.onPrimaryOperationTracked(largestOperationSizeInBytes));
         if (largestOperationSizeInBytes > operationLimit) {
             this.largeOpsRejections.getAndIncrement();
             this.totalRejectedLargeOpsBytes.addAndGet(largestOperationSizeInBytes);
             if (allowsOperationsBeyondSizeLimit == false) {
                 this.primaryRejections.getAndIncrement();
                 this.primaryDocumentRejections.addAndGet(operations);
+                listeners.forEach(l -> l.onLargeIndexingOperationRejection(largestOperationSizeInBytes));
                 throw new EsRejectedExecutionException(
                     "Request contains an operation of size ["
                         + largestOperationSizeInBytes
@@ -488,5 +494,15 @@ public class IndexingPressure {
             largeOpsRejections.get(),
             totalRejectedLargeOpsBytes.get()
         );
+    }
+
+    @Override
+    public long getMaxAllowedOperationSizeInBytes() {
+        return operationLimit;
+    }
+
+    @Override
+    public void addListener(IndexingPressureListener listener) {
+        listeners.add(listener);
     }
 }

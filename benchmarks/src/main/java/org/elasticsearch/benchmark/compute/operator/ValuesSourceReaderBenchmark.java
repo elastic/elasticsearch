@@ -92,6 +92,10 @@ public class ValuesSourceReaderBenchmark {
 
     static {
         // Smoke test all the expected values and force loading subclasses more like prod
+        selfTest();
+    }
+
+    static void selfTest() {
         try {
             ValuesSourceReaderBenchmark benchmark = new ValuesSourceReaderBenchmark();
             benchmark.setupIndex();
@@ -263,7 +267,42 @@ public class ValuesSourceReaderBenchmark {
             null,
             null,
             false
-        ).blockLoader(null);
+        ).blockLoader(new MappedFieldType.BlockLoaderContext() {
+            @Override
+            public String indexName() {
+                return "benchmark";
+            }
+
+            @Override
+            public MappedFieldType.FieldExtractPreference fieldExtractPreference() {
+                return MappedFieldType.FieldExtractPreference.NONE;
+            }
+
+            @Override
+            public IndexSettings indexSettings() {
+                throw new UnsupportedOperationException();
+            }
+
+            @Override
+            public SearchLookup lookup() {
+                throw new UnsupportedOperationException();
+            }
+
+            @Override
+            public Set<String> sourcePaths(String name) {
+                throw new UnsupportedOperationException();
+            }
+
+            @Override
+            public String parentField(String field) {
+                throw new UnsupportedOperationException();
+            }
+
+            @Override
+            public FieldNamesFieldMapper.FieldNamesFieldType fieldNames() {
+                throw new UnsupportedOperationException();
+            }
+        });
     }
 
     /**

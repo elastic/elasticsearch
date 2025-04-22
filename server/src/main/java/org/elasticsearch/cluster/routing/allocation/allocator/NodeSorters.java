@@ -11,19 +11,14 @@ package org.elasticsearch.cluster.routing.allocation.allocator;
 
 import org.elasticsearch.cluster.routing.ShardRouting;
 
-import java.util.Collection;
-
 /**
  * NodeSorters is just a cache of
  * {@link org.elasticsearch.cluster.routing.allocation.allocator.BalancedShardsAllocator.NodeSorter}
  * instances for each cluster partition
+ * <p>
+ * The returned iterator will return a node sorter for each partition in the cluster.
  */
-public interface NodeSorters {
-
-    /**
-     * Get the {@link BalancedShardsAllocator.NodeSorter}s for all partitions
-     */
-    Collection<BalancedShardsAllocator.NodeSorter> allNodeSorters();
+public interface NodeSorters extends Iterable<BalancedShardsAllocator.NodeSorter> {
 
     /**
      * Get the {@link BalancedShardsAllocator.NodeSorter} for the specified shard

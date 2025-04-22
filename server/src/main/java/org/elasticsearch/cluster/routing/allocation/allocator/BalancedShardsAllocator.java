@@ -384,7 +384,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
             }
 
             // Balance each partition
-            for (NodeSorter nodeSorter : nodeSorters.allNodeSorters()) {
+            for (NodeSorter nodeSorter : nodeSorters) {
                 balanceByWeights(nodeSorter);
             }
         }

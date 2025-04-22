@@ -51,9 +51,9 @@ import org.elasticsearch.snapshots.SnapshotShardSizeInfo;
 import org.elasticsearch.test.gateway.TestGatewayAllocator;
 
 import java.util.Arrays;
-import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -844,9 +844,10 @@ public class BalancedShardsAllocatorTests extends ESAllocationTestCase {
                     );
                 }
                 return new NodeSorters() {
+
                     @Override
-                    public Collection<BalancedShardsAllocator.NodeSorter> allNodeSorters() {
-                        return prefixNodeSorters.values();
+                    public Iterator<BalancedShardsAllocator.NodeSorter> iterator() {
+                        return prefixNodeSorters.values().iterator();
                     }
 
                     @Override

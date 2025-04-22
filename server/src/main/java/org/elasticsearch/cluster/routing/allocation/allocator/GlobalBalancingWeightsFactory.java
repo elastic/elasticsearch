@@ -11,9 +11,9 @@ package org.elasticsearch.cluster.routing.allocation.allocator;
 
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.common.collect.Iterators;
 
-import java.util.Collection;
-import java.util.List;
+import java.util.Iterator;
 
 public class GlobalBalancingWeightsFactory implements BalancingWeightsFactory {
 
@@ -59,13 +59,13 @@ public class GlobalBalancingWeightsFactory implements BalancingWeightsFactory {
         private record GlobalNodeSorters(BalancedShardsAllocator.NodeSorter nodeSorter) implements NodeSorters {
 
             @Override
-            public Collection<BalancedShardsAllocator.NodeSorter> allNodeSorters() {
-                return List.of(nodeSorter);
+            public BalancedShardsAllocator.NodeSorter sorterForShard(ShardRouting shard) {
+                return nodeSorter;
             }
 
             @Override
-            public BalancedShardsAllocator.NodeSorter sorterForShard(ShardRouting shard) {
-                return nodeSorter;
+            public Iterator<BalancedShardsAllocator.NodeSorter> iterator() {
+                return Iterators.single(nodeSorter);
             }
         }
     }

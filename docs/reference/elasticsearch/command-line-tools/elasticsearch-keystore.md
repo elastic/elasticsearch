@@ -94,13 +94,13 @@ Only some settings are designed to be read from the keystore. However, there is 
 Improper handling of special characters can lead to authentication failures and service outages.
 :::
 
-Exclamation mark: `!`
+**Exclamation mark**: `!`
 : When using the shell, the combination `\!` is stored as just `!`. This can lead to authentication failures if the password is not stored as intended.
 
-Quotes: `"`
+**Quotes**: `"`
 : If quotes are used around the password, they become part of the password itself. This can cause the password to be incorrect when retrieved from the keystore.
 
-Backslash: `\`
+**Backslash**: `\`
 : The backslash character needs to be properly escaped. If not escaped correctly, it may be omitted or misinterpreted, leading to incorrect password storage.
 
 ## Examples [elasticsearch-keystore-examples]

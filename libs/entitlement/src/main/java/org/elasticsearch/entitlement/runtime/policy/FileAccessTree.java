@@ -34,6 +34,8 @@ import java.util.function.BiConsumer;
 import static java.util.Comparator.comparing;
 import static org.elasticsearch.core.PathUtils.getDefaultFileSystem;
 import static org.elasticsearch.entitlement.runtime.policy.FileUtils.PATH_ORDER;
+import static org.elasticsearch.entitlement.runtime.policy.PathLookup.BaseDir.CONFIG;
+import static org.elasticsearch.entitlement.runtime.policy.PathLookup.BaseDir.TEMP;
 import static org.elasticsearch.entitlement.runtime.policy.entitlements.FilesEntitlement.Mode.READ_WRITE;
 
 /**
@@ -183,12 +185,9 @@ public final class FileAccessTree {
      */
     private final String[] writePaths;
 
-    private FileAccessTree(
+    private static String[] buildUpdatedAndSortedExclusivePaths(
         String componentName,
         String moduleName,
-        FilesEntitlement filesEntitlement,
-        PathLookup pathLookup,
-        Path componentPath,
         List<ExclusivePath> exclusivePaths
     ) {
         List<String> updatedExclusivePaths = new ArrayList<>();
@@ -197,7 +196,11 @@ public final class FileAccessTree {
                 updatedExclusivePaths.add(exclusivePath.path());
             }
         }
+        updatedExclusivePaths.sort(PATH_ORDER);
+        return updatedExclusivePaths.toArray(new String[0]);
+    }
 
+    private FileAccessTree(FilesEntitlement filesEntitlement, PathLookup pathLookup, Path componentPath, String[] sortedExclusivePaths) {
         List<String> readPaths = new ArrayList<>();
         List<String> writePaths = new ArrayList<>();
         BiConsumer<Path, Mode> addPath = (path, mode) -> {
@@ -238,9 +241,9 @@ public final class FileAccessTree {
         }
 
         // everything has access to the temp dir, config dir, to their own dir (their own jar files) and the jdk
-        addPathAndMaybeLink.accept(pathLookup.tempDir(), READ_WRITE);
+        pathLookup.getBaseDirPaths(TEMP).forEach(tempPath -> addPathAndMaybeLink.accept(tempPath, READ_WRITE));
         // TODO: this grants read access to the config dir for all modules until explicit read entitlements can be added
-        addPathAndMaybeLink.accept(pathLookup.configDir(), Mode.READ);
+        pathLookup.getBaseDirPaths(CONFIG).forEach(configPath -> addPathAndMaybeLink.accept(configPath, Mode.READ));
         if (componentPath != null) {
             addPathAndMaybeLink.accept(componentPath, Mode.READ);
         }
@@ -249,11 +252,10 @@ public final class FileAccessTree {
         Path jdk = Paths.get(System.getProperty("java.home"));
         addPathAndMaybeLink.accept(jdk.resolve("conf"), Mode.READ);
 
-        updatedExclusivePaths.sort(PATH_ORDER);
         readPaths.sort(PATH_ORDER);
         writePaths.sort(PATH_ORDER);
 
-        this.exclusivePaths = updatedExclusivePaths.toArray(new String[0]);
+        this.exclusivePaths = sortedExclusivePaths;
         this.readPaths = pruneSortedPaths(readPaths).toArray(new String[0]);
         this.writePaths = pruneSortedPaths(writePaths).toArray(new String[0]);
     }
@@ -275,7 +277,7 @@ public final class FileAccessTree {
         return prunedReadPaths;
     }
 
-    public static FileAccessTree of(
+    static FileAccessTree of(
         String componentName,
         String moduleName,
         FilesEntitlement filesEntitlement,
@@ -283,14 +285,30 @@ public final class FileAccessTree {
         @Nullable Path componentPath,
         List<ExclusivePath> exclusivePaths
     ) {
-        return new FileAccessTree(componentName, moduleName, filesEntitlement, pathLookup, componentPath, exclusivePaths);
+        return new FileAccessTree(
+            filesEntitlement,
+            pathLookup,
+            componentPath,
+            buildUpdatedAndSortedExclusivePaths(componentName, moduleName, exclusivePaths)
+        );
     }
 
-    boolean canRead(Path path) {
+    /**
+     * A special factory method to create a FileAccessTree with no ExclusivePaths, e.g. for quick validation or for default file access
+     */
+    public static FileAccessTree withoutExclusivePaths(
+        FilesEntitlement filesEntitlement,
+        PathLookup pathLookup,
+        @Nullable Path componentPath
+    ) {
+        return new FileAccessTree(filesEntitlement, pathLookup, componentPath, new String[0]);
+    }
+
+    public boolean canRead(Path path) {
         return checkPath(normalizePath(path), readPaths);
     }
 
-    boolean canWrite(Path path) {
+    public boolean canWrite(Path path) {
         return checkPath(normalizePath(path), writePaths);
     }
 

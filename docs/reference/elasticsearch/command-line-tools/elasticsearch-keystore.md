@@ -88,6 +88,16 @@ Only some settings are designed to be read from the keystore. However, there is 
 `-v, --verbose`
 :   Shows verbose output.
 
+## Handling special characters
+
+Exclamation mark: `!`
+: When using the shell, the combination `\!` is stored as just `!`. This can lead to authentication failures if the password is not stored as intended.
+
+Quotes: `"`
+: If quotes are used around the password, they become part of the password itself. This can cause the password to be incorrect when retrieved from the keystore.
+
+Backslash: `\`
+: The backslash character needs to be properly escaped. If not escaped correctly, it may be omitted or misinterpreted, leading to incorrect password storage.
 
 ## Examples [elasticsearch-keystore-examples]
 
@@ -157,17 +167,6 @@ echo -n 'your\!password' | bin/elasticsearch-keystore add the.setting.name.to.se
 ```
 
 Values for multiple settings must be separated by carriage returns or newlines.
-
-## Handling special characters
-
-Exclamation mark: `!`
-: When using the shell, the combination `\!` is stored as just `!`. This can lead to authentication failures if the password is not stored as intended.
-
-Quotes: `"`
-: If quotes are used around the password, they become part of the password itself. This can cause the password to be incorrect when retrieved from the keystore.
-
-Backslash: `\`
-: The backslash character needs to be properly escaped. If not escaped correctly, it may be omitted or misinterpreted, leading to incorrect password storage.
 
 ### Add files to the keystore [add-file-to-keystore]
 

@@ -56,14 +56,13 @@ public class FileAccessTreeComparisonTests extends ESTestCase {
     }
 
     public void testPathOrderingSpecialCharacters() {
-        var separatorChar = randomFrom('/', '\\');
-        var pathComparator = (randomBoolean() ? new CaseInsensitiveComparison(separatorChar) : new CaseSensitiveComparison(separatorChar))
+        var s = randomFrom('/', '\\');
+        var pathComparator = (randomBoolean() ? new CaseInsensitiveComparison(s) : new CaseSensitiveComparison(s))
             .pathComparator();
 
         assertThat(pathComparator.compare("aa\uD801\uDC28", "aa\uD801\uDC28"), is(0));
         assertThat(pathComparator.compare("aa\uD801\uDC28", "aa\uD801\uDC28a"), lessThan(0));
 
-        var s = PathUtils.getDefaultFileSystem().getSeparator();
         // Similarly to the other tests, we assert that Directories come BEFORE files, even when names are special characters
         assertThat(pathComparator.compare(s + "\uD801\uDC28" + s + "b", s + "\uD801\uDC28.xml"), lessThan(0));
         assertThat(pathComparator.compare(s + "\uD801\uDC28" + s + "b", s + "b.xml"), greaterThan(0));

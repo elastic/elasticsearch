@@ -67,7 +67,6 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.bytes.CompositeBytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
-import org.elasticsearch.common.io.stream.DelayableWriteable;
 import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
@@ -1971,11 +1970,10 @@ public abstract class ESTestCase extends LuceneTestCase {
             } else {
                 BytesReference bytesReference = output.copyBytes();
                 output.reset();
-                output.writeBytesReference(bytesReference);
+                bytesReference.writeTo(output);
                 try (StreamInput in = new NamedWriteableAwareStreamInput(output.bytes().streamInput(), namedWriteableRegistry)) {
                     in.setTransportVersion(version);
-                    DelayableWriteable<T> delayableWriteable = DelayableWriteable.delayed(reader, in);
-                    return delayableWriteable.expand();
+                    return reader.read(in);
                 }
             }
         }

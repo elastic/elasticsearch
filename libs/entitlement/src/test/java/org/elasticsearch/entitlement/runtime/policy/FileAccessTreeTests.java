@@ -31,6 +31,7 @@ import java.util.Set;
 import static org.elasticsearch.core.PathUtils.getDefaultFileSystem;
 import static org.elasticsearch.entitlement.runtime.policy.FileAccessTree.buildExclusivePathList;
 import static org.elasticsearch.entitlement.runtime.policy.FileAccessTree.normalizePath;
+import static org.elasticsearch.entitlement.runtime.policy.FileAccessTree.separatorChar;
 import static org.elasticsearch.entitlement.runtime.policy.PathLookup.BaseDir.CONFIG;
 import static org.elasticsearch.entitlement.runtime.policy.PathLookup.BaseDir.TEMP;
 import static org.elasticsearch.entitlement.runtime.policy.Platform.WINDOWS;
@@ -363,7 +364,7 @@ public class FileAccessTreeTests extends ESTestCase {
     }
 
     public void testDuplicatePrunedPaths() {
-        var comparison = new CaseSensitiveComparison('/');
+        var comparison = new CaseSensitiveComparison(separatorChar());
         List<String> inputPaths = List.of("/a", "/a", "/a/b", "/a/b", "/b/c", "b/c/d", "b/c/d", "b/c/d", "e/f", "e/f");
         List<String> outputPaths = List.of("/a", "/b/c", "b/c/d", "e/f");
         var actual = FileAccessTree.pruneSortedPaths(inputPaths.stream().map(p -> normalizePath(path(p))).toList(), comparison);
@@ -372,7 +373,7 @@ public class FileAccessTreeTests extends ESTestCase {
     }
 
     public void testDuplicatePrunedPathsWindows() {
-        var comparison = new CaseInsensitiveComparison('/');
+        var comparison = new CaseInsensitiveComparison(separatorChar());
         List<String> inputPaths = List.of("/a", "/A", "/a/b", "/a/B", "/b/c", "b/c/d", "B/c/d", "b/c/D", "e/f", "e/f");
         List<String> outputPaths = List.of("/a", "/b/c", "b/c/d", "e/f");
         var actual = FileAccessTree.pruneSortedPaths(inputPaths.stream().map(p -> normalizePath(path(p))).toList(), comparison);

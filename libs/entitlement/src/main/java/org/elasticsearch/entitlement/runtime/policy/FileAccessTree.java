@@ -175,7 +175,7 @@ public final class FileAccessTree {
     }
 
     @SuppressForbidden(reason = "we need the separator as a char, not a string")
-    private static char separatorChar() {
+    static char separatorChar() {
         return File.separatorChar;
     }
 

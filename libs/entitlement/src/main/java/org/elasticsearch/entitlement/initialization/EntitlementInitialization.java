@@ -58,9 +58,9 @@ import java.nio.file.WatchService;
 import java.nio.file.attribute.FileAttribute;
 import java.nio.file.spi.FileSystemProvider;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -70,10 +70,14 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
 
+import static org.elasticsearch.entitlement.runtime.policy.PathLookup.BaseDir.CONFIG;
+import static org.elasticsearch.entitlement.runtime.policy.PathLookup.BaseDir.DATA;
+import static org.elasticsearch.entitlement.runtime.policy.PathLookup.BaseDir.LIB;
+import static org.elasticsearch.entitlement.runtime.policy.PathLookup.BaseDir.LOGS;
+import static org.elasticsearch.entitlement.runtime.policy.PathLookup.BaseDir.MODULES;
+import static org.elasticsearch.entitlement.runtime.policy.PathLookup.BaseDir.PLUGINS;
+import static org.elasticsearch.entitlement.runtime.policy.PathLookup.BaseDir.SHARED_REPO;
 import static org.elasticsearch.entitlement.runtime.policy.Platform.LINUX;
-import static org.elasticsearch.entitlement.runtime.policy.entitlements.FilesEntitlement.BaseDir.CONFIG;
-import static org.elasticsearch.entitlement.runtime.policy.entitlements.FilesEntitlement.BaseDir.DATA;
-import static org.elasticsearch.entitlement.runtime.policy.entitlements.FilesEntitlement.BaseDir.SHARED_REPO;
 import static org.elasticsearch.entitlement.runtime.policy.entitlements.FilesEntitlement.Mode.READ;
 import static org.elasticsearch.entitlement.runtime.policy.entitlements.FilesEntitlement.Mode.READ_WRITE;
 
@@ -200,27 +204,20 @@ public class EntitlementInitialization {
     private static PolicyManager createPolicyManager() {
         EntitlementBootstrap.BootstrapArgs bootstrapArgs = EntitlementBootstrap.bootstrapArgs();
         Map<String, Policy> pluginPolicies = bootstrapArgs.pluginPolicies();
-        var pathLookup = new PathLookup(
-            getUserHome(),
-            bootstrapArgs.configDir(),
-            bootstrapArgs.dataDirs(),
-            bootstrapArgs.sharedRepoDirs(),
-            bootstrapArgs.tempDir(),
-            bootstrapArgs.settingResolver()
-        );
+        PathLookup pathLookup = bootstrapArgs.pathLookup();
 
         List<Scope> serverScopes = new ArrayList<>();
         List<FileData> serverModuleFileDatas = new ArrayList<>();
         Collections.addAll(
             serverModuleFileDatas,
             // Base ES directories
-            FileData.ofPath(bootstrapArgs.pluginsDir(), READ),
-            FileData.ofPath(bootstrapArgs.modulesDir(), READ),
-            FileData.ofPath(bootstrapArgs.configDir(), READ),
-            FileData.ofPath(bootstrapArgs.logsDir(), READ_WRITE),
-            FileData.ofPath(bootstrapArgs.libDir(), READ),
-            FileData.ofRelativePath(Path.of(""), DATA, READ_WRITE),
-            FileData.ofRelativePath(Path.of(""), SHARED_REPO, READ_WRITE),
+            FileData.ofBaseDirPath(PLUGINS, READ),
+            FileData.ofBaseDirPath(MODULES, READ),
+            FileData.ofBaseDirPath(CONFIG, READ),
+            FileData.ofBaseDirPath(LOGS, READ_WRITE),
+            FileData.ofBaseDirPath(LIB, READ),
+            FileData.ofBaseDirPath(DATA, READ_WRITE),
+            FileData.ofBaseDirPath(SHARED_REPO, READ_WRITE),
             // exclusive settings file
             FileData.ofRelativePath(Path.of("operator/settings.json"), CONFIG, READ_WRITE).withExclusive(true),
 
@@ -242,8 +239,8 @@ public class EntitlementInitialization {
             FileData.ofPath(Path.of("/proc/self/mountinfo"), READ).withPlatform(LINUX),
             FileData.ofPath(Path.of("/proc/diskstats"), READ).withPlatform(LINUX)
         );
-        if (bootstrapArgs.pidFile() != null) {
-            serverModuleFileDatas.add(FileData.ofPath(bootstrapArgs.pidFile(), READ_WRITE));
+        if (pathLookup.pidFile() != null) {
+            serverModuleFileDatas.add(FileData.ofPath(pathLookup.pidFile(), READ_WRITE));
         }
 
         Collections.addAll(
@@ -255,8 +252,8 @@ public class EntitlementInitialization {
                     new FilesEntitlement(
                         List.of(
                             // TODO: what in es.base is accessing shared repo?
-                            FileData.ofRelativePath(Path.of(""), SHARED_REPO, READ_WRITE),
-                            FileData.ofRelativePath(Path.of(""), DATA, READ_WRITE)
+                            FileData.ofBaseDirPath(SHARED_REPO, READ_WRITE),
+                            FileData.ofBaseDirPath(DATA, READ_WRITE)
                         )
                     )
                 )
@@ -281,25 +278,17 @@ public class EntitlementInitialization {
                 List.of(
                     new LoadNativeLibrariesEntitlement(),
                     new ManageThreadsEntitlement(),
-                    new FilesEntitlement(
-                        List.of(FileData.ofPath(bootstrapArgs.configDir(), READ), FileData.ofRelativePath(Path.of(""), DATA, READ_WRITE))
-                    )
+                    new FilesEntitlement(List.of(FileData.ofBaseDirPath(CONFIG, READ), FileData.ofBaseDirPath(DATA, READ_WRITE)))
                 )
             ),
-            new Scope(
-                "org.apache.lucene.misc",
-                List.of(new FilesEntitlement(List.of(FileData.ofRelativePath(Path.of(""), DATA, READ_WRITE))))
-            ),
+            new Scope("org.apache.lucene.misc", List.of(new FilesEntitlement(List.of(FileData.ofBaseDirPath(DATA, READ_WRITE))))),
             new Scope(
                 "org.apache.logging.log4j.core",
-                List.of(new ManageThreadsEntitlement(), new FilesEntitlement(List.of(FileData.ofPath(bootstrapArgs.logsDir(), READ_WRITE))))
+                List.of(new ManageThreadsEntitlement(), new FilesEntitlement(List.of(FileData.ofBaseDirPath(LOGS, READ_WRITE))))
             ),
             new Scope(
                 "org.elasticsearch.nativeaccess",
-                List.of(
-                    new LoadNativeLibrariesEntitlement(),
-                    new FilesEntitlement(List.of(FileData.ofRelativePath(Path.of(""), DATA, READ_WRITE)))
-                )
+                List.of(new LoadNativeLibrariesEntitlement(), new FilesEntitlement(List.of(FileData.ofBaseDirPath(DATA, READ_WRITE))))
             )
         );
 
@@ -324,7 +313,7 @@ public class EntitlementInitialization {
                 new Scope(
                     "org.bouncycastle.fips.core",
                     // read to lib dir is required for checksum validation
-                    List.of(new FilesEntitlement(List.of(FileData.ofPath(bootstrapArgs.libDir(), READ))), new ManageThreadsEntitlement())
+                    List.of(new FilesEntitlement(List.of(FileData.ofBaseDirPath(LIB, READ))), new ManageThreadsEntitlement())
                 )
             );
         }
@@ -348,21 +337,14 @@ public class EntitlementInitialization {
             new LoadNativeLibrariesEntitlement(),
             new FilesEntitlement(
                 List.of(
-                    FileData.ofPath(bootstrapArgs.logsDir(), READ_WRITE),
+                    FileData.ofBaseDirPath(LOGS, READ_WRITE),
                     FileData.ofPath(Path.of("/proc/meminfo"), READ),
                     FileData.ofPath(Path.of("/sys/fs/cgroup/"), READ)
                 )
             )
         );
 
-        validateFilesEntitlements(
-            pluginPolicies,
-            pathLookup,
-            bootstrapArgs.configDir(),
-            bootstrapArgs.pluginsDir(),
-            bootstrapArgs.modulesDir(),
-            bootstrapArgs.libDir()
-        );
+        validateFilesEntitlements(pluginPolicies, pathLookup);
 
         return new PolicyManager(
             serverPolicy,
@@ -377,21 +359,14 @@ public class EntitlementInitialization {
         );
     }
 
-    private static Set<Path> pathSet(Path... paths) {
-        return Arrays.stream(paths).map(x -> x.toAbsolutePath().normalize()).collect(Collectors.toUnmodifiableSet());
-    }
-
     // package visible for tests
-    static void validateFilesEntitlements(
-        Map<String, Policy> pluginPolicies,
-        PathLookup pathLookup,
-        Path configDir,
-        Path pluginsDir,
-        Path modulesDir,
-        Path libDir
-    ) {
-        var readAccessForbidden = pathSet(pluginsDir, modulesDir, libDir);
-        var writeAccessForbidden = pathSet(configDir);
+    static void validateFilesEntitlements(Map<String, Policy> pluginPolicies, PathLookup pathLookup) {
+        Set<Path> readAccessForbidden = new HashSet<>();
+        pathLookup.getBaseDirPaths(PLUGINS).forEach(p -> readAccessForbidden.add(p.toAbsolutePath().normalize()));
+        pathLookup.getBaseDirPaths(MODULES).forEach(p -> readAccessForbidden.add(p.toAbsolutePath().normalize()));
+        pathLookup.getBaseDirPaths(LIB).forEach(p -> readAccessForbidden.add(p.toAbsolutePath().normalize()));
+        Set<Path> writeAccessForbidden = new HashSet<>();
+        pathLookup.getBaseDirPaths(CONFIG).forEach(p -> writeAccessForbidden.add(p.toAbsolutePath().normalize()));
         for (var pluginPolicy : pluginPolicies.entrySet()) {
             for (var scope : pluginPolicy.getValue().scopes()) {
                 var filesEntitlement = scope.entitlements()

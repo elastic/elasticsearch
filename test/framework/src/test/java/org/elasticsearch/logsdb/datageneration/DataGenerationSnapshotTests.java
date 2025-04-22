@@ -10,9 +10,10 @@
 package org.elasticsearch.logsdb.datageneration;
 
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.logsdb.datageneration.datasource.DataSourceHandler;
-import org.elasticsearch.logsdb.datageneration.datasource.DataSourceRequest;
-import org.elasticsearch.logsdb.datageneration.datasource.DataSourceResponse;
+import org.elasticsearch.datageneration.*;
+import org.elasticsearch.datageneration.datasource.DataSourceHandler;
+import org.elasticsearch.datageneration.datasource.DataSourceRequest;
+import org.elasticsearch.datageneration.datasource.DataSourceResponse;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;

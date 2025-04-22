@@ -150,7 +150,7 @@ To pass the settings values through standard input (stdin), use the `--stdin` fl
 ```sh
 cat /file/containing/setting/value | bin/elasticsearch-keystore add --stdin the.setting.name.to.set
 ```
-Alternatively you can use the echo command to input the password into the keystore. For example if the password is `your\!password` :
+Alternatively, you can use the echo command to input the password into the keystore. For example, if the password is `your\!password` :
 
 ```sh
 echo -n 'your\!password' | bin/elasticsearch-keystore add the.setting.name.to.set

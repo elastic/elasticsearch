@@ -1955,7 +1955,7 @@ public class FailureStoreSecurityRestIT extends ESRestTestCase {
         upsertRole(Strings.format("""
             {
               "cluster": [],
-              "indices": [{"names": [ ".?s*", "regular*"], "privileges": ["manage"]}]
+              "indices": [{"names": [ ".?s*", "regular*", "other1"], "privileges": ["manage"]}]
             }"""), MANAGE_ACCESS);
 
         assertOK(addFailureStoreBackingIndex(MANAGE_ACCESS, "other1", failureIndexName));

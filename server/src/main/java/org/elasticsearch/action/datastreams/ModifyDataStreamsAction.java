@@ -18,6 +18,8 @@ import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cluster.metadata.DataStreamAction;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.util.CachedSupplier;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
@@ -29,6 +31,7 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
+import java.util.Set;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 
@@ -122,7 +125,14 @@ public class ModifyDataStreamsAction extends ActionType<AcknowledgedResponse> {
         public String[] indices() {
             // Return the indices instead of data streams, this api can be used to repair a broken data stream definition and
             // in that case, exceptions can occur while resolving data streams for doing authorization or looking up index blocks.
-            return actions.stream().map(DataStreamAction::getIndex).toArray(String[]::new);
+            return CachedSupplier.wrap(() -> {
+                final Set<String> indices = Sets.newHashSetWithExpectedSize(actions.size() * 2);
+                for (var action : actions) {
+                    indices.add(action.getDataStream());
+                    indices.add(action.getIndex());
+                }
+                return indices.toArray(String[]::new);
+            }).get();
         }
 
         @Override

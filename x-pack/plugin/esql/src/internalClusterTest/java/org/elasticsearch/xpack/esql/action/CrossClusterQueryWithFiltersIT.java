@@ -27,6 +27,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
+import static org.elasticsearch.core.TimeValue.timeValueSeconds;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.getValuesList;
 import static org.hamcrest.Matchers.containsString;
@@ -90,7 +91,7 @@ public class CrossClusterQueryWithFiltersIT extends AbstractCrossClusterTestCase
     }
 
     protected EsqlQueryResponse runQuery(String query, Boolean ccsMetadataInResponse, QueryBuilder filter) {
-        EsqlQueryRequest request = EsqlQueryRequest.syncEsqlQueryRequest();
+        EsqlQueryRequest request = randomBoolean() ? EsqlQueryRequest.asyncEsqlQueryRequest() : EsqlQueryRequest.syncEsqlQueryRequest();
         request.query(query);
         request.pragmas(AbstractEsqlIntegTestCase.randomPragmas());
         request.profile(randomInt(5) == 2);
@@ -101,6 +102,7 @@ public class CrossClusterQueryWithFiltersIT extends AbstractCrossClusterTestCase
         if (filter != null) {
             request.filter(filter);
         }
+        request.waitForCompletionTimeout(timeValueSeconds(30));
         return runQuery(request);
     }
 

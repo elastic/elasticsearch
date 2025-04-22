@@ -1,0 +1,5 @@
+pr: 127148
+summary: Skip unused STATS groups by adding a Top N `BlockHash` implementation
+area: ES|QL
+type: enhancement
+issues: []

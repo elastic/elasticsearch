@@ -574,7 +574,8 @@ public class DataNodeRequestSenderTests extends ComputeTestCase {
             null,
             "",
             allowPartialResults,
-            concurrentRequests
+            concurrentRequests,
+            10
         ) {
             @Override
             void searchShards(Set<String> concreteIndices, ActionListener<TargetShards> listener) {

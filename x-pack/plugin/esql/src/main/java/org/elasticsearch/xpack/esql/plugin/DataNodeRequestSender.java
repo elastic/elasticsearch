@@ -97,6 +97,7 @@ abstract class DataNodeRequestSender {
     private final AtomicInteger skippedShards = new AtomicInteger();
     private final AtomicBoolean changed = new AtomicBoolean();
     private boolean reportedFailure = false; // guarded by sendingLock
+    private final AtomicInteger remainingUnavailableShardResolutionAttempts;
 
     DataNodeRequestSender(
         ClusterService clusterService,
@@ -108,7 +109,8 @@ abstract class DataNodeRequestSender {
         QueryBuilder requestFilter,
         String clusterAlias,
         boolean allowPartialResults,
-        int concurrentRequests
+        int concurrentRequests,
+        int unavailableShardResolutionAttempts
     ) {
         this.clusterService = clusterService;
         this.projectResolver = projectResolver;
@@ -120,6 +122,9 @@ abstract class DataNodeRequestSender {
         this.clusterAlias = clusterAlias;
         this.allowPartialResults = allowPartialResults;
         this.concurrentRequests = concurrentRequests > 0 ? new Semaphore(concurrentRequests) : null;
+        this.remainingUnavailableShardResolutionAttempts = new AtomicInteger(
+            unavailableShardResolutionAttempts >= 0 ? unavailableShardResolutionAttempts : Integer.MAX_VALUE
+        );
     }
 
     final void startComputeOnDataNodes(Set<String> concreteIndices, Runnable runOnTaskFailure, ActionListener<ComputeResponse> listener) {
@@ -260,7 +265,7 @@ abstract class DataNodeRequestSender {
                     concurrentRequests.release();
                 }
 
-                if (pendingRetries.isEmpty() == false) {
+                if (pendingRetries.isEmpty() == false && remainingUnavailableShardResolutionAttempts.decrementAndGet() >= 0) {
                     try {
                         sendingLock.lock();
                         var resolutions = resolveShards(pendingRetries);

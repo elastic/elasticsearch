@@ -119,7 +119,8 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
             PlannerUtils.canMatchFilter(dataNodePlan),
             clusterAlias,
             configuration.allowPartialResults(),
-            maxConcurrentNodesPerCluster == null ? -1 : maxConcurrentNodesPerCluster
+            maxConcurrentNodesPerCluster == null ? -1 : maxConcurrentNodesPerCluster,
+            configuration.pragmas().unavailableShardResolutionAttempts()
         ) {
             @Override
             protected void sendRequest(

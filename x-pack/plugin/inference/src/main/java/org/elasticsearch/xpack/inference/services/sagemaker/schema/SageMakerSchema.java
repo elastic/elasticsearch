@@ -7,6 +7,8 @@
 
 package org.elasticsearch.xpack.inference.services.sagemaker.schema;
 
+import org.elasticsearch.core.Strings;
+
 import software.amazon.awssdk.services.sagemakerruntime.model.InternalDependencyException;
 import software.amazon.awssdk.services.sagemakerruntime.model.InternalFailureException;
 import software.amazon.awssdk.services.sagemakerruntime.model.InvokeEndpointRequest;
@@ -129,7 +131,7 @@ public class SageMakerSchema {
             restStatus = RestStatus.INTERNAL_SERVER_ERROR;
         }
 
-        var errorMessage = String.format(errorMessageTemplate, model.getInferenceEntityId());
+        var errorMessage = Strings.format(errorMessageTemplate, model.getInferenceEntityId());
         return Tuple.tuple(errorMessage, restStatus);
     }
 

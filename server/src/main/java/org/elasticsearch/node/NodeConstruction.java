@@ -689,6 +689,8 @@ class NodeConstruction {
 
         modules.bindToInstance(DocumentParsingProvider.class, documentParsingProvider);
 
+        FeatureService featureService = new FeatureService(pluginsService.loadServiceProviders(FeatureSpecification.class));
+
         FailureStoreMetrics failureStoreMetrics = new FailureStoreMetrics(telemetryProvider.getMeterRegistry());
         final IngestService ingestService = new IngestService(
             clusterService,
@@ -700,7 +702,8 @@ class NodeConstruction {
             client,
             IngestService.createGrokThreadWatchdog(environment, threadPool),
             failureStoreMetrics,
-            projectResolver
+            projectResolver,
+            featureService
         );
 
         SystemIndices systemIndices = createSystemIndices(settings);
@@ -783,8 +786,6 @@ class NodeConstruction {
         );
 
         final MetaStateService metaStateService = new MetaStateService(nodeEnvironment, xContentRegistry);
-
-        FeatureService featureService = new FeatureService(pluginsService.loadServiceProviders(FeatureSpecification.class));
 
         if (DiscoveryNode.isMasterNode(settings)) {
             clusterService.addListener(new SystemIndexMappingUpdateService(systemIndices, client, projectResolver));

@@ -986,6 +986,21 @@ public final class TextFieldMapper extends FieldMapper {
                 && syntheticSourceDelegate.isIndexed();
         }
 
+        /**
+         * Returns true if the delegate sub-field can be used for querying only (ie. isIndexed must be true)
+         */
+        public boolean canUseSyntheticSourceDelegateForQueryingEquality(String str) {
+            if (syntheticSourceDelegate == null
+                // Can't push equality to an index if there isn't an index
+                || syntheticSourceDelegate.isIndexed() == false
+                // ESQL needs docs values to push equality
+                || syntheticSourceDelegate.hasDocValues() == false) {
+                return false;
+            }
+            // Can't push equality if the field we're checking for is so big we'd ignore it.
+            return str.length() <= syntheticSourceDelegate.ignoreAbove();
+        }
+
         @Override
         public BlockLoader blockLoader(BlockLoaderContext blContext) {
             if (canUseSyntheticSourceDelegateForLoading()) {

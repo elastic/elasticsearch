@@ -10,7 +10,11 @@
 package org.elasticsearch.logsdb.datageneration;
 
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.datageneration.*;
+import org.elasticsearch.datageneration.DataGeneratorSpecification;
+import org.elasticsearch.datageneration.DocumentGenerator;
+import org.elasticsearch.datageneration.FieldType;
+import org.elasticsearch.datageneration.MappingGenerator;
+import org.elasticsearch.datageneration.TemplateGenerator;
 import org.elasticsearch.datageneration.datasource.DataSourceHandler;
 import org.elasticsearch.datageneration.datasource.DataSourceRequest;
 import org.elasticsearch.datageneration.datasource.DataSourceResponse;

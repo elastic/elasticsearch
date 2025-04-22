@@ -172,7 +172,7 @@ Flushes may also be automatically initiated by Elasticsearch, e.g., if the trans
 
 A bulk request will repeateadly call ultimately the Engine methods such as [`index()` or `delete()`](https://github.com/elastic/elasticsearch/blob/591fa87e43a509d3eadfdbbb296cdf08453ea91a/server/src/main/java/org/elasticsearch/index/engine/Engine.java#L546-L564) which adds operations to the Translog.
 Finally, the AfterWrite action of the [`TransportWriteAction`](https://github.com/elastic/elasticsearch/blob/main/server/src/main/java/org/elasticsearch/action/support/replication/TransportWriteAction.java) will call [`indexShard.syncAfterWrite()`](https://github.com/elastic/elasticsearch/blob/387eef070c25ed57e4139158e7e7e0ed097c8c98/server/src/main/java/org/elasticsearch/action/support/replication/TransportWriteAction.java#L548) which will put the last written translog [`Location`](https://github.com/elastic/elasticsearch/blob/693f3bfe30271d77a6b3147e4519b4915cbb395d/server/src/main/java/org/elasticsearch/index/translog/Translog.java#L977) of the bulk request into a [`AsyncIOProcessor`](https://github.com/elastic/elasticsearch/blob/main/server/src/main/java/org/elasticsearch/common/util/concurrent/AsyncIOProcessor.java) that is responsible for gradually fsync'ing the Translog and notifying any waiters.
-Ultimately the bulk request is notified that the translog has fsync'ed passed the requested location, and can continue to acknowledge the bulk request.
+Ultimately the bulk request is notified that the translog has fsync'ed past the requested location, and can continue to acknowledge the bulk request.
 
 #### Translog internals
 

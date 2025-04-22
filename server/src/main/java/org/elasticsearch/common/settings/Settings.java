@@ -882,16 +882,22 @@ public final class Settings implements ToXContentFragment, Writeable, Diffable<S
      * from the returned object.
      */
     public Settings merge(Settings newSettings) {
-        if (newSettings == null || Settings.EMPTY.equals(newSettings)) {
+        Objects.requireNonNull(newSettings);
+        if (Settings.EMPTY.equals(newSettings)) {
             return this;
         }
-        Settings.Builder settingsBuilder = Settings.builder().put(this).put(newSettings);
-        for (String settingName : new HashSet<>(settingsBuilder.keys())) {
-            if (settingsBuilder.get(settingName) == null) {
-                settingsBuilder.remove(settingName);
+        Settings.Builder builder = Settings.builder().put(this).put(newSettings);
+        for (String key : newSettings.keySet()) {
+            String rawValue = newSettings.get(key);
+            if (builder.get(key) == null) {
+                if (rawValue == null) {
+                    builder.remove(key);
+                } else {
+                    builder.put(key, rawValue);
+                }
             }
         }
-        return settingsBuilder.build();
+        return builder.build();
     }
 
     /**

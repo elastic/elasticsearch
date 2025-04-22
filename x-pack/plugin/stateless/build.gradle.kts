@@ -41,7 +41,7 @@ dependencies {
     internalClusterTestImplementation("org.elasticsearch.plugin:mapper-extras")
     testImplementation(project(":libs:serverless-shared-constants"))
     testImplementation(testArtifact(xpackModule("searchable-snapshots")))
-    testImplementation("com.amazonaws:aws-java-sdk-core")
+    testImplementation("com.amazonaws:aws-java-sdk-core:1.12.684")
     testImplementation("org.elasticsearch.test:s3-fixture")
     testImplementation("org.elasticsearch.test:gcs-fixture")
     testImplementation("org.elasticsearch.test:azure-fixture")

@@ -75,8 +75,8 @@ class OptimizedScalarQuantizer {
             assert bits[i] > 0 && bits[i] <= 8;
             int points = (1 << bits[i]);
             // Linearly scale the interval to the standard deviation of the vector, ensuring we are within the min/max bounds
-            intervalScratch[0] = (float) clamp((MINIMUM_MSE_GRID[bits[i] - 1][0] + vecMean) * vecStd, min, max);
-            intervalScratch[1] = (float) clamp((MINIMUM_MSE_GRID[bits[i] - 1][1] + vecMean) * vecStd, min, max);
+            intervalScratch[0] = (float) clamp(MINIMUM_MSE_GRID[bits[i] - 1][0] * vecStd + vecMean, min, max);
+            intervalScratch[1] = (float) clamp(MINIMUM_MSE_GRID[bits[i] - 1][1] * vecStd + vecMean, min, max);
             optimizeIntervals(intervalScratch, vector, norm2, points);
             float nSteps = ((1 << bits[i]) - 1);
             float a = intervalScratch[0];
@@ -128,8 +128,8 @@ class OptimizedScalarQuantizer {
         vecVar /= vector.length;
         double vecStd = Math.sqrt(vecVar);
         // Linearly scale the interval to the standard deviation of the vector, ensuring we are within the min/max bounds
-        intervalScratch[0] = (float) clamp((MINIMUM_MSE_GRID[bits - 1][0] + vecMean) * vecStd, min, max);
-        intervalScratch[1] = (float) clamp((MINIMUM_MSE_GRID[bits - 1][1] + vecMean) * vecStd, min, max);
+        intervalScratch[0] = (float) clamp(MINIMUM_MSE_GRID[bits - 1][0] * vecStd + vecMean, min, max);
+        intervalScratch[1] = (float) clamp(MINIMUM_MSE_GRID[bits - 1][1] * vecStd + vecMean, min, max);
         optimizeIntervals(intervalScratch, vector, norm2, points);
         float nSteps = ((1 << bits) - 1);
         // Now we have the optimized intervals, quantize the vector

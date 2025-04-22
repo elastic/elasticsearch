@@ -400,7 +400,7 @@ public class TransportActionProxyTests extends ESTestCase {
         latch.await();
     }
 
-    public static class SimpleTestRequest extends TransportRequest {
+    public static class SimpleTestRequest extends AbstractTransportRequest {
         final boolean cancellable;
         final String sourceNode;
 

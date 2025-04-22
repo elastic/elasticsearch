@@ -23,8 +23,6 @@ import java.io.IOException;
 import java.util.List;
 import java.util.function.Function;
 
-import static org.elasticsearch.compute.lucene.LuceneOperator.weightFunction;
-
 /**
  * Factory that generates an operator that finds the min value of a field using the {@link LuceneMinMaxOperator}.
  */
@@ -123,7 +121,16 @@ public final class LuceneMinFactory extends LuceneOperator.Factory {
         NumberType numberType,
         int limit
     ) {
-        super(contexts, weightFunction(queryFunction, ScoreMode.COMPLETE_NO_SCORES), dataPartitioning, taskConcurrency, limit, false);
+        super(
+            contexts,
+            queryFunction,
+            dataPartitioning,
+            query -> LuceneSliceQueue.PartitioningStrategy.SHARD,
+            taskConcurrency,
+            limit,
+            false,
+            ScoreMode.COMPLETE_NO_SCORES
+        );
         this.fieldName = fieldName;
         this.numberType = numberType;
     }

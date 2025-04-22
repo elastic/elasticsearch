@@ -89,7 +89,7 @@ public class SparseVectorFieldMapper extends FieldMapper {
                 "index_options",
                 true,
                 () -> null,
-                (n, c, o) -> o == null ? null : parseIndexOptions(n, c, o),
+                (n, c, o) -> o == null ? getDefaultIndexOptions(c) : parseIndexOptions(c, o),
                 m -> toType(m).fieldType().indexOptions,
                 (b, n, v) -> {
                     if (v != null) {
@@ -112,11 +112,19 @@ public class SparseVectorFieldMapper extends FieldMapper {
 
         @Override
         public SparseVectorFieldMapper build(MapperBuilderContext context) {
+            IndexOptions buildIndexOptions = indexOptions.getValue();
+
+            if (buildIndexOptions == null) {
+                buildIndexOptions = new IndexOptions(true,
+                    new PruningConfig(PruningConfig.DEFAULT_TOKENS_FREQ_RATIO_THRESHOLD, PruningConfig.DEFAULT_TOKENS_WEIGHT_THRESHOLD)
+                );
+            }
+
             return new SparseVectorFieldMapper(
                 leafName(),
-                new SparseVectorFieldType(context.buildFullName(leafName()), stored.getValue(), meta.getValue(), indexOptions.getValue()),
+                new SparseVectorFieldType(context.buildFullName(leafName()), stored.getValue(), meta.getValue(), buildIndexOptions),
                 builderParams(this, context),
-                indexOptions.getValue()
+                buildIndexOptions
             );
         }
     }
@@ -125,7 +133,23 @@ public class SparseVectorFieldMapper extends FieldMapper {
         return this.indexOptions;
     }
 
-    private static SparseVectorFieldMapper.IndexOptions parseIndexOptions(String fieldName, MappingParserContext context, Object propNode) {
+    private static SparseVectorFieldMapper.IndexOptions getDefaultIndexOptions(MappingParserContext context) {
+        if (context.indexVersionCreated().before(SPARSE_VECTOR_PRUNING_INDEX_OPTIONS_VERSION)) {
+            // don't set defaults if this index was created before
+            // we added this functionality in, so it will
+            // not change current index behaviour
+            return null;
+        }
+
+        // index options are not set - for new indices, we
+        // need to set pruning to true by default
+        // with a default pruning configuration
+        return new IndexOptions(true,
+            new PruningConfig(PruningConfig.DEFAULT_TOKENS_FREQ_RATIO_THRESHOLD, PruningConfig.DEFAULT_TOKENS_WEIGHT_THRESHOLD)
+        );
+    }
+
+    private static SparseVectorFieldMapper.IndexOptions parseIndexOptions(MappingParserContext context, Object propNode) {
         @SuppressWarnings("unchecked")
         Map<String, ?> indexOptionsMap = (Map<String, ?>) propNode;
 
@@ -197,20 +221,7 @@ public class SparseVectorFieldMapper extends FieldMapper {
         }
 
         if (hasOneOption == false) {
-            if (context.indexVersionCreated().before(SPARSE_VECTOR_PRUNING_INDEX_OPTIONS_VERSION)) {
-                // don't set defaults if this index was created before
-                // we added this functionality in, so it will
-                // not change current index behaviour
-                return null;
-            }
-
-            // index options are not set - for new indices, we
-            // need to set pruning to true by default
-            // with a default pruning configuration
-            return new IndexOptions(
-                true,
-                new PruningConfig(PruningConfig.DEFAULT_TOKENS_FREQ_RATIO_THRESHOLD, PruningConfig.DEFAULT_TOKENS_WEIGHT_THRESHOLD)
-            );
+            return getDefaultIndexOptions(context);
         }
 
         return new SparseVectorFieldMapper.IndexOptions(prune, pruningConfig);

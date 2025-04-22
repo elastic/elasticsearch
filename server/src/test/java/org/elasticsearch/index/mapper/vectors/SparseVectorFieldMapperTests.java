@@ -67,6 +67,17 @@ public class SparseVectorFieldMapperTests extends MapperTestCase {
         b.field("type", "sparse_vector");
     }
 
+    protected void mappingWithDefaultIndexOptions(XContentBuilder b) throws IOException {
+        b.field("type", "sparse_vector");
+        b.startObject("index_options");
+        b.field("prune", true);
+        b.startObject("pruning_config");
+        b.field("tokens_freq_ratio_threshold", SparseVectorFieldMapper.PruningConfig.DEFAULT_TOKENS_FREQ_RATIO_THRESHOLD);
+        b.field("tokens_weight_threshold", SparseVectorFieldMapper.PruningConfig.DEFAULT_TOKENS_WEIGHT_THRESHOLD);
+        b.endObject();
+        b.endObject();
+    }
+
     protected void mappingWithIndexOptionsPrune(XContentBuilder b) throws IOException {
         b.field("type", "sparse_vector");
         b.startObject("index_options");
@@ -113,7 +124,7 @@ public class SparseVectorFieldMapperTests extends MapperTestCase {
 
     public void testDefaults() throws Exception {
         DocumentMapper mapper = createDocumentMapper(fieldMapping(this::minimalMapping));
-        assertEquals(Strings.toString(fieldMapping(this::minimalMapping)), mapper.mappingSource().toString());
+        assertEquals(Strings.toString(fieldMapping(this::mappingWithDefaultIndexOptions)), mapper.mappingSource().toString());
 
         ParsedDocument doc1 = mapper.parse(source(this::writeField));
 
@@ -269,6 +280,90 @@ public class SparseVectorFieldMapperTests extends MapperTestCase {
             b.endObject();
         })));
         assertThat(e.getMessage(), containsString("Field [feature] of type [sparse_vector] can't be used in multifields"));
+    }
+
+    public void testPruneMustBeBoolean() {
+        Exception e = expectThrows(MapperParsingException.class, () -> createMapperService(fieldMapping(b -> {
+            b.field("type", "sparse_vector");
+            b.startObject("index_options");
+            b.field("prune", "othervalue");
+            b.endObject();
+        })));
+        assertThat(e.getMessage(), containsString("[index_options] field [prune] should be true or false"));
+    }
+
+    public void testPruningConfigurationIsMap() {
+        Exception e = expectThrows(MapperParsingException.class, () -> createMapperService(fieldMapping(b -> {
+            b.field("type", "sparse_vector");
+            b.startObject("index_options");
+            b.field("pruning_config", "this_is_not_a_map");
+            b.endObject();
+        })));
+        assertThat(e.getMessage(), containsString("index_options] field [pruning_config] should be a map"));
+    }
+
+    public void testTokensFreqRatioCorrect() {
+        Exception eTestInteger = expectThrows(MapperParsingException.class, () -> createMapperService(fieldMapping(b -> {
+            b.field("type", "sparse_vector");
+            b.startObject("index_options");
+            b.startObject("pruning_config");
+            b.field("tokens_freq_ratio_threshold", "notaninteger");
+            b.endObject();
+            b.endObject();
+        })));
+        assertThat(eTestInteger.getMessage(), containsString("[pruning_config] field [tokens_freq_ratio_threshold] field should be an integer between 1 and 100"));
+
+        Exception eTestRangeLower = expectThrows(MapperParsingException.class, () -> createMapperService(fieldMapping(b -> {
+            b.field("type", "sparse_vector");
+            b.startObject("index_options");
+            b.startObject("pruning_config");
+            b.field("tokens_freq_ratio_threshold", -2);
+            b.endObject();
+            b.endObject();
+        })));
+        assertThat(eTestRangeLower.getMessage(), containsString("[pruning_config] field [tokens_freq_ratio_threshold] field should be an integer between 1 and 100"));
+
+        Exception eTestRangeHigher = expectThrows(MapperParsingException.class, () -> createMapperService(fieldMapping(b -> {
+            b.field("type", "sparse_vector");
+            b.startObject("index_options");
+            b.startObject("pruning_config");
+            b.field("tokens_freq_ratio_threshold", 101);
+            b.endObject();
+            b.endObject();
+        })));
+        assertThat(eTestRangeHigher.getMessage(), containsString("[pruning_config] field [tokens_freq_ratio_threshold] field should be an integer between 1 and 100"));
+    }
+
+    public void testTokensWeightThresholdCorrect() {
+        Exception eTestDouble = expectThrows(MapperParsingException.class, () -> createMapperService(fieldMapping(b -> {
+            b.field("type", "sparse_vector");
+            b.startObject("index_options");
+            b.startObject("pruning_config");
+            b.field("tokens_weight_threshold", "notadouble");
+            b.endObject();
+            b.endObject();
+        })));
+        assertThat(eTestDouble.getMessage(), containsString("[pruning_config] field [tokens_weight_threshold] field should be an number between 0.0 and 1.0"));
+
+        Exception eTestRangeLower = expectThrows(MapperParsingException.class, () -> createMapperService(fieldMapping(b -> {
+            b.field("type", "sparse_vector");
+            b.startObject("index_options");
+            b.startObject("pruning_config");
+            b.field("tokens_weight_threshold", -0.1);
+            b.endObject();
+            b.endObject();
+        })));
+        assertThat(eTestRangeLower.getMessage(), containsString("[pruning_config] field [tokens_weight_threshold] field should be an number between 0.0 and 1.0"));
+
+        Exception eTestRangeHigher = expectThrows(MapperParsingException.class, () -> createMapperService(fieldMapping(b -> {
+            b.field("type", "sparse_vector");
+            b.startObject("index_options");
+            b.startObject("pruning_config");
+            b.field("tokens_weight_threshold", 1.1);
+            b.endObject();
+            b.endObject();
+        })));
+        assertThat(eTestRangeHigher.getMessage(), containsString("[pruning_config] field [tokens_weight_threshold] field should be an number between 0.0 and 1.0"));
     }
 
     public void testStoreIsNotUpdateable() throws IOException {

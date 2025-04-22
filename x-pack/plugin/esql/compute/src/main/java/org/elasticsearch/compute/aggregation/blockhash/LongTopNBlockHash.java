@@ -20,7 +20,6 @@ import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.LongVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.mvdedupe.MultivalueDedupe;
-import org.elasticsearch.compute.operator.mvdedupe.MultivalueDedupeLong;
 import org.elasticsearch.compute.operator.mvdedupe.TopNMultivalueDedupeLong;
 import org.elasticsearch.core.ReleasableIterator;
 

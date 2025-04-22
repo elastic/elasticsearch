@@ -17,15 +17,12 @@ import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.core.ReleasableIterator;
 import org.elasticsearch.core.Releasables;
-import org.junit.After;
 
 import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Consumer;
 
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.is;
-import static org.hamcrest.Matchers.startsWith;
 
 public class TopNBlockHashTests extends BlockHashTestCase {
 
@@ -37,10 +34,10 @@ public class TopNBlockHashTests extends BlockHashTestCase {
         List<Object[]> params = new ArrayList<>();
 
         // TODO: Uncomment this "true" when implemented
-        for (boolean forcePackedHash : new boolean[]{/*true,*/false}) {
-            for (boolean asc : new boolean[]{true, false}) {
-                for (boolean nullsFirst : new boolean[]{true, false}) {
-                    for (int limit : new int[]{LIMIT_TWO, LIMIT_HIGH}) {
+        for (boolean forcePackedHash : new boolean[] { /*true,*/false }) {
+            for (boolean asc : new boolean[] { true, false }) {
+                for (boolean nullsFirst : new boolean[] { true, false }) {
+                    for (int limit : new int[] { LIMIT_TWO, LIMIT_HIGH }) {
                         params.add(new Object[] { forcePackedHash, asc, nullsFirst, limit });
                     }
                 }
@@ -74,9 +71,10 @@ public class TopNBlockHashTests extends BlockHashTestCase {
             if (forcePackedHash) {
                 // TODO: Not tested yet
             } else {
-                assertThat(ordsAndKeys.description(), equalTo(
-                    "LongTopNBlockHash{channel=0, " + topNParametersString(4) + ", hasNull=false}"
-                ));
+                assertThat(
+                    ordsAndKeys.description(),
+                    equalTo("LongTopNBlockHash{channel=0, " + topNParametersString(4) + ", hasNull=false}")
+                );
                 if (limit == LIMIT_HIGH) {
                     assertKeys(ordsAndKeys.keys(), 2L, 1L, 4L, 3L);
                     assertOrds(ordsAndKeys.ords(), 1, 2, 3, 1, 3, 2, 4, 3);
@@ -109,11 +107,16 @@ public class TopNBlockHashTests extends BlockHashTestCase {
                 } else {
                     boolean hasTwoNonNullValues = nullsFirst == false || limit == LIMIT_HIGH;
                     boolean hasNull = nullsFirst || limit == LIMIT_HIGH;
-                    assertThat(ordsAndKeys.description(), equalTo(
-                        "LongTopNBlockHash{channel=0, "
-                            + topNParametersString(hasTwoNonNullValues ? 2 : 1)
-                            + ", hasNull=" + hasNull + "}"
-                    ));
+                    assertThat(
+                        ordsAndKeys.description(),
+                        equalTo(
+                            "LongTopNBlockHash{channel=0, "
+                                + topNParametersString(hasTwoNonNullValues ? 2 : 1)
+                                + ", hasNull="
+                                + hasNull
+                                + "}"
+                        )
+                    );
                     if (limit == LIMIT_HIGH) {
                         assertKeys(ordsAndKeys.keys(), null, 0L, 2L);
                         assertOrds(ordsAndKeys.ords(), 1, 0, 2, 0);
@@ -167,11 +170,10 @@ public class TopNBlockHashTests extends BlockHashTestCase {
                     // TODO: Not tested yet
                 } else {
                     if (limit == LIMIT_HIGH) {
-                        assertThat(ordsAndKeys.description(), equalTo(
-                            "LongTopNBlockHash{channel=0, "
-                                + topNParametersString(3)
-                                + ", hasNull=true}"
-                        ));
+                        assertThat(
+                            ordsAndKeys.description(),
+                            equalTo("LongTopNBlockHash{channel=0, " + topNParametersString(3) + ", hasNull=true}")
+                        );
                         assertOrds(
                             ordsAndKeys.ords(),
                             new int[] { 1 },
@@ -183,11 +185,12 @@ public class TopNBlockHashTests extends BlockHashTestCase {
                         );
                         assertKeys(ordsAndKeys.keys(), null, 1L, 2L, 3L);
                     } else {
-                        assertThat(ordsAndKeys.description(), equalTo(
-                            "LongTopNBlockHash{channel=0, "
-                                + topNParametersString(nullsFirst ? 1 : 2)
-                                + ", hasNull=" + nullsFirst + "}"
-                        ));
+                        assertThat(
+                            ordsAndKeys.description(),
+                            equalTo(
+                                "LongTopNBlockHash{channel=0, " + topNParametersString(nullsFirst ? 1 : 2) + ", hasNull=" + nullsFirst + "}"
+                            )
+                        );
                         if (nullsFirst) {
                             if (asc) {
                                 assertKeys(ordsAndKeys.keys(), null, 1L);
@@ -229,15 +232,7 @@ public class TopNBlockHashTests extends BlockHashTestCase {
                                 assertThat(ordsAndKeys.nonEmpty(), equalTo(intVector(1, 2)));
                             } else {
                                 assertKeys(ordsAndKeys.keys(), 2L, 3L);
-                                assertOrds(
-                                    ordsAndKeys.ords(),
-                                    null,
-                                    new int[] { 1, 2 },
-                                    null,
-                                    new int[] { 2 },
-                                    null,
-                                    new int[] { 2, 1 }
-                                );
+                                assertOrds(ordsAndKeys.ords(), null, new int[] { 1, 2 }, null, new int[] { 2 }, null, new int[] { 2, 1 });
                                 assertThat(ordsAndKeys.nonEmpty(), equalTo(intVector(1, 2)));
                             }
                         }

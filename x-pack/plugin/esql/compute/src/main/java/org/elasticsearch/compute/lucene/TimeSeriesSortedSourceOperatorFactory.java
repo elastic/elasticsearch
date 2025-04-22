@@ -187,12 +187,16 @@ public class TimeSeriesSortedSourceOperatorFactory extends LuceneOperator.Factor
 
         private DocVector buildDocVector(IntVector shards, IntVector segments, IntVector docs, int[] docPerSegments) {
             if (segments.isConstant()) {
+                // DocIds are sorted in each segment. Hence, if docIds come from a single segment, we can mark this DocVector
+                // as singleSegmentNonDecreasing to enable optimizations in the ValuesSourceReaderOperator.
                 return new DocVector(shards, segments, docs, true);
             }
             boolean success = false;
             int positionCount = shards.getPositionCount();
             long estimatedSize = DocVector.sizeOfSegmentDocMap(positionCount);
             blockFactory.adjustBreaker(estimatedSize);
+            // Use docPerSegments to build a forward/backward docMap in O(N)
+            // instead of O(N*log(N)) in DocVector#buildShardSegmentDocMapIfMissing.
             try {
                 final int[] forwards = new int[positionCount];
                 final int[] starts = new int[docPerSegments.length];

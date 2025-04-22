@@ -34,7 +34,6 @@ import org.elasticsearch.xpack.inference.services.sagemaker.schema.SageMakerSche
 import org.elasticsearch.xpack.inference.services.sagemaker.schema.SageMakerSchemas;
 import org.elasticsearch.xpack.inference.services.sagemaker.schema.SageMakerStreamSchema;
 import org.junit.Before;
-import org.junit.Test;
 
 import java.io.IOException;
 import java.util.List;
@@ -88,38 +87,32 @@ public class SageMakerServiceTests extends ESTestCase {
         sageMakerService = new SageMakerService(modelBuilder, client, schemas, threadPool);
     }
 
-    @Test
     public void testSupportedTaskTypes() {
         sageMakerService.supportedTaskTypes();
         verify(schemas, only()).supportedTaskTypes();
     }
 
-    @Test
     public void testSupportedStreamingTasks() {
         sageMakerService.supportedStreamingTasks();
         verify(schemas, only()).supportedStreamingTasks();
     }
 
-    @Test
     public void testParseRequestConfig() {
         sageMakerService.parseRequestConfig("modelId", TaskType.ANY, Map.of(), assertNoFailureListener(model -> {
             verify(modelBuilder, only()).fromRequest(eq("modelId"), eq(TaskType.ANY), eq(SageMakerService.NAME), eq(Map.of()));
         }));
     }
 
-    @Test
     public void testParsePersistedConfigWithSecrets() {
         sageMakerService.parsePersistedConfigWithSecrets("modelId", TaskType.ANY, Map.of(), Map.of());
         verify(modelBuilder, only()).fromStorage(eq("modelId"), eq(TaskType.ANY), eq(SageMakerService.NAME), eq(Map.of()), eq(Map.of()));
     }
 
-    @Test
     public void testParsePersistedConfig() {
         sageMakerService.parsePersistedConfig("modelId", TaskType.ANY, Map.of());
         verify(modelBuilder, only()).fromStorage(eq("modelId"), eq(TaskType.ANY), eq(SageMakerService.NAME), eq(Map.of()), eq(null));
     }
 
-    @Test
     public void testInferWithWrongModel() {
         sageMakerService.infer(
             mockUnsupportedModel(),
@@ -158,7 +151,6 @@ public class SageMakerServiceTests extends ESTestCase {
         });
     }
 
-    @Test
     public void testInfer() {
         var model = mockModel();
 
@@ -213,7 +205,6 @@ public class SageMakerServiceTests extends ESTestCase {
         });
     }
 
-    @Test
     public void testInferStream() {
         SageMakerModel model = mockModel();
 
@@ -240,7 +231,6 @@ public class SageMakerServiceTests extends ESTestCase {
         }).when(client).invokeStream(any(), any(), any(), any());
     }
 
-    @Test
     public void testInferError() {
         SageMakerModel model = mockModel();
 
@@ -277,7 +267,6 @@ public class SageMakerServiceTests extends ESTestCase {
         }).when(client).invoke(any(), any(), any(), any());
     }
 
-    @Test
     public void testInferException() {
         SageMakerModel model = mockModel();
         when(model.getInferenceEntityId()).thenReturn("some id");
@@ -297,7 +286,6 @@ public class SageMakerServiceTests extends ESTestCase {
         verifyNoMoreInteractions(client, schemas, schema);
     }
 
-    @Test
     public void testUnifiedInferWithWrongModel() {
         sageMakerService.unifiedCompletionInfer(
             mockUnsupportedModel(),
@@ -307,7 +295,6 @@ public class SageMakerServiceTests extends ESTestCase {
         );
     }
 
-    @Test
     public void testUnifiedInfer() {
         var model = mockModel();
 
@@ -329,7 +316,6 @@ public class SageMakerServiceTests extends ESTestCase {
         verifyNoMoreInteractions(client, schemas, schema);
     }
 
-    @Test
     public void testUnifiedInferError() {
         var model = mockModel();
 
@@ -360,7 +346,6 @@ public class SageMakerServiceTests extends ESTestCase {
         }).when(client).invokeStream(any(), any(), any(), any());
     }
 
-    @Test
     public void testUnifiedInferException() {
         SageMakerModel model = mockModel();
         when(model.getInferenceEntityId()).thenReturn("some id");
@@ -380,7 +365,6 @@ public class SageMakerServiceTests extends ESTestCase {
         verifyNoMoreInteractions(client, schemas, schema);
     }
 
-    @Test
     public void testChunkedInferWithWrongModel() {
         sageMakerService.chunkedInfer(
             mockUnsupportedModel(),
@@ -393,7 +377,6 @@ public class SageMakerServiceTests extends ESTestCase {
         );
     }
 
-    @Test
     public void testChunkedInfer() throws Exception {
         var model = mockModelForChunking();
 
@@ -442,7 +425,6 @@ public class SageMakerServiceTests extends ESTestCase {
         });
     }
 
-    @Test
     public void testChunkedInferError() {
         var model = mockModelForChunking();
 
@@ -473,7 +455,6 @@ public class SageMakerServiceTests extends ESTestCase {
         verifyNoMoreInteractions(client, schemas, schema);
     }
 
-    @Test
     public void testClose() throws IOException {
         sageMakerService.close();
         verify(client, only()).close();

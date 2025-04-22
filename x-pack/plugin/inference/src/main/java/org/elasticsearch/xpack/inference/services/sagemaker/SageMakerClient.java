@@ -27,6 +27,7 @@ import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.SpecialPermission;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.ContextPreservingActionListener;
 import org.elasticsearch.action.support.ListenerTimeouts;
 import org.elasticsearch.common.cache.Cache;
 import org.elasticsearch.common.cache.CacheBuilder;
@@ -44,6 +45,7 @@ import java.io.Closeable;
 import java.security.AccessController;
 import java.security.PrivilegedExceptionAction;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Flow;
 import java.util.concurrent.atomic.AtomicReference;
@@ -81,15 +83,22 @@ public class SageMakerClient implements Closeable {
             return;
         }
 
+        var contextPreservingListener = new ContextPreservingActionListener<>(
+            threadPool.getThreadContext().newRestorableContext(false),
+            listener
+        );
+
         var awsFuture = asyncClient.invokeEndpoint(request);
         var timeoutListener = ListenerTimeouts.wrapWithTimeout(
             threadPool,
             timeout,
             threadPool.executor(UTILITY_THREAD_POOL_NAME),
-            listener,
+            contextPreservingListener,
             ignored -> {
                 FutureUtils.cancel(awsFuture);
-                listener.onFailure(new ElasticsearchStatusException("Request timed out after [{}]", RestStatus.REQUEST_TIMEOUT, timeout));
+                contextPreservingListener.onFailure(
+                    new ElasticsearchStatusException("Request timed out after [{}]", RestStatus.REQUEST_TIMEOUT, timeout)
+                );
             }
         );
         awsFuture.thenAcceptAsync(timeoutListener::onResponse, threadPool.executor(UTILITY_THREAD_POOL_NAME))
@@ -106,6 +115,9 @@ public class SageMakerClient implements Closeable {
     }
 
     private Void failAndMaybeThrowError(Throwable t, ActionListener<?> listener) {
+        if (t instanceof CompletionException ce) {
+            t = ce.getCause();
+        }
         if (t instanceof Exception e) {
             listener.onFailure(e);
         } else {
@@ -130,16 +142,23 @@ public class SageMakerClient implements Closeable {
             return;
         }
 
+        var contextPreservingListener = new ContextPreservingActionListener<>(
+            threadPool.getThreadContext().newRestorableContext(false),
+            listener
+        );
+
         var responseStreamProcessor = new SageMakerStreamingResponseProcessor();
         var cancelAwsRequestListener = new AtomicReference<CompletableFuture<?>>();
         var timeoutListener = ListenerTimeouts.wrapWithTimeout(
             threadPool,
             timeout,
             threadPool.executor(UTILITY_THREAD_POOL_NAME),
-            listener,
+            contextPreservingListener,
             ignored -> {
                 FutureUtils.cancel(cancelAwsRequestListener.get());
-                listener.onFailure(new ElasticsearchStatusException("Request timed out after [{}]", RestStatus.REQUEST_TIMEOUT, timeout));
+                contextPreservingListener.onFailure(
+                    new ElasticsearchStatusException("Request timed out after [{}]", RestStatus.REQUEST_TIMEOUT, timeout)
+                );
             }
         );
         // To stay consistent with HTTP providers, we cancel the TimeoutListener onResponse because we are measuring the time it takes to

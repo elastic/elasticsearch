@@ -15,15 +15,19 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ServiceSettings;
+import org.elasticsearch.inference.SettingsConfiguration;
 import org.elasticsearch.inference.TaskType;
+import org.elasticsearch.inference.configuration.SettingsConfigurationFieldType;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.inference.services.sagemaker.schema.SageMakerSchemas;
 import org.elasticsearch.xpack.inference.services.sagemaker.schema.SageMakerStoredServiceSchema;
 
 import java.io.IOException;
+import java.util.EnumSet;
 import java.util.Map;
 import java.util.Objects;
+import java.util.stream.Stream;
 
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalPositiveInteger;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalString;
@@ -182,6 +186,81 @@ record SageMakerServiceSettings(
             inferenceComponentName,
             batchSize,
             apiServiceSettings
+        );
+    }
+
+    static Stream<Map.Entry<String, SettingsConfiguration>> configuration(EnumSet<TaskType> supportedTaskTypes) {
+        return Stream.of(
+            Map.entry(
+                API,
+                new SettingsConfiguration.Builder(supportedTaskTypes).setDescription("The API format that your SageMaker Endpoint expects.")
+                    .setLabel("Api")
+                    .setRequired(true)
+                    .setSensitive(false)
+                    .setUpdatable(false)
+                    .setType(SettingsConfigurationFieldType.STRING)
+                    .build()
+            ),
+            Map.entry(
+                ENDPOINT_NAME,
+                new SettingsConfiguration.Builder(supportedTaskTypes).setDescription(
+                    "The name specified when creating the SageMaker Endpoint."
+                )
+                    .setLabel("Endpoint Name")
+                    .setRequired(true)
+                    .setSensitive(false)
+                    .setUpdatable(false)
+                    .setType(SettingsConfigurationFieldType.STRING)
+                    .build()
+            ),
+            Map.entry(
+                REGION,
+                new SettingsConfiguration.Builder(supportedTaskTypes).setDescription(
+                    "The AWS region that your model or ARN is deployed in."
+                )
+                    .setLabel("Region")
+                    .setRequired(true)
+                    .setSensitive(false)
+                    .setUpdatable(false)
+                    .setType(SettingsConfigurationFieldType.STRING)
+                    .build()
+            ),
+            Map.entry(
+                TARGET_MODEL,
+                new SettingsConfiguration.Builder(supportedTaskTypes).setDescription(
+                    "The model to request when calling a SageMaker multi-model Endpoint."
+                )
+                    .setLabel("Target Model")
+                    .setRequired(false)
+                    .setSensitive(false)
+                    .setUpdatable(false)
+                    .setType(SettingsConfigurationFieldType.STRING)
+                    .build()
+            ),
+            Map.entry(
+                TARGET_CONTAINER_HOSTNAME,
+                new SettingsConfiguration.Builder(supportedTaskTypes).setDescription(
+                    "The hostname of the container when calling a SageMaker multi-container Endpoint."
+                )
+                    .setLabel("Target Container Hostname")
+                    .setRequired(false)
+                    .setSensitive(false)
+                    .setUpdatable(false)
+                    .setType(SettingsConfigurationFieldType.STRING)
+                    .build()
+            ),
+            Map.entry(
+                BATCH_SIZE,
+                new SettingsConfiguration.Builder(supportedTaskTypes).setDescription(
+                    "The maximum size a single chunk of input can be when chunking input for semantic text."
+                )
+                    .setLabel("Batch Size")
+                    .setRequired(false)
+                    .setSensitive(false)
+                    .setUpdatable(false)
+                    .setType(SettingsConfigurationFieldType.INTEGER)
+                    .build()
+            )
         );
     }
 }

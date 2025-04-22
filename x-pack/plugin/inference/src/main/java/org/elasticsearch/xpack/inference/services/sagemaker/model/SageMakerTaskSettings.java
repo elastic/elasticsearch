@@ -14,12 +14,17 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.ModelConfigurations;
+import org.elasticsearch.inference.SettingsConfiguration;
 import org.elasticsearch.inference.TaskSettings;
+import org.elasticsearch.inference.TaskType;
+import org.elasticsearch.inference.configuration.SettingsConfigurationFieldType;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.inference.services.sagemaker.schema.SageMakerStoredTaskSchema;
 
 import java.io.IOException;
+import java.util.EnumSet;
 import java.util.Map;
+import java.util.stream.Stream;
 
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalString;
 
@@ -161,6 +166,71 @@ record SageMakerTaskSettings(
             sessionId,
             targetVariant,
             apiTaskSettings
+        );
+    }
+
+    static Stream<Map.Entry<String, SettingsConfiguration>> configuration(EnumSet<TaskType> supportedTaskTypes) {
+        return Stream.of(
+            Map.entry(
+                CUSTOM_ATTRIBUTES,
+                new SettingsConfiguration.Builder(supportedTaskTypes).setDescription(
+                    "An opaque informational value forwarded as-is to the model within SageMaker."
+                )
+                    .setLabel("Custom Attributes")
+                    .setRequired(false)
+                    .setSensitive(false)
+                    .setUpdatable(false)
+                    .setType(SettingsConfigurationFieldType.STRING)
+                    .build()
+            ),
+            Map.entry(
+                ENABLE_EXPLANATIONS,
+                new SettingsConfiguration.Builder(supportedTaskTypes).setDescription(
+                    "JMESPath expression overriding the ClarifyingExplainerConfig in the SageMaker Endpoint Configuration."
+                )
+                    .setLabel("Enable Explanations")
+                    .setRequired(false)
+                    .setSensitive(false)
+                    .setUpdatable(false)
+                    .setType(SettingsConfigurationFieldType.STRING)
+                    .build()
+            ),
+            Map.entry(
+                INFERENCE_ID,
+                new SettingsConfiguration.Builder(supportedTaskTypes).setDescription(
+                    "Informational identifying for auditing requests within the SageMaker Endpoint."
+                )
+                    .setLabel("Inference ID")
+                    .setRequired(false)
+                    .setSensitive(false)
+                    .setUpdatable(false)
+                    .setType(SettingsConfigurationFieldType.STRING)
+                    .build()
+            ),
+            Map.entry(
+                SESSION_ID,
+                new SettingsConfiguration.Builder(supportedTaskTypes).setDescription(
+                    "Creates or reuses an existing Session for SageMaker stateful models."
+                )
+                    .setLabel("Session ID")
+                    .setRequired(false)
+                    .setSensitive(false)
+                    .setUpdatable(false)
+                    .setType(SettingsConfigurationFieldType.STRING)
+                    .build()
+            ),
+            Map.entry(
+                TARGET_VARIANT,
+                new SettingsConfiguration.Builder(supportedTaskTypes).setDescription(
+                    "The production variant when calling the SageMaker Endpoint"
+                )
+                    .setLabel("Target Variant")
+                    .setRequired(false)
+                    .setSensitive(false)
+                    .setUpdatable(false)
+                    .setType(SettingsConfigurationFieldType.STRING)
+                    .build()
+            )
         );
     }
 }

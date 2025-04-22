@@ -14,18 +14,18 @@ import org.elasticsearch.common.io.stream.VersionedNamedWriteable;
 import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.inference.services.InferenceSettingsTestCase;
 import org.elasticsearch.xpack.inference.services.sagemaker.SageMakerInferenceRequest;
 import org.elasticsearch.xpack.inference.services.sagemaker.model.SageMakerModel;
 import org.junit.Before;
 
 import java.io.IOException;
 import java.util.Set;
+import java.util.function.Predicate;
 import java.util.stream.Stream;
 
+import static org.elasticsearch.xpack.inference.services.InferenceSettingsTestCase.toMap;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.startsWith;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -45,9 +45,9 @@ public abstract class SageMakerSchemaPayloadTestCase<T extends SageMakerSchemaPa
 
     protected abstract Set<TaskType> expectedSupportedTaskTypes();
 
-    protected abstract SageMakerStoredServiceSchema apiServiceSettings();
+    protected abstract SageMakerStoredServiceSchema randomApiServiceSettings();
 
-    protected abstract SageMakerStoredTaskSchema apiTaskSettings();
+    protected abstract SageMakerStoredTaskSchema randomApiTaskSettings();
 
     public final void testApi() {
         assertThat(payload.api(), equalTo(expectedApi()));
@@ -59,29 +59,30 @@ public abstract class SageMakerSchemaPayloadTestCase<T extends SageMakerSchemaPa
 
     public final void testApiServiceSettings() throws IOException {
         var validationException = new ValidationException();
-        var expectedApiServiceSettings = apiServiceSettings();
-        var actualApiServiceSettings = payload.apiServiceSettings(
-            InferenceSettingsTestCase.toMap(expectedApiServiceSettings),
-            validationException
-        );
+        var expectedApiServiceSettings = randomApiServiceSettings();
+        var actualApiServiceSettings = payload.apiServiceSettings(toMap(expectedApiServiceSettings), validationException);
         assertThat(actualApiServiceSettings, equalTo(expectedApiServiceSettings));
         validationException.throwIfValidationErrorsExist();
     }
 
     public final void testApiTaskSettings() throws IOException {
         var validationException = new ValidationException();
-        var expectedApiTaskSettings = apiTaskSettings();
-        var actualApiTaskSettings = payload.apiTaskSettings(InferenceSettingsTestCase.toMap(expectedApiTaskSettings), validationException);
+        var expectedApiTaskSettings = randomApiTaskSettings();
+        var actualApiTaskSettings = payload.apiTaskSettings(toMap(expectedApiTaskSettings), validationException);
         assertThat(actualApiTaskSettings, equalTo(expectedApiTaskSettings));
         validationException.throwIfValidationErrorsExist();
     }
 
     public void testNamedWriteables() {
         var namedWriteables = payload.namedWriteables().map(entry -> entry.name).toList();
-        assertThat(namedWriteables, hasSize(2));
 
-        var expectedWriteables = Stream.of(apiServiceSettings(), apiTaskSettings())
+        var filteredNames = Set.of(
+            SageMakerStoredServiceSchema.NO_OP.getWriteableName(),
+            SageMakerStoredTaskSchema.NO_OP.getWriteableName()
+        );
+        var expectedWriteables = Stream.of(randomApiServiceSettings(), randomApiTaskSettings())
             .map(VersionedNamedWriteable::getWriteableName)
+            .filter(Predicate.not(filteredNames::contains))
             .toArray();
         assertThat(namedWriteables, containsInAnyOrder(expectedWriteables));
     }
@@ -89,7 +90,7 @@ public abstract class SageMakerSchemaPayloadTestCase<T extends SageMakerSchemaPa
     public final void testWithUnknownApiServiceSettings() {
         SageMakerModel model = mock();
         when(model.apiServiceSettings()).thenReturn(mock());
-        when(model.apiTaskSettings()).thenReturn(apiTaskSettings());
+        when(model.apiTaskSettings()).thenReturn(randomApiTaskSettings());
         when(model.api()).thenReturn("serviceApi");
         when(model.getTaskType()).thenReturn(TaskType.ANY);
 
@@ -100,7 +101,7 @@ public abstract class SageMakerSchemaPayloadTestCase<T extends SageMakerSchemaPa
 
     public final void testWithUnknownApiTaskSettings() {
         SageMakerModel model = mock();
-        when(model.apiServiceSettings()).thenReturn(apiServiceSettings());
+        when(model.apiServiceSettings()).thenReturn(randomApiServiceSettings());
         when(model.apiTaskSettings()).thenReturn(mock());
         when(model.api()).thenReturn("taskApi");
         when(model.getTaskType()).thenReturn(TaskType.ANY);
@@ -108,6 +109,37 @@ public abstract class SageMakerSchemaPayloadTestCase<T extends SageMakerSchemaPa
         var e = assertThrows(IllegalArgumentException.class, () -> payload.requestBytes(model, randomRequest()));
 
         assertThat(e.getMessage(), startsWith("Unsupported SageMaker settings for api [taskApi] and task type [any]:"));
+    }
+
+    public final void testUpdate() throws IOException {
+        var taskSettings = randomApiTaskSettings();
+        if (taskSettings != SageMakerStoredTaskSchema.NO_OP) {
+            var otherTaskSettings = randomValueOtherThan(taskSettings, this::randomApiTaskSettings);
+
+            var validationException = new ValidationException();
+            var updatedSettings = toMap(taskSettings.update(toMap(otherTaskSettings), validationException));
+            validationException.throwIfValidationErrorsExist();
+
+            var initialSettings = toMap(taskSettings);
+            var newSettings = toMap(otherTaskSettings);
+
+            newSettings.forEach((key, value) -> {
+                assertThat("Value should have been updated for key " + key, value, equalTo(updatedSettings.remove(key)));
+            });
+            initialSettings.forEach((key, value) -> {
+                if (updatedSettings.containsKey(key)) {
+                    assertThat("Value should not have been updated for key " + key, value, equalTo(updatedSettings.remove(key)));
+                }
+            });
+            assertTrue("Map should be empty now that we verified all updated keys and all initial keys", updatedSettings.isEmpty());
+        }
+        if (payload instanceof SageMakerStoredTaskSchema taskSchema) {
+            var otherTaskSettings = randomValueOtherThan(randomApiTaskSettings(), this::randomApiTaskSettings);
+            var otherTaskSettingsAsMap = toMap(otherTaskSettings);
+
+            var validationException = new ValidationException();
+            taskSchema.update(otherTaskSettingsAsMap, validationException);
+        }
     }
 
     protected static SageMakerInferenceRequest randomRequest() {

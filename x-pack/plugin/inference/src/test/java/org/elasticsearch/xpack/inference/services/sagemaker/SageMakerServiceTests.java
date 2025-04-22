@@ -84,7 +84,7 @@ public class SageMakerServiceTests extends ESTestCase {
         ThreadPool threadPool = mock();
         when(threadPool.executor(anyString())).thenReturn(EsExecutors.DIRECT_EXECUTOR_SERVICE);
         when(threadPool.getThreadContext()).thenReturn(new ThreadContext(Settings.EMPTY));
-        sageMakerService = new SageMakerService(modelBuilder, client, schemas, threadPool);
+        sageMakerService = new SageMakerService(modelBuilder, client, schemas, threadPool, Map::of);
     }
 
     public void testSupportedTaskTypes() {
@@ -171,7 +171,7 @@ public class SageMakerServiceTests extends ESTestCase {
             assertNoFailureListener(ignored -> {
                 verify(schemas, only()).schemaFor(eq(model));
                 verify(schema, times(1)).request(eq(model), assertRequest());
-                verify(schema, times(1)).response(eq(model), any());
+                verify(schema, times(1)).response(eq(model), any(), any());
             })
         );
         verify(client, only()).invoke(any(), any(), any(), any());
@@ -381,7 +381,7 @@ public class SageMakerServiceTests extends ESTestCase {
         var model = mockModelForChunking();
 
         SageMakerSchema schema = mock();
-        when(schema.response(any(), any())).thenReturn(TextEmbeddingFloatResultsTests.createRandomResults());
+        when(schema.response(any(), any(), any())).thenReturn(TextEmbeddingFloatResultsTests.createRandomResults());
         when(schemas.schemaFor(model)).thenReturn(schema);
         mockInvoke();
 
@@ -397,7 +397,7 @@ public class SageMakerServiceTests extends ESTestCase {
             assertOnce(assertNoFailureListener(chunkedInferences -> {
                 verify(schemas, times(2)).schemaFor(eq(model));
                 verify(schema, times(2)).request(eq(model), assertChunkRequest(expectedInput));
-                verify(schema, times(2)).response(eq(model), any());
+                verify(schema, times(2)).response(eq(model), any(), any());
             }))
         );
         verify(client, times(2)).invoke(any(), any(), any(), any());

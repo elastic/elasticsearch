@@ -12,6 +12,8 @@ import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.SubscribableListener;
+import org.elasticsearch.common.CheckedSupplier;
+import org.elasticsearch.common.util.LazyInitializable;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.ChunkInferenceInput;
@@ -21,6 +23,7 @@ import org.elasticsearch.inference.InferenceServiceConfiguration;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.Model;
+import org.elasticsearch.inference.SettingsConfiguration;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.inference.UnifiedCompletionRequest;
 import org.elasticsearch.rest.RestStatus;
@@ -47,12 +50,26 @@ public class SageMakerService implements InferenceService {
     private final SageMakerClient client;
     private final SageMakerSchemas schemas;
     private final ThreadPool threadPool;
+    private final LazyInitializable<InferenceServiceConfiguration, RuntimeException> configuration;
 
-    public SageMakerService(SageMakerModelBuilder modelBuilder, SageMakerClient client, SageMakerSchemas schemas, ThreadPool threadPool) {
+    public SageMakerService(
+        SageMakerModelBuilder modelBuilder,
+        SageMakerClient client,
+        SageMakerSchemas schemas,
+        ThreadPool threadPool,
+        CheckedSupplier<Map<String, SettingsConfiguration>, RuntimeException> configurationMap
+    ) {
         this.modelBuilder = modelBuilder;
         this.client = client;
         this.schemas = schemas;
         this.threadPool = threadPool;
+        this.configuration = new LazyInitializable<>(
+            () -> new InferenceServiceConfiguration.Builder().setService(NAME)
+                .setName("Amazon SageMaker")
+                .setTaskTypes(supportedTaskTypes())
+                .setConfigurations(configurationMap.get())
+                .build()
+        );
     }
 
     @Override
@@ -87,7 +104,7 @@ public class SageMakerService implements InferenceService {
 
     @Override
     public InferenceServiceConfiguration getConfiguration() {
-        return null;
+        return configuration.getOrCompute();
     }
 
     @Override
@@ -144,7 +161,7 @@ public class SageMakerService implements InferenceService {
                     request,
                     timeout,
                     ActionListener.wrap(
-                        response -> listener.onResponse(schema.response(sageMakerModel, response)),
+                        response -> listener.onResponse(schema.response(sageMakerModel, response, threadPool.getThreadContext())),
                         e -> listener.onFailure(schema.error(sageMakerModel, e))
                     )
                 );
@@ -263,7 +280,7 @@ public class SageMakerService implements InferenceService {
 
     @Override
     public void start(Model model, TimeValue timeout, ActionListener<Boolean> listener) {
-
+        listener.onResponse(true);
     }
 
     @Override

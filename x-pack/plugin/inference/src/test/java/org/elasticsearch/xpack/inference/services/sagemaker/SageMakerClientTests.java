@@ -168,4 +168,13 @@ public class SageMakerClientTests extends ESTestCase {
         verify(clientFactory, times(1)).load(any());
         verifyTimeout(listener);
     }
+
+    public void testClose() throws Exception {
+        // load cache
+        mockPublisher();
+        invokeStream(TimeValue.THIRTY_SECONDS);
+        // clear cache
+        client.close();
+        verify(awsClient, times(1)).close();
+    }
 }

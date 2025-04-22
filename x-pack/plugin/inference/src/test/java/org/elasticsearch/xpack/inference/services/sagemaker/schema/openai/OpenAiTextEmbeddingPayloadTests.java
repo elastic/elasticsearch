@@ -23,8 +23,6 @@ import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.Set;
 
-import static org.elasticsearch.xpack.inference.services.sagemaker.schema.openai.SageMakerOpenAiServiceSettingsTests.randomApiServiceSettings;
-import static org.elasticsearch.xpack.inference.services.sagemaker.schema.openai.SageMakerOpenAiTaskSettingsTests.randomApiTaskSettings;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.mockito.Mockito.mock;
@@ -47,13 +45,13 @@ public class OpenAiTextEmbeddingPayloadTests extends SageMakerSchemaPayloadTestC
     }
 
     @Override
-    protected SageMakerStoredServiceSchema apiServiceSettings() {
-        return randomApiServiceSettings();
+    protected SageMakerStoredServiceSchema randomApiServiceSettings() {
+        return SageMakerOpenAiServiceSettingsTests.randomApiServiceSettings();
     }
 
     @Override
-    protected SageMakerStoredTaskSchema apiTaskSettings() {
-        return randomApiTaskSettings();
+    protected SageMakerStoredTaskSchema randomApiTaskSettings() {
+        return SageMakerOpenAiTaskSettingsTests.randomApiTaskSettings();
     }
 
     public void testAccept() {

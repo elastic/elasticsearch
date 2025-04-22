@@ -21,6 +21,7 @@ import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
+import org.elasticsearch.common.util.LazyInitializable;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.features.NodeFeature;
@@ -134,6 +135,7 @@ import org.elasticsearch.xpack.inference.services.mistral.MistralService;
 import org.elasticsearch.xpack.inference.services.openai.OpenAiService;
 import org.elasticsearch.xpack.inference.services.sagemaker.SageMakerClient;
 import org.elasticsearch.xpack.inference.services.sagemaker.SageMakerService;
+import org.elasticsearch.xpack.inference.services.sagemaker.model.SageMakerConfiguration;
 import org.elasticsearch.xpack.inference.services.sagemaker.model.SageMakerModelBuilder;
 import org.elasticsearch.xpack.inference.services.sagemaker.schema.SageMakerSchemas;
 import org.elasticsearch.xpack.inference.services.voyageai.VoyageAIService;
@@ -298,6 +300,7 @@ public class InferencePlugin extends Plugin
         );
 
         var sageMakerSchemas = new SageMakerSchemas();
+        var sageMakerConfigurations = new LazyInitializable<>(new SageMakerConfiguration(sageMakerSchemas));
         inferenceServices.add(
             () -> List.of(
                 context -> new ElasticInferenceService(
@@ -314,7 +317,8 @@ public class InferencePlugin extends Plugin
                         services.threadPool()
                     ),
                     sageMakerSchemas,
-                    services.threadPool()
+                    services.threadPool(),
+                    sageMakerConfigurations::getOrCompute
                 )
             )
         );

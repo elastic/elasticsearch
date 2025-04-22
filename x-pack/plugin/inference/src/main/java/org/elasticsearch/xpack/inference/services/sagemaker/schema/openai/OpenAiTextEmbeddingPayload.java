@@ -171,7 +171,7 @@ public class OpenAiTextEmbeddingPayload implements SageMakerSchemaPayload {
 
         @Override
         public Builder toBuilder() {
-            return new ApiTaskSettingsBuilder();
+            return new ApiTaskSettingsBuilder().user(user);
         }
 
         @Override
@@ -197,9 +197,14 @@ public class OpenAiTextEmbeddingPayload implements SageMakerSchemaPayload {
         static class ApiTaskSettingsBuilder implements Builder {
             private String user;
 
+            private ApiTaskSettingsBuilder user(@Nullable String user) {
+                this.user = user != null ? user : this.user;
+                return this;
+            }
+
             @Override
             public ApiTaskSettingsBuilder fromMap(Map<String, Object> map, ValidationException exception) {
-                user = extractOptionalString(map, USER_FIELD, ModelConfigurations.SERVICE_SETTINGS, exception);
+                user(extractOptionalString(map, USER_FIELD, ModelConfigurations.TASK_SETTINGS, exception));
                 return this;
             }
 

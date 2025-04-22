@@ -363,19 +363,19 @@ public class FileAccessTreeTests extends ESTestCase {
     }
 
     public void testDuplicatePrunedPaths() {
+        var comparison = new CaseSensitiveComparison();
         List<String> inputPaths = List.of("/a", "/a", "/a/b", "/a/b", "/b/c", "b/c/d", "b/c/d", "b/c/d", "e/f", "e/f");
         List<String> outputPaths = List.of("/a", "/b/c", "b/c/d", "e/f");
-        var actual = FileAccessTree.pruneSortedPaths(inputPaths.stream().map(p -> normalizePath(path(p))).toList());
+        var actual = FileAccessTree.pruneSortedPaths(inputPaths.stream().map(p -> normalizePath(path(p))).toList(), comparison);
         var expected = outputPaths.stream().map(p -> normalizePath(path(p))).toList();
         assertEquals(expected, actual);
     }
 
     public void testDuplicatePrunedPathsWindows() {
-        assumeTrue("Specific to windows for paths with mixed casing", WINDOWS.isCurrent());
-
+        var comparison = new CaseInsensitiveComparison();
         List<String> inputPaths = List.of("/a", "/A", "/a/b", "/a/B", "/b/c", "b/c/d", "B/c/d", "b/c/D", "e/f", "e/f");
         List<String> outputPaths = List.of("/a", "/b/c", "b/c/d", "e/f");
-        var actual = FileAccessTree.pruneSortedPaths(inputPaths.stream().map(p -> normalizePath(path(p))).toList());
+        var actual = FileAccessTree.pruneSortedPaths(inputPaths.stream().map(p -> normalizePath(path(p))).toList(), comparison);
         var expected = outputPaths.stream().map(p -> normalizePath(path(p))).toList();
         assertEquals(expected, actual);
     }
@@ -384,6 +384,7 @@ public class FileAccessTreeTests extends ESTestCase {
         // Bunch o' handy definitions
         var pathAB = path("/a/b");
         var pathCD = path("/c/d");
+        var comparison = randomBoolean() ? new CaseSensitiveComparison() : new CaseInsensitiveComparison();
         var originalFileData = FileData.ofPath(pathAB, READ).withExclusive(true);
         var fileDataWithWriteMode = FileData.ofPath(pathAB, READ_WRITE).withExclusive(true);
         var original = new ExclusiveFileEntitlement("component1", "module1", new FilesEntitlement(List.of(originalFileData)));
@@ -411,24 +412,21 @@ public class FileAccessTreeTests extends ESTestCase {
         assertEquals(
             "Single element should trivially work",
             List.of(originalExclusivePath),
-            buildExclusivePathList(List.of(original), TEST_PATH_LOOKUP)
+            buildExclusivePathList(List.of(original), TEST_PATH_LOOKUP, comparison)
         );
         assertEquals(
             "Two identical elements should be combined",
             List.of(originalExclusivePath),
-            buildExclusivePathList(List.of(original, original), TEST_PATH_LOOKUP)
+            buildExclusivePathList(List.of(original, original), TEST_PATH_LOOKUP, comparison)
         );
 
         // Don't merge things we shouldn't
 
         var distinctEntitlements = List.of(original, differentComponent, differentModule, differentPath);
-        var distinctPaths = List.of(
-            originalExclusivePath,
-            new ExclusivePath("component2", Set.of(original.moduleName()), originalExclusivePath.path()),
-            new ExclusivePath(original.componentName(), Set.of("module2"), originalExclusivePath.path()),
-            new ExclusivePath(original.componentName(), Set.of(original.moduleName()), normalizePath(pathCD))
+        var iae = expectThrows(
+            IllegalArgumentException.class,
+            () -> buildExclusivePathList(distinctEntitlements, TEST_PATH_LOOKUP, comparison)
         );
-        var iae = expectThrows(IllegalArgumentException.class, () -> buildExclusivePathList(distinctEntitlements, TEST_PATH_LOOKUP));
         var pathABString = pathAB.toAbsolutePath().toString();
         assertThat(
             iae.getMessage(),
@@ -444,7 +442,7 @@ public class FileAccessTreeTests extends ESTestCase {
         assertEquals(
             "Exclusive paths should be combined even if the entitlements are different",
             equivalentPaths,
-            buildExclusivePathList(equivalentEntitlements, TEST_PATH_LOOKUP)
+            buildExclusivePathList(equivalentEntitlements, TEST_PATH_LOOKUP, comparison)
         );
     }
 

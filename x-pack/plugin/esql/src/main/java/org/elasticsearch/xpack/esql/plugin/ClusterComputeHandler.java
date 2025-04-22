@@ -12,7 +12,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
 import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.support.ChannelActionListener;
-import org.elasticsearch.compute.operator.DriverProfile;
+import org.elasticsearch.compute.operator.DriverCompletionInfo;
 import org.elasticsearch.compute.operator.exchange.ExchangeService;
 import org.elasticsearch.compute.operator.exchange.ExchangeSourceHandler;
 import org.elasticsearch.core.Releasable;
@@ -77,7 +77,7 @@ final class ClusterComputeHandler implements TransportRequestHandler<ClusterComp
         RemoteCluster cluster,
         Runnable cancelQueryOnFailure,
         EsqlExecutionInfo executionInfo,
-        ActionListener<List<DriverProfile>> listener
+        ActionListener<DriverCompletionInfo> listener
     ) {
         var queryPragmas = configuration.pragmas();
         listener = ActionListener.runBefore(listener, exchangeSource.addEmptySink()::close);
@@ -89,7 +89,7 @@ final class ClusterComputeHandler implements TransportRequestHandler<ClusterComp
             final boolean receivedResults = finalResponse.get() != null || pagesFetched.get();
             if (receivedResults == false && EsqlCCSUtils.shouldIgnoreRuntimeError(executionInfo, clusterAlias, e)) {
                 EsqlCCSUtils.markClusterWithFinalStateAndNoShards(executionInfo, clusterAlias, EsqlExecutionInfo.Cluster.Status.SKIPPED, e);
-                l.onResponse(List.of());
+                l.onResponse(DriverCompletionInfo.EMPTY);
             } else if (configuration.allowPartialResults()
                 && (ExceptionsHelper.unwrapCause(e) instanceof IndexNotFoundException) == false) {
                     EsqlCCSUtils.markClusterWithFinalStateAndNoShards(
@@ -98,7 +98,7 @@ final class ClusterComputeHandler implements TransportRequestHandler<ClusterComp
                         EsqlExecutionInfo.Cluster.Status.PARTIAL,
                         e
                     );
-                    l.onResponse(List.of());
+                    l.onResponse(DriverCompletionInfo.EMPTY);
                 } else {
                     l.onFailure(e);
                 }
@@ -126,9 +126,9 @@ final class ClusterComputeHandler implements TransportRequestHandler<ClusterComp
                     onGroupFailure = computeService.cancelQueryOnFailure(groupTask);
                     l = ActionListener.runAfter(l, () -> transportService.getTaskManager().unregister(groupTask));
                 }
-                try (var computeListener = new ComputeListener(transportService.getThreadPool(), onGroupFailure, l.map(profiles -> {
+                try (var computeListener = new ComputeListener(transportService.getThreadPool(), onGroupFailure, l.map(completionInfo -> {
                     updateExecutionInfo(executionInfo, clusterAlias, finalResponse.get());
-                    return profiles;
+                    return completionInfo;
                 }))) {
                     var remoteSink = exchangeService.newRemoteSink(groupTask, childSessionId, transportService, cluster.connection);
                     exchangeSource.addRemoteSink(
@@ -142,7 +142,7 @@ final class ClusterComputeHandler implements TransportRequestHandler<ClusterComp
                     var clusterRequest = new ClusterComputeRequest(clusterAlias, childSessionId, configuration, remotePlan);
                     final ActionListener<ComputeResponse> clusterListener = computeListener.acquireCompute().map(r -> {
                         finalResponse.set(r);
-                        return r.getProfiles();
+                        return r.getCompletionInfo();
                     });
                     transportService.sendChildRequest(
                         cluster.connection,
@@ -295,7 +295,7 @@ final class ClusterComputeHandler implements TransportRequestHandler<ClusterComp
                     cancelQueryOnFailure,
                     computeListener.acquireCompute().map(r -> {
                         finalResponse.set(r);
-                        return r.getProfiles();
+                        return r.getCompletionInfo();
                     })
                 );
             }

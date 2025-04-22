@@ -126,6 +126,18 @@ public interface DataSourceRequest<TResponse extends DataSourceResponse> {
         }
     }
 
+    record VersionStringGenerator() implements DataSourceRequest<DataSourceResponse.VersionStringGenerator> {
+        public DataSourceResponse.VersionStringGenerator accept(DataSourceHandler handler) {
+            return handler.handle(this);
+        }
+    }
+
+    record AggregateMetricDoubleGenerator() implements DataSourceRequest<DataSourceResponse.AggregateMetricDoubleGenerator> {
+        public DataSourceResponse.AggregateMetricDoubleGenerator accept(DataSourceHandler handler) {
+            return handler.handle(this);
+        }
+    }
+
     record NullWrapper() implements DataSourceRequest<DataSourceResponse.NullWrapper> {
         public DataSourceResponse.NullWrapper accept(DataSourceHandler handler) {
             return handler.handle(this);

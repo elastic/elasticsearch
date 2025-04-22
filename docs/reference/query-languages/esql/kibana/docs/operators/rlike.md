@@ -2,7 +2,7 @@
 
 ### RLIKE
 Use `RLIKE` to filter data based on string patterns using using
-[regular expressions](https://www.elastic.co/docs/reference/elasticsearch/query-languages/query-dsl/regexp-syntax). `RLIKE` usually acts on a field placed on
+[regular expressions](https://www.elastic.co/docs/reference/query-languages/query-dsl/regexp-syntax). `RLIKE` usually acts on a field placed on
 the left-hand side of the operator, but it can also act on a constant (literal)
 expression. The right-hand side of the operator represents the pattern.
 

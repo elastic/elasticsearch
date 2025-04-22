@@ -26,6 +26,7 @@ import org.elasticsearch.common.lucene.search.TopDocsAndMaxScore;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.search.SearchPhaseResult;
 import org.elasticsearch.search.SearchService;
@@ -162,7 +163,7 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
         consume(querySearchResult, next);
     }
 
-    private final List<Tuple<TopDocsStats, MergeResult>> batchedResults = new ArrayList<>();
+    private final ArrayDeque<Tuple<TopDocsStats, MergeResult>> batchedResults = new ArrayDeque<>();
 
     /**
      * Unlinks partial merge results from this instance and returns them as a partial merge result to be sent to the coordinating node.
@@ -214,7 +215,7 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
         buffer.sort(RESULT_COMPARATOR);
         final TopDocsStats topDocsStats = this.topDocsStats;
         var mergeResult = this.mergeResult;
-        final List<Tuple<TopDocsStats, MergeResult>> batchedResults;
+        final ArrayDeque<Tuple<TopDocsStats, MergeResult>> batchedResults;
         synchronized (this.batchedResults) {
             batchedResults = this.batchedResults;
         }
@@ -226,8 +227,8 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
         if (mergeResult != null) {
             consumePartialMergeResult(mergeResult, topDocsList, aggsList);
         }
-        for (int i = 0; i < batchedResults.size(); i++) {
-            Tuple<TopDocsStats, MergeResult> batchedResult = batchedResults.set(i, null);
+        Tuple<TopDocsStats, MergeResult> batchedResult;
+        while ((batchedResult = batchedResults.poll()) != null) {
             topDocsStats.add(batchedResult.v1());
             consumePartialMergeResult(batchedResult.v2(), topDocsList, aggsList);
         }
@@ -526,6 +527,12 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
             this.buffer = null;
             for (QuerySearchResult querySearchResult : b) {
                 querySearchResult.releaseAggs();
+            }
+        }
+        synchronized (this.batchedResults) {
+            Tuple<TopDocsStats, MergeResult> batchedResult;
+            while ((batchedResult = batchedResults.poll()) != null) {
+                Releasables.close(batchedResult.v2().reducedAggs());
             }
         }
     }

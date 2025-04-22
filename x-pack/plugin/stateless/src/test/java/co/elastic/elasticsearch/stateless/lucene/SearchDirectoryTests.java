@@ -151,13 +151,20 @@ public class SearchDirectoryTests extends ESTestCase {
                 Settings settings,
                 ThreadPool threadPool
             ) {
-                return new StatelessSharedBlobCacheService(nodeEnvironment, settings, threadPool, BlobCacheMetrics.NOOP) {
+                StatelessSharedBlobCacheService statelessSharedBlobCacheService = new StatelessSharedBlobCacheService(
+                    nodeEnvironment,
+                    settings,
+                    threadPool,
+                    BlobCacheMetrics.NOOP
+                ) {
                     @Override
                     protected boolean assertOffsetsWithinFileLength(long offset, long length, long fileLength) {
                         // this test tries to read beyond the file length
                         return true;
                     }
                 };
+                statelessSharedBlobCacheService.assertInvariants();
+                return statelessSharedBlobCacheService;
             }
         };
     }

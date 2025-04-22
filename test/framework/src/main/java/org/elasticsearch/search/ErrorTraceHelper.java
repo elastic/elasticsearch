@@ -11,12 +11,14 @@ package org.elasticsearch.search;
 
 import org.apache.logging.log4j.Level;
 import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.action.search.SearchQueryThenFetchAsyncAction;
 import org.elasticsearch.index.query.QueryShardException;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.test.MockLog;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.transport.TransportMessageListener;
+import org.elasticsearch.transport.TransportResponse;
 import org.elasticsearch.transport.TransportService;
 
 import java.util.Arrays;
@@ -38,20 +40,36 @@ public enum ErrorTraceHelper {
 
     public static BooleanSupplier setupErrorTraceListener(InternalTestCluster internalCluster) {
         final AtomicBoolean transportMessageHasStackTrace = new AtomicBoolean(false);
-        internalCluster.getDataNodeInstances(TransportService.class)
-            .forEach(ts -> asInstanceOf(MockTransportService.class, ts).addMessageListener(new TransportMessageListener() {
+        internalCluster.getDataNodeInstances(TransportService.class).forEach(ts -> {
+            var mockTs = asInstanceOf(MockTransportService.class, ts);
+            mockTs.addMessageListener(new TransportMessageListener() {
                 @Override
                 public void onResponseSent(long requestId, String action, Exception error) {
                     TransportMessageListener.super.onResponseSent(requestId, action, error);
                     if (action.startsWith("indices:data/read/search")) {
-                        Optional<Throwable> throwable = ExceptionsHelper.unwrapCausesAndSuppressed(
-                            error,
-                            t -> t.getStackTrace().length > 0
-                        );
-                        transportMessageHasStackTrace.set(throwable.isPresent());
+                        checkStacktraceStateAndRemove(error, mockTs);
                     }
                 }
-            }));
+
+                @Override
+                public void onBeforeResponseSent(long requestId, String action, TransportResponse response) {
+                    if (SearchQueryThenFetchAsyncAction.NODE_SEARCH_ACTION_NAME.equals(action)) {
+                        var r = asInstanceOf(SearchQueryThenFetchAsyncAction.NodeQueryResponse.class, response);
+                        for (Object result : r.getResults()) {
+                            if (result instanceof Exception error) {
+                                checkStacktraceStateAndRemove(error, mockTs);
+                            }
+                        }
+                    }
+                }
+
+                private void checkStacktraceStateAndRemove(Exception error, MockTransportService mockTs) {
+                    Optional<Throwable> throwable = ExceptionsHelper.unwrapCausesAndSuppressed(error, t -> t.getStackTrace().length > 0);
+                    transportMessageHasStackTrace.set(throwable.isPresent());
+                    mockTs.removeMessageListener(this);
+                }
+            });
+        });
         return transportMessageHasStackTrace::get;
     }
 

@@ -60,6 +60,7 @@ import org.elasticsearch.transport.TransportInterceptor;
 import org.elasticsearch.transport.TransportMessageListener;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportRequestOptions;
+import org.elasticsearch.transport.TransportResponse;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.transport.TransportSettings;
 import org.elasticsearch.transport.netty4.Netty4Transport;
@@ -850,6 +851,12 @@ public class MockTransportService extends TransportService {
     }
 
     @Override
+    public void onBeforeResponseSent(long requestId, String action, TransportResponse response) {
+        super.onBeforeResponseSent(requestId, action, response);
+        messageListener.onBeforeResponseSent(requestId, action, response);
+    }
+
+    @Override
     public void onResponseSent(long requestId, String action, Exception e) {
         super.onResponseSent(requestId, action, e);
         messageListener.onResponseSent(requestId, action, e);
@@ -898,6 +905,13 @@ public class MockTransportService extends TransportService {
         ) {
             for (TransportMessageListener listener : listeners) {
                 listener.onRequestSent(node, requestId, action, request, finalOptions);
+            }
+        }
+
+        @Override
+        public void onBeforeResponseSent(long requestId, String action, TransportResponse response) {
+            for (TransportMessageListener listener : listeners) {
+                listener.onBeforeResponseSent(requestId, action, response);
             }
         }
 

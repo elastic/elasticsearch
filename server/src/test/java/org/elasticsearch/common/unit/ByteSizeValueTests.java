@@ -23,8 +23,8 @@ import java.util.List;
 import java.util.function.Function;
 
 import static org.elasticsearch.TransportVersions.BYTE_SIZE_VALUE_ALWAYS_USES_BYTES;
-import static org.elasticsearch.TransportVersions.V_9_0_0;
 import static org.elasticsearch.TransportVersions.V_8_16_0;
+import static org.elasticsearch.TransportVersions.V_9_0_0;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;

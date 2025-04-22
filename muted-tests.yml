@@ -426,6 +426,9 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.multi_node.EsqlClientYamlIT
   method: test {p0=esql/10_basic/basic with documents_found}
   issue: https://github.com/elastic/elasticsearch/issues/127046
+- class: org.elasticsearch.search.query.QueryPhaseTimeoutTests
+  method: testBulkScorerTimeout
+  issue: https://github.com/elastic/elasticsearch/issues/127156
 
 # Examples:
 #

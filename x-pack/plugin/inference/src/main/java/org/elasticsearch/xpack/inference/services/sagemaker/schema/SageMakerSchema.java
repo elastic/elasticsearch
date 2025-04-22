@@ -7,8 +7,6 @@
 
 package org.elasticsearch.xpack.inference.services.sagemaker.schema;
 
-import org.elasticsearch.core.Strings;
-
 import software.amazon.awssdk.services.sagemakerruntime.model.InternalDependencyException;
 import software.amazon.awssdk.services.sagemakerruntime.model.InternalFailureException;
 import software.amazon.awssdk.services.sagemakerruntime.model.InvokeEndpointRequest;
@@ -21,6 +19,7 @@ import software.amazon.awssdk.services.sagemakerruntime.model.ValidationErrorExc
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.rest.RestStatus;

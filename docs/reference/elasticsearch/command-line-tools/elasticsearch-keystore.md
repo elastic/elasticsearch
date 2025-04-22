@@ -90,6 +90,10 @@ Only some settings are designed to be read from the keystore. However, there is 
 
 ## Handling special characters
 
+:::{important}
+Improper handling of special characters can lead to authentication failures and service outages.
+:::
+
 Exclamation mark: `!`
 : When using the shell, the combination `\!` is stored as just `!`. This can lead to authentication failures if the password is not stored as intended.
 

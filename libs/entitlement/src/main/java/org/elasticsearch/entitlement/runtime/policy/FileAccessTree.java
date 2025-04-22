@@ -186,6 +186,15 @@ public final class FileAccessTree {
         this.exclusivePaths = sortedExclusivePaths;
         this.readPaths = pruneSortedPaths(readPaths).toArray(new String[0]);
         this.writePaths = pruneSortedPaths(writePaths).toArray(new String[0]);
+
+        logger.debug(
+            () -> Strings.format(
+                "Created FileAccessTree with paths: exclusive [%s], read [%s], write [%s]",
+                String.join(",", this.exclusivePaths),
+                String.join(",", this.readPaths),
+                String.join(",", this.writePaths)
+            )
+        );
     }
 
     // package private for testing
@@ -235,34 +244,14 @@ public final class FileAccessTree {
     public boolean canRead(Path path) {
         var normalizedPath = normalizePath(path);
         var canRead = checkPath(normalizedPath, readPaths);
-
-        logger.trace(
-            () -> Strings.format(
-                "checking [%s] (normalized to [%s]) against [%s] for READ: %b",
-                path,
-                normalizedPath,
-                String.join(",", readPaths),
-                canRead
-            )
-        );
-
+        logger.trace(() -> Strings.format("checking [%s] (normalized to [%s]) for READ: %b", path, normalizedPath, canRead));
         return canRead;
     }
 
     public boolean canWrite(Path path) {
         var normalizedPath = normalizePath(path);
         var canWrite = checkPath(normalizedPath, writePaths);
-
-        logger.trace(
-            () -> Strings.format(
-                "checking [%s] (normalized to [%s]) against [%s] for READ_WRITE: %b",
-                path,
-                normalizedPath,
-                String.join(",", writePaths),
-                canWrite
-            )
-        );
-
+        logger.trace(() -> Strings.format("checking [%s] (normalized to [%s]) for READ_WRITE: %b", path, normalizedPath, canWrite));
         return canWrite;
     }
 

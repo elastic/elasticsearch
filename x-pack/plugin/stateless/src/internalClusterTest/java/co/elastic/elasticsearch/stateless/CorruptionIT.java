@@ -404,7 +404,14 @@ public class CorruptionIT extends AbstractStatelessIntegTestCase {
             ThreadPool threadPool,
             BlobCacheMetrics blobCacheMetrics
         ) {
-            return new TestSharedBlobCacheService(nodeEnvironment, settings, threadPool, blobCacheMetrics);
+            TestSharedBlobCacheService testSharedBlobCacheService = new TestSharedBlobCacheService(
+                nodeEnvironment,
+                settings,
+                threadPool,
+                blobCacheMetrics
+            );
+            testSharedBlobCacheService.assertInvariants();
+            return testSharedBlobCacheService;
         }
     }
 

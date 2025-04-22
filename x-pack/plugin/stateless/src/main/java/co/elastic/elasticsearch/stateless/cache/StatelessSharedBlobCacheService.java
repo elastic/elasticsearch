@@ -45,7 +45,6 @@ public class StatelessSharedBlobCacheService extends SharedBlobCacheService<File
         BlobCacheMetrics blobCacheMetrics
     ) {
         super(environment, settings, threadPool, IO_EXECUTOR, blobCacheMetrics);
-        assert getRangeSize() >= getRegionSize() : getRangeSize() + " < " + getRegionSize();
         this.shardReadThreadPoolExecutor = threadPool.executor(Stateless.SHARD_READ_THREAD_POOL);
     }
 
@@ -58,8 +57,11 @@ public class StatelessSharedBlobCacheService extends SharedBlobCacheService<File
         LongSupplier relativeTimeInNanosSupplier
     ) {
         super(environment, settings, threadPool, IO_EXECUTOR, blobCacheMetrics, relativeTimeInNanosSupplier);
-        assert getRangeSize() >= getRegionSize() : getRangeSize() + " < " + getRegionSize();
         this.shardReadThreadPoolExecutor = IO_EXECUTOR;
+    }
+
+    public void assertInvariants() {
+        assert getRangeSize() >= getRegionSize() : getRangeSize() + " < " + getRegionSize();
     }
 
     public Executor getShardReadThreadPoolExecutor() {

@@ -941,7 +941,10 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractStatelessIntegTestC
             ThreadPool threadPool,
             BlobCacheMetrics blobCacheMetrics
         ) {
-            return new MaybeNoFreeRegionForWarmingStatelessSharedBlobCacheService(nodeEnvironment, settings, threadPool, blobCacheMetrics);
+            MaybeNoFreeRegionForWarmingStatelessSharedBlobCacheService maybeNoFreeRegionForWarmingBlobCacheService =
+                new MaybeNoFreeRegionForWarmingStatelessSharedBlobCacheService(nodeEnvironment, settings, threadPool, blobCacheMetrics);
+            maybeNoFreeRegionForWarmingBlobCacheService.assertInvariants();
+            return maybeNoFreeRegionForWarmingBlobCacheService;
         }
     }
 

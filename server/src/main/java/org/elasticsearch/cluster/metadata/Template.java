@@ -314,9 +314,7 @@ public class Template implements SimpleDiffable<Template>, ToXContentObject {
             builder.field(LIFECYCLE.getPreferredName());
             lifecycle.toXContent(builder, params, rolloverConfiguration, null, false);
         }
-        if (DataStream.isFailureStoreFeatureFlagEnabled()) {
-            dataStreamOptions.toXContent(builder, params, DATA_STREAM_OPTIONS.getPreferredName());
-        }
+        dataStreamOptions.toXContent(builder, params, DATA_STREAM_OPTIONS.getPreferredName());
         builder.endObject();
         return builder;
     }

@@ -244,14 +244,14 @@ public final class FileAccessTree {
     public boolean canRead(Path path) {
         var normalizedPath = normalizePath(path);
         var canRead = checkPath(normalizedPath, readPaths);
-        logger.trace(() -> Strings.format("checking [%s] (normalized to [%s]) for READ: %b", path, normalizedPath, canRead));
+        logger.trace(() -> Strings.format("checking [%s] (normalized to [%s]) for read: %b", path, normalizedPath, canRead));
         return canRead;
     }
 
     public boolean canWrite(Path path) {
         var normalizedPath = normalizePath(path);
         var canWrite = checkPath(normalizedPath, writePaths);
-        logger.trace(() -> Strings.format("checking [%s] (normalized to [%s]) for READ_WRITE: %b", path, normalizedPath, canWrite));
+        logger.trace(() -> Strings.format("checking [%s] (normalized to [%s]) for write: %b", path, normalizedPath, canWrite));
         return canWrite;
     }
 

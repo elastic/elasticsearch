@@ -298,17 +298,19 @@ abstract class DataNodeRequestSender {
         void onSkip();
     }
 
-    private static Exception unwrapFailure(Exception e) {
+    private static Exception unwrapFailure(ShardId shardId, Exception e) {
         e = e instanceof TransportException te ? FailureCollector.unwrapTransportException(te) : e;
         if (TransportActions.isShardNotAvailableException(e)) {
-            return NoShardAvailableActionException.forOnShardFailureWrapper(e.getMessage());
+            var ex = NoShardAvailableActionException.forOnShardFailureWrapper(e.getMessage());
+            ex.setShard(shardId);
+            return ex;
         } else {
             return e;
         }
     }
 
     private void trackShardLevelFailure(ShardId shardId, boolean fatal, Exception originalEx) {
-        final Exception e = unwrapFailure(originalEx);
+        final Exception e = unwrapFailure(shardId, originalEx);
         final boolean isTaskCanceledException = ExceptionsHelper.unwrap(e, TaskCancelledException.class) != null;
         final boolean isCircuitBreakerException = ExceptionsHelper.unwrap(e, CircuitBreakingException.class) != null;
         shardFailures.compute(shardId, (k, current) -> {

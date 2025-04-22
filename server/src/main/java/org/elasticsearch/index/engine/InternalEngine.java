@@ -171,9 +171,12 @@ public class InternalEngine extends Engine {
     private final CombinedDeletionPolicy combinedDeletionPolicy;
 
     // How many callers are currently requesting index throttling. Currently there are only two situations where we do this: when merges
-    // are falling behind and when writing indexing buffer to disk is too slow. When this is 0, there is no throttling, else we throttling
+    // are falling behind and when writing indexing buffer to disk is too slow. When this is 0, there is no throttling, else we throttle
     // incoming indexing ops to a single thread:
     private final AtomicInteger throttleRequestCount = new AtomicInteger();
+    // Should we throttle indexing ops by pausing them completely. Default value is false which will throttle
+    // incoming indexing ops to a single thread.
+    private final AtomicBoolean throttleShouldPauseIndexing = new AtomicBoolean(false);
     private final AtomicBoolean pendingTranslogRecovery = new AtomicBoolean(false);
     private final AtomicLong maxUnsafeAutoIdTimestamp = new AtomicLong(-1);
     private final AtomicLong maxSeenAutoIdTimestamp = new AtomicLong(-1);
@@ -2822,11 +2825,15 @@ public class InternalEngine extends Engine {
     }
 
     @Override
-    public void activateThrottling() {
+    public void activateThrottling(boolean pauseIndexing) {
         int count = throttleRequestCount.incrementAndGet();
+        if (pauseIndexing)
+        {
+            throttleShouldPauseIndexing.setRelease(true);
+        }
         assert count >= 1 : "invalid post-increment throttleRequestCount=" + count;
         if (count == 1) {
-            throttle.activate();
+            throttle.activate(throttleShouldPauseIndexing);
         }
     }
 
@@ -2920,7 +2927,7 @@ public class InternalEngine extends Engine {
                 numQueuedMerges,
                 configuredMaxMergeCount
             );
-            InternalEngine.this.activateThrottling();
+            InternalEngine.this.activateThrottling(false);
         }
 
         @Override
@@ -2959,7 +2966,7 @@ public class InternalEngine extends Engine {
             if (numMergesInFlight.incrementAndGet() > maxNumMerges) {
                 if (isThrottling.getAndSet(true) == false) {
                     logger.info("now throttling indexing: numMergesInFlight={}, maxNumMerges={}", numMergesInFlight, maxNumMerges);
-                    activateThrottling();
+                    activateThrottling(false);
                 }
             }
         }

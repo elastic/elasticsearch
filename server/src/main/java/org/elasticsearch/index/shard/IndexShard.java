@@ -2730,12 +2730,21 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         return indexEventListener;
     }
 
-    public void activateThrottling() {
+    /** Asks this shard to throttle indexing to one thread. If pauseIndexing is set to true, throttling will
+     * pause indexing completely.
+     *
+     * @param pauseIndexing   pauses indexing completely when set to true, otherwise throttles to one thread.
+     */
+    public void activateThrottling(boolean pauseIndexing) {
         try {
-            getEngine().activateThrottling();
+            getEngine().activateThrottling(pauseIndexing);
         } catch (AlreadyClosedException ex) {
             // ignore
         }
+    }
+
+    public void pauseIndexing() {
+
     }
 
     public void deactivateThrottling() {

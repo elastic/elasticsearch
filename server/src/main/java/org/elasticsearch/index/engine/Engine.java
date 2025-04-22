@@ -438,6 +438,7 @@ public abstract class Engine implements Closeable {
         private volatile long startOfThrottleNS;
         private static final ReleasableLock NOOP_LOCK = new ReleasableLock(new NoOpLock());
         private final ReleasableLock lockReference = new ReleasableLock(new ReentrantLock());
+        private final ReleasableLock pauseLockReference = new ReleasableLock(new PauseLock());
         private volatile ReleasableLock lock = NOOP_LOCK;
 
         public Releasable acquireThrottle() {
@@ -445,15 +446,25 @@ public abstract class Engine implements Closeable {
         }
 
         /** Activate throttling, which switches the lock to be a real lock */
-        public void activate() {
+        public void activate(AtomicBoolean pauseIndexing) {
             assert lock == NOOP_LOCK : "throttling activated while already active";
             startOfThrottleNS = System.nanoTime();
-            lock = lockReference;
+            if (pauseIndexing.getAcquire()) {
+                lock = pauseLockReference;
+            }
+            else {
+                lock = lockReference;
+            }
         }
 
         /** Deactivate throttling, which switches the lock to be an always-acquirable NoOpLock */
         public void deactivate() {
             assert lock != NOOP_LOCK : "throttling deactivated but not active";
+
+            if(lock == pauseLockReference)
+            {
+                lock.close();
+            }
             lock = NOOP_LOCK;
 
             assert startOfThrottleNS > 0 : "Bad state of startOfThrottleNS";
@@ -540,6 +551,67 @@ public abstract class Engine implements Closeable {
         @Override
         public Condition newCondition() {
             throw new UnsupportedOperationException("NoOpLock can't provide a condition");
+        }
+    }
+
+    /** A Lock implementation that forces the lock to wait on a condition */
+    protected static final class PauseLock implements Lock {
+
+        private final ReentrantLock internalLock = new ReentrantLock();
+        private final Condition condition = internalLock.newCondition();
+        private volatile boolean paused = true;
+
+        @Override
+        public void lock() {
+            internalLock.lock();
+            try {
+                while (paused) {
+                    condition.await();
+                }
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                throw new RuntimeException(e);
+            } finally {
+                internalLock.unlock();
+            }
+        }
+
+        @Override
+        public void lockInterruptibly() throws InterruptedException {
+            internalLock.lockInterruptibly();
+            try {
+                while (paused) {
+                    condition.await();
+                }
+            } finally {
+                internalLock.unlock();
+            }
+        }
+
+        @Override
+        public boolean tryLock() {
+            return false;
+        }
+
+        @Override
+        public boolean tryLock(long time, TimeUnit unit) throws InterruptedException {
+            return false;
+        }
+
+        @Override
+        public void unlock() {
+            internalLock.lock();
+            try {
+                paused = false;
+                condition.signalAll();
+            } finally {
+                internalLock.unlock();
+            }
+        }
+
+        @Override
+        public Condition newCondition() {
+            return condition;
         }
     }
 
@@ -2173,7 +2245,7 @@ public abstract class Engine implements Closeable {
      * Request that this engine throttle incoming indexing requests to one thread.
      * Must be matched by a later call to {@link #deactivateThrottling()}.
      */
-    public abstract void activateThrottling();
+    public abstract void activateThrottling(boolean pauseIndexing);
 
     /**
      * Reverses a previous {@link #activateThrottling} call.

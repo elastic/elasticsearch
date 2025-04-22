@@ -502,7 +502,7 @@ public class ReadOnlyEngine extends Engine {
     }
 
     @Override
-    public void activateThrottling() {}
+    public void activateThrottling(boolean pauseIndexing) {}
 
     @Override
     public void deactivateThrottling() {}

@@ -230,9 +230,6 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
             onPhaseDone();
             return;
         }
-        if (shardsIts.isEmpty()) {
-            return;
-        }
         final Map<SearchShardIterator, Integer> shardIndexMap = Maps.newHashMapWithExpectedSize(shardIterators.length);
         for (int i = 0; i < shardIterators.length; i++) {
             shardIndexMap.put(shardIterators[i], i);
@@ -426,11 +423,15 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
             performPhaseOnShard(shardIndex, shardIt, nextShard);
         } else {
             // count down outstanding shards, we're done with this shard as there's no more copies to try
-            final int outstanding = outstandingShards.decrementAndGet();
-            assert outstanding >= 0 : "outstanding: " + outstanding;
-            if (outstanding == 0) {
-                onPhaseDone();
-            }
+            finishOneShard();
+        }
+    }
+
+    private void finishOneShard() {
+        final int outstanding = outstandingShards.decrementAndGet();
+        assert outstanding >= 0 : "outstanding: " + outstanding;
+        if (outstanding == 0) {
+            onPhaseDone();
         }
     }
 
@@ -501,31 +502,16 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
             logger.trace("got first-phase result from {}", result != null ? result.getSearchShardTarget() : null);
         }
         // clean a previous error on this shard group (note, this code will be serialized on the same shardIndex value level
-        // so its ok concurrency wise to miss potentially the shard failures being created because of another failure
+        // so it's ok concurrency wise to miss potentially the shard failures being created because of another failure
         // in the #addShardFailure, because by definition, it will happen on *another* shardIndex
         AtomicArray<ShardSearchFailure> shardFailures = this.shardFailures.get();
         if (shardFailures != null) {
             shardFailures.set(result.getShardIndex(), null);
         }
-        results.consumeResult(result, this::onShardResultConsumed);
-    }
-
-    private void onShardResultConsumed() {
-        successfulOps.incrementAndGet();
-        // we need to increment successful ops first before we compare the exit condition otherwise if we
-        // are fast we could concurrently update totalOps but then preempt one of the threads which can
-        // cause the successor to read a wrong value from successfulOps if second phase is very fast ie. count etc.
-        // increment all the "future" shards to update the total ops since we some may work and some may not...
-        // and when that happens, we break on total ops, so we must maintain them
-        successfulShardExecution();
-    }
-
-    private void successfulShardExecution() {
-        final int outstanding = outstandingShards.decrementAndGet();
-        assert outstanding >= 0 : "outstanding: " + outstanding;
-        if (outstanding == 0) {
-            onPhaseDone();
-        }
+        results.consumeResult(result, () -> {
+            successfulOps.incrementAndGet();
+            finishOneShard();
+        });
     }
 
     /**

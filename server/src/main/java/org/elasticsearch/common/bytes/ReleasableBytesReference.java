@@ -179,6 +179,11 @@ public final class ReleasableBytesReference implements RefCounted, Releasable, B
             }
 
             @Override
+            public ReleasableBytesReference readReleasableBytesReference(int len) throws IOException {
+                return retainAndSkip(len);
+            }
+
+            @Override
             public ReleasableBytesReference readAllToReleasableBytesReference() throws IOException {
                 return retainAndSkip(length() - offset());
             }

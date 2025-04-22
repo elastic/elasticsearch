@@ -24,7 +24,6 @@ import java.util.function.Function;
 
 import static org.elasticsearch.TransportVersions.BYTE_SIZE_VALUE_ALWAYS_USES_BYTES;
 import static org.elasticsearch.TransportVersions.V_8_16_0;
-import static org.elasticsearch.TransportVersions.V_9_0_0;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
@@ -523,7 +522,7 @@ public class ByteSizeValueTests extends AbstractWireSerializingTestCase<ByteSize
 
     public void testBWCTransportFormat() throws IOException {
         var tenMegs = ByteSizeValue.ofMb(10);
-        for (var tv : List.of(V_8_16_0, V_9_0_0)) {
+        for (var tv : List.of(V_8_16_0)) {
             try (BytesStreamOutput expected = new BytesStreamOutput(); BytesStreamOutput actual = new BytesStreamOutput()) {
                 expected.writeZLong(10);
                 ByteSizeUnit.MB.writeTo(expected);

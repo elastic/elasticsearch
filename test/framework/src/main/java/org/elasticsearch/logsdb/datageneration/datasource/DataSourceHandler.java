@@ -78,6 +78,14 @@ public interface DataSourceHandler {
         return null;
     }
 
+    default DataSourceResponse.VersionStringGenerator handle(DataSourceRequest.VersionStringGenerator request) {
+        return null;
+    }
+
+    default DataSourceResponse.AggregateMetricDoubleGenerator handle(DataSourceRequest.AggregateMetricDoubleGenerator request) {
+        return null;
+    }
+
     default DataSourceResponse.NullWrapper handle(DataSourceRequest.NullWrapper request) {
         return null;
     }

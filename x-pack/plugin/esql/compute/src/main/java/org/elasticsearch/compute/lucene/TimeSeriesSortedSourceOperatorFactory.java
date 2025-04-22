@@ -228,8 +228,8 @@ public class TimeSeriesSortedSourceOperatorFactory extends LuceneOperator.Factor
         }
 
         class SegmentsIterator {
-            private final PriorityQueue<Leaf> mainQueue;
-            private final PriorityQueue<Leaf> oneTsidQueue;
+            private final PriorityQueue<LeafIterator> mainQueue;
+            private final PriorityQueue<LeafIterator> oneTsidQueue;
             final int[] docPerSegments;
             final LuceneSlice luceneSlice;
 
@@ -237,23 +237,23 @@ public class TimeSeriesSortedSourceOperatorFactory extends LuceneOperator.Factor
                 this.luceneSlice = luceneSlice;
                 this.mainQueue = new PriorityQueue<>(luceneSlice.numLeaves()) {
                     @Override
-                    protected boolean lessThan(Leaf a, Leaf b) {
+                    protected boolean lessThan(LeafIterator a, LeafIterator b) {
                         return a.timeSeriesHash.compareTo(b.timeSeriesHash) < 0;
                     }
                 };
                 Weight weight = luceneSlice.weight();
                 int maxSegmentOrd = 0;
                 for (var leafReaderContext : luceneSlice.leaves()) {
-                    Leaf leaf = new Leaf(weight, leafReaderContext.leafReaderContext());
-                    leaf.nextDoc();
-                    if (leaf.docID != DocIdSetIterator.NO_MORE_DOCS) {
-                        mainQueue.add(leaf);
-                        maxSegmentOrd = Math.max(maxSegmentOrd, leaf.segmentOrd);
+                    LeafIterator leafIterator = new LeafIterator(weight, leafReaderContext.leafReaderContext());
+                    leafIterator.nextDoc();
+                    if (leafIterator.docID != DocIdSetIterator.NO_MORE_DOCS) {
+                        mainQueue.add(leafIterator);
+                        maxSegmentOrd = Math.max(maxSegmentOrd, leafIterator.segmentOrd);
                     }
                 }
                 this.oneTsidQueue = new PriorityQueue<>(mainQueue.size()) {
                     @Override
-                    protected boolean lessThan(Leaf a, Leaf b) {
+                    protected boolean lessThan(LeafIterator a, LeafIterator b) {
                         return a.timestamp > b.timestamp;
                     }
                 };
@@ -264,14 +264,14 @@ public class TimeSeriesSortedSourceOperatorFactory extends LuceneOperator.Factor
             void readDocsForNextPage() throws IOException {
                 Arrays.fill(docPerSegments, 0);
                 Thread executingThread = Thread.currentThread();
-                for (Leaf leaf : mainQueue) {
+                for (LeafIterator leaf : mainQueue) {
                     leaf.reinitializeIfNeeded(executingThread);
                 }
-                for (Leaf leaf : oneTsidQueue) {
+                for (LeafIterator leaf : oneTsidQueue) {
                     leaf.reinitializeIfNeeded(executingThread);
                 }
                 do {
-                    PriorityQueue<Leaf> sub = subQueueForNextTsid();
+                    PriorityQueue<LeafIterator> sub = subQueueForNextTsid();
                     if (sub.size() == 0) {
                         break;
                     }
@@ -282,9 +282,9 @@ public class TimeSeriesSortedSourceOperatorFactory extends LuceneOperator.Factor
                 } while (mainQueue.size() > 0);
             }
 
-            private boolean readValuesForOneTsid(PriorityQueue<Leaf> sub) throws IOException {
+            private boolean readValuesForOneTsid(PriorityQueue<LeafIterator> sub) throws IOException {
                 do {
-                    Leaf top = sub.top();
+                    LeafIterator top = sub.top();
                     currentPagePos++;
                     remainingDocs--;
                     segmentsBuilder.appendInt(top.segmentOrd);
@@ -306,9 +306,9 @@ public class TimeSeriesSortedSourceOperatorFactory extends LuceneOperator.Factor
                 return false;
             }
 
-            private PriorityQueue<Leaf> subQueueForNextTsid() {
+            private PriorityQueue<LeafIterator> subQueueForNextTsid() {
                 if (oneTsidQueue.size() == 0 && mainQueue.size() > 0) {
-                    Leaf last = mainQueue.pop();
+                    LeafIterator last = mainQueue.pop();
                     oneTsidQueue.add(last);
                     while (mainQueue.size() > 0) {
                         var top = mainQueue.top();
@@ -327,10 +327,10 @@ public class TimeSeriesSortedSourceOperatorFactory extends LuceneOperator.Factor
             }
         }
 
-        static class Leaf {
+        static class LeafIterator {
             private final int segmentOrd;
             private final Weight weight;
-            private final LeafReaderContext leaf;
+            private final LeafReaderContext leafContext;
             private SortedDocValues tsids;
             private NumericDocValues timestamps;
             private DocIdSetIterator disi;
@@ -341,14 +341,14 @@ public class TimeSeriesSortedSourceOperatorFactory extends LuceneOperator.Factor
             private BytesRef timeSeriesHash;
             private int docID = -1;
 
-            Leaf(Weight weight, LeafReaderContext leaf) throws IOException {
-                this.segmentOrd = leaf.ord;
+            LeafIterator(Weight weight, LeafReaderContext leafContext) throws IOException {
+                this.segmentOrd = leafContext.ord;
                 this.weight = weight;
-                this.leaf = leaf;
+                this.leafContext = leafContext;
                 this.createdThread = Thread.currentThread();
-                tsids = leaf.reader().getSortedDocValues("_tsid");
-                timestamps = DocValues.unwrapSingleton(leaf.reader().getSortedNumericDocValues("@timestamp"));
-                final Scorer scorer = weight.scorer(leaf);
+                tsids = leafContext.reader().getSortedDocValues("_tsid");
+                timestamps = DocValues.unwrapSingleton(leafContext.reader().getSortedNumericDocValues("@timestamp"));
+                final Scorer scorer = weight.scorer(leafContext);
                 disi = scorer != null ? scorer.iterator() : DocIdSetIterator.empty();
             }
 
@@ -375,9 +375,9 @@ public class TimeSeriesSortedSourceOperatorFactory extends LuceneOperator.Factor
 
             void reinitializeIfNeeded(Thread executingThread) throws IOException {
                 if (executingThread != createdThread) {
-                    tsids = leaf.reader().getSortedDocValues("_tsid");
-                    timestamps = DocValues.unwrapSingleton(leaf.reader().getSortedNumericDocValues("@timestamp"));
-                    final Scorer scorer = weight.scorer(leaf);
+                    tsids = leafContext.reader().getSortedDocValues("_tsid");
+                    timestamps = DocValues.unwrapSingleton(leafContext.reader().getSortedNumericDocValues("@timestamp"));
+                    final Scorer scorer = weight.scorer(leafContext);
                     disi = scorer != null ? scorer.iterator() : DocIdSetIterator.empty();
                     if (docID != -1) {
                         disi.advance(docID);

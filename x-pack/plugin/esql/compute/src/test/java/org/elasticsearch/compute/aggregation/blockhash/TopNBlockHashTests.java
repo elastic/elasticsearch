@@ -29,6 +29,9 @@ import static org.hamcrest.Matchers.startsWith;
 
 public class TopNBlockHashTests extends BlockHashTestCase {
 
+    private static final int LIMIT_TWO = 2;
+    private static final int LIMIT_HIGH = 10000;
+
     @ParametersFactory
     public static List<Object[]> params() {
         List<Object[]> params = new ArrayList<>();
@@ -37,7 +40,7 @@ public class TopNBlockHashTests extends BlockHashTestCase {
         for (boolean forcePackedHash : new boolean[]{/*true,*/false}) {
             for (boolean asc : new boolean[]{true, false}) {
                 for (boolean nullsFirst : new boolean[]{true, false}) {
-                    for (int limit : new int[]{2, 10000}) {
+                    for (int limit : new int[]{LIMIT_TWO, LIMIT_HIGH}) {
                         params.add(new Object[] { forcePackedHash, asc, nullsFirst, limit });
                     }
                 }
@@ -69,16 +72,27 @@ public class TopNBlockHashTests extends BlockHashTestCase {
 
         hash(ordsAndKeys -> {
             if (forcePackedHash) {
-                // TODO: Not tested
-                assertThat(ordsAndKeys.description(), startsWith("PackedValuesBlockHash{groups=[0:LONG], entries=4, size="));
-                assertOrds(ordsAndKeys.ords(), 0, 1, 2, 0, 2, 1, 3, 2);
-                assertThat(ordsAndKeys.nonEmpty(), equalTo(intRange(0, 4)));
+                // TODO: Not tested yet
             } else {
-                assertThat(ordsAndKeys.description(), equalTo("LongTopNBlockHash{channel=0, entries=4, seenNull=false}"));
-                assertOrds(ordsAndKeys.ords(), 1, 2, 3, 1, 3, 2, 4, 3);
-                assertThat(ordsAndKeys.nonEmpty(), equalTo(intRange(1, 5)));
+                assertThat(ordsAndKeys.description(), equalTo(
+                    "LongTopNBlockHash{channel=0, " + topNParametersString(4) + ", hasNull=false}"
+                ));
+                if (limit == LIMIT_HIGH) {
+                    assertKeys(ordsAndKeys.keys(), 2L, 1L, 4L, 3L);
+                    assertOrds(ordsAndKeys.ords(), 1, 2, 3, 1, 3, 2, 4, 3);
+                    assertThat(ordsAndKeys.nonEmpty(), equalTo(intRange(1, 5)));
+                } else {
+                    if (asc) {
+                        assertKeys(ordsAndKeys.keys(), 2L, 1L);
+                        assertOrds(ordsAndKeys.ords(), 1, 2, null, 1, null, 2, null, null);
+                        assertThat(ordsAndKeys.nonEmpty(), equalTo(intVector(1, 2)));
+                    } else {
+                        assertKeys(ordsAndKeys.keys(), 4L, 3L);
+                        assertOrds(ordsAndKeys.ords(), null, null, 1, null, 1, null, 2, 1);
+                        assertThat(ordsAndKeys.nonEmpty(), equalTo(intVector(1, 2)));
+                    }
+                }
             }
-            assertKeys(ordsAndKeys.keys(), 2L, 1L, 4L, 3L);
         }, blockFactory.newLongArrayVector(values, values.length).asBlock());
     }
 
@@ -214,5 +228,12 @@ public class TopNBlockHashTests extends BlockHashTestCase {
             : BlockHash.build(specs, blockFactory, emitBatchSize, true);*/
 
         return new LongTopNBlockHash(specs.get(0).channel(), asc, nullsFirst, limit, blockFactory);
+    }
+
+    /**
+     * Returns the common toString() part of the TopNBlockHash using the test parameters.
+     */
+    private String topNParametersString(int differentValues) {
+        return "asc=" + asc + ", nullsFirst=" + nullsFirst + ", limit=" + limit + ", entries=" + Math.min(differentValues, limit);
     }
 }

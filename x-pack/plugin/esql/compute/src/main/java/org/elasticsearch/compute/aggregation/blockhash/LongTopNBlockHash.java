@@ -82,7 +82,7 @@ public final class LongTopNBlockHash extends TopNBlockHash {
             }
             return;
         }
-        try (IntVector groupIds = add(vector)) {
+        try (IntBlock groupIds = add(vector)) {
             addInput.add(0, groupIds);
         }
     }
@@ -156,7 +156,7 @@ public final class LongTopNBlockHash extends TopNBlockHash {
     /**
      *  Adds the vector values to the hash, and returns a new vector with the group IDs for those positions.
      */
-    IntVector add(LongVector vector) {
+    IntBlock add(LongVector vector) {
         int positions = vector.getPositionCount();
 
         // Add all values to the top set, so we don't end up sending invalid values later
@@ -166,11 +166,13 @@ public final class LongTopNBlockHash extends TopNBlockHash {
         }
 
         // Create a vector with the groups
-        try (var builder = blockFactory.newIntVectorFixedBuilder(positions)) {
+        try (var builder = blockFactory.newIntBlockBuilder(positions)) {
             for (int i = 0; i < positions; i++) {
                 long v = vector.getLong(i);
                 if (isAcceptable(v)) {
                     builder.appendInt(Math.toIntExact(hashOrdToGroupNullReserved(hash.add(v))));
+                } else {
+                    builder.appendNull();
                 }
             }
             return builder.build();

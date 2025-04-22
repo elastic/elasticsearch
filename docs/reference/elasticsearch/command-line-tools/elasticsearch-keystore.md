@@ -158,12 +158,16 @@ echo -n 'your\!password' | bin/elasticsearch-keystore add the.setting.name.to.se
 
 Values for multiple settings must be separated by carriage returns or newlines.
 
-### Common Issues with Special Characters [special-chracter-issues]
-Exclamation Mark (`\!`): When using the shell, the combination `\!` is stored as just `!`. This can lead to authentication failures if the password is not stored as intended.
+## Handling special characters
 
-Quotes: If quotes are used around the password, they are stored as part of the password. This can cause the password to be incorrect when retrieved from the keystore.
+Exclamation mark: `!`
+: When using the shell, the combination `\!` is stored as just `!`. This can lead to authentication failures if the password is not stored as intended.
 
-Backslash (`\`): The backslash character needs to be escaped properly. If not escaped, it may be omitted or misinterpreted, leading to incorrect password storage.
+Quotes: `"`
+: If quotes are used around the password, they become part of the password itself. This can cause the password to be incorrect when retrieved from the keystore.
+
+Backslash: `\`
+: The backslash character needs to be properly escaped. If not escaped correctly, it may be omitted or misinterpreted, leading to incorrect password storage.
 
 ### Add files to the keystore [add-file-to-keystore]
 

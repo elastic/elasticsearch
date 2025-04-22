@@ -53,6 +53,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.core.CheckedRunnable;
 import org.elasticsearch.features.FeatureService;
+import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexVersion;
@@ -138,7 +139,13 @@ public class TransportBulkActionTests extends ESTestCase {
                     }
                 },
                 FailureStoreMetrics.NOOP,
-                DataStreamFailureStoreSettings.create(clusterSettings)
+                DataStreamFailureStoreSettings.create(clusterSettings),
+                new FeatureService(List.of()) {
+                    @Override
+                    public boolean clusterHasFeature(ClusterState state, NodeFeature feature) {
+                        return DataStream.DATA_STREAM_FAILURE_STORE_FEATURE.equals(feature);
+                    }
+                }
             );
         }
 

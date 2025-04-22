@@ -7,12 +7,11 @@
 
 package org.elasticsearch.xpack.inference.services.sagemaker.schema.openai;
 
-import org.elasticsearch.TransportVersions;
-
 import software.amazon.awssdk.core.SdkBytes;
 import software.amazon.awssdk.services.sagemakerruntime.model.InvokeEndpointResponse;
 
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;

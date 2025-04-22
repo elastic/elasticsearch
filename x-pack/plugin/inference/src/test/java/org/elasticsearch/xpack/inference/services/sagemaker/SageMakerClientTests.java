@@ -7,20 +7,6 @@
 
 package org.elasticsearch.xpack.inference.services.sagemaker;
 
-import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.common.cache.CacheLoader;
-import org.elasticsearch.common.settings.SecureString;
-import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.test.ESTestCase;
-
-import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.xpack.inference.common.amazon.AwsSecretSettings;
-import org.junit.After;
-import org.junit.Before;
-
-import org.mockito.ArgumentMatchers;
-import org.reactivestreams.Subscriber;
-
 import software.amazon.awssdk.core.async.SdkPublisher;
 import software.amazon.awssdk.services.sagemakerruntime.SageMakerRuntimeAsyncClient;
 import software.amazon.awssdk.services.sagemakerruntime.model.InvokeEndpointRequest;
@@ -29,6 +15,18 @@ import software.amazon.awssdk.services.sagemakerruntime.model.InvokeEndpointWith
 import software.amazon.awssdk.services.sagemakerruntime.model.InvokeEndpointWithResponseStreamResponse;
 import software.amazon.awssdk.services.sagemakerruntime.model.InvokeEndpointWithResponseStreamResponseHandler;
 import software.amazon.awssdk.services.sagemakerruntime.model.ResponseStream;
+
+import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.common.cache.CacheLoader;
+import org.elasticsearch.common.settings.SecureString;
+import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xpack.inference.common.amazon.AwsSecretSettings;
+import org.junit.After;
+import org.junit.Before;
+import org.mockito.ArgumentMatchers;
+import org.reactivestreams.Subscriber;
 
 import java.io.IOException;
 import java.util.concurrent.CompletableFuture;

@@ -7,13 +7,12 @@
 
 package org.elasticsearch.xpack.inference.services.sagemaker.schema;
 
-import org.elasticsearch.xpack.inference.services.sagemaker.SageMakerInferenceRequest;
-
 import software.amazon.awssdk.core.SdkBytes;
 
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.inference.UnifiedCompletionRequest;
+import org.elasticsearch.xpack.inference.services.sagemaker.SageMakerInferenceRequest;
 import org.elasticsearch.xpack.inference.services.sagemaker.model.SageMakerModel;
 
 import java.util.EnumSet;

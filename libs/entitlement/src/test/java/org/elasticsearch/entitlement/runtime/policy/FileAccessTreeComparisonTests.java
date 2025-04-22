@@ -9,7 +9,6 @@
 
 package org.elasticsearch.entitlement.runtime.policy;
 
-import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.test.ESTestCase;
 
 import static org.hamcrest.Matchers.greaterThan;
@@ -57,8 +56,7 @@ public class FileAccessTreeComparisonTests extends ESTestCase {
 
     public void testPathOrderingSpecialCharacters() {
         var s = randomFrom('/', '\\');
-        var pathComparator = (randomBoolean() ? new CaseInsensitiveComparison(s) : new CaseSensitiveComparison(s))
-            .pathComparator();
+        var pathComparator = (randomBoolean() ? new CaseInsensitiveComparison(s) : new CaseSensitiveComparison(s)).pathComparator();
 
         assertThat(pathComparator.compare("aa\uD801\uDC28", "aa\uD801\uDC28"), is(0));
         assertThat(pathComparator.compare("aa\uD801\uDC28", "aa\uD801\uDC28a"), lessThan(0));

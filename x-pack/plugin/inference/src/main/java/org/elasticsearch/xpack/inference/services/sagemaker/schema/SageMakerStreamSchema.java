@@ -29,6 +29,11 @@ import java.util.Locale;
 import java.util.concurrent.Flow;
 import java.util.function.BiFunction;
 
+/**
+ * All the logic that is required to call any SageMaker model is handled within this Schema class.
+ * Any model-specific logic is handled within the associated {@link SageMakerStreamSchemaPayload}.
+ * This schema is specific for SageMaker's streaming API. For non-streaming, see {@link SageMakerSchema}.
+ */
 public class SageMakerStreamSchema extends SageMakerSchema {
 
     private final SageMakerStreamSchemaPayload payload;

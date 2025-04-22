@@ -24,6 +24,9 @@ import java.util.stream.Stream;
 
 import static org.elasticsearch.core.Strings.format;
 
+/**
+ * The mapping and registry for all supported model API.
+ */
 public class SageMakerSchemas {
     private static final Map<TaskAndApi, SageMakerSchema> schemas;
     private static final Map<TaskAndApi, SageMakerStreamSchema> streamSchemas;
@@ -33,6 +36,9 @@ public class SageMakerSchemas {
     private static final EnumSet<TaskType> supportedTaskTypes;
 
     static {
+        /*
+         * Add new model API to the register call.
+         */
         schemas = register(new OpenAiTextEmbeddingPayload());
 
         streamSchemas = schemas.entrySet()

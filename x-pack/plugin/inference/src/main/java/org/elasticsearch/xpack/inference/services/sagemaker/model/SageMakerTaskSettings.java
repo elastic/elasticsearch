@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.inference.services.sagemaker.model;
 
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -22,6 +23,9 @@ import java.util.Map;
 
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalString;
 
+/**
+ * Maintains mutable settings for SageMaker. Model-specific settings are stored in {@link SageMakerStoredTaskSchema}.
+ */
 record SageMakerTaskSettings(
     @Nullable String customAttributes,
     @Nullable String enableExplanations,
@@ -92,7 +96,7 @@ record SageMakerTaskSettings(
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersion.current();
+        return TransportVersions.ML_INFERENCE_SAGEMAKER;
     }
 
     @Override

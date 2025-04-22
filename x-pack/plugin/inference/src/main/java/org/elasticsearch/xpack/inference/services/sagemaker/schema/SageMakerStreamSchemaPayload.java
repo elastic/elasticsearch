@@ -7,6 +7,8 @@
 
 package org.elasticsearch.xpack.inference.services.sagemaker.schema;
 
+import org.elasticsearch.xpack.inference.services.sagemaker.SageMakerInferenceRequest;
+
 import software.amazon.awssdk.core.SdkBytes;
 
 import org.elasticsearch.inference.InferenceServiceResults;
@@ -16,13 +18,12 @@ import org.elasticsearch.xpack.inference.services.sagemaker.model.SageMakerModel
 
 import java.util.EnumSet;
 
+/**
+ * Implemented for models that support streaming.
+ * This is an extension of {@link SageMakerSchemaPayload} because Elastic expects Completion tasks to handle both streaming and
+ * non-streaming, and all models currently support toggling streaming on/off.
+ */
 public interface SageMakerStreamSchemaPayload extends SageMakerSchemaPayload {
-    InferenceServiceResults.Result streamResponseBody(SageMakerModel model, SdkBytes response) throws Exception;
-
-    SdkBytes chatCompletionRequestBytes(SageMakerModel model, UnifiedCompletionRequest request) throws Exception;
-
-    InferenceServiceResults.Result chatCompletionResponseBody(SageMakerModel model, SdkBytes response) throws Exception;
-
     /**
      * We currently only support streaming for Completion and Chat Completion, and if we are going to implement one then we should implement
      * the other, so this interface requires both streaming input and streaming unified input.
@@ -33,4 +34,14 @@ public interface SageMakerStreamSchemaPayload extends SageMakerSchemaPayload {
     default EnumSet<TaskType> supportedTasks() {
         return EnumSet.of(TaskType.COMPLETION, TaskType.CHAT_COMPLETION);
     }
+
+    /**
+     * This API would only be called for Completion task types. {@link #requestBytes(SageMakerModel, SageMakerInferenceRequest)} would
+     * handle the request translation for both streaming and non-streaming.
+     */
+    InferenceServiceResults.Result streamResponseBody(SageMakerModel model, SdkBytes response) throws Exception;
+
+    SdkBytes chatCompletionRequestBytes(SageMakerModel model, UnifiedCompletionRequest request) throws Exception;
+
+    InferenceServiceResults.Result chatCompletionResponseBody(SageMakerModel model, SdkBytes response) throws Exception;
 }

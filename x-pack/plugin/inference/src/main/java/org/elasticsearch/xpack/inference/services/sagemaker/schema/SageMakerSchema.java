@@ -28,6 +28,11 @@ import org.elasticsearch.xpack.inference.services.sagemaker.model.SageMakerModel
 import java.util.Map;
 import java.util.stream.Stream;
 
+/**
+ * All the logic that is required to call any SageMaker model is handled within this Schema class.
+ * Any model-specific logic is handled within the associated {@link SageMakerSchemaPayload}.
+ * This schema is specific for SageMaker's non-streaming API. For streaming, see {@link SageMakerStreamSchema}.
+ */
 public class SageMakerSchema {
     private static final String INTERNAL_DEPENDENCY_ERROR = "Received an internal dependency error from SageMaker for [%s]";
     private static final String INTERNAL_FAILURE = "Received an internal failure from SageMaker for [%s]";
@@ -126,10 +131,6 @@ public class SageMakerSchema {
 
         var errorMessage = String.format(errorMessageTemplate, model.getInferenceEntityId());
         return Tuple.tuple(errorMessage, restStatus);
-    }
-
-    public String api() {
-        return schemaPayload.api();
     }
 
     public SageMakerStoredServiceSchema apiServiceSettings(Map<String, Object> serviceSettings, ValidationException validationException) {

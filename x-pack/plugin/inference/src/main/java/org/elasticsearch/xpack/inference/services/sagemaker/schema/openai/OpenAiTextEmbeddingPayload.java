@@ -7,6 +7,8 @@
 
 package org.elasticsearch.xpack.inference.services.sagemaker.schema.openai;
 
+import org.elasticsearch.TransportVersions;
+
 import software.amazon.awssdk.core.SdkBytes;
 import software.amazon.awssdk.services.sagemakerruntime.model.InvokeEndpointResponse;
 
@@ -132,7 +134,7 @@ public class OpenAiTextEmbeddingPayload implements SageMakerSchemaPayload {
 
         @Override
         public TransportVersion getMinimalSupportedVersion() {
-            return TransportVersion.current();
+            return TransportVersions.ML_INFERENCE_SAGEMAKER;
         }
 
         @Override
@@ -180,7 +182,7 @@ public class OpenAiTextEmbeddingPayload implements SageMakerSchemaPayload {
 
         @Override
         public TransportVersion getMinimalSupportedVersion() {
-            return TransportVersion.current();
+            return TransportVersions.ML_INFERENCE_SAGEMAKER;
         }
 
         @Override

@@ -8,11 +8,15 @@
 package org.elasticsearch.xpack.inference.services.sagemaker.schema;
 
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.VersionedNamedWriteable;
 import org.elasticsearch.xcontent.ToXContentFragment;
 import org.elasticsearch.xcontent.XContentBuilder;
 
+/**
+ * Contains any model-specific settings that are stored in SageMakerServiceSettings.
+ */
 public interface SageMakerStoredServiceSchema extends ToXContentFragment, VersionedNamedWriteable {
     SageMakerStoredServiceSchema NO_OP = new SageMakerStoredServiceSchema() {
         private static final String NAME = "noop_sagemaker_service_schema";
@@ -24,7 +28,7 @@ public interface SageMakerStoredServiceSchema extends ToXContentFragment, Versio
 
         @Override
         public TransportVersion getMinimalSupportedVersion() {
-            return TransportVersion.current();
+            return TransportVersions.ML_INFERENCE_SAGEMAKER;
         }
 
         @Override

@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.inference.services.sagemaker.model;
 
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -28,6 +29,10 @@ import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOpt
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalString;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractRequiredString;
 
+/**
+ * Maintains the settings for SageMaker that cannot be changed without impacting semantic search and AI assistants.
+ * Model-specific settings are stored in {@link SageMakerStoredServiceSchema}.
+ */
 record SageMakerServiceSettings(
     String endpointName,
     String region,
@@ -75,7 +80,7 @@ record SageMakerServiceSettings(
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersion.current();
+        return TransportVersions.ML_INFERENCE_SAGEMAKER;
     }
 
     @Override

@@ -22,6 +22,9 @@ import java.util.Map;
 import java.util.Optional;
 
 /**
+ * This model represents all models in SageMaker. SageMaker maintains a base set of settings and configurations, and this model manages
+ * those. Any settings that are required for a specific model are stored in the {@link SageMakerStoredServiceSchema} and
+ * {@link SageMakerStoredTaskSchema}.
  * Design:
  * - Region is stored in ServiceSettings and is used to create the SageMaker client.
  * - RateLimiting is based on AWS Service Quota, metered by account and region. The SDK client handles rate limiting internally. In order to

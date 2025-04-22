@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.inference.services.sagemaker;
 
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.core.Nullable;
@@ -267,7 +268,7 @@ public class SageMakerService implements InferenceService {
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersion.current();
+        return TransportVersions.ML_INFERENCE_SAGEMAKER;
     }
 
     @Override

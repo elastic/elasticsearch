@@ -36,7 +36,7 @@ public class TopNBlockHashTests extends BlockHashTestCase {
     public static List<Object[]> params() {
         List<Object[]> params = new ArrayList<>();
 
-        // TODO: Uncomment "true" when implemented
+        // TODO: Uncomment this "true" when implemented
         for (boolean forcePackedHash : new boolean[]{/*true,*/false}) {
             for (boolean asc : new boolean[]{true, false}) {
                 for (boolean nullsFirst : new boolean[]{true, false}) {
@@ -140,7 +140,7 @@ public class TopNBlockHashTests extends BlockHashTestCase {
         }
     }
 
-    /*public void testLongHashWithMultiValuedFields() {
+    public void testLongHashWithMultiValuedFields() {
         try (LongBlock.Builder builder = blockFactory.newLongBlockBuilder(8)) {
             builder.appendLong(1);
             builder.beginPositionEntry();
@@ -164,34 +164,92 @@ public class TopNBlockHashTests extends BlockHashTestCase {
 
             hash(ordsAndKeys -> {
                 if (forcePackedHash) {
-                    assertThat(ordsAndKeys.description(), startsWith("PackedValuesBlockHash{groups=[0:LONG], entries=4, size="));
-                    assertOrds(
-                        ordsAndKeys.ords(),
-                        new int[] { 0 },
-                        new int[] { 0, 1, 2 },
-                        new int[] { 0 },
-                        new int[] { 2 },
-                        new int[] { 3 },
-                        new int[] { 2, 1, 0 }
-                    );
-                    assertKeys(ordsAndKeys.keys(), 1L, 2L, 3L, null);
+                    // TODO: Not tested yet
                 } else {
-                    assertThat(ordsAndKeys.description(), equalTo("LongBlockHash{channel=0, entries=3, seenNull=true}"));
-                    assertOrds(
-                        ordsAndKeys.ords(),
-                        new int[] { 1 },
-                        new int[] { 1, 2, 3 },
-                        new int[] { 1 },
-                        new int[] { 3 },
-                        new int[] { 0 },
-                        new int[] { 3, 2, 1 }
-                    );
-                    assertKeys(ordsAndKeys.keys(), null, 1L, 2L, 3L);
+                    if (limit == LIMIT_HIGH) {
+                        assertThat(ordsAndKeys.description(), equalTo(
+                            "LongTopNBlockHash{channel=0, "
+                                + topNParametersString(3)
+                                + ", hasNull=true}"
+                        ));
+                        assertOrds(
+                            ordsAndKeys.ords(),
+                            new int[] { 1 },
+                            new int[] { 1, 2, 3 },
+                            new int[] { 1 },
+                            new int[] { 3 },
+                            new int[] { 0 },
+                            new int[] { 3, 2, 1 }
+                        );
+                        assertKeys(ordsAndKeys.keys(), null, 1L, 2L, 3L);
+                    } else {
+                        assertThat(ordsAndKeys.description(), equalTo(
+                            "LongTopNBlockHash{channel=0, "
+                                + topNParametersString(nullsFirst ? 1 : 2)
+                                + ", hasNull=" + nullsFirst + "}"
+                        ));
+                        if (nullsFirst) {
+                            if (asc) {
+                                assertKeys(ordsAndKeys.keys(), null, 1L);
+                                assertOrds(
+                                    ordsAndKeys.ords(),
+                                    new int[] { 1 },
+                                    new int[] { 1 },
+                                    new int[] { 1 },
+                                    null,
+                                    new int[] { 0 },
+                                    new int[] { 1 }
+                                );
+                                assertThat(ordsAndKeys.nonEmpty(), equalTo(intVector(0, 1)));
+                            } else {
+                                assertKeys(ordsAndKeys.keys(), null, 3L);
+                                assertOrds(
+                                    ordsAndKeys.ords(),
+                                    null,
+                                    new int[] { 1 },
+                                    null,
+                                    new int[] { 1 },
+                                    new int[] { 0 },
+                                    new int[] { 1 }
+                                );
+                                assertThat(ordsAndKeys.nonEmpty(), equalTo(intVector(0, 1)));
+                            }
+                        } else {
+                            if (asc) {
+                                assertKeys(ordsAndKeys.keys(), 1L, 2L);
+                                assertOrds(
+                                    ordsAndKeys.ords(),
+                                    new int[] { 1 },
+                                    new int[] { 1, 2 },
+                                    new int[] { 1 },
+                                    null,
+                                    null,
+                                    new int[] { 2, 1 }
+                                );
+                                assertThat(ordsAndKeys.nonEmpty(), equalTo(intVector(1, 2)));
+                            } else {
+                                assertKeys(ordsAndKeys.keys(), 2L, 3L);
+                                assertOrds(
+                                    ordsAndKeys.ords(),
+                                    null,
+                                    new int[] { 1, 2 },
+                                    null,
+                                    new int[] { 2 },
+                                    null,
+                                    new int[] { 2, 1 }
+                                );
+                                assertThat(ordsAndKeys.nonEmpty(), equalTo(intVector(1, 2)));
+                            }
+                        }
+                    }
                 }
-                assertThat(ordsAndKeys.nonEmpty(), equalTo(intRange(0, 4)));
             }, builder);
         }
-    }*/
+    }
+
+    // TODO: Test adding multiple blocks, as it triggers different logics like:
+    // - Keeping older unused ords
+    // - Returning nonEmpty ords greater than 1
 
     /**
      * Hash some values into a single block of group ids. If the hash produces

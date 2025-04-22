@@ -351,6 +351,18 @@ public class TopNMultivalueDedupeLong {
         grow(count);
         int end = first + count;
 
+        // Find the first acceptable value
+        for (; first < end; first++) {
+            long v = block.getLong(first);
+            if (isAcceptable.test(v)) {
+                break;
+            }
+        }
+        if (first == end) {
+            w = 0;
+            return;
+        }
+
         work[0] = block.getLong(first);
         w = 1;
         i: for (int i = first + 1; i < end; i++) {
@@ -463,6 +475,10 @@ public class TopNMultivalueDedupeLong {
      * Looks up an already deduplicated {@link #work} to a hash.
      */
     private void hashLookupUniquedWork(LongHash hash, IntBlock.Builder builder) {
+        if (w == 0) {
+            builder.appendNull();
+            return;
+        }
         if (w == 1) {
             hashLookupSingle(builder, hash, work[0]);
             return;

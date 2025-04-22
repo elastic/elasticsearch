@@ -1289,6 +1289,14 @@ public class BalancedShardsAllocator implements ShardsAllocator {
         }
     }
 
+    /**
+     * A NodeSorter sorts the set of nodes for a single partition using the {@link WeightFunction}
+     * for that partition. In partitioned cluster topologies there will be one for each partition
+     * (e.g. search/indexing in stateless). By default, there is a single partition containing
+     * a single weight function that applies to all nodes and shards.
+     *
+     * @see BalancingWeightsFactory
+     */
     public static final class NodeSorter extends IntroSorter {
 
         final ModelNode[] modelNodes;

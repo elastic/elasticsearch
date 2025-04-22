@@ -13,6 +13,11 @@ import org.elasticsearch.index.merge.OnGoingMerge;
 
 public interface MergeEventListener {
 
+    /**
+     *
+     * @param merge
+     * @param estimateMergeMemoryBytes estimate of the memory needed to perform a merge
+     */
     void onMergeQueued(OnGoingMerge merge, long estimateMergeMemoryBytes);
 
     void onMergeCompleted(OnGoingMerge merge);

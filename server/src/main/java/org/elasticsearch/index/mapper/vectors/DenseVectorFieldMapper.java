@@ -123,6 +123,9 @@ public class DenseVectorFieldMapper extends FieldMapper {
     public static final NodeFeature RESCORE_ZERO_VECTOR_QUANTIZED_VECTOR_MAPPING = new NodeFeature(
         "mapper.dense_vector.rescore_zero_vector"
     );
+    public static final NodeFeature USE_DEFAULT_OVERSAMPLE_VALUE_FOR_BBQ = new NodeFeature(
+        "mapper.dense_vector.default_oversample_value_for_bbq"
+    );
 
     public static final String CONTENT_TYPE = "dense_vector";
     public static final short MAX_DIMS_COUNT = 4096; // maximum allowed number of dimensions

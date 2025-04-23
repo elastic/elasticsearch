@@ -26,8 +26,8 @@ import java.util.Objects;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.function.BiPredicate;
+import java.util.function.Supplier;
 
-import static fixture.aws.AwsCredentialsUtils.ANY_REGION;
 import static fixture.aws.AwsCredentialsUtils.checkAuthorization;
 import static fixture.aws.AwsCredentialsUtils.fixedAccessKey;
 import static fixture.aws.AwsFixtureUtils.getLocalFixtureAddress;
@@ -44,8 +44,8 @@ public class S3HttpFixture extends ExternalResource {
     private final String basePath;
     private final BiPredicate<String, String> authorizationPredicate;
 
-    public S3HttpFixture(boolean enabled) {
-        this(enabled, "bucket", "base_path_integration_tests", fixedAccessKey("s3_test_access_key", ANY_REGION, "s3"));
+    public S3HttpFixture(boolean enabled, Supplier<String> regionSupplier) {
+        this(enabled, "bucket", "base_path_integration_tests", fixedAccessKey("s3_test_access_key", regionSupplier, "s3"));
     }
 
     public S3HttpFixture(boolean enabled, String bucket, String basePath, BiPredicate<String, String> authorizationPredicate) {

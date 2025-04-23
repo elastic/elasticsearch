@@ -1314,35 +1314,4 @@ public class TextFieldMapperTests extends MapperTestCase {
             assertFalse(dv.advanceExact(3));
         });
     }
-
-    // public void testBlockLoaderFromParentColumnReader() throws IOException {
-    // testBlockLoaderFromParent(true, randomBoolean());
-    // }
-    //
-    // public void testBlockLoaderParentFromRowStrideReader() throws IOException {
-    // testBlockLoaderFromParent(false, randomBoolean());
-    // }
-    //
-    // private void testBlockLoaderFromParent(boolean columnReader, boolean syntheticSource) throws IOException {
-    // boolean storeParent = randomBoolean();
-    // KeywordFieldSyntheticSourceSupport kwdSupport = new KeywordFieldSyntheticSourceSupport(null, storeParent, null, false);
-    // SyntheticSourceExample example = kwdSupport.example(5);
-    // CheckedConsumer<XContentBuilder, IOException> buildFields = b -> {
-    // b.startObject("field");
-    // {
-    // example.mapping().accept(b);
-    // b.startObject("fields").startObject("sub");
-    // {
-    // b.field("type", "text");
-    // }
-    // b.endObject().endObject();
-    // }
-    // b.endObject();
-    // };
-    // XContentBuilder mapping = mapping(buildFields);
-    // MapperService mapper = syntheticSource ? createSytheticSourceMapperService(mapping) : createMapperService(mapping);
-    // BlockReaderSupport blockReaderSupport = getSupportedReaders(mapper, "field.sub");
-    // var sourceLoader = mapper.mappingLookup().newSourceLoader(null, SourceFieldMetrics.NOOP);
-    // testBlockLoader(columnReader, example, blockReaderSupport, sourceLoader);
-    // }
 }

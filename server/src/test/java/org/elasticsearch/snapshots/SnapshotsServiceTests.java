@@ -553,6 +553,11 @@ public class SnapshotsServiceTests extends ESTestCase {
             queuedSnapshotEntry
         );
 
+        assertEquals(
+            SnapshotsInProgress.ShardState.QUEUED,
+            SnapshotsInProgress.get(initialState).snapshot(snapshot2).shards().get(shardId).state()
+        );
+
         /**
          * In this scenario, {@link originalNodeId} is the original shard owner that resends PAUSED, and {@link otherNodeId} is the new
          * shard owner that completes the shard snapshot. The production code doesn't verify node ownership, but it's helpful for the test.

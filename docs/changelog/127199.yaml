@@ -1,0 +1,6 @@
+pr: 127199
+summary: Disable a bugged commit
+area: ES|QL
+type: bug
+issues:
+ - 127197

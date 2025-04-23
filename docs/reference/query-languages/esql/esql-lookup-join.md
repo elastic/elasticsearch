@@ -44,74 +44,99 @@ LOOKUP JOIN <lookup_index> ON <field_name>
 :alt: Illustration of the `LOOKUP JOIN` command, where the input table is joined with a lookup index to create an enriched output table.
 :::
 
-## Example
-
 If you're familiar with SQL, `LOOKUP JOIN` has left-join behavior. This means that if no rows match in the lookup index, the incoming row is retained and `null`s are added. If many rows in the lookup index match, `LOOKUP JOIN` adds one row per match.
 
-### Sample tables
+## Example
 
-In this example, we have two sample tables, `employees` and `languages_non_unique_key`. The `employees` table contains employee information, including their language code. The `languages_non_unique_key` table contains language codes and their corresponding names and countries.
+You can run this example for yourself if you'd like to see how it works, by setting up the indices and adding sample data.
 
-:::{dropdown} Show the sample tables
+### Sample data
+:::{dropdown} Expand for setup instructions
 
-**employees**
+**Set up indices**
 
-| birth_date|emp_no|first_name|gender|hire_date|language|
-|---|---|---|---|---|---|
-|1955-10-04T00:00:00Z|10091|Amabile    |M|1992-11-18T00:00:00Z|3|
-|1964-10-18T00:00:00Z|10092|Valdiodio  |F|1989-09-22T00:00:00Z|1|
-|1964-06-11T00:00:00Z|10093|Sailaja    |M|1996-11-05T00:00:00Z|3|
-|1957-05-25T00:00:00Z|10094|Arumugam   |F|1987-04-18T00:00:00Z|5|
-|1965-01-03T00:00:00Z|10095|Hilari     |M|1986-07-15T00:00:00Z|4|
+First let's create two indices with mappings: `threat_list` and `firewall_logs`.
 
-**languages_non_unique_key**
-
-|language_code|language_name|country|
-|---|---|---|
-|1|English|Canada|
-|1|English|
-|1||United Kingdom|
-|1|English|United States of America|
-|2|German|[Germany\|Austria]|
-|2|German|Switzerland|
-|2|German|
-|4|Spanish|
-|5||France|
-|[6\|7]|Mv-Lang|Mv-Land|
-|[7\|8]|Mv-Lang2|Mv-Land2|
-||Null-Lang|Null-Land|
-||Null-Lang2|Null-Land2|
-:::
-
-### Query 
-
-Running this query against the sample tables would produce the following results.
-
-```esql
-FROM employees
-| EVAL language_code = emp_no % 10
-| LOOKUP JOIN languages_lookup_non_unique_key ON language_code
-| WHERE emp_no > 10090 AND emp_no < 10096
-| SORT emp_no, country
-| KEEP emp_no, language_code, language_name, country;
+```console
+PUT threat_list
+{
+  "settings": {
+    "index.mode": "lookup" # The lookup index must use this mode
+  },
+  "mappings": {
+    "properties": {
+      "source.ip": { "type": "ip" },
+      "threat_level": { "type": "keyword" },
+      "threat_type": { "type": "keyword" },
+      "last_updated": { "type": "date" }
+    }
+  }
+}
+```
+```console
+PUT firewall_logs
+{
+  "mappings": {
+    "properties": {
+      "timestamp": { "type": "date" },
+      "source.ip": { "type": "ip" },
+      "destination.ip": { "type": "ip" },
+      "action": { "type": "keyword" },
+      "bytes_transferred": { "type": "long" }
+    }
+  }
+}
 ```
 
-|emp_no|language_code|language_name|country|
-|---|---|---|---|
-|    10091      | 1                     | English               | Canada|
-|    10091      | 1                     | null                  | United Kingdom|
-|    10091      | 1                     | English               | United States of America|
-|    10091      | 1                     | English               | null|
-|    10092      | 2                     | German                | [Germany, Austria]|
-|    10092      | 2                     | German                | Switzerland|
-|    10092      | 2                     | German                | null|
-|    10093      | 3                     | null                  | null|
-|    10094      | 4                     | Spanish               | null|
-|    10095      | 5                     | null                  | France|
+**Add sample data**
 
-::::{important}
-`LOOKUP JOIN` does not guarantee the output to be in any particular order. If a certain order is required, users should use a [`SORT`](/reference/query-languages/esql/commands/processing-commands.md#esql-sort) somewhere after the `LOOKUP JOIN`.
-::::
+Next, let's add some sample data to both indices. The `threat_list` index contains known malicious IPs, while the `firewall_logs` index contains logs of network traffic.
+
+```console
+POST threat_list/_bulk
+{"index":{}}
+{"source.ip":"203.0.113.5","threat_level":"high","threat_type":"C2_SERVER","last_updated":"2025-04-22"}
+{"index":{}}
+{"source.ip":"198.51.100.2","threat_level":"medium","threat_type":"SCANNER","last_updated":"2025-04-23"}
+```
+
+```console
+POST firewall_logs/_bulk
+{"index":{}}
+{"timestamp":"2025-04-23T10:00:01Z","source.ip":"192.0.2.1","destination.ip":"10.0.0.100","action":"allow","bytes_transferred":1024}
+{"index":{}}
+{"timestamp":"2025-04-23T10:00:05Z","source.ip":"203.0.113.5","destination.ip":"10.0.0.55","action":"allow","bytes_transferred":2048}
+{"index":{}}
+{"timestamp":"2025-04-23T10:00:08Z","source.ip":"198.51.100.2","destination.ip":"10.0.0.200","action":"block","bytes_transferred":0}
+{"index":{}}
+{"timestamp":"2025-04-23T10:00:15Z","source.ip":"203.0.113.5","destination.ip":"10.0.0.44","action":"allow","bytes_transferred":4096}
+{"index":{}}
+{"timestamp":"2025-04-23T10:00:30Z","source.ip":"192.0.2.1","destination.ip":"10.0.0.100","action":"allow","bytes_transferred":512}
+```
+:::
+
+### Query the data
+
+```esql
+FROM firewall_logs # The source index
+| LOOKUP JOIN threat_list ON source.ip # The lookup index and join field
+| WHERE threat_level IS NOT NULL # Filter for rows non-null threat levels
+| SORT timestamp # LOOKUP JOIN does not guarantee output order, so you must explicitly sort the results if needed
+| KEEP timestamp, source.ip, destination.ip, action, threat_level, threat_type # Keep only relevant fields
+| LIMIT 10 # Limit the output to 10 rows
+```
+
+### Response
+
+A successful query will output a table. In this example, you can see that the `source.ip` field from the `firewall_logs` index is matched with the `source.ip` field in the `threat_list` index, and the corresponding `threat_level` and `threat_type` fields are added to the output.
+
+```
+   source.ip   |    action     |  threat_type  | threat_level  
+---------------+---------------+---------------+---------------
+203.0.113.5    |allow          |C2_SERVER      |high           
+198.51.100.2   |block          |SCANNER        |medium         
+203.0.113.5    |allow          |C2_SERVER      |high        
+```
 
 ### Additional examples
 

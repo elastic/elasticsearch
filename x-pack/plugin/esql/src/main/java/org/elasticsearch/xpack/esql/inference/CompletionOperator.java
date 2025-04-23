@@ -18,7 +18,6 @@ import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
 import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.inference.TaskType;
-import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
 import org.elasticsearch.xpack.core.inference.results.ChatCompletionResults;
 
@@ -89,7 +88,7 @@ public class CompletionOperator extends InferenceOperator<Page> {
                     for (int valueIndex = 0; valueIndex < promptBlock.getValueCount(pos); valueIndex++) {
                         readBuffer = promptBlock.getBytesRef(promptBlock.getFirstValueIndex(pos) + valueIndex, readBuffer);
                         promptBuilder.append(readBuffer.utf8ToString()).append("\n");
-
+                    }
 
                     InferenceAction.Request request = InferenceAction.Request.builder(inferenceId(), TaskType.COMPLETION)
                         .setInput(List.of(promptBuilder.toString())).build();

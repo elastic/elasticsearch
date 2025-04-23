@@ -1149,38 +1149,34 @@ public class IndexNameExpressionResolver {
             return requiredAliases.toArray(Strings.EMPTY_ARRAY);
         } else {
             final Map<String, AliasMetadata> indexAliases = indexMetadata.getAliases();
-            final AliasMetadata[] aliasCandidates;
-            if (iterateIndexAliases(indexAliases.size(), resolvedExpressions.size())) {
+            final int aliasCount = indexAliases.size();
+            if (aliasCount == 0) {
+                return null;
+            }
+            final List<String> aliases = new ArrayList<>(aliasCount);
+            if (iterateIndexAliases(aliasCount, resolvedExpressions.size())) {
                 // faster to iterate indexAliases
-                aliasCandidates = indexAliases.values()
-                    .stream()
-                    // Indices can only be referenced with a data selector, or a null selector if selectors are disabled
-                    .filter(aliasMetadata -> resolvedExpressionsContainsAbstraction(resolvedExpressions, aliasMetadata.alias()))
-                    .toArray(AliasMetadata[]::new);
+                // Indices can only be referenced with a data selector, or a null selector if selectors are disabled
+                for (AliasMetadata aliasMetadata : indexAliases.values()) {
+                    var alias = aliasMetadata.alias();
+                    if (resolvedExpressionsContainsAbstraction(resolvedExpressions, alias)) {
+                        if (requiredAlias.test(aliasMetadata) == false) {
+                            return null;
+                        }
+                        aliases.add(alias);
+                    }
+                }
             } else {
                 // faster to iterate resolvedExpressions
-                aliasCandidates = resolvedExpressions.stream()
-                    .map(ResolvedExpression::resource)
-                    .map(indexAliases::get)
-                    .filter(Objects::nonNull)
-                    .toArray(AliasMetadata[]::new);
-            }
-            List<String> aliases = null;
-            for (int i = 0; i < aliasCandidates.length; i++) {
-                AliasMetadata aliasMetadata = aliasCandidates[i];
-                if (requiredAlias.test(aliasMetadata)) {
-                    // If required - add it to the list of aliases
-                    if (aliases == null) {
-                        aliases = new ArrayList<>();
+                for (ResolvedExpression resolvedExpression : resolvedExpressions) {
+                    AliasMetadata aliasMetadata = indexAliases.get(resolvedExpression.resource());
+                    if (aliasMetadata != null) {
+                        if (requiredAlias.test(aliasMetadata) == false) {
+                            return null;
+                        }
+                        aliases.add(aliasMetadata.getAlias());
                     }
-                    aliases.add(aliasMetadata.alias());
-                } else {
-                    // If not, we have a non required alias for this index - no further checking needed
-                    return null;
                 }
-            }
-            if (aliases == null) {
-                return null;
             }
             return aliases.toArray(Strings.EMPTY_ARRAY);
         }

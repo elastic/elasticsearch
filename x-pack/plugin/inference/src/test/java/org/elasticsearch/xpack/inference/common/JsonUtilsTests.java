@@ -59,13 +59,13 @@ public class JsonUtilsTests extends ESTestCase {
         assertThat(
             exception.getMessage(),
             is(
-                "Failed to serialize custom request value as JSON, field: field, error: "
+                "Failed to serialize value as JSON, field: field, error: "
                     + "cannot write xcontent for unknown value of type class org.elasticsearch.common.settings.SecureString"
             )
         );
     }
 
-    public void testToJson_ThrowsException_WhenValueSerializationFAils() {
+    public void testToJson_ThrowsException_WhenValueSerializationFails() {
         var failingToXContent = new ToXContent() {
             @Override
             public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
@@ -74,6 +74,6 @@ public class JsonUtilsTests extends ESTestCase {
         };
 
         var exception = expectThrows(IllegalStateException.class, () -> toJson(failingToXContent, "field"));
-        assertThat(exception.getMessage(), is("Failed to serialize custom request value as JSON, field: field, error: failed"));
+        assertThat(exception.getMessage(), is("Failed to serialize value as JSON, field: field, error: failed"));
     }
 }

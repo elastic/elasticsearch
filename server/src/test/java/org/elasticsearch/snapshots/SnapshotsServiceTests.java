@@ -600,7 +600,8 @@ public class SnapshotsServiceTests extends ESTestCase {
         if (randomBoolean()) {
             updatedState = applyUpdates(
                 initialState,
-                // Randomize the order of completed and paused updates but make sure that there's one of each. If the paused update comes after
+                // Randomize the order of completed and paused updates but make sure that there's one of each. If the paused update comes
+                // after
                 // the completed update, paused should be ignored and the shard snapshot remains in a completed state.
                 random ? completedUpdateOnOtherNode : pausedUpdateOnOriginalNode,
                 random ? pausedUpdateOnOriginalNode : completedUpdateOnOtherNode

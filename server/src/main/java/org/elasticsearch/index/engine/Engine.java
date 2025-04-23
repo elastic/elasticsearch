@@ -438,11 +438,30 @@ public abstract class Engine implements Closeable {
         private volatile long startOfThrottleNS;
         private static final ReleasableLock NOOP_LOCK = new ReleasableLock(new NoOpLock());
         private final ReleasableLock lockReference = new ReleasableLock(new ReentrantLock());
-        private final ReleasableLock pauseLockReference = new ReleasableLock(new PauseLock());
+        private final Lock pauseIndexingLock = new ReentrantLock();
+        private final Condition pauseCondition = pauseIndexingLock.newCondition();
+        private final ReleasableLock pauseLockReference = new ReleasableLock(pauseIndexingLock);
+        private volatile AtomicBoolean pauseIndexing = new AtomicBoolean();
         private volatile ReleasableLock lock = NOOP_LOCK;
 
         public Releasable acquireThrottle() {
-            return lock.acquire();
+            if (lock == pauseLockReference) {
+                // pauseIndexingLock.lock();
+                lock.acquire();
+                try {
+                    while (pauseIndexing.getAcquire()) {
+                        pauseCondition.await();
+                    }
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                    throw new RuntimeException(e);
+                } finally {
+                    lock.close();
+                }
+                return lock;
+            } else {
+                return lock.acquire();
+            }
         }
 
         /** Activate throttling, which switches the lock to be a real lock */
@@ -450,6 +469,7 @@ public abstract class Engine implements Closeable {
             assert lock == NOOP_LOCK : "throttling activated while already active";
             startOfThrottleNS = System.nanoTime();
             if (pauseIndexing.getAcquire()) {
+                pauseIndexing.setRelease(true);
                 lock = pauseLockReference;
             }
             else {
@@ -463,7 +483,16 @@ public abstract class Engine implements Closeable {
 
             if(lock == pauseLockReference)
             {
-                lock.close();
+                System.out.println("throttle deactivate: here1");
+                pauseIndexing.setRelease(false);
+                // Signal the threads that are waiting on pauseCondition
+                pauseIndexingLock.lock();
+                try {
+                    pauseCondition.signalAll();
+                } finally {
+                    pauseIndexingLock.unlock();
+                }
+                System.out.println("throttle deactivate: here2");
             }
             lock = NOOP_LOCK;
 
@@ -551,67 +580,6 @@ public abstract class Engine implements Closeable {
         @Override
         public Condition newCondition() {
             throw new UnsupportedOperationException("NoOpLock can't provide a condition");
-        }
-    }
-
-    /** A Lock implementation that forces the lock to wait on a condition */
-    protected static final class PauseLock implements Lock {
-
-        private final ReentrantLock internalLock = new ReentrantLock();
-        private final Condition condition = internalLock.newCondition();
-        private volatile boolean paused = true;
-
-        @Override
-        public void lock() {
-            internalLock.lock();
-            try {
-                while (paused) {
-                    condition.await();
-                }
-            } catch (InterruptedException e) {
-                Thread.currentThread().interrupt();
-                throw new RuntimeException(e);
-            } finally {
-                internalLock.unlock();
-            }
-        }
-
-        @Override
-        public void lockInterruptibly() throws InterruptedException {
-            internalLock.lockInterruptibly();
-            try {
-                while (paused) {
-                    condition.await();
-                }
-            } finally {
-                internalLock.unlock();
-            }
-        }
-
-        @Override
-        public boolean tryLock() {
-            return false;
-        }
-
-        @Override
-        public boolean tryLock(long time, TimeUnit unit) throws InterruptedException {
-            return false;
-        }
-
-        @Override
-        public void unlock() {
-            internalLock.lock();
-            try {
-                paused = false;
-                condition.signalAll();
-            } finally {
-                internalLock.unlock();
-            }
-        }
-
-        @Override
-        public Condition newCondition() {
-            return condition;
         }
     }
 

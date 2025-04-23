@@ -37,6 +37,7 @@ public class ReleasableLock implements Releasable {
     @Override
     public void close() {
         lock.unlock();
+        System.out.println("Releasable lock unlocked");
         assert removeCurrentThread();
     }
 

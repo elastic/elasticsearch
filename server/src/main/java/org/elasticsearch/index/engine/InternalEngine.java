@@ -2827,6 +2827,9 @@ public class InternalEngine extends Engine {
     @Override
     public void activateThrottling(boolean pauseIndexing) {
         int count = throttleRequestCount.incrementAndGet();
+        System.out.println("activateThrottling, throttleRequestCount = " + count);
+        // This means that the first time we activateThrottling with pauseIndexing set to
+        // true, this condition will remain true while this shard is active.
         if (pauseIndexing)
         {
             throttleShouldPauseIndexing.setRelease(true);
@@ -2840,6 +2843,7 @@ public class InternalEngine extends Engine {
     @Override
     public void deactivateThrottling() {
         int count = throttleRequestCount.decrementAndGet();
+        System.out.println("deactivateThrottling, throttleRequestCount = " + count);
         assert count >= 0 : "invalid post-decrement throttleRequestCount=" + count;
         if (count == 0) {
             throttle.deactivate();

@@ -167,7 +167,8 @@ public class IndexDeprecationChecker implements ResourceDeprecationChecker {
                     "This read-only index has version: "
                         + currentCompatibilityVersion.toReleaseVersion()
                         + " and will be supported as read-only in "
-                        + Version.CURRENT.major + 1
+                        + Version.CURRENT.major
+                        + 1
                         + ".0",
                     false,
                     Map.of("reindex_required", true)

@@ -1181,12 +1181,13 @@ public class IndicesService extends AbstractLifecycleComponent
      * On data nodes, if the deleted shard is the last shard folder in its index, the method will attempt to remove
      * the index folder as well.
      *
-     * @param reason the reason for the shard deletion
+     * @param reasonText the reason for the shard deletion
      * @param shardId the shards ID to delete
      * @param clusterState . This is required to access the indexes settings etc.
+     * @param reason The reason for the deletion (as an enum)
      * @throws IOException if an IOException occurs
      */
-    public void deleteShardStore(String reason, ShardId shardId, ClusterState clusterState, IndexRemovalReason indexRemovalReason)
+    public void deleteShardStore(String reasonText, ShardId shardId, ClusterState clusterState, IndexRemovalReason reason)
         throws IOException, ShardLockObtainFailedException {
         final IndexMetadata metadata = clusterState.getMetadata().getProject().indices().get(shardId.getIndexName());
 
@@ -1198,15 +1199,15 @@ public class IndicesService extends AbstractLifecycleComponent
         nodeEnv.deleteShardDirectorySafe(
             shardId,
             indexSettings,
-            paths -> indexFoldersDeletionListeners.beforeShardFoldersDeleted(shardId, indexSettings, paths, indexRemovalReason)
+            paths -> indexFoldersDeletionListeners.beforeShardFoldersDeleted(shardId, indexSettings, paths, reason)
         );
-        logger.debug("{} deleted shard reason [{}]", shardId, reason);
+        logger.debug("{} deleted shard reason [{}]", shardId, reasonText);
 
         if (canDeleteIndexContents(shardId.getIndex())) {
             if (nodeEnv.findAllShardIds(shardId.getIndex()).isEmpty()) {
                 try {
                     // note that deleteIndexStore have more safety checks and may throw an exception if index was concurrently created.
-                    deleteIndexStore("no longer used", metadata, indexRemovalReason);
+                    deleteIndexStore("no longer used", metadata, reason);
                 } catch (Exception e) {
                     // wrap the exception to indicate we already deleted the shard
                     throw new ElasticsearchException("failed to delete unused index after deleting its last shard (" + shardId + ")", e);

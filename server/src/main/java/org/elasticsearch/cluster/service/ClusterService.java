@@ -59,8 +59,7 @@ public class ClusterService extends AbstractLifecycleComponent {
 
     private final String nodeName;
 
-    public ClusterService(Settings settings, ClusterSettings clusterSettings,
-                          ThreadPool threadPool, TaskManager taskManager) {
+    public ClusterService(Settings settings, ClusterSettings clusterSettings, ThreadPool threadPool, TaskManager taskManager) {
         this(
             settings,
             clusterSettings,
@@ -70,12 +69,18 @@ public class ClusterService extends AbstractLifecycleComponent {
         );
     }
 
-    public ClusterService(Settings settings, ClusterSettings clusterSettings, ProjectScopedSettings projectScopedSettings,
-                          ThreadPool threadPool, TaskManager taskManager) {
+    public ClusterService(
+        Settings settings,
+        ClusterSettings clusterSettings,
+        ProjectScopedSettings projectScopedSettings,
+        ThreadPool threadPool,
+        TaskManager taskManager
+    ) {
         this(
             settings,
             clusterSettings,
-            projectScopedSettings, new MasterService(settings, clusterSettings, threadPool, taskManager),
+            projectScopedSettings,
+            new MasterService(settings, clusterSettings, threadPool, taskManager),
             new ClusterApplierService(Node.NODE_NAME_SETTING.get(settings), settings, clusterSettings, threadPool)
         );
     }
@@ -86,13 +91,7 @@ public class ClusterService extends AbstractLifecycleComponent {
         MasterService masterService,
         ClusterApplierService clusterApplierService
     ) {
-        this(
-            settings,
-            clusterSettings,
-            new ProjectScopedSettings(settings, Collections.emptySet()),
-            masterService,
-            clusterApplierService
-        );
+        this(settings, clusterSettings, new ProjectScopedSettings(settings, Collections.emptySet()), masterService, clusterApplierService);
     }
 
     public ClusterService(

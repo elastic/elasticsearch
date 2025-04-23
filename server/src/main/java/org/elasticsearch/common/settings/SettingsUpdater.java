@@ -131,18 +131,18 @@ public final class SettingsUpdater {
         final Settings settingsToApply,
         final Logger logger
     ) {
-        final Tuple<Settings, Settings> partitionedSettings = partitionKnownAndValidSettings(
-            projectMetadata.settings(),
-            "project",
-            logger
-        );
+        final Tuple<Settings, Settings> partitionedSettings = partitionKnownAndValidSettings(projectMetadata.settings(), "project", logger);
         final Settings knownAndValidPersistentSettings = partitionedSettings.v1();
         final Settings unknownOrInvalidSettings = partitionedSettings.v2();
         Settings.Builder builder = Settings.builder().put(knownAndValidPersistentSettings);
 
         // TODO: apply only dynamic?
-        boolean changed = scopedSettings.updateSettings(settingsToApply, builder, persistentUpdates,
-            "project[" + projectMetadata.id() + "]");
+        boolean changed = scopedSettings.updateSettings(
+            settingsToApply,
+            builder,
+            persistentUpdates,
+            "project[" + projectMetadata.id() + "]"
+        );
         if (changed == false) {
             return projectMetadata;
         }

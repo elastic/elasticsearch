@@ -226,7 +226,8 @@ public class ProjectMetadata implements Iterable<IndexMetadata>, Diffable<Projec
             indicesLookup,
             mappingsByHash,
             settings,
-            oldestIndexVersion);
+            oldestIndexVersion
+        );
     }
 
     public ProjectMetadata withIndexSettingsUpdates(Map<Index, Settings> updates) {
@@ -259,7 +260,8 @@ public class ProjectMetadata implements Iterable<IndexMetadata>, Diffable<Projec
             indicesLookup,
             mappingsByHash,
             settings,
-            oldestIndexVersion);
+            oldestIndexVersion
+        );
     }
 
     /**
@@ -293,7 +295,8 @@ public class ProjectMetadata implements Iterable<IndexMetadata>, Diffable<Projec
             indicesLookup,
             mappingsByHash,
             settings,
-            oldestIndexVersion);
+            oldestIndexVersion
+        );
     }
 
     /**
@@ -381,7 +384,8 @@ public class ProjectMetadata implements Iterable<IndexMetadata>, Diffable<Projec
             null,
             updatedMappingsByHash,
             settings,
-            IndexVersion.min(index.getCompatibilityVersion(), oldestIndexVersion));
+            IndexVersion.min(index.getCompatibilityVersion(), oldestIndexVersion)
+        );
     }
 
     private ImmutableOpenMap<String, Set<Index>> aliasesAfterAddingIndex(IndexMetadata index, Map<String, AliasMetadata> aliases) {
@@ -1704,7 +1708,8 @@ public class ProjectMetadata implements Iterable<IndexMetadata>, Diffable<Projec
                 indicesLookup,
                 Collections.unmodifiableMap(mappingsByHash),
                 settings,
-                IndexVersion.fromId(oldestIndexVersionId));
+                IndexVersion.fromId(oldestIndexVersionId)
+            );
         }
 
         static void ensureNoNameCollisions(
@@ -2180,9 +2185,7 @@ public class ProjectMetadata implements Iterable<IndexMetadata>, Diffable<Projec
             multiProject
                 ? ChunkedToXContentHelper.object("reserved_state", reservedStateMetadata().values().iterator())
                 : Collections.emptyIterator(),
-            multiProject
-                ? ChunkedToXContentHelper.object("settings", Iterators.single(settings))
-                : Collections.emptyIterator()
+            multiProject ? ChunkedToXContentHelper.object("settings", Iterators.single(settings)) : Collections.emptyIterator()
         );
     }
 
@@ -2367,8 +2370,11 @@ public class ProjectMetadata implements Iterable<IndexMetadata>, Diffable<Projec
 
         @Override
         public ProjectMetadata apply(ProjectMetadata part) {
-            if (indices.isEmpty() && templates.isEmpty() && customs.isEmpty()
-                && reservedStateMetadata.isEmpty() && settingsDiff == Settings.EMPTY_DIFF) {
+            if (indices.isEmpty()
+                && templates.isEmpty()
+                && customs.isEmpty()
+                && reservedStateMetadata.isEmpty()
+                && settingsDiff == Settings.EMPTY_DIFF) {
                 // nothing to do
                 return part;
             }

@@ -285,22 +285,30 @@ final class ES819TSDBDocValuesConsumer extends XDocValuesConsumer {
             meta.writeLong(start); // dataOffset
 
             OffsetsAccumulator offsetsAccumulator = null;
+            DISIAccumulator disiAccumulator = null;
             try {
+                if (numDocsWithField > 0 && numDocsWithField < maxDoc) {
+                    disiAccumulator = new DISIAccumulator(dir, context, data, IndexedDISI.DEFAULT_DENSE_RANK_POWER);
+                }
+
+                assert maxLength >= minLength;
                 if (maxLength > minLength) {
                     offsetsAccumulator = new OffsetsAccumulator(dir, context, data, numDocsWithField);
+
                 }
 
                 for (int doc = values.nextDoc(); doc != DocIdSetIterator.NO_MORE_DOCS; doc = values.nextDoc()) {
                     BytesRef v = values.binaryValue();
                     data.writeBytes(v.bytes, v.offset, v.length);
+                    if (disiAccumulator != null) {
+                        disiAccumulator.addDocId(doc);
+                    }
                     if (offsetsAccumulator != null) {
                         offsetsAccumulator.addDoc(v.length);
                     }
                 }
                 meta.writeLong(data.getFilePointer() - start); // dataLength
 
-                // TODO: This is verbatim from the unoptimized path, and it still has a valuesProducer.getBinary() call in it.
-                // Need to optimize this part too.
                 if (numDocsWithField == 0) {
                     meta.writeLong(-2); // docsWithFieldOffset
                     meta.writeLong(0L); // docsWithFieldLength
@@ -314,8 +322,13 @@ final class ES819TSDBDocValuesConsumer extends XDocValuesConsumer {
                 } else {
                     long offset = data.getFilePointer();
                     meta.writeLong(offset); // docsWithFieldOffset
-                    values = valuesProducer.getBinary(field);
-                    final short jumpTableEntryCount = IndexedDISI.writeBitSet(values, data, IndexedDISI.DEFAULT_DENSE_RANK_POWER);
+                    final short jumpTableEntryCount;
+                    if (disiAccumulator != null) {
+                        jumpTableEntryCount = disiAccumulator.build(data);
+                    } else {
+                        values = valuesProducer.getBinary(field);
+                        jumpTableEntryCount = IndexedDISI.writeBitSet(values, data, IndexedDISI.DEFAULT_DENSE_RANK_POWER);
+                    }
                     meta.writeLong(data.getFilePointer() - offset); // docsWithFieldLength
                     meta.writeShort(jumpTableEntryCount);
                     meta.writeByte(IndexedDISI.DEFAULT_DENSE_RANK_POWER);
@@ -328,9 +341,7 @@ final class ES819TSDBDocValuesConsumer extends XDocValuesConsumer {
                     offsetsAccumulator.build(meta, data);
                 }
             } finally {
-                if (offsetsAccumulator != null) {
-                    offsetsAccumulator.close();
-                }
+                IOUtils.close(disiAccumulator, offsetsAccumulator);
             }
         } else {
             BinaryDocValues values = valuesProducer.getBinary(field);

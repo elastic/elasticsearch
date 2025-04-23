@@ -53,7 +53,6 @@ import static org.elasticsearch.xpack.inference.Utils.mockClusterServiceEmpty;
 import static org.elasticsearch.xpack.inference.external.action.ActionUtils.constructFailedToSendRequestMessage;
 import static org.elasticsearch.xpack.inference.external.http.Utils.entityAsMap;
 import static org.elasticsearch.xpack.inference.external.http.Utils.getUrl;
-import static org.elasticsearch.xpack.inference.services.cohere.request.CohereEmbeddingsRequestEntity.convertToString;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
@@ -146,7 +145,7 @@ public class CohereEmbeddingsActionTests extends ESTestCase {
 
             var requestMap = entityAsMap(webServer.requests().get(0).getBody());
             if (inputType != null && inputType != InputType.UNSPECIFIED) {
-                var cohereInputType = convertToString(inputType);
+                var cohereInputType = CohereUtils.inputTypeToString(inputType);
                 MatcherAssert.assertThat(
                     requestMap,
                     is(

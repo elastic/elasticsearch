@@ -166,24 +166,14 @@ public class CohereService extends SenderService {
         return switch (taskType) {
             case TEXT_EMBEDDING -> new CohereEmbeddingsModel(
                 inferenceEntityId,
-                taskType,
-                NAME,
                 serviceSettings,
                 taskSettings,
                 chunkingSettings,
                 secretSettings,
                 context
             );
-            case RERANK -> new CohereRerankModel(inferenceEntityId, taskType, NAME, serviceSettings, taskSettings, secretSettings, context);
-            case COMPLETION -> new CohereCompletionModel(
-                inferenceEntityId,
-                taskType,
-                NAME,
-                serviceSettings,
-                taskSettings,
-                secretSettings,
-                context
-            );
+            case RERANK -> new CohereRerankModel(inferenceEntityId, serviceSettings, taskSettings, secretSettings, context);
+            case COMPLETION -> new CohereCompletionModel(inferenceEntityId, serviceSettings, secretSettings, context);
             default -> throw new ElasticsearchStatusException(failureMessage, RestStatus.BAD_REQUEST);
         };
     }

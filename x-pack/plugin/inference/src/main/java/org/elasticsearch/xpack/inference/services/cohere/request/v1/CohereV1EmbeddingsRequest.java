@@ -5,13 +5,14 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.inference.services.cohere.request.v2;
+package org.elasticsearch.xpack.inference.services.cohere.request.v1;
 
 import org.apache.http.client.utils.URIBuilder;
 import org.elasticsearch.inference.InputType;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.inference.services.cohere.CohereAccount;
 import org.elasticsearch.xpack.inference.services.cohere.CohereServiceFields;
+import org.elasticsearch.xpack.inference.services.cohere.CohereServiceSettings;
 import org.elasticsearch.xpack.inference.services.cohere.embeddings.CohereEmbeddingType;
 import org.elasticsearch.xpack.inference.services.cohere.embeddings.CohereEmbeddingsModel;
 import org.elasticsearch.xpack.inference.services.cohere.embeddings.CohereEmbeddingsTaskSettings;
@@ -24,25 +25,23 @@ import java.net.URISyntaxException;
 import java.util.List;
 import java.util.Objects;
 
-import static org.elasticsearch.xpack.inference.services.cohere.request.CohereUtils.inputTypeToString;
-
-public class CohereV2EmbeddingsRequest extends CohereRequest {
+public class CohereV1EmbeddingsRequest extends CohereRequest {
 
     private final List<String> input;
     private final InputType inputType;
     private final CohereEmbeddingsTaskSettings taskSettings;
     private final CohereEmbeddingType embeddingType;
 
-    public CohereV2EmbeddingsRequest(List<String> input, InputType inputType, CohereEmbeddingsModel embeddingsModel) {
+    public CohereV1EmbeddingsRequest(List<String> input, InputType inputType, CohereEmbeddingsModel embeddingsModel) {
         super(
-            CohereAccount.of(embeddingsModel, CohereV2EmbeddingsRequest::buildDefaultUri),
+            CohereAccount.of(embeddingsModel, CohereV1EmbeddingsRequest::buildDefaultUri),
             embeddingsModel.getInferenceEntityId(),
-            Objects.requireNonNull(embeddingsModel.getServiceSettings().getCommonSettings().modelId()),
+            embeddingsModel.getServiceSettings().getCommonSettings().modelId(),
             false
         );
 
         this.input = Objects.requireNonNull(input);
-        this.inputType = Objects.requireNonNull(inputType); // inputType is required in v2
+        this.inputType = inputType;
         taskSettings = embeddingsModel.getTaskSettings();
         embeddingType = embeddingsModel.getServiceSettings().getEmbeddingType();
     }
@@ -50,21 +49,33 @@ public class CohereV2EmbeddingsRequest extends CohereRequest {
     public static URI buildDefaultUri() throws URISyntaxException {
         return new URIBuilder().setScheme("https")
             .setHost(CohereUtils.HOST)
-            .setPathSegments(CohereUtils.VERSION_2, CohereUtils.EMBEDDINGS_PATH)
+            .setPathSegments(CohereUtils.VERSION_1, CohereUtils.EMBEDDINGS_PATH)
             .build();
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
-        builder.field(CohereUtils.MODEL_FIELD, getModelId());
         builder.field(CohereUtils.TEXTS_FIELD, input);
-        // TODO merge input type from task settings InputType.isSpecified(inputType)
-        builder.field(CohereUtils.INPUT_TYPE_FIELD, inputTypeToString(inputType));
-        builder.field(CohereUtils.EMBEDDING_TYPES_FIELD, List.of(embeddingType.toRequestString()));
+        if (getModelId() != null) {
+            builder.field(CohereServiceSettings.OLD_MODEL_ID_FIELD, getModelId());
+        }
+
+        // prefer the root level inputType over task settings input type
+        if (InputType.isSpecified(inputType)) {
+            builder.field(CohereUtils.INPUT_TYPE_FIELD, CohereUtils.inputTypeToString(inputType));
+        } else if (InputType.isSpecified(taskSettings.getInputType())) {
+            builder.field(CohereUtils.INPUT_TYPE_FIELD, CohereUtils.inputTypeToString(taskSettings.getInputType()));
+        }
+
+        if (embeddingType != null) {
+            builder.field(CohereUtils.EMBEDDING_TYPES_FIELD, List.of(embeddingType.toRequestString()));
+        }
+
         if (taskSettings.getTruncation() != null) {
             builder.field(CohereServiceFields.TRUNCATE, taskSettings.getTruncation());
         }
+
         builder.endObject();
         return builder;
     }

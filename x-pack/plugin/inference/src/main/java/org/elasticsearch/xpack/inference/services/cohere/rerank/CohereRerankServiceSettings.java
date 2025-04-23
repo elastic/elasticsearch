@@ -7,8 +7,6 @@
 
 package org.elasticsearch.xpack.inference.services.cohere.rerank;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.ValidationException;
@@ -43,8 +41,6 @@ import static org.elasticsearch.xpack.inference.services.cohere.CohereServiceSet
 
 public class CohereRerankServiceSettings extends FilteredXContentObject implements ServiceSettings, CohereRateLimitServiceSettings {
     public static final String NAME = "cohere_rerank_service_settings";
-
-    private static final Logger logger = LogManager.getLogger(CohereRerankServiceSettings.class);
 
     public static CohereRerankServiceSettings fromMap(Map<String, Object> map, ConfigurationParseContext context) {
         ValidationException validationException = new ValidationException();

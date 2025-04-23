@@ -14,6 +14,7 @@ import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.xpack.inference.external.action.ExecutableAction;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.cohere.CohereModel;
+import org.elasticsearch.xpack.inference.services.cohere.CohereService;
 import org.elasticsearch.xpack.inference.services.cohere.action.CohereActionVisitor;
 import org.elasticsearch.xpack.inference.services.settings.DefaultSecretSettings;
 
@@ -28,8 +29,6 @@ public class CohereRerankModel extends CohereModel {
 
     public CohereRerankModel(
         String modelId,
-        TaskType taskType,
-        String service,
         Map<String, Object> serviceSettings,
         Map<String, Object> taskSettings,
         @Nullable Map<String, Object> secrets,
@@ -37,25 +36,20 @@ public class CohereRerankModel extends CohereModel {
     ) {
         this(
             modelId,
-            taskType,
-            service,
             CohereRerankServiceSettings.fromMap(serviceSettings, context),
             CohereRerankTaskSettings.fromMap(taskSettings),
             DefaultSecretSettings.fromMap(secrets)
         );
     }
 
-    // should only be used for testing
-    CohereRerankModel(
+    public CohereRerankModel(
         String modelId,
-        TaskType taskType,
-        String service,
         CohereRerankServiceSettings serviceSettings,
         CohereRerankTaskSettings taskSettings,
         @Nullable DefaultSecretSettings secretSettings
     ) {
         super(
-            new ModelConfigurations(modelId, taskType, service, serviceSettings, taskSettings),
+            new ModelConfigurations(modelId, TaskType.RERANK, CohereService.NAME, serviceSettings, taskSettings),
             new ModelSecrets(secretSettings),
             secretSettings,
             serviceSettings

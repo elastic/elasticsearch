@@ -17,7 +17,7 @@ import org.elasticsearch.xpack.inference.external.http.retry.ResponseHandler;
 import org.elasticsearch.xpack.inference.external.http.sender.ExecutableInferenceRequest;
 import org.elasticsearch.xpack.inference.external.http.sender.InferenceInputs;
 import org.elasticsearch.xpack.inference.external.http.sender.QueryAndDocsInputs;
-import org.elasticsearch.xpack.inference.services.cohere.request.CohereRerankRequest;
+import org.elasticsearch.xpack.inference.services.cohere.request.v1.CohereV1RerankRequest;
 import org.elasticsearch.xpack.inference.services.cohere.rerank.CohereRerankModel;
 import org.elasticsearch.xpack.inference.services.cohere.response.CohereRankedResponseEntity;
 
@@ -51,7 +51,7 @@ public class CohereRerankRequestManager extends CohereRequestManager {
         ActionListener<InferenceServiceResults> listener
     ) {
         var rerankInput = QueryAndDocsInputs.of(inferenceInputs);
-        CohereRerankRequest request = new CohereRerankRequest(
+        CohereV1RerankRequest request = new CohereV1RerankRequest(
             rerankInput.getQuery(),
             rerankInput.getChunks(),
             rerankInput.getReturnDocuments(),

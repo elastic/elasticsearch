@@ -18,7 +18,7 @@ import org.elasticsearch.xpack.inference.external.http.sender.ChatCompletionInpu
 import org.elasticsearch.xpack.inference.external.http.sender.ExecutableInferenceRequest;
 import org.elasticsearch.xpack.inference.external.http.sender.InferenceInputs;
 import org.elasticsearch.xpack.inference.services.cohere.completion.CohereCompletionModel;
-import org.elasticsearch.xpack.inference.services.cohere.request.CohereCompletionRequest;
+import org.elasticsearch.xpack.inference.services.cohere.request.v1.CohereV1CompletionRequest;
 import org.elasticsearch.xpack.inference.services.cohere.response.CohereCompletionResponseEntity;
 
 import java.util.Objects;
@@ -55,7 +55,7 @@ public class CohereCompletionRequestManager extends CohereRequestManager {
         var chatCompletionInput = inferenceInputs.castTo(ChatCompletionInput.class);
         var inputs = chatCompletionInput.getInputs();
         var stream = chatCompletionInput.stream();
-        CohereCompletionRequest request = new CohereCompletionRequest(inputs, model, stream);
+        CohereV1CompletionRequest request = new CohereV1CompletionRequest(inputs, model, stream);
 
         execute(new ExecutableInferenceRequest(requestSender, logger, request, HANDLER, hasRequestCompletedFunction, listener));
     }

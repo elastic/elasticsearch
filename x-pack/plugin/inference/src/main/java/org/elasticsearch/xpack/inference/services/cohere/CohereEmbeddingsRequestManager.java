@@ -19,7 +19,7 @@ import org.elasticsearch.xpack.inference.external.http.sender.EmbeddingsInput;
 import org.elasticsearch.xpack.inference.external.http.sender.ExecutableInferenceRequest;
 import org.elasticsearch.xpack.inference.external.http.sender.InferenceInputs;
 import org.elasticsearch.xpack.inference.services.cohere.embeddings.CohereEmbeddingsModel;
-import org.elasticsearch.xpack.inference.services.cohere.request.CohereEmbeddingsRequest;
+import org.elasticsearch.xpack.inference.services.cohere.request.v1.CohereV1EmbeddingsRequest;
 import org.elasticsearch.xpack.inference.services.cohere.response.CohereEmbeddingsResponseEntity;
 
 import java.util.List;
@@ -56,7 +56,7 @@ public class CohereEmbeddingsRequestManager extends CohereRequestManager {
         List<String> docsInput = input.getStringInputs();
         InputType inputType = input.getInputType();
 
-        CohereEmbeddingsRequest request = new CohereEmbeddingsRequest(docsInput, inputType, model);
+        CohereV1EmbeddingsRequest request = new CohereV1EmbeddingsRequest(docsInput, inputType, model);
 
         execute(new ExecutableInferenceRequest(requestSender, logger, request, HANDLER, hasRequestCompletedFunction, listener));
     }

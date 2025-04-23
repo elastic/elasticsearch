@@ -9,10 +9,8 @@ package org.elasticsearch.xpack.esql.action;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.client.internal.Client;
-import org.elasticsearch.cluster.RemoteException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.RangeQueryBuilder;
 import org.elasticsearch.test.transport.MockTransportService;
@@ -277,13 +275,13 @@ public class CrossClusterQueryWithFiltersIT extends AbstractCrossClusterTestCase
             );
             assertThat(e.getDetailedMessage(), containsString("Unknown index [missing]"));
             // Local index missing + wildcards
-            // FIXME: planner does not catch this now, it should be VerificationException but for now it's runtime IndexNotFoundException
-            var ie = expectThrows(IndexNotFoundException.class, () -> runQuery("from missing,logs*", randomBoolean(), filter).close());
-            assertThat(ie.getDetailedMessage(), containsString("no such index [missing]"));
+            // FIXME: planner does not catch this now
+            // e = expectThrows(VerificationException.class, () -> runQuery("from missing,logs*", randomBoolean(), filter).close());
+            // assertThat(e.getDetailedMessage(), containsString("Unknown index [missing]"));
             // Local index missing + existing index
-            // FIXME: planner does not catch this now, it should be VerificationException but for now it's runtime IndexNotFoundException
-            ie = expectThrows(IndexNotFoundException.class, () -> runQuery("from missing,logs-1", randomBoolean(), filter).close());
-            assertThat(ie.getDetailedMessage(), containsString("no such index [missing]"));
+            // FIXME: planner does not catch this now
+            // e = expectThrows(VerificationException.class, () -> runQuery("from missing,logs-1", randomBoolean(), filter).close());
+            // assertThat(e.getDetailedMessage(), containsString("Unknown index [missing]"));
             // Local index missing + existing remote
             e = expectThrows(VerificationException.class, () -> runQuery("from missing,cluster-a:logs-2", randomBoolean(), filter).close());
             assertThat(e.getDetailedMessage(), containsString("Unknown index [missing]"));

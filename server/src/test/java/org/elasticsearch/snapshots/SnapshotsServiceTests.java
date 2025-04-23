@@ -49,6 +49,7 @@ import static java.util.Collections.singleton;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_VERSION_CREATED;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.is;
+import static org.junit.Assert.assertTrue;
 
 public class SnapshotsServiceTests extends ESTestCase {
 
@@ -595,16 +596,25 @@ public class SnapshotsServiceTests extends ESTestCase {
         );
 
         boolean random = randomBoolean();
-        final var updatedState = applyUpdates(
-            initialState,
-            // Randomize the order of completed and paused updates but make sure that there's one of each. If the paused update comes after
-            // the completed update, paused should be ignored and the shard snapshot remains in a completed state.
-            random ? completedUpdateOnOtherNode : pausedUpdateOnOriginalNode,
-            random ? pausedUpdateOnOriginalNode : completedUpdateOnOtherNode,
-            // Randomly add another update that will be ignored because the shard snapshot is complete.
-            // Note: the originalNodeId is used for this update, so we can verify afterward that the update is not applied.
-            randomBoolean() ? completedUpdateOnOriginalNode : pausedUpdateOnOriginalNode
-        );
+        ClusterState updatedState;
+        if (randomBoolean()) {
+            updatedState = applyUpdates(
+                initialState,
+                // Randomize the order of completed and paused updates but make sure that there's one of each. If the paused update comes after
+                // the completed update, paused should be ignored and the shard snapshot remains in a completed state.
+                random ? completedUpdateOnOtherNode : pausedUpdateOnOriginalNode,
+                random ? pausedUpdateOnOriginalNode : completedUpdateOnOtherNode
+            );
+        } else {
+            updatedState = applyUpdates(
+                initialState,
+                random ? completedUpdateOnOtherNode : pausedUpdateOnOriginalNode,
+                random ? pausedUpdateOnOriginalNode : completedUpdateOnOtherNode,
+                // Randomly add another update that will be ignored because the shard snapshot is complete.
+                // Note: the originalNodeId is used for this update, so we can verify afterward that the update is not applied.
+                randomBoolean() ? completedUpdateOnOriginalNode : pausedUpdateOnOriginalNode
+            );
+        }
 
         assertTrue(SnapshotsInProgress.get(updatedState).snapshot(snapshot1).shards().get(shardId).state().completed());
         assertEquals(otherNodeId, SnapshotsInProgress.get(updatedState).snapshot(snapshot1).shards().get(shardId).nodeId());

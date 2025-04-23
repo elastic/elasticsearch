@@ -187,7 +187,7 @@ public class GetDataStreamsResponseTests extends AbstractWireSerializingTestCase
                 .setGeneration(3)
                 .setAllowCustomRouting(true)
                 .setIndexMode(IndexMode.STANDARD)
-                .setLifecycle(new DataStreamLifecycle(false, null, null))
+                .setLifecycle(DataStreamLifecycle.createDataLifecycle(false, null, null))
                 .setDataStreamOptions(DataStreamOptions.FAILURE_STORE_ENABLED)
                 .setFailureIndices(DataStream.DataStreamIndices.failureIndicesBuilder(failureStores).build())
                 .build();

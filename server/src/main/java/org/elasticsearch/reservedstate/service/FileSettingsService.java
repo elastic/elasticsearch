@@ -22,6 +22,9 @@ import org.elasticsearch.cluster.metadata.ReservedStateMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.file.MasterNodeFileWatchingService;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
@@ -247,6 +250,42 @@ public class FileSettingsService extends MasterNodeFileWatchingService implement
         completion.get();
     }
 
+    public record FileSettingsHealthInfo(boolean isActive, long changeCount, long failureStreak, String mostRecentFailure)
+        implements
+            Writeable {
+
+        public static final FileSettingsHealthInfo INITIAL_INACTIVE = new FileSettingsHealthInfo(false, 0L, 0, null);
+        public static final FileSettingsHealthInfo INITIAL_ACTIVE = new FileSettingsHealthInfo(true, 0L, 0, null);
+
+        public FileSettingsHealthInfo(StreamInput in) throws IOException {
+            this(in.readBoolean(), in.readVLong(), in.readVLong(), in.readOptionalString());
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            out.writeBoolean(isActive);
+            out.writeVLong(changeCount);
+            out.writeVLong(failureStreak);
+            out.writeOptionalString(mostRecentFailure);
+        }
+
+        public FileSettingsHealthInfo inactive() {
+            return new FileSettingsHealthInfo(false, changeCount, failureStreak, mostRecentFailure);
+        }
+
+        public FileSettingsHealthInfo changed() {
+            return new FileSettingsHealthInfo(isActive, changeCount + 1, failureStreak, mostRecentFailure);
+        }
+
+        public FileSettingsHealthInfo successful() {
+            return new FileSettingsHealthInfo(isActive, changeCount, 0, null);
+        }
+
+        public FileSettingsHealthInfo failed(String failureDescription) {
+            return new FileSettingsHealthInfo(isActive, changeCount, failureStreak + 1, failureDescription);
+        }
+    }
+
     public static class FileSettingsHealthIndicatorService implements HealthIndicatorService {
         static final String NAME = "file_settings";
         static final String INACTIVE_SYMPTOM = "File-based settings are inactive";
@@ -278,37 +317,30 @@ public class FileSettingsService extends MasterNodeFileWatchingService implement
         );
 
         private final Settings settings;
-        private boolean isActive = false;
-        private long changeCount = 0;
-        private long failureStreak = 0;
-        private String mostRecentFailure = null;
+        private FileSettingsHealthInfo currentInfo = FileSettingsHealthInfo.INITIAL_INACTIVE;
 
         public FileSettingsHealthIndicatorService(Settings settings) {
             this.settings = settings;
         }
 
         public synchronized void startOccurred() {
-            isActive = true;
-            failureStreak = 0;
+            currentInfo = FileSettingsHealthInfo.INITIAL_ACTIVE;
         }
 
         public synchronized void stopOccurred() {
-            isActive = false;
-            mostRecentFailure = null;
+            currentInfo = currentInfo.inactive();
         }
 
         public synchronized void changeOccurred() {
-            ++changeCount;
+            currentInfo = currentInfo.changed();
         }
 
         public synchronized void successOccurred() {
-            failureStreak = 0;
-            mostRecentFailure = null;
+            currentInfo = currentInfo.successful();
         }
 
         public synchronized void failureOccurred(String description) {
-            ++failureStreak;
-            mostRecentFailure = limitLength(description);
+            currentInfo = currentInfo.failed(limitLength(description));
         }
 
         private String limitLength(String description) {
@@ -327,19 +359,21 @@ public class FileSettingsService extends MasterNodeFileWatchingService implement
 
         @Override
         public synchronized HealthIndicatorResult calculate(boolean verbose, int maxAffectedResourcesCount, HealthInfo healthInfo) {
-            if (isActive == false) {
+            if (currentInfo.isActive() == false) {
                 return createIndicator(GREEN, INACTIVE_SYMPTOM, HealthIndicatorDetails.EMPTY, List.of(), List.of());
             }
-            if (0 == changeCount) {
+            if (0 == currentInfo.changeCount()) {
                 return createIndicator(GREEN, NO_CHANGES_SYMPTOM, HealthIndicatorDetails.EMPTY, List.of(), List.of());
             }
-            if (0 == failureStreak) {
+            if (0 == currentInfo.failureStreak()) {
                 return createIndicator(GREEN, SUCCESS_SYMPTOM, HealthIndicatorDetails.EMPTY, List.of(), List.of());
             } else {
                 return createIndicator(
                     YELLOW,
                     FAILURE_SYMPTOM,
-                    new SimpleHealthIndicatorDetails(Map.of("failure_streak", failureStreak, "most_recent_failure", mostRecentFailure)),
+                    new SimpleHealthIndicatorDetails(
+                        Map.of("failure_streak", currentInfo.failureStreak(), "most_recent_failure", currentInfo.mostRecentFailure())
+                    ),
                     STALE_SETTINGS_IMPACT,
                     List.of()
                 );

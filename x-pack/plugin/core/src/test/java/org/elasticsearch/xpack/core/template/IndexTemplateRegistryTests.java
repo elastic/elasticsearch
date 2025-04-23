@@ -795,7 +795,7 @@ public class IndexTemplateRegistryTests extends ESTestCase {
         throws Exception {
         assertBusy(() -> {
             if (expectedTimes > 0) {
-                assertThat(calledTimesMap.size(), equalTo(event.state().metadata().projects().size()));
+                assertThat(calledTimesMap.keySet(), equalTo(event.state().metadata().projects().keySet()));
             }
             for (var calledTimes : calledTimesMap.values()) {
                 assertThat(calledTimes.get(), equalTo(expectedTimes));

@@ -46,16 +46,16 @@ import java.util.stream.Collectors;
 
 import static org.elasticsearch.action.datastreams.DataStreamsActionUtil.getDataStreamNames;
 
-public class DeleteDataStreamTransportAction extends AcknowledgedTransportMasterNodeAction<DeleteDataStreamAction.Request> {
+public class TransportDeleteDataStreamAction extends AcknowledgedTransportMasterNodeAction<DeleteDataStreamAction.Request> {
 
-    private static final Logger LOGGER = LogManager.getLogger(DeleteDataStreamTransportAction.class);
+    private static final Logger LOGGER = LogManager.getLogger(TransportDeleteDataStreamAction.class);
 
     private final IndexNameExpressionResolver indexNameExpressionResolver;
     private final SystemIndices systemIndices;
     private final ProjectResolver projectResolver;
 
     @Inject
-    public DeleteDataStreamTransportAction(
+    public TransportDeleteDataStreamAction(
         TransportService transportService,
         ClusterService clusterService,
         ThreadPool threadPool,

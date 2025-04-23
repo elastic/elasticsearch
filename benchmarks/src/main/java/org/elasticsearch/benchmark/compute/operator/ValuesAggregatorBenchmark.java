@@ -81,6 +81,13 @@ public class ValuesAggregatorBenchmark {
     );
 
     static {
+        if (false == "true".equals(System.getProperty("skipSelfTest"))) {
+            // Smoke test all the expected values and force loading subclasses more like prod
+            selfTest();
+        }
+    }
+
+    static void selfTest() {
         // Smoke test all the expected values and force loading subclasses more like prod
         try {
             for (String groups : ValuesAggregatorBenchmark.class.getField("groups").getAnnotationsByType(Param.class)[0].value()) {

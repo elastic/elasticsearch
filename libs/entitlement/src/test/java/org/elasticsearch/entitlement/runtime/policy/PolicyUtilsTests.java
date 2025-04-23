@@ -34,7 +34,6 @@ import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
 
-@ESTestCase.WithoutSecurityManager
 public class PolicyUtilsTests extends ESTestCase {
 
     public void testCreatePluginPolicyWithPatch() {
@@ -215,7 +214,7 @@ public class PolicyUtilsTests extends ESTestCase {
             List.of(
                 FilesEntitlement.FileData.ofPath(Path.of("/a/b"), FilesEntitlement.Mode.READ),
                 FilesEntitlement.FileData.ofPath(Path.of("/a/c"), FilesEntitlement.Mode.READ_WRITE),
-                FilesEntitlement.FileData.ofRelativePath(Path.of("c/d"), FilesEntitlement.BaseDir.CONFIG, FilesEntitlement.Mode.READ)
+                FilesEntitlement.FileData.ofRelativePath(Path.of("c/d"), PathLookup.BaseDir.CONFIG, FilesEntitlement.Mode.READ)
             )
         );
         var e2 = new FilesEntitlement(
@@ -235,7 +234,7 @@ public class PolicyUtilsTests extends ESTestCase {
                     FilesEntitlement.FileData.ofPath(Path.of("/a/b"), FilesEntitlement.Mode.READ),
                     FilesEntitlement.FileData.ofPath(Path.of("/a/c"), FilesEntitlement.Mode.READ),
                     FilesEntitlement.FileData.ofPath(Path.of("/a/c"), FilesEntitlement.Mode.READ_WRITE),
-                    FilesEntitlement.FileData.ofRelativePath(Path.of("c/d"), FilesEntitlement.BaseDir.CONFIG, FilesEntitlement.Mode.READ),
+                    FilesEntitlement.FileData.ofRelativePath(Path.of("c/d"), PathLookup.BaseDir.CONFIG, FilesEntitlement.Mode.READ),
                     FilesEntitlement.FileData.ofPath(Path.of("/c/d"), FilesEntitlement.Mode.READ)
                 )
             )
@@ -328,7 +327,7 @@ public class PolicyUtilsTests extends ESTestCase {
                         new FilesEntitlement(
                             List.of(
                                 FilesEntitlement.FileData.ofPath(pathAB, FilesEntitlement.Mode.READ_WRITE),
-                                FilesEntitlement.FileData.ofRelativePath(pathCD, FilesEntitlement.BaseDir.DATA, FilesEntitlement.Mode.READ)
+                                FilesEntitlement.FileData.ofRelativePath(pathCD, PathLookup.BaseDir.DATA, FilesEntitlement.Mode.READ)
                             )
                         )
                     )
@@ -339,11 +338,7 @@ public class PolicyUtilsTests extends ESTestCase {
                         new FilesEntitlement(
                             List.of(
                                 FilesEntitlement.FileData.ofPath(pathAB, FilesEntitlement.Mode.READ_WRITE),
-                                FilesEntitlement.FileData.ofPathSetting(
-                                    "setting",
-                                    FilesEntitlement.BaseDir.DATA,
-                                    FilesEntitlement.Mode.READ
-                                )
+                                FilesEntitlement.FileData.ofPathSetting("setting", PathLookup.BaseDir.DATA, FilesEntitlement.Mode.READ)
                             )
                         )
                     )

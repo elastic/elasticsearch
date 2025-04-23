@@ -116,7 +116,7 @@ public class ExpandSearchPhaseTests extends ESTestCase {
                 };
 
                 SearchHit hit = new SearchHit(1, "ID");
-                hit.setDocumentField("someField", new DocumentField("someField", Collections.singletonList(collapseValue)));
+                hit.setDocumentField(new DocumentField("someField", Collections.singletonList(collapseValue)));
                 ExpandSearchPhase phase = newExpandSearchPhase(
                     mockSearchPhaseContext,
                     new SearchResponseSections(
@@ -188,9 +188,9 @@ public class ExpandSearchPhaseTests extends ESTestCase {
         };
 
         SearchHit hit1 = new SearchHit(1, "ID");
-        hit1.setDocumentField("someField", new DocumentField("someField", Collections.singletonList(collapseValue)));
+        hit1.setDocumentField(new DocumentField("someField", Collections.singletonList(collapseValue)));
         SearchHit hit2 = new SearchHit(2, "ID2");
-        hit2.setDocumentField("someField", new DocumentField("someField", Collections.singletonList(collapseValue)));
+        hit2.setDocumentField(new DocumentField("someField", Collections.singletonList(collapseValue)));
         try (
             SearchResponseSections searchResponseSections = new SearchResponseSections(
                 new SearchHits(new SearchHit[] { hit1, hit2 }, new TotalHits(1, TotalHits.Relation.EQUAL_TO), 1.0F),
@@ -225,9 +225,9 @@ public class ExpandSearchPhaseTests extends ESTestCase {
             };
 
             SearchHit hit1 = new SearchHit(1, "ID");
-            hit1.setDocumentField("someField", new DocumentField("someField", Collections.singletonList(null)));
+            hit1.setDocumentField(new DocumentField("someField", Collections.singletonList(null)));
             SearchHit hit2 = new SearchHit(2, "ID2");
-            hit2.setDocumentField("someField", new DocumentField("someField", Collections.singletonList(null)));
+            hit2.setDocumentField(new DocumentField("someField", Collections.singletonList(null)));
             ExpandSearchPhase phase = newExpandSearchPhase(
                 mockSearchPhaseContext,
                 new SearchResponseSections(
@@ -313,7 +313,7 @@ public class ExpandSearchPhaseTests extends ESTestCase {
                 .routing("baz");
 
             SearchHit hit = new SearchHit(1, "ID");
-            hit.setDocumentField("someField", new DocumentField("someField", Collections.singletonList("foo")));
+            hit.setDocumentField(new DocumentField("someField", Collections.singletonList("foo")));
             try (
                 SearchResponseSections searchResponseSections = new SearchResponseSections(
                     new SearchHits(new SearchHit[] { hit }, new TotalHits(1, TotalHits.Relation.EQUAL_TO), 1.0F),
@@ -384,7 +384,7 @@ public class ExpandSearchPhaseTests extends ESTestCase {
                 .routing("baz");
 
             SearchHit hit = new SearchHit(1, "ID");
-            hit.setDocumentField("someField", new DocumentField("someField", Collections.singletonList("foo")));
+            hit.setDocumentField(new DocumentField("someField", Collections.singletonList("foo")));
             try (
                 SearchResponseSections searchResponseSections = new SearchResponseSections(
                     new SearchHits(new SearchHit[] { hit }, new TotalHits(1, TotalHits.Relation.EQUAL_TO), 1.0F),

@@ -668,7 +668,7 @@ public class ProjectMetadataTests extends ESTestCase {
         if (params.paramAsBoolean("multi-project", false)) {
             // 2 chunks for wrapping reserved state + 1 chunk for each item
             chunkCount += 2 + project.reservedStateMetadata().size();
-            // 1 chunk for settings and 3 chunks for each setting
+            // 1 chunk for settings
             chunkCount += 1;
         }
 

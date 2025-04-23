@@ -136,7 +136,6 @@ public final class SettingsUpdater {
         final Settings unknownOrInvalidSettings = partitionedSettings.v2();
         Settings.Builder builder = Settings.builder().put(knownAndValidPersistentSettings);
 
-        // TODO: apply only dynamic?
         boolean changed = scopedSettings.updateSettings(
             settingsToApply,
             builder,

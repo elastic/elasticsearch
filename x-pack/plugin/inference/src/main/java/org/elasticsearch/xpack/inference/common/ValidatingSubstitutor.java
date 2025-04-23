@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.inference.common;
 
 import org.apache.commons.text.StringSubstitutor;
+import org.elasticsearch.common.Strings;
 
 import java.util.Map;
 import java.util.regex.Matcher;
@@ -50,7 +51,7 @@ public class ValidatingSubstitutor {
         Matcher matcher = VARIABLE_PLACEHOLDER_PATTERN.matcher(substitutedString);
         if (matcher.find()) {
             throw new IllegalStateException(
-                String.format("Found placeholder [%s] in field [%s] after replacement call", matcher.group(), field)
+                Strings.format("Found placeholder [%s] in field [%s] after replacement call", matcher.group(), field)
             );
         }
     }

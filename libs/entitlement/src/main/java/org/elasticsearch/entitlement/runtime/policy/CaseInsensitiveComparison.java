@@ -15,9 +15,6 @@ class CaseInsensitiveComparison extends FileAccessTreeComparison {
         super(CaseInsensitiveComparison::caseInsensitiveCharacterComparator, separatorChar);
     }
 
-    /**
-     * Case-insensitive character comparison. See also {@code WindowsPath#compareTo}.
-     */
     private static int caseInsensitiveCharacterComparator(char c1, char c2) {
         return Character.compare(Character.toLowerCase(c1), Character.toLowerCase(c2));
     }

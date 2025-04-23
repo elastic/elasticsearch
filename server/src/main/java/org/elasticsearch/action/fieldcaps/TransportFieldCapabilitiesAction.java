@@ -234,6 +234,7 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
         fieldCapTask.addListener(() -> {
             if (finishedOrCancelled.compareAndSet(false, true)) {
                 singleThreadedExecutor.execute(releaseResourcesOnCancel);
+                LOGGER.trace("clear index responses on cancellation submitted");
             }
         });
         try (RefCountingRunnable refs = new RefCountingRunnable(() -> {

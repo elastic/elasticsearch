@@ -67,7 +67,7 @@ $$$index-mode-setting$$$ `index.mode`
     The `index.mode` setting supports the following values:
        - `null`:   Default value (same as `standard`).
        -  `standard`:   Standard indexing with default settings.
-       -  `lookup`: Index that can be used for [LOOKUP JOIN](/reference/query-languages/esql/esql-lookup-join) in ES|QL. Limited to 1 shard.
+       -  `lookup`: Index that can be used for [LOOKUP JOIN](/reference/query-languages/esql/esql-lookup-join.md) in ES|QL. Limited to 1 shard.
        - `time_series`:   *(data streams only)* Index mode optimized for storage of metrics. For more information, see [Time series index settings](time-series.md).
        - `logsdb`: *(data streams only)* Index mode optimized for [logs](docs-content://manage-data/data-store/data-streams/logs-data-stream.md).
 

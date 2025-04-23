@@ -432,6 +432,9 @@ tests:
 - class: org.elasticsearch.xpack.esql.ccq.MultiClusterSpecIT
   method: test {fork.ForkWithMixOfCommands}
   issue: https://github.com/elastic/elasticsearch/issues/127268
+- class: org.elasticsearch.xpack.esql.ccq.MultiClusterSpecIT
+  method: test {fork.FiveFork}
+  issue: https://github.com/elastic/elasticsearch/issues/127272
 
 # Examples:
 #

@@ -87,7 +87,7 @@ class ValuesBytesRefAggregator {
     }
 
     public static class SingleState implements AggregatorState {
-        private BytesRefHash values;
+        private final BytesRefHash values;
 
         private SingleState(BigArrays bigArrays) {
             values = new BytesRefHash(1, bigArrays);

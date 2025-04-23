@@ -164,7 +164,7 @@ $endif$
 
     public static class SingleState implements AggregatorState {
 $if(BytesRef)$
-        private BytesRefHash values;
+        private final BytesRefHash values;
 
 $else$
         private final LongHash values;

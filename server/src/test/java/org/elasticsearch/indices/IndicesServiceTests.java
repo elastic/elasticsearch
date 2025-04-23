@@ -65,6 +65,7 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardPath;
 import org.elasticsearch.index.similarity.NonNegativeScoresSimilarity;
 import org.elasticsearch.indices.IndicesService.ShardDeletionCheckResult;
+import org.elasticsearch.indices.cluster.IndicesClusterStateService.AllocatedIndices.IndexRemovalReason;
 import org.elasticsearch.plugins.EnginePlugin;
 import org.elasticsearch.plugins.MapperPlugin;
 import org.elasticsearch.plugins.Plugin;
@@ -323,7 +324,10 @@ public class IndicesServiceTests extends ESSingleNodeTestCase {
             test.getIndexSettings().customDataPath()
         );
 
-        expectThrows(IllegalStateException.class, () -> indicesService.deleteIndexStore("boom", firstMetadata));
+        expectThrows(
+            IllegalStateException.class,
+            () -> indicesService.deleteIndexStore("boom", firstMetadata, randomReasonOtherThanDeleted())
+        );
         assertTrue(firstPath.exists());
 
         GatewayMetaState gwMetaState = getInstanceFromNode(GatewayMetaState.class);
@@ -353,7 +357,10 @@ public class IndicesServiceTests extends ESSingleNodeTestCase {
         );
         assertTrue(secondPath.exists());
 
-        expectThrows(IllegalStateException.class, () -> indicesService.deleteIndexStore("boom", secondMetadata));
+        expectThrows(
+            IllegalStateException.class,
+            () -> indicesService.deleteIndexStore("boom", secondMetadata, randomReasonOtherThanDeleted())
+        );
         assertTrue(secondPath.exists());
 
         assertAcked(client().admin().indices().prepareOpen("test"));
@@ -384,13 +391,13 @@ public class IndicesServiceTests extends ESSingleNodeTestCase {
 
         int numPending = 1;
         if (randomBoolean()) {
-            indicesService.addPendingDelete(indexShard.shardId(), indexSettings);
+            indicesService.addPendingDelete(indexShard.shardId(), indexSettings, randomReasonOtherThanDeleted());
         } else {
             if (randomBoolean()) {
                 numPending++;
-                indicesService.addPendingDelete(indexShard.shardId(), indexSettings);
+                indicesService.addPendingDelete(indexShard.shardId(), indexSettings, randomReasonOtherThanDeleted());
             }
-            indicesService.addPendingDelete(index, indexSettings);
+            indicesService.addPendingDelete(index, indexSettings, randomReasonOtherThanDeleted());
         }
 
         assertAcked(client().admin().indices().prepareClose("test"));
@@ -410,9 +417,9 @@ public class IndicesServiceTests extends ESSingleNodeTestCase {
 
         final boolean hasBogus = randomBoolean();
         if (hasBogus) {
-            indicesService.addPendingDelete(new ShardId(index, 0), indexSettings);
-            indicesService.addPendingDelete(new ShardId(index, 1), indexSettings);
-            indicesService.addPendingDelete(new ShardId("bogus", "_na_", 1), indexSettings);
+            indicesService.addPendingDelete(new ShardId(index, 0), indexSettings, randomReasonOtherThanDeleted());
+            indicesService.addPendingDelete(new ShardId(index, 1), indexSettings, randomReasonOtherThanDeleted());
+            indicesService.addPendingDelete(new ShardId("bogus", "_na_", 1), indexSettings, randomReasonOtherThanDeleted());
             assertEquals(indicesService.numPendingDeletes(index), numPending + 2);
             assertTrue(indicesService.hasUncompletedPendingDeletes());
         }
@@ -883,5 +890,9 @@ public class IndicesServiceTests extends ESSingleNodeTestCase {
 
     private Set<ResolvedExpression> resolvedExpressions(String... expressions) {
         return Arrays.stream(expressions).map(ResolvedExpression::new).collect(Collectors.toSet());
+    }
+
+    private IndexRemovalReason randomReasonOtherThanDeleted() {
+        return randomValueOtherThan(IndexRemovalReason.DELETED, () -> randomFrom(IndexRemovalReason.values()));
     }
 }

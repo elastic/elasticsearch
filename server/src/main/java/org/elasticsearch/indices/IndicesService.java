@@ -1005,7 +1005,7 @@ public class IndicesService extends AbstractLifecycleComponent
                 listener.afterIndexRemoved(indexService.index(), indexSettings, reason);
                 if (reason == IndexRemovalReason.DELETED) {
                     // now we are done - try to wipe data on disk if possible
-                    deleteIndexStore(extraInfo, indexService.index(), indexSettings);
+                    deleteIndexStore(extraInfo, indexService.index(), indexSettings, reason);
                 }
             }));
         });
@@ -1077,7 +1077,7 @@ public class IndicesService extends AbstractLifecycleComponent
                             + "]"
                     );
                 }
-                deleteIndexStore(reason, oldIndexMetadata);
+                deleteIndexStore(reason, oldIndexMetadata, IndexRemovalReason.DELETED);
             } catch (Exception e) {
                 logger.warn(() -> format("[%s] failed to delete unassigned index (reason [%s])", oldIndexMetadata.getIndex(), reason), e);
             }
@@ -1090,7 +1090,7 @@ public class IndicesService extends AbstractLifecycleComponent
      *
      * Package private for testing
      */
-    void deleteIndexStore(String reason, IndexMetadata metadata) throws IOException {
+    void deleteIndexStore(String reason, IndexMetadata metadata, IndexRemovalReason indexRemovalReason) throws IOException {
         if (nodeEnv.hasNodeFile()) {
             synchronized (this) {
                 Index index = metadata.getIndex();
@@ -1108,19 +1108,21 @@ public class IndicesService extends AbstractLifecycleComponent
                 }
             }
             final IndexSettings indexSettings = buildIndexSettings(metadata);
-            deleteIndexStore(reason, indexSettings.getIndex(), indexSettings);
+            deleteIndexStore(reason, indexSettings.getIndex(), indexSettings, indexRemovalReason);
         }
     }
 
-    private void deleteIndexStore(String reason, Index index, IndexSettings indexSettings) throws IOException {
-        deleteIndexStoreIfDeletionAllowed(reason, index, indexSettings, DEFAULT_INDEX_DELETION_PREDICATE);
+    private void deleteIndexStore(String reason, Index index, IndexSettings indexSettings, IndexRemovalReason indexRemovalReason)
+        throws IOException {
+        deleteIndexStoreIfDeletionAllowed(reason, index, indexSettings, DEFAULT_INDEX_DELETION_PREDICATE, indexRemovalReason);
     }
 
     private void deleteIndexStoreIfDeletionAllowed(
         final String reason,
         final Index index,
         final IndexSettings indexSettings,
-        final IndexDeletionAllowedPredicate predicate
+        final IndexDeletionAllowedPredicate predicate,
+        final IndexRemovalReason indexRemovalReason
     ) throws IOException {
         boolean success = false;
         try {
@@ -1134,7 +1136,7 @@ public class IndicesService extends AbstractLifecycleComponent
                     index,
                     0,
                     indexSettings,
-                    paths -> indexFoldersDeletionListeners.beforeIndexFoldersDeleted(index, indexSettings, paths)
+                    paths -> indexFoldersDeletionListeners.beforeIndexFoldersDeleted(index, indexSettings, paths, indexRemovalReason)
                 );
             }
             success = true;
@@ -1144,7 +1146,7 @@ public class IndicesService extends AbstractLifecycleComponent
             logger.warn(() -> format("%s failed to delete index", index), ex);
         } finally {
             if (success == false) {
-                addPendingDelete(index, indexSettings);
+                addPendingDelete(index, indexSettings, indexRemovalReason);
             }
             // this is a pure protection to make sure this index doesn't get re-imported as a dangling index.
             // we should in the future rather write a tombstone rather than wiping the metadata.
@@ -1160,13 +1162,14 @@ public class IndicesService extends AbstractLifecycleComponent
      * @throws IOException if an IOException occurs
      */
     @Override
-    public void deleteShardStore(String reason, ShardLock lock, IndexSettings indexSettings) throws IOException {
+    public void deleteShardStore(String reason, ShardLock lock, IndexSettings indexSettings, IndexRemovalReason indexRemovalReason)
+        throws IOException {
         ShardId shardId = lock.getShardId();
         logger.trace("{} deleting shard reason [{}]", shardId, reason);
         nodeEnv.deleteShardDirectoryUnderLock(
             lock,
             indexSettings,
-            paths -> indexFoldersDeletionListeners.beforeShardFoldersDeleted(shardId, indexSettings, paths)
+            paths -> indexFoldersDeletionListeners.beforeShardFoldersDeleted(shardId, indexSettings, paths, indexRemovalReason)
         );
     }
 
@@ -1183,8 +1186,8 @@ public class IndicesService extends AbstractLifecycleComponent
      * @param clusterState . This is required to access the indexes settings etc.
      * @throws IOException if an IOException occurs
      */
-    public void deleteShardStore(String reason, ShardId shardId, ClusterState clusterState) throws IOException,
-        ShardLockObtainFailedException {
+    public void deleteShardStore(String reason, ShardId shardId, ClusterState clusterState, IndexRemovalReason indexRemovalReason)
+        throws IOException, ShardLockObtainFailedException {
         final IndexMetadata metadata = clusterState.getMetadata().getProject().indices().get(shardId.getIndexName());
 
         final IndexSettings indexSettings = buildIndexSettings(metadata);
@@ -1195,7 +1198,7 @@ public class IndicesService extends AbstractLifecycleComponent
         nodeEnv.deleteShardDirectorySafe(
             shardId,
             indexSettings,
-            paths -> indexFoldersDeletionListeners.beforeShardFoldersDeleted(shardId, indexSettings, paths)
+            paths -> indexFoldersDeletionListeners.beforeShardFoldersDeleted(shardId, indexSettings, paths, indexRemovalReason)
         );
         logger.debug("{} deleted shard reason [{}]", shardId, reason);
 
@@ -1203,7 +1206,7 @@ public class IndicesService extends AbstractLifecycleComponent
             if (nodeEnv.findAllShardIds(shardId.getIndex()).isEmpty()) {
                 try {
                     // note that deleteIndexStore have more safety checks and may throw an exception if index was concurrently created.
-                    deleteIndexStore("no longer used", metadata);
+                    deleteIndexStore("no longer used", metadata, indexRemovalReason);
                 } catch (Exception e) {
                     // wrap the exception to indicate we already deleted the shard
                     throw new ElasticsearchException("failed to delete unused index after deleting its last shard (" + shardId + ")", e);
@@ -1259,7 +1262,7 @@ public class IndicesService extends AbstractLifecycleComponent
             }
             final IndexSettings indexSettings = buildIndexSettings(metadata);
             try {
-                deleteIndexStoreIfDeletionAllowed("stale deleted index", index, indexSettings, ALWAYS_TRUE);
+                deleteIndexStoreIfDeletionAllowed("stale deleted index", index, indexSettings, ALWAYS_TRUE, IndexRemovalReason.DELETED);
             } catch (Exception e) {
                 // we just warn about the exception here because if deleteIndexStoreIfDeletionAllowed
                 // throws an exception, it gets added to the list of pending deletes to be tried again
@@ -1317,22 +1320,22 @@ public class IndicesService extends AbstractLifecycleComponent
      * Adds a pending delete for the given index shard.
      */
     @Override
-    public void addPendingDelete(ShardId shardId, IndexSettings settings) {
+    public void addPendingDelete(ShardId shardId, IndexSettings settings, IndexRemovalReason reason) {
         if (shardId == null) {
             throw new IllegalArgumentException("shardId must not be null");
         }
         if (settings == null) {
             throw new IllegalArgumentException("settings must not be null");
         }
-        PendingDelete pendingDelete = new PendingDelete(shardId, settings);
+        PendingDelete pendingDelete = new PendingDelete(shardId, settings, reason);
         addPendingDelete(shardId.getIndex(), pendingDelete);
     }
 
     /**
      * Adds a pending delete for the given index.
      */
-    public void addPendingDelete(Index index, IndexSettings settings) {
-        PendingDelete pendingDelete = new PendingDelete(index, settings);
+    public void addPendingDelete(Index index, IndexSettings settings, IndexRemovalReason reason) {
+        PendingDelete pendingDelete = new PendingDelete(index, settings, reason);
         addPendingDelete(index, pendingDelete);
     }
 
@@ -1348,25 +1351,28 @@ public class IndicesService extends AbstractLifecycleComponent
         final int shardId;
         final IndexSettings settings;
         final boolean deleteIndex;
+        final IndexRemovalReason reason;
 
         /**
          * Creates a new pending delete of an index
          */
-        PendingDelete(ShardId shardId, IndexSettings settings) {
+        PendingDelete(ShardId shardId, IndexSettings settings, IndexRemovalReason reason) {
             this.index = shardId.getIndex();
             this.shardId = shardId.getId();
             this.settings = settings;
             this.deleteIndex = false;
+            this.reason = reason;
         }
 
         /**
          * Creates a new pending delete of a shard
          */
-        PendingDelete(Index index, IndexSettings settings) {
+        PendingDelete(Index index, IndexSettings settings, IndexRemovalReason reason) {
             this.index = index;
             this.shardId = -1;
             this.settings = settings;
             this.deleteIndex = true;
+            this.reason = reason;
         }
 
         @Override
@@ -1430,7 +1436,12 @@ public class IndicesService extends AbstractLifecycleComponent
                                 nodeEnv.deleteIndexDirectoryUnderLock(
                                     index,
                                     indexSettings,
-                                    paths -> indexFoldersDeletionListeners.beforeIndexFoldersDeleted(index, indexSettings, paths)
+                                    paths -> indexFoldersDeletionListeners.beforeIndexFoldersDeleted(
+                                        index,
+                                        indexSettings,
+                                        paths,
+                                        delete.reason
+                                    )
                                 );
                                 iterator.remove();
                             } catch (IOException ex) {
@@ -1442,7 +1453,7 @@ public class IndicesService extends AbstractLifecycleComponent
                             final ShardLock shardLock = locks.get(shardId);
                             if (shardLock != null) {
                                 try {
-                                    deleteShardStore("pending delete", shardLock, delete.settings);
+                                    deleteShardStore("pending delete", shardLock, delete.settings, delete.reason);
                                     iterator.remove();
                                 } catch (IOException ex) {
                                     logger.debug(() -> format("%s retry pending delete", shardLock.getShardId()), ex);

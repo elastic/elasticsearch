@@ -144,18 +144,28 @@ public class IndexModuleTests extends ESTestCase {
 
     private IndexService.ShardStoreDeleter deleter = new IndexService.ShardStoreDeleter() {
         @Override
-        public void deleteShardStore(String reason, ShardLock lock, IndexSettings indexSettings) throws IOException {}
+        public void deleteShardStore(String reason, ShardLock lock, IndexSettings indexSettings, IndexRemovalReason indexRemovalReason) {}
 
         @Override
-        public void addPendingDelete(ShardId shardId, IndexSettings indexSettings) {}
+        public void addPendingDelete(ShardId shardId, IndexSettings indexSettings, IndexRemovalReason indexRemovalReason) {}
     };
 
     private IndexStorePlugin.IndexFoldersDeletionListener indexDeletionListener = new IndexStorePlugin.IndexFoldersDeletionListener() {
         @Override
-        public void beforeIndexFoldersDeleted(Index index, IndexSettings indexSettings, Path[] indexPaths) {}
+        public void beforeIndexFoldersDeleted(
+            Index index,
+            IndexSettings indexSettings,
+            Path[] indexPaths,
+            IndexRemovalReason indexRemovalReason
+        ) {}
 
         @Override
-        public void beforeShardFoldersDeleted(ShardId shardId, IndexSettings indexSettings, Path[] shardPaths) {}
+        public void beforeShardFoldersDeleted(
+            ShardId shardId,
+            IndexSettings indexSettings,
+            Path[] shardPaths,
+            IndexRemovalReason indexRemovalReason
+        ) {}
     };
 
     private final IndexFieldDataCache.Listener listener = new IndexFieldDataCache.Listener() {

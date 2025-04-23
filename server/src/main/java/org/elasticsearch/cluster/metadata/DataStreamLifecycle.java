@@ -86,7 +86,7 @@ public class DataStreamLifecycle implements SimpleDiffable<DataStreamLifecycle>,
         Setting.Property.NodeScope
     );
 
-    public static final DataStreamLifecycle DEFAULT_DATA_LIFECYCLE = new DataStreamLifecycle(null, null, null);
+    public static final DataStreamLifecycle DEFAULT_DATA_LIFECYCLE = DataStreamLifecycle.createDataLifecycle(null, null, null);
 
     public static final String DATA_STREAM_LIFECYCLE_ORIGIN = "data_stream_lifecycle";
 
@@ -132,15 +132,25 @@ public class DataStreamLifecycle implements SimpleDiffable<DataStreamLifecycle>,
     @Nullable
     private final List<DownsamplingRound> downsampling;
 
-    public DataStreamLifecycle(
-        @Nullable Boolean enabled,
-        @Nullable TimeValue dataRetention,
-        @Nullable List<DownsamplingRound> downsampling
-    ) {
+    // Visible for testing, preferably use the factory methods that are specialised by lifecycle type,
+    // for example for the data component.
+    DataStreamLifecycle(@Nullable Boolean enabled, @Nullable TimeValue dataRetention, @Nullable List<DownsamplingRound> downsampling) {
         this.enabled = enabled == null || enabled;
         this.dataRetention = dataRetention;
         DownsamplingRound.validateRounds(downsampling);
         this.downsampling = downsampling;
+    }
+
+    /**
+     * This factory method creates a lifecycle applicable for the data index component of a data stream. This
+     * means it supports all configuration applicable for backing indices.
+     */
+    public static DataStreamLifecycle createDataLifecycle(
+        @Nullable Boolean enabled,
+        @Nullable TimeValue dataRetention,
+        @Nullable List<DownsamplingRound> downsampling
+    ) {
+        return new DataStreamLifecycle(enabled, dataRetention, downsampling);
     }
 
     /**
@@ -538,6 +548,22 @@ public class DataStreamLifecycle implements SimpleDiffable<DataStreamLifecycle>,
         }
     }
 
+    public static Template createDataLifecycleTemplate(
+        boolean enabled,
+        TimeValue dataRetention,
+        List<DataStreamLifecycle.DownsamplingRound> downsampling
+    ) {
+        return new Template(enabled, ResettableValue.create(dataRetention), ResettableValue.create(downsampling));
+    }
+
+    public static Template createDataLifecycleTemplate(
+        boolean enabled,
+        ResettableValue<TimeValue> dataRetention,
+        ResettableValue<List<DataStreamLifecycle.DownsamplingRound>> downsampling
+    ) {
+        return new Template(enabled, dataRetention, downsampling);
+    }
+
     /**
      * Represents the template configuration of a lifecycle. It supports explicitly resettable values
      * to allow value reset during template composition.
@@ -548,7 +574,7 @@ public class DataStreamLifecycle implements SimpleDiffable<DataStreamLifecycle>,
         ResettableValue<List<DataStreamLifecycle.DownsamplingRound>> downsampling
     ) implements ToXContentObject, Writeable {
 
-        public Template(boolean enabled, TimeValue dataRetention, List<DataStreamLifecycle.DownsamplingRound> downsampling) {
+        Template(boolean enabled, TimeValue dataRetention, List<DataStreamLifecycle.DownsamplingRound> downsampling) {
             this(enabled, ResettableValue.create(dataRetention), ResettableValue.create(downsampling));
         }
 
@@ -728,8 +754,8 @@ public class DataStreamLifecycle implements SimpleDiffable<DataStreamLifecycle>,
         return new Builder(template);
     }
 
-    public static Builder builder() {
-        return new Builder((DataStreamLifecycle) null);
+    public static Builder dataLifecycleBuilder() {
+        return new Builder();
     }
 
     /**
@@ -742,20 +768,18 @@ public class DataStreamLifecycle implements SimpleDiffable<DataStreamLifecycle>,
         @Nullable
         private List<DownsamplingRound> downsampling = null;
 
+        private Builder() {}
+
         private Builder(DataStreamLifecycle.Template template) {
-            if (template != null) {
-                enabled = template.enabled();
-                dataRetention = template.dataRetention().get();
-                downsampling = template.downsampling().get();
-            }
+            enabled = template.enabled();
+            dataRetention = template.dataRetention().get();
+            downsampling = template.downsampling().get();
         }
 
         private Builder(DataStreamLifecycle lifecycle) {
-            if (lifecycle != null) {
-                enabled = lifecycle.enabled();
-                dataRetention = lifecycle.dataRetention();
-                downsampling = lifecycle.downsampling();
-            }
+            enabled = lifecycle.enabled();
+            dataRetention = lifecycle.dataRetention();
+            downsampling = lifecycle.downsampling();
         }
 
         public Builder composeTemplate(DataStreamLifecycle.Template template) {

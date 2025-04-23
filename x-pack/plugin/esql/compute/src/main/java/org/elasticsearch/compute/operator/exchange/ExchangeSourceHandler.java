@@ -57,6 +57,10 @@ public final class ExchangeSourceHandler {
         this.outstandingSources = new PendingInstances(() -> finishEarly(true, ActionListener.noop()));
     }
 
+    public void onCompletion(ActionListener<Void> listener) {
+        buffer.addCompletionListener(listener);
+    }
+
     public boolean isFinished() {
         return buffer.isFinished();
     }

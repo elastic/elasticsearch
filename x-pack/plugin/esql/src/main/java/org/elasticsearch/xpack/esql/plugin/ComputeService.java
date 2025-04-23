@@ -121,6 +121,7 @@ public class ComputeService {
     private static final String LOCAL_CLUSTER = RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY;
 
     private static final Logger LOGGER = LogManager.getLogger(ComputeService.class);
+
     private final SearchService searchService;
     private final BigArrays bigArrays;
     private final BlockFactory blockFactory;
@@ -251,7 +252,7 @@ public class ComputeService {
                 mainExchangeSource.addRemoteSink(exchangeSink::fetchPageAsync, true, () -> {}, 1, ActionListener.noop());
                 executePlan(childSessionId, rootTask, subplan, configuration, foldContext, execInfo, ActionListener.wrap(result -> {
                     exchangeSink.addCompletionListener(
-                        ActionListener.running(() -> { exchangeService.finishSinkHandler(childSessionId, null); })
+                        ActionListener.running(() -> exchangeService.finishSinkHandler(childSessionId, null))
                     );
                 }, e -> {
                     exchangeService.finishSinkHandler(childSessionId, e);
@@ -402,6 +403,9 @@ public class ComputeService {
                         coordinatorPlan,
                         localListener.acquireCompute()
                     );
+
+                    exchangeSource.onCompletion(localListener.completeImmediately());
+
                     // starts computes on data nodes on the main cluster
                     if (localConcreteIndices != null && localConcreteIndices.indices().length > 0) {
                         final var dataNodesListener = localListener.acquireCompute();

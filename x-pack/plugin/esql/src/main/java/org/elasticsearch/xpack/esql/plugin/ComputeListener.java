@@ -24,18 +24,28 @@ import org.elasticsearch.threadpool.ThreadPool;
  */
 final class ComputeListener implements Releasable {
     private final DriverCompletionInfo.AtomicAccumulator completionInfoAccumulator = new DriverCompletionInfo.AtomicAccumulator();
-    private final EsqlRefCountingListener refs;
-    private final ResponseHeadersCollector responseHeaders;
     private final Runnable runOnFailure;
+    private final ResponseHeadersCollector responseHeaders;
+    private final ActionListener<Void> delegate;
+    private final EsqlRefCountingListener refs;
 
     ComputeListener(ThreadPool threadPool, Runnable runOnFailure, ActionListener<DriverCompletionInfo> delegate) {
         this.runOnFailure = runOnFailure;
         this.responseHeaders = new ResponseHeadersCollector(threadPool.getThreadContext());
-        // listener that executes after all the sub-listeners refs (created via acquireCompute) have completed
-        this.refs = new EsqlRefCountingListener(delegate.delegateFailure((l, ignored) -> {
+        this.delegate = ActionListener.notifyOnce(delegate.delegateFailure((l, ignored) -> {
             responseHeaders.finish();
             delegate.onResponse(completionInfoAccumulator.finish());
         }));
+        // listener that executes after all the sub-listeners refs (created via acquireCompute) have completed
+        this.refs = new EsqlRefCountingListener(this.delegate);
+    }
+
+    /**
+     * This listener allows to complete the computation early without waiting for all dependencies.
+     * This discards waiting for slow data node responses if results set already populated (for example if we reached the limit).
+     */
+    ActionListener<Void> completeImmediately() {
+        return delegate;
     }
 
     /**

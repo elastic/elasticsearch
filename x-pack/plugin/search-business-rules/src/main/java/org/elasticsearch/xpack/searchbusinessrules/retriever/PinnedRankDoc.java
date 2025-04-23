@@ -76,6 +76,6 @@ public class PinnedRankDoc extends RankDoc {
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.INITIAL_ELASTICSEARCH_9_0_1;
+        return TransportVersions.COHERE_BIT_EMBEDDING_TYPE_SUPPORT_ADDED;
     }
 }

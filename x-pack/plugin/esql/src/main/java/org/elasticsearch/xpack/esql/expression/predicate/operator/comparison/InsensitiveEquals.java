@@ -97,8 +97,8 @@ public class InsensitiveEquals extends InsensitiveBinaryComparison {
     }
 
     @Override
-    public boolean translatable(LucenePushdownPredicates pushdownPredicates) {
-        return pushdownPredicates.isPushableFieldAttribute(left()) && right().foldable();
+    public Translatable translatable(LucenePushdownPredicates pushdownPredicates) {
+        return pushdownPredicates.isPushableFieldAttribute(left()) && right().foldable() ? Translatable.YES : Translatable.NO;
     }
 
     @Override

@@ -682,7 +682,7 @@ from employees
 | eval max = 12, g = 3
 ;
 
-avg:integer | g:integer
+max:integer | g:integer
 12          | 3
 12          | 3
 12          | 3

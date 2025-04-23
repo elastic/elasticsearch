@@ -6,7 +6,6 @@ mapped_pages:
 
 # Dense vector field type [dense-vector]
 
-
 The `dense_vector` field type stores dense vectors of numeric values. Dense vector fields are primarily used for [k-nearest neighbor (kNN) search](docs-content://deploy-manage/production-guidance/optimize-performance/approximate-knn-search.md).
 
 The `dense_vector` type does not support aggregations or sorting.
@@ -46,7 +45,6 @@ PUT my-index/_doc/2
 Unlike most other data types, dense vectors are always single-valued. It is not possible to store multiple values in one `dense_vector` field.
 ::::
 
-
 ## Index vectors for kNN search [index-vectors-knn-search]
 
 A *k-nearest neighbor* (kNN) search finds the *k* nearest vectors to a query vector, as measured by a similarity metric.
@@ -78,7 +76,6 @@ PUT my-index-2
 Indexing vectors for approximate kNN search is an expensive process. It can take substantial time to ingest documents that contain vector fields with `index` enabled. See [k-nearest neighbor (kNN) search](docs-content://deploy-manage/production-guidance/optimize-performance/approximate-knn-search.md) to learn more about the memory requirements.
 ::::
 
-
 You can disable indexing by setting the `index` parameter to `false`:
 
 ```console
@@ -98,7 +95,6 @@ PUT my-index-2
 
 {{es}} uses the [HNSW algorithm](https://arxiv.org/abs/1603.09320) to support efficient kNN search. Like most kNN algorithms, HNSW is an approximate method that sacrifices result accuracy for improved speed.
 
-
 ## Automatically quantize vectors for kNN search [dense-vector-quantization]
 
 The `dense_vector` type supports quantization to reduce the memory footprint required when [searching](docs-content://solutions/search/vector/knn.md#approximate-knn) `float` vectors. The three following quantization strategies are supported:
@@ -117,16 +113,13 @@ Quantized vectors can use [oversampling and rescoring](docs-content://solutions/
 Quantization will continue to keep the raw float vector values on disk for reranking, reindexing, and quantization improvements over the lifetime of the data. This means disk usage will increase by ~25% for `int8`, ~12.5% for `int4`, and ~3.1% for `bbq` due to the overhead of storing the quantized and raw vectors.
 ::::
 
-
 ::::{note}
 `int4` quantization requires an even number of vector dimensions.
 ::::
 
-
 ::::{note}
 `bbq` quantization only supports vector dimensions that are greater than 64.
 ::::
-
 
 Here is an example of how to create a byte-quantized index:
 
@@ -188,7 +181,6 @@ PUT my-byte-quantized-index
 }
 ```
 
-
 ## Parameters for dense vector fields [dense-vector-params]
 
 The following mapping parameters are accepted:
@@ -210,7 +202,6 @@ $$$dense-vector-element-type$$$
 
 ::::
 
-
 `dims`
 :   (Optional, integer) Number of vector dimensions. Can’t exceed `4096`. If `dims` is not specified, it will be set to the length of the first vector added to the field.
 
@@ -227,7 +218,6 @@ $$$dense-vector-similarity$$$
     ::::{note}
     `bit` vectors only support `l2_norm` as their similarity metric.
     ::::
-
 
 ::::{dropdown} Valid values for similarity
 `l2_norm`
@@ -250,11 +240,9 @@ For `bit` vectors, instead of using `l2_norm`, the `hamming` distance between th
 
 ::::
 
-
 ::::{note}
 Although they are conceptually related, the `similarity` parameter is different from [`text`](/reference/elasticsearch/mapping-reference/text.md) field [`similarity`](/reference/elasticsearch/mapping-reference/similarity.md) and accepts a distinct set of options.
 ::::
-
 
 $$$dense-vector-index-options$$$
 
@@ -275,7 +263,6 @@ $$$dense-vector-index-options$$$
     * `int4_flat` - This utilizes a brute-force search algorithm in addition to automatically half-byte scalar quantization. Only supports `element_type` of `float`.
     * `bbq_flat` - This utilizes a brute-force search algorithm in addition to automatically binary quantization. Only supports `element_type` of `float`.
 
-
 `m`
 :   (Optional, integer) The number of neighbors each node will be connected to in the HNSW graph. Defaults to `16`. Only applicable to `hnsw`, `int8_hnsw`, `int4_hnsw` and `bbq_hnsw` index types.
 
@@ -285,15 +272,14 @@ $$$dense-vector-index-options$$$
 `confidence_interval`
 :   (Optional, float) Only applicable to `int8_hnsw`, `int4_hnsw`, `int8_flat`, and `int4_flat` index types. The confidence interval to use when quantizing the vectors. Can be any value between and including `0.90` and `1.0` or exactly `0`. When the value is `0`, this indicates that dynamic quantiles should be calculated for optimized quantization. When between `0.90` and `1.0`, this value restricts the values used when calculating the quantization thresholds. For example, a value of `0.95` will only use the middle 95% of the values when calculating the quantization thresholds (e.g. the highest and lowest 2.5% of values will be ignored). Defaults to `1/(dims + 1)` for `int8` quantized vectors and `0` for `int4` for dynamic quantile calculation.
 
+
 `rescore_vector`
 :   (Optional, object) An optional section that configures automatic vector rescoring on knn queries for the given field. Only applicable to quantized index types.
 :::::{dropdown} Properties of rescore_vector
 `oversample`
 :   (required, float) The amount to oversample the search results by. This value should be greater than `1.0` and less than `10.0` or exactly `0` to indicate no oversampling & rescoring should occur. The higher the value, the more vectors will be gathered and rescored with the raw values per shard.
-
-   In case a knn query specifies a `rescore_vector` parameter, the query `rescore_vector` parameter will be used instead.
-
-   See [oversampling and rescoring quantized vectors](docs-content://solutions/search/vector/knn.md#dense-vector-knn-search-rescoring) for details.
+    :   In case a knn query specifies a `rescore_vector` parameter, the query `rescore_vector` parameter will be used instead.
+    :   See [oversampling and rescoring quantized vectors](docs-content://solutions/search/vector/knn.md#dense-vector-knn-search-rescoring) for details.
 :::::
 ::::
 

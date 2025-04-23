@@ -119,7 +119,7 @@ public class DataStreamLifecycleDownsamplingSecurityIT extends SecurityIntegTest
     public void testDownsamplingAuthorized() throws Exception {
         String dataStreamName = "metrics-foo";
 
-        DataStreamLifecycle.Template lifecycle = DataStreamLifecycle.builder()
+        DataStreamLifecycle.Template lifecycle = DataStreamLifecycle.dataLifecycleBuilder()
             .downsampling(
                 List.of(
                     new DataStreamLifecycle.DownsamplingRound(
@@ -409,7 +409,7 @@ public class DataStreamLifecycleDownsamplingSecurityIT extends SecurityIntegTest
 
     public static class SystemDataStreamWithDownsamplingConfigurationPlugin extends Plugin implements SystemIndexPlugin {
 
-        public static final DataStreamLifecycle.Template LIFECYCLE = DataStreamLifecycle.builder()
+        public static final DataStreamLifecycle.Template LIFECYCLE = DataStreamLifecycle.dataLifecycleBuilder()
             .downsampling(
                 List.of(
                     new DataStreamLifecycle.DownsamplingRound(

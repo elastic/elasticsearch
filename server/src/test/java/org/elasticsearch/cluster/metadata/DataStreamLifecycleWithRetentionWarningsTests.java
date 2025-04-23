@@ -58,13 +58,13 @@ public class DataStreamLifecycleWithRetentionWarningsTests extends ESTestCase {
         ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
         HeaderWarning.setThreadContext(threadContext);
 
-        DataStreamLifecycle noRetentionLifecycle = DataStreamLifecycle.builder().downsampling(randomDownsampling()).build();
+        DataStreamLifecycle noRetentionLifecycle = DataStreamLifecycle.dataLifecycleBuilder().downsampling(randomDownsampling()).build();
         noRetentionLifecycle.addWarningHeaderIfDataRetentionNotEffective(null, randomBoolean());
         Map<String, List<String>> responseHeaders = threadContext.getResponseHeaders();
         assertThat(responseHeaders.isEmpty(), is(true));
 
         TimeValue dataStreamRetention = TimeValue.timeValueDays(randomIntBetween(5, 100));
-        DataStreamLifecycle lifecycleWithRetention = DataStreamLifecycle.builder()
+        DataStreamLifecycle lifecycleWithRetention = DataStreamLifecycle.dataLifecycleBuilder()
             .dataRetention(dataStreamRetention)
             .downsampling(randomDownsampling())
             .build();
@@ -81,7 +81,7 @@ public class DataStreamLifecycleWithRetentionWarningsTests extends ESTestCase {
         ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
         HeaderWarning.setThreadContext(threadContext);
 
-        DataStreamLifecycle noRetentionLifecycle = DataStreamLifecycle.builder().downsampling(randomDownsampling()).build();
+        DataStreamLifecycle noRetentionLifecycle = DataStreamLifecycle.dataLifecycleBuilder().downsampling(randomDownsampling()).build();
         DataStreamGlobalRetention globalRetention = new DataStreamGlobalRetention(
             randomTimeValue(2, 10, TimeUnit.DAYS),
             randomBoolean() ? null : TimeValue.timeValueDays(20)
@@ -103,7 +103,7 @@ public class DataStreamLifecycleWithRetentionWarningsTests extends ESTestCase {
         ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
         HeaderWarning.setThreadContext(threadContext);
         TimeValue maxRetention = randomTimeValue(2, 100, TimeUnit.DAYS);
-        DataStreamLifecycle lifecycle = DataStreamLifecycle.builder()
+        DataStreamLifecycle lifecycle = DataStreamLifecycle.dataLifecycleBuilder()
             .dataRetention(randomBoolean() ? null : TimeValue.timeValueDays(maxRetention.days() + 1))
             .downsampling(randomDownsampling())
             .build();
@@ -222,7 +222,7 @@ public class DataStreamLifecycleWithRetentionWarningsTests extends ESTestCase {
                         "component-template",
                         new ComponentTemplate(
                             Template.builder()
-                                .lifecycle(DataStreamLifecycle.builder().dataRetention(randomTimeValue(2, 100, TimeUnit.DAYS)))
+                                .lifecycle(DataStreamLifecycle.dataLifecycleBuilder().dataRetention(randomTimeValue(2, 100, TimeUnit.DAYS)))
                                 .build(),
                             null,
                             null

@@ -74,7 +74,7 @@ public record IngestStats(Stats totalStats, List<PipelineStat> pipelineStats, Ma
         for (var i = 0; i < size; i++) {
             var pipelineId = in.readString();
             var pipelineStat = readStats(in);
-            var byteStat = in.getTransportVersion().onOrAfter(TransportVersions.V_8_15_0) ? new ByteStats(in) : new ByteStats(0, 0);
+            var byteStat = in.getTransportVersion().onOrAfter(TransportVersions.V_8_15_0) ? readByteStats(in) : ByteStats.IDENTITY;
             pipelineStats.add(new PipelineStat(pipelineId, pipelineStat, byteStat));
             int processorsSize = in.readVInt();
             var processorStatsPerPipeline = new ArrayList<ProcessorStat>(processorsSize);
@@ -287,13 +287,21 @@ public record IngestStats(Stats totalStats, List<PipelineStat> pipelineStats, Ma
         }
     }
 
+    static ByteStats readByteStats(StreamInput in) throws IOException {
+        long bytesIngested = in.readVLong();
+        long bytesProduced = in.readVLong();
+        if (bytesProduced == 0L && bytesIngested == 0L) {
+            return ByteStats.IDENTITY;
+        }
+        return new ByteStats(bytesIngested, bytesProduced);
+    }
+
     /**
      * Container for ingested byte stats
      */
     public record ByteStats(long bytesIngested, long bytesProduced) implements Writeable, ToXContentFragment {
-        public ByteStats(StreamInput in) throws IOException {
-            this(in.readVLong(), in.readVLong());
-        }
+
+        public static final ByteStats IDENTITY = new ByteStats(0L, 0L);
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
@@ -317,6 +325,11 @@ public record IngestStats(Stats totalStats, List<PipelineStat> pipelineStats, Ma
         }
 
         static ByteStats merge(ByteStats first, ByteStats second) {
+            if (first == IDENTITY) {
+                return second;
+            } else if (second == IDENTITY) {
+                return first;
+            }
             return new ByteStats((first.bytesIngested + second.bytesIngested), first.bytesProduced + second.bytesProduced);
         }
     }

@@ -19,6 +19,7 @@ import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.store.MMapDirectory;
 import org.apache.lucene.util.hnsw.RandomVectorScorer;
 import org.apache.lucene.util.hnsw.RandomVectorScorerSupplier;
+import org.apache.lucene.util.hnsw.UpdateableRandomVectorScorer;
 import org.apache.lucene.util.quantization.QuantizedByteVectorValues;
 import org.apache.lucene.util.quantization.ScalarQuantizer;
 import org.elasticsearch.common.logging.LogConfigurator;
@@ -76,10 +77,10 @@ public class VectorScorerBenchmark {
     float vec2Offset;
     float scoreCorrectionConstant;
 
-    RandomVectorScorer luceneDotScorer;
-    RandomVectorScorer luceneSqrScorer;
-    RandomVectorScorer nativeDotScorer;
-    RandomVectorScorer nativeSqrScorer;
+    UpdateableRandomVectorScorer luceneDotScorer;
+    UpdateableRandomVectorScorer luceneSqrScorer;
+    UpdateableRandomVectorScorer nativeDotScorer;
+    UpdateableRandomVectorScorer nativeSqrScorer;
 
     RandomVectorScorer luceneDotScorerQuery;
     RandomVectorScorer nativeDotScorerQuery;
@@ -118,12 +119,16 @@ public class VectorScorerBenchmark {
         in = dir.openInput("vector.data", IOContext.DEFAULT);
         var values = vectorValues(dims, 2, in, VectorSimilarityFunction.DOT_PRODUCT);
         scoreCorrectionConstant = values.getScalarQuantizer().getConstantMultiplier();
-        luceneDotScorer = luceneScoreSupplier(values, VectorSimilarityFunction.DOT_PRODUCT).scorer(0);
+        luceneDotScorer = luceneScoreSupplier(values, VectorSimilarityFunction.DOT_PRODUCT).scorer();
+        luceneDotScorer.setScoringOrdinal(0);
         values = vectorValues(dims, 2, in, VectorSimilarityFunction.EUCLIDEAN);
-        luceneSqrScorer = luceneScoreSupplier(values, VectorSimilarityFunction.EUCLIDEAN).scorer(0);
+        luceneSqrScorer = luceneScoreSupplier(values, VectorSimilarityFunction.EUCLIDEAN).scorer();
+        luceneSqrScorer.setScoringOrdinal(0);
 
-        nativeDotScorer = factory.getInt7SQVectorScorerSupplier(DOT_PRODUCT, in, values, scoreCorrectionConstant).get().scorer(0);
-        nativeSqrScorer = factory.getInt7SQVectorScorerSupplier(EUCLIDEAN, in, values, scoreCorrectionConstant).get().scorer(0);
+        nativeDotScorer = factory.getInt7SQVectorScorerSupplier(DOT_PRODUCT, in, values, scoreCorrectionConstant).get().scorer();
+        nativeDotScorer.setScoringOrdinal(0);
+        nativeSqrScorer = factory.getInt7SQVectorScorerSupplier(EUCLIDEAN, in, values, scoreCorrectionConstant).get().scorer();
+        nativeSqrScorer.setScoringOrdinal(0);
 
         // setup for getInt7SQVectorScorer / query vector scoring
         float[] queryVec = new float[dims];

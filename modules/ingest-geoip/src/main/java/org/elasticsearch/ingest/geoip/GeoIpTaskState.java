@@ -132,7 +132,7 @@ public class GeoIpTaskState implements PersistentTaskState, VersionedNamedWritea
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.V_7_13_0;
+        return TransportVersions.ZERO;
     }
 
     @Override

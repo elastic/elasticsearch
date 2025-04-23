@@ -180,7 +180,7 @@ public class SourceOnlySnapshotIT extends AbstractSnapshotIntegTestCase {
 
         logger.info("--> randomly deleting files from the local _snapshot path to simulate corruption");
         Path snapshotShardPath = internalCluster().getInstance(IndicesService.class, dataNode)
-            .indexService(clusterService().state().metadata().index(indexName).getIndex())
+            .indexService(clusterService().state().metadata().getProject().index(indexName).getIndex())
             .getShard(0)
             .shardPath()
             .getDataPath()

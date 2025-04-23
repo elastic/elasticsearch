@@ -91,11 +91,11 @@ public class CopyLifecycleIndexMetadataTransportAction extends TransportMasterNo
 
     private static ClusterState applyUpdate(ClusterState state, UpdateIndexMetadataTask updateTask) {
 
-        IndexMetadata sourceMetadata = state.metadata().index(updateTask.sourceIndex);
+        IndexMetadata sourceMetadata = state.metadata().getProject().index(updateTask.sourceIndex);
         if (sourceMetadata == null) {
             throw new IndexNotFoundException(updateTask.sourceIndex);
         }
-        IndexMetadata destMetadata = state.metadata().index(updateTask.destIndex);
+        IndexMetadata destMetadata = state.metadata().getProject().index(updateTask.destIndex);
         if (destMetadata == null) {
             throw new IndexNotFoundException(updateTask.destIndex);
         }
@@ -113,7 +113,7 @@ public class CopyLifecycleIndexMetadataTransportAction extends TransportMasterNo
             // creation date updates settings so must increment settings version
             .settingsVersion(destMetadata.getSettingsVersion() + 1);
 
-        var indices = new HashMap<>(state.metadata().indices());
+        var indices = new HashMap<>(state.metadata().getProject().indices());
         indices.put(updateTask.destIndex, newDestMetadata.build());
 
         Metadata newMetadata = Metadata.builder(state.metadata()).indices(indices).build();

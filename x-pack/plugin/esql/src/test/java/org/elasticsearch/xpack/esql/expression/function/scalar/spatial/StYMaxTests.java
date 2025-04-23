@@ -35,8 +35,8 @@ public class StYMaxTests extends AbstractScalarFunctionTestCase {
 
     @ParametersFactory
     public static Iterable<Object[]> parameters() {
-        String expectedGeo = "StYMaxFromWKBGeoEvaluator[field=Attribute[channel=0]]";
-        String expectedCartesian = "StYMaxFromWKBEvaluator[field=Attribute[channel=0]]";
+        String expectedGeo = "StYMaxFromWKBGeoEvaluator[wkb=Attribute[channel=0]]";
+        String expectedCartesian = "StYMaxFromWKBEvaluator[wkb=Attribute[channel=0]]";
         final List<TestCaseSupplier> suppliers = new ArrayList<>();
         TestCaseSupplier.forUnaryGeoPoint(suppliers, expectedGeo, DOUBLE, StYMaxTests::valueOfGeo, List.of());
         TestCaseSupplier.forUnaryCartesianPoint(suppliers, expectedCartesian, DOUBLE, StYMaxTests::valueOfCartesian, List.of());

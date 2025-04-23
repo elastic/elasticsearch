@@ -81,6 +81,19 @@ public class ESVectorUtil {
     }
 
     /**
+     * Compute the inner product of two vectors, where the query vector is a float vector and the document vector is a byte vector.
+     * @param q the query vector
+     * @param d the document vector
+     * @return the inner product of the two vectors
+     */
+    public static float ipFloatByte(float[] q, byte[] d) {
+        if (q.length != d.length) {
+            throw new IllegalArgumentException("vector dimensions incompatible: " + q.length + "!= " + d.length);
+        }
+        return IMPL.ipFloatByte(q, d);
+    }
+
+    /**
      * AND bit count computed over signed bytes.
      * Copied from Lucene's XOR implementation
      * @param a bytes containing a vector

@@ -23,6 +23,7 @@ import com.google.cloud.storage.BlobId;
 import com.google.cloud.storage.StorageException;
 import com.google.cloud.storage.StorageOptions;
 
+import org.elasticsearch.common.blobstore.OperationPurpose;
 import org.elasticsearch.repositories.blobstore.RequestedRangeNotSatisfiedException;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
@@ -47,26 +48,28 @@ public class GoogleCloudStorageRetryingInputStreamTests extends ESTestCase {
 
     private final BlobId blobId = BlobId.of(BUCKET_NAME, BLOB_NAME);
 
-    private com.google.api.services.storage.Storage storage;
-    private com.google.cloud.storage.Storage client;
+    private com.google.api.services.storage.Storage storageRpc;
+    private com.google.cloud.storage.Storage storage;
     private com.google.api.services.storage.Storage.Objects.Get get;
+    private MeteredStorage meteredStorage;
 
     @Before
     public void init() throws IOException {
-        storage = mock(com.google.api.services.storage.Storage.class);
+        storageRpc = mock(com.google.api.services.storage.Storage.class);
         com.google.api.services.storage.Storage.Objects objects = mock(com.google.api.services.storage.Storage.Objects.class);
-        when(storage.objects()).thenReturn(objects);
+        when(storageRpc.objects()).thenReturn(objects);
 
         get = mock(com.google.api.services.storage.Storage.Objects.Get.class);
         when(objects.get(BUCKET_NAME, BLOB_NAME)).thenReturn(get);
 
-        client = mock(com.google.cloud.storage.Storage.class);
-        when(client.getOptions()).thenReturn(
+        storage = mock(com.google.cloud.storage.Storage.class);
+        when(storage.getOptions()).thenReturn(
             StorageOptions.newBuilder()
                 .setProjectId("ignore")
                 .setRetrySettings(RetrySettings.newBuilder().setMaxAttempts(randomIntBetween(1, 3)).build())
                 .build()
         );
+        meteredStorage = new MeteredStorage(storage, storageRpc, new GcsRepositoryStatsCollector());
     }
 
     public void testReadWithinBlobLength() throws IOException {
@@ -129,7 +132,7 @@ public class GoogleCloudStorageRetryingInputStreamTests extends ESTestCase {
         HttpResponse httpResponse = httpRequest.execute();
         when(get.executeMedia()).thenReturn(httpResponse);
 
-        return new GoogleCloudStorageRetryingInputStream(client, () -> storage, blobId);
+        return new GoogleCloudStorageRetryingInputStream(OperationPurpose.SNAPSHOT_DATA, meteredStorage, blobId);
     }
 
     private GoogleCloudStorageRetryingInputStream createRetryingInputStream(byte[] data, int position, int length) throws IOException {
@@ -145,7 +148,13 @@ public class GoogleCloudStorageRetryingInputStreamTests extends ESTestCase {
             when(get.executeMedia()).thenReturn(httpResponse);
         }
 
-        return new GoogleCloudStorageRetryingInputStream(client, () -> storage, blobId, position, position + length - 1);
+        return new GoogleCloudStorageRetryingInputStream(
+            OperationPurpose.SNAPSHOT_DATA,
+            meteredStorage,
+            blobId,
+            position,
+            position + length - 1
+        );
     }
 
     private static HttpTransport getMockHttpTransport(byte[] data, int position, int length) {

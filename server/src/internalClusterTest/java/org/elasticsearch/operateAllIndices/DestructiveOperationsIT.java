@@ -86,7 +86,7 @@ public class DestructiveOperationsIT extends ESIntegTestCase {
         }
 
         ClusterState state = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get().getState();
-        for (Map.Entry<String, IndexMetadata> indexMetadataEntry : state.getMetadata().indices().entrySet()) {
+        for (Map.Entry<String, IndexMetadata> indexMetadataEntry : state.getMetadata().getProject().indices().entrySet()) {
             assertEquals(IndexMetadata.State.CLOSE, indexMetadataEntry.getValue().getState());
         }
     }
@@ -119,7 +119,7 @@ public class DestructiveOperationsIT extends ESIntegTestCase {
         }
 
         ClusterState state = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get().getState();
-        for (Map.Entry<String, IndexMetadata> indexMetadataEntry : state.getMetadata().indices().entrySet()) {
+        for (Map.Entry<String, IndexMetadata> indexMetadataEntry : state.getMetadata().getProject().indices().entrySet()) {
             assertEquals(IndexMetadata.State.OPEN, indexMetadataEntry.getValue().getState());
         }
     }

@@ -145,7 +145,14 @@ public class BwcSetupExtension {
                 loggedExec.args("-DisCI");
             }
 
-            loggedExec.args("-Dbuild.snapshot=true", "-Dscan.tag.NESTED");
+            loggedExec.args("-Dscan.tag.NESTED");
+
+            if (System.getProperty("tests.bwc.snapshot", "true").equals("false")) {
+                loggedExec.args("-Dbuild.snapshot=false", "-Dlicense.key=x-pack/plugin/core/snapshot.key");
+            } else {
+                loggedExec.args("-Dbuild.snapshot=true");
+            }
+
             final LogLevel logLevel = project.getGradle().getStartParameter().getLogLevel();
             List<LogLevel> nonDefaultLogLevels = Arrays.asList(LogLevel.QUIET, LogLevel.WARN, LogLevel.INFO, LogLevel.DEBUG);
             if (nonDefaultLogLevels.contains(logLevel)) {

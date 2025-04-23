@@ -498,40 +498,50 @@ public class RestControllerTests extends ESTestCase {
     }
 
     public void testDispatchRequestAddsAndFreesBytesOnlyOnceOnError() {
-        int contentLength = BREAKER_LIMIT.bytesAsInt();
-        String content = randomAlphaOfLength((int) Math.round(contentLength / inFlightRequestsBreaker.getOverhead()));
-        // we will produce an error in the rest handler and one more when sending the error response
-        RestRequest request = testRestRequest("/error", content, XContentType.JSON);
-        ExceptionThrowingChannel channel = new ExceptionThrowingChannel(request, randomBoolean());
+        try {
+            RestController.PERMIT_DOUBLE_RESPONSE = true;
+            int contentLength = BREAKER_LIMIT.bytesAsInt();
+            String content = randomAlphaOfLength((int) Math.round(contentLength / inFlightRequestsBreaker.getOverhead()));
+            // we will produce an error in the rest handler and one more when sending the error response
+            RestRequest request = testRestRequest("/error", content, XContentType.JSON);
+            ExceptionThrowingChannel channel = new ExceptionThrowingChannel(request, randomBoolean());
 
-        restController.dispatchRequest(request, channel, client.threadPool().getThreadContext());
+            restController.dispatchRequest(request, channel, client.threadPool().getThreadContext());
 
-        assertEquals(0, inFlightRequestsBreaker.getTrippedCount());
-        assertEquals(0, inFlightRequestsBreaker.getUsed());
+            assertEquals(0, inFlightRequestsBreaker.getTrippedCount());
+            assertEquals(0, inFlightRequestsBreaker.getUsed());
+        } finally {
+            RestController.PERMIT_DOUBLE_RESPONSE = false;
+        }
     }
 
     public void testDispatchRequestAddsAndFreesBytesOnlyOnceOnErrorDuringSend() {
-        int contentLength = Math.toIntExact(BREAKER_LIMIT.getBytes());
-        String content = randomAlphaOfLength((int) Math.round(contentLength / inFlightRequestsBreaker.getOverhead()));
-        // use a real recycler that tracks leaks and create some content bytes in the test handler to check for leaks
-        final BytesRefRecycler recycler = new BytesRefRecycler(new MockPageCacheRecycler(Settings.EMPTY));
-        restController.registerHandler(
-            new Route(GET, "/foo"),
-            (request, c, client) -> new RestToXContentListener<>(c).onResponse((b, p) -> b.startObject().endObject())
-        );
-        // we will produce an error in the rest handler and one more when sending the error response
-        RestRequest request = testRestRequest("/foo", content, XContentType.JSON);
-        ExceptionThrowingChannel channel = new ExceptionThrowingChannel(request, randomBoolean()) {
-            @Override
-            protected BytesStream newBytesOutput() {
-                return new RecyclerBytesStreamOutput(recycler);
-            }
-        };
+        try {
+            RestController.PERMIT_DOUBLE_RESPONSE = true;
+            int contentLength = Math.toIntExact(BREAKER_LIMIT.getBytes());
+            String content = randomAlphaOfLength((int) Math.round(contentLength / inFlightRequestsBreaker.getOverhead()));
+            // use a real recycler that tracks leaks and create some content bytes in the test handler to check for leaks
+            final BytesRefRecycler recycler = new BytesRefRecycler(new MockPageCacheRecycler(Settings.EMPTY));
+            restController.registerHandler(
+                new Route(GET, "/foo"),
+                (request, c, client) -> new RestToXContentListener<>(c).onResponse((b, p) -> b.startObject().endObject())
+            );
+            // we will produce an error in the rest handler and one more when sending the error response
+            RestRequest request = testRestRequest("/foo", content, XContentType.JSON);
+            ExceptionThrowingChannel channel = new ExceptionThrowingChannel(request, randomBoolean()) {
+                @Override
+                protected BytesStream newBytesOutput() {
+                    return new RecyclerBytesStreamOutput(recycler);
+                }
+            };
 
-        restController.dispatchRequest(request, channel, client.threadPool().getThreadContext());
+            restController.dispatchRequest(request, channel, client.threadPool().getThreadContext());
 
-        assertEquals(0, inFlightRequestsBreaker.getTrippedCount());
-        assertEquals(0, inFlightRequestsBreaker.getUsed());
+            assertEquals(0, inFlightRequestsBreaker.getTrippedCount());
+            assertEquals(0, inFlightRequestsBreaker.getUsed());
+        } finally {
+            RestController.PERMIT_DOUBLE_RESPONSE = false;
+        }
     }
 
     public void testDispatchRequestLimitsBytes() {

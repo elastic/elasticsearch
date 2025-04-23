@@ -19,6 +19,7 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.ClusterStateTaskListener;
+import org.elasticsearch.cluster.ProjectState;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver.ResolvedExpression;
@@ -26,13 +27,15 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver.SelectorRe
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.MetadataCreateIndexService;
 import org.elasticsearch.cluster.metadata.MetadataDataStreamsService;
+import org.elasticsearch.cluster.metadata.ProjectId;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.routing.allocation.allocator.AllocationActionMultiListener;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.service.MasterServiceTaskQueue;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
@@ -76,6 +79,7 @@ public final class LazyRolloverAction extends ActionType<RolloverResponse> {
             ClusterService clusterService,
             ThreadPool threadPool,
             ActionFilters actionFilters,
+            ProjectResolver projectResolver,
             IndexNameExpressionResolver indexNameExpressionResolver,
             MetadataRolloverService rolloverService,
             AllocationService allocationService,
@@ -89,6 +93,7 @@ public final class LazyRolloverAction extends ActionType<RolloverResponse> {
                 clusterService,
                 threadPool,
                 actionFilters,
+                projectResolver,
                 indexNameExpressionResolver,
                 rolloverService,
                 client,
@@ -117,7 +122,7 @@ public final class LazyRolloverAction extends ActionType<RolloverResponse> {
                 && rolloverRequest.isLazy() == false
                 : "The auto rollover action does not expect any other parameters in the request apart from the data stream name";
 
-            Metadata metadata = clusterState.metadata();
+            ProjectMetadata project = projectResolver().getProjectMetadata(clusterState);
             ResolvedExpression resolvedRolloverTarget = SelectorResolver.parseExpression(
                 rolloverRequest.getRolloverTarget(),
                 rolloverRequest.indicesOptions()
@@ -125,7 +130,7 @@ public final class LazyRolloverAction extends ActionType<RolloverResponse> {
             boolean isFailureStoreRollover = resolvedRolloverTarget.selector() != null
                 && resolvedRolloverTarget.selector().shouldIncludeFailures();
 
-            DataStream dataStream = metadata.dataStreams().get(resolvedRolloverTarget.resource());
+            DataStream dataStream = project.dataStreams().get(resolvedRolloverTarget.resource());
             // Skip submitting the task if we detect that the lazy rollover has been already executed.
             if (isLazyRolloverNeeded(dataStream, isFailureStoreRollover) == false) {
                 DataStream.DataStreamIndices targetIndices = dataStream.getDataStreamIndices(isFailureStoreRollover);
@@ -134,7 +139,7 @@ public final class LazyRolloverAction extends ActionType<RolloverResponse> {
             }
             // We evaluate the names of the source index as well as what our newly created index would be.
             final MetadataRolloverService.NameResolution trialRolloverNames = MetadataRolloverService.resolveRolloverNames(
-                clusterState,
+                project,
                 resolvedRolloverTarget.resource(),
                 rolloverRequest.getNewIndexName(),
                 rolloverRequest.getCreateIndexRequest(),
@@ -142,15 +147,15 @@ public final class LazyRolloverAction extends ActionType<RolloverResponse> {
             );
             final String trialSourceIndexName = trialRolloverNames.sourceName();
             final String trialRolloverIndexName = trialRolloverNames.rolloverName();
-            MetadataCreateIndexService.validateIndexName(trialRolloverIndexName, clusterState.metadata(), clusterState.routingTable());
+            MetadataCreateIndexService.validateIndexName(trialRolloverIndexName, project, clusterState.routingTable(project.id()));
 
-            assert metadata.dataStreams().containsKey(resolvedRolloverTarget.resource()) : "Auto-rollover applies only to data streams";
+            assert project.dataStreams().containsKey(resolvedRolloverTarget.resource()) : "Auto-rollover applies only to data streams";
 
             String source = "lazy_rollover source [" + trialSourceIndexName + "] to target [" + trialRolloverIndexName + "]";
             // We create a new rollover request to ensure that it doesn't contain any other parameters apart from the data stream name
             // This will provide a more resilient user experience
             var newRolloverRequest = new RolloverRequest(resolvedRolloverTarget.combined(), null);
-            LazyRolloverTask rolloverTask = new LazyRolloverTask(newRolloverRequest, listener);
+            LazyRolloverTask rolloverTask = new LazyRolloverTask(project.id(), newRolloverRequest, listener);
             lazyRolloverTaskQueue.submitTask(source, rolloverTask, rolloverRequest.masterNodeTimeout());
         }
     }
@@ -158,7 +163,7 @@ public final class LazyRolloverAction extends ActionType<RolloverResponse> {
     /**
      * A lazy rollover task holds the rollover request and the listener.
      */
-    record LazyRolloverTask(RolloverRequest rolloverRequest, ActionListener<RolloverResponse> listener)
+    record LazyRolloverTask(ProjectId projectId, RolloverRequest rolloverRequest, ActionListener<RolloverResponse> listener)
         implements
             ClusterStateTaskListener {
 
@@ -183,36 +188,35 @@ public final class LazyRolloverAction extends ActionType<RolloverResponse> {
         @Override
         public ClusterState execute(BatchExecutionContext<LazyRolloverTask> batchExecutionContext) {
             final var listener = new AllocationActionMultiListener<RolloverResponse>(threadPool.getThreadContext());
-            final var results = new ArrayList<MetadataRolloverService.RolloverResult>(batchExecutionContext.taskContexts().size());
+            var reasonBuilder = new StringBuilder("lazy bulk rollover [");
+            final var resultsCollector = new Strings.BoundedDelimitedStringCollector(reasonBuilder, ",", 1024);
             var state = batchExecutionContext.initialState();
-            Map<RolloverRequest, List<TaskContext<LazyRolloverTask>>> groupedRequests = new HashMap<>();
+            Map<ProjectId, Map<RolloverRequest, List<TaskContext<LazyRolloverTask>>>> groupedRequests = new HashMap<>();
             for (final var taskContext : batchExecutionContext.taskContexts()) {
-                groupedRequests.computeIfAbsent(taskContext.getTask().rolloverRequest(), ignored -> new ArrayList<>()).add(taskContext);
+                groupedRequests.computeIfAbsent(taskContext.getTask().projectId(), ignored -> new HashMap<>())
+                    .computeIfAbsent(taskContext.getTask().rolloverRequest(), ignored -> new ArrayList<>())
+                    .add(taskContext);
             }
-            for (final var entry : groupedRequests.entrySet()) {
-                List<TaskContext<LazyRolloverTask>> rolloverTaskContexts = entry.getValue();
-                try {
-                    RolloverRequest rolloverRequest = entry.getKey();
-                    state = executeTask(state, rolloverRequest, results, rolloverTaskContexts, listener);
-                } catch (Exception e) {
-                    rolloverTaskContexts.forEach(taskContext -> taskContext.onFailure(e));
-                } finally {
-                    rolloverTaskContexts.forEach(taskContext -> taskContext.captureResponseHeaders().close());
+            for (var projectRequests : groupedRequests.entrySet()) {
+                for (final var entry : projectRequests.getValue().entrySet()) {
+                    List<TaskContext<LazyRolloverTask>> rolloverTaskContexts = entry.getValue();
+                    try {
+                        RolloverRequest rolloverRequest = entry.getKey();
+                        final var projectState = state.projectState(projectRequests.getKey());
+                        state = executeTask(projectState, rolloverRequest, resultsCollector::appendItem, rolloverTaskContexts, listener);
+                    } catch (Exception e) {
+                        rolloverTaskContexts.forEach(taskContext -> taskContext.onFailure(e));
+                    } finally {
+                        rolloverTaskContexts.forEach(taskContext -> taskContext.captureResponseHeaders().close());
+                    }
                 }
             }
 
             if (state != batchExecutionContext.initialState()) {
-                var reason = new StringBuilder();
-                Strings.collectionToDelimitedStringWithLimit(
-                    (Iterable<String>) () -> Iterators.map(results.iterator(), t -> t.sourceIndexName() + "->" + t.rolloverIndexName()),
-                    ",",
-                    "lazy bulk rollover [",
-                    "]",
-                    1024,
-                    reason
-                );
+                resultsCollector.finish();
+                reasonBuilder.append(']');
                 try (var ignored = batchExecutionContext.dropHeadersContext()) {
-                    state = allocationService.reroute(state, reason.toString(), listener.reroute());
+                    state = allocationService.reroute(state, reasonBuilder.toString(), listener.reroute());
                 }
             } else {
                 listener.noRerouteNeeded();
@@ -221,9 +225,9 @@ public final class LazyRolloverAction extends ActionType<RolloverResponse> {
         }
 
         public ClusterState executeTask(
-            ClusterState currentState,
+            ProjectState currentState,
             RolloverRequest rolloverRequest,
-            List<MetadataRolloverService.RolloverResult> results,
+            Consumer<String> results,
             List<TaskContext<LazyRolloverTask>> rolloverTaskContexts,
             AllocationActionMultiListener<RolloverResponse> allocationActionMultiListener
         ) throws Exception {
@@ -243,7 +247,7 @@ public final class LazyRolloverAction extends ActionType<RolloverResponse> {
                 final DataStream.DataStreamIndices targetIndices = dataStream.getDataStreamIndices(isFailureStoreRollover);
                 var noopResponse = noopLazyRolloverResponse(targetIndices);
                 notifyAllListeners(rolloverTaskContexts, context -> context.getTask().listener.onResponse(noopResponse));
-                return currentState;
+                return currentState.cluster();
             }
 
             // Perform the actual rollover
@@ -260,11 +264,16 @@ public final class LazyRolloverAction extends ActionType<RolloverResponse> {
                 null,
                 isFailureStoreRollover
             );
-            results.add(rolloverResult);
+            results.accept(rolloverResult.sourceIndexName() + "->" + rolloverResult.rolloverIndexName());
             logger.trace("lazy rollover result [{}]", rolloverResult);
 
             final var rolloverIndexName = rolloverResult.rolloverIndexName();
             final var sourceIndexName = rolloverResult.sourceIndexName();
+            logger.info(
+                "rolling over data stream [{}] to index [{}] because it was marked for lazy rollover",
+                dataStream.getName(),
+                rolloverIndexName
+            );
 
             final var waitForActiveShardsTimeout = rolloverRequest.masterNodeTimeout().millis() < 0
                 ? null
@@ -275,6 +284,7 @@ public final class LazyRolloverAction extends ActionType<RolloverResponse> {
                 // active shards, as well as return the names of the indices that were rolled/created
                 ActiveShardsObserver.waitForActiveShards(
                     clusterService,
+                    Metadata.DEFAULT_PROJECT_ID,
                     new String[] { rolloverIndexName },
                     rolloverRequest.getCreateIndexRequest().waitForActiveShards(),
                     waitForActiveShardsTimeout,

@@ -98,7 +98,7 @@ public class Join extends BinaryPlan implements PostAnalysisVerificationAware, S
     @Override
     public List<Attribute> output() {
         if (lazyOutput == null) {
-            lazyOutput = computeOutput(left().output(), right().output(), config);
+            lazyOutput = computeOutput(left().output(), right().output());
         }
         return lazyOutput;
     }
@@ -126,6 +126,10 @@ public class Join extends BinaryPlan implements PostAnalysisVerificationAware, S
         return rightOutputFields;
     }
 
+    public List<Attribute> computeOutput(List<Attribute> left, List<Attribute> right) {
+        return computeOutput(left, right, config);
+    }
+
     /**
      * Combine the two lists of attributes into one.
      * In case of (name) conflicts, specify which sides wins, that is overrides the other column - the left or the right.
@@ -136,7 +140,7 @@ public class Join extends BinaryPlan implements PostAnalysisVerificationAware, S
         // TODO: make the other side nullable
         if (LEFT.equals(joinType)) {
             // right side becomes nullable and overrides left except for join keys, which we preserve from the left
-            AttributeSet rightKeys = new AttributeSet(config.rightFields());
+            AttributeSet rightKeys = AttributeSet.of(config.rightFields());
             List<Attribute> rightOutputWithoutMatchFields = rightOutput.stream().filter(attr -> rightKeys.contains(attr) == false).toList();
             output = mergeOutputAttributes(rightOutputWithoutMatchFields, leftOutput);
         } else {

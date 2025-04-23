@@ -146,7 +146,8 @@ public class HiddenIndexIT extends ESIntegTestCase {
         assertAcked(indicesAdmin().prepareCreate(hiddenIndex).setSettings(Settings.builder().put("index.hidden", true).build()).get());
 
         assertAcked(
-            indicesAdmin().prepareAliases().addAliasAction(IndicesAliasesRequest.AliasActions.add().index(hiddenIndex).alias(visibleAlias))
+            indicesAdmin().prepareAliases(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT)
+                .addAliasAction(IndicesAliasesRequest.AliasActions.add().index(hiddenIndex).alias(visibleAlias))
         );
 
         // The index should be returned here when queried by name or by wildcard because the alias is visible
@@ -163,7 +164,7 @@ public class HiddenIndexIT extends ESIntegTestCase {
 
         // Now try with a hidden alias
         assertAcked(
-            indicesAdmin().prepareAliases()
+            indicesAdmin().prepareAliases(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT)
                 .addAliasAction(IndicesAliasesRequest.AliasActions.remove().index(hiddenIndex).alias(visibleAlias))
                 .addAliasAction(IndicesAliasesRequest.AliasActions.add().index(hiddenIndex).alias(hiddenAlias).isHidden(true))
         );
@@ -188,7 +189,7 @@ public class HiddenIndexIT extends ESIntegTestCase {
 
         // Now try with a hidden alias that starts with a dot
         assertAcked(
-            indicesAdmin().prepareAliases()
+            indicesAdmin().prepareAliases(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT)
                 .addAliasAction(IndicesAliasesRequest.AliasActions.remove().index(hiddenIndex).alias(hiddenAlias))
                 .addAliasAction(IndicesAliasesRequest.AliasActions.add().index(hiddenIndex).alias(dotHiddenAlias).isHidden(true))
         );

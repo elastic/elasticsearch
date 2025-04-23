@@ -39,8 +39,7 @@ public class StoredScriptIntegTestUtils {
             TEST_REQUEST_TIMEOUT,
             id,
             null,
-            jsonContent,
-            XContentType.JSON,
+            jsonContent.length(),
             StoredScriptSource.parse(jsonContent, XContentType.JSON)
         );
     }

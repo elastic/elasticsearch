@@ -39,7 +39,8 @@ public class MetadataUpdateSettingsServiceIT extends ESIntegTestCase {
          * This test makes sure that when non-dynamic settings are updated that they actually take effect (as opposed to just being set
          * in the cluster state).
          */
-        createIndex("test", Settings.EMPTY);
+        createIndex("test-1", Settings.EMPTY);
+        createIndex("test-2", Settings.EMPTY);
         MetadataUpdateSettingsService metadataUpdateSettingsService = internalCluster().getCurrentMasterNodeInstance(
             MetadataUpdateSettingsService.class
         );
@@ -53,6 +54,7 @@ public class MetadataUpdateSettingsServiceIT extends ESIntegTestCase {
 
         final Function<UpdateSettingsClusterStateUpdateRequest.OnStaticSetting, UpdateSettingsClusterStateUpdateRequest> requestFactory =
             onStaticSetting -> new UpdateSettingsClusterStateUpdateRequest(
+                Metadata.DEFAULT_PROJECT_ID,
                 TEST_REQUEST_TIMEOUT,
                 TimeValue.ZERO,
                 Settings.builder().put("index.codec", "FastDecompressionCompressingStoredFieldsData").build(),
@@ -134,6 +136,7 @@ public class MetadataUpdateSettingsServiceIT extends ESIntegTestCase {
 
         final Function<Settings.Builder, UpdateSettingsClusterStateUpdateRequest> requestFactory =
             settings -> new UpdateSettingsClusterStateUpdateRequest(
+                Metadata.DEFAULT_PROJECT_ID,
                 TEST_REQUEST_TIMEOUT,
                 TimeValue.ZERO,
                 settings.build(),
@@ -150,8 +153,9 @@ public class MetadataUpdateSettingsServiceIT extends ESIntegTestCase {
         clusterService.addListener(event -> {
             // We want the cluster change event where the setting is applied. This will be the same one where shards are unassigned
             if (event.metadataChanged()
-                && event.state().metadata().index(indexName) != null
-                && expectedSettingValue.get().equals(event.state().metadata().index(indexName).getSettings().get(expectedSetting.get()))) {
+                && event.state().metadata().getProject().index(indexName) != null
+                && expectedSettingValue.get()
+                    .equals(event.state().metadata().getProject().index(indexName).getSettings().get(expectedSetting.get()))) {
                 expectedSettingsChangeInClusterState.set(true);
                 if (event.routingTableChanged() && event.state().routingTable().indicesRouting().containsKey(indexName)) {
                     if (hasUnassignedShards(event.state(), indexName)) {

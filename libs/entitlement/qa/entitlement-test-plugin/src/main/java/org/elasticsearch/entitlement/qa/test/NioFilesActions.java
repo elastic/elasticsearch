@@ -141,10 +141,31 @@ class NioFilesActions {
     }
 
     @EntitlementTest(expectedAccess = PLUGINS)
+    static void checkFilesCreateRelativeSymbolicLink() throws IOException {
+        var directory = EntitledActions.createTempDirectoryForWrite();
+        try {
+            Files.createSymbolicLink(directory.resolve("link"), Path.of("target"));
+        } catch (UnsupportedOperationException | FileSystemException e) {
+            // OK not to implement symbolic link in the filesystem
+        }
+    }
+
+    @EntitlementTest(expectedAccess = PLUGINS)
     static void checkFilesCreateLink() throws IOException {
         var directory = EntitledActions.createTempDirectoryForWrite();
         try {
             Files.createLink(directory.resolve("link"), readFile());
+        } catch (UnsupportedOperationException | FileSystemException e) {
+            // OK not to implement symbolic link in the filesystem
+        }
+    }
+
+    @EntitlementTest(expectedAccess = PLUGINS)
+    static void checkFilesCreateRelativeLink() throws IOException {
+        var directory = EntitledActions.createTempDirectoryForWrite();
+        var target = directory.resolve("target");
+        try {
+            Files.createLink(directory.resolve("link"), Path.of("target"));
         } catch (UnsupportedOperationException | FileSystemException e) {
             // OK not to implement symbolic link in the filesystem
         }
@@ -405,7 +426,7 @@ class NioFilesActions {
     @EntitlementTest(expectedAccess = PLUGINS)
     static void checkFilesWrite() throws IOException {
         var directory = EntitledActions.createTempDirectoryForWrite();
-        Files.write(directory.resolve("file"), "foo".getBytes(StandardCharsets.UTF_8));
+        Files.writeString(directory.resolve("file"), "foo");
     }
 
     @EntitlementTest(expectedAccess = PLUGINS)

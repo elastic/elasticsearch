@@ -82,7 +82,7 @@ public class FromPartialAggregatorFunction implements AggregatorFunction {
     @Override
     public void evaluateFinal(Block[] blocks, int offset, DriverContext driverContext) {
         try (IntVector selected = outputPositions()) {
-            groupingAggregator.evaluateFinal(blocks, offset, selected, driverContext);
+            groupingAggregator.evaluateFinal(blocks, offset, selected, new GroupingAggregatorEvaluationContext(driverContext));
         }
     }
 

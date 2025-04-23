@@ -14,8 +14,9 @@ import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MappingMetadata;
-import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.MetadataCreateIndexService;
+import org.elasticsearch.cluster.metadata.ProjectId;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.SuppressForbidden;
@@ -42,11 +43,13 @@ public final class EnrichStore {
      * this method throws an {@link IllegalArgumentException}.
      * This method can only be invoked on the elected master node.
      *
+     * @param projectId The project ID
      * @param name      The unique name of the policy
      * @param policy    The policy to store
      * @param handler   The handler that gets invoked if policy has been stored or a failure has occurred.
      */
     public static void putPolicy(
+        final ProjectId projectId,
         final String name,
         final EnrichPolicy policy,
         final ClusterService clusterService,
@@ -80,21 +83,21 @@ public final class EnrichStore {
             );
         }
 
-        updateClusterState(clusterService, handler, current -> {
-            final Map<String, EnrichPolicy> originalPolicies = getPolicies(current);
+        updateClusterState(clusterService, projectId, handler, project -> {
+            final Map<String, EnrichPolicy> originalPolicies = getPolicies(project);
             if (originalPolicies.containsKey(name)) {
                 throw new ResourceAlreadyExistsException("policy [{}] already exists", name);
             }
             for (String indexExpression : policy.getIndices()) {
                 // indices field in policy can contain wildcards, aliases etc.
                 String[] concreteIndices = indexNameExpressionResolver.concreteIndexNames(
-                    current,
+                    project,
                     IndicesOptions.strictExpandOpen(),
                     true,
                     indexExpression
                 );
                 for (String concreteIndex : concreteIndices) {
-                    IndexMetadata imd = current.getMetadata().index(concreteIndex);
+                    IndexMetadata imd = project.index(concreteIndex);
                     assert imd != null;
                     MappingMetadata mapping = imd.mapping();
                     if (mapping == null) {
@@ -115,18 +118,19 @@ public final class EnrichStore {
      * Removes an enrich policy from the policies in the cluster state. This method can only be invoked on the
      * elected master node.
      *
+     * @param projectId The project ID
      * @param name      The unique name of the policy
      * @param handler   The handler that gets invoked if policy has been stored or a failure has occurred.
      */
-    public static void deletePolicy(String name, ClusterService clusterService, Consumer<Exception> handler) {
+    public static void deletePolicy(ProjectId projectId, String name, ClusterService clusterService, Consumer<Exception> handler) {
         assert clusterService.localNode().isMasterNode();
 
         if (Strings.isNullOrEmpty(name)) {
             throw new IllegalArgumentException("name is missing or empty");
         }
 
-        updateClusterState(clusterService, handler, current -> {
-            final Map<String, EnrichPolicy> originalPolicies = getPolicies(current);
+        updateClusterState(clusterService, projectId, handler, project -> {
+            final Map<String, EnrichPolicy> originalPolicies = getPolicies(project);
             if (originalPolicies.containsKey(name) == false) {
                 throw new ResourceNotFoundException("policy [{}] not found", name);
             }
@@ -143,39 +147,40 @@ public final class EnrichStore {
      * @param name  The name of the policy to fetch
      * @return enrich policy if exists or <code>null</code> otherwise
      */
-    public static EnrichPolicy getPolicy(String name, ClusterState state) {
+    public static EnrichPolicy getPolicy(String name, ProjectMetadata project) {
         if (Strings.isNullOrEmpty(name)) {
             throw new IllegalArgumentException("name is missing or empty");
         }
 
-        return getPolicies(state).get(name);
+        return getPolicies(project).get(name);
     }
 
     /**
      * Gets all policies in the cluster.
      *
-     * @param state the cluster state
+     * @param project the project metadata
      * @return a read-only Map of <code>policyName, EnrichPolicy</code> of the policies
      */
-    public static Map<String, EnrichPolicy> getPolicies(ClusterState state) {
-        final EnrichMetadata metadata = state.metadata().custom(EnrichMetadata.TYPE, EnrichMetadata.EMPTY);
+    public static Map<String, EnrichPolicy> getPolicies(ProjectMetadata project) {
+        final EnrichMetadata metadata = project.custom(EnrichMetadata.TYPE, EnrichMetadata.EMPTY);
         return metadata.getPolicies();
     }
 
     private static void updateClusterState(
         ClusterService clusterService,
+        ProjectId projectId,
         Consumer<Exception> handler,
-        Function<ClusterState, Map<String, EnrichPolicy>> function
+        Function<ProjectMetadata, Map<String, EnrichPolicy>> function
     ) {
         submitUnbatchedTask(clusterService, "update-enrich-metadata", new ClusterStateUpdateTask() {
 
             @Override
             public ClusterState execute(ClusterState currentState) throws Exception {
-                Map<String, EnrichPolicy> policies = function.apply(currentState);
-                Metadata metadata = Metadata.builder(currentState.metadata())
-                    .putCustom(EnrichMetadata.TYPE, new EnrichMetadata(policies))
+                final var project = currentState.metadata().getProject(projectId);
+                Map<String, EnrichPolicy> policies = function.apply(project);
+                return ClusterState.builder(currentState)
+                    .putProjectMetadata(ProjectMetadata.builder(project).putCustom(EnrichMetadata.TYPE, new EnrichMetadata(policies)))
                     .build();
-                return ClusterState.builder(currentState).metadata(metadata).build();
             }
 
             @Override

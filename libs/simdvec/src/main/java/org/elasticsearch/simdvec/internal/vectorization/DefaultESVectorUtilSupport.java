@@ -39,14 +39,23 @@ final class DefaultESVectorUtilSupport implements ESVectorUtilSupport {
         return ipFloatBitImpl(q, d);
     }
 
+    @Override
+    public float ipFloatByte(float[] q, byte[] d) {
+        return ipFloatByteImpl(q, d);
+    }
+
     public static int ipByteBitImpl(byte[] q, byte[] d) {
+        return ipByteBitImpl(q, d, 0);
+    }
+
+    public static int ipByteBitImpl(byte[] q, byte[] d, int start) {
         assert q.length == d.length * Byte.SIZE;
         int acc0 = 0;
         int acc1 = 0;
         int acc2 = 0;
         int acc3 = 0;
         // now combine the two vectors, summing the byte dimensions where the bit in d is `1`
-        for (int i = 0; i < d.length; i++) {
+        for (int i = start; i < d.length; i++) {
             byte mask = d[i];
             // Make sure its just 1 or 0
 
@@ -64,13 +73,17 @@ final class DefaultESVectorUtilSupport implements ESVectorUtilSupport {
     }
 
     public static float ipFloatBitImpl(float[] q, byte[] d) {
+        return ipFloatBitImpl(q, d, 0);
+    }
+
+    static float ipFloatBitImpl(float[] q, byte[] d, int start) {
         assert q.length == d.length * Byte.SIZE;
         float acc0 = 0;
         float acc1 = 0;
         float acc2 = 0;
         float acc3 = 0;
         // now combine the two vectors, summing the byte dimensions where the bit in d is `1`
-        for (int i = 0; i < d.length; i++) {
+        for (int i = start; i < d.length; i++) {
             byte mask = d[i];
             acc0 = fma(q[i * Byte.SIZE + 0], (mask >> 7) & 1, acc0);
             acc1 = fma(q[i * Byte.SIZE + 1], (mask >> 6) & 1, acc1);
@@ -98,6 +111,14 @@ final class DefaultESVectorUtilSupport implements ESVectorUtilSupport {
                 subRet += Integer.bitCount((q[i * size + r] & d[r]) & 0xFF);
             }
             ret += subRet << i;
+        }
+        return ret;
+    }
+
+    public static float ipFloatByteImpl(float[] q, byte[] d) {
+        float ret = 0;
+        for (int i = 0; i < q.length; i++) {
+            ret += q[i] * d[i];
         }
         return ret;
     }

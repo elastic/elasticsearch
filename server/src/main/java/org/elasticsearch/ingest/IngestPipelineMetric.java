@@ -52,7 +52,12 @@ public class IngestPipelineMetric extends IngestMetric {
      * Creates a serializable representation for these metrics.
      */
     IngestStats.ByteStats createByteStats() {
-        return new IngestStats.ByteStats(this.bytesIngested.count(), this.bytesProduced.count());
+        long bytesIngested = this.bytesIngested.count();
+        long bytesProduced = this.bytesProduced.count();
+        if (bytesIngested == 0L && bytesProduced == 0L) {
+            return IngestStats.ByteStats.IDENTITY;
+        }
+        return new IngestStats.ByteStats(bytesIngested, bytesProduced);
     }
 
 }

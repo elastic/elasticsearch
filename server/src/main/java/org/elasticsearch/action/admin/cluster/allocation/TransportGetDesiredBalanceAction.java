@@ -110,7 +110,7 @@ public class TransportGetDesiredBalanceAction extends TransportMasterNodeReadAct
         Map<String, Map<Integer, DesiredBalanceResponse.DesiredShards>> routingTable = new HashMap<>();
         for (IndexRoutingTable indexRoutingTable : state.routingTable()) {
             Map<Integer, DesiredBalanceResponse.DesiredShards> indexDesiredShards = new HashMap<>();
-            IndexMetadata indexMetadata = state.metadata().index(indexRoutingTable.getIndex());
+            IndexMetadata indexMetadata = state.metadata().getProject().index(indexRoutingTable.getIndex());
             for (int shardId = 0; shardId < indexRoutingTable.size(); shardId++) {
                 IndexShardRoutingTable shardRoutingTable = indexRoutingTable.shard(shardId);
                 ShardAssignment shardAssignment = latestDesiredBalance.assignments().get(shardRoutingTable.shardId());

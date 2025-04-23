@@ -52,6 +52,7 @@ import java.lang.management.LockInfo;
 import java.lang.management.ManagementFactory;
 import java.lang.management.MonitorInfo;
 import java.lang.management.ThreadInfo;
+import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.time.ZoneOffset;
 import java.util.Arrays;
@@ -130,7 +131,7 @@ public class MonitoringIT extends ESSingleNodeTestCase {
 
             final MonitoringBulkResponse bulkResponse = new MonitoringBulkRequestBuilder(client()).add(
                 system,
-                new BytesArray(createBulkEntity().getBytes("UTF-8")),
+                new BytesArray(createBulkEntity().getBytes(StandardCharsets.UTF_8)),
                 XContentType.JSON,
                 System.currentTimeMillis(),
                 interval.millis()

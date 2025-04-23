@@ -139,7 +139,10 @@ public class TransportGetDatabaseConfigurationAction extends TransportNodesActio
      */
     private static Collection<DatabaseConfigurationMetadata> getMaxmindDatabases(ClusterService clusterService, String id) {
         List<DatabaseConfigurationMetadata> maxmindDatabases = new ArrayList<>();
-        final IngestGeoIpMetadata geoIpMeta = clusterService.state().metadata().custom(IngestGeoIpMetadata.TYPE, IngestGeoIpMetadata.EMPTY);
+        final IngestGeoIpMetadata geoIpMeta = clusterService.state()
+            .metadata()
+            .getProject()
+            .custom(IngestGeoIpMetadata.TYPE, IngestGeoIpMetadata.EMPTY);
         if (Regex.isSimpleMatchPattern(id)) {
             for (Map.Entry<String, DatabaseConfigurationMetadata> entry : geoIpMeta.getDatabases().entrySet()) {
                 if (Regex.simpleMatch(id, entry.getKey())) {

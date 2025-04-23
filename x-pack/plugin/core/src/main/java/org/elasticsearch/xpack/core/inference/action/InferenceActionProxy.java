@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.core.inference.action;
 
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionType;
@@ -17,6 +18,7 @@ import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xpack.core.inference.InferenceContext;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -44,6 +46,7 @@ public class InferenceActionProxy extends ActionType<InferenceAction.Response> {
         private final XContentType contentType;
         private final TimeValue timeout;
         private final boolean stream;
+        private final InferenceContext context;
 
         public Request(
             TaskType taskType,
@@ -51,7 +54,8 @@ public class InferenceActionProxy extends ActionType<InferenceAction.Response> {
             BytesReference content,
             XContentType contentType,
             TimeValue timeout,
-            boolean stream
+            boolean stream,
+            InferenceContext context
         ) {
             this.taskType = taskType;
             this.inferenceEntityId = inferenceEntityId;
@@ -59,6 +63,7 @@ public class InferenceActionProxy extends ActionType<InferenceAction.Response> {
             this.contentType = contentType;
             this.timeout = timeout;
             this.stream = stream;
+            this.context = context;
         }
 
         public Request(StreamInput in) throws IOException {
@@ -71,6 +76,13 @@ public class InferenceActionProxy extends ActionType<InferenceAction.Response> {
 
             // streaming is not supported yet for transport traffic
             this.stream = false;
+
+            if (in.getTransportVersion().onOrAfter(TransportVersions.INFERENCE_CONTEXT)
+                || in.getTransportVersion().isPatchFrom(TransportVersions.INFERENCE_CONTEXT_8_X)) {
+                this.context = new InferenceContext(in);
+            } else {
+                this.context = InferenceContext.EMPTY_INSTANCE;
+            }
         }
 
         public TaskType getTaskType() {
@@ -97,6 +109,10 @@ public class InferenceActionProxy extends ActionType<InferenceAction.Response> {
             return stream;
         }
 
+        public InferenceContext getContext() {
+            return context;
+        }
+
         @Override
         public ActionRequestValidationException validate() {
             return null;
@@ -105,11 +121,16 @@ public class InferenceActionProxy extends ActionType<InferenceAction.Response> {
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
-            out.writeString(inferenceEntityId);
             taskType.writeTo(out);
+            out.writeString(inferenceEntityId);
             out.writeBytesReference(content);
             XContentHelper.writeTo(out, contentType);
             out.writeTimeValue(timeout);
+
+            if (out.getTransportVersion().onOrAfter(TransportVersions.INFERENCE_CONTEXT)
+                || out.getTransportVersion().isPatchFrom(TransportVersions.INFERENCE_CONTEXT_8_X)) {
+                context.writeTo(out);
+            }
         }
 
         @Override
@@ -122,12 +143,13 @@ public class InferenceActionProxy extends ActionType<InferenceAction.Response> {
                 && Objects.equals(content, request.content)
                 && contentType == request.contentType
                 && timeout == request.timeout
-                && stream == request.stream;
+                && stream == request.stream
+                && context == request.context;
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(taskType, inferenceEntityId, content, contentType, timeout, stream);
+            return Objects.hash(taskType, inferenceEntityId, content, contentType, timeout, stream, context);
         }
     }
 }

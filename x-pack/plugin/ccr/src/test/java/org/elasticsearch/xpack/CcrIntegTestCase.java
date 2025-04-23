@@ -507,7 +507,7 @@ public abstract class CcrIntegTestCase extends ESTestCase {
             );
 
             final ClusterState clusterState = followerClient().admin().cluster().prepareState(TEST_REQUEST_TIMEOUT).get().getState();
-            PersistentTasksCustomMetadata tasks = clusterState.metadata().custom(PersistentTasksCustomMetadata.TYPE);
+            PersistentTasksCustomMetadata tasks = clusterState.metadata().getProject().custom(PersistentTasksCustomMetadata.TYPE);
             Collection<PersistentTasksCustomMetadata.PersistentTask<?>> ccrTasks = tasks.tasks()
                 .stream()
                 .filter(t -> t.getTaskName().equals(ShardFollowTask.NAME))
@@ -868,7 +868,7 @@ public abstract class CcrIntegTestCase extends ESTestCase {
                 newState.metadata(
                     Metadata.builder(currentState.getMetadata())
                         .putCustom(AutoFollowMetadata.TYPE, empty)
-                        .removeCustom(PersistentTasksCustomMetadata.TYPE)
+                        .removeProjectCustom(PersistentTasksCustomMetadata.TYPE)
                         .build()
                 );
                 return newState.build();

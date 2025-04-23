@@ -18,6 +18,7 @@ import org.elasticsearch.test.cluster.local.distribution.DistributionType;
 import org.elasticsearch.test.cluster.util.Version;
 import org.elasticsearch.test.cluster.util.resource.Resource;
 
+import java.nio.file.Path;
 import java.util.function.Consumer;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
@@ -131,6 +132,11 @@ interface LocalSpecBuilder<T extends LocalSpecBuilder<?>> {
     T version(Version version);
 
     /**
+     * Sets the version of Elasticsearch. Defaults to {@link Version#CURRENT}.
+     */
+    T version(String version);
+
+    /**
      * Adds a system property to node JVM arguments.
      */
     T systemProperty(String property, String value);
@@ -155,4 +161,10 @@ interface LocalSpecBuilder<T extends LocalSpecBuilder<?>> {
      * Adds an additional command line argument to node JVM arguments.
      */
     T jvmArg(String arg);
+
+    /**
+     * Register a supplier to provide the config directory. The default config directory
+     * is used when the supplier is null or the return value of the supplier is null.
+     */
+    T withConfigDir(Supplier<Path> configDirSupplier);
 }

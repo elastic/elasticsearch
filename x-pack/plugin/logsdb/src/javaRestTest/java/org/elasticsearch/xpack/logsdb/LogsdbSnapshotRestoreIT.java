@@ -52,10 +52,6 @@ public class LogsdbSnapshotRestoreIT extends ESRestTestCase {
         .setting("path.repo", () -> getRepoPath())
         .setting("xpack.security.enabled", "false")
         .setting("xpack.license.self_generated.type", "trial")
-        // TODO: remove when initializing / serializing default SourceFieldMapper instance have been fixed:
-        // (SFM's mode attribute often gets initialized, even when mode attribute isn't set)
-        .jvmArg("-da:org.elasticsearch.index.mapper.DocumentMapper")
-        .jvmArg("-da:org.elasticsearch.index.mapper.MapperService")
         .build();
 
     @ClassRule

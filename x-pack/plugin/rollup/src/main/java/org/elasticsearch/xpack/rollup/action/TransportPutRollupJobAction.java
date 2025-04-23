@@ -371,7 +371,7 @@ public class TransportPutRollupJobAction extends AcknowledgedTransportMasterNode
 
     static boolean hasRollupIndices(Metadata metadata) throws IOException {
         // Sniffing logic instead of invoking sourceAsMap(), which would materialize the entire mapping as map of maps.
-        for (var imd : metadata) {
+        for (var imd : metadata.getProject()) {
             if (imd.mapping() == null) {
                 continue;
             }

@@ -66,7 +66,6 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportMessageListener;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportRequestOptions;
-import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -1052,8 +1051,7 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
 
         final AtomicBoolean blocked = new AtomicBoolean(true);
 
-        final TransportService transportService = internalCluster().getInstance(TransportService.class, otherDataNode);
-        transportService.addMessageListener(new TransportMessageListener() {
+        MockTransportService.getInstance(otherDataNode).addMessageListener(new TransportMessageListener() {
             @Override
             public void onRequestSent(
                 DiscoveryNode node,

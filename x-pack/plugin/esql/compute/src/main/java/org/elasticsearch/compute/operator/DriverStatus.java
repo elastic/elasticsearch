@@ -27,7 +27,9 @@ import java.util.Locale;
  * {@link Task.Status} reported from a {@link Driver} to be reported by the tasks api.
  *
  * @param sessionId The session for this driver.
- * @param taskDescription Description of the task this driver is running.
+ * @param description Description of the driver.
+ * @param clusterName The name of the cluster this driver is running on.
+ * @param nodeName The name of the node this driver is running on.
  * @param started When this {@link Driver} was started.
  * @param lastUpdated When this status was generated.
  * @param cpuNanos Nanos this {@link Driver} has been running on the cpu. Does not include async or waiting time.
@@ -38,7 +40,9 @@ import java.util.Locale;
  */
 public record DriverStatus(
     String sessionId,
-    String taskDescription,
+    String description,
+    String clusterName,
+    String nodeName,
     long started,
     long lastUpdated,
     long cpuNanos,
@@ -59,7 +63,9 @@ public record DriverStatus(
         return new DriverStatus(
             in.readString(),
             in.getTransportVersion().onOrAfter(TransportVersions.ESQL_DRIVER_TASK_DESCRIPTION)
-                || in.getTransportVersion().isPatchFrom(TransportVersions.ESQL_DRIVER_TASK_DESCRIPTION_90) ? in.readString() : "",
+                || in.getTransportVersion().isPatchFrom(TransportVersions.V_9_0_0) ? in.readString() : "",
+            in.getTransportVersion().onOrAfter(TransportVersions.ESQL_DRIVER_NODE_DESCRIPTION) ? in.readString() : "",
+            in.getTransportVersion().onOrAfter(TransportVersions.ESQL_DRIVER_NODE_DESCRIPTION) ? in.readString() : "",
             in.getTransportVersion().onOrAfter(TransportVersions.V_8_14_0) ? in.readLong() : 0,
             in.readLong(),
             in.getTransportVersion().onOrAfter(TransportVersions.V_8_14_0) ? in.readVLong() : 0,
@@ -77,8 +83,12 @@ public record DriverStatus(
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(sessionId);
         if (out.getTransportVersion().onOrAfter(TransportVersions.ESQL_DRIVER_TASK_DESCRIPTION)
-            || out.getTransportVersion().isPatchFrom(TransportVersions.ESQL_DRIVER_TASK_DESCRIPTION_90)) {
-            out.writeString(taskDescription);
+            || out.getTransportVersion().isPatchFrom(TransportVersions.V_9_0_0)) {
+            out.writeString(description);
+        }
+        if (out.getTransportVersion().onOrAfter(TransportVersions.ESQL_DRIVER_NODE_DESCRIPTION)) {
+            out.writeString(clusterName);
+            out.writeString(nodeName);
         }
         if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_14_0)) {
             out.writeLong(started);
@@ -105,13 +115,17 @@ public record DriverStatus(
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
         builder.field("session_id", sessionId);
-        builder.field("task_description", taskDescription);
+        builder.field("description", description);
+        builder.field("cluster_name", clusterName);
+        builder.field("node_name", nodeName);
         builder.field("started", DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.formatMillis(started));
         builder.field("last_updated", DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.formatMillis(lastUpdated));
         builder.field("cpu_nanos", cpuNanos);
         if (builder.humanReadable()) {
             builder.field("cpu_time", TimeValue.timeValueNanos(cpuNanos));
         }
+        builder.field("documents_found", documentsFound());
+        builder.field("values_loaded", valuesLoaded());
         builder.field("iterations", iterations);
         builder.field("status", status, params);
         builder.startArray("completed_operators");
@@ -131,6 +145,34 @@ public record DriverStatus(
     @Override
     public String toString() {
         return Strings.toString(this);
+    }
+
+    /**
+     * The number of documents found by this driver.
+     */
+    public long documentsFound() {
+        long documentsFound = 0;
+        for (OperatorStatus s : completedOperators) {
+            documentsFound += s.documentsFound();
+        }
+        for (OperatorStatus s : activeOperators) {
+            documentsFound += s.documentsFound();
+        }
+        return documentsFound;
+    }
+
+    /**
+     * The number of values loaded by this operator.
+     */
+    public long valuesLoaded() {
+        long valuesLoaded = 0;
+        for (OperatorStatus s : completedOperators) {
+            valuesLoaded += s.valuesLoaded();
+        }
+        for (OperatorStatus s : activeOperators) {
+            valuesLoaded += s.valuesLoaded();
+        }
+        return valuesLoaded;
     }
 
     public enum Status implements Writeable, ToXContentFragment {

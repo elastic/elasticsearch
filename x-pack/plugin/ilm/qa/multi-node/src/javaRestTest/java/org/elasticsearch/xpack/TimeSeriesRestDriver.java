@@ -96,7 +96,8 @@ public final class TimeSeriesRestDriver {
         RequestOptions consumeWarningsOptions = RequestOptions.DEFAULT.toBuilder()
             .setWarningsHandler(warnings -> warnings.isEmpty() == false && List.of("""
                 [indices.lifecycle.rollover.only_if_has_documents] setting was deprecated in Elasticsearch \
-                and will be removed in a future release.""").equals(warnings) == false)
+                and will be removed in a future release. \
+                See the deprecation documentation for the next major version.""").equals(warnings) == false)
             .build();
 
         Request explainRequest = new Request("GET", indexPattern + "/_ilm/explain");
@@ -455,6 +456,9 @@ public final class TimeSeriesRestDriver {
                     "GET",
                     SHRUNKEN_INDEX_PREFIX + "*" + originalIndex + "," + originalIndex + "/_ilm/explain"
                 );
+                // Sometimes, the original index might already have been deleted, so we need to ignore unavailable (concrete) indices.
+                explainRequest.addParameter("ignore_unavailable", Boolean.toString(true));
+                explainRequest.addParameter("expand_wildcards", "open,hidden");
                 explainRequest.addParameter("only_errors", Boolean.toString(false));
                 explainRequest.addParameter("only_managed", Boolean.toString(false));
                 Response response = client.performRequest(explainRequest);

@@ -215,18 +215,19 @@ public class TransportDeprecationInfoActionTests extends ESTestCase {
         AtomicInteger backingIndicesCount = new AtomicInteger(0);
         List<ResourceDeprecationChecker> resourceCheckers = List.of(createResourceChecker("index_settings", (cs, req) -> {
             for (String indexName : resolver.concreteIndexNames(cs, req)) {
-                visibleIndexSettings.set(cs.metadata().index(indexName).getSettings());
+                visibleIndexSettings.set(cs.metadata().getProject().index(indexName).getSettings());
             }
             return Map.of();
         }), createResourceChecker("data_streams", (cs, req) -> {
-            cs.metadata().dataStreams().values().forEach(ds -> backingIndicesCount.set(ds.getIndices().size()));
+            cs.metadata().getProject().dataStreams().values().forEach(ds -> backingIndicesCount.set(ds.getIndices().size()));
             return Map.of();
         }), createResourceChecker("templates", (cs, req) -> {
             cs.metadata()
+                .getProject()
                 .componentTemplates()
                 .values()
                 .forEach(template -> visibleComponentTemplateSettings.set(template.template().settings()));
-            cs.metadata().templatesV2().values().forEach(template -> {
+            cs.metadata().getProject().templatesV2().values().forEach(template -> {
                 if (template.template() != null && template.template().settings() != null) {
                     visibleIndexTemplateSettings.set(template.template().settings());
                 }

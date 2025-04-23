@@ -11,13 +11,18 @@ package org.elasticsearch.script.mustache;
 
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.ResponseException;
+import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.rest.ESRestTestCase;
+import org.junit.ClassRule;
 
 import java.io.IOException;
 
 import static org.hamcrest.CoreMatchers.containsString;
 
 public class SearchTemplateWithoutContentIT extends ESRestTestCase {
+
+    @ClassRule
+    public static ElasticsearchCluster cluster = ElasticsearchCluster.local().module("lang-mustache").build();
 
     public void testSearchTemplateMissingBody() throws IOException {
         ResponseException responseException = expectThrows(
@@ -35,5 +40,10 @@ public class SearchTemplateWithoutContentIT extends ESRestTestCase {
         );
         assertEquals(400, responseException.getResponse().getStatusLine().getStatusCode());
         assertThat(responseException.getMessage(), containsString("request body or source parameter is required"));
+    }
+
+    @Override
+    protected String getTestRestCluster() {
+        return cluster.getHttpAddresses();
     }
 }

@@ -10,7 +10,7 @@
 package org.elasticsearch.index.query;
 
 import org.elasticsearch.client.internal.Client;
-import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ProjectState;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.mapper.DateFieldMapper;
@@ -26,27 +26,27 @@ public class CoordinatorRewriteContextProvider {
     private final XContentParserConfiguration parserConfig;
     private final Client client;
     private final LongSupplier nowInMillis;
-    private final Supplier<ClusterState> clusterStateSupplier;
+    private final Supplier<ProjectState> projectStateSupplier;
     private final Function<Index, DateFieldRangeInfo> mappingSupplier;
 
     public CoordinatorRewriteContextProvider(
         XContentParserConfiguration parserConfig,
         Client client,
         LongSupplier nowInMillis,
-        Supplier<ClusterState> clusterStateSupplier,
+        Supplier<ProjectState> projectStateSupplier,
         Function<Index, DateFieldRangeInfo> mappingSupplier
     ) {
         this.parserConfig = parserConfig;
         this.client = client;
         this.nowInMillis = nowInMillis;
-        this.clusterStateSupplier = clusterStateSupplier;
+        this.projectStateSupplier = projectStateSupplier;
         this.mappingSupplier = mappingSupplier;
     }
 
     @Nullable
     public CoordinatorRewriteContext getCoordinatorRewriteContext(Index index) {
-        var clusterState = clusterStateSupplier.get();
-        var indexMetadata = clusterState.metadata().index(index);
+        var projectState = projectStateSupplier.get();
+        var indexMetadata = projectState.metadata().index(index);
 
         if (indexMetadata == null) {
             return null;

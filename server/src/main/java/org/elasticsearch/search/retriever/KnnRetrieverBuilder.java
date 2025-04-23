@@ -96,7 +96,7 @@ public final class KnnRetrieverBuilder extends RetrieverBuilder {
             RESCORE_VECTOR_FIELD,
             ObjectParser.ValueType.OBJECT
         );
-        RetrieverBuilder.declareBaseParserFields(NAME, PARSER);
+        RetrieverBuilder.declareBaseParserFields(PARSER);
     }
 
     public static KnnRetrieverBuilder fromXContent(XContentParser parser, RetrieverParserContext context) throws IOException {

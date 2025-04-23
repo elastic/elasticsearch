@@ -291,21 +291,25 @@ public final class Settings implements ToXContentFragment, Writeable, Diffable<S
     }
 
     /**
-     * Returns the values for settings that match the given glob pattern.
-     * A single glob is supported.
+     * Returns the values for the given settings pattern.
      *
-     * @param settingGlob setting name containing a glob
-     * @return zero or more values for any settings in this settings object that match the glob pattern
+     * Either a concrete setting name, or a pattern containing a single glob is supported.
+     *
+     * @param settingPattern name of a setting or a setting name pattern containing a glob
+     * @return zero or more values for any settings in this settings object that match the given pattern
      */
-    public Stream<String> getGlobValues(String settingGlob) {
-        int globIndex = settingGlob.indexOf(".*.");
+    public Stream<String> getValues(String settingPattern) {
+        int globIndex = settingPattern.indexOf(".*.");
+        Stream<String> settingNames;
         if (globIndex == -1) {
-            throw new IllegalArgumentException("Pattern [" + settingGlob + "] does not contain a glob [*]");
+            settingNames = Stream.of(settingPattern);
+        } else {
+            String prefix = settingPattern.substring(0, globIndex + 1);
+            String suffix = settingPattern.substring(globIndex + 2);
+            Settings subSettings = getByPrefix(prefix);
+            settingNames = subSettings.names().stream().map(k -> prefix + k + suffix);
         }
-        String prefix = settingGlob.substring(0, globIndex + 1);
-        String suffix = settingGlob.substring(globIndex + 2);
-        Settings subSettings = getByPrefix(prefix);
-        return subSettings.names().stream().map(k -> k + suffix).map(subSettings::get).filter(Objects::nonNull);
+        return settingNames.map(this::getAsList).flatMap(List::stream).filter(Objects::nonNull);
     }
 
     /**

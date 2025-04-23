@@ -1,0 +1,6 @@
+pr: 125244
+summary: Disable logging in `ClusterFormationFailureHelper` on shutdown
+area: Cluster Coordination
+type: bug
+issues:
+ - 105559

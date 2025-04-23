@@ -51,7 +51,7 @@ public class InferenceCrudIT extends InferenceBaseRestTest {
             putModel("se_model_" + i, mockSparseServiceModelConfig(), TaskType.SPARSE_EMBEDDING);
         }
         for (int i = 0; i < 4; i++) {
-            putModel("te_model_" + i, mockSparseServiceModelConfig(), TaskType.TEXT_EMBEDDING);
+            putModel("te_model_" + i, mockDenseServiceModelConfig(), TaskType.TEXT_EMBEDDING);
         }
 
         var getAllModels = getAllModels();
@@ -147,7 +147,9 @@ public class InferenceCrudIT extends InferenceBaseRestTest {
             {
                 "service": "openai",
                 "service_settings": {
-                    "api_key": "XXXX"
+                    "api_key": "XXXX",
+                    "dimensions": 128,
+                    "similarity": "cosine"
                 },
                 "task_settings": {
                    "model": "text-embedding-ada-002"
@@ -297,17 +299,13 @@ public class InferenceCrudIT extends InferenceBaseRestTest {
 
         try {
             var events = streamInferOnMockService(modelId, TaskType.SPARSE_EMBEDDING, List.of(randomUUID()), null);
-            assertThat(events.size(), equalTo(2));
+            assertThat(events.size(), equalTo(1));
             events.forEach(event -> {
-                switch (event.name()) {
-                    case EVENT -> assertThat(event.value(), equalToIgnoringCase("error"));
-                    case DATA -> assertThat(
-                        event.value(),
-                        containsString(
-                            "Streaming is not allowed for service [streaming_completion_test_service] and task [sparse_embedding]"
-                        )
-                    );
-                }
+                assertThat(event.type(), equalToIgnoringCase("error"));
+                assertThat(
+                    event.data(),
+                    containsString("Streaming is not allowed for service [streaming_completion_test_service] and task [sparse_embedding]")
+                );
             });
         } finally {
             deleteModel(modelId);
@@ -329,12 +327,10 @@ public class InferenceCrudIT extends InferenceBaseRestTest {
                 input.stream().map(s -> s.toUpperCase(Locale.ROOT)).map(str -> "{\"completion\":[{\"delta\":\"" + str + "\"}]}"),
                 Stream.of("[DONE]")
             ).iterator();
-            assertThat(events.size(), equalTo((input.size() + 1) * 2));
+            assertThat(events.size(), equalTo(input.size() + 1));
             events.forEach(event -> {
-                switch (event.name()) {
-                    case EVENT -> assertThat(event.value(), equalToIgnoringCase("message"));
-                    case DATA -> assertThat(event.value(), equalTo(expectedResponses.next()));
-                }
+                assertThat(event.type(), equalToIgnoringCase("message"));
+                assertThat(event.data(), equalTo(expectedResponses.next()));
             });
         } finally {
             deleteModel(modelId);
@@ -357,12 +353,10 @@ public class InferenceCrudIT extends InferenceBaseRestTest {
                 VALIDATE_ELASTIC_PRODUCT_HEADER_CONSUMER
             );
             var expectedResponses = expectedResultsIterator(input);
-            assertThat(events.size(), equalTo((input.size() + 1) * 2));
+            assertThat(events.size(), equalTo(input.size() + 1));
             events.forEach(event -> {
-                switch (event.name()) {
-                    case EVENT -> assertThat(event.value(), equalToIgnoringCase("message"));
-                    case DATA -> assertThat(event.value(), equalTo(expectedResponses.next()));
-                }
+                assertThat(event.type(), equalToIgnoringCase("message"));
+                assertThat(event.data(), equalTo(expectedResponses.next()));
             });
         } finally {
             deleteModel(modelId);

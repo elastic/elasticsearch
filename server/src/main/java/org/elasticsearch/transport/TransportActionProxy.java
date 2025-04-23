@@ -101,7 +101,6 @@ public final class TransportActionProxy {
         final ReleasableBytesReference bytes;
 
         BytesTransportResponse(StreamInput in) throws IOException {
-            super(in);
             this.bytes = in.readAllToReleasableBytesReference();
         }
 
@@ -126,7 +125,7 @@ public final class TransportActionProxy {
         }
     }
 
-    static class ProxyRequest<T extends TransportRequest> extends TransportRequest {
+    static class ProxyRequest<T extends TransportRequest> extends AbstractTransportRequest {
         final T wrapped;
         final DiscoveryNode targetNode;
 

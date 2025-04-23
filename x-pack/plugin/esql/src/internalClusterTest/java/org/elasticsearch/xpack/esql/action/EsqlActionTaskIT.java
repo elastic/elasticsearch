@@ -104,11 +104,11 @@ public class EsqlActionTaskIT extends AbstractPausableIntegTestCase {
             for (TaskInfo task : foundTasks) {
                 DriverStatus status = (DriverStatus) task.status();
                 assertThat(status.sessionId(), not(emptyOrNullString()));
-                String taskDescription = status.taskDescription();
+                String description = status.description();
                 for (OperatorStatus o : status.activeOperators()) {
                     logger.info("status {}", o);
-                    if (o.operator().startsWith("LuceneSourceOperator[maxPageSize = " + pageSize())) {
-                        assertThat(taskDescription, equalTo("data"));
+                    if (o.operator().startsWith("LuceneSourceOperator[")) {
+                        assertThat(description, equalTo("data"));
                         LuceneSourceOperator.Status oStatus = (LuceneSourceOperator.Status) o.status();
                         assertThat(oStatus.processedSlices(), lessThanOrEqualTo(oStatus.totalSlices()));
                         assertThat(oStatus.processedQueries(), equalTo(Set.of("*:*")));
@@ -128,18 +128,19 @@ public class EsqlActionTaskIT extends AbstractPausableIntegTestCase {
                         continue;
                     }
                     if (o.operator().equals("ValuesSourceReaderOperator[fields = [pause_me]]")) {
-                        assertThat(taskDescription, equalTo("data"));
+                        assertThat(description, equalTo("data"));
                         ValuesSourceReaderOperator.Status oStatus = (ValuesSourceReaderOperator.Status) o.status();
                         assertMap(
                             oStatus.readersBuilt(),
                             matchesMap().entry("pause_me:column_at_a_time:ScriptLongs", greaterThanOrEqualTo(1))
                         );
                         assertThat(oStatus.pagesProcessed(), greaterThanOrEqualTo(1));
+                        assertThat(oStatus.valuesLoaded(), greaterThanOrEqualTo(1L));
                         valuesSourceReaders++;
                         continue;
                     }
                     if (o.operator().equals("ExchangeSourceOperator")) {
-                        assertThat(taskDescription, either(equalTo("node_reduce")).or(equalTo("final")));
+                        assertThat(description, either(equalTo("node_reduce")).or(equalTo("final")));
                         ExchangeSourceOperator.Status oStatus = (ExchangeSourceOperator.Status) o.status();
                         assertThat(oStatus.pagesWaiting(), greaterThanOrEqualTo(0));
                         assertThat(oStatus.pagesEmitted(), greaterThanOrEqualTo(0));
@@ -147,7 +148,7 @@ public class EsqlActionTaskIT extends AbstractPausableIntegTestCase {
                         continue;
                     }
                     if (o.operator().equals("ExchangeSinkOperator")) {
-                        assertThat(taskDescription, either(equalTo("data")).or(equalTo("node_reduce")));
+                        assertThat(description, either(equalTo("data")).or(equalTo("node_reduce")));
                         ExchangeSinkOperator.Status oStatus = (ExchangeSinkOperator.Status) o.status();
                         assertThat(oStatus.pagesReceived(), greaterThanOrEqualTo(0));
                         exchangeSinks++;
@@ -167,7 +168,7 @@ public class EsqlActionTaskIT extends AbstractPausableIntegTestCase {
                         \\_AggregationOperator[mode = INITIAL, aggs = sum of longs]
                         \\_ExchangeSinkOperator""".replace(
                         "sourceStatus",
-                        "dataPartitioning = SHARD, maxPageSize = " + pageSize() + ", limit = 2147483647, scoreMode = COMPLETE_NO_SCORES"
+                        "dataPartitioning = SHARD, maxPageSize = " + pageSize() + ", limit = 2147483647, needsScore = false"
                     )
                 )
             );
@@ -181,6 +182,19 @@ public class EsqlActionTaskIT extends AbstractPausableIntegTestCase {
                 \\_ProjectOperator[projection = [0]]
                 \\_LimitOperator[limit = 1000]
                 \\_OutputOperator[columns = [sum(pause_me)]]"""));
+
+            for (TaskInfo task : dataTasks(foundTasks)) {
+                assertThat(((DriverStatus) task.status()).documentsFound(), greaterThan(0L));
+                assertThat(((DriverStatus) task.status()).valuesLoaded(), greaterThan(0L));
+            }
+            for (TaskInfo task : nodeReduceTasks(foundTasks)) {
+                assertThat(((DriverStatus) task.status()).documentsFound(), equalTo(0L));
+                assertThat(((DriverStatus) task.status()).valuesLoaded(), equalTo(0L));
+            }
+            for (TaskInfo task : coordinatorTasks(foundTasks)) {
+                assertThat(((DriverStatus) task.status()).documentsFound(), equalTo(0L));
+                assertThat(((DriverStatus) task.status()).valuesLoaded(), equalTo(0L));
+            }
         } finally {
             scriptPermits.release(numberOfDocs());
             try (EsqlQueryResponse esqlResponse = response.get()) {
@@ -193,7 +207,7 @@ public class EsqlActionTaskIT extends AbstractPausableIntegTestCase {
         ActionFuture<EsqlQueryResponse> response = startEsql();
         try {
             List<TaskInfo> infos = getTasksStarting();
-            TaskInfo running = infos.stream().filter(t -> ((DriverStatus) t.status()).taskDescription().equals("data")).findFirst().get();
+            TaskInfo running = infos.stream().filter(t -> ((DriverStatus) t.status()).description().equals("data")).findFirst().get();
             cancelTask(running.taskId());
             assertCancelled(response);
         } finally {
@@ -205,7 +219,7 @@ public class EsqlActionTaskIT extends AbstractPausableIntegTestCase {
         ActionFuture<EsqlQueryResponse> response = startEsql();
         try {
             List<TaskInfo> infos = getTasksStarting();
-            TaskInfo running = infos.stream().filter(t -> ((DriverStatus) t.status()).taskDescription().equals("final")).findFirst().get();
+            TaskInfo running = infos.stream().filter(t -> ((DriverStatus) t.status()).description().equals("final")).findFirst().get();
             cancelTask(running.taskId());
             assertCancelled(response);
         } finally {
@@ -289,8 +303,8 @@ public class EsqlActionTaskIT extends AbstractPausableIntegTestCase {
             for (TaskInfo task : tasks) {
                 assertThat(task.action(), equalTo(DriverTaskRunner.ACTION_NAME));
                 DriverStatus status = (DriverStatus) task.status();
-                logger.info("task {} {} {}", status.taskDescription(), task.description(), status);
-                assertThat(status.taskDescription(), anyOf(equalTo("data"), equalTo("node_reduce"), equalTo("final")));
+                logger.info("task {} {} {}", status.description(), task.description(), status);
+                assertThat(status.description(), anyOf(equalTo("data"), equalTo("node_reduce"), equalTo("final")));
                 /*
                  * Accept tasks that are either starting or have gone
                  * immediately async. The coordinating task is likely
@@ -314,8 +328,8 @@ public class EsqlActionTaskIT extends AbstractPausableIntegTestCase {
             for (TaskInfo task : tasks) {
                 assertThat(task.action(), equalTo(DriverTaskRunner.ACTION_NAME));
                 DriverStatus status = (DriverStatus) task.status();
-                assertThat(status.taskDescription(), anyOf(equalTo("data"), equalTo("node_reduce"), equalTo("final")));
-                if (status.taskDescription().equals("data")) {
+                assertThat(status.description(), anyOf(equalTo("data"), equalTo("node_reduce"), equalTo("final")));
+                if (status.description().equals("data")) {
                     assertThat(status.status(), equalTo(DriverStatus.Status.RUNNING));
                 } else {
                     assertThat(status.status(), equalTo(DriverStatus.Status.ASYNC));
@@ -349,15 +363,15 @@ public class EsqlActionTaskIT extends AbstractPausableIntegTestCase {
     }
 
     private List<TaskInfo> dataTasks(List<TaskInfo> tasks) {
-        return tasks.stream().filter(t -> ((DriverStatus) t.status()).taskDescription().equals("data")).toList();
+        return tasks.stream().filter(t -> ((DriverStatus) t.status()).description().equals("data")).toList();
     }
 
     private List<TaskInfo> nodeReduceTasks(List<TaskInfo> tasks) {
-        return tasks.stream().filter(t -> ((DriverStatus) t.status()).taskDescription().equals("node_reduce")).toList();
+        return tasks.stream().filter(t -> ((DriverStatus) t.status()).description().equals("node_reduce")).toList();
     }
 
     private List<TaskInfo> coordinatorTasks(List<TaskInfo> tasks) {
-        return tasks.stream().filter(t -> ((DriverStatus) t.status()).taskDescription().equals("final")).toList();
+        return tasks.stream().filter(t -> ((DriverStatus) t.status()).description().equals("final")).toList();
     }
 
     private void assertCancelled(ActionFuture<EsqlQueryResponse> response) throws Exception {
@@ -502,7 +516,7 @@ public class EsqlActionTaskIT extends AbstractPausableIntegTestCase {
                 [{"pause_me":{"order":"asc","missing":"_last","unmapped_type":"long"}}]""";
             String sourceStatus = "dataPartitioning = SHARD, maxPageSize = "
                 + pageSize()
-                + ", limit = 1000, scoreMode = TOP_DOCS, sorts = "
+                + ", limit = 1000, needsScore = false, sorts = "
                 + sortStatus;
             assertThat(dataTasks(tasks).get(0).description(), equalTo("""
                 \\_LuceneTopNSourceOperator[sourceStatus]
@@ -545,7 +559,7 @@ public class EsqlActionTaskIT extends AbstractPausableIntegTestCase {
             scriptPermits.release(pageSize() - prereleasedDocs);
             List<TaskInfo> tasks = getTasksRunning();
             assertThat(dataTasks(tasks).get(0).description(), equalTo("""
-                \\_LuceneSourceOperator[dataPartitioning = SHARD, maxPageSize = pageSize(), limit = limit(), scoreMode = COMPLETE_NO_SCORES]
+                \\_LuceneSourceOperator[dataPartitioning = SHARD, maxPageSize = pageSize(), limit = limit(), needsScore = false]
                 \\_ValuesSourceReaderOperator[fields = [pause_me]]
                 \\_ProjectOperator[projection = [1]]
                 \\_ExchangeSinkOperator""".replace("pageSize()", Integer.toString(pageSize())).replace("limit()", limit)));
@@ -573,8 +587,10 @@ public class EsqlActionTaskIT extends AbstractPausableIntegTestCase {
             logger.info("unblocking script");
             scriptPermits.release(pageSize());
             List<TaskInfo> tasks = getTasksRunning();
-            String sourceStatus = "dataPartitioning = SHARD, maxPageSize = pageSize(), limit = 2147483647, scoreMode = COMPLETE_NO_SCORES"
-                .replace("pageSize()", Integer.toString(pageSize()));
+            String sourceStatus = "dataPartitioning = SHARD, maxPageSize = pageSize(), limit = 2147483647, needsScore = false".replace(
+                "pageSize()",
+                Integer.toString(pageSize())
+            );
             assertThat(
                 dataTasks(tasks).get(0).description(),
                 equalTo(

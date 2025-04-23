@@ -36,7 +36,7 @@ public class AbortedSnapshotIT extends AbstractSnapshotIntegTestCase {
 
         final var indicesService = internalCluster().getInstance(IndicesService.class, dataNode);
         final var clusterService = indicesService.clusterService();
-        final var index = clusterService.state().metadata().index(indexName).getIndex();
+        final var index = clusterService.state().metadata().getProject().index(indexName).getIndex();
         final var store = indicesService.indexServiceSafe(index).getShard(0).store();
         assertTrue(store.hasReferences());
 

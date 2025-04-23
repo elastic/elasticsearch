@@ -93,7 +93,6 @@ public class GetAutoscalingCapacityAction extends ActionType<GetAutoscalingCapac
         }
 
         public Response(final StreamInput in) throws IOException {
-            super(in);
             results = new TreeMap<>(in.readMap(AutoscalingDeciderResults::new));
         }
 

@@ -616,7 +616,16 @@ public class IndexShardRoutingTable {
         }
 
         public Builder addShard(ShardRouting shardEntry) {
-            assert shardEntry.shardId().equals(shardId) : "cannot add [" + shardEntry + "] to routing table for " + shardId;
+            assert shardEntry.shardId().equals(shardId)
+                : "cannot add ["
+                    + shardEntry
+                    + "]/{"
+                    + shardEntry.shardId().getIndex().getUUID()
+                    + "} to routing table for "
+                    + shardId
+                    + "{"
+                    + shardId.getIndex().getUUID()
+                    + "}";
             shards.add(shardEntry);
             return this;
         }

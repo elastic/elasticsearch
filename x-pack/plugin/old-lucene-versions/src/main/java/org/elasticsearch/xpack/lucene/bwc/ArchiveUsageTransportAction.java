@@ -42,14 +42,14 @@ public class ArchiveUsageTransportAction extends XPackUsageFeatureTransportActio
     }
 
     @Override
-    protected void masterOperation(
+    protected void localClusterStateOperation(
         Task task,
         XPackUsageRequest request,
         ClusterState state,
         ActionListener<XPackUsageFeatureResponse> listener
     ) {
         int numArchiveIndices = 0;
-        for (IndexMetadata indexMetadata : state.metadata()) {
+        for (IndexMetadata indexMetadata : state.metadata().getProject()) {
             if (indexMetadata.getCreationVersion().isLegacyIndexVersion()) {
                 numArchiveIndices++;
             }

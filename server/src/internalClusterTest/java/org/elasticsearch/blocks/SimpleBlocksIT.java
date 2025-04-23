@@ -27,6 +27,8 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexMetadata.APIBlock;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.MetadataIndexStateService;
+import org.elasticsearch.cluster.metadata.ProjectId;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.settings.Settings;
@@ -274,6 +276,7 @@ public class SimpleBlocksIT extends ESIntegTestCase {
     }
 
     public void testReAddUnverifiedIndexBlock() {
+        ProjectId projectId = Metadata.DEFAULT_PROJECT_ID;
         final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
         createIndex(indexName);
         ensureGreen(indexName);
@@ -292,7 +295,7 @@ public class SimpleBlocksIT extends ESIntegTestCase {
             assertTrue("Add block [" + block + "] to index [" + indexName + "] not acknowledged: " + response, response.isAcknowledged());
             assertIndexHasBlock(block, indexName);
 
-            removeVerified(indexName);
+            removeVerified(projectId, indexName);
 
             AddIndexBlockResponse response2 = indicesAdmin().prepareAddBlock(block, indexName).get();
             assertTrue("Add block [" + block + "] to index [" + indexName + "] not acknowledged: " + response, response2.isAcknowledged());
@@ -303,7 +306,7 @@ public class SimpleBlocksIT extends ESIntegTestCase {
 
     }
 
-    private static void removeVerified(String indexName) {
+    private static void removeVerified(ProjectId projectId, String indexName) {
         PlainActionFuture<Void> listener = new PlainActionFuture<>();
         internalCluster().clusterService(internalCluster().getMasterName())
             .createTaskQueue("test", Priority.NORMAL, new SimpleBatchedExecutor<>() {
@@ -312,8 +315,8 @@ public class SimpleBlocksIT extends ESIntegTestCase {
                     ClusterStateTaskListener clusterStateTaskListener,
                     ClusterState clusterState
                 ) {
-
-                    IndexMetadata indexMetadata = clusterState.metadata().index(indexName);
+                    ProjectMetadata project = clusterState.metadata().getProject(projectId);
+                    IndexMetadata indexMetadata = project.index(indexName);
                     Settings.Builder settingsBuilder = Settings.builder().put(indexMetadata.getSettings());
                     settingsBuilder.remove(MetadataIndexStateService.VERIFIED_READ_ONLY_SETTING.getKey());
                     return Tuple.tuple(
@@ -321,9 +324,12 @@ public class SimpleBlocksIT extends ESIntegTestCase {
                             .metadata(
                                 Metadata.builder(clusterState.metadata())
                                     .put(
-                                        IndexMetadata.builder(indexMetadata)
-                                            .settings(settingsBuilder)
-                                            .settingsVersion(indexMetadata.getSettingsVersion() + 1)
+                                        ProjectMetadata.builder(project)
+                                            .put(
+                                                IndexMetadata.builder(indexMetadata)
+                                                    .settings(settingsBuilder)
+                                                    .settingsVersion(indexMetadata.getSettingsVersion() + 1)
+                                            )
                                     )
                             )
                             .build(),
@@ -375,8 +381,9 @@ public class SimpleBlocksIT extends ESIntegTestCase {
         );
 
         final ClusterState clusterState = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get().getState();
-        assertThat(clusterState.metadata().indices().get(indexName).getState(), is(IndexMetadata.State.OPEN));
-        assertThat(clusterState.routingTable().allShards().allMatch(ShardRouting::unassigned), is(true));
+        final ProjectId projectId = Metadata.DEFAULT_PROJECT_ID;
+        assertThat(clusterState.metadata().getProject(projectId).indices().get(indexName).getState(), is(IndexMetadata.State.OPEN));
+        assertThat(clusterState.routingTable(projectId).allShards().allMatch(ShardRouting::unassigned), is(true));
 
         final APIBlock block = randomAddableBlock();
         try {
@@ -469,7 +476,11 @@ public class SimpleBlocksIT extends ESIntegTestCase {
             }
             indices[i] = indexName;
         }
-        assertThat(clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get().getState().metadata().indices().size(), equalTo(indices.length));
+        final ProjectId projectId = Metadata.DEFAULT_PROJECT_ID;
+        assertThat(
+            clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get().getState().metadata().getProject(projectId).indices().size(),
+            equalTo(indices.length)
+        );
 
         final List<Thread> threads = new ArrayList<>();
         final CountDownLatch latch = new CountDownLatch(1);
@@ -511,16 +522,17 @@ public class SimpleBlocksIT extends ESIntegTestCase {
 
     static void assertIndexHasBlock(APIBlock block, final String... indices) {
         final ClusterState clusterState = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get().getState();
+        final ProjectId projectId = Metadata.DEFAULT_PROJECT_ID;
         for (String index : indices) {
-            final IndexMetadata indexMetadata = clusterState.metadata().indices().get(index);
+            final IndexMetadata indexMetadata = clusterState.metadata().getProject(projectId).indices().get(index);
             final Settings indexSettings = indexMetadata.getSettings();
             assertThat(indexSettings.hasValue(block.settingName()), is(true));
             assertThat(indexSettings.getAsBoolean(block.settingName(), false), is(true));
-            assertThat(clusterState.blocks().hasIndexBlock(index, block.getBlock()), is(true));
+            assertThat(clusterState.blocks().hasIndexBlock(projectId, index, block.getBlock()), is(true));
             assertThat(
                 "Index " + index + " must have only 1 block with [id=" + block.getBlock().id() + "]",
                 clusterState.blocks()
-                    .indices()
+                    .indices(projectId)
                     .getOrDefault(index, emptySet())
                     .stream()
                     .filter(clusterBlock -> clusterBlock.id() == block.getBlock().id())

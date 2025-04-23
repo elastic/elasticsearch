@@ -40,7 +40,6 @@ public class GetStatusAction extends ActionType<GetStatusAction.Response> {
         private boolean timedOut;
 
         public Response(StreamInput in) throws IOException {
-            super(in);
             profilingEnabled = in.readBoolean();
             resourceManagementEnabled = in.readBoolean();
             resourcesCreated = in.readBoolean();

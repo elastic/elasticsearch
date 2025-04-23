@@ -9,8 +9,6 @@
 
 package org.elasticsearch.core;
 
-import java.io.IOException;
-import java.io.UncheckedIOException;
 import java.util.Arrays;
 import java.util.Iterator;
 import java.util.concurrent.atomic.AtomicReference;
@@ -21,11 +19,17 @@ public enum Releasables {
 
     /** Release the provided {@link Releasable}s. */
     public static void close(Iterable<? extends Releasable> releasables) {
-        try {
-            // this does the right thing with respect to add suppressed and not wrapping errors etc.
-            IOUtils.close(releasables);
-        } catch (IOException e) {
-            throw new UncheckedIOException(e);
+        RuntimeException firstException = null;
+        for (final Releasable releasable : releasables) {
+            try {
+                close(releasable);
+            } catch (RuntimeException e) {
+                firstException = useOrSuppress(firstException, e);
+            }
+        }
+
+        if (firstException != null) {
+            throw firstException;
         }
     }
 
@@ -38,7 +42,18 @@ public enum Releasables {
 
     /** Release the provided {@link Releasable}s. */
     public static void close(Releasable... releasables) {
-        close(true, releasables);
+        RuntimeException firstException = null;
+        for (final Releasable releasable : releasables) {
+            try {
+                close(releasable);
+            } catch (RuntimeException e) {
+                firstException = useOrSuppress(firstException, e);
+            }
+        }
+
+        if (firstException != null) {
+            throw firstException;
+        }
     }
 
     /** Release the provided {@link Releasable}s expecting no exception to by thrown by any of them. */
@@ -63,19 +78,21 @@ public enum Releasables {
 
     /** Release the provided {@link Releasable}s, ignoring exceptions. */
     public static void closeWhileHandlingException(Releasable... releasables) {
-        close(false, releasables);
-    }
-
-    /** Release the provided {@link Releasable}s, ignoring exceptions if <code>success</code> is {@code false}. */
-    private static void close(boolean success, Releasable... releasables) {
-        try {
-            // this does the right thing with respect to add suppressed and not wrapping errors etc.
-            IOUtils.close(releasables);
-        } catch (IOException e) {
-            if (success) {
-                throw new UncheckedIOException(e);
+        for (final Releasable releasable : releasables) {
+            try {
+                close(releasable);
+            } catch (RuntimeException e) {
+                // ignored
             }
         }
+    }
+
+    private static RuntimeException useOrSuppress(RuntimeException firstException, RuntimeException e) {
+        if (firstException == null || firstException == e) {
+            return e;
+        }
+        firstException.addSuppressed(e);
+        return firstException;
     }
 
     /** Wrap several releasables into a single one. This is typically useful for use with try-with-resources: for example let's assume

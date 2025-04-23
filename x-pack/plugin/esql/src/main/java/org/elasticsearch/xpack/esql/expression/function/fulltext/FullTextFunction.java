@@ -7,28 +7,33 @@
 
 package org.elasticsearch.xpack.esql.expression.function.fulltext;
 
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.lucene.BytesRefs;
+import org.elasticsearch.compute.lucene.LuceneQueryEvaluator.ShardConfig;
 import org.elasticsearch.compute.lucene.LuceneQueryExpressionEvaluator;
-import org.elasticsearch.compute.lucene.LuceneQueryExpressionEvaluator.ShardConfig;
+import org.elasticsearch.compute.lucene.LuceneQueryScoreEvaluator;
 import org.elasticsearch.compute.operator.EvalOperator;
+import org.elasticsearch.compute.operator.ScoreOperator;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.xpack.esql.capabilities.PostAnalysisPlanVerificationAware;
 import org.elasticsearch.xpack.esql.capabilities.TranslationAware;
 import org.elasticsearch.xpack.esql.common.Failures;
+import org.elasticsearch.xpack.esql.core.InvalidArgumentException;
+import org.elasticsearch.xpack.esql.core.expression.EntryExpression;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
-import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
+import org.elasticsearch.xpack.esql.core.expression.Literal;
+import org.elasticsearch.xpack.esql.core.expression.MapExpression;
 import org.elasticsearch.xpack.esql.core.expression.Nullability;
 import org.elasticsearch.xpack.esql.core.expression.TypeResolutions;
 import org.elasticsearch.xpack.esql.core.expression.function.Function;
 import org.elasticsearch.xpack.esql.core.querydsl.query.Query;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
-import org.elasticsearch.xpack.esql.core.util.Holder;
+import org.elasticsearch.xpack.esql.core.type.DataTypeConverter;
 import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.BinaryLogic;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.Not;
-import org.elasticsearch.xpack.esql.expression.predicate.logical.Or;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.LucenePushdownPredicates;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
@@ -39,24 +44,33 @@ import org.elasticsearch.xpack.esql.plan.logical.OrderBy;
 import org.elasticsearch.xpack.esql.planner.EsPhysicalOperationProviders;
 import org.elasticsearch.xpack.esql.planner.TranslatorHandler;
 import org.elasticsearch.xpack.esql.querydsl.query.TranslationAwareExpressionQuery;
+import org.elasticsearch.xpack.esql.score.ExpressionScoreMapper;
 
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Objects;
 import java.util.function.BiConsumer;
 import java.util.function.Predicate;
 
+import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
 import static org.elasticsearch.xpack.esql.common.Failure.fail;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.DEFAULT;
+import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isFoldable;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isNotNullAndFoldable;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isString;
 
 /**
  * Base class for full-text functions that use ES queries to match documents.
- * These functions needs to be pushed down to Lucene queries to be executed - there's no Evaluator for them, but depend on
+ * These functions needs to be pushed down to Lucene queries to be executed - there’s no Evaluator for them, but depend on
  * {@link org.elasticsearch.xpack.esql.optimizer.LocalPhysicalPlanOptimizer} to rewrite them into Lucene queries.
  */
-public abstract class FullTextFunction extends Function implements TranslationAware, PostAnalysisPlanVerificationAware, EvaluatorMapper {
+public abstract class FullTextFunction extends Function
+    implements
+        TranslationAware,
+        PostAnalysisPlanVerificationAware,
+        EvaluatorMapper,
+        ExpressionScoreMapper {
 
     private final Expression query;
     private final QueryBuilder queryBuilder;
@@ -148,7 +162,7 @@ public abstract class FullTextFunction extends Function implements TranslationAw
     }
 
     @Override
-    public Query asQuery(TranslatorHandler handler) {
+    public Query asQuery(LucenePushdownPredicates pushdownPredicates, TranslatorHandler handler) {
         return queryBuilder != null ? new TranslationAwareExpressionQuery(source(), queryBuilder) : translate(handler);
     }
 
@@ -198,83 +212,25 @@ public abstract class FullTextFunction extends Function implements TranslationAw
             checkCommandsBeforeExpression(
                 plan,
                 condition,
+                MultiMatch.class,
+                lp -> (lp instanceof Limit == false) && (lp instanceof Aggregate == false),
+                m -> "[" + m.functionName() + "] " + m.functionType(),
+                failures
+            );
+            checkCommandsBeforeExpression(
+                plan,
+                condition,
                 Term.class,
                 lp -> (lp instanceof Limit == false) && (lp instanceof Aggregate == false),
                 m -> "[" + m.functionName() + "] " + m.functionType(),
                 failures
             );
             checkFullTextFunctionsParents(condition, failures);
-
-            boolean usesScore = plan.output()
-                .stream()
-                .anyMatch(attr -> attr instanceof MetadataAttribute ma && ma.name().equals(MetadataAttribute.SCORE));
-            if (usesScore) {
-                checkFullTextSearchDisjunctions(condition, failures);
-            }
         } else {
             plan.forEachExpression(FullTextFunction.class, ftf -> {
                 failures.add(fail(ftf, "[{}] {} is only supported in WHERE commands", ftf.functionName(), ftf.functionType()));
             });
         }
-    }
-
-    /**
-     * Checks whether a condition contains a disjunction with a full text search.
-     * If it does, check that every element of the disjunction is a full text search or combinations (AND, OR, NOT) of them.
-     * If not, add a failure to the failures collection.
-     *
-     * @param condition        condition to check for disjunctions of full text searches
-     * @param failures         failures collection to add to
-     */
-    private static void checkFullTextSearchDisjunctions(Expression condition, Failures failures) {
-        Holder<Boolean> isInvalid = new Holder<>(false);
-        condition.forEachDown(Or.class, or -> {
-            if (isInvalid.get()) {
-                // Exit early if we already have a failures
-                return;
-            }
-            if (checkDisjunctionPushable(or) == false) {
-                isInvalid.set(true);
-                failures.add(
-                    fail(
-                        or,
-                        "Invalid condition when using METADATA _score [{}]. Full text functions can be used in an OR condition, "
-                            + "but only if just full text functions are used in the OR condition",
-                        or.sourceText()
-                    )
-                );
-            }
-        });
-    }
-
-    /**
-     * Checks if a disjunction is pushable from the point of view of FullTextFunctions. Either it has no FullTextFunctions or
-     * all it contains are FullTextFunctions.
-     *
-     * @param or disjunction to check
-     * @return true if the disjunction is pushable, false otherwise
-     */
-    private static boolean checkDisjunctionPushable(Or or) {
-        boolean hasFullText = or.anyMatch(FullTextFunction.class::isInstance);
-        return hasFullText == false || onlyFullTextFunctionsInExpression(or);
-    }
-
-    /**
-     * Checks whether an expression contains just full text functions or negations (NOT) and combinations (AND, OR) of full text functions
-     *
-     * @param expression expression to check
-     * @return true if all children are full text functions or negations of full text functions, false otherwise
-     */
-    private static boolean onlyFullTextFunctionsInExpression(Expression expression) {
-        if (expression instanceof FullTextFunction) {
-            return true;
-        } else if (expression instanceof Not) {
-            return onlyFullTextFunctionsInExpression(expression.children().get(0));
-        } else if (expression instanceof BinaryLogic binaryLogic) {
-            return onlyFullTextFunctionsInExpression(binaryLogic.left()) && onlyFullTextFunctionsInExpression(binaryLogic.right());
-        }
-
-        return false;
     }
 
     /**
@@ -364,5 +320,51 @@ public abstract class FullTextFunction extends Function implements TranslationAw
             shardConfigs[i++] = new ShardConfig(shardContext.toQuery(queryBuilder()), shardContext.searcher());
         }
         return new LuceneQueryExpressionEvaluator.Factory(shardConfigs);
+    }
+
+    @Override
+    public ScoreOperator.ExpressionScorer.Factory toScorer(ToScorer toScorer) {
+        List<EsPhysicalOperationProviders.ShardContext> shardContexts = toScorer.shardContexts();
+        ShardConfig[] shardConfigs = new ShardConfig[shardContexts.size()];
+        int i = 0;
+        for (EsPhysicalOperationProviders.ShardContext shardContext : shardContexts) {
+            shardConfigs[i++] = new ShardConfig(shardContext.toQuery(queryBuilder()), shardContext.searcher());
+        }
+        return new LuceneQueryScoreEvaluator.Factory(shardConfigs);
+    }
+
+    protected static void populateOptionsMap(
+        final MapExpression options,
+        final Map<String, Object> optionsMap,
+        final TypeResolutions.ParamOrdinal paramOrdinal,
+        final String sourceText,
+        final Map<String, DataType> allowedOptions
+    ) throws InvalidArgumentException {
+        for (EntryExpression entry : options.entryExpressions()) {
+            Expression optionExpr = entry.key();
+            Expression valueExpr = entry.value();
+            TypeResolution resolution = isFoldable(optionExpr, sourceText, paramOrdinal).and(
+                isFoldable(valueExpr, sourceText, paramOrdinal)
+            );
+            if (resolution.unresolved()) {
+                throw new InvalidArgumentException(resolution.message());
+            }
+            Object optionExprLiteral = ((Literal) optionExpr).value();
+            Object valueExprLiteral = ((Literal) valueExpr).value();
+            String optionName = optionExprLiteral instanceof BytesRef br ? br.utf8ToString() : optionExprLiteral.toString();
+            String optionValue = valueExprLiteral instanceof BytesRef br ? br.utf8ToString() : valueExprLiteral.toString();
+            // validate the optionExpr is supported
+            DataType dataType = allowedOptions.get(optionName);
+            if (dataType == null) {
+                throw new InvalidArgumentException(
+                    format(null, "Invalid option [{}] in [{}], expected one of {}", optionName, sourceText, allowedOptions.keySet())
+                );
+            }
+            try {
+                optionsMap.put(optionName, DataTypeConverter.convert(optionValue, dataType));
+            } catch (InvalidArgumentException e) {
+                throw new InvalidArgumentException(format(null, "Invalid option [{}] in [{}], {}", optionName, sourceText, e.getMessage()));
+            }
+        }
     }
 }

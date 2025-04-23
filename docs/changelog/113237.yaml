@@ -1,5 +1,0 @@
-pr: 113237
-summary: Retry throttled snapshot deletions
-area: Snapshot/Restore
-type: bug
-issues: []

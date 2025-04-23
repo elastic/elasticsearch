@@ -19,6 +19,7 @@ import java.util.List;
 import java.util.Map;
 
 import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.sameInstance;
 
@@ -63,6 +64,39 @@ public class IngestStatsTests extends ESTestCase {
         assertThat(processorStats.get(0).type(), sameInstance(set));
         assertThat(processorStats.get(1).type(), sameInstance(set));
         assertThat(processorStats.get(2).type(), sameInstance(set));
+    }
+
+    public void testBytesStatsSerialization() throws IOException {
+        {
+            IngestPipelineMetric metric = new IngestPipelineMetric();
+            IngestStats.ByteStats byteStats = metric.createByteStats();
+            assertThat(byteStats, sameInstance(IngestStats.ByteStats.IDENTITY));
+
+            IngestStats.ByteStats serializedByteStats = serialize(byteStats);
+            assertThat(serializedByteStats, sameInstance(IngestStats.ByteStats.IDENTITY));
+            assertThat(IngestStats.ByteStats.merge(IngestStats.ByteStats.IDENTITY, byteStats), sameInstance(byteStats));
+        }
+        {
+            long ingestBytes = randomLongBetween(0, Long.MAX_VALUE);
+            long producedBytes = randomLongBetween(0, Long.MAX_VALUE);
+            IngestPipelineMetric metric = new IngestPipelineMetric();
+            metric.preIngestBytes(ingestBytes);
+            metric.postIngestBytes(producedBytes);
+            IngestStats.ByteStats byteStats = metric.createByteStats();
+            assertThat(byteStats.bytesIngested(), equalTo(ingestBytes));
+            assertThat(byteStats.bytesProduced(), equalTo(producedBytes));
+
+            IngestStats.ByteStats serializedByteStats = serialize(byteStats);
+            assertThat(serializedByteStats.bytesIngested(), equalTo(ingestBytes));
+            assertThat(serializedByteStats.bytesProduced(), equalTo(producedBytes));
+
+            assertThat(IngestStats.ByteStats.merge(byteStats, IngestStats.ByteStats.IDENTITY), sameInstance(byteStats));
+            assertThat(IngestStats.ByteStats.merge(IngestStats.ByteStats.IDENTITY, byteStats), sameInstance(byteStats));
+            assertThat(
+                IngestStats.ByteStats.merge(IngestStats.ByteStats.IDENTITY, IngestStats.ByteStats.IDENTITY),
+                sameInstance(IngestStats.ByteStats.IDENTITY)
+            );
+        }
     }
 
     public void testStatsMerge() {
@@ -271,6 +305,13 @@ public class IngestStatsTests extends ESTestCase {
         stats.writeTo(out);
         var in = out.bytes().streamInput();
         return IngestStats.read(in);
+    }
+
+    private static IngestStats.ByteStats serialize(IngestStats.ByteStats stats) throws IOException {
+        var out = new BytesStreamOutput();
+        stats.writeTo(out);
+        var in = out.bytes().streamInput();
+        return IngestStats.readByteStats(in);
     }
 
     private static void assertIngestStats(IngestStats ingestStats, IngestStats serializedStats) {

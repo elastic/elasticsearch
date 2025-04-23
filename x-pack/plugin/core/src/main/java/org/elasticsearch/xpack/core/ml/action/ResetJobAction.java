@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.core.ml.action;
 
-import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
@@ -29,8 +28,6 @@ public class ResetJobAction extends ActionType<AcknowledgedResponse> {
 
     public static final String NAME = "cluster:admin/xpack/ml/job/reset";
     public static final ResetJobAction INSTANCE = new ResetJobAction();
-
-    public static final TransportVersion TRANSPORT_VERSION_INTRODUCED = TransportVersions.V_7_14_0;
 
     private ResetJobAction() {
         super(NAME);

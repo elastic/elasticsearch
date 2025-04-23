@@ -138,23 +138,17 @@ public class InternalRange<B extends InternalRange.Bucket, R extends InternalRan
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            // NOTE: the key is required in version == 8.0.0 and version <= 7.17.0,
+            // NOTE: the key is required in version == 8.0.0,
             // while it is optional for all subsequent versions.
             if (out.getTransportVersion().equals(TransportVersions.V_8_0_0)) {
                 out.writeString(key == null ? generateKey(from, to, format) : key);
-            } else if (out.getTransportVersion().onOrAfter(TransportVersions.V_7_17_1)) {
-                out.writeOptionalString(key);
             } else {
-                out.writeString(key == null ? generateKey(from, to, format) : key);
+                out.writeOptionalString(key);
             }
             out.writeDouble(from);
-            if (out.getTransportVersion().onOrAfter(TransportVersions.V_7_17_0)) {
-                out.writeOptionalDouble(from);
-            }
+            out.writeOptionalDouble(from);
             out.writeDouble(to);
-            if (out.getTransportVersion().onOrAfter(TransportVersions.V_7_17_0)) {
-                out.writeOptionalDouble(to);
-            }
+            out.writeOptionalDouble(to);
             out.writeVLong(docCount);
             aggregations.writeTo(out);
         }
@@ -236,28 +230,22 @@ public class InternalRange<B extends InternalRange.Bucket, R extends InternalRan
         int size = in.readVInt();
         List<B> ranges = new ArrayList<>(size);
         for (int i = 0; i < size; i++) {
-            // NOTE: the key is required in version == 8.0.0 and version <= 7.17.0,
+            // NOTE: the key is required in version == 8.0.0,
             // while it is optional for all subsequent versions.
-            final String key = in.getTransportVersion().equals(TransportVersions.V_8_0_0) ? in.readString()
-                : in.getTransportVersion().onOrAfter(TransportVersions.V_7_17_1) ? in.readOptionalString()
-                : in.readString();
+            final String key = in.getTransportVersion().equals(TransportVersions.V_8_0_0) ? in.readString() : in.readOptionalString();
             double from = in.readDouble();
-            if (in.getTransportVersion().onOrAfter(TransportVersions.V_7_17_0)) {
-                final Double originalFrom = in.readOptionalDouble();
-                if (originalFrom != null) {
-                    from = originalFrom;
-                } else {
-                    from = Double.NEGATIVE_INFINITY;
-                }
+            final Double originalFrom = in.readOptionalDouble();
+            if (originalFrom != null) {
+                from = originalFrom;
+            } else {
+                from = Double.NEGATIVE_INFINITY;
             }
             double to = in.readDouble();
-            if (in.getTransportVersion().onOrAfter(TransportVersions.V_7_17_0)) {
-                final Double originalTo = in.readOptionalDouble();
-                if (originalTo != null) {
-                    to = originalTo;
-                } else {
-                    to = Double.POSITIVE_INFINITY;
-                }
+            final Double originalTo = in.readOptionalDouble();
+            if (originalTo != null) {
+                to = originalTo;
+            } else {
+                to = Double.POSITIVE_INFINITY;
             }
             long docCount = in.readVLong();
             InternalAggregations aggregations = InternalAggregations.readFrom(in);
@@ -337,24 +325,20 @@ public class InternalRange<B extends InternalRange.Bucket, R extends InternalRan
     @Override
     public InternalAggregation finalizeSampling(SamplingContext samplingContext) {
         InternalRange.Factory<B, R> factory = getFactory();
-        return factory.create(
-            name,
-            ranges.stream()
-                .map(
-                    b -> factory.createBucket(
-                        b.getKey(),
-                        b.from,
-                        b.to,
-                        samplingContext.scaleUp(b.getDocCount()),
-                        InternalAggregations.finalizeSampling(b.getAggregations(), samplingContext),
-                        b.format
-                    )
+        final List<B> buckets = new ArrayList<>(ranges.size());
+        for (B range : ranges) {
+            buckets.add(
+                factory.createBucket(
+                    range.getKey(),
+                    range.from,
+                    range.to,
+                    samplingContext.scaleUp(range.getDocCount()),
+                    InternalAggregations.finalizeSampling(range.getAggregations(), samplingContext),
+                    range.format
                 )
-                .toList(),
-            format,
-            keyed,
-            getMetadata()
-        );
+            );
+        }
+        return factory.create(name, buckets, format, keyed, getMetadata());
     }
 
     @Override

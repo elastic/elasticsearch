@@ -18,6 +18,7 @@ import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.routing.RoutingNodes;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.core.FixForMultiProject;
 import org.elasticsearch.health.Diagnosis;
 import org.elasticsearch.health.HealthIndicatorDetails;
 import org.elasticsearch.health.HealthIndicatorImpact;
@@ -155,14 +156,21 @@ public class DiskHealthIndicatorService implements HealthIndicatorService {
         private final HealthStatus healthStatus;
         private final Map<HealthStatus, Integer> healthStatusNodeCount;
 
+        @FixForMultiProject(description = "blockedIndices and indicesAtRisk should work correctly for indices across projects")
         DiskHealthAnalyzer(Map<String, DiskHealthInfo> diskHealthByNode, ClusterState clusterState) {
             this.clusterState = clusterState;
-            blockedIndices = clusterState.blocks()
-                .indices()
-                .entrySet()
+            blockedIndices = clusterState.metadata()
+                .projects()
+                .keySet()
                 .stream()
-                .filter(entry -> entry.getValue().contains(IndexMetadata.INDEX_READ_ONLY_ALLOW_DELETE_BLOCK))
-                .map(Map.Entry::getKey)
+                .flatMap(
+                    projectId -> clusterState.blocks()
+                        .indices(projectId)
+                        .entrySet()
+                        .stream()
+                        .filter(entry -> entry.getValue().contains(IndexMetadata.INDEX_READ_ONLY_ALLOW_DELETE_BLOCK))
+                        .map(Map.Entry::getKey)
+                )
                 .collect(Collectors.toSet());
             HealthStatus mostSevereStatusSoFar = blockedIndices.isEmpty() ? HealthStatus.GREEN : HealthStatus.RED;
             for (String nodeId : diskHealthByNode.keySet()) {

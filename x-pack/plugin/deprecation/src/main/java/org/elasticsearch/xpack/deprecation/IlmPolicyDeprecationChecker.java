@@ -55,7 +55,7 @@ public class IlmPolicyDeprecationChecker implements ResourceDeprecationChecker {
      * @return the name of the data streams that have violated the checks with their respective warnings.
      */
     Map<String, List<DeprecationIssue>> check(ClusterState clusterState) {
-        IndexLifecycleMetadata lifecycleMetadata = clusterState.metadata().custom(IndexLifecycleMetadata.TYPE);
+        IndexLifecycleMetadata lifecycleMetadata = clusterState.metadata().getProject().custom(IndexLifecycleMetadata.TYPE);
         if (lifecycleMetadata == null || lifecycleMetadata.getPolicyMetadatas().isEmpty()) {
             return Map.of();
         }
@@ -104,7 +104,7 @@ public class IlmPolicyDeprecationChecker implements ResourceDeprecationChecker {
                     "ILM policy ["
                         + policy.getName()
                         + "] contains the action 'freeze' that is deprecated and will be removed in a future version.",
-                    "https://www.elastic.co/guide/en/elasticsearch/reference/master/frozen-indices.html",
+                    "https://ela.st/es-deprecation-7-frozen-index",
                     "This action is already a noop so it can be safely removed, because frozen indices no longer offer any advantages."
                         + " Consider cold or frozen tiers in place of frozen indices.",
                     false,

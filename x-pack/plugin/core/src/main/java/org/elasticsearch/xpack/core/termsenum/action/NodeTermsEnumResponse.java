@@ -30,7 +30,6 @@ class NodeTermsEnumResponse extends TransportResponse {
     private final String nodeId;
 
     NodeTermsEnumResponse(StreamInput in) throws IOException {
-        super(in);
         if (in.getTransportVersion().before(TransportVersions.V_8_2_0)) {
             terms = in.readCollectionAsList(r -> {
                 String term = r.readString();

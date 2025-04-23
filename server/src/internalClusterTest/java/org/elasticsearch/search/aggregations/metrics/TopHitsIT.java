@@ -18,6 +18,7 @@ import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.seqno.SequenceNumbers;
@@ -32,9 +33,8 @@ import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.aggregations.Aggregator.SubAggCollectionMode;
 import org.elasticsearch.search.aggregations.BucketOrder;
 import org.elasticsearch.search.aggregations.InternalAggregation;
-import org.elasticsearch.search.aggregations.bucket.global.Global;
+import org.elasticsearch.search.aggregations.bucket.SingleBucketAggregation;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
-import org.elasticsearch.search.aggregations.bucket.nested.Nested;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregatorFactory.ExecutionMode;
 import org.elasticsearch.search.fetch.FetchSubPhase;
@@ -64,6 +64,7 @@ import static org.elasticsearch.common.xcontent.support.XContentMapValues.extrac
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.index.query.QueryBuilders.matchQuery;
 import static org.elasticsearch.index.query.QueryBuilders.nestedQuery;
+import static org.elasticsearch.script.MockScriptPlugin.NAME;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.global;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.histogram;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.max;
@@ -102,7 +103,12 @@ public class TopHitsIT extends ESIntegTestCase {
     public static class CustomScriptPlugin extends MockScriptPlugin {
         @Override
         protected Map<String, Function<Map<String, Object>, Object>> pluginScripts() {
-            return Collections.singletonMap("5", script -> "5");
+            return Map.of("5", script -> "5", "doc['sort'].value", CustomScriptPlugin::sortDoubleScript);
+        }
+
+        private static Double sortDoubleScript(Map<String, Object> vars) {
+            Map<?, ?> doc = (Map) vars.get("doc");
+            return ((Number) ((ScriptDocValues<?>) doc.get("sort")).get(0)).doubleValue();
         }
 
         @Override
@@ -458,7 +464,7 @@ public class TopHitsIT extends ESIntegTestCase {
         assertNoFailuresAndResponse(
             prepareSearch("idx").setQuery(matchAllQuery()).addAggregation(global("global").subAggregation(topHits("hits"))),
             response -> {
-                Global global = response.getAggregations().get("global");
+                SingleBucketAggregation global = response.getAggregations().get("global");
                 assertThat(global, notNullValue());
                 assertThat(global.getName(), equalTo("global"));
                 assertThat(global.getAggregations(), notNullValue());
@@ -737,7 +743,7 @@ public class TopHitsIT extends ESIntegTestCase {
                     )
                 ),
             response -> {
-                Nested nested = response.getAggregations().get("to-comments");
+                SingleBucketAggregation nested = response.getAggregations().get("to-comments");
                 assertThat(nested.getDocCount(), equalTo(4L));
 
                 Terms terms = nested.getAggregations().get("users");
@@ -786,7 +792,7 @@ public class TopHitsIT extends ESIntegTestCase {
                     ).subAggregation(topHits("top-comments").sort("comments.date", SortOrder.DESC).size(4))
                 ),
             response -> {
-                Nested toComments = response.getAggregations().get("to-comments");
+                SingleBucketAggregation toComments = response.getAggregations().get("to-comments");
                 assertThat(toComments.getDocCount(), equalTo(4L));
 
                 TopHits topComments = toComments.getAggregations().get("top-comments");
@@ -813,7 +819,7 @@ public class TopHitsIT extends ESIntegTestCase {
                 assertThat(topComments.getHits().getAt(3).getNestedIdentity().getOffset(), equalTo(0));
                 assertThat(topComments.getHits().getAt(3).getNestedIdentity().getChild(), nullValue());
 
-                Nested toReviewers = toComments.getAggregations().get("to-reviewers");
+                SingleBucketAggregation toReviewers = toComments.getAggregations().get("to-reviewers");
                 assertThat(toReviewers.getDocCount(), equalTo(7L));
 
                 TopHits topReviewers = toReviewers.getAggregations().get("top-reviewers");
@@ -896,7 +902,7 @@ public class TopHitsIT extends ESIntegTestCase {
                 ),
             response -> {
                 assertHitCount(response, 2);
-                Nested nested = response.getAggregations().get("to-comments");
+                SingleBucketAggregation nested = response.getAggregations().get("to-comments");
                 assertThat(nested.getDocCount(), equalTo(4L));
 
                 SearchHits hits = ((TopHits) nested.getAggregations().get("top-comments")).getHits();
@@ -957,7 +963,7 @@ public class TopHitsIT extends ESIntegTestCase {
                     assertThat(bucket.getDocCount(), equalTo(5L));
 
                     long numNestedDocs = 10 + (5 * i);
-                    Nested nested = bucket.getAggregations().get("to-comments");
+                    SingleBucketAggregation nested = bucket.getAggregations().get("to-comments");
                     assertThat(nested.getDocCount(), equalTo(numNestedDocs));
 
                     TopHits hits = nested.getAggregations().get("comments");
@@ -1268,6 +1274,41 @@ public class TopHitsIT extends ESIntegTestCase {
         );
     }
 
+    public void testScriptSorting() {
+        Script script = new Script(ScriptType.INLINE, NAME, "doc['sort'].value", Collections.emptyMap());
+        assertNoFailuresAndResponse(
+            prepareSearch("idx").addAggregation(
+                terms("terms").executionHint(randomExecutionHint())
+                    .field(TERMS_AGGS_FIELD)
+                    .subAggregation(topHits("hits").sort(SortBuilders.scriptSort(script, ScriptSortType.NUMBER).order(SortOrder.DESC)))
+            ),
+            response -> {
+                Terms terms = response.getAggregations().get("terms");
+                assertThat(terms, notNullValue());
+                assertThat(terms.getName(), equalTo("terms"));
+                assertThat(terms.getBuckets().size(), equalTo(5));
+
+                double higestSortValue = 0;
+                for (int i = 0; i < 5; i++) {
+                    Terms.Bucket bucket = terms.getBucketByKey("val" + i);
+                    assertThat(bucket, notNullValue());
+                    assertThat(key(bucket), equalTo("val" + i));
+                    assertThat(bucket.getDocCount(), equalTo(10L));
+                    TopHits topHits = bucket.getAggregations().get("hits");
+                    SearchHits hits = topHits.getHits();
+                    assertThat(hits.getTotalHits().value(), equalTo(10L));
+                    assertThat(hits.getHits().length, equalTo(3));
+                    higestSortValue += 10;
+                    assertThat((Double) hits.getAt(0).getSortValues()[0], equalTo(higestSortValue));
+                    assertThat((Double) hits.getAt(1).getSortValues()[0], equalTo(higestSortValue - 1));
+                    assertThat((Double) hits.getAt(2).getSortValues()[0], equalTo(higestSortValue - 2));
+
+                    assertThat(hits.getAt(0).getSourceAsMap().size(), equalTo(5));
+                }
+            }
+        );
+    }
+
     public static class FetchPlugin extends Plugin implements SearchPlugin {
         @Override
         public List<FetchSubPhase> getFetchSubPhases(FetchPhaseConstructionContext context) {
@@ -1286,8 +1327,7 @@ public class TopHitsIT extends ESIntegTestCase {
                         public void process(FetchSubPhase.HitContext hitContext) {
                             leafSearchLookup.setDocument(hitContext.docId());
                             FieldLookup fieldLookup = leafSearchLookup.fields().get("text");
-                            hitContext.hit()
-                                .setDocumentField("text_stored_lookup", new DocumentField("text_stored_lookup", fieldLookup.getValues()));
+                            hitContext.hit().setDocumentField(new DocumentField("text_stored_lookup", fieldLookup.getValues()));
                         }
 
                         @Override

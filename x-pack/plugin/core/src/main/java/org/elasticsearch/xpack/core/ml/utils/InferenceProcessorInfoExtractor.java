@@ -45,7 +45,7 @@ public final class InferenceProcessorInfoExtractor {
         if (metadata == null) {
             return 0;
         }
-        IngestMetadata ingestMetadata = metadata.custom(IngestMetadata.TYPE);
+        IngestMetadata ingestMetadata = metadata.getDefaultProject().custom(IngestMetadata.TYPE);
         if (ingestMetadata == null) {
             return 0;
         }
@@ -95,7 +95,7 @@ public final class InferenceProcessorInfoExtractor {
         if (metadata == null) {
             return pipelineIdsByModelIds;
         }
-        IngestMetadata ingestMetadata = metadata.custom(IngestMetadata.TYPE);
+        IngestMetadata ingestMetadata = metadata.getProject().custom(IngestMetadata.TYPE);
         if (ingestMetadata == null) {
             return pipelineIdsByModelIds;
         }
@@ -126,7 +126,7 @@ public final class InferenceProcessorInfoExtractor {
         if (metadata == null) {
             return pipelineIds;
         }
-        IngestMetadata ingestMetadata = metadata.custom(IngestMetadata.TYPE);
+        IngestMetadata ingestMetadata = metadata.getProject().custom(IngestMetadata.TYPE);
         if (ingestMetadata == null) {
             return pipelineIds;
         }

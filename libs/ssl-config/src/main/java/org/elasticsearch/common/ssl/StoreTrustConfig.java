@@ -11,7 +11,6 @@ package org.elasticsearch.common.ssl;
 
 import java.io.IOException;
 import java.nio.file.Path;
-import java.security.AccessControlException;
 import java.security.GeneralSecurityException;
 import java.security.KeyStore;
 import java.security.cert.X509Certificate;
@@ -93,7 +92,7 @@ public final class StoreTrustConfig implements SslTrustConfig {
     private KeyStore readKeyStore(Path path) {
         try {
             return KeyStoreUtil.readKeyStore(path, type, password);
-        } catch (AccessControlException e) {
+        } catch (SecurityException e) {
             throw SslFileUtil.accessControlFailure(fileTypeForException(), List.of(path), e, configBasePath);
         } catch (IOException e) {
             throw SslFileUtil.ioException(fileTypeForException(), List.of(path), e, getAdditionalErrorDetails());

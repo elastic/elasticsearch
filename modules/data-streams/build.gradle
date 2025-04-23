@@ -22,10 +22,11 @@ dependencies {
   testImplementation project(path: ':test:test-clusters')
   testImplementation project(":modules:mapper-extras")
   internalClusterTestImplementation project(":modules:mapper-extras")
+  internalClusterTestImplementation project(':modules:rest-root')
 }
 
 tasks.withType(StandaloneRestIntegTestTask).configureEach {
-  usesDefaultDistribution()
+  usesDefaultDistribution("to be triaged")
 }
 
 if (buildParams.inFipsJvm){
@@ -33,12 +34,6 @@ if (buildParams.inFipsJvm){
   // Tracked in :
   tasks.named("javaRestTest").configure{enabled = false }
   tasks.named("yamlRestTest").configure{enabled = false }
-}
-
-if (buildParams.isSnapshotBuild() == false) {
-  tasks.withType(Test).configureEach {
-    systemProperty 'es.failure_store_feature_flag_enabled', 'true'
-  }
 }
 
 tasks.named("yamlRestCompatTestTransform").configure({ task ->
@@ -84,3 +79,15 @@ tasks.named("yamlRestCompatTestTransform").configure({ task ->
   task.skipTest("data_stream/210_rollover_failure_store/Lazily roll over a data stream's failure store after a shard failure", "Rolling over a data stream using target_failure_store is no longer supported.")
   task.skipTest("data_stream/210_rollover_failure_store/Roll over a data stream's failure store without conditions", "Rolling over a data stream using target_failure_store is no longer supported.")
 })
+
+configurations {
+  basicRestSpecs {
+    attributes {
+      attribute(ArtifactTypeDefinition.ARTIFACT_TYPE_ATTRIBUTE, ArtifactTypeDefinition.DIRECTORY_TYPE)
+    }
+  }
+}
+
+artifacts {
+  basicRestSpecs(new File(projectDir, "src/yamlRestTest/resources/rest-api-spec/test"))
+}

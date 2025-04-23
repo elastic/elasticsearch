@@ -18,6 +18,7 @@ import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.WarningsHandler;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.rest.RestStatus;
@@ -34,7 +35,6 @@ import org.junit.rules.TestRule;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
-import java.util.ArrayList;
 import java.util.Base64;
 import java.util.HashSet;
 import java.util.List;
@@ -212,9 +212,8 @@ public class GeoIpReindexedIT extends ParameterizedFullClusterRestartTestCase {
         String response = EntityUtils.toString(assertOK(client().performRequest(catIndices)).getEntity());
         List<String> indices = List.of(response.trim().split("\\s+"));
 
-        if (additionalIndexNames != null && additionalIndexNames.isEmpty() == false) {
-            indexNames = new ArrayList<>(indexNames); // recopy into a mutable list
-            indexNames.addAll(additionalIndexNames);
+        if (additionalIndexNames != null) {
+            indexNames = CollectionUtils.concatLists(indexNames, additionalIndexNames);
         }
 
         assertThat(new HashSet<>(indices), is(new HashSet<>(indexNames)));
@@ -240,9 +239,8 @@ public class GeoIpReindexedIT extends ParameterizedFullClusterRestartTestCase {
         );
         Response response = assertOK(client().performRequest(getStar));
 
-        if (additionalIndexNames != null && additionalIndexNames.isEmpty() == false) {
-            indexNames = new ArrayList<>(indexNames); // recopy into a mutable list
-            indexNames.addAll(additionalIndexNames);
+        if (additionalIndexNames != null) {
+            indexNames = CollectionUtils.concatLists(indexNames, additionalIndexNames);
         }
 
         Map<String, Object> map = responseAsMap(response);
@@ -258,9 +256,8 @@ public class GeoIpReindexedIT extends ParameterizedFullClusterRestartTestCase {
         );
         Response response = assertOK(client().performRequest(getStar));
 
-        if (additionalIndexNames != null && additionalIndexNames.isEmpty() == false) {
-            indexNames = new ArrayList<>(indexNames); // recopy into a mutable list
-            indexNames.addAll(additionalIndexNames);
+        if (additionalIndexNames != null) {
+            indexNames = CollectionUtils.concatLists(indexNames, additionalIndexNames);
         }
 
         Map<String, Object> map = responseAsMap(response);
@@ -268,13 +265,29 @@ public class GeoIpReindexedIT extends ParameterizedFullClusterRestartTestCase {
     }
 
     private void testGetDatastreams() throws IOException {
-        Request getStar = new Request("GET", "_data_stream");
-        getStar.setOptions(
-            RequestOptions.DEFAULT.toBuilder().setWarningsHandler(WarningsHandler.PERMISSIVE) // we don't care about warnings, just errors
+        final List<List<String>> wildcardOptions = List.of(
+            List.of(), // the default for expand_wildcards (that is, the option is not specified)
+            List.of("all"),
+            List.of("none"),
+            List.of("hidden"),
+            List.of("open"),
+            List.of("closed"),
+            List.of("hidden", "open"),
+            List.of("hidden", "closed"),
+            List.of("open", "closed")
         );
-        Response response = client().performRequest(getStar);
-        assertOK(response);
+        for (List<String> expandWildcards : wildcardOptions) {
+            final Request getStar = new Request(
+                "GET",
+                "_data_stream" + (expandWildcards.isEmpty() ? "" : ("?expand_wildcards=" + String.join(",", expandWildcards)))
+            );
+            getStar.setOptions(
+                RequestOptions.DEFAULT.toBuilder().setWarningsHandler(WarningsHandler.PERMISSIVE) // we only care about errors
+            );
+            Response response = client().performRequest(getStar);
+            assertOK(response);
 
-        // note: we don't actually care about the response, just that there was one and that it didn't error out on us
+            // note: we don't actually care about the response, just that there was one and that it didn't error out on us
+        }
     }
 }

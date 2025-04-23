@@ -1,0 +1,5 @@
+pr: 125690
+summary: Take double parameter markers for identifiers out of snapshot
+area: ES|QL
+type: enhancement
+issues: []

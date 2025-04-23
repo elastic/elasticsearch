@@ -149,7 +149,7 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
             List<NamedExpression> extractFields = planIn.readNamedWriteableCollectionAsList(NamedExpression.class);
             String matchField = in.readString();
             var source = Source.EMPTY;
-            if (in.getTransportVersion().onOrAfter(TransportVersions.ESQL_ENRICH_RUNTIME_WARNINGS)) {
+            if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_17_0)) {
                 source = Source.readFrom(planIn);
             }
             // Source.readFrom() requires the query from the Configuration passed to PlanStreamInput.
@@ -182,7 +182,7 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
             PlanStreamOutput planOut = new PlanStreamOutput(out, null);
             planOut.writeNamedWriteableCollection(extractFields);
             out.writeString(matchField);
-            if (out.getTransportVersion().onOrAfter(TransportVersions.ESQL_ENRICH_RUNTIME_WARNINGS)) {
+            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_17_0)) {
                 source.writeTo(planOut);
             }
             if (out.getTransportVersion().onOrAfter(TransportVersions.ESQL_LOOKUP_JOIN_SOURCE_TEXT)) {

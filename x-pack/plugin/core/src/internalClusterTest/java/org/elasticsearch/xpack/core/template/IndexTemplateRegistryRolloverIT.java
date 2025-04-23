@@ -67,7 +67,7 @@ public class IndexTemplateRegistryRolloverIT extends ESIntegTestCase {
     public void testRollover() throws Exception {
         ClusterState state = clusterService.state();
         registry.clusterChanged(new ClusterChangedEvent(IndexTemplateRegistryRolloverIT.class.getName(), state, state));
-        assertBusy(() -> { assertTrue(clusterService.state().metadata().templatesV2().containsKey(TEST_INDEX_TEMPLATE_ID)); });
+        assertBusy(() -> { assertTrue(clusterService.state().metadata().getProject().templatesV2().containsKey(TEST_INDEX_TEMPLATE_ID)); });
         String dsName = TEST_INDEX_PATTERN.replace('*', '1');
         CreateDataStreamAction.Request createDataStreamRequest = new CreateDataStreamAction.Request(
             TEST_REQUEST_TIMEOUT,

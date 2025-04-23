@@ -89,13 +89,14 @@ public class ClusterInfoSimulator {
     public void simulateShardStarted(ShardRouting shard) {
         assert shard.initializing();
 
+        var project = allocation.metadata().projectFor(shard.index());
         var size = getExpectedShardSize(
             shard,
-            UNAVAILABLE_EXPECTED_SHARD_SIZE,
+            shard.getExpectedShardSize(),
             getClusterInfo(),
             allocation.snapshotShardSizeInfo(),
-            allocation.metadata(),
-            allocation.routingTable()
+            project,
+            allocation.routingTable(project.id())
         );
         if (size != UNAVAILABLE_EXPECTED_SHARD_SIZE) {
             if (shard.relocatingNodeId() != null) {
@@ -107,10 +108,7 @@ public class ClusterInfoSimulator {
                 if (shouldReserveSpaceForInitializingShard(shard, allocation.metadata())) {
                     modifyDiskUsage(shard.currentNodeId(), -size);
                 }
-                shardSizes.put(
-                    shardIdentifierFromRouting(shard),
-                    allocation.metadata().getIndexSafe(shard.index()).ignoreDiskWatermarks() ? 0 : size
-                );
+                shardSizes.put(shardIdentifierFromRouting(shard), project.getIndexSafe(shard.index()).ignoreDiskWatermarks() ? 0 : size);
             }
         }
     }

@@ -195,7 +195,7 @@ public abstract class LuceneMinOperatorTestCase extends AnyOperatorTestCase {
 
     @Override
     protected final Matcher<String> expectedToStringOfSimple() {
-        return matchesRegex("LuceneMinMaxOperator\\[maxPageSize = \\d+, remainingDocs=100]");
+        return matchesRegex("LuceneMinMaxOperator\\[shards = \\[test], maxPageSize = \\d+, remainingDocs=100]");
     }
 
     @Override
@@ -203,7 +203,7 @@ public abstract class LuceneMinOperatorTestCase extends AnyOperatorTestCase {
         return matchesRegex(
             "LuceneMinOperator\\[type = "
                 + getNumberType().name()
-                + ", dataPartitioning = (DOC|SHARD|SEGMENT), fieldName = "
+                + ", dataPartitioning = (AUTO|DOC|SHARD|SEGMENT), fieldName = "
                 + FIELD_NAME
                 + ", limit = 100]"
         );

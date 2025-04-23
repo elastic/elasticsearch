@@ -132,8 +132,9 @@ public abstract class AbstractTransportSetUpgradeModeAction extends Acknowledged
     protected abstract String featureName();
 
     /**
-     * Parse the ClusterState for the implementation's {@link org.elasticsearch.cluster.metadata.Metadata.Custom} and find the upgradeMode
-     * boolean stored there.  We will compare this boolean with the request's desired state to determine if we should change the metadata.
+     * Parse the ClusterState for the implementation's {@link org.elasticsearch.cluster.metadata.Metadata.ProjectCustom}
+     * and find the upgradeMode boolean stored there.
+     * We will compare this boolean with the request's desired state to determine if we should change the metadata.
      */
     protected abstract boolean upgradeMode(ClusterState state);
 

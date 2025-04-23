@@ -91,6 +91,7 @@ public interface IndexEventListener {
      * <ul>
      *     <li>Indexing operations</li>
      *     <li>Force merges</li>
+     *     <li>Pre-updates</li>
      * </ul>
      *
      * This method ensures that the shard is ready to accept mutating operations. This is particularly useful in cases
@@ -98,10 +99,11 @@ public interface IndexEventListener {
      * The provided listener should be notified once the shard is prepared to proceed with the operation.
      * This can be called from a transport thread and therefore the function should be lightweight and not block the thread.
      *
-     * @param indexShard the shard where the mutable operation will be performed
-     * @param listener   the listener to be notified when the shard is ready to proceed
+     * @param indexShard     the shard where the mutable operation will be performed
+     * @param permitAcquired whether the operation has acquired an operation permit on the shard
+     * @param listener       the listener to be notified when the shard is ready to proceed
      */
-    default void beforeIndexShardMutableOperation(IndexShard indexShard, ActionListener<Void> listener) {
+    default void beforeIndexShardMutableOperation(IndexShard indexShard, boolean permitAcquired, ActionListener<Void> listener) {
         listener.onResponse(null);
     }
 

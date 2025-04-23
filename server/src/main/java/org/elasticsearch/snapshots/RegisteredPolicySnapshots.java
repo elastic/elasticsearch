@@ -46,7 +46,7 @@ import static org.elasticsearch.snapshots.SnapshotsService.POLICY_ID_METADATA_FI
  * it will not be removed from the registered set. A subsequent snapshot will then find that a registered snapshot
  * is no longer running and will infer that it failed, updating SnapshotLifecycleStats accordingly.
  */
-public class RegisteredPolicySnapshots implements Metadata.Custom {
+public class RegisteredPolicySnapshots implements Metadata.ProjectCustom {
 
     public static final String TYPE = "registered_snapshots";
     private static final ParseField SNAPSHOTS = new ParseField("snapshots");
@@ -90,7 +90,7 @@ public class RegisteredPolicySnapshots implements Metadata.Custom {
     }
 
     @Override
-    public Diff<Metadata.Custom> diff(Metadata.Custom previousState) {
+    public Diff<Metadata.ProjectCustom> diff(Metadata.ProjectCustom previousState) {
         return new RegisteredSnapshotsDiff((RegisteredPolicySnapshots) previousState, this);
     }
 
@@ -140,7 +140,7 @@ public class RegisteredPolicySnapshots implements Metadata.Custom {
         return Objects.equals(snapshots, other.snapshots);
     }
 
-    public static class RegisteredSnapshotsDiff implements NamedDiff<Metadata.Custom> {
+    public static class RegisteredSnapshotsDiff implements NamedDiff<Metadata.ProjectCustom> {
         final List<PolicySnapshot> snapshots;
 
         RegisteredSnapshotsDiff(RegisteredPolicySnapshots before, RegisteredPolicySnapshots after) {
@@ -152,7 +152,7 @@ public class RegisteredPolicySnapshots implements Metadata.Custom {
         }
 
         @Override
-        public Metadata.Custom apply(Metadata.Custom part) {
+        public Metadata.ProjectCustom apply(Metadata.ProjectCustom part) {
             return new RegisteredPolicySnapshots(snapshots);
         }
 

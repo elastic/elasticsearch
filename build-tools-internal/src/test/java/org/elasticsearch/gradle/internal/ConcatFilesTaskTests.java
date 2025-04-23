@@ -60,8 +60,8 @@ public class ConcatFilesTaskTests {
         file2.getParentFile().mkdirs();
         file1.createNewFile();
         file2.createNewFile();
-        Files.write(file1.toPath(), ("Hello" + System.lineSeparator() + "Hello").getBytes(StandardCharsets.UTF_8));
-        Files.write(file2.toPath(), ("Hello" + System.lineSeparator() + "नमस्ते").getBytes(StandardCharsets.UTF_8));
+        Files.writeString(file1.toPath(), "Hello" + System.lineSeparator() + "Hello");
+        Files.writeString(file2.toPath(), "Hello" + System.lineSeparator() + "नमस्ते");
 
         concatFilesTask.setFiles(project.fileTree(file1.getParentFile().getParentFile()));
 

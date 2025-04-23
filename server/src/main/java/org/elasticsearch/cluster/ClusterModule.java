@@ -26,6 +26,7 @@ import org.elasticsearch.cluster.metadata.MetadataIndexTemplateService;
 import org.elasticsearch.cluster.metadata.MetadataMappingService;
 import org.elasticsearch.cluster.metadata.NodesShutdownMetadata;
 import org.elasticsearch.cluster.metadata.RepositoriesMetadata;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.routing.DelayedAllocationService;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingRoleStrategy;
@@ -36,6 +37,7 @@ import org.elasticsearch.cluster.routing.allocation.ExistingShardsAllocator;
 import org.elasticsearch.cluster.routing.allocation.NodeAllocationStatsAndWeightsCalculator;
 import org.elasticsearch.cluster.routing.allocation.WriteLoadForecaster;
 import org.elasticsearch.cluster.routing.allocation.allocator.BalancedShardsAllocator;
+import org.elasticsearch.cluster.routing.allocation.allocator.BalancerSettings;
 import org.elasticsearch.cluster.routing.allocation.allocator.DesiredBalanceShardsAllocator;
 import org.elasticsearch.cluster.routing.allocation.allocator.DesiredBalanceShardsAllocator.DesiredBalanceReconcilerAction;
 import org.elasticsearch.cluster.routing.allocation.allocator.ShardsAllocator;
@@ -64,7 +66,9 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry.Entry;
 import org.elasticsearch.common.io.stream.Writeable.Reader;
+import org.elasticsearch.common.settings.ClusterSecrets;
 import org.elasticsearch.common.settings.ClusterSettings;
+import org.elasticsearch.common.settings.ProjectSecrets;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
@@ -75,6 +79,7 @@ import org.elasticsearch.health.node.selection.HealthNodeTaskExecutor;
 import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.ingest.IngestMetadata;
 import org.elasticsearch.injection.guice.AbstractModule;
+import org.elasticsearch.persistent.ClusterPersistentTasksCustomMetadata;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.persistent.PersistentTasksNodeService;
 import org.elasticsearch.plugins.ClusterPlugin;
@@ -85,7 +90,6 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskResultsService;
 import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.upgrades.FeatureMigrationResults;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ParseField;
 
@@ -105,6 +109,7 @@ public class ClusterModule extends AbstractModule {
 
     public static final String BALANCED_ALLOCATOR = "balanced";
     public static final String DESIRED_BALANCE_ALLOCATOR = "desired_balance"; // default
+    @UpdateForV10(owner = UpdateForV10.Owner.DISTRIBUTED_COORDINATION)
     public static final Setting<String> SHARDS_ALLOCATOR_TYPE_SETTING = Setting.simpleString(
         "cluster.routing.allocation.type",
         DESIRED_BALANCE_ALLOCATOR,
@@ -133,19 +138,19 @@ public class ClusterModule extends AbstractModule {
         SnapshotsInfoService snapshotsInfoService,
         ThreadPool threadPool,
         SystemIndices systemIndices,
+        ProjectResolver projectResolver,
         WriteLoadForecaster writeLoadForecaster,
         TelemetryProvider telemetryProvider
     ) {
         this.clusterPlugins = clusterPlugins;
         this.deciderList = createAllocationDeciders(settings, clusterService.getClusterSettings(), clusterPlugins);
         this.allocationDeciders = new AllocationDeciders(deciderList);
-        var nodeAllocationStatsAndWeightsCalculator = new NodeAllocationStatsAndWeightsCalculator(
-            writeLoadForecaster,
-            clusterService.getClusterSettings()
-        );
+        final BalancerSettings balancerSettings = new BalancerSettings(clusterService.getClusterSettings());
+        var nodeAllocationStatsAndWeightsCalculator = new NodeAllocationStatsAndWeightsCalculator(writeLoadForecaster, balancerSettings);
         this.shardsAllocator = createShardsAllocator(
             settings,
             clusterService.getClusterSettings(),
+            balancerSettings,
             threadPool,
             clusterPlugins,
             clusterService,
@@ -155,7 +160,7 @@ public class ClusterModule extends AbstractModule {
             nodeAllocationStatsAndWeightsCalculator
         );
         this.clusterService = clusterService;
-        this.indexNameExpressionResolver = new IndexNameExpressionResolver(threadPool.getThreadContext(), systemIndices);
+        this.indexNameExpressionResolver = new IndexNameExpressionResolver(threadPool.getThreadContext(), systemIndices, projectResolver);
         this.shardRoutingRoleStrategy = getShardRoutingRoleStrategy(clusterPlugins);
         this.allocationService = new AllocationService(
             allocationDeciders,
@@ -220,39 +225,48 @@ public class ClusterModule extends AbstractModule {
             RepositoryCleanupInProgress::readDiffFrom
         );
         // Metadata
-        registerMetadataCustom(entries, RepositoriesMetadata.TYPE, RepositoriesMetadata::new, RepositoriesMetadata::readDiffFrom);
-        registerMetadataCustom(entries, IngestMetadata.TYPE, IngestMetadata::new, IngestMetadata::readDiffFrom);
-        registerMetadataCustom(entries, ScriptMetadata.TYPE, ScriptMetadata::new, ScriptMetadata::readDiffFrom);
-        registerMetadataCustom(entries, IndexGraveyard.TYPE, IndexGraveyard::new, IndexGraveyard::readDiffFrom);
-        registerMetadataCustom(
+        registerProjectCustom(entries, RepositoriesMetadata.TYPE, RepositoriesMetadata::new, RepositoriesMetadata::readDiffFrom);
+        registerProjectCustom(entries, IngestMetadata.TYPE, IngestMetadata::new, IngestMetadata::readDiffFrom);
+        registerProjectCustom(entries, ScriptMetadata.TYPE, ScriptMetadata::new, ScriptMetadata::readDiffFrom);
+        registerProjectCustom(entries, IndexGraveyard.TYPE, IndexGraveyard::new, IndexGraveyard::readDiffFrom);
+        // Project scoped persistent tasks
+        registerProjectCustom(
             entries,
             PersistentTasksCustomMetadata.TYPE,
             PersistentTasksCustomMetadata::new,
             PersistentTasksCustomMetadata::readDiffFrom
         );
+        // Cluster scoped persistent tasks
         registerMetadataCustom(
+            entries,
+            ClusterPersistentTasksCustomMetadata.TYPE,
+            ClusterPersistentTasksCustomMetadata::new,
+            ClusterPersistentTasksCustomMetadata::readDiffFrom
+        );
+        registerProjectCustom(
             entries,
             ComponentTemplateMetadata.TYPE,
             ComponentTemplateMetadata::new,
             ComponentTemplateMetadata::readDiffFrom
         );
-        registerMetadataCustom(
+        registerProjectCustom(
             entries,
             ComposableIndexTemplateMetadata.TYPE,
             ComposableIndexTemplateMetadata::new,
             ComposableIndexTemplateMetadata::readDiffFrom
         );
-        registerMetadataCustom(entries, DataStreamMetadata.TYPE, DataStreamMetadata::new, DataStreamMetadata::readDiffFrom);
+        registerProjectCustom(entries, DataStreamMetadata.TYPE, DataStreamMetadata::new, DataStreamMetadata::readDiffFrom);
         registerMetadataCustom(entries, NodesShutdownMetadata.TYPE, NodesShutdownMetadata::new, NodesShutdownMetadata::readDiffFrom);
-        registerMetadataCustom(entries, FeatureMigrationResults.TYPE, FeatureMigrationResults::new, FeatureMigrationResults::readDiffFrom);
         registerMetadataCustom(entries, DesiredNodesMetadata.TYPE, DesiredNodesMetadata::new, DesiredNodesMetadata::readDiffFrom);
-        registerMetadataCustom(
+        registerProjectCustom(
             entries,
             RegisteredPolicySnapshots.TYPE,
             RegisteredPolicySnapshots::new,
             RegisteredPolicySnapshots.RegisteredSnapshotsDiff::new
         );
-
+        // Secrets
+        registerClusterCustom(entries, ClusterSecrets.TYPE, ClusterSecrets::new, ClusterSecrets::readDiffFrom);
+        registerProjectCustom(entries, ProjectSecrets.TYPE, ProjectSecrets::new, ProjectSecrets::readDiffFrom);
         // Task Status (not Diffable)
         entries.add(new Entry(Task.Status.class, PersistentTasksNodeService.Status.NAME, PersistentTasksNodeService.Status::new));
 
@@ -267,58 +281,67 @@ public class ClusterModule extends AbstractModule {
         // Metadata
         entries.add(
             new NamedXContentRegistry.Entry(
-                Metadata.Custom.class,
+                Metadata.ProjectCustom.class,
                 new ParseField(RepositoriesMetadata.TYPE),
                 RepositoriesMetadata::fromXContent
             )
         );
         entries.add(
-            new NamedXContentRegistry.Entry(Metadata.Custom.class, new ParseField(IngestMetadata.TYPE), IngestMetadata::fromXContent)
+            new NamedXContentRegistry.Entry(Metadata.ProjectCustom.class, new ParseField(IngestMetadata.TYPE), IngestMetadata::fromXContent)
         );
         entries.add(
-            new NamedXContentRegistry.Entry(Metadata.Custom.class, new ParseField(ScriptMetadata.TYPE), ScriptMetadata::fromXContent)
+            new NamedXContentRegistry.Entry(Metadata.ProjectCustom.class, new ParseField(ScriptMetadata.TYPE), ScriptMetadata::fromXContent)
         );
         entries.add(
-            new NamedXContentRegistry.Entry(Metadata.Custom.class, new ParseField(IndexGraveyard.TYPE), IndexGraveyard::fromXContent)
+            new NamedXContentRegistry.Entry(Metadata.ProjectCustom.class, new ParseField(IndexGraveyard.TYPE), IndexGraveyard::fromXContent)
         );
+        // Project scoped persistent tasks
         entries.add(
             new NamedXContentRegistry.Entry(
-                Metadata.Custom.class,
+                Metadata.ProjectCustom.class,
                 new ParseField(PersistentTasksCustomMetadata.TYPE),
                 PersistentTasksCustomMetadata::fromXContent
             )
         );
+        // Cluster scoped persistent tasks
         entries.add(
             new NamedXContentRegistry.Entry(
-                Metadata.Custom.class,
+                Metadata.ClusterCustom.class,
+                new ParseField(ClusterPersistentTasksCustomMetadata.TYPE),
+                ClusterPersistentTasksCustomMetadata::fromXContent
+            )
+        );
+        entries.add(
+            new NamedXContentRegistry.Entry(
+                Metadata.ProjectCustom.class,
                 new ParseField(ComponentTemplateMetadata.TYPE),
                 ComponentTemplateMetadata::fromXContent
             )
         );
         entries.add(
             new NamedXContentRegistry.Entry(
-                Metadata.Custom.class,
+                Metadata.ProjectCustom.class,
                 new ParseField(ComposableIndexTemplateMetadata.TYPE),
                 ComposableIndexTemplateMetadata::fromXContent
             )
         );
         entries.add(
             new NamedXContentRegistry.Entry(
-                Metadata.Custom.class,
+                Metadata.ProjectCustom.class,
                 new ParseField(DataStreamMetadata.TYPE),
                 DataStreamMetadata::fromXContent
             )
         );
         entries.add(
             new NamedXContentRegistry.Entry(
-                Metadata.Custom.class,
+                Metadata.ClusterCustom.class,
                 new ParseField(NodesShutdownMetadata.TYPE),
                 NodesShutdownMetadata::fromXContent
             )
         );
         entries.add(
             new NamedXContentRegistry.Entry(
-                Metadata.Custom.class,
+                Metadata.ClusterCustom.class,
                 new ParseField(DesiredNodesMetadata.TYPE),
                 DesiredNodesMetadata::fromXContent
             )
@@ -335,13 +358,22 @@ public class ClusterModule extends AbstractModule {
         registerCustom(entries, ClusterState.Custom.class, name, reader, diffReader);
     }
 
-    private static <T extends Metadata.Custom> void registerMetadataCustom(
+    private static <T extends Metadata.ClusterCustom> void registerMetadataCustom(
         List<Entry> entries,
         String name,
         Reader<? extends T> reader,
         Reader<NamedDiff<?>> diffReader
     ) {
-        registerCustom(entries, Metadata.Custom.class, name, reader, diffReader);
+        registerCustom(entries, Metadata.ClusterCustom.class, name, reader, diffReader);
+    }
+
+    private static <T extends Metadata.ProjectCustom> void registerProjectCustom(
+        List<Entry> entries,
+        String name,
+        Reader<? extends T> reader,
+        Reader<NamedDiff<?>> diffReader
+    ) {
+        registerCustom(entries, Metadata.ProjectCustom.class, name, reader, diffReader);
     }
 
     private static <T extends NamedWriteable> void registerCustom(
@@ -406,6 +438,7 @@ public class ClusterModule extends AbstractModule {
     private static ShardsAllocator createShardsAllocator(
         Settings settings,
         ClusterSettings clusterSettings,
+        BalancerSettings balancerSettings,
         ThreadPool threadPool,
         List<ClusterPlugin> clusterPlugins,
         ClusterService clusterService,
@@ -415,12 +448,12 @@ public class ClusterModule extends AbstractModule {
         NodeAllocationStatsAndWeightsCalculator nodeAllocationStatsAndWeightsCalculator
     ) {
         Map<String, Supplier<ShardsAllocator>> allocators = new HashMap<>();
-        allocators.put(BALANCED_ALLOCATOR, () -> new BalancedShardsAllocator(clusterSettings, writeLoadForecaster));
+        allocators.put(BALANCED_ALLOCATOR, () -> new BalancedShardsAllocator(balancerSettings, writeLoadForecaster));
         allocators.put(
             DESIRED_BALANCE_ALLOCATOR,
             () -> new DesiredBalanceShardsAllocator(
                 clusterSettings,
-                new BalancedShardsAllocator(clusterSettings, writeLoadForecaster),
+                new BalancedShardsAllocator(balancerSettings, writeLoadForecaster),
                 threadPool,
                 clusterService,
                 reconciler,

@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.sql.action;
 
 import com.fasterxml.jackson.core.JsonGenerator;
 
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -55,7 +54,6 @@ public class SqlQueryResponse extends ActionResponse implements ToXContentObject
     private final boolean isRunning;
 
     public SqlQueryResponse(StreamInput in) throws IOException {
-        super(in);
         cursor = in.readString();
         if (in.readBoolean()) {
             // We might have rows without columns and we might have columns without rows
@@ -82,16 +80,10 @@ public class SqlQueryResponse extends ActionResponse implements ToXContentObject
             }
         }
         this.rows = unmodifiableList(rows);
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_7_14_0)) {
-            columnar = in.readBoolean();
-            asyncExecutionId = in.readOptionalString();
-            isPartial = in.readBoolean();
-            isRunning = in.readBoolean();
-        } else {
-            asyncExecutionId = null;
-            isPartial = false;
-            isRunning = false;
-        }
+        columnar = in.readBoolean();
+        asyncExecutionId = in.readOptionalString();
+        isPartial = in.readBoolean();
+        isRunning = in.readBoolean();
     }
 
     public SqlQueryResponse(

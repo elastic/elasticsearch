@@ -42,6 +42,14 @@ public class Alias implements Writeable, ToXContentFragment {
     private static final ParseField SEARCH_ROUTING = new ParseField("search_routing", "searchRouting", "search-routing");
     private static final ParseField IS_WRITE_INDEX = new ParseField("is_write_index");
     private static final ParseField IS_HIDDEN = new ParseField("is_hidden");
+    private static final Set<String> KNOWN_FIELDS = Set.of(
+        FILTER.getPreferredName(),
+        ROUTING.getPreferredName(),
+        INDEX_ROUTING.getPreferredName(),
+        SEARCH_ROUTING.getPreferredName(),
+        IS_WRITE_INDEX.getPreferredName(),
+        IS_HIDDEN.getPreferredName()
+    );
 
     private String name;
 
@@ -234,15 +242,7 @@ public class Alias implements Writeable, ToXContentFragment {
             if (token == XContentParser.Token.FIELD_NAME) {
                 currentFieldName = parser.currentName();
                 // check if there are any unknown fields
-                Set<String> knownFieldNames = Set.of(
-                    FILTER.getPreferredName(),
-                    ROUTING.getPreferredName(),
-                    INDEX_ROUTING.getPreferredName(),
-                    SEARCH_ROUTING.getPreferredName(),
-                    IS_WRITE_INDEX.getPreferredName(),
-                    IS_HIDDEN.getPreferredName()
-                );
-                if (knownFieldNames.contains(currentFieldName) == false) {
+                if (KNOWN_FIELDS.contains(currentFieldName) == false) {
                     throw new IllegalArgumentException("Unknown field [" + currentFieldName + "] in alias [" + alias.name + "]");
                 }
             } else if (token == XContentParser.Token.START_OBJECT) {

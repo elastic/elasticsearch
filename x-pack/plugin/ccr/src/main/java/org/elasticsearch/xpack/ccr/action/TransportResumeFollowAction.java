@@ -130,7 +130,7 @@ public class TransportResumeFollowAction extends AcknowledgedTransportMasterNode
             return;
         }
 
-        final IndexMetadata followerIndexMetadata = state.getMetadata().index(request.getFollowerIndex());
+        final IndexMetadata followerIndexMetadata = state.getMetadata().getProject().index(request.getFollowerIndex());
         if (followerIndexMetadata == null) {
             listener.onFailure(new IndexNotFoundException(request.getFollowerIndex()));
             return;
@@ -485,7 +485,6 @@ public class TransportResumeFollowAction extends AcknowledgedTransportMasterNode
         IndexSettings.MAX_SLICES_PER_SCROLL,
         IndexSettings.DEFAULT_PIPELINE,
         IndexSettings.FINAL_PIPELINE,
-        IndexSettings.INDEX_SEARCH_THROTTLED,
         IndexSettings.INDEX_TRANSLOG_RETENTION_AGE_SETTING,
         IndexSettings.INDEX_TRANSLOG_RETENTION_SIZE_SETTING,
         IndexSettings.INDEX_TRANSLOG_GENERATION_THRESHOLD_SIZE_SETTING,

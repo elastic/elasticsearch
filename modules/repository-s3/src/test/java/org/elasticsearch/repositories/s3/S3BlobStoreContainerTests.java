@@ -15,6 +15,10 @@ import com.amazonaws.services.s3.model.AbortMultipartUploadRequest;
 import com.amazonaws.services.s3.model.CannedAccessControlList;
 import com.amazonaws.services.s3.model.CompleteMultipartUploadRequest;
 import com.amazonaws.services.s3.model.CompleteMultipartUploadResult;
+import com.amazonaws.services.s3.model.CopyObjectRequest;
+import com.amazonaws.services.s3.model.CopyObjectResult;
+import com.amazonaws.services.s3.model.CopyPartRequest;
+import com.amazonaws.services.s3.model.CopyPartResult;
 import com.amazonaws.services.s3.model.InitiateMultipartUploadRequest;
 import com.amazonaws.services.s3.model.InitiateMultipartUploadResult;
 import com.amazonaws.services.s3.model.ObjectMetadata;
@@ -159,12 +163,26 @@ public class S3BlobStoreContainerTests extends ESTestCase {
     }
 
     public void testExecuteMultipartUpload() throws IOException {
+        testExecuteMultipart(false);
+    }
+
+    public void testExecuteMultipartCopy() throws IOException {
+        testExecuteMultipart(true);
+    }
+
+    void testExecuteMultipart(boolean doCopy) throws IOException {
         final String bucketName = randomAlphaOfLengthBetween(1, 10);
         final String blobName = randomAlphaOfLengthBetween(1, 10);
+        final String sourceBucketName = randomAlphaOfLengthBetween(1, 10);
+        final String sourceBlobName = randomAlphaOfLengthBetween(1, 10);
 
         final BlobPath blobPath = BlobPath.EMPTY;
         if (randomBoolean()) {
-            IntStream.of(randomIntBetween(1, 5)).forEach(value -> BlobPath.EMPTY.add("path_" + value));
+            IntStream.of(randomIntBetween(1, 5)).forEach(value -> blobPath.add("path_" + value));
+        }
+        final var sourceBlobPath = BlobPath.EMPTY;
+        if (randomBoolean()) {
+            IntStream.of(randomIntBetween(1, 5)).forEach(value -> sourceBlobPath.add("path_" + value));
         }
 
         final long blobSize = ByteSizeUnit.GB.toBytes(randomIntBetween(1, 128));
@@ -173,6 +191,9 @@ public class S3BlobStoreContainerTests extends ESTestCase {
         final S3BlobStore blobStore = mock(S3BlobStore.class);
         when(blobStore.bucket()).thenReturn(bucketName);
         when(blobStore.bufferSizeInBytes()).thenReturn(bufferSize);
+
+        final S3BlobStore sourceBlobStore = mock(S3BlobStore.class);
+        when(sourceBlobStore.bucket()).thenReturn(sourceBucketName);
 
         final boolean serverSideEncryption = randomBoolean();
         when(blobStore.serverSideEncryption()).thenReturn(serverSideEncryption);
@@ -193,29 +214,45 @@ public class S3BlobStoreContainerTests extends ESTestCase {
         when(client.initiateMultipartUpload(initArgCaptor.capture())).thenReturn(initResult);
 
         final ArgumentCaptor<UploadPartRequest> uploadArgCaptor = ArgumentCaptor.forClass(UploadPartRequest.class);
+        final var copyArgCaptor = ArgumentCaptor.forClass(CopyPartRequest.class);
 
         final List<String> expectedEtags = new ArrayList<>();
-        final long partSize = Math.min(bufferSize, blobSize);
+        final long partSize = Math.min(doCopy ? ByteSizeUnit.GB.toBytes(5) : bufferSize, blobSize);
         long totalBytes = 0;
         do {
             expectedEtags.add(randomAlphaOfLength(50));
             totalBytes += partSize;
         } while (totalBytes < blobSize);
 
-        when(client.uploadPart(uploadArgCaptor.capture())).thenAnswer(invocationOnMock -> {
-            final UploadPartRequest request = (UploadPartRequest) invocationOnMock.getArguments()[0];
-            final UploadPartResult response = new UploadPartResult();
-            response.setPartNumber(request.getPartNumber());
-            response.setETag(expectedEtags.get(request.getPartNumber() - 1));
-            return response;
-        });
+        if (doCopy) {
+            when(client.copyPart(copyArgCaptor.capture())).thenAnswer(invocationOnMock -> {
+                final CopyPartRequest request = (CopyPartRequest) invocationOnMock.getArguments()[0];
+                final CopyPartResult result = new CopyPartResult();
+                result.setETag(expectedEtags.get(request.getPartNumber() - 1));
+                return result;
+            });
+        } else {
+            when(client.uploadPart(uploadArgCaptor.capture())).thenAnswer(invocationOnMock -> {
+                final UploadPartRequest request = (UploadPartRequest) invocationOnMock.getArguments()[0];
+                final UploadPartResult response = new UploadPartResult();
+                response.setPartNumber(request.getPartNumber());
+                response.setETag(expectedEtags.get(request.getPartNumber() - 1));
+                return response;
+            });
+        }
 
         final ArgumentCaptor<CompleteMultipartUploadRequest> compArgCaptor = ArgumentCaptor.forClass(CompleteMultipartUploadRequest.class);
         when(client.completeMultipartUpload(compArgCaptor.capture())).thenReturn(new CompleteMultipartUploadResult());
 
         final ByteArrayInputStream inputStream = new ByteArrayInputStream(new byte[0]);
         final S3BlobContainer blobContainer = new S3BlobContainer(blobPath, blobStore);
-        blobContainer.executeMultipartUpload(randomPurpose(), blobStore, blobName, inputStream, blobSize);
+        final S3BlobContainer sourceContainer = new S3BlobContainer(sourceBlobPath, sourceBlobStore);
+
+        if (doCopy) {
+            blobContainer.executeMultipartCopy(randomPurpose(), sourceContainer, sourceBlobName, blobName, blobSize);
+        } else {
+            blobContainer.executeMultipartUpload(randomPurpose(), blobStore, blobName, inputStream, blobSize);
+        }
 
         final InitiateMultipartUploadRequest initRequest = initArgCaptor.getValue();
         assertEquals(bucketName, initRequest.getBucketName());
@@ -226,26 +263,46 @@ public class S3BlobStoreContainerTests extends ESTestCase {
             assertEquals(ObjectMetadata.AES_256_SERVER_SIDE_ENCRYPTION, initRequest.getObjectMetadata().getSSEAlgorithm());
         }
 
-        final Tuple<Long, Long> numberOfParts = S3BlobContainer.numberOfMultiparts(blobSize, bufferSize);
+        final Tuple<Long, Long> numberOfParts = S3BlobContainer.numberOfMultiparts(blobSize, partSize);
 
-        final List<UploadPartRequest> uploadRequests = uploadArgCaptor.getAllValues();
-        assertEquals(numberOfParts.v1().intValue(), uploadRequests.size());
+        if (doCopy) {
+            final var copyRequests = copyArgCaptor.getAllValues();
+            assertEquals(numberOfParts.v1().intValue(), copyRequests.size());
 
-        for (int i = 0; i < uploadRequests.size(); i++) {
-            final UploadPartRequest uploadRequest = uploadRequests.get(i);
+            for (int i = 0; i < copyRequests.size(); i++) {
+                final var request = copyRequests.get(i);
+                final long startOffset = i * partSize;
+                final long endOffset = Math.min(startOffset + partSize - 1, blobSize - 1);
 
-            assertEquals(bucketName, uploadRequest.getBucketName());
-            assertEquals(blobPath.buildAsString() + blobName, uploadRequest.getKey());
-            assertEquals(initResult.getUploadId(), uploadRequest.getUploadId());
-            assertEquals(i + 1, uploadRequest.getPartNumber());
-            assertEquals(inputStream, uploadRequest.getInputStream());
+                assertEquals(sourceBucketName, request.getSourceBucketName());
+                assertEquals(sourceBlobPath.buildAsString() + sourceBlobName, request.getSourceKey());
+                assertEquals(bucketName, request.getDestinationBucketName());
+                assertEquals(blobPath.buildAsString() + blobName, request.getDestinationKey());
+                assertEquals(initResult.getUploadId(), request.getUploadId());
+                assertEquals(i + 1, request.getPartNumber());
+                assertEquals(Long.valueOf(startOffset), request.getFirstByte());
+                assertEquals(Long.valueOf(endOffset), request.getLastByte());
+            }
+        } else {
+            final List<UploadPartRequest> uploadRequests = uploadArgCaptor.getAllValues();
+            assertEquals(numberOfParts.v1().intValue(), uploadRequests.size());
 
-            if (i == (uploadRequests.size() - 1)) {
-                assertTrue(uploadRequest.isLastPart());
-                assertEquals(numberOfParts.v2().longValue(), uploadRequest.getPartSize());
-            } else {
-                assertFalse(uploadRequest.isLastPart());
-                assertEquals(bufferSize, uploadRequest.getPartSize());
+            for (int i = 0; i < uploadRequests.size(); i++) {
+                final UploadPartRequest uploadRequest = uploadRequests.get(i);
+
+                assertEquals(bucketName, uploadRequest.getBucketName());
+                assertEquals(blobPath.buildAsString() + blobName, uploadRequest.getKey());
+                assertEquals(initResult.getUploadId(), uploadRequest.getUploadId());
+                assertEquals(i + 1, uploadRequest.getPartNumber());
+                assertEquals(inputStream, uploadRequest.getInputStream());
+
+                if (i == (uploadRequests.size() - 1)) {
+                    assertTrue(uploadRequest.isLastPart());
+                    assertEquals(numberOfParts.v2().longValue(), uploadRequest.getPartSize());
+                } else {
+                    assertFalse(uploadRequest.isLastPart());
+                    assertEquals(bufferSize, uploadRequest.getPartSize());
+                }
             }
         }
 
@@ -326,7 +383,7 @@ public class S3BlobStoreContainerTests extends ESTestCase {
             blobContainer.executeMultipartUpload(randomPurpose(), blobStore, blobName, new ByteArrayInputStream(new byte[0]), blobSize);
         });
 
-        assertEquals("Unable to upload object [" + blobName + "] using multipart upload", e.getMessage());
+        assertEquals("Unable to upload or copy object [" + blobName + "] using multipart upload", e.getMessage());
         assertThat(e.getCause(), instanceOf(AmazonClientException.class));
         assertEquals(exceptions.get(stage).getMessage(), e.getCause().getMessage());
 
@@ -354,6 +411,46 @@ public class S3BlobStoreContainerTests extends ESTestCase {
             assertEquals(blobName, abortRequest.getKey());
             assertEquals(uploadId, abortRequest.getUploadId());
         }
+
+        closeMockClient(blobStore);
+    }
+
+    public void testCopy() throws Exception {
+        final var sourceBucketName = randomAlphaOfLengthBetween(1, 10);
+        final var sourceBlobName = randomAlphaOfLengthBetween(1, 10);
+        final var blobName = randomAlphaOfLengthBetween(1, 10);
+
+        final StorageClass storageClass = randomFrom(StorageClass.values());
+        final CannedAccessControlList cannedAccessControlList = randomBoolean() ? randomFrom(CannedAccessControlList.values()) : null;
+
+        final var blobStore = mock(S3BlobStore.class);
+        when(blobStore.bucket()).thenReturn(sourceBucketName);
+        when(blobStore.getStorageClass()).thenReturn(storageClass);
+        if (cannedAccessControlList != null) {
+            when(blobStore.getCannedACL()).thenReturn(cannedAccessControlList);
+        }
+        when(blobStore.maxCopySizeBeforeMultipart()).thenReturn(S3Repository.MIN_PART_SIZE_USING_MULTIPART.getBytes());
+
+        final var sourceBlobPath = BlobPath.EMPTY.add(randomAlphaOfLengthBetween(1, 10));
+        final var sourceBlobContainer = new S3BlobContainer(sourceBlobPath, blobStore);
+
+        final var destinationBlobPath = BlobPath.EMPTY.add(randomAlphaOfLengthBetween(1, 10));
+        final var destinationBlobContainer = new S3BlobContainer(destinationBlobPath, blobStore);
+
+        final var client = configureMockClient(blobStore);
+
+        final ArgumentCaptor<CopyObjectRequest> captor = ArgumentCaptor.forClass(CopyObjectRequest.class);
+        when(client.copyObject(captor.capture())).thenReturn(new CopyObjectResult());
+
+        destinationBlobContainer.copyBlob(randomPurpose(), sourceBlobContainer, sourceBlobName, blobName, randomLongBetween(1, 10_000));
+
+        final CopyObjectRequest request = captor.getValue();
+        assertEquals(sourceBucketName, request.getSourceBucketName());
+        assertEquals(sourceBlobPath.buildAsString() + sourceBlobName, request.getSourceKey());
+        assertEquals(sourceBucketName, request.getDestinationBucketName());
+        assertEquals(destinationBlobPath.buildAsString() + blobName, request.getDestinationKey());
+        assertEquals(storageClass.toString(), request.getStorageClass());
+        assertEquals(cannedAccessControlList, request.getCannedAccessControlList());
 
         closeMockClient(blobStore);
     }

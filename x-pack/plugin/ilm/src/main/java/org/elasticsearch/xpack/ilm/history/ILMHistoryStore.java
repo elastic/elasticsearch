@@ -95,7 +95,7 @@ public class ILMHistoryStore implements Closeable {
             new BulkProcessor2.Listener() {
                 @Override
                 public void beforeBulk(long executionId, BulkRequest request) {
-                    if (clusterService.state().getMetadata().templatesV2().containsKey(ILM_TEMPLATE_NAME) == false) {
+                    if (clusterService.state().getMetadata().getProject().templatesV2().containsKey(ILM_TEMPLATE_NAME) == false) {
                         ElasticsearchException e = new ElasticsearchException("no ILM history template");
                         logger.warn(
                             () -> format(

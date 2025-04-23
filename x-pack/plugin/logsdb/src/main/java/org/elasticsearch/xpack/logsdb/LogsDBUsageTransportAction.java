@@ -45,7 +45,7 @@ public class LogsDBUsageTransportAction extends XPackUsageFeatureTransportAction
     }
 
     @Override
-    protected void masterOperation(
+    protected void localClusterStateOperation(
         Task task,
         XPackUsageRequest request,
         ClusterState state,
@@ -53,7 +53,7 @@ public class LogsDBUsageTransportAction extends XPackUsageFeatureTransportAction
     ) {
         int numIndices = 0;
         int numIndicesWithSyntheticSources = 0;
-        for (IndexMetadata indexMetadata : state.metadata()) {
+        for (IndexMetadata indexMetadata : state.metadata().getProject()) {
             if (indexMetadata.getIndexMode() == IndexMode.LOGSDB) {
                 numIndices++;
                 if (IndexSettings.INDEX_MAPPER_SOURCE_MODE_SETTING.get(indexMetadata.getSettings()) == SourceFieldMapper.Mode.SYNTHETIC) {

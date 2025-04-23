@@ -1,5 +1,0 @@
-pr: 120405
-summary: Automatically rollover legacy ml indices
-area: Machine Learning
-type: upgrade
-issues: []

@@ -19,7 +19,7 @@ import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.repositories.RepositoryStatsSnapshot;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.TransportRequest;
+import org.elasticsearch.transport.AbstractTransportRequest;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
@@ -78,7 +78,7 @@ public final class TransportClearRepositoriesStatsArchiveAction extends Transpor
         return new RepositoriesNodeMeteringResponse(clusterService.localNode(), clearedStats);
     }
 
-    static final class ClearRepositoriesStatsArchiveNodeRequest extends TransportRequest {
+    static final class ClearRepositoriesStatsArchiveNodeRequest extends AbstractTransportRequest {
         private final long maxVersionToClear;
 
         ClearRepositoriesStatsArchiveNodeRequest(long maxVersionToClear) {

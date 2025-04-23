@@ -28,14 +28,14 @@ public class FieldArrayContext {
     private static final String OFFSETS_FIELD_NAME_SUFFIX = ".offsets";
     private final Map<String, Offsets> offsetsPerField = new HashMap<>();
 
-    void recordOffset(String field, Comparable<?> value) {
+    public void recordOffset(String field, Comparable<?> value) {
         Offsets arrayOffsets = offsetsPerField.computeIfAbsent(field, k -> new Offsets());
         int nextOffset = arrayOffsets.currentOffset++;
         var offsets = arrayOffsets.valueToOffsets.computeIfAbsent(value, s -> new ArrayList<>(2));
         offsets.add(nextOffset);
     }
 
-    void recordNull(String field) {
+    public void recordNull(String field) {
         Offsets arrayOffsets = offsetsPerField.computeIfAbsent(field, k -> new Offsets());
         int nextOffset = arrayOffsets.currentOffset++;
         arrayOffsets.nullValueOffsets.add(nextOffset);
@@ -63,7 +63,8 @@ public class FieldArrayContext {
                 offsetToOrd[nullOffset] = -1;
             }
 
-            try (var streamOutput = new BytesStreamOutput()) {
+            int expectedSize = offsetToOrd.length + 1; // Initialize buffer to avoid unnecessary resizing, assume 1 byte per offset + size.
+            try (var streamOutput = new BytesStreamOutput(expectedSize)) {
                 // Could just use vint for array length, but this allows for decoding my_field: null as -1
                 streamOutput.writeVInt(BitUtil.zigZagEncode(offsetToOrd.length));
                 for (int ord : offsetToOrd) {
@@ -82,7 +83,7 @@ public class FieldArrayContext {
         return offsetToOrd;
     }
 
-    static String getOffsetsFieldName(
+    public static String getOffsetsFieldName(
         MapperBuilderContext context,
         Mapper.SourceKeepMode indexSourceKeepMode,
         boolean hasDocValues,
@@ -96,6 +97,7 @@ public class FieldArrayContext {
             && sourceKeepMode == Mapper.SourceKeepMode.ARRAYS
             && hasDocValues
             && isStored == false
+            && context.isInNestedContext() == false
             && fieldMapperBuilder.copyTo.copyToFields().isEmpty()
             && fieldMapperBuilder.multiFieldsBuilder.hasMultiFields() == false
             && indexVersionSupportStoringArraysNatively(indexCreatedVersion, minSupportedVersionMain)) {
@@ -117,7 +119,7 @@ public class FieldArrayContext {
     ) {
         return indexCreatedVersion.onOrAfter(minSupportedVersionMain)
             || indexCreatedVersion.between(
-                IndexVersions.SYNTHETIC_SOURCE_STORE_ARRAYS_NATIVELY_KEYWORD_BACKPORT_8_X,
+                IndexVersions.SYNTHETIC_SOURCE_STORE_ARRAYS_NATIVELY_BACKPORT_8_X,
                 IndexVersions.UPGRADE_TO_LUCENE_10_0_0
             );
     }

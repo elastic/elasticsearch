@@ -25,8 +25,10 @@ import java.util.List;
 /**
  * Profile results from a single {@link Driver}.
  *
- * @param taskDescription Description of the task this driver is running. This description should be short and meaningful
- *                        as a grouping identifier. We use the phase of the query right now: "data", "node_reduce", "final".
+ * @param description Description of the driver. This description should be short and meaningful as a grouping identifier.
+ *                    We use the phase of the query right now: "data", "node_reduce", "final".
+ * @param clusterName The name of the cluster this driver is running on.
+ * @param nodeName The name of the node this driver is running on.
  * @param startMillis Millis since epoch when the driver started.
  * @param stopMillis Millis since epoch when the driver stopped.
  * @param tookNanos Nanos between creation and completion of the {@link Driver}.
@@ -35,7 +37,9 @@ import java.util.List;
  * @param operators Status of each {@link Operator} in the driver when it finished.
  */
 public record DriverProfile(
-    String taskDescription,
+    String description,
+    String clusterName,
+    String nodeName,
     long startMillis,
     long stopMillis,
     long tookNanos,
@@ -48,7 +52,9 @@ public record DriverProfile(
     public static DriverProfile readFrom(StreamInput in) throws IOException {
         return new DriverProfile(
             in.getTransportVersion().onOrAfter(TransportVersions.ESQL_DRIVER_TASK_DESCRIPTION)
-                || in.getTransportVersion().isPatchFrom(TransportVersions.ESQL_DRIVER_TASK_DESCRIPTION_90) ? in.readString() : "",
+                || in.getTransportVersion().isPatchFrom(TransportVersions.V_9_0_0) ? in.readString() : "",
+            in.getTransportVersion().onOrAfter(TransportVersions.ESQL_DRIVER_NODE_DESCRIPTION) ? in.readString() : "",
+            in.getTransportVersion().onOrAfter(TransportVersions.ESQL_DRIVER_NODE_DESCRIPTION) ? in.readString() : "",
             in.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0) ? in.readVLong() : 0,
             in.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0) ? in.readVLong() : 0,
             in.getTransportVersion().onOrAfter(TransportVersions.V_8_14_0) ? in.readVLong() : 0,
@@ -62,8 +68,12 @@ public record DriverProfile(
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         if (out.getTransportVersion().onOrAfter(TransportVersions.ESQL_DRIVER_TASK_DESCRIPTION)
-            || out.getTransportVersion().isPatchFrom(TransportVersions.ESQL_DRIVER_TASK_DESCRIPTION_90)) {
-            out.writeString(taskDescription);
+            || out.getTransportVersion().isPatchFrom(TransportVersions.V_9_0_0)) {
+            out.writeString(description);
+        }
+        if (out.getTransportVersion().onOrAfter(TransportVersions.ESQL_DRIVER_NODE_DESCRIPTION)) {
+            out.writeString(clusterName);
+            out.writeString(nodeName);
         }
         if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)) {
             out.writeVLong(startMillis);
@@ -81,7 +91,9 @@ public record DriverProfile(
     @Override
     public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params params) {
         return Iterators.concat(ChunkedToXContentHelper.startObject(), Iterators.single((b, p) -> {
-            b.field("task_description", taskDescription);
+            b.field("description", description);
+            b.field("cluster_name", clusterName);
+            b.field("node_name", nodeName);
             b.timestampFieldsFromUnixEpochMillis("start_millis", "start", startMillis);
             b.timestampFieldsFromUnixEpochMillis("stop_millis", "stop", stopMillis);
             b.field("took_nanos", tookNanos);
@@ -92,6 +104,8 @@ public record DriverProfile(
             if (b.humanReadable()) {
                 b.field("cpu_time", TimeValue.timeValueNanos(cpuNanos));
             }
+            b.field("documents_found", operators.stream().mapToLong(OperatorStatus::documentsFound).sum());
+            b.field("values_loaded", operators.stream().mapToLong(OperatorStatus::valuesLoaded).sum());
             b.field("iterations", iterations);
             return b;
         }),

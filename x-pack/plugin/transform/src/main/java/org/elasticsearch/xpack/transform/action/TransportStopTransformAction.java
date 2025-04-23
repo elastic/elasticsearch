@@ -20,11 +20,13 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.GroupedActionListener;
 import org.elasticsearch.action.support.tasks.TransportTasksAction;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.core.FixForMultiProject;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.discovery.MasterNotDiscoveredException;
 import org.elasticsearch.index.IndexNotFoundException;
@@ -97,7 +99,8 @@ public class TransportStopTransformAction extends TransportTasksAction<Transform
     }
 
     static void validateTaskState(ClusterState state, List<String> transformIds, boolean isForce) {
-        PersistentTasksCustomMetadata tasks = state.metadata().custom(PersistentTasksCustomMetadata.TYPE);
+        final var project = state.metadata().getDefaultProject();
+        PersistentTasksCustomMetadata tasks = PersistentTasksCustomMetadata.get(project);
         if (isForce == false && tasks != null) {
             List<String> failedTasks = new ArrayList<>();
             List<String> failedReasons = new ArrayList<>();
@@ -387,7 +390,9 @@ public class TransportStopTransformAction extends TransportTasksAction<Transform
         // This map is accessed in the predicate and the listener callbacks
         final Map<String, ElasticsearchException> exceptions = new ConcurrentHashMap<>();
 
-        persistentTasksService.waitForPersistentTasksCondition(persistentTasksCustomMetadata -> {
+        @FixForMultiProject
+        final var projectId = Metadata.DEFAULT_PROJECT_ID;
+        persistentTasksService.waitForPersistentTasksCondition(projectId, persistentTasksCustomMetadata -> {
             if (persistentTasksCustomMetadata == null) {
                 return true;
             }
@@ -444,9 +449,8 @@ public class TransportStopTransformAction extends TransportTasksAction<Transform
         }, e -> {
             // waitForPersistentTasksCondition throws a IllegalStateException on timeout
             if (e instanceof IllegalStateException && e.getMessage().startsWith("Timed out")) {
-                PersistentTasksCustomMetadata persistentTasksCustomMetadata = clusterService.state()
-                    .metadata()
-                    .custom(PersistentTasksCustomMetadata.TYPE);
+                final var project = clusterService.state().metadata().getDefaultProject();
+                PersistentTasksCustomMetadata persistentTasksCustomMetadata = PersistentTasksCustomMetadata.get(project);
 
                 if (persistentTasksCustomMetadata == null) {
                     listener.onResponse(new Response(Boolean.TRUE));

@@ -37,6 +37,7 @@ import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.FilterClient;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
@@ -1787,6 +1788,7 @@ public class EnrichPolicyRunnerTests extends ESSingleNodeTestCase {
             .field("field5", "value5")
             .endObject();
         EnrichPolicyRunner enrichPolicyRunner = new EnrichPolicyRunner(
+            Metadata.DEFAULT_PROJECT_ID,
             policyName,
             policy,
             task,
@@ -1967,6 +1969,7 @@ public class EnrichPolicyRunnerTests extends ESSingleNodeTestCase {
         };
 
         EnrichPolicyRunner enrichPolicyRunner = new EnrichPolicyRunner(
+            Metadata.DEFAULT_PROJECT_ID,
             policyName,
             policy,
             task,
@@ -2088,6 +2091,7 @@ public class EnrichPolicyRunnerTests extends ESSingleNodeTestCase {
         };
 
         EnrichPolicyRunner enrichPolicyRunner = new EnrichPolicyRunner(
+            Metadata.DEFAULT_PROJECT_ID,
             policyName,
             policy,
             task,
@@ -2490,6 +2494,7 @@ public class EnrichPolicyRunnerTests extends ESSingleNodeTestCase {
         });
         ExecuteEnrichPolicyTask task = ((ExecuteEnrichPolicyTask) asyncTask);
         return new EnrichPolicyRunner(
+            Metadata.DEFAULT_PROJECT_ID,
             policyName,
             policy,
             task,

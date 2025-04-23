@@ -17,6 +17,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.core.UpdateForV10;
 import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.tasks.Task;
@@ -31,6 +32,7 @@ import static org.elasticsearch.xpack.application.EnterpriseSearch.BEHAVIORAL_AN
  * @deprecated in 9.0
  */
 @Deprecated
+@UpdateForV10(owner = UpdateForV10.Owner.ENTERPRISE_SEARCH)
 public class TransportPutAnalyticsCollectionAction extends TransportMasterNodeAction<
     PutAnalyticsCollectionAction.Request,
     PutAnalyticsCollectionAction.Response> {

@@ -44,6 +44,7 @@ import java.util.concurrent.TimeUnit;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasToString;
 import static org.hamcrest.Matchers.is;
@@ -704,9 +705,21 @@ public class SettingsTests extends ESTestCase {
     }
 
     public void testGlobValues() throws IOException {
-        Settings test = Settings.builder().put("foo.x.bar", "1").put("foo.y.bar", "2").build();
-        var values = test.getGlobValues("foo.*.bar").toList();
+        Settings test = Settings.builder().put("foo.x.bar", "1").build();
+
+        // no values
+        assertThat(test.getValues("foo.*.baz").toList(), empty());
+        assertThat(test.getValues("fuz.*.bar").toList(), empty());
+
+        var values = test.getValues("foo.*.bar").toList();
+        assertThat(values, containsInAnyOrder("1"));
+
+        test = Settings.builder().put("foo.x.bar", "1").put("foo.y.bar", "2").build();
+        values = test.getValues("foo.*.bar").toList();
         assertThat(values, containsInAnyOrder("1", "2"));
+
+        values = test.getValues("foo.x.bar").toList();
+        assertThat(values, contains("1"));
     }
 
 }

@@ -7812,14 +7812,10 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
     }
 
     public void testEqualsPushdownToDelegateTooBig() {
-        var optimized = optimizedPlan(
-            physicalPlan(
-                """
-                    FROM test
-                    | WHERE job == "too_long"
-                    """, testDataLimitedRaw
-            ), SEARCH_STATS_SHORT_DELEGATES
-        );
+        var optimized = optimizedPlan(physicalPlan("""
+            FROM test
+            | WHERE job == "too_long"
+            """, testDataLimitedRaw), SEARCH_STATS_SHORT_DELEGATES);
         var limit = as(optimized, LimitExec.class);
         var exchange = as(limit.child(), ExchangeExec.class);
         var project = as(exchange.child(), ProjectExec.class);

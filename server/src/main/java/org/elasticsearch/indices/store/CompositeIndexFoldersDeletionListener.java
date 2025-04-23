@@ -32,15 +32,10 @@ public class CompositeIndexFoldersDeletionListener implements IndexStorePlugin.I
     }
 
     @Override
-    public void beforeIndexFoldersDeleted(
-        Index index,
-        IndexSettings indexSettings,
-        Path[] indexPaths,
-        IndexRemovalReason indexRemovalReason
-    ) {
+    public void beforeIndexFoldersDeleted(Index index, IndexSettings indexSettings, Path[] indexPaths, IndexRemovalReason reason) {
         for (IndexStorePlugin.IndexFoldersDeletionListener listener : listeners) {
             try {
-                listener.beforeIndexFoldersDeleted(index, indexSettings, indexPaths, indexRemovalReason);
+                listener.beforeIndexFoldersDeleted(index, indexSettings, indexPaths, reason);
             } catch (Exception e) {
                 assert false : new AssertionError(e);
                 throw e;
@@ -49,15 +44,10 @@ public class CompositeIndexFoldersDeletionListener implements IndexStorePlugin.I
     }
 
     @Override
-    public void beforeShardFoldersDeleted(
-        ShardId shardId,
-        IndexSettings indexSettings,
-        Path[] shardPaths,
-        IndexRemovalReason indexRemovalReason
-    ) {
+    public void beforeShardFoldersDeleted(ShardId shardId, IndexSettings indexSettings, Path[] shardPaths, IndexRemovalReason reason) {
         for (IndexStorePlugin.IndexFoldersDeletionListener listener : listeners) {
             try {
-                listener.beforeShardFoldersDeleted(shardId, indexSettings, shardPaths, indexRemovalReason);
+                listener.beforeShardFoldersDeleted(shardId, indexSettings, shardPaths, reason);
             } catch (Exception e) {
                 assert false : new AssertionError(e);
                 throw e;

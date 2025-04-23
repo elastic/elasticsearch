@@ -350,7 +350,7 @@ public class IndexFoldersDeletionListenerIT extends ESIntegTestCase {
                     Index index,
                     IndexSettings indexSettings,
                     Path[] indexPaths,
-                    IndexRemovalReason indexRemovalReason
+                    IndexRemovalReason reason
                 ) {
                     deletedIndices.add(index);
                 }
@@ -360,7 +360,7 @@ public class IndexFoldersDeletionListenerIT extends ESIntegTestCase {
                     ShardId shardId,
                     IndexSettings indexSettings,
                     Path[] shardPaths,
-                    IndexRemovalReason indexRemovalReason
+                    IndexRemovalReason reason
                 ) {
                     deletedShards.computeIfAbsent(shardId.getIndex(), i -> Collections.synchronizedList(new ArrayList<>())).add(shardId);
                 }

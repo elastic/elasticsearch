@@ -47,7 +47,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
-import static org.elasticsearch.common.settings.Settings.*;
+import static org.elasticsearch.common.settings.Settings.EMPTY;
+import static org.elasticsearch.common.settings.Settings.builder;
 
 public class TransportUpdateDataStreamSettingsAction extends TransportMasterNodeAction<
     UpdateDataStreamSettingsAction.Request,

@@ -30,6 +30,8 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Predicate;
+import java.util.function.Supplier;
 
 import static org.elasticsearch.xpack.core.enrich.EnrichPolicy.GEO_MATCH_TYPE;
 import static org.elasticsearch.xpack.core.enrich.EnrichPolicy.MATCH_TYPE;
@@ -233,5 +235,14 @@ public final class AnalyzerTestUtils {
             Map.of("index1", IndexMode.STANDARD, "index2", IndexMode.STANDARD, "index3", IndexMode.STANDARD)
         );
         return IndexResolution.valid(index);
+    }
+
+    public static <E> E randomValueOtherThanTest(Predicate<E> exclude, Supplier<E> supplier) {
+        while (true) {
+            E value = supplier.get();
+            if (exclude.test(value) == false) {
+                return value;
+            }
+        }
     }
 }

@@ -58,6 +58,7 @@ processingCommand
     | {this.isDevVersion()}? inlinestatsCommand
     | {this.isDevVersion()}? lookupCommand
     | {this.isDevVersion()}? rerankCommand
+    | {this.isDevVersion()}? sampleCommand
     ;
 
 whereCommand
@@ -388,4 +389,8 @@ rerankCommand
 
 completionCommand
     : COMPLETION (targetField=qualifiedName ASSIGN)? prompt=primaryExpression WITH inferenceId=identifierOrParameter
+    ;
+
+sampleCommand
+    : DEV_SAMPLE probability=decimalValue seed=integerValue?
     ;

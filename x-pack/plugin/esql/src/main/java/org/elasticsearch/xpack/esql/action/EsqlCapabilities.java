@@ -960,7 +960,12 @@ public class EsqlCapabilities {
         /**
          * Support for LIKE operator with a list of patterns
          */
-        LIKE_WITH_LIST_OF_PATTERNS;
+        LIKE_WITH_LIST_OF_PATTERNS,
+
+        /**
+         * Support for the SAMPLE command
+         */
+        SAMPLE(Build.current().isSnapshot());
 
         private final boolean enabled;
 

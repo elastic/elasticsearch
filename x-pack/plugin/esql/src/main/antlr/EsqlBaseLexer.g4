@@ -91,6 +91,8 @@ DEV_INLINESTATS :  {this.isDevVersion()}? 'inlinestats'   -> pushMode(EXPRESSION
 DEV_LOOKUP :       {this.isDevVersion()}? 'lookup_🐔'     -> pushMode(LOOKUP_MODE);
 DEV_METRICS :      {this.isDevVersion()}? 'metrics'       -> pushMode(METRICS_MODE);
 DEV_RERANK :       {this.isDevVersion()}? 'rerank'        -> pushMode(EXPRESSION_MODE);
+DEV_SAMPLE :       {this.isDevVersion()}? 'sample'        -> pushMode(EXPRESSION_MODE);
+
 // list of all JOIN commands
 DEV_JOIN_FULL :    {this.isDevVersion()}? 'full'          -> pushMode(JOIN_MODE);
 DEV_JOIN_LEFT :    {this.isDevVersion()}? 'left'          -> pushMode(JOIN_MODE);

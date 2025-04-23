@@ -15,6 +15,7 @@ import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
+import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.expression.function.grouping.GroupingFunction;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
@@ -126,6 +127,8 @@ public final class CombineProjections extends OptimizerRules.OptimizerRule<Unary
             if (ne instanceof Alias as) {
                 Expression child = as.child();
                 namedExpressionsBuilder.put(ne.toAttribute(), as.replaceChild(aliasesBuilder.build().resolve(child, child)));
+            } else if (ne instanceof ReferenceAttribute ra) {
+                namedExpressionsBuilder.put(ra, ra);
             }
         }
         List<NamedExpression> replaced = new ArrayList<>(upper.size());

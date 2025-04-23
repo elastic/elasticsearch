@@ -259,6 +259,16 @@ final class ES819TSDBDocValuesConsumer extends XDocValuesConsumer {
     }
 
     @Override
+    public void mergeBinaryField(FieldInfo mergeFieldInfo, MergeState mergeState) throws IOException {
+        var result = compatibleWithOptimizedMerge(enableOptimizedMerge, mergeState, mergeFieldInfo);
+        if (result.supported()) {
+            mergeBinaryField(result, mergeFieldInfo, mergeState);
+        } else {
+            super.mergeBinaryField(mergeFieldInfo, mergeState);
+        }
+    }
+
+    @Override
     public void addBinaryField(FieldInfo field, DocValuesProducer valuesProducer) throws IOException {
         meta.writeInt(field.number);
         meta.writeByte(ES819TSDBDocValuesFormat.BINARY);

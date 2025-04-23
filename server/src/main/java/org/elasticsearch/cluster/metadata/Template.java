@@ -61,7 +61,9 @@ public class Template implements SimpleDiffable<Template>, ToXContentObject {
             a[4] == null ? ResettableValue.undefined() : (ResettableValue<DataStreamOptions.Template>) a[4]
         )
     );
-    public static final DataStreamLifecycle.Template DISABLED_LIFECYCLE = DataStreamLifecycle.builder().enabled(false).buildTemplate();
+    public static final DataStreamLifecycle.Template DISABLED_LIFECYCLE = DataStreamLifecycle.dataLifecycleBuilder()
+        .enabled(false)
+        .buildTemplate();
 
     static {
         PARSER.declareObject(ConstructingObjectParser.optionalConstructorArg(), (p, c) -> Settings.fromXContent(p), SETTINGS);
@@ -314,9 +316,7 @@ public class Template implements SimpleDiffable<Template>, ToXContentObject {
             builder.field(LIFECYCLE.getPreferredName());
             lifecycle.toXContent(builder, params, rolloverConfiguration, null, false);
         }
-        if (DataStream.isFailureStoreFeatureFlagEnabled()) {
-            dataStreamOptions.toXContent(builder, params, DATA_STREAM_OPTIONS.getPreferredName());
-        }
+        dataStreamOptions.toXContent(builder, params, DATA_STREAM_OPTIONS.getPreferredName());
         builder.endObject();
         return builder;
     }

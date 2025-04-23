@@ -58,7 +58,8 @@ public class ReplaceMissingFieldWithNull extends ParameterizedRule<LogicalPlan, 
         // Do not use the attribute name, this can deviate from the field name for union types; use fieldName() instead.
         // Also retain fields from lookup indices because we do not have stats for these.
         Predicate<FieldAttribute> shouldBeRetained = f -> f.field() instanceof PotentiallyUnmappedKeywordEsField
-            || localLogicalOptimizerContext.searchStats().exists(f.fieldName()) || lookupFields.contains(f);
+            || localLogicalOptimizerContext.searchStats().exists(f.fieldName())
+            || lookupFields.contains(f);
 
         return plan.transformUp(p -> missingToNull(p, shouldBeRetained));
     }

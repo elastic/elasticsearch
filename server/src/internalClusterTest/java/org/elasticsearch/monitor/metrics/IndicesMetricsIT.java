@@ -116,11 +116,11 @@ public class IndicesMetricsIT extends ESIntegTestCase {
             .findFirst()
             .orElseThrow();
         IndicesService indicesService = internalCluster().getInstance(IndicesService.class, indexNode);
-        var indexing0 = indicesService.stats(CommonStatsFlags.ALL, false).getIndexing().getTotal();
+        var indexing0 = indicesService.stats(CommonStatsFlags.ALL, false, false).getIndexing().getTotal();
         telemetry.resetMeter();
         long numStandardIndices = randomIntBetween(1, 5);
         long numStandardDocs = populateStandardIndices(numStandardIndices);
-        var indexing1 = indicesService.stats(CommonStatsFlags.ALL, false).getIndexing().getTotal();
+        var indexing1 = indicesService.stats(CommonStatsFlags.ALL, false, false).getIndexing().getTotal();
         collectThenAssertMetrics(
             telemetry,
             1,
@@ -145,7 +145,7 @@ public class IndicesMetricsIT extends ESIntegTestCase {
 
         long numTimeSeriesIndices = randomIntBetween(1, 5);
         long numTimeSeriesDocs = populateTimeSeriesIndices(numTimeSeriesIndices);
-        var indexing2 = indicesService.stats(CommonStatsFlags.ALL, false).getIndexing().getTotal();
+        var indexing2 = indicesService.stats(CommonStatsFlags.ALL, false, false).getIndexing().getTotal();
         collectThenAssertMetrics(
             telemetry,
             2,
@@ -170,7 +170,7 @@ public class IndicesMetricsIT extends ESIntegTestCase {
 
         long numLogsdbIndices = randomIntBetween(1, 5);
         long numLogsdbDocs = populateLogsdbIndices(numLogsdbIndices);
-        var indexing3 = indicesService.stats(CommonStatsFlags.ALL, false).getIndexing().getTotal();
+        var indexing3 = indicesService.stats(CommonStatsFlags.ALL, false, false).getIndexing().getTotal();
         collectThenAssertMetrics(
             telemetry,
             3,
@@ -240,7 +240,7 @@ public class IndicesMetricsIT extends ESIntegTestCase {
         // search and fetch
         String preference = "_only_local";
         client(searchNode).prepareSearch("standard*").setPreference(preference).setSize(100).get().decRef();
-        var search1 = indicesService.stats(CommonStatsFlags.ALL, false).getSearch().getTotal();
+        var search1 = indicesService.stats(CommonStatsFlags.ALL, false, false).getSearch().getTotal();
         collectThenAssertMetrics(
             telemetry,
             1,
@@ -267,7 +267,7 @@ public class IndicesMetricsIT extends ESIntegTestCase {
         );
 
         client(searchNode).prepareSearch("time*").setPreference(preference).setSize(100).get().decRef();
-        var search2 = indicesService.stats(CommonStatsFlags.ALL, false).getSearch().getTotal();
+        var search2 = indicesService.stats(CommonStatsFlags.ALL, false, false).getSearch().getTotal();
         collectThenAssertMetrics(
             telemetry,
             2,
@@ -293,7 +293,7 @@ public class IndicesMetricsIT extends ESIntegTestCase {
             )
         );
         client(searchNode).prepareSearch("logs*").setPreference(preference).setSize(100).get().decRef();
-        var search3 = indicesService.stats(CommonStatsFlags.ALL, false).getSearch().getTotal();
+        var search3 = indicesService.stats(CommonStatsFlags.ALL, false, false).getSearch().getTotal();
         collectThenAssertMetrics(
             telemetry,
             3,

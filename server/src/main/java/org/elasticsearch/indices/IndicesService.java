@@ -39,6 +39,7 @@ import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver.ResolvedExpression;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.project.ProjectResolver;
@@ -83,6 +84,7 @@ import org.elasticsearch.env.ShardLock;
 import org.elasticsearch.env.ShardLockObtainFailedException;
 import org.elasticsearch.gateway.MetaStateService;
 import org.elasticsearch.gateway.MetadataStateFormat;
+import org.elasticsearch.index.AbstractIndexComponent;
 import org.elasticsearch.index.CloseUtils;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexMode;
@@ -466,7 +468,7 @@ public class IndicesService extends AbstractLifecycleComponent
         return closeLatch.await(timeout, timeUnit);
     }
 
-    public NodeIndicesStats stats(CommonStatsFlags flags, boolean includeShardsStats) {
+    public NodeIndicesStats stats(CommonStatsFlags flags, boolean includeShardsStats, boolean includeProjectIdsIfMultiProject) {
         CommonStats commonStats = new CommonStats(flags);
         // the cumulative statistics also account for shards that are no longer on this node, which is tracked by oldShardsStats
         for (Flag flag : flags.getFlags()) {
@@ -482,7 +484,13 @@ public class IndicesService extends AbstractLifecycleComponent
             }
         }
 
-        return new NodeIndicesStats(commonStats, statsByIndex(this, flags), statsByShard(this, flags), includeShardsStats);
+        return new NodeIndicesStats(
+            commonStats,
+            statsByIndex(this, flags),
+            statsByShard(this, flags),
+            (includeProjectIdsIfMultiProject && projectResolver.supportsMultipleProjects()) ? projectsByIndex() : null,
+            includeShardsStats
+        );
     }
 
     static Map<Index, CommonStats> statsByIndex(final IndicesService indicesService, final CommonStatsFlags flags) {
@@ -562,6 +570,13 @@ public class IndicesService extends AbstractLifecycleComponent
                     indexShard.searchIdleTime()
                 ) }
         );
+    }
+
+    private Map<Index, ProjectId> projectsByIndex() {
+        return indices.values()
+            .stream()
+            .map(AbstractIndexComponent::index)
+            .collect(Collectors.toMap(index -> index, index -> clusterService.state().metadata().projectFor(index).id()));
     }
 
     /**

@@ -161,6 +161,7 @@ public class TransportNodesStatsAction extends TransportNodesAction<
         return nodeService.stats(
             nodesStatsRequestParameters.indices(),
             nodesStatsRequestParameters.includeShardsStats(),
+            nodesStatsRequestParameters.includeProjectIdsIfMultiProject(),
             metrics.contains(Metric.OS),
             metrics.contains(Metric.PROCESS),
             metrics.contains(Metric.JVM),

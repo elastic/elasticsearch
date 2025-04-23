@@ -111,6 +111,7 @@ public class DiskHealthTracker extends HealthTracker<DiskHealthInfo> {
             false,
             false,
             false,
+            false,
             true,
             false,
             false,

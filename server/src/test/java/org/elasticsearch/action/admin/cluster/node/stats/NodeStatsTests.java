@@ -17,6 +17,7 @@ import org.elasticsearch.action.admin.indices.stats.ShardStats;
 import org.elasticsearch.cluster.coordination.ClusterStateSerializationStats;
 import org.elasticsearch.cluster.coordination.PendingClusterStateStats;
 import org.elasticsearch.cluster.coordination.PublishClusterStateStats;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.routing.RecoverySource;
@@ -688,7 +689,8 @@ public class NodeStatsTests extends ESTestCase {
             statsByShard.put(indexTest, indexShardStats);
 
             CommonStats oldStats = new CommonStats(CommonStatsFlags.ALL);
-            nodeIndicesStats = new NodeIndicesStats(oldStats, statsByIndex, statsByShard, true);
+            Map<Index, ProjectId> projectsByIndex = randomBoolean() ? Map.of(indexTest, randomProjectIdOrDefault()) : null;
+            nodeIndicesStats = new NodeIndicesStats(oldStats, statsByIndex, statsByShard, projectsByIndex, true);
         }
         OsStats osStats = null;
         if (frequently()) {

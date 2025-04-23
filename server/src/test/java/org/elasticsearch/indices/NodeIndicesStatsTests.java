@@ -27,7 +27,7 @@ import static org.hamcrest.object.HasToString.hasToString;
 public class NodeIndicesStatsTests extends ESTestCase {
 
     public void testInvalidLevel() {
-        final NodeIndicesStats stats = new NodeIndicesStats(null, Collections.emptyMap(), Collections.emptyMap(), randomBoolean());
+        final NodeIndicesStats stats = new NodeIndicesStats(null, Collections.emptyMap(), Collections.emptyMap(), null, randomBoolean());
         final String level = randomAlphaOfLength(16);
         final ToXContent.Params params = new ToXContent.MapParams(Collections.singletonMap("level", level));
         final IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> stats.toXContentChunked(params));
@@ -42,9 +42,9 @@ public class NodeIndicesStatsTests extends ESTestCase {
         final Map<Index, List<IndexShardStats>> statsByShards = new HashMap<>();
         final List<IndexShardStats> emptyList = List.of();
         statsByShards.put(index, emptyList);
-        NodeIndicesStats stats = new NodeIndicesStats(null, Collections.emptyMap(), statsByShards, true);
+        NodeIndicesStats stats = new NodeIndicesStats(null, Collections.emptyMap(), statsByShards, null, true);
         assertThat(stats.getShardStats(index), sameInstance(emptyList));
-        stats = new NodeIndicesStats(null, Collections.emptyMap(), statsByShards, false);
+        stats = new NodeIndicesStats(null, Collections.emptyMap(), statsByShards, null, false);
         assertThat(stats.getShardStats(index), nullValue());
     }
 

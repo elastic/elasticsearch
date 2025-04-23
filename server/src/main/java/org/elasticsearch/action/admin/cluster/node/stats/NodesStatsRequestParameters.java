@@ -31,6 +31,7 @@ public class NodesStatsRequestParameters implements Writeable {
     private CommonStatsFlags indices = new CommonStatsFlags();
     private final EnumSet<Metric> requestedMetrics;
     private boolean includeShardsStats = true;
+    private boolean includeProjectIdsIfMultiProject = false;
 
     public NodesStatsRequestParameters() {
         this.requestedMetrics = EnumSet.noneOf(Metric.class);
@@ -44,6 +45,11 @@ public class NodesStatsRequestParameters implements Writeable {
         } else {
             includeShardsStats = true;
         }
+        if (in.getTransportVersion().onOrAfter(TransportVersions.NODES_STATS_SUPPORTS_MULTI_PROJECT)) {
+            includeProjectIdsIfMultiProject = in.readBoolean();
+        } else {
+            includeProjectIdsIfMultiProject = false;
+        }
     }
 
     @Override
@@ -52,6 +58,9 @@ public class NodesStatsRequestParameters implements Writeable {
         Metric.writeSetTo(out, requestedMetrics);
         if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
             out.writeBoolean(includeShardsStats);
+        }
+        if (out.getTransportVersion().onOrAfter(TransportVersions.NODES_STATS_SUPPORTS_MULTI_PROJECT)) {
+            out.writeBoolean(includeProjectIdsIfMultiProject);
         }
     }
 
@@ -73,6 +82,20 @@ public class NodesStatsRequestParameters implements Writeable {
 
     public void setIncludeShardsStats(boolean includeShardsStats) {
         this.includeShardsStats = includeShardsStats;
+    }
+
+    /**
+     * Returns whether to include the project IDs in the {@link NodeStats} if this ES instance is multi-project.
+     */
+    public boolean includeProjectIdsIfMultiProject() {
+        return includeProjectIdsIfMultiProject;
+    }
+
+    /**
+     * Sets whether to include the project IDs in the {@link NodeStats} if this ES instance is multi-project.
+     */
+    public void setIncludeProjectIdsIfMultiProject(boolean includeProjectIdsIfMultiProject) {
+        this.includeProjectIdsIfMultiProject = includeProjectIdsIfMultiProject;
     }
 
     /**

@@ -229,6 +229,7 @@ public class TransportVersions {
     public static final TransportVersion RANDOM_SAMPLER_QUERY_BUILDER = def(9_063_0_00);
     public static final TransportVersion SETTINGS_IN_DATA_STREAMS = def(9_064_0_00);
     public static final TransportVersion INTRODUCE_FAILURES_LIFECYCLE = def(9_065_0_00);
+    public static final TransportVersion NODES_STATS_SUPPORTS_MULTI_PROJECT = def(9_066_0_00);
 
     /*
      * STOP! READ THIS FIRST! No, really,

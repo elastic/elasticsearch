@@ -76,7 +76,11 @@ tasks.named("yamlRestTest").configure {
     // Reindex from remote is not supported on Serverless and required additional testing setup
     '^reindex/60_wait_for_active_shards/can override wait_for_active_shards', // <- Requires a single shard
     '^reindex/90_remote/*',
-    '^reindex/95_parent_join/Reindex from remote*'
+    '^reindex/95_parent_join/Reindex from remote*',
+
+    // The indices-level node stats prepend the project ID to the index name in multi-project, so the matches fail
+    // This functionality is tested in NodesStatsMultiProjectIT
+    '^nodes.stats/11_indices_metrics/indices mappings exact count test for indices level',
   ];
   if (buildParams.snapshotBuild == false) {
     blacklist += [];

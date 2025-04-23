@@ -553,14 +553,14 @@ public class Netty4IncrementalRequestHandlingIT extends ESNetty4IntegTestCase {
             }
 
             channel.flush();
-            safeAwait(indexCreatedListener);
+            safeAwait(indexCreatedListener); // index must be created before we finish sending the request
 
             channel.writeAndFlush(new DefaultLastHttpContent());
             final var response = clientContext.getNextResponse();
             try {
                 assertEquals(RestStatus.OK.getStatus(), response.status().code());
                 final ObjectPath responseBody;
-                final var copy = response.content().copy();
+                final var copy = response.content().copy(); // Netty4Utils doesn't handle direct buffers, so copy to heap first
                 try {
                     responseBody = ObjectPath.createFromXContent(JsonXContent.jsonXContent, Netty4Utils.toBytesReference(copy));
                 } finally {

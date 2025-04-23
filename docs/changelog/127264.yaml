@@ -1,5 +1,0 @@
-pr: 127264
-summary: Have `CombineProjections` propagate references upwards
-area: Compute Engine
-type: bug
-issues: []

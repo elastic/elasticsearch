@@ -294,7 +294,6 @@ final class ES819TSDBDocValuesConsumer extends XDocValuesConsumer {
                 assert maxLength >= minLength;
                 if (maxLength > minLength) {
                     offsetsAccumulator = new OffsetsAccumulator(dir, context, data, numDocsWithField);
-
                 }
 
                 for (int doc = values.nextDoc(); doc != DocIdSetIterator.NO_MORE_DOCS; doc = values.nextDoc()) {

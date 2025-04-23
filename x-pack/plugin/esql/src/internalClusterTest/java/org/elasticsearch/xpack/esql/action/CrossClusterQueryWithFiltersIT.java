@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.action;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.cluster.RemoteException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.query.QueryBuilder;

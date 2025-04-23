@@ -76,6 +76,12 @@ public class ThreadPoolMergeExecutorService {
     private final int concurrentMergesCeilLimitForThrottling;
 
     private final List<MergeEventListener> mergeEventListeners = new CopyOnWriteArrayList<>();
+    /**
+     * To ensure that for a given merge {@link org.elasticsearch.index.engine.MergeEventListener#onMergeAborted} or
+     * {@link org.elasticsearch.index.engine.MergeEventListener#onMergeCompleted} is not called before
+     * {@link org.elasticsearch.index.engine.MergeEventListener#onMergeQueued}.
+     */
+    private final Object mergeEventsMutex = new Object();
 
     public static @Nullable ThreadPoolMergeExecutorService maybeCreateThreadPoolMergeExecutorService(
         ThreadPool threadPool,
@@ -141,8 +147,10 @@ public class ThreadPoolMergeExecutorService {
     }
 
     private void enqueueMergeTask(MergeTask mergeTask) {
-        if (queuedMergeTasks.add(mergeTask)) {
-            mergeEventListeners.forEach(l -> l.onMergeQueued(mergeTask.getOnGoingMerge(), mergeTask.getEstimateMergeMemoryBytes()));
+        synchronized (mergeEventsMutex) {
+            if (queuedMergeTasks.add(mergeTask)) {
+                mergeEventListeners.forEach(l -> l.onMergeQueued(mergeTask.getOnGoingMerge(), mergeTask.getEstimateMergeMemoryBytes()));
+            }
         }
     }
 
@@ -211,7 +219,9 @@ public class ThreadPoolMergeExecutorService {
             if (mergeTask.supportsIOThrottling()) {
                 ioThrottledMergeTasksCount.decrementAndGet();
             }
-            mergeEventListeners.forEach(l -> l.onMergeCompleted(mergeTask.getOnGoingMerge()));
+            synchronized (mergeEventsMutex) {
+                mergeEventListeners.forEach(l -> l.onMergeCompleted(mergeTask.getOnGoingMerge()));
+            }
         }
     }
 
@@ -224,7 +234,9 @@ public class ThreadPoolMergeExecutorService {
             if (mergeTask.supportsIOThrottling()) {
                 ioThrottledMergeTasksCount.decrementAndGet();
             }
-            mergeEventListeners.forEach(l -> l.onMergeAborted(mergeTask.getOnGoingMerge()));
+            synchronized (mergeEventsMutex) {
+                mergeEventListeners.forEach(l -> l.onMergeAborted(mergeTask.getOnGoingMerge()));
+            }
         }
     }
 

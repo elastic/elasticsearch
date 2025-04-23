@@ -27,14 +27,14 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
-public class CreateDataStreamTransportAction extends AcknowledgedTransportMasterNodeAction<CreateDataStreamAction.Request> {
+public class TransportCreateDataStreamAction extends AcknowledgedTransportMasterNodeAction<CreateDataStreamAction.Request> {
 
     private final MetadataCreateDataStreamService metadataCreateDataStreamService;
     private final SystemIndices systemIndices;
     private final ProjectResolver projectResolver;
 
     @Inject
-    public CreateDataStreamTransportAction(
+    public TransportCreateDataStreamAction(
         TransportService transportService,
         ClusterService clusterService,
         ThreadPool threadPool,

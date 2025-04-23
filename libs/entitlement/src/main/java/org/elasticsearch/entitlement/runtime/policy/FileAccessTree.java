@@ -258,6 +258,15 @@ public final class FileAccessTree {
         this.exclusivePaths = sortedExclusivePaths;
         this.readPaths = pruneSortedPaths(readPaths).toArray(new String[0]);
         this.writePaths = pruneSortedPaths(writePaths).toArray(new String[0]);
+
+        logger.debug(
+            () -> Strings.format(
+                "Created FileAccessTree with paths: exclusive [%s], read [%s], write [%s]",
+                String.join(",", this.exclusivePaths),
+                String.join(",", this.readPaths),
+                String.join(",", this.writePaths)
+            )
+        );
     }
 
     // package private for testing
@@ -305,11 +314,17 @@ public final class FileAccessTree {
     }
 
     public boolean canRead(Path path) {
-        return checkPath(normalizePath(path), readPaths);
+        var normalizedPath = normalizePath(path);
+        var canRead = checkPath(normalizedPath, readPaths);
+        logger.trace(() -> Strings.format("checking [%s] (normalized to [%s]) for read: %b", path, normalizedPath, canRead));
+        return canRead;
     }
 
     public boolean canWrite(Path path) {
-        return checkPath(normalizePath(path), writePaths);
+        var normalizedPath = normalizePath(path);
+        var canWrite = checkPath(normalizedPath, writePaths);
+        logger.trace(() -> Strings.format("checking [%s] (normalized to [%s]) for write: %b", path, normalizedPath, canWrite));
+        return canWrite;
     }
 
     /**
@@ -327,7 +342,6 @@ public final class FileAccessTree {
     }
 
     private boolean checkPath(String path, String[] paths) {
-        logger.trace(() -> Strings.format("checking [%s] against [%s]", path, String.join(",", paths)));
         if (paths.length == 0) {
             return false;
         }
@@ -345,8 +359,9 @@ public final class FileAccessTree {
     }
 
     private static boolean isParent(String maybeParent, String path) {
-        logger.trace(() -> Strings.format("checking isParent [%s] for [%s]", maybeParent, path));
-        return path.startsWith(maybeParent) && path.startsWith(FILE_SEPARATOR, maybeParent.length());
+        var isParent = path.startsWith(maybeParent) && path.startsWith(FILE_SEPARATOR, maybeParent.length());
+        logger.trace(() -> Strings.format("checking isParent [%s] for [%s]: %b", maybeParent, path, isParent));
+        return isParent;
     }
 
     @Override

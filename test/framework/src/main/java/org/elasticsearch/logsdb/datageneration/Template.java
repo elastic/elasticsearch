@@ -21,7 +21,7 @@ import java.util.Map;
 public record Template(Map<String, Entry> template) {
     public sealed interface Entry permits Leaf, Object {}
 
-    public record Leaf(String name, FieldType type) implements Entry {}
+    public record Leaf(String name, String type) implements Entry {}
 
     public record Object(String name, boolean nested, Map<String, Entry> children) implements Entry {}
 }

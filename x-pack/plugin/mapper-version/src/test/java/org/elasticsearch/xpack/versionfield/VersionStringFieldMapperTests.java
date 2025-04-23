@@ -148,27 +148,7 @@ public class VersionStringFieldMapperTests extends MapperTestCase {
 
     @Override
     protected String generateRandomInputValue(MappedFieldType ft) {
-        return randomValue();
-    }
-
-    protected static String randomValue() {
-        return randomVersionNumber() + (randomBoolean() ? "" : randomPrerelease());
-    }
-
-    private static String randomVersionNumber() {
-        int numbers = between(1, 3);
-        String v = Integer.toString(between(0, 100));
-        for (int i = 1; i < numbers; i++) {
-            v += "." + between(0, 100);
-        }
-        return v;
-    }
-
-    private static String randomPrerelease() {
-        if (rarely()) {
-            return randomFrom("alpha", "beta", "prerelease", "whatever");
-        }
-        return randomFrom("alpha", "beta", "") + randomVersionNumber();
+        return VersionStringTestUtils.randomVersionString();
     }
 
     @Override
@@ -212,7 +192,7 @@ public class VersionStringFieldMapperTests extends MapperTestCase {
         }
 
         private Tuple<String, String> generateValue() {
-            String v = randomValue();
+            String v = VersionStringTestUtils.randomVersionString();
             return Tuple.tuple(v, v);
         }
 

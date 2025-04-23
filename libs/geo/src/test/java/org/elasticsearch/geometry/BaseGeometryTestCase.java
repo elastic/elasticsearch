@@ -21,6 +21,9 @@ import java.util.concurrent.atomic.AtomicBoolean;
 
 abstract class BaseGeometryTestCase<T extends Geometry> extends AbstractWireTestCase<T> {
 
+    public static final String ZorMMustIncludeThreeValuesMsg =
+        "When specifying 'Z' or 'M', coordinates must include three values. Only two coordinates were provided";
+
     @Override
     protected final T createTestInstance() {
         boolean hasAlt = randomBoolean();

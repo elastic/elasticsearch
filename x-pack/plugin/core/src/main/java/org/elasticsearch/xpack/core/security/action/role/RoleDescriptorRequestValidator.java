@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.core.security.action.role;
 
 import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivilege;
 import org.elasticsearch.xpack.core.security.authz.privilege.ClusterPrivilegeResolver;
@@ -53,6 +54,9 @@ public class RoleDescriptorRequestValidator {
                 } catch (IllegalArgumentException ile) {
                     validationException = addValidationError(ile.getMessage(), validationException);
                 }
+                for (final String indexName : idp.getIndices()) {
+                    validationException = validateIndexNameExpression(indexName, validationException);
+                }
             }
         }
         final RoleDescriptor.RemoteIndicesPrivileges[] remoteIndicesPrivileges = roleDescriptor.getRemoteIndicesPrivileges();
@@ -70,6 +74,9 @@ public class RoleDescriptorRequestValidator {
                 }
             } catch (IllegalArgumentException ile) {
                 validationException = addValidationError(ile.getMessage(), validationException);
+            }
+            for (String indexName : ridp.indicesPrivileges().getIndices()) {
+                validationException = validateIndexNameExpression(indexName, validationException);
             }
         }
         if (roleDescriptor.hasRemoteClusterPermissions()) {
@@ -115,6 +122,23 @@ public class RoleDescriptorRequestValidator {
             if (error != null) {
                 validationException = addValidationError(error.toString(), validationException);
             }
+        }
+        return validationException;
+    }
+
+    private static ActionRequestValidationException validateIndexNameExpression(
+        String indexNameExpression,
+        ActionRequestValidationException validationException
+    ) {
+        if (IndexNameExpressionResolver.hasSelectorSuffix(indexNameExpression)) {
+            validationException = addValidationError(
+                "selectors ["
+                    + IndexNameExpressionResolver.SelectorResolver.SELECTOR_SEPARATOR
+                    + "] are not allowed in the index name expression ["
+                    + indexNameExpression
+                    + "]",
+                validationException
+            );
         }
         return validationException;
     }

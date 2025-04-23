@@ -42,7 +42,6 @@ import org.gradle.process.ExecOperations;
 import java.io.File;
 import java.io.IOException;
 import java.io.UncheckedIOException;
-import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.security.GeneralSecurityException;
 import java.util.Collection;
@@ -533,7 +532,7 @@ public class ElasticsearchCluster implements TestClusterConfiguration, Named {
         String unicastUris = nodes.stream().flatMap(node -> node.getAllTransportPortURI().stream()).collect(Collectors.joining("\n"));
         nodes.forEach(node -> {
             try {
-                Files.write(node.getConfigDir().resolve("unicast_hosts.txt"), unicastUris.getBytes(StandardCharsets.UTF_8));
+                Files.writeString(node.getConfigDir().resolve("unicast_hosts.txt"), unicastUris);
             } catch (IOException e) {
                 throw new UncheckedIOException("Failed to write unicast_hosts for " + this, e);
             }

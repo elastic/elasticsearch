@@ -48,7 +48,7 @@ import static org.elasticsearch.xpack.esql.CsvTestsDataLoader.ENRICH_SOURCE_INDI
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.classpathResources;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.INLINESTATS;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.INLINESTATS_V2;
-import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.INLINESTATS_V4;
+import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.INLINESTATS_V5;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.JOIN_LOOKUP_V12;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.JOIN_PLANNING_V1;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.METADATA_FIELDS_REMOTE_TEST;
@@ -126,10 +126,15 @@ public class MultiClusterSpecIT extends EsqlSpecTestCase {
         assumeFalse("INLINESTATS not yet supported in CCS", testCase.requiredCapabilities.contains(INLINESTATS.capabilityName()));
         assumeFalse("INLINESTATS not yet supported in CCS", testCase.requiredCapabilities.contains(INLINESTATS_V2.capabilityName()));
         assumeFalse("INLINESTATS not yet supported in CCS", testCase.requiredCapabilities.contains(JOIN_PLANNING_V1.capabilityName()));
-        assumeFalse("INLINESTATS not yet supported in CCS", testCase.requiredCapabilities.contains(INLINESTATS_V4.capabilityName()));
+        assumeFalse("INLINESTATS not yet supported in CCS", testCase.requiredCapabilities.contains(INLINESTATS_V5.capabilityName()));
         assumeFalse("LOOKUP JOIN not yet supported in CCS", testCase.requiredCapabilities.contains(JOIN_LOOKUP_V12.capabilityName()));
         // Unmapped fields require a coorect capability response from every cluster, which isn't currently implemented.
         assumeFalse("UNMAPPED FIELDS not yet supported in CCS", testCase.requiredCapabilities.contains(UNMAPPED_FIELDS.capabilityName()));
+    }
+
+    @Override
+    protected boolean supportTimeSeriesCommand() {
+        return false;
     }
 
     private TestFeatureService remoteFeaturesService() throws IOException {
@@ -246,7 +251,7 @@ public class MultiClusterSpecIT extends EsqlSpecTestCase {
             var newFrom = "FROM " + remoteIndices + " " + commands[0].substring(fromStatement.length());
             testCase.query = newFrom + query.substring(first.length());
         }
-        if (commands[0].toLowerCase(Locale.ROOT).startsWith("metrics")) {
+        if (commands[0].toLowerCase(Locale.ROOT).startsWith("ts ")) {
             String[] parts = commands[0].split("\\s+");
             assert parts.length >= 2 : commands[0];
             String[] indices = parts[1].split(",");
@@ -295,6 +300,12 @@ public class MultiClusterSpecIT extends EsqlSpecTestCase {
 
     @Override
     protected boolean supportsSourceFieldMapping() {
+        return false;
+    }
+
+    @Override
+    protected boolean supportsTook() throws IOException {
+        // We don't read took properly in multi-cluster tests.
         return false;
     }
 }

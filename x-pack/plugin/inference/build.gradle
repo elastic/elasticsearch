@@ -391,8 +391,6 @@ tasks.named("thirdPartyAudit").configure {
     'software.amazon.awssdk.crt.auth.signing.AwsSigningConfig$AwsSignedBodyHeaderType',
     'software.amazon.awssdk.crt.auth.signing.AwsSigningConfig$AwsSigningAlgorithm',
     'software.amazon.awssdk.crt.auth.signing.AwsSigningResult',
-    'software.amazon.awssdk.crt.checksums.CRC32',
-    'software.amazon.awssdk.crt.checksums.CRC32C',
     'software.amazon.awssdk.crt.http.HttpHeader',
     'software.amazon.awssdk.crt.http.HttpRequest',
     'software.amazon.awssdk.crt.http.HttpRequestBodyStream',
@@ -400,6 +398,6 @@ tasks.named("thirdPartyAudit").configure {
 }
 
 tasks.named('yamlRestTest') {
-  usesDefaultDistribution()
+  usesDefaultDistribution("to be triaged")
 }
 

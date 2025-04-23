@@ -12,41 +12,55 @@ package org.elasticsearch.index.codec;
 import org.apache.lucene.codecs.DocValuesFormat;
 import org.apache.lucene.codecs.KnnVectorsFormat;
 import org.apache.lucene.codecs.PostingsFormat;
+import org.apache.lucene.codecs.lucene101.Lucene101PostingsFormat;
 import org.apache.lucene.codecs.lucene90.Lucene90DocValuesFormat;
 import org.apache.lucene.codecs.lucene99.Lucene99HnswVectorsFormat;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.FeatureFlag;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.codec.bloomfilter.ES87BloomFilterPostingsFormat;
 import org.elasticsearch.index.codec.postings.ES812PostingsFormat;
-import org.elasticsearch.index.codec.tsdb.ES87TSDBDocValuesFormat;
+import org.elasticsearch.index.codec.tsdb.es819.ES819TSDBDocValuesFormat;
 import org.elasticsearch.index.mapper.CompletionFieldMapper;
 import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
-import org.elasticsearch.internal.CompletionsPostingsFormatExtension;
-import org.elasticsearch.plugins.ExtensionLoader;
-
-import java.util.ServiceLoader;
 
 /**
  * Class that encapsulates the logic of figuring out the most appropriate file format for a given field, across postings, doc values and
  * vectors.
  */
 public class PerFieldFormatSupplier {
+    public static final FeatureFlag USE_LUCENE101_POSTINGS_FORMAT = new FeatureFlag("use_lucene101_postings_format");
 
     private static final DocValuesFormat docValuesFormat = new Lucene90DocValuesFormat();
     private static final KnnVectorsFormat knnVectorsFormat = new Lucene99HnswVectorsFormat();
-    private static final ES87TSDBDocValuesFormat tsdbDocValuesFormat = new ES87TSDBDocValuesFormat();
+    private static final ES819TSDBDocValuesFormat tsdbDocValuesFormat = new ES819TSDBDocValuesFormat();
     private static final ES812PostingsFormat es812PostingsFormat = new ES812PostingsFormat();
+    private static final Lucene101PostingsFormat lucene101PostingsFormat = new Lucene101PostingsFormat();
+    private static final PostingsFormat completionPostingsFormat = PostingsFormat.forName("Completion101");
 
     private final ES87BloomFilterPostingsFormat bloomFilterPostingsFormat;
     private final MapperService mapperService;
 
+    private final PostingsFormat defaultPostingsFormat;
+
     public PerFieldFormatSupplier(MapperService mapperService, BigArrays bigArrays) {
         this.mapperService = mapperService;
         this.bloomFilterPostingsFormat = new ES87BloomFilterPostingsFormat(bigArrays, this::internalGetPostingsFormatForField);
+
+        if (mapperService != null
+            && USE_LUCENE101_POSTINGS_FORMAT.isEnabled()
+            && mapperService.getIndexSettings().getIndexVersionCreated().onOrAfter(IndexVersions.USE_LUCENE101_POSTINGS_FORMAT)
+            && mapperService.getIndexSettings().getMode() == IndexMode.STANDARD) {
+            defaultPostingsFormat = lucene101PostingsFormat;
+        } else {
+            // our own posting format using PFOR
+            defaultPostingsFormat = es812PostingsFormat;
+        }
     }
 
     public PostingsFormat getPostingsFormatForField(String field) {
@@ -60,24 +74,11 @@ public class PerFieldFormatSupplier {
         if (mapperService != null) {
             Mapper mapper = mapperService.mappingLookup().getMapper(field);
             if (mapper instanceof CompletionFieldMapper) {
-                return CompletionPostingsFormatHolder.POSTINGS_FORMAT;
+                return completionPostingsFormat;
             }
         }
-        // return our own posting format using PFOR
-        return es812PostingsFormat;
-    }
 
-    private static class CompletionPostingsFormatHolder {
-        private static final PostingsFormat POSTINGS_FORMAT = getCompletionPostingsFormat();
-
-        private static PostingsFormat getCompletionPostingsFormat() {
-            String defaultName = "Completion101"; // Caution: changing this name will result in exceptions if a field is created during a
-            // rolling upgrade and the new codec (specified by the name) is not available on all nodes in the cluster.
-            String codecName = ExtensionLoader.loadSingleton(ServiceLoader.load(CompletionsPostingsFormatExtension.class))
-                .map(CompletionsPostingsFormatExtension::getFormatName)
-                .orElse(defaultName);
-            return PostingsFormat.forName(codecName);
-        }
+        return defaultPostingsFormat;
     }
 
     boolean useBloomFilter(String field) {

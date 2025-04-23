@@ -1,5 +1,0 @@
-pr: 123890
-summary: Do not let `ShardBulkInferenceActionFilter` unwrap / rewrap ESExceptions
-area: Search
-type: bug
-issues: []

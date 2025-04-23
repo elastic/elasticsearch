@@ -91,10 +91,11 @@ public class DataStreamLifecycleHealthInfoPublisherTests extends ESTestCase {
     }
 
     public void testPublishDslErrorEntries() {
+        final var projectId = randomProjectIdOrDefault();
         for (int i = 0; i < 11; i++) {
-            errorStore.recordError("testIndexOverSignalThreshold", new NullPointerException("ouch"));
+            errorStore.recordError(projectId, "testIndexOverSignalThreshold", new NullPointerException("ouch"));
         }
-        errorStore.recordError("testIndex", new IllegalStateException("bad state"));
+        errorStore.recordError(projectId, "testIndex", new IllegalStateException("bad state"));
         ClusterState stateWithHealthNode = ClusterStateCreationUtils.state(node1, node1, node1, allNodes);
         ClusterServiceUtils.setState(clusterService, stateWithHealthNode);
         dslHealthInfoPublisher.publishDslErrorEntries(new ActionListener<>() {
@@ -113,15 +114,17 @@ public class DataStreamLifecycleHealthInfoPublisherTests extends ESTestCase {
         List<DslErrorInfo> dslErrorsInfo = dslHealthInfo.dslErrorsInfo();
         assertThat(dslErrorsInfo.size(), is(1));
         assertThat(dslErrorsInfo.get(0).indexName(), is("testIndexOverSignalThreshold"));
+        assertThat(dslErrorsInfo.get(0).projectId(), is(projectId));
         assertThat(dslHealthInfo.totalErrorEntriesCount(), is(2));
     }
 
     public void testPublishDslErrorEntriesNoHealthNode() {
+        final var projectId = randomProjectIdOrDefault();
         // no requests are being executed
         for (int i = 0; i < 11; i++) {
-            errorStore.recordError("testIndexOverSignalThreshold", new NullPointerException("ouch"));
+            errorStore.recordError(projectId, "testIndexOverSignalThreshold", new NullPointerException("ouch"));
         }
-        errorStore.recordError("testIndex", new IllegalStateException("bad state"));
+        errorStore.recordError(projectId, "testIndex", new IllegalStateException("bad state"));
 
         ClusterState stateNoHealthNode = ClusterStateCreationUtils.state(node1, node1, null, allNodes);
         ClusterServiceUtils.setState(clusterService, stateNoHealthNode);

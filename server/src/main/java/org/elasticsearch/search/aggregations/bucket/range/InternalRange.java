@@ -325,24 +325,20 @@ public class InternalRange<B extends InternalRange.Bucket, R extends InternalRan
     @Override
     public InternalAggregation finalizeSampling(SamplingContext samplingContext) {
         InternalRange.Factory<B, R> factory = getFactory();
-        return factory.create(
-            name,
-            ranges.stream()
-                .map(
-                    b -> factory.createBucket(
-                        b.getKey(),
-                        b.from,
-                        b.to,
-                        samplingContext.scaleUp(b.getDocCount()),
-                        InternalAggregations.finalizeSampling(b.getAggregations(), samplingContext),
-                        b.format
-                    )
+        final List<B> buckets = new ArrayList<>(ranges.size());
+        for (B range : ranges) {
+            buckets.add(
+                factory.createBucket(
+                    range.getKey(),
+                    range.from,
+                    range.to,
+                    samplingContext.scaleUp(range.getDocCount()),
+                    InternalAggregations.finalizeSampling(range.getAggregations(), samplingContext),
+                    range.format
                 )
-                .toList(),
-            format,
-            keyed,
-            getMetadata()
-        );
+            );
+        }
+        return factory.create(name, buckets, format, keyed, getMetadata());
     }
 
     @Override

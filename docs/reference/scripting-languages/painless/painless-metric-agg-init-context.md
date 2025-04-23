@@ -5,7 +5,7 @@ mapped_pages:
 
 # Metric aggregation initialization context [painless-metric-agg-init-context]
 
-Use a Painless script to [initialize](/reference/data-analysis/aggregations/search-aggregations-metrics-scripted-metric-aggregation.md) values for use in a scripted metric aggregation. An initialization script is run prior to document collection once per shard and is optional as part of the full metric aggregation.
+Use a Painless script to [initialize](/reference/aggregations/search-aggregations-metrics-scripted-metric-aggregation.md) values for use in a scripted metric aggregation. An initialization script is run prior to document collection once per shard and is optional as part of the full metric aggregation.
 
 **Variables**
 

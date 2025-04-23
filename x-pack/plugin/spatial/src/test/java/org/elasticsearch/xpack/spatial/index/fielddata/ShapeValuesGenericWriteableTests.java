@@ -73,7 +73,7 @@ public abstract class ShapeValuesGenericWriteableTests<T extends ShapeValues.Sha
             output.setTransportVersion(older);
             assertThat(
                 expectThrows(Throwable.class, () -> output.writeGenericValue(testInstance)).getMessage(),
-                containsString("[" + shapeValueName() + "] requires minimal transport version")
+                containsString("[" + shapeValueName() + "] doesn't support serialization with transport version")
             );
         }
     }

@@ -31,10 +31,10 @@ class SourceTransforms {
      *
      * @return flattened map
      */
-    public static Map<String, List<Object>> normalize(Map<String, Object> map) {
+    public static Map<String, List<Object>> normalize(Map<String, Object> documentMap, Map<String, Map<String, Object>> mappingLookup) {
         var flattened = new TreeMap<String, List<Object>>();
 
-        descend(null, map, flattened);
+        descend(null, documentMap, flattened, mappingLookup);
 
         return flattened;
     }
@@ -55,28 +55,44 @@ class SourceTransforms {
         // Synthetic source modifications:
         // * null values are not present
         // * duplicates are removed
-        return new ArrayList<>(
-            values.stream().filter(v -> v != null && Objects.equals(v, "null") == false).map(transform).collect(Collectors.toSet())
-        );
+        return values.stream()
+            .filter(v -> v != null && Objects.equals(v, "null") == false)
+            .map(transform)
+            .distinct()
+            .collect(Collectors.toList());
     }
 
-    private static void descend(String pathFromRoot, Map<String, Object> currentLevel, Map<String, List<Object>> flattened) {
+    private static void descend(
+        String pathFromRoot,
+        Map<String, Object> currentLevel,
+        Map<String, List<Object>> flattened,
+        Map<String, Map<String, Object>> mappingLookup
+    ) {
         for (var entry : currentLevel.entrySet()) {
             var pathToCurrentField = pathFromRoot == null ? entry.getKey() : pathFromRoot + "." + entry.getKey();
             if (entry.getValue() instanceof List<?> list) {
                 for (var fieldValue : list) {
-                    handleField(pathToCurrentField, fieldValue, flattened);
+                    handleField(pathToCurrentField, fieldValue, flattened, mappingLookup);
                 }
             } else {
-                handleField(pathToCurrentField, entry.getValue(), flattened);
+                handleField(pathToCurrentField, entry.getValue(), flattened, mappingLookup);
             }
         }
     }
 
     @SuppressWarnings("unchecked")
-    private static void handleField(String pathToCurrentField, Object currentField, Map<String, List<Object>> flattened) {
-        if (currentField instanceof Map<?, ?> map) {
-            descend(pathToCurrentField, (Map<String, Object>) map, flattened);
+    private static void handleField(
+        String pathToCurrentField,
+        Object currentField,
+        Map<String, List<Object>> flattened,
+        Map<String, Map<String, Object>> mappingLookup
+    ) {
+        var mapping = mappingLookup.get(pathToCurrentField);
+        // Values of some fields are complex objects so we need to double-check that this is actually and object or a nested field
+        // we can descend into.
+        if (currentField instanceof Map<?, ?> map
+            && (mapping == null || mapping.get("type").equals("object") || mapping.get("type").equals("nested"))) {
+            descend(pathToCurrentField, (Map<String, Object>) map, flattened, mappingLookup);
         } else {
             flattened.computeIfAbsent(pathToCurrentField, k -> new ArrayList<>()).add(currentField);
         }

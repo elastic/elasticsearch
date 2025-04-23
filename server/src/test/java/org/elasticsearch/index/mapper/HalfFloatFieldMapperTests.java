@@ -56,6 +56,16 @@ public class HalfFloatFieldMapperTests extends NumberFieldMapperTests {
     }
 
     @Override
+    protected SyntheticSourceSupport syntheticSourceSupportForKeepTests(boolean ignoreMalformed, Mapper.SourceKeepMode sourceKeepMode) {
+        return new NumberSyntheticSourceSupportForKeepTests(
+            n -> HalfFloatPoint.sortableShortToHalfFloat(HalfFloatPoint.halfFloatToSortableShort(n.floatValue())),
+            ignoreMalformed,
+            sourceKeepMode
+        );
+
+    }
+
+    @Override
     protected Function<Object, Object> loadBlockExpected() {
         return v -> {
             // The test converts the float into a string so we do do

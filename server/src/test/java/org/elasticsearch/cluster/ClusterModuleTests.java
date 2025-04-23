@@ -166,7 +166,7 @@ public class ClusterModuleTests extends ModuleTestCase {
                 null,
                 threadPool,
                 EmptySystemIndices.INSTANCE,
-                TestProjectResolvers.singleProjectOnly(),
+                TestProjectResolvers.alwaysThrow(),
                 WriteLoadForecaster.DEFAULT,
                 TelemetryProvider.NOOP
             )
@@ -185,7 +185,7 @@ public class ClusterModuleTests extends ModuleTestCase {
             null,
             threadPool,
             EmptySystemIndices.INSTANCE,
-            TestProjectResolvers.singleProjectOnly(),
+            TestProjectResolvers.alwaysThrow(),
             WriteLoadForecaster.DEFAULT,
             TelemetryProvider.NOOP
         );
@@ -203,7 +203,7 @@ public class ClusterModuleTests extends ModuleTestCase {
             null,
             threadPool,
             EmptySystemIndices.INSTANCE,
-            TestProjectResolvers.singleProjectOnly(),
+            TestProjectResolvers.alwaysThrow(),
             WriteLoadForecaster.DEFAULT,
             TelemetryProvider.NOOP
         );
@@ -239,7 +239,7 @@ public class ClusterModuleTests extends ModuleTestCase {
                 null,
                 threadPool,
                 EmptySystemIndices.INSTANCE,
-                TestProjectResolvers.singleProjectOnly(),
+                TestProjectResolvers.alwaysThrow(),
                 WriteLoadForecaster.DEFAULT,
                 TelemetryProvider.NOOP
             )
@@ -303,7 +303,7 @@ public class ClusterModuleTests extends ModuleTestCase {
             null,
             threadPool,
             EmptySystemIndices.INSTANCE,
-            TestProjectResolvers.singleProjectOnly(),
+            TestProjectResolvers.alwaysThrow(),
             WriteLoadForecaster.DEFAULT,
             TelemetryProvider.NOOP
         );
@@ -319,7 +319,7 @@ public class ClusterModuleTests extends ModuleTestCase {
             null,
             threadPool,
             EmptySystemIndices.INSTANCE,
-            TestProjectResolvers.singleProjectOnly(),
+            TestProjectResolvers.alwaysThrow(),
             WriteLoadForecaster.DEFAULT,
             TelemetryProvider.NOOP
         );

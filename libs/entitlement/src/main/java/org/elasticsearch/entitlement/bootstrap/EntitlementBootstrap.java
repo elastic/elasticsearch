@@ -14,9 +14,14 @@ import com.sun.tools.attach.AgentLoadException;
 import com.sun.tools.attach.AttachNotSupportedException;
 import com.sun.tools.attach.VirtualMachine;
 
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.entitlement.initialization.EntitlementInitialization;
+import org.elasticsearch.entitlement.runtime.policy.PathLookup;
+import org.elasticsearch.entitlement.runtime.policy.PathLookupImpl;
 import org.elasticsearch.entitlement.runtime.policy.Policy;
+import org.elasticsearch.entitlement.runtime.policy.PolicyManager;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 
@@ -33,37 +38,18 @@ import static java.util.Objects.requireNonNull;
 public class EntitlementBootstrap {
 
     public record BootstrapArgs(
+        @Nullable Policy serverPolicyPatch,
         Map<String, Policy> pluginPolicies,
-        Function<Class<?>, String> pluginResolver,
-        Function<String, Stream<String>> settingResolver,
-        Path[] dataDirs,
-        Path[] sharedRepoDirs,
-        Path configDir,
-        Path libDir,
-        Path modulesDir,
-        Path pluginsDir,
+        Function<Class<?>, PolicyManager.PolicyScope> scopeResolver,
+        PathLookup pathLookup,
         Map<String, Path> sourcePaths,
-        Path logsDir,
-        Path tempDir,
-        Path pidFile,
         Set<Class<?>> suppressFailureLogClasses
     ) {
         public BootstrapArgs {
             requireNonNull(pluginPolicies);
-            requireNonNull(pluginResolver);
-            requireNonNull(settingResolver);
-            requireNonNull(dataDirs);
-            if (dataDirs.length == 0) {
-                throw new IllegalArgumentException("must provide at least one data directory");
-            }
-            requireNonNull(sharedRepoDirs);
-            requireNonNull(configDir);
-            requireNonNull(libDir);
-            requireNonNull(modulesDir);
-            requireNonNull(pluginsDir);
+            requireNonNull(scopeResolver);
+            requireNonNull(pathLookup);
             requireNonNull(sourcePaths);
-            requireNonNull(logsDir);
-            requireNonNull(tempDir);
             requireNonNull(suppressFailureLogClasses);
         }
     }
@@ -78,8 +64,9 @@ public class EntitlementBootstrap {
      * Activates entitlement checking. Once this method returns, calls to methods protected by Entitlements from classes without a valid
      * policy will throw {@link org.elasticsearch.entitlement.runtime.api.NotEntitledException}.
      *
+     * @param serverPolicyPatch a policy with additional entitlements to patch the embedded server layer policy
      * @param pluginPolicies a map holding policies for plugins (and modules), by plugin (or module) name.
-     * @param pluginResolver a functor to map a Java Class to the plugin it belongs to (the plugin name).
+     * @param scopeResolver a functor to map a Java Class to the component and module it belongs to.
      * @param settingResolver a functor to resolve a setting name pattern for one or more Elasticsearch settings.
      * @param dataDirs       data directories for Elasticsearch
      * @param sharedRepoDirs shared repository directories for Elasticsearch
@@ -94,8 +81,9 @@ public class EntitlementBootstrap {
      * @param suppressFailureLogClasses   classes for which we do not need or want to log Entitlements failures
      */
     public static void bootstrap(
+        Policy serverPolicyPatch,
         Map<String, Policy> pluginPolicies,
-        Function<Class<?>, String> pluginResolver,
+        Function<Class<?>, PolicyManager.PolicyScope> scopeResolver,
         Function<String, Stream<String>> settingResolver,
         Path[] dataDirs,
         Path[] sharedRepoDirs,
@@ -114,23 +102,35 @@ public class EntitlementBootstrap {
             throw new IllegalStateException("plugin data is already set");
         }
         EntitlementBootstrap.bootstrapArgs = new BootstrapArgs(
+            serverPolicyPatch,
             pluginPolicies,
-            pluginResolver,
-            settingResolver,
-            dataDirs,
-            sharedRepoDirs,
-            configDir,
-            libDir,
-            modulesDir,
-            pluginsDir,
+            scopeResolver,
+            new PathLookupImpl(
+                getUserHome(),
+                configDir,
+                dataDirs,
+                sharedRepoDirs,
+                libDir,
+                modulesDir,
+                pluginsDir,
+                logsDir,
+                tempDir,
+                pidFile,
+                settingResolver
+            ),
             sourcePaths,
-            logsDir,
-            tempDir,
-            pidFile,
             suppressFailureLogClasses
         );
         exportInitializationToAgent();
         loadAgent(findAgentJar());
+    }
+
+    private static Path getUserHome() {
+        String userHome = System.getProperty("user.home");
+        if (userHome == null) {
+            throw new IllegalStateException("user.home system property is required");
+        }
+        return PathUtils.get(userHome);
     }
 
     @SuppressForbidden(reason = "The VirtualMachine API is the only way to attach a java agent dynamically")
@@ -161,7 +161,8 @@ public class EntitlementBootstrap {
             return propertyValue;
         }
 
-        Path dir = Path.of("lib", "entitlement-agent");
+        Path esHome = Path.of(System.getProperty("es.path.home"));
+        Path dir = esHome.resolve("lib/entitlement-agent");
         if (Files.exists(dir) == false) {
             throw new IllegalStateException("Directory for entitlement jar does not exist: " + dir);
         }

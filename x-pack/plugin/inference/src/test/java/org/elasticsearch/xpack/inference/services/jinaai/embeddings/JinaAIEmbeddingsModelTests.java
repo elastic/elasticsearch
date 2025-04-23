@@ -24,45 +24,21 @@ import static org.hamcrest.Matchers.is;
 
 public class JinaAIEmbeddingsModelTests extends ESTestCase {
 
-    public void testOverrideWith_DoesNotOverrideAndModelRemainsEqual_WhenSettingsAreEmpty_AndInputTypeIsInvalid() {
+    public void testOverrideWith_DoesNotOverrideAndModelRemainsEqual_WhenSettingsAreEmpty() {
         var model = createModel("url", "api_key", null, null, "model", JinaAIEmbeddingType.FLOAT);
 
-        var overriddenModel = JinaAIEmbeddingsModel.of(model, Map.of(), InputType.UNSPECIFIED);
+        var overriddenModel = JinaAIEmbeddingsModel.of(model, Map.of());
         MatcherAssert.assertThat(overriddenModel, is(model));
     }
 
-    public void testOverrideWith_DoesNotOverrideAndModelRemainsEqual_WhenSettingsAreNull_AndInputTypeIsInvalid() {
+    public void testOverrideWith_DoesNotOverrideAndModelRemainsEqual_WhenSettingsAreNull() {
         var model = createModel("url", "api_key", null, null, "model", JinaAIEmbeddingType.FLOAT);
 
-        var overriddenModel = JinaAIEmbeddingsModel.of(model, null, InputType.UNSPECIFIED);
+        var overriddenModel = JinaAIEmbeddingsModel.of(model, null);
         MatcherAssert.assertThat(overriddenModel, is(model));
     }
 
-    public void testOverrideWith_SetsInputTypeToIngest_WhenTheFieldIsNullInModelTaskSettings_AndNullInRequestTaskSettings() {
-        var model = createModel(
-            "url",
-            "api_key",
-            new JinaAIEmbeddingsTaskSettings((InputType) null),
-            null,
-            null,
-            "model",
-            JinaAIEmbeddingType.FLOAT
-        );
-
-        var overriddenModel = JinaAIEmbeddingsModel.of(model, getTaskSettingsMap(null), InputType.INGEST);
-        var expectedModel = createModel(
-            "url",
-            "api_key",
-            new JinaAIEmbeddingsTaskSettings(InputType.INGEST),
-            null,
-            null,
-            "model",
-            JinaAIEmbeddingType.FLOAT
-        );
-        MatcherAssert.assertThat(overriddenModel, is(expectedModel));
-    }
-
-    public void testOverrideWith_SetsInputType_FromRequest_IfValid_OverridingStoredTaskSettings() {
+    public void testOverrideWith_SetsInputType_FromRequestTaskSettings_IfValid_OverridingStoredTaskSettings() {
         var model = createModel(
             "url",
             "api_key",
@@ -73,7 +49,7 @@ public class JinaAIEmbeddingsModelTests extends ESTestCase {
             JinaAIEmbeddingType.FLOAT
         );
 
-        var overriddenModel = JinaAIEmbeddingsModel.of(model, getTaskSettingsMap(null), InputType.SEARCH);
+        var overriddenModel = JinaAIEmbeddingsModel.of(model, getTaskSettingsMap(InputType.SEARCH));
         var expectedModel = createModel(
             "url",
             "api_key",
@@ -86,31 +62,7 @@ public class JinaAIEmbeddingsModelTests extends ESTestCase {
         MatcherAssert.assertThat(overriddenModel, is(expectedModel));
     }
 
-    public void testOverrideWith_SetsInputType_FromRequest_IfValid_OverridingRequestTaskSettings() {
-        var model = createModel(
-            "url",
-            "api_key",
-            new JinaAIEmbeddingsTaskSettings((InputType) null),
-            null,
-            null,
-            "model",
-            JinaAIEmbeddingType.FLOAT
-        );
-
-        var overriddenModel = JinaAIEmbeddingsModel.of(model, getTaskSettingsMap(InputType.INGEST), InputType.SEARCH);
-        var expectedModel = createModel(
-            "url",
-            "api_key",
-            new JinaAIEmbeddingsTaskSettings(InputType.SEARCH),
-            null,
-            null,
-            "model",
-            JinaAIEmbeddingType.FLOAT
-        );
-        MatcherAssert.assertThat(overriddenModel, is(expectedModel));
-    }
-
-    public void testOverrideWith_OverridesInputType_WithRequestTaskSettingsSearch_WhenRequestInputTypeIsInvalid() {
+    public void testOverrideWith_DoesNotOverrideInputType_WhenRequestTaskSettingsIsNull() {
         var model = createModel(
             "url",
             "api_key",
@@ -121,55 +73,7 @@ public class JinaAIEmbeddingsModelTests extends ESTestCase {
             JinaAIEmbeddingType.FLOAT
         );
 
-        var overriddenModel = JinaAIEmbeddingsModel.of(model, getTaskSettingsMap(InputType.SEARCH), InputType.UNSPECIFIED);
-        var expectedModel = createModel(
-            "url",
-            "api_key",
-            new JinaAIEmbeddingsTaskSettings(InputType.SEARCH),
-            null,
-            null,
-            "model",
-            JinaAIEmbeddingType.FLOAT
-        );
-        MatcherAssert.assertThat(overriddenModel, is(expectedModel));
-    }
-
-    public void testOverrideWith_DoesNotSetInputType_FromRequest_IfInputTypeIsInvalid() {
-        var model = createModel(
-            "url",
-            "api_key",
-            new JinaAIEmbeddingsTaskSettings((InputType) null),
-            null,
-            null,
-            "model",
-            JinaAIEmbeddingType.FLOAT
-        );
-
-        var overriddenModel = JinaAIEmbeddingsModel.of(model, getTaskSettingsMap(null), InputType.UNSPECIFIED);
-        var expectedModel = createModel(
-            "url",
-            "api_key",
-            new JinaAIEmbeddingsTaskSettings((InputType) null),
-            null,
-            null,
-            "model",
-            JinaAIEmbeddingType.FLOAT
-        );
-        MatcherAssert.assertThat(overriddenModel, is(expectedModel));
-    }
-
-    public void testOverrideWith_DoesNotSetInputType_WhenRequestTaskSettingsIsNull_AndRequestInputTypeIsInvalid() {
-        var model = createModel(
-            "url",
-            "api_key",
-            new JinaAIEmbeddingsTaskSettings(InputType.INGEST),
-            null,
-            null,
-            "model",
-            JinaAIEmbeddingType.FLOAT
-        );
-
-        var overriddenModel = JinaAIEmbeddingsModel.of(model, getTaskSettingsMap(null), InputType.UNSPECIFIED);
+        var overriddenModel = JinaAIEmbeddingsModel.of(model, getTaskSettingsMap(null));
         var expectedModel = createModel(
             "url",
             "api_key",

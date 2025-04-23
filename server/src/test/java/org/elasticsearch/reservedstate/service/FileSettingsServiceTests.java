@@ -275,6 +275,7 @@ public class FileSettingsServiceTests extends ESTestCase {
             return null;
         }).when(controller).process(any(), any(XContentParser.class), any(), any());
 
+        // Await on some latches when files change so we can sync up
         CountDownLatch processFileCreationLatch = new CountDownLatch(1);
         doAnswer(i -> {
             try {
@@ -283,16 +284,6 @@ public class FileSettingsServiceTests extends ESTestCase {
                 processFileCreationLatch.countDown();
             }
         }).when(fileSettingsService).processFile(eq(watchedFile), eq(true));
-
-        Files.createDirectories(fileSettingsService.watchedFileDir());
-        // contents of the JSON don't matter, we just need a file to exist
-        writeTestFile(watchedFile, "{}");
-
-        fileSettingsService.start();
-        fileSettingsService.clusterChanged(new ClusterChangedEvent("test", clusterService.state(), ClusterState.EMPTY_STATE));
-
-        longAwait(processFileCreationLatch);
-
         CountDownLatch processFileChangeLatch = new CountDownLatch(1);
         doAnswer(i -> {
             try {
@@ -301,6 +292,19 @@ public class FileSettingsServiceTests extends ESTestCase {
                 processFileChangeLatch.countDown();
             }
         }).when(fileSettingsService).processFile(eq(watchedFile), eq(false));
+
+        Files.createDirectories(fileSettingsService.watchedFileDir());
+        // contents of the JSON don't matter, we just need a file to exist
+        writeTestFile(watchedFile, "{}");
+
+        // It's important to configure all the mocks before calling start() here,
+        // because otherwise there can be races between configuration and use of mocks
+        // which leads to a UnfinishedStubbingException.
+
+        fileSettingsService.start();
+        fileSettingsService.clusterChanged(new ClusterChangedEvent("test", clusterService.state(), ClusterState.EMPTY_STATE));
+
+        longAwait(processFileCreationLatch);
 
         verify(fileSettingsService, times(1)).processFile(eq(watchedFile), eq(true));
         verify(controller, times(1)).process(any(), any(XContentParser.class), eq(ReservedStateVersionCheck.HIGHER_OR_SAME_VERSION), any());
@@ -328,10 +332,8 @@ public class FileSettingsServiceTests extends ESTestCase {
         // Don't really care about the initial state
         Files.createDirectories(fileSettingsService.watchedFileDir());
         doNothing().when(fileSettingsService).processInitialFilesMissing();
-        fileSettingsService.start();
-        fileSettingsService.clusterChanged(new ClusterChangedEvent("test", clusterService.state(), ClusterState.EMPTY_STATE));
 
-        // Now break the JSON and wait
+        // Prepare to await on a barrier when the file changes so we can sync up
         CyclicBarrier fileChangeBarrier = new CyclicBarrier(2);
         doAnswer((Answer<?>) invocation -> {
             try {
@@ -340,6 +342,12 @@ public class FileSettingsServiceTests extends ESTestCase {
                 awaitOrBust(fileChangeBarrier);
             }
         }).when(fileSettingsService).onProcessFileChangesException(eq(watchedFile), any());
+
+        // Kick off the service
+        fileSettingsService.start();
+        fileSettingsService.clusterChanged(new ClusterChangedEvent("test", clusterService.state(), ClusterState.EMPTY_STATE));
+
+        // Now break the JSON and wait
         writeTestFile(watchedFile, "test_invalid_JSON");
         awaitOrBust(fileChangeBarrier);
 

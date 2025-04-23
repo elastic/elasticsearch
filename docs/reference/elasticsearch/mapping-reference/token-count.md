@@ -58,7 +58,7 @@ The following parameters are accepted by `token_count` fields:
 :   The [analyzer](docs-content://manage-data/data-store/text-analysis.md) which should be used to analyze the string value. Required. For best performance, use an analyzer without token filters.
 
 `enable_position_increments`
-:   Indicates if position increments should be counted. Set to `false` if you don’t want to count tokens removed by analyzer filters (like [`stop`](/reference/data-analysis/text-analysis/analysis-stop-tokenfilter.md)). Defaults to `true`.
+:   Indicates if position increments should be counted. Set to `false` if you don’t want to count tokens removed by analyzer filters (like [`stop`](/reference/text-analysis/analysis-stop-tokenfilter.md)). Defaults to `true`.
 
 [`doc_values`](/reference/elasticsearch/mapping-reference/doc-values.md)
 :   Should the field be stored on disk in a column-stride fashion, so that it can later be used for sorting, aggregations, or scripting? Accepts `true` (default) or `false`.

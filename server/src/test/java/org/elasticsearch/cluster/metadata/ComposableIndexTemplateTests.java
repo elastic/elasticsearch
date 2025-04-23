@@ -74,7 +74,7 @@ public class ComposableIndexTemplateTests extends SimpleDiffableSerializationTes
                 builder.aliases(randomAliases());
             }
             if (dataStreamTemplate != null && randomBoolean()) {
-                builder.lifecycle(DataStreamLifecycleTests.randomLifecycle());
+                builder.lifecycle(DataStreamLifecycleTemplateTests.randomDataLifecycleTemplate());
             }
             template = builder.build();
         }
@@ -173,7 +173,11 @@ public class ComposableIndexTemplateTests extends SimpleDiffableSerializationTes
                                 .settings(randomSettings())
                                 .mappings(randomMappings(orig.getDataStreamTemplate()))
                                 .aliases(randomAliases())
-                                .lifecycle(orig.getDataStreamTemplate() == null ? null : DataStreamLifecycleTests.randomLifecycle())
+                                .lifecycle(
+                                    orig.getDataStreamTemplate() == null
+                                        ? null
+                                        : DataStreamLifecycleTemplateTests.randomDataLifecycleTemplate()
+                                )
                                 .build()
                         )
                     )
@@ -219,7 +223,7 @@ public class ComposableIndexTemplateTests extends SimpleDiffableSerializationTes
         Settings settings = null;
         CompressedXContent mappings = null;
         Map<String, AliasMetadata> aliases = null;
-        ResettableValue<DataStreamOptions.Template> dataStreamOptions = ResettableValue.undefined();
+        DataStreamOptions.Template dataStreamOptions = null;
         ComposableIndexTemplate.DataStreamTemplate dataStreamTemplate = randomDataStreamTemplate();
         if (randomBoolean()) {
             settings = randomSettings();
@@ -231,10 +235,11 @@ public class ComposableIndexTemplateTests extends SimpleDiffableSerializationTes
             aliases = randomAliases();
         }
         if (randomBoolean()) {
-            dataStreamOptions = ComponentTemplateTests.randomDataStreamOptionsTemplate();
+            // Do not set random lifecycle to avoid having data_retention and effective_retention in the response.
+            dataStreamOptions = new DataStreamOptions.Template(DataStreamFailureStore.builder().enabled(randomBoolean()).buildTemplate());
         }
         // We use the empty lifecycle so the global retention can be in effect
-        DataStreamLifecycle lifecycle = new DataStreamLifecycle();
+        DataStreamLifecycle.Template lifecycle = DataStreamLifecycle.Template.DATA_DEFAULT;
         Template template = new Template(settings, mappings, aliases, lifecycle, dataStreamOptions);
         ComposableIndexTemplate.builder()
             .indexPatterns(List.of(randomAlphaOfLength(4)))
@@ -254,7 +259,7 @@ public class ComposableIndexTemplateTests extends SimpleDiffableSerializationTes
             String serialized = Strings.toString(builder);
             assertThat(serialized, containsString("rollover"));
             for (String label : rolloverConfiguration.resolveRolloverConditions(
-                lifecycle.getEffectiveDataRetention(globalRetention, randomBoolean())
+                lifecycle.toDataStreamLifecycle().getEffectiveDataRetention(globalRetention, randomBoolean())
             ).getConditions().keySet()) {
                 assertThat(serialized, containsString(label));
             }

@@ -9,8 +9,9 @@
 
 package org.elasticsearch.logsdb.datageneration.datasource;
 
-import org.elasticsearch.logsdb.datageneration.FieldType;
+import org.elasticsearch.geometry.Geometry;
 
+import java.net.InetAddress;
 import java.time.Instant;
 import java.util.Map;
 import java.util.Optional;
@@ -18,6 +19,8 @@ import java.util.function.Function;
 import java.util.function.Supplier;
 
 public interface DataSourceResponse {
+    record FieldDataGenerator(org.elasticsearch.logsdb.datageneration.FieldDataGenerator generator) implements DataSourceResponse {}
+
     record LongGenerator(Supplier<Long> generator) implements DataSourceResponse {}
 
     record UnsignedLongGenerator(Supplier<Object> generator) implements DataSourceResponse {}
@@ -40,6 +43,20 @@ public interface DataSourceResponse {
 
     record InstantGenerator(Supplier<Instant> generator) implements DataSourceResponse {}
 
+    record GeoShapeGenerator(Supplier<Geometry> generator) implements DataSourceResponse {}
+
+    record ShapeGenerator(Supplier<Geometry> generator) implements DataSourceResponse {}
+
+    record PointGenerator(Supplier<Object> generator) implements DataSourceResponse {}
+
+    record GeoPointGenerator(Supplier<Object> generator) implements DataSourceResponse {}
+
+    record IpGenerator(Supplier<InetAddress> generator) implements DataSourceResponse {}
+
+    record VersionStringGenerator(Supplier<String> generator) implements DataSourceResponse {}
+
+    record AggregateMetricDoubleGenerator(Supplier<Map<String, Number>> generator) implements DataSourceResponse {}
+
     record NullWrapper(Function<Supplier<Object>, Supplier<Object>> wrapper) implements DataSourceResponse {}
 
     record ArrayWrapper(Function<Supplier<Object>, Supplier<Object>> wrapper) implements DataSourceResponse {}
@@ -49,6 +66,8 @@ public interface DataSourceResponse {
     record MalformedWrapper(Function<Supplier<Object>, Supplier<Object>> wrapper) implements DataSourceResponse {}
 
     record TransformWrapper(Function<Supplier<Object>, Supplier<Object>> wrapper) implements DataSourceResponse {}
+
+    record TransformWeightedWrapper(Function<Supplier<Object>, Supplier<Object>> wrapper) implements DataSourceResponse {}
 
     interface ChildFieldGenerator extends DataSourceResponse {
         int generateChildFieldCount();
@@ -63,7 +82,7 @@ public interface DataSourceResponse {
     }
 
     record FieldTypeGenerator(Supplier<FieldTypeInfo> generator) implements DataSourceResponse {
-        public record FieldTypeInfo(FieldType fieldType) {}
+        public record FieldTypeInfo(String fieldType) {}
     }
 
     record ObjectArrayGenerator(Supplier<Optional<Integer>> lengthGenerator) implements DataSourceResponse {}

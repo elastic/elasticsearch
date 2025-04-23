@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.searchablesnapshots;
 
+import org.elasticsearch.action.fieldcaps.FieldCapabilitiesResponse;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchType;
@@ -125,5 +126,9 @@ public class SearchableSnapshotsSearchIntegTests extends BaseFrozenSearchableSna
             assertThat(searchResponse.getTotalShards(), equalTo(20));
             assertThat(searchResponse.getHits().getTotalHits().value(), equalTo(4L));
         });
+
+        // check that field_caps empty field filtering works as well
+        FieldCapabilitiesResponse response = client().prepareFieldCaps(mountedIndices).setFields("*").setincludeEmptyFields(false).get();
+        assertNotNull(response.getField("keyword"));
     }
 }

@@ -2,4 +2,6 @@
 
 **Parameters**
 
-true
+`number`
+:   Expression that outputs values to average.
+

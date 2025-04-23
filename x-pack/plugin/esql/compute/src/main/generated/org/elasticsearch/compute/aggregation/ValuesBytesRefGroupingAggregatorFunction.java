@@ -194,8 +194,8 @@ public final class ValuesBytesRefGroupingAggregatorFunction implements GroupingA
 
   @Override
   public void evaluateFinal(Block[] blocks, int offset, IntVector selected,
-      DriverContext driverContext) {
-    blocks[offset] = ValuesBytesRefAggregator.evaluateFinal(state, selected, driverContext);
+      GroupingAggregatorEvaluationContext evaluatorContext) {
+    blocks[offset] = ValuesBytesRefAggregator.evaluateFinal(state, selected, evaluatorContext.driverContext());
   }
 
   @Override

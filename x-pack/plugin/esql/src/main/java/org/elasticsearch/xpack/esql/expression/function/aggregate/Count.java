@@ -55,7 +55,7 @@ public class Count extends AggregateFunction implements ToAggregator, SurrogateE
             ),
             @Example(
                 description = "To count the number of times an expression returns `TRUE` use "
-                    + "a <<esql-where>> command to remove rows that shouldn't be included",
+                    + "a <<esql-where>> command to remove rows that shouldn’t be included",
                 file = "stats",
                 tag = "count-where"
             ),

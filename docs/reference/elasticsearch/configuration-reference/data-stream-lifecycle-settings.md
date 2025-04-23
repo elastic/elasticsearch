@@ -2,6 +2,9 @@
 navigation_title: "Data stream lifecycle settings"
 mapped_pages:
   - https://www.elastic.co/guide/en/elasticsearch/reference/current/data-stream-lifecycle-settings.html
+applies_to:
+  deployment:
+    self:
 ---
 
 # Data stream lifecycle settings in {{es}} [data-stream-lifecycle-settings]

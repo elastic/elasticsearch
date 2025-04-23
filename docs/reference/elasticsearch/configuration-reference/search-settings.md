@@ -1,6 +1,9 @@
 ---
 mapped_pages:
   - https://www.elastic.co/guide/en/elasticsearch/reference/current/search-settings.html
+applies_to:
+  deployment:
+    self:
 ---
 
 # Search settings [search-settings]
@@ -22,7 +25,7 @@ $$$indices-query-bool-max-clause-count$$$
 $$$search-settings-max-buckets$$$
 
 `search.max_buckets`
-:   ([Dynamic](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-cluster-put-settings), integer) Maximum number of [aggregation buckets](/reference/data-analysis/aggregations/bucket.md) allowed in a single response. Defaults to 65,536.
+:   ([Dynamic](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-cluster-put-settings), integer) Maximum number of [aggregation buckets](/reference/aggregations/bucket.md) allowed in a single response. Defaults to 65,536.
 
     Requests that attempt to return more than this limit will return an error.
 
@@ -30,7 +33,7 @@ $$$search-settings-max-buckets$$$
 $$$search-settings-only-allowed-scripts$$$
 
 `search.aggs.only_allowed_metric_scripts`
-:   ([Dynamic](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-cluster-put-settings), boolean) Configures whether only explicitly allowed scripts can be used in [scripted metrics aggregations](/reference/data-analysis/aggregations/search-aggregations-metrics-scripted-metric-aggregation.md). Defaults to `false`.
+:   ([Dynamic](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-cluster-put-settings), boolean) Configures whether only explicitly allowed scripts can be used in [scripted metrics aggregations](/reference/aggregations/search-aggregations-metrics-scripted-metric-aggregation.md). Defaults to `false`.
 
     Requests using scripts not contained in either [`search.aggs.allowed_inline_metric_scripts`](/reference/elasticsearch/configuration-reference/search-settings.md#search-settings-allowed-inline-scripts) or [`search.aggs.allowed_stored_metric_scripts`](/reference/elasticsearch/configuration-reference/search-settings.md#search-settings-allowed-stored-scripts) will return an error.
 
@@ -57,5 +60,9 @@ $$$indices-query-bool-max-nested-depth$$$
 :   ([Static](docs-content://deploy-manage/deploy/self-managed/configure-elasticsearch.md#static-cluster-setting), integer) Maximum nested depth of queries. Defaults to `30`.
 
     This setting limits the nesting depth of queries. Deep nesting of queries may lead to stack overflow errors.
+
+The following search settings are supported:
+
+* `search.aggs.rewrite_to_filter_by_filter`
 
 

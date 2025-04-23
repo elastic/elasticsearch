@@ -10,6 +10,7 @@
 package org.elasticsearch.action.datastreams;
 
 import org.elasticsearch.action.support.IndicesOptions;
+import org.elasticsearch.action.support.IndicesOptions.WildcardOptions;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
@@ -40,9 +41,10 @@ public class DataStreamsActionUtil {
     }
 
     public static IndicesOptions updateIndicesOptions(IndicesOptions indicesOptions) {
+        // if expandWildcardsOpen=false, then it will be overridden to true
         if (indicesOptions.expandWildcardsOpen() == false) {
             indicesOptions = IndicesOptions.builder(indicesOptions)
-                .wildcardOptions(IndicesOptions.WildcardOptions.builder(indicesOptions.wildcardOptions()).matchOpen(true))
+                .wildcardOptions(WildcardOptions.builder(indicesOptions.wildcardOptions()).matchOpen(true))
                 .build();
         }
         return indicesOptions;

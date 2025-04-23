@@ -43,6 +43,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Predicates;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.core.UpdateForV10;
 import org.elasticsearch.node.NodeClosedException;
 import org.elasticsearch.node.ReportingService;
 import org.elasticsearch.tasks.Task;
@@ -94,6 +95,7 @@ public class TransportService extends AbstractLifecycleComponent
      * Undocumented on purpose, may be removed at any time. Only use this if instructed to do so, can have other unintended consequences
      * including deadlocks.
      */
+    @UpdateForV10(owner = UpdateForV10.Owner.DISTRIBUTED_COORDINATION)
     public static final Setting<Boolean> ENABLE_STACK_OVERFLOW_AVOIDANCE = Setting.boolSetting(
         "transport.enable_stack_protection",
         false,
@@ -139,7 +141,9 @@ public class TransportService extends AbstractLifecycleComponent
 
     private final RemoteClusterService remoteClusterService;
 
-    /** if set will call requests sent to this id to shortcut and executed locally */
+    /**
+     * if set will call requests sent to this id to shortcut and executed locally
+     */
     volatile DiscoveryNode localNode = null;
     private final Transport.Connection localNodeConnection = new Transport.Connection() {
         @Override
@@ -218,7 +222,8 @@ public class TransportService extends AbstractLifecycleComponent
      * Build the service.
      *
      * @param clusterSettings if non null, the {@linkplain TransportService} will register with the {@link ClusterSettings} for settings
-     *    updates for {@link TransportSettings#TRACE_LOG_EXCLUDE_SETTING} and {@link TransportSettings#TRACE_LOG_INCLUDE_SETTING}.
+     *                        updates for {@link TransportSettings#TRACE_LOG_EXCLUDE_SETTING}
+     *                        and {@link TransportSettings#TRACE_LOG_INCLUDE_SETTING}.
      */
     public TransportService(
         Settings settings,
@@ -422,7 +427,7 @@ public class TransportService extends AbstractLifecycleComponent
 
     /**
      * Start accepting incoming requests.
-     *
+     * <p>
      * The transport service starts before it's ready to accept incoming requests because we need to know the address(es) to which we are
      * bound, which means we have to actually bind to them and start accepting incoming connections. However until this method is called we
      * reject any incoming requests, including handshakes, by closing the connection.
@@ -482,7 +487,7 @@ public class TransportService extends AbstractLifecycleComponent
      * Connect to the specified node with the given connection profile.
      * The ActionListener will be called on the calling thread or the generic thread pool.
      *
-     * @param node the node to connect to
+     * @param node     the node to connect to
      * @param listener the action listener to notify
      */
     public void connectToNode(DiscoveryNode node, ActionListener<Releasable> listener) throws ConnectTransportException {
@@ -493,9 +498,9 @@ public class TransportService extends AbstractLifecycleComponent
      * Connect to the specified node with the given connection profile.
      * The ActionListener will be called on the calling thread or the generic thread pool.
      *
-     * @param node the node to connect to
+     * @param node              the node to connect to
      * @param connectionProfile the connection profile to use when connecting to this node
-     * @param listener the action listener to notify
+     * @param listener          the action listener to notify
      */
     public void connectToNode(
         final DiscoveryNode node,
@@ -538,9 +543,10 @@ public class TransportService extends AbstractLifecycleComponent
      * Establishes a new connection to the given node. The connection is NOT maintained by this service, it's the callers
      * responsibility to close the connection once it goes out of scope.
      * The ActionListener will be called on the calling thread or the generic thread pool.
-     * @param node the node to connect to
+     *
+     * @param node              the node to connect to
      * @param connectionProfile the connection profile to use
-     * @param listener the action listener to notify
+     * @param listener          the action listener to notify
      */
     public void openConnection(
         final DiscoveryNode node,
@@ -565,7 +571,7 @@ public class TransportService extends AbstractLifecycleComponent
      * @param handshakeTimeout handshake timeout
      * @param listener         action listener to notify
      * @throws ConnectTransportException if the connection failed
-     * @throws IllegalStateException if the handshake failed
+     * @throws IllegalStateException     if the handshake failed
      */
     public void handshake(
         final Transport.Connection connection,
@@ -582,10 +588,10 @@ public class TransportService extends AbstractLifecycleComponent
      * name on the target node doesn't match the local cluster name.
      * The ActionListener will be called on the calling thread or the generic thread pool.
      *
-     * @param connection       the connection to a specific node
-     * @param handshakeTimeout handshake timeout
+     * @param connection           the connection to a specific node
+     * @param handshakeTimeout     handshake timeout
      * @param clusterNamePredicate cluster name validation predicate
-     * @param listener         action listener to notify
+     * @param listener             action listener to notify
      * @throws IllegalStateException if the handshake failed
      */
     public void handshake(
@@ -639,7 +645,7 @@ public class TransportService extends AbstractLifecycleComponent
         return transport.newNetworkBytesStream();
     }
 
-    static class HandshakeRequest extends TransportRequest {
+    static class HandshakeRequest extends AbstractTransportRequest {
 
         public static final HandshakeRequest INSTANCE = new HandshakeRequest();
 
@@ -669,7 +675,6 @@ public class TransportService extends AbstractLifecycleComponent
         }
 
         public HandshakeResponse(StreamInput in) throws IOException {
-            super(in);
             // the first two fields need only VInts and raw (ASCII) characters, so we cross our fingers and hope that they appear
             // on the wire as we expect them to even if this turns out to be an incompatible build
             version = Version.readVersion(in);
@@ -883,6 +888,7 @@ public class TransportService extends AbstractLifecycleComponent
 
     /**
      * Returns either a real transport connection or a local node connection if we are using the local node optimization.
+     *
      * @throws NodeNotConnectedException if the given node is not connected
      */
     public Transport.Connection getConnection(DiscoveryNode node) {
@@ -1188,10 +1194,10 @@ public class TransportService extends AbstractLifecycleComponent
     /**
      * Registers a new request handler
      *
-     * @param action         The action the request handler is associated with
-     * @param requestReader  a callable to be used construct new instances for streaming
-     * @param executor       The executor the request handling will be executed on
-     * @param handler        The handler itself that implements the request handling
+     * @param action        The action the request handler is associated with
+     * @param requestReader a callable to be used construct new instances for streaming
+     * @param executor      The executor the request handling will be executed on
+     * @param handler       The handler itself that implements the request handling
      */
     public <Request extends TransportRequest> void registerRequestHandler(
         String action,
@@ -1218,7 +1224,7 @@ public class TransportService extends AbstractLifecycleComponent
      * Registers a new request handler
      *
      * @param action                The action the request handler is associated with
-     * @param requestReader               The request class that will be used to construct new instances for streaming
+     * @param requestReader         The request class that will be used to construct new instances for streaming
      * @param executor              The executor the request handling will be executed on
      * @param forceExecution        Force execution on the executor queue and never reject it
      * @param canTripCircuitBreaker Check the request size and raise an exception in case the limit is breached.
@@ -1261,7 +1267,9 @@ public class TransportService extends AbstractLifecycleComponent
         }
     }
 
-    /** called by the {@link Transport} implementation once a request has been sent */
+    /**
+     * called by the {@link Transport} implementation once a request has been sent
+     */
     @Override
     public void onRequestSent(
         DiscoveryNode node,
@@ -1285,15 +1293,19 @@ public class TransportService extends AbstractLifecycleComponent
         }
     }
 
-    /** called by the {@link Transport} implementation once a response was sent to calling node */
+    /**
+     * called by the {@link Transport} implementation once a response was sent to calling node
+     */
     @Override
-    public void onResponseSent(long requestId, String action, TransportResponse response) {
+    public void onResponseSent(long requestId, String action) {
         if (tracerLog.isTraceEnabled() && shouldTraceAction(action)) {
             tracerLog.trace("[{}][{}] sent response", requestId, action);
         }
     }
 
-    /** called by the {@link Transport} implementation after an exception was sent as a response to an incoming request */
+    /**
+     * called by the {@link Transport} implementation after an exception was sent as a response to an incoming request
+     */
     @Override
     public void onResponseSent(long requestId, String action, Exception e) {
         if (tracerLog.isTraceEnabled() && shouldTraceAction(action)) {
@@ -1540,7 +1552,7 @@ public class TransportService extends AbstractLifecycleComponent
 
         @Override
         public void sendResponse(TransportResponse response) {
-            service.onResponseSent(requestId, action, response);
+            service.onResponseSent(requestId, action);
             try (var shutdownBlock = service.pendingDirectHandlers.withRef()) {
                 if (shutdownBlock == null) {
                     // already shutting down, the handler will be completed by sendRequestInternal or doStop

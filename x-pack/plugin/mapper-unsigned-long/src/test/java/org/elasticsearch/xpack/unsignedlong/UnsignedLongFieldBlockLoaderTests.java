@@ -18,8 +18,8 @@ import java.util.Map;
 public class UnsignedLongFieldBlockLoaderTests extends NumberFieldBlockLoaderTestCase<Long> {
     private static final long MASK_2_63 = 0x8000000000000000L;
 
-    public UnsignedLongFieldBlockLoaderTests() {
-        super(FieldType.UNSIGNED_LONG);
+    public UnsignedLongFieldBlockLoaderTests(Params params) {
+        super(FieldType.UNSIGNED_LONG, params);
     }
 
     @Override

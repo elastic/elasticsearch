@@ -22,10 +22,4 @@ FROM employees
 | --- |
 | 5.69 |
 
-::::{warning}
-`MEDIAN_ABSOLUTE_DEVIATION` is also [non-deterministic](https://en.wikipedia.org/wiki/Nondeterministic_algorithm). This means you can get slightly different results using the same data.
-
-::::
-
-
 

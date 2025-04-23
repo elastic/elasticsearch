@@ -1,0 +1,6 @@
+pr: 126493
+summary: Bedrock Cohere Task Settings Support
+area: Machine Learning
+type: enhancement
+issues:
+ - 126156

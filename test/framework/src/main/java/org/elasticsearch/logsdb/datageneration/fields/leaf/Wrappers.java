@@ -19,7 +19,7 @@ public class Wrappers {
      * Applies default wrappers for raw values - adds nulls and wraps values in arrays.
      * @return
      */
-    static Supplier<Object> defaults(Supplier<Object> rawValues, DataSource dataSource) {
+    public static Supplier<Object> defaults(Supplier<Object> rawValues, DataSource dataSource) {
         var nulls = dataSource.get(new DataSourceRequest.NullWrapper());
         var arrays = dataSource.get(new DataSourceRequest.ArrayWrapper());
 
@@ -30,7 +30,11 @@ public class Wrappers {
      * Applies default wrappers for raw values and also adds malformed values.
      * @return
      */
-    static Supplier<Object> defaultsWithMalformed(Supplier<Object> rawValues, Supplier<Object> malformedValues, DataSource dataSource) {
+    public static Supplier<Object> defaultsWithMalformed(
+        Supplier<Object> rawValues,
+        Supplier<Object> malformedValues,
+        DataSource dataSource
+    ) {
         var nulls = dataSource.get(new DataSourceRequest.NullWrapper());
         var malformed = dataSource.get(new DataSourceRequest.MalformedWrapper(malformedValues));
         var arrays = dataSource.get(new DataSourceRequest.ArrayWrapper());

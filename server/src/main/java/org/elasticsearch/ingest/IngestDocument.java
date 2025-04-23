@@ -193,17 +193,14 @@ public final class IngestDocument {
     public <T> T getFieldValue(String path, Class<T> clazz, boolean ignoreMissing) {
         final FieldPath fieldPath = FieldPath.of(path);
         Object context = fieldPath.initialContext(this);
-        for (String pathElement : fieldPath.pathElements) {
-            ResolveResult result = resolve(pathElement, path, context);
-            if (result.wasSuccessful) {
-                context = result.resolvedObject;
-            } else if (ignoreMissing && hasField(path) == false) {
-                return null;
-            } else {
-                throw new IllegalArgumentException(result.errorMessage);
-            }
+        ResolveResult result = resolve(fieldPath.pathElements, fieldPath.pathElements.length, path, context);
+        if (result.wasSuccessful) {
+            return cast(path, result.resolvedObject, clazz);
+        } else if (ignoreMissing) {
+            return null;
+        } else {
+            throw new IllegalArgumentException(result.errorMessage);
         }
-        return cast(path, context, clazz);
     }
 
     /**
@@ -266,6 +263,8 @@ public final class IngestDocument {
             String pathElement = fieldPath.pathElements[i];
             if (context == null) {
                 return false;
+            } else if (context instanceof IngestCtxMap map) { // optimization: handle IngestCtxMap separately from Map
+                context = map.get(pathElement);
             } else if (context instanceof Map<?, ?> map) {
                 context = map.get(pathElement);
             } else if (context instanceof List<?> list) {
@@ -292,6 +291,8 @@ public final class IngestDocument {
         String leafKey = fieldPath.pathElements[fieldPath.pathElements.length - 1];
         if (context == null) {
             return false;
+        } else if (context instanceof IngestCtxMap map) { // optimization: handle IngestCtxMap separately from Map
+            return map.containsKey(leafKey);
         } else if (context instanceof Map<?, ?> map) {
             return map.containsKey(leafKey);
         } else if (context instanceof List<?> list) {
@@ -316,74 +317,111 @@ public final class IngestDocument {
 
     /**
      * Removes the field identified by the provided path.
+     *
      * @param path the path of the field to be removed
      * @throws IllegalArgumentException if the path is null, empty, invalid or if the field doesn't exist.
      */
     public void removeField(String path) {
+        removeField(path, false);
+    }
+
+    /**
+     * Removes the field identified by the provided path.
+     *
+     * @param path the path of the field to be removed
+     * @param ignoreMissing The flag to determine whether to throw an exception when `path` is not found in the document.
+     * @throws IllegalArgumentException if the path is null, empty, or invalid; or if the field doesn't exist (and ignoreMissing is false).
+     */
+    public void removeField(String path, boolean ignoreMissing) {
         final FieldPath fieldPath = FieldPath.of(path);
         Object context = fieldPath.initialContext(this);
-        for (int i = 0; i < fieldPath.pathElements.length - 1; i++) {
-            ResolveResult result = resolve(fieldPath.pathElements[i], path, context);
-            if (result.wasSuccessful) {
-                context = result.resolvedObject;
-            } else {
-                throw new IllegalArgumentException(result.errorMessage);
-            }
+        ResolveResult result = resolve(fieldPath.pathElements, fieldPath.pathElements.length - 1, path, context);
+        if (result.wasSuccessful) {
+            context = result.resolvedObject;
+        } else if (ignoreMissing) {
+            return; // nothing was found, so there's nothing to remove :shrug:
+        } else {
+            throw new IllegalArgumentException(result.errorMessage);
         }
 
         String leafKey = fieldPath.pathElements[fieldPath.pathElements.length - 1];
-        if (context == null) {
+        if (context == null && ignoreMissing == false) {
             throw new IllegalArgumentException(Errors.cannotRemove(path, leafKey, null));
+        } else if (context instanceof IngestCtxMap map) { // optimization: handle IngestCtxMap separately from Map
+            if (map.containsKey(leafKey)) {
+                map.remove(leafKey);
+            } else if (ignoreMissing == false) {
+                throw new IllegalArgumentException(Errors.notPresent(path, leafKey));
+            }
         } else if (context instanceof Map<?, ?> map) {
             if (map.containsKey(leafKey)) {
                 map.remove(leafKey);
-            } else {
+            } else if (ignoreMissing == false) {
                 throw new IllegalArgumentException(Errors.notPresent(path, leafKey));
             }
         } else if (context instanceof List<?> list) {
-            int index;
+            int index = -1;
             try {
                 index = Integer.parseInt(leafKey);
             } catch (NumberFormatException e) {
-                throw new IllegalArgumentException(Errors.notInteger(path, leafKey), e);
+                if (ignoreMissing == false) {
+                    throw new IllegalArgumentException(Errors.notInteger(path, leafKey), e);
+                }
             }
             if (index < 0 || index >= list.size()) {
-                throw new IllegalArgumentException(Errors.outOfBounds(path, index, list.size()));
+                if (ignoreMissing == false) {
+                    throw new IllegalArgumentException(Errors.outOfBounds(path, index, list.size()));
+                }
             } else {
                 list.remove(index);
             }
-        } else {
+        } else if (ignoreMissing == false) {
             throw new IllegalArgumentException(Errors.cannotRemove(path, leafKey, context));
         }
     }
 
-    private static ResolveResult resolve(String pathElement, String fullPath, Object context) {
-        if (context == null) {
-            return ResolveResult.error(Errors.cannotResolve(fullPath, pathElement, null));
-        } else if (context instanceof Map<?, ?>) {
-            @SuppressWarnings("unchecked")
-            Map<String, Object> map = (Map<String, Object>) context;
-            Object object = map.getOrDefault(pathElement, NOT_FOUND); // getOrDefault is faster than containsKey + get
-            if (object == NOT_FOUND) {
-                return ResolveResult.error(Errors.notPresent(fullPath, pathElement));
+    /**
+     * Resolves the path elements (up to the limit) within the context. The result of such resolution can either be successful,
+     * or can indicate a failure.
+     */
+    private static ResolveResult resolve(final String[] pathElements, final int limit, final String fullPath, Object context) {
+        for (int i = 0; i < limit; i++) {
+            String pathElement = pathElements[i];
+            if (context == null) {
+                return ResolveResult.error(Errors.cannotResolve(fullPath, pathElement, null));
+            } else if (context instanceof IngestCtxMap map) { // optimization: handle IngestCtxMap separately from Map
+                Object object = map.getOrDefault(pathElement, NOT_FOUND); // getOrDefault is faster than containsKey + get
+                if (object == NOT_FOUND) {
+                    return ResolveResult.error(Errors.notPresent(fullPath, pathElement));
+                } else {
+                    context = object;
+                }
+            } else if (context instanceof Map<?, ?>) {
+                @SuppressWarnings("unchecked")
+                Map<String, Object> map = (Map<String, Object>) context;
+                Object object = map.getOrDefault(pathElement, NOT_FOUND); // getOrDefault is faster than containsKey + get
+                if (object == NOT_FOUND) {
+                    return ResolveResult.error(Errors.notPresent(fullPath, pathElement));
+                } else {
+                    context = object;
+                }
+            } else if (context instanceof List<?> list) {
+                int index;
+                try {
+                    index = Integer.parseInt(pathElement);
+                } catch (NumberFormatException e) {
+                    return ResolveResult.error(Errors.notInteger(fullPath, pathElement));
+                }
+                if (index < 0 || index >= list.size()) {
+                    return ResolveResult.error(Errors.outOfBounds(fullPath, index, list.size()));
+                } else {
+                    context = list.get(index);
+                }
             } else {
-                return ResolveResult.success(object);
+                return ResolveResult.error(Errors.cannotResolve(fullPath, pathElement, context));
             }
-        } else if (context instanceof List<?> list) {
-            int index;
-            try {
-                index = Integer.parseInt(pathElement);
-            } catch (NumberFormatException e) {
-                return ResolveResult.error(Errors.notInteger(fullPath, pathElement));
-            }
-            if (index < 0 || index >= list.size()) {
-                return ResolveResult.error(Errors.outOfBounds(fullPath, index, list.size()));
-            } else {
-                return ResolveResult.success(list.get(index));
-            }
-        } else {
-            return ResolveResult.error(Errors.cannotResolve(fullPath, pathElement, context));
         }
+        return ResolveResult.success(context);
     }
 
     /**
@@ -518,6 +556,15 @@ public final class IngestDocument {
             String pathElement = fieldPath.pathElements[i];
             if (context == null) {
                 throw new IllegalArgumentException(Errors.cannotResolve(path, pathElement, null));
+            } else if (context instanceof IngestCtxMap map) { // optimization: handle IngestCtxMap separately from Map
+                Object object = map.getOrDefault(pathElement, NOT_FOUND); // getOrDefault is faster than containsKey + get
+                if (object == NOT_FOUND) {
+                    Map<Object, Object> newMap = new HashMap<>();
+                    map.put(pathElement, newMap);
+                    context = newMap;
+                } else {
+                    context = object;
+                }
             } else if (context instanceof Map<?, ?>) {
                 @SuppressWarnings("unchecked")
                 Map<String, Object> map = (Map<String, Object>) context;
@@ -549,6 +596,22 @@ public final class IngestDocument {
         String leafKey = fieldPath.pathElements[fieldPath.pathElements.length - 1];
         if (context == null) {
             throw new IllegalArgumentException(Errors.cannotSet(path, leafKey, null));
+        } else if (context instanceof IngestCtxMap map) { // optimization: handle IngestCtxMap separately from Map
+            if (append) {
+                Object object = map.getOrDefault(leafKey, NOT_FOUND); // getOrDefault is faster than containsKey + get
+                if (object == NOT_FOUND) {
+                    List<Object> list = new ArrayList<>();
+                    appendValues(list, value);
+                    map.put(leafKey, list);
+                } else {
+                    Object list = appendValues(object, value, allowDuplicates);
+                    if (list != object) {
+                        map.put(leafKey, list);
+                    }
+                }
+                return;
+            }
+            map.put(leafKey, value);
         } else if (context instanceof Map<?, ?>) {
             @SuppressWarnings("unchecked")
             Map<String, Object> map = (Map<String, Object>) context;

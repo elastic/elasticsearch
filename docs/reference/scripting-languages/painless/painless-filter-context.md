@@ -5,7 +5,7 @@ mapped_pages:
 
 # Filter context [painless-filter-context]
 
-Use a Painless script as a [filter](/reference/query-languages/query-dsl-script-query.md) in a query to include and exclude documents.
+Use a Painless script as a [filter](/reference/query-languages/query-dsl/query-dsl-script-query.md) in a query to include and exclude documents.
 
 **Variables**
 

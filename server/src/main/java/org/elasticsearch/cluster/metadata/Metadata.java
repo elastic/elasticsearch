@@ -11,6 +11,7 @@ package org.elasticsearch.cluster.metadata;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.Diff;
@@ -54,6 +55,7 @@ import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.EnumSet;
 import java.util.HashMap;
@@ -683,10 +685,18 @@ public class Metadata implements Diffable<Metadata>, ChunkedToXContent {
 
     @Override
     public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params p) {
-        XContentContext context = XContentContext.from(p);
+        final XContentContext context = XContentContext.from(p);
         final Iterator<? extends ToXContent> start = context == XContentContext.API
             ? ChunkedToXContentHelper.startObject("metadata")
             : Iterators.single((builder, params) -> builder.startObject("meta-data").field("version", version()));
+
+        final Iterator<? extends ToXContent> clusterCoordination = Iterators.single((builder, params) -> {
+            builder.field("cluster_uuid", clusterUUID);
+            builder.field("cluster_uuid_committed", clusterUUIDCommitted);
+            builder.startObject("cluster_coordination");
+            coordinationMetadata().toXContent(builder, params);
+            return builder.endObject();
+        });
 
         final Iterator<? extends ToXContent> persistentSettings = context != XContentContext.API && persistentSettings().isEmpty() == false
             ? Iterators.single((builder, params) -> {
@@ -696,75 +706,98 @@ public class Metadata implements Diffable<Metadata>, ChunkedToXContent {
             })
             : Collections.emptyIterator();
 
-        // use a tree map so the order is deterministic
-        Map<String, ReservedStateMetadata> clusterReservedState = new TreeMap<>(reservedStateMetadata);
-
         @FixForMultiProject
         // Need to revisit whether this should be a param or something else.
         final boolean multiProject = p.paramAsBoolean("multi-project", false);
         if (multiProject) {
-            return Iterators.concat(start, Iterators.single((builder, params) -> {
-                builder.field("cluster_uuid", clusterUUID);
-                builder.field("cluster_uuid_committed", clusterUUIDCommitted);
-                builder.startObject("cluster_coordination");
-                coordinationMetadata().toXContent(builder, params);
-                return builder.endObject();
-            }),
-                persistentSettings,
-                ChunkedToXContentHelper.array(
-                    "projects",
-                    Iterators.flatMap(
-                        projectMetadata.entrySet().iterator(),
-                        e -> Iterators.concat(
-                            ChunkedToXContentHelper.startObject(),
-                            Iterators.single((builder, params) -> builder.field("id", e.getKey())),
-                            e.getValue().toXContentChunked(p),
-                            ChunkedToXContentHelper.endObject()
-                        )
-                    )
-                ),
-                Iterators.flatMap(
-                    customs.entrySet().iterator(),
-                    entry -> entry.getValue().context().contains(context)
-                        ? ChunkedToXContentHelper.object(entry.getKey(), entry.getValue().toXContentChunked(p))
-                        : Collections.emptyIterator()
-                ),
-                ChunkedToXContentHelper.object("reserved_state", reservedStateMetadata().values().iterator()),
-                ChunkedToXContentHelper.endObject()
-            );
+            return toXContentChunkedWithMultiProjectFormat(p, context, start, clusterCoordination, persistentSettings);
         } else {
-            if (projectMetadata.size() != 1) {
-                throw new MultiProjectPendingException("There are multiple projects " + projectMetadata.keySet());
-            }
-            // Need to rethink what to do here. This might be right, but maybe not...
-            @FixForMultiProject
-            final ProjectMetadata project = projectMetadata.values().iterator().next();
-
-            // need to combine reserved state together into a single block so we don't get duplicate keys
-            // and not include it in the project xcontent output (through the lack of multi-project params)
-            clusterReservedState.putAll(project.reservedStateMetadata());
-
-            @FixForMultiProject(description = "consider include cluster-scoped persistent tasks")
-            final var iterators = Iterators.concat(start, Iterators.single((builder, params) -> {
-                builder.field("cluster_uuid", clusterUUID);
-                builder.field("cluster_uuid_committed", clusterUUIDCommitted);
-                builder.startObject("cluster_coordination");
-                coordinationMetadata().toXContent(builder, params);
-                return builder.endObject();
-            }),
-                persistentSettings,
-                project.toXContentChunked(p),
-                Iterators.flatMap(
-                    customs.entrySet().iterator(),
-                    entry -> entry.getValue().context().contains(context)
-                        ? ChunkedToXContentHelper.object(entry.getKey(), entry.getValue().toXContentChunked(p))
-                        : Collections.emptyIterator()
-                ),
-                ChunkedToXContentHelper.object("reserved_state", clusterReservedState.values().iterator()),
-                ChunkedToXContentHelper.endObject()
-            );
-            return iterators;
+            return toXContentChunkedWithSingleProjectFormat(p, context, start, clusterCoordination, persistentSettings);
         }
+    }
+
+    private Iterator<? extends ToXContent> toXContentChunkedWithMultiProjectFormat(
+        ToXContent.Params p,
+        XContentContext context,
+        Iterator<? extends ToXContent> start,
+        Iterator<? extends ToXContent> clusterCoordination,
+        Iterator<? extends ToXContent> persistentSettings
+    ) {
+        return Iterators.concat(
+            start,
+            clusterCoordination,
+            persistentSettings,
+            ChunkedToXContentHelper.array(
+                "projects",
+                Iterators.flatMap(
+                    projectMetadata.entrySet().iterator(),
+                    e -> Iterators.concat(
+                        ChunkedToXContentHelper.startObject(),
+                        Iterators.single((builder, params) -> builder.field("id", e.getKey())),
+                        e.getValue().toXContentChunked(p),
+                        ChunkedToXContentHelper.endObject()
+                    )
+                )
+            ),
+            Iterators.flatMap(
+                customs.entrySet().iterator(),
+                entry -> entry.getValue().context().contains(context)
+                    ? ChunkedToXContentHelper.object(entry.getKey(), entry.getValue().toXContentChunked(p))
+                    : Collections.emptyIterator()
+            ),
+            ChunkedToXContentHelper.object("reserved_state", reservedStateMetadata().values().iterator()),
+            ChunkedToXContentHelper.endObject()
+        );
+    }
+
+    private Iterator<? extends ToXContent> toXContentChunkedWithSingleProjectFormat(
+        ToXContent.Params p,
+        XContentContext context,
+        Iterator<? extends ToXContent> start,
+        Iterator<? extends ToXContent> clusterCoordination,
+        Iterator<? extends ToXContent> persistentSettings
+    ) {
+        if (projectMetadata.size() != 1) {
+            throw new MultiProjectPendingException("There are multiple projects " + projectMetadata.keySet());
+        }
+        // Need to rethink what to do here. This might be right, but maybe not...
+        @FixForMultiProject
+        final ProjectMetadata project = projectMetadata.values().iterator().next();
+
+        // need to combine reserved state together into a single block so we don't get duplicate keys
+        // and not include it in the project xcontent output (through the lack of multi-project params)
+        // use a tree map so the order is deterministic
+        final Map<String, ReservedStateMetadata> clusterReservedState = new TreeMap<>(reservedStateMetadata);
+        clusterReservedState.putAll(project.reservedStateMetadata());
+
+        // Similarly, combine cluster and project persistent tasks and report them under a single key
+        Iterator<ToXContent> customs = Iterators.flatMap(customs().entrySet().iterator(), entry -> {
+            if (entry.getValue().context().contains(context) && ClusterPersistentTasksCustomMetadata.TYPE.equals(entry.getKey()) == false) {
+                return ChunkedToXContentHelper.object(entry.getKey(), entry.getValue().toXContentChunked(p));
+            } else {
+                return Collections.emptyIterator();
+            }
+        });
+        final var combinedTasks = PersistentTasksCustomMetadata.combine(
+            ClusterPersistentTasksCustomMetadata.get(this),
+            PersistentTasksCustomMetadata.get(project)
+        );
+        if (combinedTasks != null) {
+            customs = Iterators.concat(
+                customs,
+                ChunkedToXContentHelper.object(PersistentTasksCustomMetadata.TYPE, combinedTasks.toXContentChunked(p))
+            );
+        }
+
+        return Iterators.concat(
+            start,
+            clusterCoordination,
+            persistentSettings,
+            project.toXContentChunked(p),
+            customs,
+            ChunkedToXContentHelper.object("reserved_state", clusterReservedState.values().iterator()),
+            ChunkedToXContentHelper.endObject()
+        );
     }
 
     private static final DiffableUtils.KeySerializer<ProjectId> PROJECT_ID_SERIALIZER = DiffableUtils.getWriteableKeySerializer(
@@ -921,11 +954,13 @@ public class Metadata implements Diffable<Metadata>, ChunkedToXContent {
                 multiProject = null;
             } else {
                 fromNodeBeforeMultiProjectsSupport = false;
-                clusterCustoms = DiffableUtils.readImmutableOpenMapDiff(
-                    in,
-                    DiffableUtils.getStringKeySerializer(),
-                    CLUSTER_CUSTOM_VALUE_SERIALIZER
-                );
+                // Repositories metadata is sent as Metadata#customs diff from old node. We need to
+                // 1. Split it from the Metadata#customs diff
+                // 2. Merge it into the default project's ProjectMetadataDiff
+                final var bwcCustoms = maybeReadBwcCustoms(in);
+                clusterCustoms = bwcCustoms.v1();
+                final var defaultProjectCustoms = bwcCustoms.v2();
+
                 reservedStateMetadata = DiffableUtils.readImmutableOpenMapDiff(
                     in,
                     DiffableUtils.getStringKeySerializer(),
@@ -933,12 +968,58 @@ public class Metadata implements Diffable<Metadata>, ChunkedToXContent {
                 );
 
                 singleProject = null;
-                multiProject = DiffableUtils.readJdkMapDiff(
-                    in,
-                    PROJECT_ID_SERIALIZER,
-                    ProjectMetadata::readFrom,
-                    ProjectMetadata.ProjectMetadataDiff::new
+                multiProject = readMultiProjectDiffs(in, defaultProjectCustoms);
+            }
+        }
+
+        private static
+            Tuple<
+                MapDiff<String, ClusterCustom, ImmutableOpenMap<String, ClusterCustom>>,
+                MapDiff<String, ProjectCustom, ImmutableOpenMap<String, ProjectCustom>>>
+            maybeReadBwcCustoms(StreamInput in) throws IOException {
+            if (in.getTransportVersion().before(TransportVersions.REPOSITORIES_METADATA_AS_PROJECT_CUSTOM)) {
+                return readBwcCustoms(in);
+            } else {
+                return new Tuple<>(
+                    DiffableUtils.readImmutableOpenMapDiff(in, DiffableUtils.getStringKeySerializer(), CLUSTER_CUSTOM_VALUE_SERIALIZER),
+                    null
                 );
+            }
+        }
+
+        @SuppressWarnings("unchecked")
+        private static MapDiff<ProjectId, ProjectMetadata, Map<ProjectId, ProjectMetadata>> readMultiProjectDiffs(
+            StreamInput in,
+            MapDiff<String, ProjectCustom, ImmutableOpenMap<String, ProjectCustom>> defaultProjectCustoms
+        ) throws IOException {
+            final var multiProject = DiffableUtils.readJdkMapDiff(
+                in,
+                PROJECT_ID_SERIALIZER,
+                ProjectMetadata::readFrom,
+                ProjectMetadata.ProjectMetadataDiff::new
+            );
+
+            // If the defaultProjectCustoms has content, the diff is read from an old node. We need to merge it into the
+            // default project's ProjectMetadataDiff
+            if (defaultProjectCustoms != null && defaultProjectCustoms.isEmpty() == false) {
+                return DiffableUtils.updateDiffsAndUpserts(multiProject, ProjectId.DEFAULT::equals, (k, v) -> {
+                    assert ProjectId.DEFAULT.equals(k) : k;
+                    assert v instanceof ProjectMetadata.ProjectMetadataDiff : v;
+                    final var projectMetadataDiff = (ProjectMetadata.ProjectMetadataDiff) v;
+                    return projectMetadataDiff.withCustoms(
+                        DiffableUtils.merge(
+                            projectMetadataDiff.customs(),
+                            defaultProjectCustoms,
+                            DiffableUtils.getStringKeySerializer(),
+                            BWC_CUSTOM_VALUE_SERIALIZER
+                        )
+                    );
+                }, (k, v) -> {
+                    assert ProjectId.DEFAULT.equals(k) : k;
+                    return ProjectMetadata.builder(v).clearCustoms().customs(defaultProjectCustoms.apply(v.customs())).build();
+                });
+            } else {
+                return multiProject;
             }
         }
 
@@ -985,15 +1066,103 @@ public class Metadata implements Diffable<Metadata>, ChunkedToXContent {
                 buildUnifiedCustomDiff().writeTo(out);
                 buildUnifiedReservedStateMetadataDiff().writeTo(out);
             } else {
-                clusterCustoms.writeTo(out);
-                reservedStateMetadata.writeTo(out);
-                if (multiProject != null) {
-                    multiProject.writeTo(out);
+                final var multiProjectToWrite = multiProject != null
+                    ? multiProject
+                    : DiffableUtils.singleEntryDiff(DEFAULT_PROJECT_ID, singleProject, PROJECT_ID_SERIALIZER);
+
+                if (out.getTransportVersion().before(TransportVersions.REPOSITORIES_METADATA_AS_PROJECT_CUSTOM)) {
+                    writeDiffWithRepositoriesMetadataAsClusterCustom(out, clusterCustoms, multiProjectToWrite, reservedStateMetadata);
                 } else {
-                    // construct the MapDiff to write out this single project
-                    DiffableUtils.singleEntryDiff(DEFAULT_PROJECT_ID, singleProject, PROJECT_ID_SERIALIZER).writeTo(out);
+                    clusterCustoms.writeTo(out);
+                    reservedStateMetadata.writeTo(out);
+                    multiProjectToWrite.writeTo(out);
                 }
             }
+        }
+
+        @SuppressWarnings({ "rawtypes", "unchecked" })
+        private static void writeDiffWithRepositoriesMetadataAsClusterCustom(
+            StreamOutput out,
+            MapDiff<String, ClusterCustom, ImmutableOpenMap<String, ClusterCustom>> clusterCustoms,
+            MapDiff<ProjectId, ProjectMetadata, Map<ProjectId, ProjectMetadata>> multiProject,
+            MapDiff<String, ReservedStateMetadata, ImmutableOpenMap<String, ReservedStateMetadata>> reservedStateMetadata
+        ) throws IOException {
+            assert out.getTransportVersion().onOrAfter(TransportVersions.MULTI_PROJECT)
+                && out.getTransportVersion().before(TransportVersions.REPOSITORIES_METADATA_AS_PROJECT_CUSTOM) : out.getTransportVersion();
+
+            // For old nodes, RepositoriesMetadata needs to be sent as a cluster custom. This is possible when (a) the repositories
+            // are defined only for the default project or (b) no repositories at all. What we need to do are:
+            // 1. Iterate through the multi-project's MapDiff to extract the RepositoriesMetadata of the default project
+            // 2. Throws if any repositories are found for non-default projects
+            // 3. Merge default project's RepositoriesMetadata into Metadata#customs
+            final var combineClustersCustoms = new SetOnce<MapDiff<String, MetadataCustom, Map<String, MetadataCustom>>>();
+            final var updatedMultiProject = DiffableUtils.updateDiffsAndUpserts(multiProject, ignore -> true, (k, v) -> {
+                assert v instanceof ProjectMetadata.ProjectMetadataDiff : v;
+                final var projectMetadataDiff = (ProjectMetadata.ProjectMetadataDiff) v;
+                final var bwcCustoms = DiffableUtils.split(
+                    projectMetadataDiff.customs(),
+                    RepositoriesMetadata.TYPE::equals,
+                    PROJECT_CUSTOM_VALUE_SERIALIZER,
+                    type -> RepositoriesMetadata.TYPE.equals(type) == false,
+                    PROJECT_CUSTOM_VALUE_SERIALIZER
+                );
+                // Simply return if RepositoriesMetadata is not found
+                if (bwcCustoms.v1().isEmpty()) {
+                    return projectMetadataDiff;
+                }
+                // RepositoriesMetadata can only be defined for the default project. Otherwise throw exception.
+                if (ProjectId.DEFAULT.equals(k) == false) {
+                    throwForVersionBeforeRepositoriesMetadataMigration(out);
+                }
+                // RepositoriesMetadata is found for the default project as a diff, merge it into the Metadata#customs
+                combineClustersCustoms.set(
+                    DiffableUtils.<String, MetadataCustom, ClusterCustom, ProjectCustom, Map<String, MetadataCustom>>merge(
+                        clusterCustoms,
+                        bwcCustoms.v1(),
+                        DiffableUtils.getStringKeySerializer()
+                    )
+                );
+                return projectMetadataDiff.withCustoms(bwcCustoms.v2());
+            }, (k, v) -> {
+                final ProjectCustom projectCustom = v.customs().get(RepositoriesMetadata.TYPE);
+                // Simply return if RepositoriesMetadata is not found
+                if (projectCustom == null) {
+                    return v;
+                }
+                // RepositoriesMetadata can only be defined for the default project. Otherwise throw exception.
+                if (ProjectId.DEFAULT.equals(k) == false) {
+                    throwForVersionBeforeRepositoriesMetadataMigration(out);
+                }
+                // RepositoriesMetadata found for the default project as an upsert, package it as MapDiff and merge into Metadata#customs
+                combineClustersCustoms.set(
+                    DiffableUtils.<String, MetadataCustom, ClusterCustom, ProjectCustom, Map<String, MetadataCustom>>merge(
+                        clusterCustoms,
+                        DiffableUtils.singleUpsertDiff(RepositoriesMetadata.TYPE, projectCustom, DiffableUtils.getStringKeySerializer()),
+                        DiffableUtils.getStringKeySerializer()
+                    )
+                );
+                return ProjectMetadata.builder(v).removeCustom(RepositoriesMetadata.TYPE).build();
+            });
+
+            if (combineClustersCustoms.get() != null) {
+                combineClustersCustoms.get().writeTo(out);
+            } else {
+                clusterCustoms.writeTo(out);
+            }
+
+            reservedStateMetadata.writeTo(out);
+            updatedMultiProject.writeTo(out);
+        }
+
+        private static void throwForVersionBeforeRepositoriesMetadataMigration(StreamOutput out) {
+            assert out.getTransportVersion().before(TransportVersions.REPOSITORIES_METADATA_AS_PROJECT_CUSTOM) : out.getTransportVersion();
+            throw new UnsupportedOperationException(
+                "Serialize a diff with repositories defined for multiple projects requires version on or after ["
+                    + TransportVersions.REPOSITORIES_METADATA_AS_PROJECT_CUSTOM
+                    + "], but got ["
+                    + out.getTransportVersion()
+                    + "]"
+            );
         }
 
         @SuppressWarnings("unchecked")
@@ -1147,7 +1316,17 @@ public class Metadata implements Diffable<Metadata>, ChunkedToXContent {
                 builder.put(ReservedStateMetadata.readFrom(in));
             }
         } else {
-            readClusterCustoms(in, builder);
+            List<ProjectCustom> defaultProjectCustoms = List.of();
+            if (in.getTransportVersion().before(TransportVersions.REPOSITORIES_METADATA_AS_PROJECT_CUSTOM)) {
+                // Extract the default project's repositories metadata from the Metadata#customs from an old node
+                defaultProjectCustoms = new ArrayList<>();
+                readBwcCustoms(in, builder, defaultProjectCustoms::add);
+                assert defaultProjectCustoms.size() <= 1
+                    : "expect only a single default project custom for repository metadata, but got "
+                        + defaultProjectCustoms.stream().map(ProjectCustom::getWriteableName).toList();
+            } else {
+                readClusterCustoms(in, builder);
+            }
 
             int reservedStateSize = in.readVInt();
             for (int i = 0; i < reservedStateSize; i++) {
@@ -1155,11 +1334,16 @@ public class Metadata implements Diffable<Metadata>, ChunkedToXContent {
             }
 
             builder.projectMetadata(in.readMap(ProjectId::readFrom, ProjectMetadata::readFrom));
+            defaultProjectCustoms.forEach(c -> builder.getProject(ProjectId.DEFAULT).putCustom(c.getWriteableName(), c));
         }
         return builder.build();
     }
 
     private static void readBwcCustoms(StreamInput in, Builder builder) throws IOException {
+        readBwcCustoms(in, builder, projectCustom -> builder.putProjectCustom(projectCustom.getWriteableName(), projectCustom));
+    }
+
+    private static void readBwcCustoms(StreamInput in, Builder builder, Consumer<ProjectCustom> projectCustomConsumer) throws IOException {
         final Set<String> clusterScopedNames = in.namedWriteableRegistry().getReaders(ClusterCustom.class).keySet();
         final Set<String> projectScopedNames = in.namedWriteableRegistry().getReaders(ProjectCustom.class).keySet();
         final int count = in.readVInt();
@@ -1175,9 +1359,9 @@ public class Metadata implements Diffable<Metadata>, ChunkedToXContent {
                 if (custom instanceof PersistentTasksCustomMetadata persistentTasksCustomMetadata) {
                     final var tuple = persistentTasksCustomMetadata.split();
                     builder.putCustom(tuple.v1().getWriteableName(), tuple.v1());
-                    builder.putProjectCustom(tuple.v2().getWriteableName(), tuple.v2());
+                    projectCustomConsumer.accept(tuple.v2());
                 } else {
-                    builder.putProjectCustom(custom.getWriteableName(), custom);
+                    projectCustomConsumer.accept(custom);
                 }
             } else {
                 throw new IllegalArgumentException("Unknown custom name [" + name + "]");
@@ -1244,10 +1428,40 @@ public class Metadata implements Diffable<Metadata>, ChunkedToXContent {
             combinedMetadata.addAll(singleProject.reservedStateMetadata().values());
             out.writeCollection(combinedMetadata);
         } else {
-            VersionedNamedWriteable.writeVersionedWriteables(out, customs.values());
+            if (out.getTransportVersion().before(TransportVersions.REPOSITORIES_METADATA_AS_PROJECT_CUSTOM)) {
+                if (isSingleProject() || hasNoNonDefaultProjectRepositories(projects().values())) {
+                    // Repositories metadata must be sent as Metadata#customs for old nodes
+                    final List<VersionedNamedWriteable> combinedCustoms = new ArrayList<>(customs.size() + 1);
+                    combinedCustoms.addAll(customs.values());
+                    final ProjectCustom custom = getProject(ProjectId.DEFAULT).custom(RepositoriesMetadata.TYPE);
+                    if (custom != null) {
+                        combinedCustoms.add(custom);
+                    }
+                    VersionedNamedWriteable.writeVersionedWriteables(out, combinedCustoms);
+                } else {
+                    throw new UnsupportedOperationException(
+                        "Serialize metadata with repositories defined for multiple projects requires version on or after ["
+                            + TransportVersions.REPOSITORIES_METADATA_AS_PROJECT_CUSTOM
+                            + "], but got ["
+                            + out.getTransportVersion()
+                            + "]"
+                    );
+                }
+            } else {
+                VersionedNamedWriteable.writeVersionedWriteables(out, customs.values());
+            }
+
             out.writeCollection(reservedStateMetadata.values());
             out.writeMap(projectMetadata, StreamOutput::writeWriteable, StreamOutput::writeWriteable);
         }
+    }
+
+    /**
+     * @return {@code true} iff no repositories are defined for non-default-projects.
+     */
+    private static boolean hasNoNonDefaultProjectRepositories(Collection<ProjectMetadata> projects) {
+        return projects.stream()
+            .allMatch(project -> ProjectId.DEFAULT.equals(project.id()) || project.custom(RepositoriesMetadata.TYPE) == null);
     }
 
     public static Builder builder() {
@@ -1491,6 +1705,13 @@ public class Metadata implements Diffable<Metadata>, ChunkedToXContent {
 
         public Builder putCustom(String type, ProjectCustom custom) {
             return putProjectCustom(type, custom);
+        }
+
+        @Deprecated(forRemoval = true)
+        public Builder putDefaultProjectCustom(String type, ProjectCustom custom) {
+            assert projectMetadata.containsKey(ProjectId.DEFAULT) : projectMetadata.keySet();
+            getProject(ProjectId.DEFAULT).putCustom(type, custom);
+            return this;
         }
 
         public ClusterCustom getCustom(String type) {
@@ -1741,7 +1962,10 @@ public class Metadata implements Diffable<Metadata>, ChunkedToXContent {
                     currentFieldName = parser.currentName();
                 } else if (token == XContentParser.Token.START_ARRAY) {
                     switch (currentFieldName) {
-                        case "projects" -> readProjects(parser, builder);
+                        case "projects" -> {
+                            assert builder.projectMetadata.isEmpty() : "expect empty projectMetadata, but got " + builder.projectMetadata;
+                            readProjects(parser, builder);
+                        }
                         default -> throw new IllegalArgumentException("Unexpected field [" + currentFieldName + "]");
                     }
                 } else if (token == XContentParser.Token.START_OBJECT) {
@@ -1783,7 +2007,21 @@ public class Metadata implements Diffable<Metadata>, ChunkedToXContent {
                                         builder.putProjectCustom(PersistentTasksCustomMetadata.TYPE, tuple.v2());
                                         builder.putCustom(ClusterPersistentTasksCustomMetadata.TYPE, tuple.v1());
                                     } else {
-                                        builder.putProjectCustom(name, projectCustom);
+                                        if (projectCustom instanceof RepositoriesMetadata repositoriesMetadata) {
+                                            // Repositories at the top level means it is either
+                                            // 1. Serialization from a single project for which we need to create the default project
+                                            // 2. Serialization before repositories metadata migration. In this case, the metadata may
+                                            // contain multiple projects, including the default project, which should be deserialized
+                                            // already with readProjects, i.e. no need to create the default project.
+                                            final ProjectMetadata.Builder defaultProjectBuilder = builder.getProject(ProjectId.DEFAULT);
+                                            if (defaultProjectBuilder == null) {
+                                                builder.putProjectCustom(name, projectCustom);
+                                            } else {
+                                                defaultProjectBuilder.putCustom(RepositoriesMetadata.TYPE, repositoriesMetadata);
+                                            }
+                                        } else {
+                                            builder.putProjectCustom(name, projectCustom);
+                                        }
                                     }
                                 });
                             } else {

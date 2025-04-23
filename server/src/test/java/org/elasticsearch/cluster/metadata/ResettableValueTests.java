@@ -33,41 +33,6 @@ public class ResettableValueTests extends ESTestCase {
         assertThat(ResettableValue.create(null), equalTo(ResettableValue.undefined()));
     }
 
-    public void testMerge() {
-        // Initial state: undefined
-        {
-            ResettableValue<Integer> initial = ResettableValue.undefined();
-            assertThat(ResettableValue.merge(initial, ResettableValue.reset(), Integer::sum), equalTo(ResettableValue.undefined()));
-
-            assertThat(ResettableValue.merge(initial, ResettableValue.undefined(), Integer::sum), equalTo(ResettableValue.undefined()));
-
-            ResettableValue<Integer> update = ResettableValue.create(randomInt());
-            assertThat(ResettableValue.merge(initial, update, Integer::sum), equalTo(update));
-        }
-
-        // Initial state: reset
-        {
-            ResettableValue<Integer> initial = ResettableValue.reset();
-            assertThat(ResettableValue.merge(initial, ResettableValue.reset(), Integer::sum), equalTo(ResettableValue.undefined()));
-
-            assertThat(ResettableValue.merge(initial, ResettableValue.undefined(), Integer::sum), equalTo(initial));
-
-            ResettableValue<Integer> update = ResettableValue.create(randomInt());
-            assertThat(ResettableValue.merge(ResettableValue.undefined(), update, Integer::sum), equalTo(update));
-        }
-
-        // Initial state: value
-        {
-            ResettableValue<Integer> initial = ResettableValue.create(randomIntBetween(1, 200));
-            assertThat(ResettableValue.merge(initial, ResettableValue.reset(), Integer::sum), equalTo(ResettableValue.undefined()));
-
-            assertThat(ResettableValue.merge(initial, ResettableValue.undefined(), Integer::sum), equalTo(initial));
-
-            ResettableValue<Integer> update = ResettableValue.create(randomIntBetween(1, 200));
-            assertThat(ResettableValue.merge(initial, update, Integer::sum).get(), equalTo(initial.get() + update.get()));
-        }
-    }
-
     public void testMap() {
         Function<Integer, Integer> increment = x -> x + 1;
         assertThat(ResettableValue.<Integer>undefined().map(increment), equalTo(ResettableValue.undefined()));

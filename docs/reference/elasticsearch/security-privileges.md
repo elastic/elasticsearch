@@ -5,6 +5,12 @@ mapped_pages:
 
 # Elasticsearch privileges [security-privileges]
 
+:::{note}
+This section provides detailed **reference information** for Elasticsearch privileges.
+
+Refer to [User roles](docs-content://deploy-manage/users-roles/cluster-or-deployment-auth/user-roles.md) in the **Deploy and manage** section for more information on how role-based access control works.
+:::
+
 This section lists the privileges that you can assign to a role.
 
 ## Cluster privileges [privileges-list-cluster]
@@ -187,6 +193,9 @@ This section lists the privileges that you can assign to a role.
 
 `monitor_enrich`
 :   All read-only operations related to managing and executing enrich policies.
+
+`monitor_esql`
+:   All read-only operations related to ES|QL queries.
 
 `monitor_inference`
 :   All read-only operations related to {{infer}}.

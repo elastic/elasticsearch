@@ -223,13 +223,11 @@ public class InternalFilters extends InternalMultiBucketAggregation<InternalFilt
 
     @Override
     public InternalAggregation finalizeSampling(SamplingContext samplingContext) {
-        return new InternalFilters(
-            name,
-            buckets.stream().map(b -> b.finalizeSampling(samplingContext)).toList(),
-            keyed,
-            keyedBucket,
-            getMetadata()
-        );
+        final List<InternalBucket> buckets = new ArrayList<>(this.buckets.size());
+        for (InternalBucket bucket : this.buckets) {
+            buckets.add(bucket.finalizeSampling(samplingContext));
+        }
+        return new InternalFilters(name, buckets, keyed, keyedBucket, getMetadata());
     }
 
     @Override

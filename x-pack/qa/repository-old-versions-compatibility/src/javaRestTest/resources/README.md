@@ -124,7 +124,7 @@ PUT /index
 }
 ```
 
-### Create Index Version 5 - Custom-Analyzer
+### Create Index Version 6 - Custom-Analyzer
 ```
 PUT /index
 {

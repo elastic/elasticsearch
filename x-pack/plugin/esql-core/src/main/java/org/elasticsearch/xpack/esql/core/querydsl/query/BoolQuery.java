@@ -43,13 +43,14 @@ public class BoolQuery extends Query {
     }
 
     @Override
-    public QueryBuilder asBuilder() {
+    protected QueryBuilder asBuilder() {
         BoolQueryBuilder boolQuery = boolQuery();
         for (Query query : queries) {
+            QueryBuilder queryBuilder = query.toQueryBuilder();
             if (isAnd) {
-                boolQuery.must(query.asBuilder());
+                boolQuery.must(queryBuilder);
             } else {
-                boolQuery.should(query.asBuilder());
+                boolQuery.should(queryBuilder);
             }
         }
         return boolQuery;
@@ -93,5 +94,10 @@ public class BoolQuery extends Query {
             return new NotQuery(source, this);
         }
         return new BoolQuery(source, isAnd == false, negated);
+    }
+
+    @Override
+    public boolean scorable() {
+        return true;
     }
 }

@@ -9,7 +9,7 @@
 
 import org.elasticsearch.gradle.LoggedExec
 
-apply plugin: 'elasticsearch.legacy-yaml-rest-test'
+apply plugin: 'elasticsearch.internal-yaml-rest-test'
 apply plugin: 'elasticsearch.internal-cluster-test'
 
 esplugin {
@@ -50,14 +50,14 @@ restResources {
   }
 }
 
-// needed to be consistent with ssl host checking
-String host = InetAddress.getLoopbackAddress().getHostAddress()
-
-// location of keystore and files to generate it
-File keystore = new File(project.buildDir, 'keystore/test-node.jks')
-
 // generate the keystore
 TaskProvider createKey = tasks.register("createKey", LoggedExec) {
+  // needed to be consistent with ssl host checking
+  String host = InetAddress.getLoopbackAddress().getHostAddress()
+
+  // location of keystore and files to generate it
+  File keystore = project.layout.buildDirectory.file('keystore/test-node.jks').get().asFile
+
   doFirst {
     delete(keystore.parentFile)
     keystore.parentFile.mkdirs()
@@ -76,10 +76,9 @@ TaskProvider createKey = tasks.register("createKey", LoggedExec) {
     '-keypass', 'keypass',
     '-storepass', 'keypass'
 }
-//no unit tests
-tasks.named("test").configure { enabled = false }
+
 // add keystore to test classpath: it expects it there
-tasks.named("processInternalClusterTestResources").configure {
+tasks.named("processInternalClusterTestResources") {
   from createKey
 }
 

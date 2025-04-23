@@ -9,15 +9,32 @@
 
 package org.elasticsearch.action.admin.indices.get;
 
+import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.admin.indices.get.GetIndexRequest.Feature;
-import org.elasticsearch.action.support.master.info.ClusterInfoRequestBuilder;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.internal.ElasticsearchClient;
+import org.elasticsearch.common.util.ArrayUtils;
 import org.elasticsearch.core.TimeValue;
 
-public class GetIndexRequestBuilder extends ClusterInfoRequestBuilder<GetIndexRequest, GetIndexResponse, GetIndexRequestBuilder> {
+public class GetIndexRequestBuilder extends ActionRequestBuilder<GetIndexRequest, GetIndexResponse> {
 
     public GetIndexRequestBuilder(ElasticsearchClient client, TimeValue masterTimeout, String... indices) {
         super(client, GetIndexAction.INSTANCE, new GetIndexRequest(masterTimeout).indices(indices));
+    }
+
+    public GetIndexRequestBuilder setIndices(String... indices) {
+        request.indices(indices);
+        return this;
+    }
+
+    public GetIndexRequestBuilder addIndices(String... indices) {
+        request.indices(ArrayUtils.concat(request.indices(), indices));
+        return this;
+    }
+
+    public GetIndexRequestBuilder setIndicesOptions(IndicesOptions indicesOptions) {
+        request.indicesOptions(indicesOptions);
+        return this;
     }
 
     public GetIndexRequestBuilder setFeatures(Feature... features) {

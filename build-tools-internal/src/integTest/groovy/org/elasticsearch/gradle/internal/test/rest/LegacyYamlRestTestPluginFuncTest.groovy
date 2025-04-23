@@ -179,9 +179,9 @@ echo "Running elasticsearch \$0"
 
         file(distProjectFolder, 'src/config/elasticsearch.properties') << "some propes"
         file(distProjectFolder, 'src/config/jvm.options') << """
--Xlog:gc*,gc+age=trace,safepoint:file=logs/gc.log:utctime,level,pid,tags:filecount=32,filesize=64m
--XX:ErrorFile=logs/hs_err_pid%p.log
--XX:HeapDumpPath=data
+-Xlog:gc*,gc+age=trace,safepoint:file=gc.log:utctime,level,pid,tags:filecount=32,filesize=64m
+-XX:ErrorFile=hs_err_pid%p.log
+# -XX:HeapDumpPath=/heap/dump/path
 """
         file(distProjectFolder, 'build.gradle') << """
             import org.gradle.api.internal.artifacts.ArtifactAttributes;

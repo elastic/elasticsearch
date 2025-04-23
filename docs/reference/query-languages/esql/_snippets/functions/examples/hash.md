@@ -6,7 +6,7 @@
 FROM sample_data
 | WHERE message != "Connection error"
 | EVAL md5 = hash("md5", message), sha256 = hash("sha256", message)
-| KEEP message, md5, sha256;
+| KEEP message, md5, sha256
 ```
 
 | message:keyword | md5:keyword | sha256:keyword |

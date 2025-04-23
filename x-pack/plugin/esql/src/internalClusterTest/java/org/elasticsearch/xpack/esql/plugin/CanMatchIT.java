@@ -18,7 +18,6 @@ import org.elasticsearch.index.query.MatchQueryBuilder;
 import org.elasticsearch.index.query.RangeQueryBuilder;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.test.hamcrest.ElasticsearchAssertions;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.esql.action.AbstractEsqlIntegTestCase;
@@ -30,6 +29,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.getValuesList;
 import static org.hamcrest.Matchers.containsString;
@@ -48,7 +48,7 @@ public class CanMatchIT extends AbstractEsqlIntegTestCase {
      * Make sure that we don't send data-node requests to the target shards which won't match the query
      */
     public void testCanMatch() {
-        ElasticsearchAssertions.assertAcked(
+        assertAcked(
             client().admin()
                 .indices()
                 .prepareCreate("events_2022")
@@ -60,9 +60,7 @@ public class CanMatchIT extends AbstractEsqlIntegTestCase {
             .add(new IndexRequest().source("@timestamp", "2022-05-02", "uid", "u1"))
             .add(new IndexRequest().source("@timestamp", "2022-12-15", "uid", "u1"))
             .get();
-        ElasticsearchAssertions.assertAcked(
-            client().admin().indices().prepareCreate("events_2023").setMapping("@timestamp", "type=date", "uid", "type=keyword")
-        );
+        assertAcked(client().admin().indices().prepareCreate("events_2023").setMapping("@timestamp", "type=date", "uid", "type=keyword"));
         client().prepareBulk("events_2023")
             .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
             .add(new IndexRequest().source("@timestamp", "2023-01-15", "uid", "u2"))
@@ -72,17 +70,24 @@ public class CanMatchIT extends AbstractEsqlIntegTestCase {
             .get();
         try {
             Set<String> queriedIndices = ConcurrentCollections.newConcurrentSet();
-            for (TransportService ts : internalCluster().getInstances(TransportService.class)) {
-                MockTransportService transportService = (MockTransportService) ts;
-                transportService.addRequestHandlingBehavior(ComputeService.DATA_ACTION_NAME, (handler, request, channel, task) -> {
-                    DataNodeRequest dataNodeRequest = (DataNodeRequest) request;
-                    for (ShardId shardId : dataNodeRequest.shardIds()) {
-                        queriedIndices.add(shardId.getIndexName());
+            for (TransportService transportService : internalCluster().getInstances(TransportService.class)) {
+                as(transportService, MockTransportService.class).addRequestHandlingBehavior(
+                    ComputeService.DATA_ACTION_NAME,
+                    (handler, request, channel, task) -> {
+                        DataNodeRequest dataNodeRequest = (DataNodeRequest) request;
+                        for (ShardId shardId : dataNodeRequest.shardIds()) {
+                            queriedIndices.add(shardId.getIndexName());
+                        }
+                        handler.messageReceived(request, channel, task);
                     }
-                    handler.messageReceived(request, channel, task);
-                });
+                );
             }
             try (EsqlQueryResponse resp = run("from events_*", randomPragmas(), new RangeQueryBuilder("@timestamp").gte("2023-01-01"))) {
+                assertThat(getValuesList(resp), hasSize(4));
+                assertThat(queriedIndices, equalTo(Set.of("events_2023")));
+                queriedIndices.clear();
+            }
+            try (EsqlQueryResponse resp = run("from events_* | WHERE @timestamp >= date_parse(\"yyyy-MM-dd\", \"2023-01-01\")")) {
                 assertThat(getValuesList(resp), hasSize(4));
                 assertThat(queriedIndices, equalTo(Set.of("events_2023")));
                 queriedIndices.clear();
@@ -93,12 +98,28 @@ public class CanMatchIT extends AbstractEsqlIntegTestCase {
                 assertThat(queriedIndices, equalTo(Set.of("events_2022")));
                 queriedIndices.clear();
             }
+            try (EsqlQueryResponse resp = run("from events_* | WHERE @timestamp < date_parse(\"yyyy-MM-dd\", \"2023-01-01\")")) {
+                assertThat(getValuesList(resp), hasSize(3));
+                assertThat(queriedIndices, equalTo(Set.of("events_2022")));
+                queriedIndices.clear();
+            }
 
             try (
                 EsqlQueryResponse resp = run(
                     "from events_*",
                     randomPragmas(),
                     new RangeQueryBuilder("@timestamp").gt("2022-01-01").lt("2023-12-31")
+                )
+            ) {
+                assertThat(getValuesList(resp), hasSize(7));
+                assertThat(queriedIndices, equalTo(Set.of("events_2022", "events_2023")));
+                queriedIndices.clear();
+            }
+            try (
+                EsqlQueryResponse resp = run(
+                    "from events_* "
+                        + "| WHERE @timestamp > date_parse(\"yyyy-MM-dd\", \"2022-01-01\") "
+                        + "AND @timestamp < date_parse(\"yyyy-MM-dd\", \"2023-12-31\")"
                 )
             ) {
                 assertThat(getValuesList(resp), hasSize(7));
@@ -117,15 +138,26 @@ public class CanMatchIT extends AbstractEsqlIntegTestCase {
                 assertThat(queriedIndices, empty());
                 queriedIndices.clear();
             }
+            try (
+                EsqlQueryResponse resp = run(
+                    "from events_* "
+                        + "| WHERE @timestamp > date_parse(\"yyyy-MM-dd\", \"2023-01-01\") "
+                        + "AND @timestamp < date_parse(\"yyyy-MM-dd\", \"2023-01-01\")"
+                )
+            ) {
+                assertThat(getValuesList(resp), hasSize(0));
+                assertThat(queriedIndices, empty());
+                queriedIndices.clear();
+            }
         } finally {
-            for (TransportService ts : internalCluster().getInstances(TransportService.class)) {
-                ((MockTransportService) ts).clearAllRules();
+            for (TransportService transportService : internalCluster().getInstances(TransportService.class)) {
+                as(transportService, MockTransportService.class).clearAllRules();
             }
         }
     }
 
     public void testAliasFilters() {
-        ElasticsearchAssertions.assertAcked(
+        assertAcked(
             client().admin()
                 .indices()
                 .prepareCreate("employees")
@@ -141,7 +173,7 @@ public class CanMatchIT extends AbstractEsqlIntegTestCase {
             .add(new IndexRequest().source("emp_no", 106, "dept", "sales", "hired", "2012-08-09", "salary", 30.1))
             .get();
 
-        ElasticsearchAssertions.assertAcked(
+        assertAcked(
             client().admin()
                 .indices()
                 .prepareAliases(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT)
@@ -209,11 +241,10 @@ public class CanMatchIT extends AbstractEsqlIntegTestCase {
         }
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/103749")
     public void testFailOnUnavailableShards() throws Exception {
         internalCluster().ensureAtLeastNumDataNodes(2);
         String logsOnlyNode = internalCluster().startDataOnlyNode();
-        ElasticsearchAssertions.assertAcked(
+        assertAcked(
             client().admin()
                 .indices()
                 .prepareCreate("events")
@@ -230,7 +261,7 @@ public class CanMatchIT extends AbstractEsqlIntegTestCase {
             .add(new IndexRequest().source("timestamp", 2, "message", "b"))
             .add(new IndexRequest().source("timestamp", 3, "message", "c"))
             .get();
-        ElasticsearchAssertions.assertAcked(
+        assertAcked(
             client().admin()
                 .indices()
                 .prepareCreate("logs")
@@ -246,12 +277,28 @@ public class CanMatchIT extends AbstractEsqlIntegTestCase {
             .add(new IndexRequest().source("timestamp", 10, "message", "aa"))
             .add(new IndexRequest().source("timestamp", 11, "message", "bb"))
             .get();
+
+        // when all shards available
         try (EsqlQueryResponse resp = run("from events,logs | KEEP timestamp,message")) {
             assertThat(getValuesList(resp), hasSize(5));
-            internalCluster().stopNode(logsOnlyNode);
-            ensureClusterSizeConsistency();
-            Exception error = expectThrows(Exception.class, () -> run("from events,logs | KEEP timestamp,message"));
-            assertThat(error.getMessage(), containsString("no shard copies found"));
+        }
+
+        internalCluster().stopNode(logsOnlyNode);
+        ensureClusterSizeConsistency();
+
+        // when one shard is unavailable
+        expectThrows(
+            Exception.class,
+            containsString("index [logs] has no active shard copy"),
+            () -> run("from events,logs | KEEP timestamp,message")
+        );
+        expectThrows(
+            Exception.class,
+            containsString("index [logs] has no active shard copy"),
+            () -> run("from * | KEEP timestamp,message")
+        );
+        try (EsqlQueryResponse resp = run("from events,logs | KEEP timestamp,message", null, null, true)) {
+            assertThat(getValuesList(resp), hasSize(3));
         }
     }
 
@@ -261,9 +308,7 @@ public class CanMatchIT extends AbstractEsqlIntegTestCase {
         Map<String, Integer> indexToNumDocs = new HashMap<>();
         for (int i = 0; i < numIndices; i++) {
             String index = "events-" + i;
-            ElasticsearchAssertions.assertAcked(
-                client().admin().indices().prepareCreate(index).setMapping("timestamp", "type=long", "message", "type=keyword")
-            );
+            assertAcked(client().admin().indices().prepareCreate(index).setMapping("timestamp", "type=long", "message", "type=keyword"));
             BulkRequestBuilder bulk = client().prepareBulk(index).setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
             int docs = between(1, 5);
             long timestamp = 1;
@@ -274,15 +319,17 @@ public class CanMatchIT extends AbstractEsqlIntegTestCase {
             indexToNumDocs.put(index, docs);
         }
         Set<String> queriedIndices = ConcurrentCollections.newConcurrentSet();
-        for (TransportService ts : internalCluster().getInstances(TransportService.class)) {
-            MockTransportService mockTransportService = as(ts, MockTransportService.class);
-            mockTransportService.addRequestHandlingBehavior(ComputeService.DATA_ACTION_NAME, (handler, request, channel, task) -> {
-                DataNodeRequest dataNodeRequest = (DataNodeRequest) request;
-                for (ShardId shardId : dataNodeRequest.shardIds()) {
-                    queriedIndices.add(shardId.getIndexName());
+        for (TransportService transportService : internalCluster().getInstances(TransportService.class)) {
+            as(transportService, MockTransportService.class).addRequestHandlingBehavior(
+                ComputeService.DATA_ACTION_NAME,
+                (handler, request, channel, task) -> {
+                    DataNodeRequest dataNodeRequest = (DataNodeRequest) request;
+                    for (ShardId shardId : dataNodeRequest.shardIds()) {
+                        queriedIndices.add(shardId.getIndexName());
+                    }
+                    handler.messageReceived(request, channel, task);
                 }
-                handler.messageReceived(request, channel, task);
-            });
+            );
         }
         try {
             for (int i = 0; i < numIndices; i++) {
@@ -294,9 +341,8 @@ public class CanMatchIT extends AbstractEsqlIntegTestCase {
                 assertThat(queriedIndices, equalTo(Set.of(index)));
             }
         } finally {
-            for (TransportService ts : internalCluster().getInstances(TransportService.class)) {
-                MockTransportService mockTransportService = as(ts, MockTransportService.class);
-                mockTransportService.clearAllRules();
+            for (TransportService transportService : internalCluster().getInstances(TransportService.class)) {
+                as(transportService, MockTransportService.class).clearAllRules();
             }
         }
     }

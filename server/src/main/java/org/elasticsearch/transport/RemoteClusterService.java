@@ -185,6 +185,7 @@ public final class RemoteClusterService extends RemoteClusterAware
 
     /**
      * Group indices by cluster alias mapped to OriginalIndices for that cluster.
+     * @param remoteClusterNames Set of configured remote cluster names.
      * @param indicesOptions IndicesOptions to clarify how the index expressions should be parsed/applied
      * @param indices Multiple index expressions as string[].
      * @param returnLocalAll whether to support the _all functionality needed by _search
@@ -193,9 +194,14 @@ public final class RemoteClusterService extends RemoteClusterAware
      *        If false, an empty map is returned when no indices are specified.
      * @return Map keyed by cluster alias having OriginalIndices as the map value parsed from the String[] indices argument
      */
-    public Map<String, OriginalIndices> groupIndices(IndicesOptions indicesOptions, String[] indices, boolean returnLocalAll) {
+    public Map<String, OriginalIndices> groupIndices(
+        Set<String> remoteClusterNames,
+        IndicesOptions indicesOptions,
+        String[] indices,
+        boolean returnLocalAll
+    ) {
         final Map<String, OriginalIndices> originalIndicesMap = new HashMap<>();
-        final Map<String, List<String>> groupedIndices = groupClusterIndices(getRemoteClusterNames(), indices);
+        final Map<String, List<String>> groupedIndices = groupClusterIndices(remoteClusterNames, indices);
         if (groupedIndices.isEmpty()) {
             if (returnLocalAll) {
                 // search on _all in the local cluster if neither local indices nor remote indices were specified
@@ -214,12 +220,26 @@ public final class RemoteClusterService extends RemoteClusterAware
     /**
      * If no indices are specified, then a Map with one entry for the local cluster with an empty index array is returned.
      * For details see {@code groupIndices(IndicesOptions indicesOptions, String[] indices, boolean returnLocalAll)}
+     * @param remoteClusterNames Set of configured remote cluster names.
      * @param indicesOptions IndicesOptions to clarify how the index expressions should be parsed/applied
      * @param indices Multiple index expressions as string[].
      * @return Map keyed by cluster alias having OriginalIndices as the map value parsed from the String[] indices argument
      */
+    public Map<String, OriginalIndices> groupIndices(Set<String> remoteClusterNames, IndicesOptions indicesOptions, String[] indices) {
+        return groupIndices(remoteClusterNames, indicesOptions, indices, true);
+    }
+
+    public Map<String, OriginalIndices> groupIndices(IndicesOptions indicesOptions, String[] indices, boolean returnLocalAll) {
+        return groupIndices(getRemoteClusterNames(), indicesOptions, indices, returnLocalAll);
+    }
+
     public Map<String, OriginalIndices> groupIndices(IndicesOptions indicesOptions, String[] indices) {
-        return groupIndices(indicesOptions, indices, true);
+        return groupIndices(getRemoteClusterNames(), indicesOptions, indices, true);
+    }
+
+    @Override
+    public Set<String> getConfiguredClusters() {
+        return getRemoteClusterNames();
     }
 
     /**

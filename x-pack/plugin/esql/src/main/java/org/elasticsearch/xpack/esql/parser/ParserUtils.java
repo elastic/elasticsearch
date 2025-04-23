@@ -24,6 +24,7 @@ import java.util.Map;
 import java.util.function.Function;
 
 import static java.util.Collections.emptyList;
+import static org.elasticsearch.xpack.esql.core.util.StringUtils.EMPTY;
 
 public final class ParserUtils {
     public enum ParamClassification {
@@ -41,6 +42,10 @@ public final class ParserUtils {
             paramClassifications.put(e.name(), e);
         }
     }
+
+    private static final int SINGLE_PARAM = "?".length();
+
+    private static final int DOUBLE_PARAM = "??".length();
 
     private ParserUtils() {}
 
@@ -132,5 +137,18 @@ public final class ParserUtils {
      */
     public static String text(ParseTree node) {
         return node == null ? null : node.getText();
+    }
+
+    /**
+     * Extract the name or the position of a parameter.
+     */
+    public static String nameOrPosition(Token token) {
+        int tokenType = token.getType();
+        // Retrieve text from the token only when necessary, when the token type is known.
+        return switch (tokenType) {
+            case EsqlBaseLexer.NAMED_OR_POSITIONAL_PARAM -> token.getText().substring(SINGLE_PARAM);
+            case EsqlBaseLexer.NAMED_OR_POSITIONAL_DOUBLE_PARAMS -> token.getText().substring(DOUBLE_PARAM);
+            default -> EMPTY;
+        };
     }
 }

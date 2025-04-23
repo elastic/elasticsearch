@@ -15,8 +15,8 @@ import org.elasticsearch.logsdb.datageneration.FieldType;
 import java.util.Map;
 
 public class ByteFieldBlockLoaderTests extends NumberFieldBlockLoaderTestCase<Integer> {
-    public ByteFieldBlockLoaderTests() {
-        super(FieldType.BYTE);
+    public ByteFieldBlockLoaderTests(Params params) {
+        super(FieldType.BYTE, params);
     }
 
     @Override

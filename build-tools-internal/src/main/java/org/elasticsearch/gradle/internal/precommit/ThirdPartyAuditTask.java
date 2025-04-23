@@ -364,7 +364,7 @@ public abstract class ThirdPartyAuditTask extends DefaultTask {
         }
         final String forbiddenApisOutput;
         try (ByteArrayOutputStream outputStream = errorOut) {
-            forbiddenApisOutput = outputStream.toString(StandardCharsets.UTF_8.name());
+            forbiddenApisOutput = outputStream.toString(StandardCharsets.UTF_8);
         }
         if (EXPECTED_EXIT_CODES.contains(result.getExitValue()) == false) {
             throw new IllegalStateException("Forbidden APIs cli failed: " + forbiddenApisOutput);
@@ -397,7 +397,7 @@ public abstract class ThirdPartyAuditTask extends DefaultTask {
         }
         final String jdkJarHellCheckList;
         try (ByteArrayOutputStream outputStream = standardOut) {
-            jdkJarHellCheckList = outputStream.toString(StandardCharsets.UTF_8.name());
+            jdkJarHellCheckList = outputStream.toString(StandardCharsets.UTF_8);
         }
         return new TreeSet<>(Arrays.asList(jdkJarHellCheckList.split("\\r?\\n")));
     }

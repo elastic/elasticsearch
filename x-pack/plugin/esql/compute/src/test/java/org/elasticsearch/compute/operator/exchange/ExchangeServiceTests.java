@@ -65,7 +65,6 @@ import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
@@ -305,7 +304,7 @@ public class ExchangeServiceTests extends ESTestCase {
                 "sink-" + i,
                 dc,
                 seqNoGenerator.get(dc),
-                new ExchangeSinkOperator(exchangeSink.get(), Function.identity())
+                new ExchangeSinkOperator(exchangeSink.get())
             );
             drivers.add(d);
         }

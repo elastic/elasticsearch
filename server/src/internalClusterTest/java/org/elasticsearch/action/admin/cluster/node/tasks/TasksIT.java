@@ -41,6 +41,7 @@ import org.elasticsearch.health.node.selection.HealthNode;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.tasks.RemovedTaskListener;
 import org.elasticsearch.tasks.Task;
@@ -352,6 +353,8 @@ public class TasksIT extends ESIntegTestCase {
     }
 
     public void testSearchTaskDescriptions() {
+        // TODO: enhance this test to also check the tasks created by batched query execution
+        updateClusterSettings(Settings.builder().put(SearchService.BATCHED_QUERY_PHASE.getKey(), false));
         registerTaskManagerListeners(TransportSearchAction.TYPE.name());  // main task
         registerTaskManagerListeners(TransportSearchAction.TYPE.name() + "[*]");  // shard task
         createIndex("test");
@@ -398,7 +401,7 @@ public class TasksIT extends ESIntegTestCase {
             // assert that all task descriptions have non-zero length
             assertThat(taskInfo.description().length(), greaterThan(0));
         }
-
+        updateClusterSettings(Settings.builder().putNull(SearchService.BATCHED_QUERY_PHASE.getKey()));
     }
 
     public void testSearchTaskHeaderLimit() {

@@ -33,6 +33,8 @@ public final class Paths {
         + "}/"
         + STREAM_SUFFIX;
 
+    public static final String RETURN_MINIMAL_CONFIG = "return_minimal_config";
+
     private Paths() {
 
     }

@@ -87,6 +87,7 @@ import static org.elasticsearch.xpack.esql.core.util.StringUtils.WILDCARD;
 import static org.elasticsearch.xpack.esql.core.util.StringUtils.isInteger;
 import static org.elasticsearch.xpack.esql.parser.ParserUtils.ParamClassification.PATTERN;
 import static org.elasticsearch.xpack.esql.parser.ParserUtils.ParamClassification.VALUE;
+import static org.elasticsearch.xpack.esql.parser.ParserUtils.nameOrPosition;
 import static org.elasticsearch.xpack.esql.parser.ParserUtils.source;
 import static org.elasticsearch.xpack.esql.parser.ParserUtils.typedParsing;
 import static org.elasticsearch.xpack.esql.parser.ParserUtils.visitList;
@@ -320,8 +321,10 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
             if (idCtx.ID_PATTERN() != null && idCtx.ID_PATTERN().getText().equals(WILDCARD)) {
                 unresolvedStar = true;
             }
-            if (idCtx.parameter() != null) {
-                Expression exp = expression(idCtx.parameter());
+            if (idCtx.parameter() != null || idCtx.doubleParameter() != null) {
+                ParseTree paramCtx = idCtx.parameter();
+                ParseTree doubleParamsCtx = idCtx.doubleParameter();
+                Expression exp = expression(paramCtx != null ? paramCtx : doubleParamsCtx);
                 if (exp instanceof Literal lit) {
                     if (lit.value() != null) {
                         throw new ParsingException(
@@ -356,8 +359,10 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
             EsqlBaseParser.IdentifierPatternContext pattern = patterns.get(i);
             if (pattern.ID_PATTERN() != null) {
                 patternContext = pattern.ID_PATTERN().getText();
-            } else if (pattern.parameter() != null) {
-                Expression exp = expression(pattern.parameter());
+            } else if (pattern.parameter() != null || pattern.doubleParameter() != null) {
+                ParseTree paramCtx = pattern.parameter();
+                ParseTree doubleParamsCtx = pattern.doubleParameter();
+                Expression exp = expression(paramCtx != null ? paramCtx : doubleParamsCtx);
                 if (exp instanceof Literal lit) {
                     // only Literal.NULL can happen with missing params, params for constants are not allowed
                     if (lit.value() != null) {
@@ -672,8 +677,10 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
         if (ctx.identifier() != null) {
             return visitIdentifier(ctx.identifier());
         }
-
-        return unresolvedAttributeNameInParam(ctx.parameter(), expression(ctx.parameter()));
+        if (ctx.parameter() != null) {
+            return unresolvedAttributeNameInParam(ctx.parameter(), expression(ctx.parameter()));
+        }
+        return unresolvedAttributeNameInParam(ctx.doubleParameter(), expression(ctx.doubleParameter()));
     }
 
     @Override
@@ -932,8 +939,9 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
         if (node == null) {
             return null;
         }
+        // The token could be a single parameter marker or double parameter markers
         Token token = node.getSymbol();
-        String nameOrPosition = token.getText().substring(1);
+        String nameOrPosition = nameOrPosition(token);
         if (isInteger(nameOrPosition)) {
             int index = Integer.parseInt(nameOrPosition);
             if (context.params().get(index) == null) {
@@ -985,6 +993,42 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
             }
             default -> throw new ParsingException(source(ctx), invalidParam, ctx.getText(), "[null]");
         }
+    }
+
+    @Override
+    public Expression visitInputDoubleParams(EsqlBaseParser.InputDoubleParamsContext ctx) {
+        QueryParam param = paramByToken(ctx.DOUBLE_PARAMS());
+        return visitDoubleParam(ctx, param);
+    }
+
+    @Override
+    public Expression visitInputNamedOrPositionalDoubleParams(EsqlBaseParser.InputNamedOrPositionalDoubleParamsContext ctx) {
+        QueryParam param = paramByNameOrPosition(ctx.NAMED_OR_POSITIONAL_DOUBLE_PARAMS());
+        if (param == null) {
+            // We could come here when a named or positional double param is undefined
+            // return an UnresolvedAttribute with name=null instead of null,
+            // so that ParsingException will be collected and thrown at the end of EsqlParser
+            return new UnresolvedAttribute(source(ctx), "null");
+        }
+        return visitDoubleParam(ctx, param);
+    }
+
+    /**
+      * Double parameter markers represent identifiers, e.g. field or function names. An {@code UnresolvedAttribute}
+      * is returned regardless how the param is specified in the request.
+      */
+    private Expression visitDoubleParam(EsqlBaseParser.DoubleParameterContext ctx, QueryParam param) {
+        if (param.classification() == PATTERN) {
+            context.params.addParsingError(
+                new ParsingException(
+                    source(ctx),
+                    "Query parameter [{}]{}, cannot be used as an identifier",
+                    ctx.getText(),
+                    "[" + param.name() + "] declared as a pattern"
+                )
+            );
+        }
+        return new UnresolvedAttribute(source(ctx), param.value().toString());
     }
 
     @Override

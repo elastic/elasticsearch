@@ -17,7 +17,7 @@ import java.util.List;
 
 import static org.elasticsearch.xpack.core.inference.results.TextEmbeddingUtils.validateInputSizeAgainstEmbeddings;
 
-public record ChunkedInferenceEmbedding(List<? extends EmbeddingResults.Chunk> chunks) implements ChunkedInference {
+public record ChunkedInferenceEmbedding(List<EmbeddingResults.Chunk> chunks) implements ChunkedInference {
 
     public static List<ChunkedInference> listOf(List<String> inputs, SparseEmbeddingResults sparseEmbeddingResults) {
         validateInputSizeAgainstEmbeddings(inputs, sparseEmbeddingResults.embeddings().size());
@@ -27,10 +27,7 @@ public record ChunkedInferenceEmbedding(List<? extends EmbeddingResults.Chunk> c
             results.add(
                 new ChunkedInferenceEmbedding(
                     List.of(
-                        new SparseEmbeddingResults.Chunk(
-                            sparseEmbeddingResults.embeddings().get(i).tokens(),
-                            new TextOffset(0, inputs.get(i).length())
-                        )
+                        new EmbeddingResults.Chunk(sparseEmbeddingResults.embeddings().get(i), new TextOffset(0, inputs.get(i).length()))
                     )
                 )
             );
@@ -41,10 +38,10 @@ public record ChunkedInferenceEmbedding(List<? extends EmbeddingResults.Chunk> c
 
     @Override
     public Iterator<Chunk> chunksAsByteReference(XContent xcontent) throws IOException {
-        var asChunk = new ArrayList<Chunk>();
-        for (var chunk : chunks()) {
-            asChunk.add(chunk.toChunk(xcontent));
+        List<Chunk> chunkedInferenceChunks = new ArrayList<>();
+        for (EmbeddingResults.Chunk embeddingResultsChunk : chunks()) {
+            chunkedInferenceChunks.add(new Chunk(embeddingResultsChunk.offset(), embeddingResultsChunk.embedding().toBytesRef(xcontent)));
         }
-        return asChunk.iterator();
+        return chunkedInferenceChunks.iterator();
     }
 }

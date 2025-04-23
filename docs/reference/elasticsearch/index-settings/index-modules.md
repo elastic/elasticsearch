@@ -49,27 +49,27 @@ $$$index-codec$$$ `index.codec`
 
 $$$index-mode-setting$$$ `index.mode`
 :   The `index.mode` setting is used to control settings applied in specific domains like ingestion of time series data or logs. Different mutually exclusive modes exist, which are used to apply settings or default values controlling indexing of documents, sorting and other parameters whose value affects indexing or query performance.
+        
+        **Example**
 
-```console
-PUT my-index-000001
-{
-  "settings": {
-    "index":{
-      "mode":"standard" <1>
-    }
-  }
-}
-```
+      ```console
+      PUT my-index-000001
+      {
+        "settings": {
+          "index":{
+            "mode":"standard" # This index uses the `standard` index mode
+          }
+        }
+      }
+      ```
+    **Supported values**
 
-1. This index uses the `standard` index mode
-
-
-Index mode supports the following values:
-* `null` - Default value (same as `standard`).
-* `standard` - Standard indexing with default settings.
-* `lookup` -  Index that can be used for lookup joins in ES|QL. Limited to 1 shard.
-* `time_series` - *(data streams only)* Index mode optimized for storage of metrics. For more information, see [Time series index settings](time-series.md).
-* `logsdb` -  *(data streams only)* Index mode optimized for [logs](docs-content://manage-data/data-store/data-streams/logs-data-stream.md).
+    The `index.mode` setting supports the following values:
+       - `null`:   Default value (same as `standard`).
+       -  `standard`:   Standard indexing with default settings.
+       -  `lookup`: Index that can be used for [LOOKUP JOIN](/reference/query-languages/esql/esql-lookup-join) in ES|QL. Limited to 1 shard.
+       - `time_series`:   *(data streams only)* Index mode optimized for storage of metrics. For more information, see [Time series index settings](time-series.md).
+       - `logsdb`: *(data streams only)* Index mode optimized for [logs](docs-content://manage-data/data-store/data-streams/logs-data-stream.md).
 
 $$$routing-partition-size$$$ `index.routing_partition_size`
 :   The number of shards a custom routing value can go to. Defaults to 1 and can only be set at index creation time. This value must be less than the `index.number_of_routing_shards` unless the `index.number_of_routing_shards` value is also 1. for more details about how this setting is used, refer to [](/reference/elasticsearch/mapping-reference/mapping-routing-field.md#routing-index-partition).

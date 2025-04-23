@@ -1,0 +1,5 @@
+pr: 127134
+summary: Update Default value of Oversample for bbq
+area: Vector Search
+type: enhancement
+issues: []

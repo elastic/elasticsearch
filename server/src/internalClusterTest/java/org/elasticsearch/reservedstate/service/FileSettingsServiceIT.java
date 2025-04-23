@@ -25,6 +25,7 @@ import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.health.node.HealthInfoCache;
 import org.elasticsearch.reservedstate.action.ReservedClusterSettingsAction;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.junit.Before;
@@ -496,6 +497,35 @@ public class FileSettingsServiceIT extends ESIntegTestCase {
         writeJSONFile(internalCluster().getMasterName(), testJSON43mb, logger, versionCounter.incrementAndGet());
 
         assertClusterStateSaveOK(savedClusterState.v1(), savedClusterState.v2(), "43mb");
+    }
+
+    public void testHealthIndicator() throws Exception {
+        internalCluster().setBootstrapMasterNodeIndex(0);
+        logger.info("--> start a second node to act as the health node");
+        String dataNode = internalCluster().startNode(Settings.builder().put(dataOnlyNode()).put("discovery.initial_state_timeout", "1s"));
+
+        // Note that we assume the data node is the health node
+        // TODO: Can we do better?
+        var actualHealthInfoCache = internalCluster().getInstance(HealthInfoCache.class, dataNode);
+
+        logger.info("--> start master node");
+        final String masterNode = internalCluster().startMasterOnlyNode(
+            Settings.builder().put(INITIAL_STATE_TIMEOUT_SETTING.getKey(), "0s").build()
+        );
+        FileSettingsService masterFileSettingsService = internalCluster().getInstance(FileSettingsService.class, masterNode);
+        assertBusy(() -> assertTrue(masterFileSettingsService.watching()));
+
+        // Initially, all is well
+        assertBusy(() -> assertEquals(0, actualHealthInfoCache.getHealthInfo().fileSettingsHealthInfo().failureStreak()));
+
+        logger.info("--> induce an error and wait for it to be processed");
+        var savedClusterState = setupClusterStateListenerForError(masterNode);
+        writeJSONFile(masterNode, testErrorJSON, logger, versionCounter.incrementAndGet());
+        boolean awaitSuccessful = savedClusterState.v1().await(20, TimeUnit.SECONDS);
+        assertTrue(awaitSuccessful);
+
+        logger.info("--> ensure the health node also reports it");
+        assertBusy(() -> assertEquals(1, actualHealthInfoCache.getHealthInfo().fileSettingsHealthInfo().failureStreak()));
     }
 
     private void assertHasErrors(AtomicLong waitForMetadataVersion, String expectedError) {

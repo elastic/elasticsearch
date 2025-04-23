@@ -955,7 +955,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
             viaNode,
             state -> Optional.ofNullable(state.nodes().getMasterNode()).map(m -> m.getName().equals(masterNodeName)).orElse(false)
         );
-        var nodes = client(viaNode).admin().cluster().prepareState(TEST_REQUEST_TIMEOUT).get().getState().nodes();
+        var nodes = client(viaNode).admin().cluster().prepareState(TEST_REQUEST_TIMEOUT).setLocal(true).get().getState().nodes();
         assertThat(Optional.ofNullable(nodes.getMasterNode()).map(DiscoveryNode::getName).orElse(null), equalTo(masterNodeName));
     }
 

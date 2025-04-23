@@ -52,7 +52,6 @@ public abstract class GenerativeRestTest extends ESRestTestCase {
         "Plan \\[ProjectExec\\[\\[<no-fields>.* optimized incorrectly due to missing references", // https://github.com/elastic/elasticsearch/issues/125866
         "token recognition error at: '``", // https://github.com/elastic/elasticsearch/issues/125870
                                            // https://github.com/elastic/elasticsearch/issues/127167
-        "Unknown column \\[.*\\]", // https://github.com/elastic/elasticsearch/issues/126026
         "optimized incorrectly due to missing references", // https://github.com/elastic/elasticsearch/issues/116781
         "No matches found for pattern", // https://github.com/elastic/elasticsearch/issues/126418
         "The incoming YAML document exceeds the limit:" // still to investigate, but it seems to be specific to the test framework

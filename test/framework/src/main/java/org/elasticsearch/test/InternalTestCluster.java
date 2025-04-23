@@ -2037,6 +2037,10 @@ public final class InternalTestCluster extends TestCluster {
      */
     public String getMasterName(@Nullable String viaNode) {
         viaNode = viaNode != null ? viaNode : getRandomNodeName();
+        // If there is no node in the cluster, there is no master in the cluster either.
+        if (viaNode == null) {
+            return null;
+        }
         try {
             ClusterServiceUtils.awaitClusterState(logger, state -> state.nodes().getMasterNode() != null, clusterService(viaNode));
             final ClusterState state = client(viaNode).admin().cluster().prepareState(TEST_REQUEST_TIMEOUT).setLocal(true).get().getState();

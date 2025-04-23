@@ -68,7 +68,12 @@ public abstract class AbstractLicensesIntegrationTestCase extends ESIntegTestCas
 
     protected void wipeAllLicenses() throws InterruptedException {
         final CountDownLatch latch = new CountDownLatch(1);
-        ClusterService clusterService = internalCluster().getInstance(ClusterService.class, internalCluster().getMasterName());
+        final String masterName = internalCluster().getMasterName();
+        // If there is no master, we don't need to wipe any licenses.
+        if (masterName == null) {
+            return;
+        }
+        ClusterService clusterService = internalCluster().getInstance(ClusterService.class, masterName);
         clusterService.submitUnbatchedStateUpdateTask("delete licensing metadata", new ClusterStateUpdateTask() {
             @Override
             public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {

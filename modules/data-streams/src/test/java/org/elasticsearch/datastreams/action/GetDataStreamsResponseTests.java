@@ -228,7 +228,7 @@ public class GetDataStreamsResponseTests extends ESTestCase {
                 List<Object> failureStoresRepresentation = (List<Object>) failureStore.get(DataStream.INDICES_FIELD.getPreferredName());
                 Map<String, Object> failureStoreRepresentation = (Map<String, Object>) failureStoresRepresentation.get(0);
                 assertThat(failureStoreRepresentation.get("index_name"), is(failureStoreIndex.getName()));
-                assertThat(failureStoreRepresentation.get(Response.DataStreamInfo.PREFER_ILM.getPreferredName()), is(false));
+                assertThat(failureStoreRepresentation.get(Response.DataStreamInfo.PREFER_ILM.getPreferredName()), nullValue());
                 assertThat(failureStoreRepresentation.get(Response.DataStreamInfo.ILM_POLICY_FIELD.getPreferredName()), is(nullValue()));
                 assertThat(
                     failureStoreRepresentation.get(Response.DataStreamInfo.MANAGED_BY.getPreferredName()),

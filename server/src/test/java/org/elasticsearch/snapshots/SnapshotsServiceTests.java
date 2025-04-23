@@ -467,28 +467,64 @@ public class SnapshotsServiceTests extends ESTestCase {
         );
     }
 
+    private SnapshotsInProgress.ShardSnapshotStatus successShardSnapshotStatus(
+        String nodeId,
+        ShardId shardId,
+        SnapshotsInProgress.Entry entry
+    ) {
+        return SnapshotsInProgress.ShardSnapshotStatus.success(
+            nodeId,
+            new ShardSnapshotResult(entry.shards().get(shardId).generation(), ByteSizeValue.ofBytes(1L), 1)
+        );
+    }
+
+    private SnapshotsInProgress.ShardSnapshotStatus failedShardSnapshotStatus(
+        String nodeId,
+        ShardId shardId,
+        SnapshotsInProgress.Entry entry
+    ) {
+        return new SnapshotsInProgress.ShardSnapshotStatus(
+            nodeId,
+            SnapshotsInProgress.ShardState.FAILED,
+            entry.shards().get(shardId).generation(),
+            "test injected failure"
+        );
+    }
+
+    private SnapshotsInProgress.ShardSnapshotStatus pausedShardSnapshotStatus(
+        String nodeId,
+        ShardId shardId,
+        SnapshotsInProgress.Entry entry
+    ) {
+        return new SnapshotsInProgress.ShardSnapshotStatus(
+            nodeId,
+            SnapshotsInProgress.ShardState.PAUSED_FOR_NODE_REMOVAL,
+            entry.shards().get(shardId).generation()
+        );
+    }
+
     /**
      * Tests that, within the same cluster state batched update execution, a shard snapshot status update of PAUSED_FOR_NODE_REMOVAL will be
-     * ignored after the same shard snapshot has already been updated to SUCCESS (a completed state). On the other hand, a
-     * PAUSED_FOR_NODE_REMOVAL update follow by a SUCCESS update should be applied and result in SUCCESS.
+     * ignored after the same shard snapshot has already been updated to a completed state. On the other hand, a PAUSED_FOR_NODE_REMOVAL
+     * update follow by a SUCCESS, or other completed state, update should be applied and result in SUCCESS.
      */
-    public void testBatchedShardSnapshotUpdatesCannotApplyPausedAfterSuccess() throws Exception {
+    public void testBatchedShardSnapshotUpdatesCannotApplyPausedAfterCompleted() throws Exception {
         final var repoName = "test-repo-name";
         final var snapshot1 = snapshot(repoName, "test-snap-1");
         final var snapshot2 = snapshot(repoName, "test-snap-2");
-        final var indexName = "test-index";
+        final var indexName = "test-index-name";
         final var shardId = new ShardId(index(indexName), 0);
         final var repositoryShardId = new RepositoryShardId(indexId(indexName), 0);
-        final var nodeId = uuid();
+        final var originalNodeId = uuid();
         final var otherNodeId = uuid();
 
-        final SnapshotsInProgress.Entry firstSnapshotEntry = snapshotEntry(
+        final SnapshotsInProgress.Entry runningSnapshotEntry = snapshotEntry(
             snapshot1,
             Collections.singletonMap(indexName, repositoryShardId.index()),
-            Map.of(shardId, initShardStatus(nodeId))
+            Map.of(shardId, initShardStatus(originalNodeId))
         );
 
-        final SnapshotsInProgress.Entry secondSnapshotEntry = snapshotEntry(
+        final SnapshotsInProgress.Entry queuedSnapshotEntry = snapshotEntry(
             snapshot2,
             Collections.singletonMap(indexName, repositoryShardId.index()),
             Map.of(shardId, SnapshotsInProgress.ShardSnapshotStatus.UNASSIGNED_QUEUED)
@@ -496,75 +532,81 @@ public class SnapshotsServiceTests extends ESTestCase {
 
         final ClusterState initialState = stateWithSnapshots(
             ClusterState.builder(ClusterState.EMPTY_STATE)
-                .nodes(DiscoveryNodes.builder().add(DiscoveryNodeUtils.create(nodeId)).localNodeId(nodeId).masterNodeId(nodeId).build())
+                .nodes(
+                    DiscoveryNodes.builder()
+                        .add(DiscoveryNodeUtils.create(originalNodeId))
+                        .localNodeId(originalNodeId)
+                        .masterNodeId(originalNodeId)
+                        .build()
+                )
                 .routingTable(
                     RoutingTable.builder()
                         .add(
                             IndexRoutingTable.builder(shardId.getIndex())
-                                .addShard(TestShardRouting.newShardRouting(shardId, nodeId, true, ShardRoutingState.STARTED))
+                                .addShard(TestShardRouting.newShardRouting(shardId, originalNodeId, true, ShardRoutingState.STARTED))
                         )
                         .build()
                 )
                 .build(),
             repoName,
-            firstSnapshotEntry,
-            secondSnapshotEntry
+            runningSnapshotEntry,
+            queuedSnapshotEntry
         );
 
+        /**
+         * In this scenario, {@link originalNodeId} is the original shard owner that resends PAUSED, and {@link otherNodeId} is the new
+         * shard owner that completes the shard snapshot. The production code doesn't verify node ownership, but it's helpful for the test.
+         */
+
+        // Ultimately ignored statuses.
+        var pausedOnOriginalNodeStatus = pausedShardSnapshotStatus(originalNodeId, shardId, runningSnapshotEntry);
+        var successfulOnOriginalNodeStatus = successShardSnapshotStatus(originalNodeId, shardId, runningSnapshotEntry);
+
+        // Ultimately applied statuses.
+        var successfulOnOtherNodeStatus = successShardSnapshotStatus(otherNodeId, shardId, runningSnapshotEntry);
+        var failedOnOtherNodeStatus = failedShardSnapshotStatus(otherNodeId, shardId, runningSnapshotEntry);
+
+        var completedUpdateOnOtherNode = new SnapshotsService.ShardSnapshotUpdate(
+            snapshot1,
+            shardId,
+            null,
+            // Success and failure are both completed shard snapshot states, so paused should be ignored when either is set.
+            randomBoolean() ? successfulOnOtherNodeStatus : failedOnOtherNodeStatus,
+            ActionTestUtils.assertNoFailureListener(t -> {})
+        );
+        var pausedUpdateOnOriginalNode = new SnapshotsService.ShardSnapshotUpdate(
+            snapshot1,
+            shardId,
+            null,
+            pausedOnOriginalNodeStatus,
+            ActionTestUtils.assertNoFailureListener(t -> {})
+        );
+        var completedUpdateOnOriginalNode = new SnapshotsService.ShardSnapshotUpdate(
+            snapshot1,
+            shardId,
+            null,
+            successfulOnOriginalNodeStatus,
+            ActionTestUtils.assertNoFailureListener(t -> {})
+        );
+
+        boolean random = randomBoolean();
         final var updatedState = applyUpdates(
             initialState,
-            // Snapshot 1 will apply SUCCESS and then ignore the PAUSED updated, and the final status will be SUCCESS.
-            new SnapshotsService.ShardSnapshotUpdate(
-                snapshot1,
-                shardId,
-                null,
-                SnapshotsInProgress.ShardSnapshotStatus.success(
-                    otherNodeId,
-                    new ShardSnapshotResult(firstSnapshotEntry.shards().get(shardId).generation(), ByteSizeValue.ofBytes(1L), 1)
-                ),
-                ActionTestUtils.assertNoFailureListener(t -> {})
-            ),
-            new SnapshotsService.ShardSnapshotUpdate(
-                snapshot1,
-                shardId,
-                null,
-                new SnapshotsInProgress.ShardSnapshotStatus(
-                    nodeId,
-                    SnapshotsInProgress.ShardState.PAUSED_FOR_NODE_REMOVAL,
-                    firstSnapshotEntry.shards().get(shardId).generation()
-                ),
-                ActionTestUtils.assertNoFailureListener(t -> {})
-            ),
-            // Snapshot 2 will apply PAUSED and then SUCCESS, and the final status will be SUCCESS.
-            new SnapshotsService.ShardSnapshotUpdate(
-                snapshot2,
-                shardId,
-                null,
-                new SnapshotsInProgress.ShardSnapshotStatus(
-                    nodeId,
-                    SnapshotsInProgress.ShardState.PAUSED_FOR_NODE_REMOVAL,
-                    firstSnapshotEntry.shards().get(shardId).generation()
-                ),
-                ActionTestUtils.assertNoFailureListener(t -> {})
-            ),
-            new SnapshotsService.ShardSnapshotUpdate(
-                snapshot2,
-                shardId,
-                null,
-                SnapshotsInProgress.ShardSnapshotStatus.success(
-                    otherNodeId,
-                    new ShardSnapshotResult(firstSnapshotEntry.shards().get(shardId).generation(), ByteSizeValue.ofBytes(1L), 1)
-                ),
-                ActionTestUtils.assertNoFailureListener(t -> {})
-            )
+            // Randomize the order of completed and paused updates but make sure that there's one of each. If the paused update comes after
+            // the completed update, paused should be ignored and the shard snapshot remains in a completed state.
+            random ? completedUpdateOnOtherNode : pausedUpdateOnOriginalNode,
+            random ? pausedUpdateOnOriginalNode : completedUpdateOnOtherNode,
+            // Randomly add another update that will be ignored because the shard snapshot is complete.
+            // Note: the originalNodeId is used for this update, so we can verify afterward that the update is not applied.
+            randomBoolean() ? completedUpdateOnOriginalNode : pausedUpdateOnOriginalNode
         );
 
+        assertTrue(SnapshotsInProgress.get(updatedState).snapshot(snapshot1).shards().get(shardId).state().completed());
+        assertEquals(otherNodeId, SnapshotsInProgress.get(updatedState).snapshot(snapshot1).shards().get(shardId).nodeId());
+
+        // Since the first snapshot completed, the second snapshot should be set to proceed with snapshotting the same shard.
         assertEquals(
-            SnapshotsInProgress.ShardState.SUCCESS,
-            SnapshotsInProgress.get(updatedState).snapshot(snapshot1).shards().get(shardId).state()
-        );
-        assertEquals(
-            SnapshotsInProgress.ShardState.SUCCESS,
+            SnapshotsInProgress.ShardState.INIT,
             SnapshotsInProgress.get(updatedState).snapshot(snapshot2).shards().get(shardId).state()
         );
     }

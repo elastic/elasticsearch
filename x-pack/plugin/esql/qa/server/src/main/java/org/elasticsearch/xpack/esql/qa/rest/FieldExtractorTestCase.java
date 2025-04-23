@@ -1730,15 +1730,11 @@ public abstract class FieldExtractorTestCase extends ESRestTestCase {
         if (suggested == null) {
             return Map.of("name", name, "type", "unsupported", "original_types", List.of(originalTypes));
         } else {
-            return Map.of(
-                "name",
-                name,
-                "type",
-                "unsupported",
-                "original_types",
-                List.of(originalTypes),
-                "suggested_cast",
-                suggested.typeName()
+            return Map.ofEntries(
+                Map.entry("name", name),
+                Map.entry("type", "unsupported"),
+                Map.entry("original_types", List.of(originalTypes)),
+                Map.entry("suggested_cast", suggested.typeName())
             );
         }
     }

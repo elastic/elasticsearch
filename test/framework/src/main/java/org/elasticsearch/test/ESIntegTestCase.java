@@ -198,6 +198,7 @@ import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Random;
 import java.util.Set;
 import java.util.concurrent.Callable;
@@ -234,6 +235,7 @@ import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.startsWith;
 
 /**
@@ -938,6 +940,41 @@ public abstract class ESIntegTestCase extends ESTestCase {
             }
         });
         assertNoTimeout(clusterAdmin().prepareHealth(TEST_REQUEST_TIMEOUT).setWaitForEvents(Priority.LANGUID).get());
+    }
+
+    /**
+     * Waits for the node {@code viaNode} to see {@code masterNodeName} as the master node in the cluster state and asserts that.
+     * Note that this does not guarantee that all other nodes in the cluster are on the same cluster state version already.
+     *
+     * @param viaNode the node to check the cluster state one
+     * @param masterNodeName the master node name that we wait for
+     */
+    public void awaitAndAssertMasterNode(String viaNode, String masterNodeName) throws Exception {
+        awaitClusterState(
+            logger,
+            viaNode,
+            state -> Optional.ofNullable(state.nodes().getMasterNode()).map(m -> m.getName().equals(masterNodeName)).orElse(false)
+        );
+        var nodes = client(viaNode).admin().cluster().prepareState(TEST_REQUEST_TIMEOUT).get().getState().nodes();
+        assertThat(Optional.ofNullable(nodes.getMasterNode()).map(DiscoveryNode::getName).orElse(null), equalTo(masterNodeName));
+    }
+
+    /**
+     * Waits for a random node in the cluster to not see a master node in the cluster state and asserts that.
+     */
+    public void awaitAndAssertMasterNotFound() {
+        var viaNode = internalCluster().getRandomNodeName();
+        // We use a temporary state listener instead of `awaitClusterState` here because the `ClusterStateObserver` doesn't run the
+        // predicate if the cluster state version didn't change. When a master node leaves the cluster (i.e. what this method is used for),
+        // the cluster state version is not incremented.
+        var listener = ClusterServiceUtils.addTemporaryStateListener(
+            internalCluster().clusterService(viaNode),
+            state -> state.nodes().getMasterNode() == null,
+            TEST_REQUEST_TIMEOUT
+        );
+        safeAwait(listener, TEST_REQUEST_TIMEOUT);
+        final var nodes = client(viaNode).admin().cluster().prepareState(timeValueMillis(100)).setLocal(true).get().getState().nodes();
+        assertThat(nodes.getMasterNodeId(), nullValue());
     }
 
     /** Ensures the result counts are as expected, and logs the results if different */

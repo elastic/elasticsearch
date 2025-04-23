@@ -826,13 +826,13 @@ public abstract class IndexTemplateRegistry implements ClusterStateListener {
                     @Override
                     public void onResponse(Collection<RolloverResponse> rolloverResponses) {
                         runAfter.run();
-                        onRolloversBulkResponse(rolloverResponses);
+                        onRolloversBulkResponse(project.id(), rolloverResponses);
                     }
 
                     @Override
                     public void onFailure(Exception e) {
                         runAfter.run();
-                        onRolloverFailure(e);
+                        onRolloverFailure(project.id(), e);
                     }
                 }
             );
@@ -857,17 +857,22 @@ public abstract class IndexTemplateRegistry implements ClusterStateListener {
         });
     }
 
-    void onRolloversBulkResponse(Collection<RolloverResponse> rolloverResponses) {
+    void onRolloversBulkResponse(ProjectId projectId, Collection<RolloverResponse> rolloverResponses) {
         for (RolloverResponse rolloverResponse : rolloverResponses) {
             assert rolloverResponse.isLazy() && rolloverResponse.isRolledOver() == false
-                : Strings.format("Expected rollover of the [%s] index [%s] to be lazy", getOrigin(), rolloverResponse.getOldIndex());
+                : Strings.format(
+                    "Expected rollover of the [%s] index [%s] in project [%s] to be lazy",
+                    getOrigin(),
+                    projectId,
+                    rolloverResponse.getOldIndex()
+                );
         }
     }
 
-    void onRolloverFailure(Exception e) {
-        logger.error(String.format(Locale.ROOT, "[%s] related rollover failed", getOrigin()), e);
+    void onRolloverFailure(ProjectId projectId, Exception e) {
+        logger.error(String.format(Locale.ROOT, "[%s] related rollover failed in project [%s]", getOrigin(), projectId), e);
         for (Throwable throwable : e.getSuppressed()) {
-            logger.error(String.format(Locale.ROOT, "[%s] related rollover failed", getOrigin()), throwable);
+            logger.error(String.format(Locale.ROOT, "[%s] related rollover failed in project [%s]", getOrigin(), projectId), throwable);
         }
     }
 

@@ -15,7 +15,6 @@ import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
@@ -135,8 +134,7 @@ class TestRegistryWithCustomPlugin extends IndexTemplateRegistry {
     }
 
     @Override
-    void onRolloversBulkResponse(Collection<RolloverResponse> rolloverResponses) {
-        final var projectId = ProjectId.fromId(threadPool.getThreadContext().getHeader(Task.X_ELASTIC_PROJECT_ID_HTTP_HEADER));
+    void onRolloversBulkResponse(ProjectId projectId, Collection<RolloverResponse> rolloverResponses) {
         this.rolloverResponses.computeIfAbsent(projectId, k -> new AtomicReference<>()).set(rolloverResponses);
     }
 
@@ -145,8 +143,7 @@ class TestRegistryWithCustomPlugin extends IndexTemplateRegistry {
     }
 
     @Override
-    void onRolloverFailure(Exception e) {
-        final var projectId = ProjectId.fromId(threadPool.getThreadContext().getHeader(Task.X_ELASTIC_PROJECT_ID_HTTP_HEADER));
+    void onRolloverFailure(ProjectId projectId, Exception e) {
         rolloverFailure.computeIfAbsent(projectId, k -> new AtomicReference<>()).set(e);
     }
 

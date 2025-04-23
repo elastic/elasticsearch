@@ -419,14 +419,13 @@ public class IndexTemplateRegistryTests extends ESTestCase {
         assertCalledTimes(putIndexTemplateCounterMap, event, 1);
         assertCalledTimes(rolloverCounterMap, event, 2);
         var rolloverResponsesRef = registry.getRolloverResponses();
-        int nrOfProjects = state.metadata().projects().size();
+        var projectIds = state.metadata().projects().keySet();
         assertBusy(() -> {
-            assertThat(rolloverResponsesRef.size(), equalTo(nrOfProjects));
+            assertThat(rolloverResponsesRef.keySet(), equalTo(projectIds));
             for (var rolloverResponses : rolloverResponsesRef.values()) {
                 assertNotNull(rolloverResponses.get());
                 assertThat(rolloverResponses.get(), hasSize(2));
             }
-            ;
         });
 
         // test again, to verify that the per-index-template creation lock gets released for reuse
@@ -459,7 +458,7 @@ public class IndexTemplateRegistryTests extends ESTestCase {
         assertCalledTimes(rolloverCounterMap, event, 2);
         var rolloverFailureRefMap = registry.getRolloverFailure();
         assertBusy(() -> {
-            assertThat(rolloverFailureRefMap.size(), equalTo(nrOfProjects));
+            assertThat(rolloverFailureRefMap.keySet(), equalTo(projectIds));
             rolloverFailureRefMap.values().forEach(rolloverFailureRef -> {
                 assertNotNull(rolloverFailureRef.get());
                 Exception rolloverFailure = rolloverFailureRef.get();

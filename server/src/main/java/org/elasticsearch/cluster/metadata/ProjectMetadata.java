@@ -1539,11 +1539,7 @@ public class ProjectMetadata implements Iterable<IndexMetadata>, Diffable<Projec
             return this;
         }
 
-        public Settings settings() {
-            return this.settings;
-        }
-
-        public ProjectMetadata.Builder settings(Settings settings) {
+        public Builder settings(Settings settings) {
             this.settings = settings;
             return this;
         }

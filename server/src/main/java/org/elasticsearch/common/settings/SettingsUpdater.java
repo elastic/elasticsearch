@@ -150,10 +150,10 @@ public final class SettingsUpdater {
         // validate that settings and their values are correct
         scopedSettings.validate(finalSettings, true);
 
-        ProjectMetadata.Builder result = ProjectMetadata.builder(projectMetadata)
-            .settings(Settings.builder().put(finalSettings).put(unknownOrInvalidSettings).build());
+        Settings resultSettings = Settings.builder().put(finalSettings).put(unknownOrInvalidSettings).build();
+        ProjectMetadata.Builder result = ProjectMetadata.builder(projectMetadata).settings(resultSettings);
         // validate that SettingsUpdaters can be applied without errors
-        scopedSettings.validateUpdate(result.settings());
+        scopedSettings.validateUpdate(resultSettings);
 
         return result.build();
     }

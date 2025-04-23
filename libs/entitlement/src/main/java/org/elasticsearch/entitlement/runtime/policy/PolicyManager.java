@@ -334,8 +334,12 @@ public class PolicyManager {
                 validateEntitlementsPerModule(p.getKey(), m.getKey(), m.getValue(), exclusiveFileEntitlements);
             }
         }
-        List<ExclusivePath> exclusivePaths = FileAccessTree.buildExclusivePathList(exclusiveFileEntitlements, pathLookup);
-        FileAccessTree.validateExclusivePaths(exclusivePaths);
+        List<ExclusivePath> exclusivePaths = FileAccessTree.buildExclusivePathList(
+            exclusiveFileEntitlements,
+            pathLookup,
+            FileAccessTree.DEFAULT_COMPARISON
+        );
+        FileAccessTree.validateExclusivePaths(exclusivePaths, FileAccessTree.DEFAULT_COMPARISON);
         this.exclusivePaths = exclusivePaths;
     }
 

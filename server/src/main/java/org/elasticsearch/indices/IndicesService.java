@@ -1159,6 +1159,7 @@ public class IndicesService extends AbstractLifecycleComponent
      * @param reasonText the reason for the shard deletion
      * @param lock the lock of the shard to delete
      * @param indexSettings the shards index settings.
+     * @param reason the reason for the deletion (as an enum)
      * @throws IOException if an IOException occurs
      */
     @Override

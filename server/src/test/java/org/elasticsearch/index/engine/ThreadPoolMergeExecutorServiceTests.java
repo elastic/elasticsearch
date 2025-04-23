@@ -132,9 +132,11 @@ public class ThreadPoolMergeExecutorServiceTests extends ESTestCase {
             // with the other merge tasks enqueued
             assertThat(threadPoolExecutor.getQueue().size(), is(mergesToSubmit - mergeExecutorThreadCount));
         });
-        assertThat(
-            countingListener.queued.get(),
-            equalTo(threadPoolExecutor.getActiveCount() + threadPoolExecutor.getQueue().size() + reEnqueuedBackloggedMergesCount.get())
+        assertBusy(
+            () -> assertThat(
+                countingListener.queued.get(),
+                equalTo(threadPoolExecutor.getActiveCount() + threadPoolExecutor.getQueue().size() + reEnqueuedBackloggedMergesCount.get())
+            )
         );
         // shutdown prevents new merge tasks to be enqueued but existing ones should be allowed to continue
         testThreadPool.shutdown();

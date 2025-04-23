@@ -88,13 +88,13 @@ public class TransportVersions {
     public static final TransportVersion V_8_15_2 = def(8_702_0_03);
     public static final TransportVersion V_8_16_0 = def(8_772_0_01);
     public static final TransportVersion V_8_16_1 = def(8_772_0_04);
-    public static final TransportVersion INITIAL_ELASTICSEARCH_8_16_5 = def(8_772_0_05);
-    public static final TransportVersion INITIAL_ELASTICSEARCH_8_16_6 = def(8_772_0_06);
+    public static final TransportVersion V_8_16_5 = def(8_772_0_05);
+    public static final TransportVersion V_8_16_6 = def(8_772_0_06);
     public static final TransportVersion INITIAL_ELASTICSEARCH_8_16_7 = def(8_772_0_07);
     public static final TransportVersion V_8_17_0 = def(8_797_0_02);
-    public static final TransportVersion INITIAL_ELASTICSEARCH_8_17_3 = def(8_797_0_03);
-    public static final TransportVersion INITIAL_ELASTICSEARCH_8_17_4 = def(8_797_0_04);
-    public static final TransportVersion INITIAL_ELASTICSEARCH_8_17_5 = def(8_797_0_05);
+    public static final TransportVersion V_8_17_3 = def(8_797_0_03);
+    public static final TransportVersion V_8_17_4 = def(8_797_0_04);
+    public static final TransportVersion V_8_17_5 = def(8_797_0_05);
     public static final TransportVersion INITIAL_ELASTICSEARCH_8_17_6 = def(8_797_0_06);
     public static final TransportVersion INDEXING_PRESSURE_THROTTLING_STATS = def(8_798_0_00);
     public static final TransportVersion REINDEX_DATA_STREAMS = def(8_799_0_00);
@@ -140,7 +140,7 @@ public class TransportVersions {
     public static final TransportVersion INFERENCE_REQUEST_ADAPTIVE_RATE_LIMITING = def(8_839_0_00);
     public static final TransportVersion ML_INFERENCE_IBM_WATSONX_RERANK_ADDED = def(8_840_0_00);
     public static final TransportVersion REMOVE_ALL_APPLICABLE_SELECTOR_BACKPORT_8_18 = def(8_840_0_01);
-    public static final TransportVersion RETRY_ILM_ASYNC_ACTION_REQUIRE_ERROR_8_18 = def(8_840_0_02);
+    public static final TransportVersion V_8_18_0 = def(8_840_0_02);
     public static final TransportVersion INITIAL_ELASTICSEARCH_8_18_1 = def(8_840_0_03);
     public static final TransportVersion INITIAL_ELASTICSEARCH_8_19 = def(8_841_0_00);
     public static final TransportVersion COHERE_BIT_EMBEDDING_TYPE_SUPPORT_ADDED_BACKPORT_8_X = def(8_841_0_01);
@@ -162,16 +162,7 @@ public class TransportVersions {
     public static final TransportVersion AMAZON_BEDROCK_TASK_SETTINGS_8_19 = def(8_841_0_17);
     public static final TransportVersion BATCHED_QUERY_PHASE_VERSION_BACKPORT_8_X = def(8_841_0_19);
     public static final TransportVersion SEARCH_INCREMENTAL_TOP_DOCS_NULL_BACKPORT_8_19 = def(8_841_0_20);
-    public static final TransportVersion INITIAL_ELASTICSEARCH_9_0 = def(9_000_0_00);
-    public static final TransportVersion REMOVE_SNAPSHOT_FAILURES_90 = def(9_000_0_01);
-    public static final TransportVersion TRANSPORT_STATS_HANDLING_TIME_REQUIRED_90 = def(9_000_0_02);
-    public static final TransportVersion REMOVE_DESIRED_NODE_VERSION_90 = def(9_000_0_03);
-    public static final TransportVersion ESQL_DRIVER_TASK_DESCRIPTION_90 = def(9_000_0_04);
-    public static final TransportVersion REMOVE_ALL_APPLICABLE_SELECTOR_9_0 = def(9_000_0_05);
-    public static final TransportVersion BYTE_SIZE_VALUE_ALWAYS_USES_BYTES_90 = def(9_000_0_06);
-    public static final TransportVersion RETRY_ILM_ASYNC_ACTION_REQUIRE_ERROR_90 = def(9_000_0_07);
-    public static final TransportVersion RE_REMOVE_MIN_COMPATIBLE_SHARD_NODE_90 = def(9_000_0_08);
-    public static final TransportVersion STORED_SCRIPT_CONTENT_LENGTH_90 = def(9_000_0_09);
+    public static final TransportVersion V_9_0_0 = def(9_000_0_09);
     public static final TransportVersion INITIAL_ELASTICSEARCH_9_0_1 = def(9_000_0_10);
     public static final TransportVersion COHERE_BIT_EMBEDDING_TYPE_SUPPORT_ADDED = def(9_001_0_00);
     public static final TransportVersion REMOVE_SNAPSHOT_FAILURES = def(9_002_0_00);
@@ -232,6 +223,10 @@ public class TransportVersions {
     public static final TransportVersion BATCHED_QUERY_EXECUTION_DELAYABLE_WRITABLE = def(9_057_0_00);
     public static final TransportVersion SEARCH_INCREMENTAL_TOP_DOCS_NULL = def(9_058_0_00);
     public static final TransportVersion COMPRESS_DELAYABLE_WRITEABLE = def(9_059_0_00);
+    public static final TransportVersion SYNONYMS_REFRESH_PARAM = def(9_060_0_00);
+    public static final TransportVersion DOC_FIELDS_AS_LIST = def(9_061_0_00);
+    public static final TransportVersion DENSE_VECTOR_OFF_HEAP_STATS = def(9_062_00_0);
+    public static final TransportVersion RANDOM_SAMPLER_QUERY_BUILDER = def(9_063_0_00);
 
     /*
      * STOP! READ THIS FIRST! No, really,
@@ -298,7 +293,7 @@ public class TransportVersions {
      * Reference to the minimum transport version that can be used with CCS.
      * This should be the transport version used by the previous minor release.
      */
-    public static final TransportVersion MINIMUM_CCS_VERSION = STORED_SCRIPT_CONTENT_LENGTH_90;
+    public static final TransportVersion MINIMUM_CCS_VERSION = V_9_0_0;
 
     /**
      * Sorted list of all versions defined in this class

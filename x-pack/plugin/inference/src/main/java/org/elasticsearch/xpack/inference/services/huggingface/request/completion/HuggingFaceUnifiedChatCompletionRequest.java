@@ -5,18 +5,18 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.inference.services.huggingface.request;
+package org.elasticsearch.xpack.inference.services.huggingface.request.completion;
 
 import org.apache.http.HttpHeaders;
 import org.apache.http.client.methods.HttpPost;
 import org.apache.http.entity.ByteArrayEntity;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.xcontent.XContentType;
-import org.elasticsearch.xpack.inference.common.Truncator;
+import org.elasticsearch.xpack.inference.external.http.sender.UnifiedChatInput;
 import org.elasticsearch.xpack.inference.external.request.HttpRequest;
 import org.elasticsearch.xpack.inference.external.request.Request;
 import org.elasticsearch.xpack.inference.services.huggingface.HuggingFaceAccount;
-import org.elasticsearch.xpack.inference.services.huggingface.HuggingFaceModel;
+import org.elasticsearch.xpack.inference.services.huggingface.completion.HuggingFaceChatCompletionModel;
 
 import java.net.URI;
 import java.nio.charset.StandardCharsets;
@@ -24,29 +24,28 @@ import java.util.Objects;
 
 import static org.elasticsearch.xpack.inference.external.request.RequestUtils.createAuthBearerHeader;
 
-public class HuggingFaceInferenceRequest implements Request {
+public class HuggingFaceUnifiedChatCompletionRequest implements Request {
 
-    private final Truncator truncator;
     private final HuggingFaceAccount account;
-    private final Truncator.TruncationResult truncationResult;
-    private final HuggingFaceModel model;
+    private final HuggingFaceChatCompletionModel model;
+    private final UnifiedChatInput unifiedChatInput;
 
-    public HuggingFaceInferenceRequest(Truncator truncator, Truncator.TruncationResult input, HuggingFaceModel model) {
-        this.truncator = Objects.requireNonNull(truncator);
+    public HuggingFaceUnifiedChatCompletionRequest(UnifiedChatInput unifiedChatInput, HuggingFaceChatCompletionModel model) {
         this.account = HuggingFaceAccount.of(model);
-        this.truncationResult = Objects.requireNonNull(input);
         this.model = Objects.requireNonNull(model);
+        this.unifiedChatInput = Objects.requireNonNull(unifiedChatInput);
     }
 
     public HttpRequest createHttpRequest() {
-        HttpPost httpPost = new HttpPost(account.uri());
+        HttpPost httpPost = new HttpPost(getURI());
 
         ByteArrayEntity byteEntity = new ByteArrayEntity(
-            Strings.toString(new HuggingFaceInferenceRequestEntity(truncationResult.input())).getBytes(StandardCharsets.UTF_8)
+            Strings.toString(new HuggingFaceUnifiedChatCompletionRequestEntity(unifiedChatInput, model)).getBytes(StandardCharsets.UTF_8)
         );
         httpPost.setEntity(byteEntity);
-        httpPost.setHeader(HttpHeaders.CONTENT_TYPE, XContentType.JSON.mediaTypeWithoutParameters());
-        httpPost.setHeader(createAuthBearerHeader(account.apiKey()));
+
+        httpPost.setHeader(HttpHeaders.CONTENT_TYPE, XContentType.JSON.mediaType());
+        httpPost.setHeader(createAuthBearerHeader(model.apiKey()));
 
         return new HttpRequest(httpPost, getInferenceEntityId());
     }
@@ -62,13 +61,11 @@ public class HuggingFaceInferenceRequest implements Request {
 
     @Override
     public Request truncate() {
-        var truncateResult = truncator.truncate(truncationResult.input());
-
-        return new HuggingFaceInferenceRequest(truncator, truncateResult, model);
+        return this;
     }
 
     @Override
     public boolean[] getTruncationInfo() {
-        return truncationResult.truncated().clone();
+        return null;
     }
 }

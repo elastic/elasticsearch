@@ -127,6 +127,7 @@ import org.elasticsearch.xpack.inference.services.elasticsearch.ElasticsearchInt
 import org.elasticsearch.xpack.inference.services.googleaistudio.GoogleAiStudioService;
 import org.elasticsearch.xpack.inference.services.googlevertexai.GoogleVertexAiService;
 import org.elasticsearch.xpack.inference.services.huggingface.HuggingFaceService;
+import org.elasticsearch.xpack.inference.services.huggingface.completion.HuggingFaceChatCompletionService;
 import org.elasticsearch.xpack.inference.services.huggingface.elser.HuggingFaceElserService;
 import org.elasticsearch.xpack.inference.services.ibmwatsonx.IbmWatsonxService;
 import org.elasticsearch.xpack.inference.services.jinaai.JinaAIService;
@@ -361,6 +362,7 @@ public class InferencePlugin extends Plugin
     public List<InferenceServiceExtension.Factory> getInferenceServiceFactories() {
         return List.of(
             context -> new HuggingFaceElserService(httpFactory.get(), serviceComponents.get()),
+            context -> new HuggingFaceChatCompletionService(httpFactory.get(), serviceComponents.get()),
             context -> new HuggingFaceService(httpFactory.get(), serviceComponents.get()),
             context -> new OpenAiService(httpFactory.get(), serviceComponents.get()),
             context -> new CohereService(httpFactory.get(), serviceComponents.get()),

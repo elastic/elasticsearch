@@ -11,10 +11,13 @@ import org.elasticsearch.xpack.inference.external.action.ExecutableAction;
 import org.elasticsearch.xpack.inference.external.action.SenderExecutableAction;
 import org.elasticsearch.xpack.inference.external.http.sender.Sender;
 import org.elasticsearch.xpack.inference.services.ServiceComponents;
-import org.elasticsearch.xpack.inference.services.huggingface.HuggingFaceRequestManager;
+import org.elasticsearch.xpack.inference.services.huggingface.HuggingFaceCompletionRequestManager;
+import org.elasticsearch.xpack.inference.services.huggingface.HuggingFaceEmbeddingsRequestManager;
 import org.elasticsearch.xpack.inference.services.huggingface.HuggingFaceResponseHandler;
+import org.elasticsearch.xpack.inference.services.huggingface.completion.HuggingFaceChatCompletionModel;
 import org.elasticsearch.xpack.inference.services.huggingface.elser.HuggingFaceElserModel;
 import org.elasticsearch.xpack.inference.services.huggingface.embeddings.HuggingFaceEmbeddingsModel;
+import org.elasticsearch.xpack.inference.services.huggingface.response.HuggingFaceChatCompletionResponseEntity;
 import org.elasticsearch.xpack.inference.services.huggingface.response.HuggingFaceElserResponseEntity;
 import org.elasticsearch.xpack.inference.services.huggingface.response.HuggingFaceEmbeddingsResponseEntity;
 
@@ -26,6 +29,9 @@ import static org.elasticsearch.core.Strings.format;
  * Provides a way to construct an {@link ExecutableAction} using the visitor pattern based on the hugging face model type.
  */
 public class HuggingFaceActionCreator implements HuggingFaceActionVisitor {
+
+    private static final String FAILED_TO_SEND_REQUEST_ERROR_MESSAGE =
+        "Failed to send Hugging Face %s request from inference entity id [%s]";
     private final Sender sender;
     private final ServiceComponents serviceComponents;
 
@@ -40,34 +46,38 @@ public class HuggingFaceActionCreator implements HuggingFaceActionVisitor {
             "hugging face text embeddings",
             HuggingFaceEmbeddingsResponseEntity::fromResponse
         );
-        var requestCreator = HuggingFaceRequestManager.of(
+        var requestCreator = HuggingFaceEmbeddingsRequestManager.of(
             model,
             responseHandler,
             serviceComponents.truncator(),
             serviceComponents.threadPool()
         );
-        var errorMessage = format(
-            "Failed to send Hugging Face %s request from inference entity id [%s]",
-            "text embeddings",
-            model.getInferenceEntityId()
-        );
+        var errorMessage = format(FAILED_TO_SEND_REQUEST_ERROR_MESSAGE, "text embeddings", model.getInferenceEntityId());
         return new SenderExecutableAction(sender, requestCreator, errorMessage);
     }
 
     @Override
     public ExecutableAction create(HuggingFaceElserModel model) {
         var responseHandler = new HuggingFaceResponseHandler("hugging face elser", HuggingFaceElserResponseEntity::fromResponse);
-        var requestCreator = HuggingFaceRequestManager.of(
+        var requestCreator = HuggingFaceEmbeddingsRequestManager.of(
             model,
             responseHandler,
             serviceComponents.truncator(),
             serviceComponents.threadPool()
         );
-        var errorMessage = format(
-            "Failed to send Hugging Face %s request from inference entity id [%s]",
-            "ELSER",
-            model.getInferenceEntityId()
+        var errorMessage = format(FAILED_TO_SEND_REQUEST_ERROR_MESSAGE, "ELSER", model.getInferenceEntityId());
+        return new SenderExecutableAction(sender, requestCreator, errorMessage);
+    }
+
+    @Override
+    public ExecutableAction create(HuggingFaceChatCompletionModel model) {
+        var responseHandler = new HuggingFaceResponseHandler(
+            "hugging face chat completion",
+            HuggingFaceChatCompletionResponseEntity::fromResponse
         );
+
+        var requestCreator = HuggingFaceCompletionRequestManager.of(model, responseHandler, serviceComponents.threadPool());
+        var errorMessage = format(FAILED_TO_SEND_REQUEST_ERROR_MESSAGE, "CHAT COMPLETION", model.getInferenceEntityId());
         return new SenderExecutableAction(sender, requestCreator, errorMessage);
     }
 }

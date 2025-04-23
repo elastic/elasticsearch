@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.esql.plugin;
 
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.WriteRequest;
-import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.compute.operator.exchange.ExchangeService;
@@ -20,12 +19,15 @@ import org.elasticsearch.xpack.esql.action.AbstractEsqlIntegTestCase;
 import org.elasticsearch.xpack.esql.action.EsqlQueryResponse;
 
 import java.util.Collection;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.LongAdder;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.getValuesList;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasSize;
 
@@ -40,15 +42,10 @@ public class DataNodeRequestSenderIT extends AbstractEsqlIntegTestCase {
         internalCluster().ensureAtLeastNumDataNodes(3);
         var primaries = randomIntBetween(1, 10);
         var replicas = randomIntBetween(0, 1);
+        var docs = randomIntBetween(10, 100);
 
         indicesAdmin().prepareCreate("index-1").setSettings(indexSettings(primaries, replicas)).get();
-
-        var docs = randomIntBetween(10, 100);
-        var bulk = client().prepareBulk("index-1").setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
-        for (int i = 0; i < docs; i++) {
-            bulk.add(new IndexRequest().source("key", "value-1"));
-        }
-        bulk.get();
+        indexAndRefresh("index-1", docs);
 
         // start background searches
         var stopped = new AtomicBoolean(false);
@@ -99,30 +96,11 @@ public class DataNodeRequestSenderIT extends AbstractEsqlIntegTestCase {
     public void testRetryOnShardMovement() {
         internalCluster().ensureAtLeastNumDataNodes(2);
 
-        assertAcked(
-            client().admin()
-                .indices()
-                .prepareCreate("index-1")
-                .setSettings(
-                    Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1).put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-                )
-        );
-        assertAcked(
-            client().admin()
-                .indices()
-                .prepareCreate("index-2")
-                .setSettings(
-                    Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1).put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-                )
-        );
-        client().prepareBulk("index-1")
-            .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
-            .add(new IndexRequest().source("key", "value-1"))
-            .get();
-        client().prepareBulk("index-2")
-            .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
-            .add(new IndexRequest().source("key", "value-2"))
-            .get();
+        assertAcked(client().admin().indices().prepareCreate("index-1").setSettings(indexSettings(1, 0)));
+        assertAcked(client().admin().indices().prepareCreate("index-2").setSettings(indexSettings(1, 0)));
+
+        indexAndRefresh("index-1", 1);
+        indexAndRefresh("index-2", 1);
 
         var shouldMove = new AtomicBoolean(true);
 
@@ -155,5 +133,45 @@ public class DataNodeRequestSenderIT extends AbstractEsqlIntegTestCase {
         try (EsqlQueryResponse resp = run("FROM " + randomFrom("index-1,index-2", "index-*"))) {
             assertThat(getValuesList(resp), hasSize(2));
         }
+    }
+
+    public void testDiscardUnnecessaryRequests() {
+        internalCluster().ensureAtLeastNumDataNodes(2);
+
+        var nodes = internalCluster().size();
+        var slowNode = internalCluster().getNodeNames()[nodes - 1];
+
+        var index = randomIdentifier();
+
+        assertAcked(client().admin().indices().prepareCreate(index).setSettings(indexSettings(2, 0)));
+        indexAndRefresh(index, 10);
+
+        var latch = new CountDownLatch(1);
+        var blockIsReleased = new AtomicBoolean();
+
+        as(internalCluster().getInstance(TransportService.class, slowNode), MockTransportService.class).addRequestHandlingBehavior(
+            ExchangeService.OPEN_EXCHANGE_ACTION_NAME,
+            (handler, request, channel, task) -> {
+                blockIsReleased.set(latch.await(10, TimeUnit.SECONDS));
+                handler.messageReceived(request, channel, task);
+            }
+        );
+
+        try (EsqlQueryResponse resp = run("FROM " + index + " | LIMIT 1")) {
+            assertThat(getValuesList(resp), hasSize(1));
+        }
+
+        // This unblocks slow node _after_ the query supposedly complete by results from the other node
+        latch.countDown();
+        as(internalCluster().getInstance(TransportService.class, slowNode), MockTransportService.class).clearAllRules();
+        assertThat(blockIsReleased.get(), equalTo(true));
+    }
+
+    private static void indexAndRefresh(String index, int docs) {
+        var bulk = client().prepareBulk(index).setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
+        for (int i = 0; i < docs; i++) {
+            bulk.add(new IndexRequest().source("key", "value-" + i));
+        }
+        bulk.get();
     }
 }

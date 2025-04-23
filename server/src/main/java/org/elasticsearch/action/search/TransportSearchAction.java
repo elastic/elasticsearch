@@ -16,6 +16,7 @@ import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
+import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.DelegatingActionListener;
 import org.elasticsearch.action.IndicesRequest;
@@ -61,6 +62,7 @@ import org.elasticsearch.common.util.ArrayUtils;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.CountDown;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.Predicates;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
@@ -168,6 +170,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
     private final Client client;
     private final UsageService usageService;
     private final boolean collectTelemetry;
+    private final Executor searchCoordinationExecutor;
 
     @Inject
     public TransportSearchAction(
@@ -188,7 +191,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         Client client,
         UsageService usageService
     ) {
-        super(TYPE.name(), transportService, actionFilters, SearchRequest::new, threadPool.executor(ThreadPool.Names.SEARCH_COORDINATION));
+        super(TYPE.name(), transportService, actionFilters, SearchRequest::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
         this.threadPool = threadPool;
         this.circuitBreaker = circuitBreakerService.getBreaker(CircuitBreaker.REQUEST);
         this.searchPhaseController = searchPhaseController;
@@ -211,6 +214,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         this.searchResponseMetrics = searchResponseMetrics;
         this.client = client;
         this.usageService = usageService;
+        this.searchCoordinationExecutor = threadPool.executor(ThreadPool.Names.SEARCH_COORDINATION);
     }
 
     private Map<String, OriginalIndices> buildPerIndexOriginalIndices(
@@ -332,7 +336,13 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
 
     @Override
     protected void doExecute(Task task, SearchRequest searchRequest, ActionListener<SearchResponse> listener) {
-        executeRequest((SearchTask) task, searchRequest, new SearchResponseActionListener(listener), AsyncSearchActionProvider::new);
+        // workaround for https://github.com/elastic/elasticsearch/issues/97916 - TODO remove this when we can
+        searchCoordinationExecutor.execute(
+            ActionRunnable.wrap(
+                new SearchResponseActionListener(listener),
+                l -> executeRequest((SearchTask) task, searchRequest, l, AsyncSearchActionProvider::new)
+            )
+        );
     }
 
     void executeRequest(

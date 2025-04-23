@@ -1156,20 +1156,20 @@ public class IndicesService extends AbstractLifecycleComponent
 
     /**
      * Deletes the shard with an already acquired shard lock.
-     * @param reason the reason for the shard deletion
+     * @param reasonMessage the reason for the shard deletion
      * @param lock the lock of the shard to delete
      * @param indexSettings the shards index settings.
      * @throws IOException if an IOException occurs
      */
     @Override
-    public void deleteShardStore(String reason, ShardLock lock, IndexSettings indexSettings, IndexRemovalReason indexRemovalReason)
+    public void deleteShardStore(String reasonMessage, ShardLock lock, IndexSettings indexSettings, IndexRemovalReason reason)
         throws IOException {
         ShardId shardId = lock.getShardId();
-        logger.trace("{} deleting shard reason [{}]", shardId, reason);
+        logger.trace("{} deleting shard reason [{}]", shardId, reasonMessage);
         nodeEnv.deleteShardDirectoryUnderLock(
             lock,
             indexSettings,
-            paths -> indexFoldersDeletionListeners.beforeShardFoldersDeleted(shardId, indexSettings, paths, indexRemovalReason)
+            paths -> indexFoldersDeletionListeners.beforeShardFoldersDeleted(shardId, indexSettings, paths, reason)
         );
     }
 

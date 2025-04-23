@@ -1068,9 +1068,10 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
     }
 
     public interface ShardStoreDeleter {
-        void deleteShardStore(String reason, ShardLock lock, IndexSettings indexSettings, IndexRemovalReason permanent) throws IOException;
+        void deleteShardStore(String reasonMessage, ShardLock lock, IndexSettings indexSettings, IndexRemovalReason reason)
+            throws IOException;
 
-        void addPendingDelete(ShardId shardId, IndexSettings indexSettings, IndexRemovalReason permanent);
+        void addPendingDelete(ShardId shardId, IndexSettings indexSettings, IndexRemovalReason reason);
     }
 
     public final EngineFactory getEngineFactory() {

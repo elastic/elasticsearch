@@ -16,7 +16,6 @@ import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.query.GeoBoundingBoxQueryBuilder;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.InternalAggregation;
-import org.elasticsearch.search.aggregations.bucket.filter.Filter;
 import org.elasticsearch.search.aggregations.bucket.geogrid.GeoGrid;
 import org.elasticsearch.search.aggregations.bucket.geogrid.GeoGrid.Bucket;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -186,7 +185,7 @@ public class GeoHashGridIT extends ESIntegTestCase {
                         .subAggregation(geohashGrid("geohashgrid").field("location").precision(precision))
                 ),
                 response -> {
-                    Filter filter = response.getAggregations().get("filtered");
+                    SingleBucketAggregation filter = response.getAggregations().get("filtered");
 
                     GeoGrid geoGrid = filter.getAggregations().get("geohashgrid");
                     for (GeoGrid.Bucket cell : geoGrid.getBuckets()) {

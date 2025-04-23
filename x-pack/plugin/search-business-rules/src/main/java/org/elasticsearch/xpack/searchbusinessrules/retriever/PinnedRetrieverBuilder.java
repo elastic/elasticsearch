@@ -211,7 +211,7 @@ public final class PinnedRetrieverBuilder extends CompoundRetrieverBuilder<Pinne
                 boolean isPinned = scoreDoc.score > PinnedQueryBuilder.MAX_ORGANIC_SCORE;
                 if (isPinned) {
                     String pinnedBy = (this.ids != null && this.ids.isEmpty() == false) ? "ids" : "docs";
-                    rankDocs[i] = new PinnedRankDoc(scoreDoc.doc, scoreDoc.score, scoreDoc.shardIndex, true, pinnedBy);
+                    rankDocs[i] = new PinnedRankDoc(scoreDoc.doc, scoreDoc.score, scoreDoc.shardIndex, true);
                 } else {
                     rankDocs[i] = new RankDoc(scoreDoc.doc, scoreDoc.score, scoreDoc.shardIndex);
                 }

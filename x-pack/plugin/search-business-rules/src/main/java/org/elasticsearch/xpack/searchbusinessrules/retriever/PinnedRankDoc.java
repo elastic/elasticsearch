@@ -22,32 +22,25 @@ public class PinnedRankDoc extends RankDoc {
     public static final String NAME = "pinned_rank_doc";
 
     private final boolean isPinned;
-    private final String pinnedBy;
 
-    public PinnedRankDoc(int docId, float score, int shardIndex, boolean isPinned, String pinnedBy) {
+    public PinnedRankDoc(int docId, float score, int shardIndex, boolean isPinned) {
         super(docId, score, shardIndex);
         this.isPinned = isPinned;
-        this.pinnedBy = (isPinned) ? Objects.requireNonNull(pinnedBy, "pinnedBy cannot be null when isPinned is true") : null;
     }
 
     public PinnedRankDoc(StreamInput in) throws IOException {
         super(in);
         this.isPinned = in.readBoolean();
-        this.pinnedBy = in.readOptionalString();
     }
 
     public boolean isPinned() {
         return isPinned;
     }
 
-    public String getPinnedBy() {
-        return pinnedBy;
-    }
-
     @Override
     public Explanation explain(Explanation[] sources, String[] queryNames) {
         if (isPinned) {
-            return Explanation.match(score, "Pinned document by " + pinnedBy + ", original explanation:", sources);
+            return Explanation.match(score, "Pinned document, original explanation:", sources);
         } else {
             return super.explain(sources, queryNames);
         }
@@ -55,7 +48,7 @@ public class PinnedRankDoc extends RankDoc {
 
     @Override
     public String toString() {
-        return super.toString() + ", isPinned=" + isPinned + ", pinnedBy=" + pinnedBy;
+        return super.toString() + ", isPinned=" + isPinned;
     }
 
     @Override
@@ -66,13 +59,12 @@ public class PinnedRankDoc extends RankDoc {
     @Override
     protected void doWriteTo(StreamOutput out) throws IOException {
         out.writeBoolean(isPinned);
-        out.writeOptionalString(pinnedBy);
     }
 
     @Override
     protected boolean doEquals(RankDoc rd) {
         if (rd instanceof PinnedRankDoc other) {
-            return this.isPinned == other.isPinned && Objects.equals(this.pinnedBy, other.pinnedBy);
+            return this.isPinned == other.isPinned;
         } else {
             return false;
         }
@@ -80,7 +72,7 @@ public class PinnedRankDoc extends RankDoc {
 
     @Override
     protected int doHashCode() {
-        return Objects.hash(super.doHashCode(), isPinned, pinnedBy);
+        return Objects.hash(super.doHashCode(), isPinned);
     }
 
     @Override
@@ -91,8 +83,5 @@ public class PinnedRankDoc extends RankDoc {
     @Override
     protected void doToXContent(XContentBuilder builder, Params params) throws IOException {
         builder.field("is_pinned", isPinned);
-        if (pinnedBy != null) {
-            builder.field("pinned_by", pinnedBy);
-        }
     }
 }

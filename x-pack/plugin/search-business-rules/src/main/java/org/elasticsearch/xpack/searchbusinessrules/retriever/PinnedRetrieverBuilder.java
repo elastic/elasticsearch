@@ -51,7 +51,7 @@ public final class PinnedRetrieverBuilder extends CompoundRetrieverBuilder<Pinne
     public static final ParseField DOCS_FIELD = new ParseField("docs");
     public static final ParseField RETRIEVER_FIELD = new ParseField("retriever");
 
-    public static final NodeFeature PINNED_RETRIEVER_FEATURE = new NodeFeature(NAME);
+    public static final NodeFeature PINNED_RETRIEVER_FEATURE = new NodeFeature("pinned_retriever_supported");
 
     @SuppressWarnings("unchecked")
     public static final ConstructingObjectParser<PinnedRetrieverBuilder, RetrieverParserContext> PARSER = new ConstructingObjectParser<>(
@@ -124,8 +124,8 @@ public final class PinnedRetrieverBuilder extends CompoundRetrieverBuilder<Pinne
     public PinnedRetrieverBuilder(List<String> ids, List<SpecifiedDocument> docs, RetrieverBuilder retrieverBuilder, int rankWindowSize) {
         super(new ArrayList<>(), rankWindowSize);
         validateIdsAndDocs(ids, docs);
-        this.ids = ids != null ? ids : new ArrayList<>();
-        this.docs = docs != null ? docs : new ArrayList<>();
+        this.ids = ids;
+        this.docs = docs;
         addChild(new PinnedRetrieverBuilderWrapper(retrieverBuilder));
     }
 
@@ -180,10 +180,10 @@ public final class PinnedRetrieverBuilder extends CompoundRetrieverBuilder<Pinne
 
     @Override
     public void doToXContent(XContentBuilder builder, Params params) throws IOException {
-        if (ids != null && ids.isEmpty() == false) {
+        if (ids != null) {
             builder.array(IDS_FIELD.getPreferredName(), ids.toArray());
         }
-        if (docs != null && docs.isEmpty() == false) {
+        if (docs != null) {
             builder.startArray(DOCS_FIELD.getPreferredName());
             for (SpecifiedDocument doc : docs) {
                 builder.value(doc);

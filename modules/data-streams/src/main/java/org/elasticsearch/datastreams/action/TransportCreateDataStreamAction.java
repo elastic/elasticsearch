@@ -9,71 +9,75 @@
 package org.elasticsearch.datastreams.action;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.datastreams.MigrateToDataStreamAction;
+import org.elasticsearch.action.datastreams.CreateDataStreamAction;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.support.master.AcknowledgedTransportMasterNodeAction;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
-import org.elasticsearch.cluster.metadata.MetadataCreateIndexService;
-import org.elasticsearch.cluster.metadata.MetadataMigrateToDataStreamService;
+import org.elasticsearch.cluster.metadata.MetadataCreateDataStreamService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
-import org.elasticsearch.indices.IndicesService;
+import org.elasticsearch.indices.SystemDataStreamDescriptor;
+import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
-public class MigrateToDataStreamTransportAction extends AcknowledgedTransportMasterNodeAction<MigrateToDataStreamAction.Request> {
+public class TransportCreateDataStreamAction extends AcknowledgedTransportMasterNodeAction<CreateDataStreamAction.Request> {
 
-    private final MetadataMigrateToDataStreamService metadataMigrateToDataStreamService;
+    private final MetadataCreateDataStreamService metadataCreateDataStreamService;
+    private final SystemIndices systemIndices;
 
     @Inject
-    public MigrateToDataStreamTransportAction(
+    public TransportCreateDataStreamAction(
         TransportService transportService,
         ClusterService clusterService,
         ThreadPool threadPool,
         ActionFilters actionFilters,
-        IndicesService indicesService,
-        MetadataCreateIndexService metadataCreateIndexService
+        MetadataCreateDataStreamService metadataCreateDataStreamService,
+        SystemIndices systemIndices
     ) {
         super(
-            MigrateToDataStreamAction.NAME,
+            CreateDataStreamAction.NAME,
             transportService,
             clusterService,
             threadPool,
             actionFilters,
-            MigrateToDataStreamAction.Request::new,
+            CreateDataStreamAction.Request::new,
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
-        this.metadataMigrateToDataStreamService = new MetadataMigrateToDataStreamService(
-            threadPool,
-            clusterService,
-            indicesService,
-            metadataCreateIndexService
-        );
+        this.metadataCreateDataStreamService = metadataCreateDataStreamService;
+        this.systemIndices = systemIndices;
     }
 
     @Override
     protected void masterOperation(
         Task task,
-        MigrateToDataStreamAction.Request request,
+        CreateDataStreamAction.Request request,
         ClusterState state,
         ActionListener<AcknowledgedResponse> listener
     ) throws Exception {
-        MetadataMigrateToDataStreamService.MigrateToDataStreamClusterStateUpdateRequest updateRequest =
-            new MetadataMigrateToDataStreamService.MigrateToDataStreamClusterStateUpdateRequest(
-                request.getAliasName(),
+        final SystemDataStreamDescriptor systemDataStreamDescriptor = systemIndices.validateDataStreamAccess(
+            request.getName(),
+            threadPool.getThreadContext()
+        );
+        MetadataCreateDataStreamService.CreateDataStreamClusterStateUpdateRequest updateRequest =
+            new MetadataCreateDataStreamService.CreateDataStreamClusterStateUpdateRequest(
+                request.getName(),
+                request.getStartTime(),
+                systemDataStreamDescriptor,
                 request.masterNodeTimeout(),
-                request.ackTimeout()
+                request.ackTimeout(),
+                true
             );
-        metadataMigrateToDataStreamService.migrateToDataStream(updateRequest, listener);
+        metadataCreateDataStreamService.createDataStream(updateRequest, listener);
     }
 
     @Override
-    protected ClusterBlockException checkBlock(MigrateToDataStreamAction.Request request, ClusterState state) {
+    protected ClusterBlockException checkBlock(CreateDataStreamAction.Request request, ClusterState state) {
         return state.blocks().globalBlockedException(ClusterBlockLevel.METADATA_WRITE);
     }
 }

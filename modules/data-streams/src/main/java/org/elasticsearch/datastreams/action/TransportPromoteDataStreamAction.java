@@ -30,12 +30,12 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
-public class PromoteDataStreamTransportAction extends AcknowledgedTransportMasterNodeAction<PromoteDataStreamAction.Request> {
+public class TransportPromoteDataStreamAction extends AcknowledgedTransportMasterNodeAction<PromoteDataStreamAction.Request> {
 
     private final SystemIndices systemIndices;
 
     @Inject
-    public PromoteDataStreamTransportAction(
+    public TransportPromoteDataStreamAction(
         TransportService transportService,
         ClusterService clusterService,
         ThreadPool threadPool,

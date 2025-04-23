@@ -77,11 +77,6 @@ public class PinnedRankDoc extends RankDoc {
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.V_8_0_0;
-    }
-
-    @Override
-    protected void doToXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.field("is_pinned", isPinned);
+        return TransportVersions.V_9_1_0;
     }
 }

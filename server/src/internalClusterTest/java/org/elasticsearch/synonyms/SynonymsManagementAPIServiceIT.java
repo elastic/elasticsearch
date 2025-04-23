@@ -9,6 +9,8 @@
 
 package org.elasticsearch.synonyms;
 
+import com.carrotsearch.randomizedtesting.annotations.Repeat;
+
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
@@ -127,6 +129,7 @@ public class SynonymsManagementAPIServiceIT extends ESIntegTestCase {
         latch.await(5, TimeUnit.SECONDS);
     }
 
+    @Repeat(iterations=1000)
     public void testCreateTooManySynonymsUsingRuleUpdates() throws InterruptedException {
         CountDownLatch latch = new CountDownLatch(1);
         int rulesToUpdate = randomIntBetween(1, 10);
@@ -135,7 +138,7 @@ public class SynonymsManagementAPIServiceIT extends ESIntegTestCase {
         synonymsManagementAPIService.putSynonymsSet(
             synonymSetId,
             randomSynonymsSet(synonymsToCreate),
-            randomBoolean(),
+            true,
             new ActionListener<>() {
                 @Override
                 public void onResponse(SynonymsManagementAPIService.SynonymsReloadResult synonymsReloadResult) {
@@ -143,7 +146,7 @@ public class SynonymsManagementAPIServiceIT extends ESIntegTestCase {
                     SynonymRule[] rules = randomSynonymsSet(atLeast(rulesToUpdate + 1));
                     CountDownLatch updatedRulesLatch = new CountDownLatch(rulesToUpdate);
                     for (int i = 0; i < rulesToUpdate; i++) {
-                        synonymsManagementAPIService.putSynonymRule(synonymSetId, rules[i], true, new ActionListener<>() {
+                        synonymsManagementAPIService.putSynonymRule(synonymSetId, rules[i], randomBoolean(), new ActionListener<>() {
                             @Override
                             public void onResponse(SynonymsManagementAPIService.SynonymsReloadResult synonymsReloadResult) {
                                 updatedRulesLatch.countDown();
@@ -203,6 +206,7 @@ public class SynonymsManagementAPIServiceIT extends ESIntegTestCase {
         latch.await(5, TimeUnit.SECONDS);
     }
 
+    @Repeat(iterations=1000)
     public void testUpdateRuleWithMaxSynonyms() throws InterruptedException {
         CountDownLatch latch = new CountDownLatch(1);
         String synonymSetId = randomIdentifier();
@@ -238,16 +242,17 @@ public class SynonymsManagementAPIServiceIT extends ESIntegTestCase {
         latch.await(5, TimeUnit.SECONDS);
     }
 
+    @Repeat(iterations=1000)
     public void testCreateRuleWithMaxSynonyms() throws InterruptedException {
         CountDownLatch latch = new CountDownLatch(1);
         String synonymSetId = randomIdentifier();
         String ruleId = randomIdentifier();
         SynonymRule[] synonymsSet = randomSynonymsSet(maxSynonymSets, maxSynonymSets);
-        synonymsManagementAPIService.putSynonymsSet(synonymSetId, synonymsSet, randomBoolean(), new ActionListener<>() {
+        synonymsManagementAPIService.putSynonymsSet(synonymSetId, synonymsSet, true, new ActionListener<>() {
             @Override
             public void onResponse(SynonymsManagementAPIService.SynonymsReloadResult synonymsReloadResult) {
                 // Updating a rule fails
-                synonymsManagementAPIService.putSynonymRule(synonymSetId, randomSynonymRule(ruleId), true, new ActionListener<>() {
+                synonymsManagementAPIService.putSynonymRule(synonymSetId, randomSynonymRule(ruleId), randomBoolean(), new ActionListener<>() {
                     @Override
                     public void onResponse(SynonymsManagementAPIService.SynonymsReloadResult synonymsReloadResult) {
                         fail("Should not create a new rule that does not exist when at max capacity");

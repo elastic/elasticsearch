@@ -444,6 +444,9 @@ tests:
 - class: org.elasticsearch.synonyms.SynonymsManagementAPIServiceIT
   method: testUpdateRuleWithMaxSynonyms
   issue: https://github.com/elastic/elasticsearch/issues/127195
+- class: org.elasticsearch.synonyms.SynonymsManagementAPIServiceIT
+  method: testCreateRuleWithMaxSynonyms
+  issue: https://github.com/elastic/elasticsearch/issues/127203
 
 # Examples:
 #

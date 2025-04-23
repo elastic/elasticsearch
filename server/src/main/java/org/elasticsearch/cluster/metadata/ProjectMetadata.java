@@ -2182,13 +2182,11 @@ public class ProjectMetadata implements Iterable<IndexMetadata>, Diffable<Projec
             ),
             indices,
             customs,
-            multiProject ?
-                Iterators.single((builder, params) -> {
-                    builder.startObject("settings");
-                    settings.toXContent(builder, new ToXContent.MapParams(Collections.singletonMap("flat_settings", "true")));
-                    return builder.endObject();
-                })
-                : Collections.emptyIterator(),
+            multiProject ? Iterators.single((builder, params) -> {
+                builder.startObject("settings");
+                settings.toXContent(builder, new ToXContent.MapParams(Collections.singletonMap("flat_settings", "true")));
+                return builder.endObject();
+            }) : Collections.emptyIterator(),
             multiProject
                 ? ChunkedToXContentHelper.object("reserved_state", reservedStateMetadata().values().iterator())
                 : Collections.emptyIterator()

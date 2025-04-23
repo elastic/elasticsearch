@@ -2036,7 +2036,7 @@ public final class InternalTestCluster extends TestCluster {
      * in the viaNode parameter. If viaNode isn't specified a random node will be picked to the send the request to.
      */
     public String getMasterName(@Nullable String viaNode) {
-        viaNode = viaNode != null ? viaNode : getRandomNodeName(true);
+        viaNode = viaNode != null ? viaNode : getRandomNodeName();
         try {
             ClusterServiceUtils.awaitClusterState(logger, state -> state.nodes().getMasterNode() != null, clusterService(viaNode));
             final ClusterState state = client(viaNode).admin().cluster().prepareState(TEST_REQUEST_TIMEOUT).setLocal(true).get().getState();
@@ -2059,23 +2059,7 @@ public final class InternalTestCluster extends TestCluster {
      * @return the name of a random node in a cluster
      */
     public String getRandomNodeName() {
-        return getRandomNodeName(false);
-    }
-
-    /**
-     * @param startNewNode whether we should start a new node if there are no nodes in the cluster
-     * @return the name of a random node in a cluster
-     */
-    public String getRandomNodeName(boolean startNewNode) {
-        String node = getNodeNameThat(Predicates.always());
-        ensureOpen();
-        if (node == null) {
-            synchronized (this) {
-                return getOrBuildRandomNode().getName();
-            }
-        } else {
-            return node;
-        }
+        return getNodeNameThat(Predicates.always());
     }
 
     /**

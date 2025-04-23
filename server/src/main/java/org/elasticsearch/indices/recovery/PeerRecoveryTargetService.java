@@ -301,18 +301,32 @@ public class PeerRecoveryTargetService implements IndexEventListener {
         if (indexShard.routingEntry().isPromotableToPrimary() == false) {
             assert preExistingRequest == null;
             assert indexShard.indexSettings().getIndexMetadata().isSearchableSnapshot() == false;
-            ActionListener.run(cleanupOnly.map(v -> {
-                logger.trace("{} preparing unpromotable shard for recovery", recoveryTarget.shardId());
-                indexShard.prepareForIndexRecovery();
-                // Skip unnecessary intermediate stages
-                recoveryState.setStage(RecoveryState.Stage.VERIFY_INDEX);
-                recoveryState.setStage(RecoveryState.Stage.TRANSLOG);
-                indexShard.openEngineAndSkipTranslogRecovery();
-                recoveryState.getIndex().setFileDetailsComplete();
-                recoveryState.setStage(RecoveryState.Stage.FINALIZE);
-                onGoingRecoveries.markRecoveryAsDone(recoveryId);
-                return null;
-            }), indexShard::preRecovery);
+            try (onCompletion) {
+                client.execute(
+                    StatelessUnpromotableRelocationAction.TYPE,
+                    new StatelessUnpromotableRelocationAction.Request(
+                        recoveryId,
+                        indexShard.shardId(),
+                        indexShard.routingEntry().allocationId().getId(),
+                        recoveryTarget.clusterStateVersion()
+                    ),
+                    new ActionListener<>() {
+                        @Override
+                        public void onResponse(ActionResponse.Empty empty) {
+                            onGoingRecoveries.markRecoveryAsDone(recoveryId);
+                        }
+
+                        @Override
+                        public void onFailure(Exception e) {
+                            onGoingRecoveries.failRecovery(
+                                recoveryId,
+                                new RecoveryFailedException(recoveryState, "failed to recover unpromotable shard", e),
+                                true
+                            );
+                        }
+                    }
+                );
+            }
             return;
         }
 

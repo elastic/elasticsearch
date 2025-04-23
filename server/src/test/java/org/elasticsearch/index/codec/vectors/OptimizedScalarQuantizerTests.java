@@ -7,13 +7,13 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-package org.elasticsearch.index.codec.vectors.es818;
+package org.elasticsearch.index.codec.vectors;
 
 import org.apache.lucene.index.VectorSimilarityFunction;
 import org.apache.lucene.util.VectorUtil;
 import org.elasticsearch.test.ESTestCase;
 
-import static org.elasticsearch.index.codec.vectors.es818.OptimizedScalarQuantizer.MINIMUM_MSE_GRID;
+import static org.elasticsearch.index.codec.vectors.OptimizedScalarQuantizer.MINIMUM_MSE_GRID;
 
 public class OptimizedScalarQuantizerTests extends ESTestCase {
 

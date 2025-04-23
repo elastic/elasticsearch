@@ -137,6 +137,8 @@ import org.elasticsearch.action.admin.indices.stats.FieldUsageStatsAction;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsAction;
 import org.elasticsearch.action.admin.indices.stats.TransportFieldUsageAction;
 import org.elasticsearch.action.admin.indices.stats.TransportIndicesStatsAction;
+import org.elasticsearch.action.admin.indices.stats.rrc.ShardStatsRRCAction;
+import org.elasticsearch.action.admin.indices.stats.rrc.TransportShardStatsRRCAction;
 import org.elasticsearch.action.admin.indices.template.delete.TransportDeleteComponentTemplateAction;
 import org.elasticsearch.action.admin.indices.template.delete.TransportDeleteComposableIndexTemplateAction;
 import org.elasticsearch.action.admin.indices.template.delete.TransportDeleteIndexTemplateAction;
@@ -677,6 +679,7 @@ public class ActionModule extends AbstractModule {
         actions.register(ResetFeatureStateAction.INSTANCE, TransportResetFeatureStateAction.class);
         actions.register(TransportGetShardSnapshotAction.TYPE, TransportGetShardSnapshotAction.class);
         actions.register(IndicesStatsAction.INSTANCE, TransportIndicesStatsAction.class);
+        actions.register(ShardStatsRRCAction.INSTANCE, TransportShardStatsRRCAction.class);
         actions.register(IndicesSegmentsAction.INSTANCE, TransportIndicesSegmentsAction.class);
         actions.register(TransportIndicesShardStoresAction.TYPE, TransportIndicesShardStoresAction.class);
         actions.register(TransportCreateIndexAction.TYPE, TransportCreateIndexAction.class);

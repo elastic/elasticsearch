@@ -238,6 +238,11 @@ public class RoutingTable implements Iterable<IndexRoutingTable>, Diffable<Routi
         return set;
     }
 
+    public ShardsIterator allReplicaShards(String[] indices) {
+        Predicate<ShardRouting> isPrimary = ShardRouting::primary;
+        return allShardsSatisfyingPredicate(indices, isPrimary.negate(), false);
+    }
+
     public ShardsIterator allShards(String[] indices) {
         return allShardsSatisfyingPredicate(indices, Predicates.always(), false);
     }

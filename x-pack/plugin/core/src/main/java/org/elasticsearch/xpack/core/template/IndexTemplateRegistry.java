@@ -851,7 +851,8 @@ public abstract class IndexTemplateRegistry implements ClusterStateListener {
                     getOrigin(),
                     request,
                     groupedActionListener,
-                    (req, listener) -> projectResolver.projectClient(client, project.id()).execute(RolloverAction.INSTANCE, req, listener)
+                    // We don't use the project client as the project ID is already set by the caller of this method.
+                    (req, listener) -> client.execute(RolloverAction.INSTANCE, req, listener)
                 );
             }
         });

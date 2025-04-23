@@ -17,7 +17,6 @@ import org.elasticsearch.action.downsample.DownsampleConfig;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
-import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
@@ -53,13 +52,11 @@ import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
-import static org.elasticsearch.cluster.metadata.ComponentTemplateTests.randomMappings;
 import static org.elasticsearch.cluster.metadata.DataStream.getDefaultBackingIndexName;
 import static org.elasticsearch.cluster.metadata.DataStream.getDefaultFailureStoreName;
 import static org.elasticsearch.cluster.metadata.DataStreamTestHelper.newInstance;
 import static org.elasticsearch.cluster.metadata.DataStreamTestHelper.randomIndexInstances;
 import static org.elasticsearch.cluster.metadata.DataStreamTestHelper.randomNonEmptyIndexInstances;
-import static org.elasticsearch.cluster.metadata.DataStreamTestHelper.randomSettings;
 import static org.elasticsearch.index.IndexSettings.LIFECYCLE_ORIGINATION_DATE;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -71,7 +68,6 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
-import static org.junit.Assert.assertThrows;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -146,9 +142,12 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
                 ? null
                 : DataStreamLifecycle.dataLifecycleBuilder().dataRetention(randomPositiveTimeValue()).build();
             case 10 -> failureIndices = randomValueOtherThan(failureIndices, DataStreamTestHelper::randomIndexInstances);
-            case 11 -> dataStreamOptions = dataStreamOptions.isEmpty() ? new DataStreamOptions(new DataStreamFailureStore(randomBoolean()))
+            case 11 -> dataStreamOptions = dataStreamOptions.isEmpty()
+                ? new DataStreamOptions(DataStreamFailureStoreTests.randomFailureStore())
                 : randomBoolean() ? DataStreamOptions.EMPTY
-                : new DataStreamOptions(new DataStreamFailureStore(dataStreamOptions.failureStore().enabled() == false));
+                : new DataStreamOptions(
+                    randomValueOtherThan(dataStreamOptions.failureStore(), DataStreamFailureStoreTests::randomFailureStore)
+                );
             case 12 -> {
                 rolloverOnWrite = rolloverOnWrite == false;
                 isReplicated = rolloverOnWrite == false && isReplicated;
@@ -1410,14 +1409,16 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
 
         {
             {
-                // no lifecycle configured so we expect an empty list
+                // No lifecycle or disabled for data and only disabled lifecycle for failures should result in empty list.
                 Metadata.Builder builder = Metadata.builder();
+                var disabledLifecycle = DataStreamLifecycle.failuresLifecycleBuilder().enabled(false).build();
                 DataStream dataStream = createDataStream(
                     builder,
                     dataStreamName,
                     creationAndRolloverTimes,
                     settings(IndexVersion.current()),
-                    null
+                    randomBoolean() ? DataStreamLifecycle.dataLifecycleBuilder().enabled(false).build() : null,
+                    new DataStreamOptions(new DataStreamFailureStore(randomBoolean(), disabledLifecycle))
                 );
                 Metadata metadata = builder.build();
 
@@ -1825,12 +1826,44 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
         }
     }
 
+    public void testFailuresLifecycle() {
+        DataStream noFailureStoreDs = DataStream.builder("no-fs", List.of(new Index(randomAlphaOfLength(10), randomUUID()))).build();
+        assertThat(noFailureStoreDs.getFailuresLifecycle(), nullValue());
+
+        assertThat(noFailureStoreDs.getFailuresLifecycle(true), equalTo(DataStreamLifecycle.DEFAULT_DATA_LIFECYCLE));
+        assertThat(noFailureStoreDs.getFailuresLifecycle(randomBoolean() ? false : null), nullValue());
+
+        DataStream withFailureIndices = DataStream.builder("with-fs-indices", List.of(new Index(randomAlphaOfLength(10), randomUUID())))
+            .setFailureIndices(
+                DataStream.DataStreamIndices.failureIndicesBuilder(List.of(new Index(randomAlphaOfLength(10), randomUUID()))).build()
+            )
+            .build();
+        assertThat(withFailureIndices.getFailuresLifecycle(), equalTo(DataStreamLifecycle.DEFAULT_DATA_LIFECYCLE));
+
+        DataStreamLifecycle lifecycle = DataStreamLifecycleTests.randomFailuresLifecycle();
+        DataStream withFailuresLifecycle = DataStream.builder("with-fs", List.of(new Index(randomAlphaOfLength(10), randomUUID())))
+            .setDataStreamOptions(new DataStreamOptions(new DataStreamFailureStore(randomBoolean(), lifecycle)))
+            .build();
+        assertThat(withFailuresLifecycle.getFailuresLifecycle(), equalTo(lifecycle));
+    }
+
     private DataStream createDataStream(
         Metadata.Builder builder,
         String dataStreamName,
         List<DataStreamMetadata> creationAndRolloverTimes,
         Settings.Builder backingIndicesSettings,
         @Nullable DataStreamLifecycle lifecycle
+    ) {
+        return createDataStream(builder, dataStreamName, creationAndRolloverTimes, backingIndicesSettings, lifecycle, null);
+    }
+
+    private DataStream createDataStream(
+        Metadata.Builder builder,
+        String dataStreamName,
+        List<DataStreamMetadata> creationAndRolloverTimes,
+        Settings.Builder backingIndicesSettings,
+        @Nullable DataStreamLifecycle lifecycle,
+        @Nullable DataStreamOptions dataStreamOptions
     ) {
         int backingIndicesCount = creationAndRolloverTimes.size();
         final List<Index> backingIndices = createDataStreamIndices(
@@ -1849,7 +1882,7 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
             backingIndicesCount,
             true
         );
-        return newInstance(dataStreamName, backingIndices, backingIndicesCount, null, false, lifecycle, failureIndices);
+        return newInstance(dataStreamName, backingIndices, backingIndicesCount, null, false, lifecycle, failureIndices, dataStreamOptions);
     }
 
     private static List<Index> createDataStreamIndices(
@@ -1907,6 +1940,7 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
         if (failureStore) {
             failureIndices = randomNonEmptyIndexInstances();
         }
+        var failuresLifecycle = randomBoolean() ? null : DataStreamLifecycleTests.randomFailuresLifecycle();
 
         DataStreamLifecycle lifecycle = DataStreamLifecycle.DEFAULT_DATA_LIFECYCLE;
         boolean isSystem = randomBoolean();
@@ -1915,14 +1949,13 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
             indices,
             generation,
             metadata,
-            randomSettings(),
             isSystem,
             randomBoolean(),
             isSystem,
             randomBoolean(),
             randomBoolean() ? IndexMode.STANDARD : null, // IndexMode.TIME_SERIES triggers validation that many unit tests doesn't pass
             lifecycle,
-            new DataStreamOptions(new DataStreamFailureStore(failureStore)),
+            new DataStreamOptions(new DataStreamFailureStore(failureStore, failuresLifecycle)),
             failureIndices,
             false,
             null
@@ -1942,8 +1975,6 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
             ).getConditions().keySet()) {
                 assertThat(serialized, containsString(label));
             }
-            // We check that even if there was no retention provided by the user, the global retention applies
-            assertThat(serialized, not(containsString("data_retention")));
             if (dataStream.isInternal() == false
                 && (globalRetention.defaultRetention() != null || globalRetention.maxRetention() != null)) {
                 assertThat(serialized, containsString("effective_retention"));
@@ -2110,7 +2141,6 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
             randomNonEmptyIndexInstances(),
             randomNonNegativeInt(),
             null,
-            randomSettings(),
             hidden,
             replicated,
             system,
@@ -2129,7 +2159,6 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
             randomNonEmptyIndexInstances(),
             randomNonNegativeInt(),
             null,
-            randomSettings(),
             hidden,
             replicated,
             system,
@@ -2155,7 +2184,6 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
             randomNonEmptyIndexInstances(),
             randomNonNegativeInt(),
             null,
-            randomSettings(),
             hidden,
             replicated,
             system,
@@ -2180,7 +2208,6 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
             backingIndices,
             randomNonNegativeInt(),
             null,
-            randomSettings(),
             hidden,
             replicated,
             system,
@@ -2203,7 +2230,6 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
             backingIndices,
             randomNonNegativeInt(),
             null,
-            randomSettings(),
             hidden,
             replicated,
             system,
@@ -2235,7 +2261,6 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
             backingIndices,
             randomNonNegativeInt(),
             null,
-            randomSettings(),
             hidden,
             replicated,
             system,
@@ -2421,159 +2446,6 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
             ),
             is(true)
         );
-    }
-
-    public void testGetEffectiveSettingsNoMatchingTemplate() {
-        // No matching template, so we expect an IllegalArgumentException
-        DataStream dataStream = createTestInstance();
-        ProjectMetadata.Builder projectMetadataBuilder = ProjectMetadata.builder(randomProjectIdOrDefault());
-        assertThrows(IllegalArgumentException.class, () -> dataStream.getEffectiveSettings(projectMetadataBuilder.build()));
-    }
-
-    public void testGetEffectiveSettingsTemplateSettingsOnly() {
-        // We only have settings from the template, so we expect to get those back
-        DataStream dataStream = createDataStream(Settings.EMPTY);
-        Settings templateSettings = randomSettings();
-        Template.Builder templateBuilder = Template.builder().settings(templateSettings);
-        ComposableIndexTemplate indexTemplate = ComposableIndexTemplate.builder()
-            .indexPatterns(List.of(dataStream.getName()))
-            .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate())
-            .template(templateBuilder)
-            .build();
-        ProjectMetadata.Builder projectMetadataBuilder = ProjectMetadata.builder(randomProjectIdOrDefault())
-            .indexTemplates(Map.of(dataStream.getName(), indexTemplate));
-        assertThat(dataStream.getEffectiveSettings(projectMetadataBuilder.build()), equalTo(templateSettings));
-    }
-
-    public void testGetEffectiveSettingsDataStreamSettingsOnly() {
-        // We only have settings from the data stream, so we expect to get those back
-        Settings dataStreamSettings = randomSettings();
-        DataStream dataStream = createDataStream(dataStreamSettings);
-        Settings templateSettings = Settings.EMPTY;
-        Template.Builder templateBuilder = Template.builder().settings(templateSettings);
-        ComposableIndexTemplate indexTemplate = ComposableIndexTemplate.builder()
-            .indexPatterns(List.of(dataStream.getName()))
-            .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate())
-            .template(templateBuilder)
-            .build();
-        ProjectMetadata.Builder projectMetadataBuilder = ProjectMetadata.builder(randomProjectIdOrDefault())
-            .indexTemplates(Map.of(dataStream.getName(), indexTemplate));
-        assertThat(dataStream.getEffectiveSettings(projectMetadataBuilder.build()), equalTo(dataStreamSettings));
-    }
-
-    public void testGetEffectiveSettings() {
-        // Here we have settings from both the template and the data stream, so we expect the data stream settings to take precedence
-        Settings dataStreamSettings = Settings.builder()
-            .put("index.setting1", "dataStreamValue")
-            .put("index.setting2", "dataStreamValue")
-            .put("index.setting3", (String) null) // This one gets removed from the effective settings
-            .build();
-        DataStream dataStream = createDataStream(dataStreamSettings);
-        Settings templateSettings = Settings.builder()
-            .put("index.setting1", "templateValue")
-            .put("index.setting3", "templateValue")
-            .put("index.setting4", "templateValue")
-            .build();
-        Template.Builder templateBuilder = Template.builder().settings(templateSettings);
-        ComposableIndexTemplate indexTemplate = ComposableIndexTemplate.builder()
-            .indexPatterns(List.of(dataStream.getName()))
-            .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate())
-            .template(templateBuilder)
-            .build();
-        ProjectMetadata.Builder projectMetadataBuilder = ProjectMetadata.builder(randomProjectIdOrDefault())
-            .indexTemplates(Map.of(dataStream.getName(), indexTemplate));
-        Settings mergedSettings = Settings.builder()
-            .put("index.setting1", "dataStreamValue")
-            .put("index.setting2", "dataStreamValue")
-            .put("index.setting4", "templateValue")
-            .build();
-        assertThat(dataStream.getEffectiveSettings(projectMetadataBuilder.build()), equalTo(mergedSettings));
-    }
-
-    public void testGetEffectiveIndexTemplateNoMatchingTemplate() {
-        // No matching template, so we expect an IllegalArgumentException
-        DataStream dataStream = createTestInstance();
-        ProjectMetadata.Builder projectMetadataBuilder = ProjectMetadata.builder(randomProjectIdOrDefault());
-        assertThrows(IllegalArgumentException.class, () -> dataStream.getEffectiveIndexTemplate(projectMetadataBuilder.build()));
-    }
-
-    public void testGetEffectiveIndexTemplateTemplateSettingsOnly() {
-        // We only have settings from the template, so the effective template will just be the original template
-        DataStream dataStream = createDataStream(Settings.EMPTY);
-        Settings templateSettings = randomSettings();
-        Template.Builder templateBuilder = Template.builder().settings(templateSettings).mappings(randomMappings());
-        ComposableIndexTemplate indexTemplate = ComposableIndexTemplate.builder()
-            .indexPatterns(List.of(dataStream.getName()))
-            .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate())
-            .template(templateBuilder)
-            .build();
-        ProjectMetadata.Builder projectMetadataBuilder = ProjectMetadata.builder(randomProjectIdOrDefault())
-            .indexTemplates(Map.of(dataStream.getName(), indexTemplate));
-        assertThat(dataStream.getEffectiveIndexTemplate(projectMetadataBuilder.build()), equalTo(indexTemplate));
-    }
-
-    public void testGetEffectiveIndexTemplateDataStreamSettingsOnly() {
-        // We only have settings from the data stream, so we expect to get only those back in the effective template
-        Settings dataStreamSettings = randomSettings();
-        DataStream dataStream = createDataStream(dataStreamSettings);
-        Settings templateSettings = Settings.EMPTY;
-        CompressedXContent templateMappings = randomMappings();
-        Template.Builder templateBuilder = Template.builder().settings(templateSettings).mappings(templateMappings);
-        ComposableIndexTemplate indexTemplate = ComposableIndexTemplate.builder()
-            .indexPatterns(List.of(dataStream.getName()))
-            .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate())
-            .template(templateBuilder)
-            .build();
-        ProjectMetadata.Builder projectMetadataBuilder = ProjectMetadata.builder(randomProjectIdOrDefault())
-            .indexTemplates(Map.of(dataStream.getName(), indexTemplate));
-        Template.Builder expectedTemplateBuilder = Template.builder().settings(dataStreamSettings).mappings(templateMappings);
-        ComposableIndexTemplate expectedEffectiveTemplate = ComposableIndexTemplate.builder()
-            .indexPatterns(List.of(dataStream.getName()))
-            .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate())
-            .template(expectedTemplateBuilder)
-            .build();
-        assertThat(dataStream.getEffectiveIndexTemplate(projectMetadataBuilder.build()), equalTo(expectedEffectiveTemplate));
-    }
-
-    public void testGetEffectiveIndexTemplate() {
-        // Here we have settings from both the template and the data stream, so we expect the data stream settings to take precedence
-        Settings dataStreamSettings = Settings.builder()
-            .put("index.setting1", "dataStreamValue")
-            .put("index.setting2", "dataStreamValue")
-            .put("index.setting3", (String) null) // This one gets removed from the effective settings
-            .build();
-        DataStream dataStream = createDataStream(dataStreamSettings);
-        Settings templateSettings = Settings.builder()
-            .put("index.setting1", "templateValue")
-            .put("index.setting3", "templateValue")
-            .put("index.setting4", "templateValue")
-            .build();
-        CompressedXContent templateMappings = randomMappings();
-        Template.Builder templateBuilder = Template.builder().settings(templateSettings).mappings(templateMappings);
-        ComposableIndexTemplate indexTemplate = ComposableIndexTemplate.builder()
-            .indexPatterns(List.of(dataStream.getName()))
-            .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate())
-            .template(templateBuilder)
-            .build();
-        ProjectMetadata.Builder projectMetadataBuilder = ProjectMetadata.builder(randomProjectIdOrDefault())
-            .indexTemplates(Map.of(dataStream.getName(), indexTemplate));
-        Settings mergedSettings = Settings.builder()
-            .put("index.setting1", "dataStreamValue")
-            .put("index.setting2", "dataStreamValue")
-            .put("index.setting4", "templateValue")
-            .build();
-        Template.Builder expectedTemplateBuilder = Template.builder().settings(mergedSettings).mappings(templateMappings);
-        ComposableIndexTemplate expectedEffectiveTemplate = ComposableIndexTemplate.builder()
-            .indexPatterns(List.of(dataStream.getName()))
-            .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate())
-            .template(expectedTemplateBuilder)
-            .build();
-        assertThat(dataStream.getEffectiveIndexTemplate(projectMetadataBuilder.build()), equalTo(expectedEffectiveTemplate));
-    }
-
-    private DataStream createDataStream(Settings settings) {
-        DataStream dataStream = createTestInstance();
-        return dataStream.copy().setSettings(settings).build();
     }
 
     private record DataStreamMetadata(Long creationTimeInMillis, Long rolloverTimeInMillis, Long originationTimeInMillis) {

@@ -229,6 +229,8 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
         this.system = system;
         this.allowCustomRouting = allowCustomRouting;
         this.indexMode = indexMode;
+        assert lifecycle == null || lifecycle.targetsFailureStore() == false : "Invalid lifecycle type for data lifecycle";
+
         this.lifecycle = lifecycle;
         this.dataStreamOptions = dataStreamOptions == null ? DataStreamOptions.EMPTY : dataStreamOptions;
         assert backingIndices.indices.isEmpty() == false;
@@ -594,12 +596,31 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
     }
 
     /**
-     * Retrieves the lifecycle configuration meant for the failure store. Currently, it's the same with {@link #getDataLifecycle()}
-     * but it will change.
+     * Retrieves the effective lifecycle configuration for the failure store. This can be either the configuration provided
+     * by a user or the default lifecycle if there are failure indices. NOTE: this does not take into consideration if the
+     * failure store is enabled by a cluster setting, please use {@link DataStream#getFailuresLifecycle(Boolean)}.
      */
     @Nullable
     public DataStreamLifecycle getFailuresLifecycle() {
-        return lifecycle;
+        return getFailuresLifecycle(
+            dataStreamOptions != null && dataStreamOptions.failureStore() != null ? dataStreamOptions.failureStore().enabled() : null
+        );
+    }
+
+    /**
+     * Retrieves the effective lifecycle configuration for the failure store. This can be either the configuration provided
+     * by a user or the default lifecycle if there are failure indices or if the failure store is enabled by a cluster setting.
+     */
+    @Nullable
+    public DataStreamLifecycle getFailuresLifecycle(Boolean effectivelyEnabledFailureStore) {
+        // When there is a lifecycle configured by the user we return it.
+        if (dataStreamOptions.failureStore() != null && dataStreamOptions.failureStore().lifecycle() != null) {
+            return dataStreamOptions.failureStore().lifecycle();
+        }
+        // If there are failure indices we always provide the default lifecycle as a default
+        return Boolean.TRUE.equals(effectivelyEnabledFailureStore) || getFailureIndices().isEmpty() == false
+            ? DataStreamLifecycle.DEFAULT_FAILURE_LIFECYCLE
+            : null;
     }
 
     /**
@@ -1166,6 +1187,7 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
      * access method.
      */
     private boolean isIndexManagedByDataStreamLifecycle(IndexMetadata indexMetadata) {
+        var lifecycle = getDataLifecycleForIndex(indexMetadata.getIndex());
         if (indexMetadata.getLifecyclePolicyName() != null && lifecycle != null && lifecycle.enabled()) {
             // when both ILM and data stream lifecycle are configured, choose depending on the configured preference for this backing index
             return PREFER_ILM_SETTING.get(indexMetadata.getSettings()) == false;
@@ -1378,7 +1400,11 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
         PARSER.declareBoolean(ConstructingObjectParser.optionalConstructorArg(), SYSTEM_FIELD);
         PARSER.declareBoolean(ConstructingObjectParser.optionalConstructorArg(), ALLOW_CUSTOM_ROUTING);
         PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), INDEX_MODE);
-        PARSER.declareObject(ConstructingObjectParser.optionalConstructorArg(), (p, c) -> DataStreamLifecycle.fromXContent(p), LIFECYCLE);
+        PARSER.declareObject(
+            ConstructingObjectParser.optionalConstructorArg(),
+            (p, c) -> DataStreamLifecycle.dataLifecycleFromXContent(p),
+            LIFECYCLE
+        );
         PARSER.declareBoolean(ConstructingObjectParser.optionalConstructorArg(), ROLLOVER_ON_WRITE_FIELD);
         PARSER.declareObject(
             ConstructingObjectParser.optionalConstructorArg(),

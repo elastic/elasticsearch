@@ -167,7 +167,7 @@ public class DiskThresholdDeciderIT extends DiskUsageIntegTestCase {
         assertBusyWithDiskUsageRefresh(dataNode0Id, indexName, contains(in(shardSizes.getSmallestShardIds())));
     }
 
-    public void testRestoreSnapshotAllocationDoesNotExceedWatermarkWithMultipleRestores() {
+    public void testRestoreSnapshotAllocationDoesNotExceedWatermarkWithMultipleRestores() throws Exception {
         internalCluster().startMasterOnlyNode();
         final String dataNodeName = internalCluster().startDataOnlyNode();
         internalCluster().startDataOnlyNode();

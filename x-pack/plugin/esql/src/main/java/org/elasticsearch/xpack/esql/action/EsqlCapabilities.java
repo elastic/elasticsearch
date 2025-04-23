@@ -419,6 +419,12 @@ public class EsqlCapabilities {
         REMOVE_EMPTY_ATTRIBUTE_IN_MERGING_OUTPUT,
 
         /**
+         * Support for retain aggregate when grouping.
+         * See <a href="https://github.com/elastic/elasticsearch/issues/126026"> ES|QL: columns not projected away despite KEEP #126026 </a>
+         */
+        RETAIN_AGGREGATE_WHEN_GROUPING,
+
+        /**
          * Fix for union-types when some indexes are missing the required field. Done in #111932.
          */
         UNION_TYPES_MISSING_FIELD,
@@ -1027,7 +1033,12 @@ public class EsqlCapabilities {
         /**
          * Support last_over_time aggregation that gets evaluated per time-series
          */
-        LAST_OVER_TIME(Build.current().isSnapshot());
+        LAST_OVER_TIME(Build.current().isSnapshot()),
+
+        /**
+         * Support for the SAMPLE command
+         */
+        SAMPLE(Build.current().isSnapshot());
 
         private final boolean enabled;
 

@@ -11,6 +11,8 @@ SLA of official GA features.
 index, to your {{esql}} query results, simplifying data enrichment
 and analysis workflows.
 
+Refer to [the high-level landing page](../../../../esql/esql-lookup-join.md) for an overview of the `LOOKUP JOIN` command, including use cases, prerequisites, and current limitations.
+
 **Syntax**
 
 ```esql
@@ -21,18 +23,14 @@ FROM <source_index>
 **Parameters**
 
 `<lookup_index>`
-: The name of the lookup index. This must be a specific index name - wildcards, aliases, and remote cluster
-  references are not supported.
+:   The name of the lookup index. This must be a specific index name - wildcards, aliases, and remote cluster references are not supported. Indices used for lookups must be configured with the [`lookup` index mode](/reference/elasticsearch/index-settings/index-modules.md#index-mode-setting).
 
 `<field_name>`
-: The field to join on. This field must exist
-  in both your current query results and in the lookup index. If the field
-  contains multi-valued entries, those entries will not match anything
-  (the added fields will contain `null` for those rows).
+:   The field to join on. This field must exist in both your current query results and in the lookup index. If the field contains multi-valued entries, those entries will not match anything (the added fields will contain `null` for those rows).
 
 **Description**
 
-The `LOOKUP JOIN` command adds new columns to your {esql} query
+The `LOOKUP JOIN` command adds new columns to your {{esql}} query
 results table by finding documents in a lookup index that share the same
 join field value as your result rows.
 

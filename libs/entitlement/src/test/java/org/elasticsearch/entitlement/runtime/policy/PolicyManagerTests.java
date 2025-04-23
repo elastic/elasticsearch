@@ -46,7 +46,6 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.sameInstance;
 
-@ESTestCase.WithoutSecurityManager
 public class PolicyManagerTests extends ESTestCase {
 
     /**

@@ -206,7 +206,7 @@ setup:
   - do:
       inference.put:
         task_type: sparse_embedding
-        inference_id: sparse-inference-id
+        inference_id: new_inference_endpoint
         body: >
           {
             "service": "test_service",

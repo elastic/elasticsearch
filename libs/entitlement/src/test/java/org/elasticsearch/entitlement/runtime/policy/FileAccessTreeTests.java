@@ -31,6 +31,7 @@ import java.util.Set;
 import static org.elasticsearch.core.PathUtils.getDefaultFileSystem;
 import static org.elasticsearch.entitlement.runtime.policy.FileAccessTree.buildExclusivePathList;
 import static org.elasticsearch.entitlement.runtime.policy.FileAccessTree.normalizePath;
+import static org.elasticsearch.entitlement.runtime.policy.FileAccessTree.separatorChar;
 import static org.elasticsearch.entitlement.runtime.policy.PathLookup.BaseDir.CONFIG;
 import static org.elasticsearch.entitlement.runtime.policy.PathLookup.BaseDir.TEMP;
 import static org.elasticsearch.entitlement.runtime.policy.Platform.WINDOWS;
@@ -39,7 +40,6 @@ import static org.elasticsearch.entitlement.runtime.policy.entitlements.FilesEnt
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 
-@ESTestCase.WithoutSecurityManager
 public class FileAccessTreeTests extends ESTestCase {
 
     static Path root;
@@ -363,9 +363,19 @@ public class FileAccessTreeTests extends ESTestCase {
     }
 
     public void testDuplicatePrunedPaths() {
+        var comparison = new CaseSensitiveComparison(separatorChar());
         List<String> inputPaths = List.of("/a", "/a", "/a/b", "/a/b", "/b/c", "b/c/d", "b/c/d", "b/c/d", "e/f", "e/f");
         List<String> outputPaths = List.of("/a", "/b/c", "b/c/d", "e/f");
-        var actual = FileAccessTree.pruneSortedPaths(inputPaths.stream().map(p -> normalizePath(path(p))).toList());
+        var actual = FileAccessTree.pruneSortedPaths(inputPaths.stream().map(p -> normalizePath(path(p))).toList(), comparison);
+        var expected = outputPaths.stream().map(p -> normalizePath(path(p))).toList();
+        assertEquals(expected, actual);
+    }
+
+    public void testDuplicatePrunedPathsWindows() {
+        var comparison = new CaseInsensitiveComparison(separatorChar());
+        List<String> inputPaths = List.of("/a", "/A", "/a/b", "/a/B", "/b/c", "b/c/d", "B/c/d", "b/c/D", "e/f", "e/f");
+        List<String> outputPaths = List.of("/a", "/b/c", "b/c/d", "e/f");
+        var actual = FileAccessTree.pruneSortedPaths(inputPaths.stream().map(p -> normalizePath(path(p))).toList(), comparison);
         var expected = outputPaths.stream().map(p -> normalizePath(path(p))).toList();
         assertEquals(expected, actual);
     }
@@ -374,6 +384,7 @@ public class FileAccessTreeTests extends ESTestCase {
         // Bunch o' handy definitions
         var pathAB = path("/a/b");
         var pathCD = path("/c/d");
+        var comparison = randomBoolean() ? new CaseSensitiveComparison('/') : new CaseInsensitiveComparison('/');
         var originalFileData = FileData.ofPath(pathAB, READ).withExclusive(true);
         var fileDataWithWriteMode = FileData.ofPath(pathAB, READ_WRITE).withExclusive(true);
         var original = new ExclusiveFileEntitlement("component1", "module1", new FilesEntitlement(List.of(originalFileData)));
@@ -401,24 +412,21 @@ public class FileAccessTreeTests extends ESTestCase {
         assertEquals(
             "Single element should trivially work",
             List.of(originalExclusivePath),
-            buildExclusivePathList(List.of(original), TEST_PATH_LOOKUP)
+            buildExclusivePathList(List.of(original), TEST_PATH_LOOKUP, comparison)
         );
         assertEquals(
             "Two identical elements should be combined",
             List.of(originalExclusivePath),
-            buildExclusivePathList(List.of(original, original), TEST_PATH_LOOKUP)
+            buildExclusivePathList(List.of(original, original), TEST_PATH_LOOKUP, comparison)
         );
 
         // Don't merge things we shouldn't
 
         var distinctEntitlements = List.of(original, differentComponent, differentModule, differentPath);
-        var distinctPaths = List.of(
-            originalExclusivePath,
-            new ExclusivePath("component2", Set.of(original.moduleName()), originalExclusivePath.path()),
-            new ExclusivePath(original.componentName(), Set.of("module2"), originalExclusivePath.path()),
-            new ExclusivePath(original.componentName(), Set.of(original.moduleName()), normalizePath(pathCD))
+        var iae = expectThrows(
+            IllegalArgumentException.class,
+            () -> buildExclusivePathList(distinctEntitlements, TEST_PATH_LOOKUP, comparison)
         );
-        var iae = expectThrows(IllegalArgumentException.class, () -> buildExclusivePathList(distinctEntitlements, TEST_PATH_LOOKUP));
         var pathABString = pathAB.toAbsolutePath().toString();
         assertThat(
             iae.getMessage(),
@@ -434,7 +442,7 @@ public class FileAccessTreeTests extends ESTestCase {
         assertEquals(
             "Exclusive paths should be combined even if the entitlements are different",
             equivalentPaths,
-            buildExclusivePathList(equivalentEntitlements, TEST_PATH_LOOKUP)
+            buildExclusivePathList(equivalentEntitlements, TEST_PATH_LOOKUP, comparison)
         );
     }
 
@@ -462,6 +470,37 @@ public class FileAccessTreeTests extends ESTestCase {
         assertThat(fileAccessTree.canWrite(Path.of("C:\\foo")), is(true));
         assertThat(fileAccessTree.canRead(Path.of("D:\\foo")), is(true));
         assertThat(fileAccessTree.canWrite(Path.of("D:\\foo")), is(false));
+    }
+
+    public void testWindowsMixedCaseAccess() {
+        assumeTrue("Specific to windows for paths with mixed casing", WINDOWS.isCurrent());
+
+        var fileAccessTree = FileAccessTree.of(
+            "test",
+            "test",
+            new FilesEntitlement(
+                List.of(
+                    FileData.ofPath(Path.of("\\\\.\\pipe\\"), READ),
+                    FileData.ofPath(Path.of("D:\\.gradle"), READ),
+                    FileData.ofPath(Path.of("D:\\foo"), READ),
+                    FileData.ofPath(Path.of("C:\\foo"), FilesEntitlement.Mode.READ_WRITE)
+                )
+            ),
+            TEST_PATH_LOOKUP,
+            null,
+            List.of()
+        );
+
+        assertThat(fileAccessTree.canRead(Path.of("\\\\.\\PIPE\\bar")), is(true));
+        assertThat(fileAccessTree.canRead(Path.of("c:\\foo")), is(true));
+        assertThat(fileAccessTree.canRead(Path.of("C:\\FOO")), is(true));
+        assertThat(fileAccessTree.canWrite(Path.of("C:\\foo")), is(true));
+        assertThat(fileAccessTree.canRead(Path.of("c:\\foo")), is(true));
+        assertThat(fileAccessTree.canRead(Path.of("C:\\FOO")), is(true));
+        assertThat(fileAccessTree.canRead(Path.of("d:\\foo")), is(true));
+        assertThat(fileAccessTree.canRead(Path.of("d:\\FOO")), is(true));
+        assertThat(fileAccessTree.canWrite(Path.of("D:\\foo")), is(false));
+        assertThat(fileAccessTree.canWrite(Path.of("d:\\foo")), is(false));
     }
 
     FileAccessTree accessTree(FilesEntitlement entitlement, List<ExclusivePath> exclusivePaths) {

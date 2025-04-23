@@ -147,7 +147,7 @@ public class ZeroShotClassificationProcessor extends NlpTask.Processor {
             if (pyTorchResult.getInferenceResult()[0].length != labels.length) {
                 throw new ElasticsearchStatusException(
                     "Expected exactly [{}] values in zero shot classification result; got [{}]",
-                    RestStatus.INTERNAL_SERVER_ERROR,
+                    RestStatus.CONFLICT,
                     labels.length,
                     pyTorchResult.getInferenceResult().length
                 );
@@ -160,7 +160,7 @@ public class ZeroShotClassificationProcessor extends NlpTask.Processor {
                     if (vals.length != 3) {
                         throw new ElasticsearchStatusException(
                             "Expected exactly [{}] values in inner zero shot classification result; got [{}]",
-                            RestStatus.INTERNAL_SERVER_ERROR,
+                            RestStatus.CONFLICT,
                             3,
                             vals.length
                         );
@@ -177,7 +177,7 @@ public class ZeroShotClassificationProcessor extends NlpTask.Processor {
                     if (vals.length != 3) {
                         throw new ElasticsearchStatusException(
                             "Expected exactly [{}] values in inner zero shot classification result; got [{}]",
-                            RestStatus.INTERNAL_SERVER_ERROR,
+                            RestStatus.CONFLICT,
                             3,
                             vals.length
                         );

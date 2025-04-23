@@ -12,6 +12,7 @@ import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.cluster.RemoteException;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.RunOnce;
@@ -130,6 +131,7 @@ public class ComputeService {
     private final LookupFromIndexService lookupFromIndexService;
     private final InferenceRunner inferenceRunner;
     private final ClusterService clusterService;
+    private final ProjectResolver projectResolver;
     private final AtomicLong childSessionIdGenerator = new AtomicLong();
     private final DataNodeComputeHandler dataNodeComputeHandler;
     private final ClusterComputeHandler clusterComputeHandler;
@@ -157,7 +159,16 @@ public class ComputeService {
         this.lookupFromIndexService = lookupFromIndexService;
         this.inferenceRunner = transportActionServices.inferenceRunner();
         this.clusterService = transportActionServices.clusterService();
-        this.dataNodeComputeHandler = new DataNodeComputeHandler(this, searchService, transportService, exchangeService, esqlExecutor);
+        this.projectResolver = transportActionServices.projectResolver();
+        this.dataNodeComputeHandler = new DataNodeComputeHandler(
+            this,
+            clusterService,
+            projectResolver,
+            searchService,
+            transportService,
+            exchangeService,
+            esqlExecutor
+        );
         this.clusterComputeHandler = new ClusterComputeHandler(
             this,
             exchangeService,
@@ -435,6 +446,10 @@ public class ComputeService {
                 // starts computes on remote clusters
                 final var remoteClusters = clusterComputeHandler.getRemoteClusters(clusterToConcreteIndices, clusterToOriginalIndices);
                 for (ClusterComputeHandler.RemoteCluster cluster : remoteClusters) {
+                    if (execInfo.getCluster(cluster.clusterAlias()).getStatus() != EsqlExecutionInfo.Cluster.Status.RUNNING) {
+                        // if the cluster is already in the terminal state from the planning stage, no need to call it
+                        continue;
+                    }
                     clusterComputeHandler.startComputeOnRemoteCluster(
                         sessionId,
                         rootTask,

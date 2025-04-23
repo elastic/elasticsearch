@@ -361,8 +361,12 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
             }
             if (resolved != null && settings.canMergeWith(resolved) == false) {
                 throw new IllegalArgumentException(
-                        "Mismatch between provided and registered inference model settings. " +
-                                "Provided: [" + settings + "], Expected: [" + resolved + "]."
+                    "Mismatch between provided and registered inference model settings. "
+                        + "Provided: ["
+                        + settings
+                        + "], Expected: ["
+                        + resolved
+                        + "]."
                 );
             }
         }

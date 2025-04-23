@@ -195,8 +195,8 @@ public class ShardBulkInferenceActionFilterIT extends ESIntegTestCase {
 
     public void testRestart() throws Exception {
         Model model1 = new TestSparseInferenceServiceExtension.TestSparseModel(
-                "another_inference_endpoint",
-                new TestSparseInferenceServiceExtension.TestServiceSettings("sparse_model", null, false)
+            "another_inference_endpoint",
+            new TestSparseInferenceServiceExtension.TestServiceSettings("sparse_model", null, false)
         );
         storeModel(modelRegistry, model1);
         prepareCreate("index_restart").setMapping("""

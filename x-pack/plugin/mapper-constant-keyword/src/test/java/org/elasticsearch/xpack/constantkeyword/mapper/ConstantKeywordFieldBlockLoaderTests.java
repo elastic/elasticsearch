@@ -8,8 +8,8 @@
 package org.elasticsearch.xpack.constantkeyword.mapper;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.datageneration.FieldType;
 import org.elasticsearch.index.mapper.BlockLoaderTestCase;
-import org.elasticsearch.logsdb.datageneration.FieldType;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.xpack.constantkeyword.ConstantKeywordMapperPlugin;
 

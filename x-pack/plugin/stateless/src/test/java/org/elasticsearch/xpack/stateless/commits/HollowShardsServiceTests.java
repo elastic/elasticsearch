@@ -240,7 +240,7 @@ public class HollowShardsServiceTests extends ESTestCase {
                 shardIsSystem,
                 randomBoolean(),
                 randomBoolean() ? IndexMode.STANDARD : IndexMode.TIME_SERIES,
-                DataStreamLifecycleTests.randomLifecycle(),
+                DataStreamLifecycleTests.randomDataLifecycle(),
                 DataStreamOptions.FAILURE_STORE_DISABLED,
                 List.of(),
                 randomBoolean(),

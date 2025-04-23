@@ -413,6 +413,18 @@ public class EsqlCapabilities {
         RENAME_SEQUENTIAL_PROCESSING,
 
         /**
+         * Support for removing empty attribute in merging output.
+         * See <a href="https://github.com/elastic/elasticsearch/issues/126392"> ESQL: EVAL after STATS produces an empty column #126392 </a>
+         */
+        REMOVE_EMPTY_ATTRIBUTE_IN_MERGING_OUTPUT,
+
+        /**
+         * Support for retain aggregate when grouping.
+         * See <a href="https://github.com/elastic/elasticsearch/issues/126026"> ES|QL: columns not projected away despite KEEP #126026 </a>
+         */
+        RETAIN_AGGREGATE_WHEN_GROUPING,
+
+        /**
          * Fix for union-types when some indexes are missing the required field. Done in #111932.
          */
         UNION_TYPES_MISSING_FIELD,

@@ -36,14 +36,14 @@ import org.elasticsearch.transport.TransportService;
 
 import static org.elasticsearch.core.Strings.format;
 
-public class PromoteDataStreamTransportAction extends AcknowledgedTransportMasterNodeAction<PromoteDataStreamAction.Request> {
+public class TransportPromoteDataStreamAction extends AcknowledgedTransportMasterNodeAction<PromoteDataStreamAction.Request> {
 
-    private static final Logger logger = LogManager.getLogger(PromoteDataStreamTransportAction.class);
+    private static final Logger logger = LogManager.getLogger(TransportPromoteDataStreamAction.class);
 
     private final SystemIndices systemIndices;
 
     @Inject
-    public PromoteDataStreamTransportAction(
+    public TransportPromoteDataStreamAction(
         TransportService transportService,
         ClusterService clusterService,
         ThreadPool threadPool,

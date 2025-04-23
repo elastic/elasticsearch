@@ -145,7 +145,7 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
                 : randomValueOtherThan(indexMode, () -> randomFrom(IndexMode.values()));
             case 9 -> lifecycle = randomBoolean() && lifecycle != null
                 ? null
-                : DataStreamLifecycle.builder().dataRetention(randomPositiveTimeValue()).build();
+                : DataStreamLifecycle.dataLifecycleBuilder().dataRetention(randomPositiveTimeValue()).build();
             case 10 -> failureIndices = randomValueOtherThan(failureIndices, DataStreamTestHelper::randomIndexInstances);
             case 11 -> dataStreamOptions = dataStreamOptions.isEmpty() ? new DataStreamOptions(new DataStreamFailureStore(randomBoolean()))
                 : randomBoolean() ? DataStreamOptions.EMPTY
@@ -1526,7 +1526,7 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
                 dataStreamName,
                 creationAndRolloverTimes,
                 settings(IndexVersion.current()).put(IndexMetadata.LIFECYCLE_NAME, "ILM_policy"),
-                DataStreamLifecycle.builder().dataRetention(TimeValue.ZERO).build()
+                DataStreamLifecycle.dataLifecycleBuilder().dataRetention(TimeValue.ZERO).build()
             );
             Metadata metadataWithIlm = builderWithIlm.build();
 
@@ -1791,7 +1791,7 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
                 creationAndRolloverTimes,
                 settings(IndexVersion.current()).put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES)
                     .put("index.routing_path", "@timestamp"),
-                DataStreamLifecycle.builder()
+                DataStreamLifecycle.dataLifecycleBuilder()
                     .downsampling(
                         List.of(
                             new DataStreamLifecycle.DownsamplingRound(
@@ -1851,7 +1851,7 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
                 creationAndRolloverTimes,
                 // no TSDB settings
                 settings(IndexVersion.current()),
-                DataStreamLifecycle.builder()
+                DataStreamLifecycle.dataLifecycleBuilder()
                     .downsampling(
                         List.of(
                             new DataStreamLifecycle.DownsamplingRound(
@@ -1917,7 +1917,7 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
                 creationAndRolloverTimes,
                 settings(IndexVersion.current()).put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES)
                     .put("index.routing_path", "@timestamp"),
-                DataStreamLifecycle.builder().build()
+                DataStreamLifecycle.dataLifecycleBuilder().build()
             );
             Metadata metadata = builder.build();
 
@@ -1949,7 +1949,7 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
             dataStreamName,
             creationAndRolloverTimes,
             settings(IndexVersion.current()),
-            DataStreamLifecycle.builder().dataRetention(TimeValue.ZERO).build()
+            DataStreamLifecycle.dataLifecycleBuilder().dataRetention(TimeValue.ZERO).build()
         );
         Metadata metadata = builder.build();
 
@@ -2325,7 +2325,7 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
             system,
             randomBoolean(),
             randomBoolean() ? IndexMode.STANDARD : IndexMode.TIME_SERIES,
-            DataStreamLifecycleTests.randomLifecycle(),
+            DataStreamLifecycleTests.randomDataLifecycle(),
             DataStreamOptions.FAILURE_STORE_DISABLED,
             List.of(),
             replicated == false && randomBoolean(),
@@ -2344,7 +2344,7 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
             system,
             randomBoolean(),
             randomBoolean() ? IndexMode.STANDARD : IndexMode.TIME_SERIES,
-            DataStreamLifecycleTests.randomLifecycle(),
+            DataStreamLifecycleTests.randomDataLifecycle(),
             DataStreamOptions.FAILURE_STORE_ENABLED,
             List.of(),
             replicated == false && randomBoolean(),
@@ -2370,7 +2370,7 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
             system,
             randomBoolean(),
             randomBoolean() ? IndexMode.STANDARD : IndexMode.TIME_SERIES,
-            DataStreamLifecycleTests.randomLifecycle(),
+            DataStreamLifecycleTests.randomDataLifecycle(),
             DataStreamOptions.FAILURE_STORE_ENABLED,
             failureIndices,
             replicated == false && randomBoolean(),
@@ -2395,7 +2395,7 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
             system,
             randomBoolean(),
             randomBoolean() ? IndexMode.STANDARD : IndexMode.TIME_SERIES,
-            DataStreamLifecycleTests.randomLifecycle(),
+            DataStreamLifecycleTests.randomDataLifecycle(),
             DataStreamOptions.FAILURE_STORE_DISABLED,
             List.of(),
             replicated == false && randomBoolean(),
@@ -2418,7 +2418,7 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
             system,
             randomBoolean(),
             randomBoolean() ? IndexMode.STANDARD : IndexMode.TIME_SERIES,
-            DataStreamLifecycleTests.randomLifecycle(),
+            DataStreamLifecycleTests.randomDataLifecycle(),
             DataStreamOptions.FAILURE_STORE_ENABLED,
             List.of(),
             replicated == false && randomBoolean(),
@@ -2450,7 +2450,7 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
             system,
             randomBoolean(),
             randomBoolean() ? IndexMode.STANDARD : IndexMode.TIME_SERIES,
-            DataStreamLifecycleTests.randomLifecycle(),
+            DataStreamLifecycleTests.randomDataLifecycle(),
             DataStreamOptions.FAILURE_STORE_ENABLED,
             failureIndices,
             replicated == false && randomBoolean(),

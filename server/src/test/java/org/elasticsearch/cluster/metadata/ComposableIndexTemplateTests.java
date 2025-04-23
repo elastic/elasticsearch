@@ -75,7 +75,7 @@ public class ComposableIndexTemplateTests extends SimpleDiffableSerializationTes
                 builder.aliases(randomAliases());
             }
             if (dataStreamTemplate != null && randomBoolean()) {
-                builder.lifecycle(DataStreamLifecycleTemplateTests.randomLifecycleTemplate());
+                builder.lifecycle(DataStreamLifecycleTemplateTests.randomDataLifecycleTemplate());
             }
             template = builder.build();
         }
@@ -175,7 +175,9 @@ public class ComposableIndexTemplateTests extends SimpleDiffableSerializationTes
                                 .mappings(randomMappings(orig.getDataStreamTemplate()))
                                 .aliases(randomAliases())
                                 .lifecycle(
-                                    orig.getDataStreamTemplate() == null ? null : DataStreamLifecycleTemplateTests.randomLifecycleTemplate()
+                                    orig.getDataStreamTemplate() == null
+                                        ? null
+                                        : DataStreamLifecycleTemplateTests.randomDataLifecycleTemplate()
                                 )
                                 .build()
                         )
@@ -222,7 +224,7 @@ public class ComposableIndexTemplateTests extends SimpleDiffableSerializationTes
         Settings settings = null;
         CompressedXContent mappings = null;
         Map<String, AliasMetadata> aliases = null;
-        ResettableValue<DataStreamOptions.Template> dataStreamOptions = ResettableValue.undefined();
+        DataStreamOptions.Template dataStreamOptions = null;
         ComposableIndexTemplate.DataStreamTemplate dataStreamTemplate = randomDataStreamTemplate();
         if (randomBoolean()) {
             settings = randomSettings();
@@ -234,7 +236,8 @@ public class ComposableIndexTemplateTests extends SimpleDiffableSerializationTes
             aliases = randomAliases();
         }
         if (randomBoolean()) {
-            dataStreamOptions = ComponentTemplateTests.randomDataStreamOptionsTemplate();
+            // Do not set random lifecycle to avoid having data_retention and effective_retention in the response.
+            dataStreamOptions = new DataStreamOptions.Template(DataStreamFailureStore.builder().enabled(randomBoolean()).buildTemplate());
         }
         // We use the empty lifecycle so the global retention can be in effect
         DataStreamLifecycle.Template lifecycle = DataStreamLifecycle.Template.DATA_DEFAULT;

@@ -16,18 +16,10 @@ class CaseInsensitiveComparison extends FileAccessTreeComparison {
     }
 
     /**
-     * Case-insensitive character comparison. Taken from the JDK {@code WindowsPath#compareTo} implementation.
+     * Case-insensitive character comparison. See also {@code WindowsPath#compareTo}.
      */
     private static int caseInsensitiveCharacterComparator(char c1, char c2) {
-        if (c1 == c2) {
-            return 0;
-        }
-        c1 = Character.toUpperCase(c1);
-        c2 = Character.toUpperCase(c2);
-        if (c1 == c2) {
-            return 0;
-        }
-        return Character.compare(c1, c2);
+        return Character.compare(Character.toLowerCase(c1), Character.toLowerCase(c2));
     }
 
     @Override

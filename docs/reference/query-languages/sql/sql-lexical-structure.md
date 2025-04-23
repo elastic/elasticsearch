@@ -137,7 +137,6 @@ Most operators in Elasticsearch SQL have the same precedence and are left-associ
 
 The following table indicates the supported operators and their precedence (highest to lowest);
 
-|     |     |     |
 | **Operator/Element** | **Associativity** | **Description** |
 | --- | --- | --- |
 | `.` | left | qualifier separator |

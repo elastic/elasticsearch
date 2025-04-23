@@ -93,7 +93,6 @@ When using `LIKE`/`RLIKE`, do consider using [full-text search predicates](/refe
 <!--
 For example:
 
-|     |     |
 | **LIKE/RLIKE** | **QUERY/MATCH** |
 | --- | --- |
 | ``foo LIKE 'bar'`` | ``MATCH(foo, 'bar')`` |

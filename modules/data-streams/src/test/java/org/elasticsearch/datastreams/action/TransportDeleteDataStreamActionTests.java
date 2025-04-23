@@ -36,7 +36,7 @@ import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.sameInstance;
 
-public class DeleteDataStreamTransportActionTests extends ESTestCase {
+public class TransportDeleteDataStreamActionTests extends ESTestCase {
 
     private final IndexNameExpressionResolver iner = TestIndexNameExpressionResolver.newInstance();
     private final ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
@@ -53,7 +53,7 @@ public class DeleteDataStreamTransportActionTests extends ESTestCase {
             otherIndices
         );
         DeleteDataStreamAction.Request req = new DeleteDataStreamAction.Request(TEST_REQUEST_TIMEOUT, new String[] { dataStreamName });
-        ClusterState newState = DeleteDataStreamTransportAction.removeDataStream(
+        ClusterState newState = TransportDeleteDataStreamAction.removeDataStream(
             iner,
             cs.projectState(projectId),
             req,
@@ -82,7 +82,7 @@ public class DeleteDataStreamTransportActionTests extends ESTestCase {
             false
         );
         DeleteDataStreamAction.Request req = new DeleteDataStreamAction.Request(TEST_REQUEST_TIMEOUT, new String[] { dataStreamName });
-        ClusterState newState = DeleteDataStreamTransportAction.removeDataStream(
+        ClusterState newState = TransportDeleteDataStreamAction.removeDataStream(
             iner,
             cs.projectState(projectId),
             req,
@@ -111,7 +111,7 @@ public class DeleteDataStreamTransportActionTests extends ESTestCase {
         );
 
         DeleteDataStreamAction.Request req = new DeleteDataStreamAction.Request(TEST_REQUEST_TIMEOUT, new String[] { "ba*", "eggplant" });
-        ClusterState newState = DeleteDataStreamTransportAction.removeDataStream(
+        ClusterState newState = TransportDeleteDataStreamAction.removeDataStream(
             iner,
             cs.projectState(projectId),
             req,
@@ -145,7 +145,7 @@ public class DeleteDataStreamTransportActionTests extends ESTestCase {
         DeleteDataStreamAction.Request req = new DeleteDataStreamAction.Request(TEST_REQUEST_TIMEOUT, new String[] { dataStreamName });
         SnapshotInProgressException e = expectThrows(
             SnapshotInProgressException.class,
-            () -> DeleteDataStreamTransportAction.removeDataStream(iner, snapshotCs.projectState(projectId), req, validator, Settings.EMPTY)
+            () -> TransportDeleteDataStreamAction.removeDataStream(iner, snapshotCs.projectState(projectId), req, validator, Settings.EMPTY)
         );
 
         assertThat(
@@ -192,7 +192,7 @@ public class DeleteDataStreamTransportActionTests extends ESTestCase {
 
         expectThrows(
             ResourceNotFoundException.class,
-            () -> DeleteDataStreamTransportAction.removeDataStream(
+            () -> TransportDeleteDataStreamAction.removeDataStream(
                 iner,
                 cs.projectState(projectId),
                 new DeleteDataStreamAction.Request(TEST_REQUEST_TIMEOUT, new String[] { dataStreamName }),
@@ -205,7 +205,7 @@ public class DeleteDataStreamTransportActionTests extends ESTestCase {
             TEST_REQUEST_TIMEOUT,
             new String[] { dataStreamName + "*" }
         );
-        ClusterState newState = DeleteDataStreamTransportAction.removeDataStream(
+        ClusterState newState = TransportDeleteDataStreamAction.removeDataStream(
             iner,
             cs.projectState(projectId),
             req,

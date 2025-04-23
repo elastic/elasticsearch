@@ -102,6 +102,8 @@ public class ProjectMetadata implements Iterable<IndexMetadata>, Diffable<Projec
     private volatile SortedMap<String, IndexAbstraction> indicesLookup;
     private final Map<String, MappingMetadata> mappingsByHash;
 
+    private final Settings settings;
+
     private final IndexVersion oldestIndexVersion;
 
     @SuppressWarnings("this-escape")
@@ -122,6 +124,7 @@ public class ProjectMetadata implements Iterable<IndexMetadata>, Diffable<Projec
         String[] visibleClosedIndices,
         SortedMap<String, IndexAbstraction> indicesLookup,
         Map<String, MappingMetadata> mappingsByHash,
+        Settings settings,
         IndexVersion oldestIndexVersion
     ) {
         this.id = id;
@@ -140,6 +143,7 @@ public class ProjectMetadata implements Iterable<IndexMetadata>, Diffable<Projec
         this.visibleClosedIndices = visibleClosedIndices;
         this.indicesLookup = indicesLookup;
         this.mappingsByHash = mappingsByHash;
+        this.settings = settings;
         this.oldestIndexVersion = oldestIndexVersion;
         assert assertConsistent();
     }
@@ -221,8 +225,8 @@ public class ProjectMetadata implements Iterable<IndexMetadata>, Diffable<Projec
             visibleClosedIndices,
             indicesLookup,
             mappingsByHash,
-            oldestIndexVersion
-        );
+            settings,
+            oldestIndexVersion);
     }
 
     public ProjectMetadata withIndexSettingsUpdates(Map<Index, Settings> updates) {
@@ -254,8 +258,8 @@ public class ProjectMetadata implements Iterable<IndexMetadata>, Diffable<Projec
             visibleClosedIndices,
             indicesLookup,
             mappingsByHash,
-            oldestIndexVersion
-        );
+            settings,
+            oldestIndexVersion);
     }
 
     /**
@@ -288,8 +292,8 @@ public class ProjectMetadata implements Iterable<IndexMetadata>, Diffable<Projec
             visibleClosedIndices,
             indicesLookup,
             mappingsByHash,
-            oldestIndexVersion
-        );
+            settings,
+            oldestIndexVersion);
     }
 
     /**
@@ -376,8 +380,8 @@ public class ProjectMetadata implements Iterable<IndexMetadata>, Diffable<Projec
             updatedVisibleClosedIndices,
             null,
             updatedMappingsByHash,
-            IndexVersion.min(index.getCompatibilityVersion(), oldestIndexVersion)
-        );
+            settings,
+            IndexVersion.min(index.getCompatibilityVersion(), oldestIndexVersion));
     }
 
     private ImmutableOpenMap<String, Set<Index>> aliasesAfterAddingIndex(IndexMetadata index, Map<String, AliasMetadata> aliases) {
@@ -725,6 +729,10 @@ public class ProjectMetadata implements Iterable<IndexMetadata>, Diffable<Projec
 
     public Map<String, IndexTemplateMetadata> templates() {
         return templates;
+    }
+
+    public Settings settings() {
+        return settings;
     }
 
     /**
@@ -1130,6 +1138,7 @@ public class ProjectMetadata implements Iterable<IndexMetadata>, Diffable<Projec
         private final ImmutableOpenMap.Builder<String, IndexTemplateMetadata> templates;
         private final ImmutableOpenMap.Builder<String, Metadata.ProjectCustom> customs;
         private final ImmutableOpenMap.Builder<String, ReservedStateMetadata> reservedStateMetadata;
+        private Settings settings = Settings.EMPTY;
 
         private SortedMap<String, IndexAbstraction> previousIndicesLookup;
 
@@ -1147,6 +1156,7 @@ public class ProjectMetadata implements Iterable<IndexMetadata>, Diffable<Projec
             this.templates = ImmutableOpenMap.builder(projectMetadata.templates);
             this.customs = ImmutableOpenMap.builder(projectMetadata.customs);
             this.reservedStateMetadata = ImmutableOpenMap.builder(projectMetadata.reservedStateMetadata);
+            this.settings = projectMetadata.settings;
             this.previousIndicesLookup = projectMetadata.indicesLookup;
             this.mappingsByHash = new HashMap<>(projectMetadata.mappingsByHash);
             this.checkForUnusedMappings = false;
@@ -1525,6 +1535,15 @@ public class ProjectMetadata implements Iterable<IndexMetadata>, Diffable<Projec
             return this;
         }
 
+        public Settings settings() {
+            return this.settings;
+        }
+
+        public ProjectMetadata.Builder settings(Settings settings) {
+            this.settings = settings;
+            return this;
+        }
+
         public Builder indexGraveyard(final IndexGraveyard indexGraveyard) {
             return putCustom(IndexGraveyard.TYPE, indexGraveyard);
         }
@@ -1684,8 +1703,8 @@ public class ProjectMetadata implements Iterable<IndexMetadata>, Diffable<Projec
                 visibleClosedIndicesArray,
                 indicesLookup,
                 Collections.unmodifiableMap(mappingsByHash),
-                IndexVersion.fromId(oldestIndexVersionId)
-            );
+                settings,
+                IndexVersion.fromId(oldestIndexVersionId));
         }
 
         static void ensureNoNameCollisions(
@@ -2110,6 +2129,9 @@ public class ProjectMetadata implements Iterable<IndexMetadata>, Diffable<Projec
                                 projectBuilder.put(IndexTemplateMetadata.Builder.fromXContent(parser, parser.currentName()));
                             }
                         }
+                        case "settings" -> {
+                            projectBuilder.settings(Settings.fromXContent(parser));
+                        }
                         default -> Metadata.Builder.parseCustomObject(
                             parser,
                             currentFieldName,
@@ -2157,6 +2179,9 @@ public class ProjectMetadata implements Iterable<IndexMetadata>, Diffable<Projec
             customs,
             multiProject
                 ? ChunkedToXContentHelper.object("reserved_state", reservedStateMetadata().values().iterator())
+                : Collections.emptyIterator(),
+            multiProject
+                ? ChunkedToXContentHelper.object("settings", Iterators.single(settings))
                 : Collections.emptyIterator()
         );
     }
@@ -2187,6 +2212,10 @@ public class ProjectMetadata implements Iterable<IndexMetadata>, Diffable<Projec
         int reservedStateSize = in.readVInt();
         for (int i = 0; i < reservedStateSize; i++) {
             builder.put(ReservedStateMetadata.readFrom(in));
+        }
+
+        if (in.getTransportVersion().onOrAfter(TransportVersions.PROJECT_METADATA_SETTINGS)) {
+            builder.settings(Settings.readSettingsFromStream(in));
         }
 
         return builder.build();
@@ -2229,6 +2258,10 @@ public class ProjectMetadata implements Iterable<IndexMetadata>, Diffable<Projec
         }
         VersionedNamedWriteable.writeVersionedWriteables(out, filteredCustoms);
         out.writeCollection(reservedStateMetadata.values());
+
+        if (out.getTransportVersion().onOrAfter(TransportVersions.PROJECT_METADATA_SETTINGS)) {
+            settings.writeTo(out);
+        }
     }
 
     // this needs to be package accessible for bwc serialization in Metadata.java
@@ -2248,6 +2281,7 @@ public class ProjectMetadata implements Iterable<IndexMetadata>, Diffable<Projec
             String,
             ReservedStateMetadata,
             ImmutableOpenMap<String, ReservedStateMetadata>> reservedStateMetadata;
+        private final Diff<Settings> settingsDiff;
 
         private ProjectMetadataDiff(ProjectMetadata before, ProjectMetadata after) {
             if (before == after) {
@@ -2255,6 +2289,7 @@ public class ProjectMetadata implements Iterable<IndexMetadata>, Diffable<Projec
                 templates = DiffableUtils.emptyDiff();
                 customs = DiffableUtils.emptyDiff();
                 reservedStateMetadata = DiffableUtils.emptyDiff();
+                settingsDiff = Settings.EMPTY_DIFF;
             } else {
                 indices = DiffableUtils.diff(before.indices, after.indices, DiffableUtils.getStringKeySerializer());
                 templates = DiffableUtils.diff(before.templates, after.templates, DiffableUtils.getStringKeySerializer());
@@ -2269,6 +2304,7 @@ public class ProjectMetadata implements Iterable<IndexMetadata>, Diffable<Projec
                     after.reservedStateMetadata,
                     DiffableUtils.getStringKeySerializer()
                 );
+                settingsDiff = after.settings.diff(before.settings);
             }
         }
 
@@ -2276,12 +2312,14 @@ public class ProjectMetadata implements Iterable<IndexMetadata>, Diffable<Projec
             DiffableUtils.MapDiff<String, IndexMetadata, ImmutableOpenMap<String, IndexMetadata>> indices,
             DiffableUtils.MapDiff<String, IndexTemplateMetadata, ImmutableOpenMap<String, IndexTemplateMetadata>> templates,
             DiffableUtils.MapDiff<String, Metadata.ProjectCustom, ImmutableOpenMap<String, Metadata.ProjectCustom>> customs,
-            DiffableUtils.MapDiff<String, ReservedStateMetadata, ImmutableOpenMap<String, ReservedStateMetadata>> reservedStateMetadata
+            DiffableUtils.MapDiff<String, ReservedStateMetadata, ImmutableOpenMap<String, ReservedStateMetadata>> reservedStateMetadata,
+            Diff<Settings> settingsDiff
         ) {
             this.indices = indices;
             this.templates = templates;
             this.customs = customs;
             this.reservedStateMetadata = reservedStateMetadata;
+            this.settingsDiff = settingsDiff;
         }
 
         ProjectMetadataDiff(StreamInput in) throws IOException {
@@ -2293,6 +2331,11 @@ public class ProjectMetadata implements Iterable<IndexMetadata>, Diffable<Projec
                 DiffableUtils.getStringKeySerializer(),
                 RESERVED_DIFF_VALUE_READER
             );
+            if (in.getTransportVersion().onOrAfter(TransportVersions.PROJECT_METADATA_SETTINGS)) {
+                settingsDiff = Settings.readSettingsDiffFromStream(in);
+            } else {
+                settingsDiff = Settings.EMPTY_DIFF;
+            }
         }
 
         Diff<ImmutableOpenMap<String, IndexMetadata>> indices() {
@@ -2317,11 +2360,15 @@ public class ProjectMetadata implements Iterable<IndexMetadata>, Diffable<Projec
             templates.writeTo(out);
             customs.writeTo(out);
             reservedStateMetadata.writeTo(out);
+            if (out.getTransportVersion().onOrAfter(TransportVersions.PROJECT_METADATA_SETTINGS)) {
+                settingsDiff.writeTo(out);
+            }
         }
 
         @Override
         public ProjectMetadata apply(ProjectMetadata part) {
-            if (indices.isEmpty() && templates.isEmpty() && customs.isEmpty() && reservedStateMetadata.isEmpty()) {
+            if (indices.isEmpty() && templates.isEmpty() && customs.isEmpty()
+                && reservedStateMetadata.isEmpty() && settingsDiff == Settings.EMPTY_DIFF) {
                 // nothing to do
                 return part;
             }
@@ -2336,13 +2383,14 @@ public class ProjectMetadata implements Iterable<IndexMetadata>, Diffable<Projec
                 && builder.dataStreamMetadata() == part.custom(DataStreamMetadata.TYPE, DataStreamMetadata.EMPTY)) {
                 builder.previousIndicesLookup = part.indicesLookup;
             }
+            builder.settings = settingsDiff.apply(builder.settings);
             return builder.build(true);
         }
 
         ProjectMetadataDiff withCustoms(
             DiffableUtils.MapDiff<String, Metadata.ProjectCustom, ImmutableOpenMap<String, Metadata.ProjectCustom>> customs
         ) {
-            return new ProjectMetadataDiff(indices, templates, customs, reservedStateMetadata);
+            return new ProjectMetadataDiff(indices, templates, customs, reservedStateMetadata, settingsDiff);
         }
     }
 

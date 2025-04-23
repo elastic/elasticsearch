@@ -14,6 +14,7 @@ import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.core.Tuple;
 
 import java.util.Map;
@@ -28,10 +29,10 @@ import static org.elasticsearch.common.settings.AbstractScopedSettings.ARCHIVED_
 public final class SettingsUpdater {
     final Settings.Builder transientUpdates = Settings.builder();
     final Settings.Builder persistentUpdates = Settings.builder();
-    private final ClusterSettings clusterSettings;
+    private final AbstractScopedSettings scopedSettings;
 
-    public SettingsUpdater(ClusterSettings clusterSettings) {
-        this.clusterSettings = clusterSettings;
+    public SettingsUpdater(AbstractScopedSettings scopedSettings) {
+        this.scopedSettings = scopedSettings;
     }
 
     public synchronized Settings getTransientUpdates() {
@@ -70,7 +71,7 @@ public final class SettingsUpdater {
         final Settings knownAndValidTransientSettings = partitionedTransientSettings.v1();
         final Settings unknownOrInvalidTransientSettings = partitionedTransientSettings.v2();
         final Settings.Builder transientSettings = Settings.builder().put(knownAndValidTransientSettings);
-        changed |= clusterSettings.updateDynamicSettings(transientToApply, transientSettings, transientUpdates, "transient");
+        changed |= scopedSettings.updateDynamicSettings(transientToApply, transientSettings, transientUpdates, "transient");
 
         final Tuple<Settings, Settings> partitionedPersistentSettings = partitionKnownAndValidSettings(
             currentState.metadata().persistentSettings(),
@@ -80,7 +81,7 @@ public final class SettingsUpdater {
         final Settings knownAndValidPersistentSettings = partitionedPersistentSettings.v1();
         final Settings unknownOrInvalidPersistentSettings = partitionedPersistentSettings.v2();
         final Settings.Builder persistentSettings = Settings.builder().put(knownAndValidPersistentSettings);
-        changed |= clusterSettings.updateDynamicSettings(persistentToApply, persistentSettings, persistentUpdates, "persistent");
+        changed |= scopedSettings.updateDynamicSettings(persistentToApply, persistentSettings, persistentUpdates, "persistent");
 
         final ClusterState clusterState;
         if (changed) {
@@ -88,8 +89,8 @@ public final class SettingsUpdater {
             Settings persistentFinalSettings = persistentSettings.build();
             // both transient and persistent settings must be consistent by itself we can't allow dependencies to be
             // in either of them otherwise a full cluster restart will break the settings validation
-            clusterSettings.validate(transientFinalSettings, true);
-            clusterSettings.validate(persistentFinalSettings, true);
+            scopedSettings.validate(transientFinalSettings, true);
+            scopedSettings.validate(persistentFinalSettings, true);
 
             Metadata.Builder metadata = Metadata.builder(currentState.metadata())
                 .transientSettings(Settings.builder().put(transientFinalSettings).put(unknownOrInvalidTransientSettings).build())
@@ -120,9 +121,42 @@ public final class SettingsUpdater {
          * logging, but will not actually apply them.
          */
         final Settings settings = clusterState.metadata().settings();
-        clusterSettings.validateUpdate(settings);
+        scopedSettings.validateUpdate(settings);
 
         return clusterState;
+    }
+
+    public synchronized ProjectMetadata updateProjectSettings(
+        final ProjectMetadata projectMetadata,
+        final Settings settingsToApply,
+        final Logger logger
+    ) {
+        final Tuple<Settings, Settings> partitionedSettings = partitionKnownAndValidSettings(
+            projectMetadata.settings(),
+            "project",
+            logger
+        );
+        final Settings knownAndValidPersistentSettings = partitionedSettings.v1();
+        final Settings unknownOrInvalidSettings = partitionedSettings.v2();
+        Settings.Builder builder = Settings.builder().put(knownAndValidPersistentSettings);
+
+        // TODO: apply only dynamic?
+        boolean changed = scopedSettings.updateSettings(settingsToApply, builder, persistentUpdates,
+            "project[" + projectMetadata.id() + "]");
+        if (changed == false) {
+            return projectMetadata;
+        }
+
+        Settings finalSettings = builder.build();
+        // validate that settings and their values are correct
+        scopedSettings.validate(finalSettings, true);
+
+        ProjectMetadata.Builder result = ProjectMetadata.builder(projectMetadata)
+            .settings(Settings.builder().put(finalSettings).put(unknownOrInvalidSettings).build());
+        // validate that SettingsUpdaters can be applied without errors
+        scopedSettings.validateUpdate(result.settings());
+
+        return result.build();
     }
 
     /**
@@ -142,7 +176,7 @@ public final class SettingsUpdater {
     ) {
         final Settings existingArchivedSettings = settings.filter(k -> k.startsWith(ARCHIVED_SETTINGS_PREFIX));
         final Settings settingsExcludingExistingArchivedSettings = settings.filter(k -> k.startsWith(ARCHIVED_SETTINGS_PREFIX) == false);
-        final Settings settingsWithUnknownOrInvalidArchived = clusterSettings.archiveUnknownOrInvalidSettings(
+        final Settings settingsWithUnknownOrInvalidArchived = scopedSettings.archiveUnknownOrInvalidSettings(
             settingsExcludingExistingArchivedSettings,
             e -> logUnknownSetting(settingsType, e, logger),
             (e, ex) -> logInvalidSetting(settingsType, e, ex, logger)

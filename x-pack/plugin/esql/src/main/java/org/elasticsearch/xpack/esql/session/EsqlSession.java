@@ -16,7 +16,7 @@ import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.Page;
-import org.elasticsearch.compute.operator.DriverProfile;
+import org.elasticsearch.compute.operator.DriverCompletionInfo;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.mapper.IndexModeFieldMapper;
@@ -86,8 +86,6 @@ import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalSupplier;
 import org.elasticsearch.xpack.esql.plan.physical.EstimatesRowSize;
 import org.elasticsearch.xpack.esql.plan.physical.FragmentExec;
-import org.elasticsearch.xpack.esql.plan.physical.LocalSourceExec;
-import org.elasticsearch.xpack.esql.plan.physical.MergeExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.planner.mapper.Mapper;
 import org.elasticsearch.xpack.esql.planner.premapper.PreMapper;
@@ -236,28 +234,12 @@ public class EsqlSession {
             });
         });
 
-        // Currently fork is limited and supported as streaming operators, similar to inlinestats
-        physicalPlan = physicalPlan.transformUp(MergeExec.class, m -> {
-            List<PhysicalPlan> newSubPlans = new ArrayList<>();
-            for (var plan : m.children()) {
-                if (plan instanceof FragmentExec fragmentExec) {
-                    LogicalPlan subplan = fragmentExec.fragment();
-                    subplan = optimizedPlan(subplan);
-                    PhysicalPlan subqueryPlan = logicalPlanToPhysicalPlan(subplan, request);
-                    subplans.add(new PlanTuple(subqueryPlan, subplan));
-                    plan = new FragmentExec(subplan);
-                }
-                newSubPlans.add(plan);
-            }
-            return new MergeExec(m.source(), newSubPlans, m.output());
-        });
-
         Iterator<PlanTuple> iterator = subplans.iterator();
 
         // TODO: merge into one method
         if (subplans.size() > 0) {
             // code-path to execute subplans
-            executeSubPlan(new ArrayList<>(), physicalPlan, iterator, executionInfo, runner, listener);
+            executeSubPlan(new DriverCompletionInfo.Accumulator(), physicalPlan, iterator, executionInfo, runner, listener);
         } else {
             // execute main plan
             runner.run(physicalPlan, listener);
@@ -265,7 +247,7 @@ public class EsqlSession {
     }
 
     private void executeSubPlan(
-        List<DriverProfile> profileAccumulator,
+        DriverCompletionInfo.Accumulator completionInfoAccumulator,
         PhysicalPlan plan,
         Iterator<PlanTuple> subPlanIterator,
         EsqlExecutionInfo executionInfo,
@@ -276,7 +258,7 @@ public class EsqlSession {
 
         runner.run(tuple.physical, listener.delegateFailureAndWrap((next, result) -> {
             try {
-                profileAccumulator.addAll(result.profiles());
+                completionInfoAccumulator.accumulate(result.completionInfo());
                 LocalRelation resultWrapper = resultToPlan(tuple.logical, result);
 
                 // replace the original logical plan with the backing result
@@ -290,34 +272,16 @@ public class EsqlSession {
                     );
                 });
 
-                // replace the original logical plan with the backing result, in MergeExec
-                newPlan = newPlan.transformUp(MergeExec.class, m -> {
-                    boolean changed = m.children()
-                        .stream()
-                        .filter(sp -> FragmentExec.class.isAssignableFrom(sp.getClass()))
-                        .map(FragmentExec.class::cast)
-                        .anyMatch(fragmentExec -> fragmentExec.fragment() == tuple.logical);
-                    if (changed) {
-                        List<PhysicalPlan> newSubPlans = m.children().stream().map(subPlan -> {
-                            if (subPlan instanceof FragmentExec fe && fe.fragment() == tuple.logical) {
-                                return new LocalSourceExec(resultWrapper.source(), resultWrapper.output(), resultWrapper.supplier());
-                            } else {
-                                return subPlan;
-                            }
-                        }).toList();
-                        return new MergeExec(m.source(), newSubPlans, m.output());
-                    }
-                    return m;
-                });
-
                 if (subPlanIterator.hasNext() == false) {
                     runner.run(newPlan, next.delegateFailureAndWrap((finalListener, finalResult) -> {
-                        profileAccumulator.addAll(finalResult.profiles());
-                        finalListener.onResponse(new Result(finalResult.schema(), finalResult.pages(), profileAccumulator, executionInfo));
+                        completionInfoAccumulator.accumulate(finalResult.completionInfo());
+                        finalListener.onResponse(
+                            new Result(finalResult.schema(), finalResult.pages(), completionInfoAccumulator.finish(), executionInfo)
+                        );
                     }));
                 } else {
                     // continue executing the subplans
-                    executeSubPlan(profileAccumulator, newPlan, subPlanIterator, executionInfo, runner, next);
+                    executeSubPlan(completionInfoAccumulator, newPlan, subPlanIterator, executionInfo, runner, next);
                 }
             } finally {
                 Releasables.closeExpectNoException(Releasables.wrap(Iterators.map(result.pages().iterator(), p -> p::releaseBlocks)));

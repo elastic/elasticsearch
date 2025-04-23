@@ -1416,7 +1416,6 @@ public class RBACEngineTests extends ESTestCase {
     }
 
     public void testBuildUserPrivilegeResponseCombinesIndexPrivileges() {
-        assumeTrue("failure store feature must be enabled", DataStream.isFailureStoreFeatureFlagEnabled());
         final BytesArray query = new BytesArray("""
             {"term":{"public":true}}""");
         final Role role = Role.builder(RESTRICTED_INDICES, "test", "role")

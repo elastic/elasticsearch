@@ -94,9 +94,9 @@ public class PushStatsToSource extends PhysicalOptimizerRules.ParameterizedOptim
                             // check if regular field
                             else {
                                 if (target instanceof FieldAttribute fa) {
-                                    var fName = fa.name();
+                                    var fName = fa.fieldName();
                                     if (context.searchStats().isSingleValue(fName)) {
-                                        fieldName = fa.name();
+                                        fieldName = fName;
                                         query = QueryBuilders.existsQuery(fieldName);
                                     }
                                 }

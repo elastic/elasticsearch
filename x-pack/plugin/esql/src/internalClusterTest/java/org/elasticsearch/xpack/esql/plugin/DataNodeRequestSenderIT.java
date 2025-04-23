@@ -22,6 +22,7 @@ import java.util.Collection;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.atomic.LongAdder;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
@@ -110,17 +111,13 @@ public class DataNodeRequestSenderIT extends AbstractEsqlIntegTestCase {
                 (handler, request, channel, task) -> {
                     // move index shard
                     if (shouldMove.compareAndSet(true, false)) {
-                        var currentShardNodeId = clusterService().state()
-                            .routingTable()
-                            .index("index-1")
-                            .shard(0)
-                            .primaryShard()
-                            .currentNodeId();
                         assertAcked(
                             client().admin()
                                 .indices()
                                 .prepareUpdateSettings("index-1")
-                                .setSettings(Settings.builder().put("index.routing.allocation.exclude._id", currentShardNodeId))
+                                .setSettings(
+                                    Settings.builder().put("index.routing.allocation.exclude._name", getPrimaryShardNodeName("index-1", 0))
+                                )
                         );
                         ensureGreen("index-1");
                     }
@@ -135,24 +132,23 @@ public class DataNodeRequestSenderIT extends AbstractEsqlIntegTestCase {
         }
     }
 
-    public void testDiscardUnnecessaryRequests() {
+    public void testDiscardUnnecessaryRequests() throws Exception {
         internalCluster().ensureAtLeastNumDataNodes(2);
-
-        var nodes = internalCluster().size();
-        var slowNode = internalCluster().getNodeNames()[nodes - 1];
 
         var index = randomIdentifier();
 
         assertAcked(client().admin().indices().prepareCreate(index).setSettings(indexSettings(2, 0)));
         indexAndRefresh(index, 10);
 
-        var latch = new CountDownLatch(1);
-        var blockIsReleased = new AtomicBoolean();
+        var slowNode = getPrimaryShardNodeName(index, 1);
+
+        var queryCompleted = new CountDownLatch(1);
+        var blockIsReleased = new AtomicReference<Boolean>(null);
 
         as(internalCluster().getInstance(TransportService.class, slowNode), MockTransportService.class).addRequestHandlingBehavior(
             ExchangeService.OPEN_EXCHANGE_ACTION_NAME,
             (handler, request, channel, task) -> {
-                blockIsReleased.set(latch.await(10, TimeUnit.SECONDS));
+                blockIsReleased.set(queryCompleted.await(10, TimeUnit.SECONDS));
                 handler.messageReceived(request, channel, task);
             }
         );
@@ -162,9 +158,12 @@ public class DataNodeRequestSenderIT extends AbstractEsqlIntegTestCase {
         }
 
         // This unblocks slow node _after_ the query supposedly complete by results from the other node
-        latch.countDown();
-        as(internalCluster().getInstance(TransportService.class, slowNode), MockTransportService.class).clearAllRules();
-        assertThat(blockIsReleased.get(), equalTo(true));
+        try {
+            queryCompleted.countDown();
+            assertBusy(() -> assertThat(blockIsReleased.get(), equalTo(Boolean.TRUE)));
+        } finally {
+            as(internalCluster().getInstance(TransportService.class, slowNode), MockTransportService.class).clearAllRules();
+        }
     }
 
     private static void indexAndRefresh(String index, int docs) {
@@ -173,5 +172,11 @@ public class DataNodeRequestSenderIT extends AbstractEsqlIntegTestCase {
             bulk.add(new IndexRequest().source("key", "value-" + i));
         }
         bulk.get();
+    }
+
+    private String getPrimaryShardNodeName(String index, int shardId) {
+        var clusterState = clusterService().state();
+        var nodeId = clusterState.getRoutingTable().shardRoutingTable(index, shardId).primaryShard().currentNodeId();
+        return clusterState.nodes().get(nodeId).getName();
     }
 }

@@ -46,6 +46,7 @@ import org.elasticsearch.xpack.security.LocalStateSecurity;
 import org.elasticsearch.xpack.wildcard.Wildcard;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
@@ -221,7 +222,7 @@ public class DataStreamLifecycleServiceRuntimeSecurityIT extends SecurityIntegTe
         ExecutionException {
         var dataLifecycle = retention == null
             ? DataStreamLifecycle.Template.DATA_DEFAULT
-            : DataStreamLifecycle.createDataLifecycleTemplate(true, retention, null);
+            : DataStreamLifecycle.dataLifecycleBuilder().enabled(true).dataRetention(retention).buildTemplate();
         var failuresLifecycle = retention == null ? null : DataStreamLifecycle.createFailuresLifecycleTemplate(true, retention);
         putComposableIndexTemplate("id1", """
             {
@@ -382,11 +383,8 @@ public class DataStreamLifecycleServiceRuntimeSecurityIT extends SecurityIntegTe
                     )
                 );
             } catch (IOException e) {
-                fail(e.getMessage());
+                throw new UncheckedIOException(e);
             }
-            throw new IllegalStateException(
-                "Something went wrong, it should have either returned the descriptor or it should have thrown an assertion error"
-            );
         }
 
         @Override

@@ -265,7 +265,7 @@ public class ExplainDataStreamLifecycleIT extends ESIntegTestCase {
             null,
             null,
             null,
-            new DataStreamOptions.Template(new DataStreamFailureStore.Template(true, null))
+            new DataStreamOptions.Template(DataStreamFailureStore.builder().enabled(true).buildTemplate())
         );
         String dataStreamName = "metrics-foo";
         CreateDataStreamAction.Request createDataStreamRequest = new CreateDataStreamAction.Request(
@@ -404,7 +404,7 @@ public class ExplainDataStreamLifecycleIT extends ESIntegTestCase {
             null,
             null,
             lifecycle,
-            new DataStreamOptions.Template(new DataStreamFailureStore.Template(true, null))
+            new DataStreamOptions.Template(DataStreamFailureStore.builder().enabled(true).buildTemplate())
         );
         String dataStreamName = "metrics-foo";
         CreateDataStreamAction.Request createDataStreamRequest = new CreateDataStreamAction.Request(

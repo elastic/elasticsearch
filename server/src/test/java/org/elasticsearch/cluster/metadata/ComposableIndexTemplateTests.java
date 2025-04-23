@@ -236,7 +236,7 @@ public class ComposableIndexTemplateTests extends SimpleDiffableSerializationTes
         }
         if (randomBoolean()) {
             // Do not set random lifecycle to avoid having data_retention and effective_retention in the response.
-            dataStreamOptions = new DataStreamOptions.Template(new DataStreamFailureStore.Template(randomBoolean(), null));
+            dataStreamOptions = new DataStreamOptions.Template(DataStreamFailureStore.builder().enabled(randomBoolean()).buildTemplate());
         }
         // We use the empty lifecycle so the global retention can be in effect
         DataStreamLifecycle.Template lifecycle = DataStreamLifecycle.Template.DATA_DEFAULT;

@@ -272,7 +272,7 @@ public class DataStreamsStatsTests extends ESSingleNodeTestCase {
         String dataStreamName = randomAlphaOfLength(10).toLowerCase(Locale.getDefault());
         DataStreamOptions.Template failureStoreOptions = failureStore == false
             ? null
-            : new DataStreamOptions.Template(new DataStreamFailureStore.Template(true, null));
+            : new DataStreamOptions.Template(DataStreamFailureStore.builder().enabled(true).buildTemplate());
         Template idxTemplate = new Template(null, new CompressedXContent("""
             {"properties":{"@timestamp":{"type":"date"},"data":{"type":"keyword"}}}
             """), null, null, failureStoreOptions);

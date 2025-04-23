@@ -76,6 +76,7 @@ FROM books METADATA _id, _index, _score
        ( WHERE author:"Ursula K. Le Guin" AND title:"short stories" | SORT _score, _id DESC | LIMIT 3)
 | RRF
 | STATS count_fork=COUNT(*) BY _fork
+| SORT _fork
 ;
 
 count_fork:long | _fork:keyword
@@ -120,6 +121,7 @@ FROM semantic_text METADATA _id, _score, _index
        ( WHERE semantic_text_field:"something else" | SORT _score DESC | LIMIT 2)
 | RRF
 | EVAL _score = round(_score, 4)
+| EVAL _fork = mv_sort(_fork)
 | KEEP _fork, _score, _id, semantic_text_field
 ;
 

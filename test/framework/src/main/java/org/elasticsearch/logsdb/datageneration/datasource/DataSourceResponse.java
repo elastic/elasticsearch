@@ -53,6 +53,10 @@ public interface DataSourceResponse {
 
     record IpGenerator(Supplier<InetAddress> generator) implements DataSourceResponse {}
 
+    record VersionStringGenerator(Supplier<String> generator) implements DataSourceResponse {}
+
+    record AggregateMetricDoubleGenerator(Supplier<Map<String, Number>> generator) implements DataSourceResponse {}
+
     record NullWrapper(Function<Supplier<Object>, Supplier<Object>> wrapper) implements DataSourceResponse {}
 
     record ArrayWrapper(Function<Supplier<Object>, Supplier<Object>> wrapper) implements DataSourceResponse {}

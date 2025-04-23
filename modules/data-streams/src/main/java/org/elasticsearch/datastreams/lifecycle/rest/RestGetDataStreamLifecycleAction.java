@@ -11,7 +11,6 @@ package org.elasticsearch.datastreams.lifecycle.rest;
 import org.elasticsearch.action.datastreams.lifecycle.GetDataStreamLifecycleAction;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.internal.node.NodeClient;
-import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.DataStreamLifecycle;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.rest.BaseRestHandler;
@@ -23,21 +22,18 @@ import org.elasticsearch.rest.action.RestCancellableNodeClient;
 import org.elasticsearch.rest.action.RestRefCountedChunkedToXContentListener;
 
 import java.util.List;
-import java.util.Objects;
 import java.util.Set;
-import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 
 @ServerlessScope(Scope.PUBLIC)
 public class RestGetDataStreamLifecycleAction extends BaseRestHandler {
 
-    public static final Set<String> CAPABILITIES = Stream.of(
+    public static final Set<String> CAPABILITIES = Set.of(
         DataStreamLifecycle.EFFECTIVE_RETENTION_REST_API_CAPABILITY,
         "data_stream_global_retention",
-        DataStream.isFailureStoreFeatureFlagEnabled() ? "failure_store_global_retention" : null
-    ).filter(Objects::nonNull).collect(Collectors.toSet());
+        "failure_store_global_retention"
+    );
 
     @Override
     public String getName() {

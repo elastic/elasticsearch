@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.core.datastreams;
 
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
-import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -56,43 +55,41 @@ public class DataStreamFeatureSetUsage extends XPackFeatureUsage {
         super.innerXContent(builder, params);
         builder.field("data_streams", streamStats.totalDataStreamCount);
         builder.field("indices_count", streamStats.indicesBehindDataStream);
-        if (DataStream.isFailureStoreFeatureFlagEnabled()) {
-            builder.startObject("failure_store");
-            builder.field("explicitly_enabled_count", streamStats.failureStoreExplicitlyEnabledDataStreamCount);
-            builder.field("effectively_enabled_count", streamStats.failureStoreEffectivelyEnabledDataStreamCount);
-            builder.field("failure_indices_count", streamStats.failureStoreIndicesCount);
+        builder.startObject("failure_store");
+        builder.field("explicitly_enabled_count", streamStats.failureStoreExplicitlyEnabledDataStreamCount);
+        builder.field("effectively_enabled_count", streamStats.failureStoreEffectivelyEnabledDataStreamCount);
+        builder.field("failure_indices_count", streamStats.failureStoreIndicesCount);
 
-            // Failures lifecycle
-            builder.startObject("lifecycle");
-            builder.field("explicitly_enabled_count", streamStats.failuresLifecycleExplicitlyEnabledCount);
-            builder.field("effectively_enabled_count", streamStats.failuresLifecycleEffectivelyEnabledCount);
+        // Failures lifecycle
+        builder.startObject("lifecycle");
+        builder.field("explicitly_enabled_count", streamStats.failuresLifecycleExplicitlyEnabledCount);
+        builder.field("effectively_enabled_count", streamStats.failuresLifecycleEffectivelyEnabledCount);
 
-            // Retention
-            DataStreamLifecycleFeatureSetUsage.RetentionStats.toXContentFragment(
-                builder,
-                streamStats.failuresLifecycleDataRetentionStats,
-                false
-            );
-            DataStreamLifecycleFeatureSetUsage.RetentionStats.toXContentFragment(
-                builder,
-                streamStats.failuresLifecycleEffectiveRetentionStats,
-                true
-            );
-            builder.startObject("global_retention");
-            DataStreamLifecycleFeatureSetUsage.GlobalRetentionStats.toXContentFragment(
-                builder,
-                LifecycleStats.FAILURES_DEFAULT_RETENTION_FIELD_NAME,
-                streamStats.globalRetentionStats.get(LifecycleStats.FAILURES_DEFAULT_RETENTION_FIELD_NAME)
-            );
-            DataStreamLifecycleFeatureSetUsage.GlobalRetentionStats.toXContentFragment(
-                builder,
-                LifecycleStats.MAX_RETENTION_FIELD_NAME,
-                streamStats.globalRetentionStats.get(LifecycleStats.MAX_RETENTION_FIELD_NAME)
-            );
-            builder.endObject();
-            builder.endObject();
-            builder.endObject();
-        }
+        // Retention
+        DataStreamLifecycleFeatureSetUsage.RetentionStats.toXContentFragment(
+            builder,
+            streamStats.failuresLifecycleDataRetentionStats,
+            false
+        );
+        DataStreamLifecycleFeatureSetUsage.RetentionStats.toXContentFragment(
+            builder,
+            streamStats.failuresLifecycleEffectiveRetentionStats,
+            true
+        );
+        builder.startObject("global_retention");
+        DataStreamLifecycleFeatureSetUsage.GlobalRetentionStats.toXContentFragment(
+            builder,
+            LifecycleStats.FAILURES_DEFAULT_RETENTION_FIELD_NAME,
+            streamStats.globalRetentionStats.get(LifecycleStats.FAILURES_DEFAULT_RETENTION_FIELD_NAME)
+        );
+        DataStreamLifecycleFeatureSetUsage.GlobalRetentionStats.toXContentFragment(
+            builder,
+            LifecycleStats.MAX_RETENTION_FIELD_NAME,
+            streamStats.globalRetentionStats.get(LifecycleStats.MAX_RETENTION_FIELD_NAME)
+        );
+        builder.endObject();
+        builder.endObject();
+        builder.endObject();
     }
 
     @Override

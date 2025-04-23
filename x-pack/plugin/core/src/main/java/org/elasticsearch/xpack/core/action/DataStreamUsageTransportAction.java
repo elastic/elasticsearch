@@ -69,48 +69,46 @@ public class DataStreamUsageTransportAction extends XPackUsageFeatureTransportAc
         DataStreamGlobalRetention globalRetention = globalRetentionSettings.get();
         for (DataStream ds : dataStreams.values()) {
             backingIndicesCounter += ds.getIndices().size();
-            if (DataStream.isFailureStoreFeatureFlagEnabled()) {
-                if (ds.isFailureStoreExplicitlyEnabled()) {
-                    failureStoreExplicitlyEnabledCounter++;
-                }
-                boolean failureStoreEffectivelyEnabled = ds.isFailureStoreEffectivelyEnabled(dataStreamFailureStoreSettings);
-                if (failureStoreEffectivelyEnabled) {
-                    failureStoreEffectivelyEnabledCounter++;
-                }
-                if (ds.getFailureIndices().isEmpty() == false) {
-                    failureIndicesCounter += ds.getFailureIndices().size();
-                }
+            if (ds.isFailureStoreExplicitlyEnabled()) {
+                failureStoreExplicitlyEnabledCounter++;
+            }
+            boolean failureStoreEffectivelyEnabled = ds.isFailureStoreEffectivelyEnabled(dataStreamFailureStoreSettings);
+            if (failureStoreEffectivelyEnabled) {
+                failureStoreEffectivelyEnabledCounter++;
+            }
+            if (ds.getFailureIndices().isEmpty() == false) {
+                failureIndicesCounter += ds.getFailureIndices().size();
+            }
 
-                // Track explicitly enabled failures lifecycle configuration
-                DataStreamLifecycle configuredFailuresLifecycle = ds.getDataStreamOptions() != null
-                    && ds.getDataStreamOptions().failureStore() != null
-                    && ds.getDataStreamOptions().failureStore().lifecycle() != null
-                        ? ds.getDataStreamOptions().failureStore().lifecycle()
-                        : null;
-                if (configuredFailuresLifecycle != null && configuredFailuresLifecycle.enabled()) {
-                    failuresLifecycleExplicitlyEnabledCounter++;
-                    if (configuredFailuresLifecycle.dataRetention() != null) {
-                        dataRetentionStats.accept(configuredFailuresLifecycle.dataRetention().getMillis());
+            // Track explicitly enabled failures lifecycle configuration
+            DataStreamLifecycle configuredFailuresLifecycle = ds.getDataStreamOptions() != null
+                && ds.getDataStreamOptions().failureStore() != null
+                && ds.getDataStreamOptions().failureStore().lifecycle() != null
+                    ? ds.getDataStreamOptions().failureStore().lifecycle()
+                    : null;
+            if (configuredFailuresLifecycle != null && configuredFailuresLifecycle.enabled()) {
+                failuresLifecycleExplicitlyEnabledCounter++;
+                if (configuredFailuresLifecycle.dataRetention() != null) {
+                    dataRetentionStats.accept(configuredFailuresLifecycle.dataRetention().getMillis());
+                }
+            }
+
+            // Track effective failure lifecycle
+            DataStreamLifecycle effectiveFailuresLifecycle = ds.getFailuresLifecycle(failureStoreEffectivelyEnabled);
+            if (effectiveFailuresLifecycle != null && effectiveFailuresLifecycle.enabled()) {
+                failuresLifecycleEffectivelyEnabledCounter++;
+                // Track effective retention
+                Tuple<TimeValue, DataStreamLifecycle.RetentionSource> effectiveDataRetentionWithSource = effectiveFailuresLifecycle
+                    .getEffectiveDataRetentionWithSource(globalRetention, ds.isInternal());
+
+                // Track global retention usage
+                if (effectiveDataRetentionWithSource.v1() != null) {
+                    effectiveRetentionStats.accept(effectiveDataRetentionWithSource.v1().getMillis());
+                    if (effectiveDataRetentionWithSource.v2().equals(DataStreamLifecycle.RetentionSource.MAX_GLOBAL_RETENTION)) {
+                        affectedByMaxRetentionCounter++;
                     }
-                }
-
-                // Track effective failure lifecycle
-                DataStreamLifecycle effectiveFailuresLifecycle = ds.getFailuresLifecycle(failureStoreEffectivelyEnabled);
-                if (effectiveFailuresLifecycle != null && effectiveFailuresLifecycle.enabled()) {
-                    failuresLifecycleEffectivelyEnabledCounter++;
-                    // Track effective retention
-                    Tuple<TimeValue, DataStreamLifecycle.RetentionSource> effectiveDataRetentionWithSource = effectiveFailuresLifecycle
-                        .getEffectiveDataRetentionWithSource(globalRetention, ds.isInternal());
-
-                    // Track global retention usage
-                    if (effectiveDataRetentionWithSource.v1() != null) {
-                        effectiveRetentionStats.accept(effectiveDataRetentionWithSource.v1().getMillis());
-                        if (effectiveDataRetentionWithSource.v2().equals(DataStreamLifecycle.RetentionSource.MAX_GLOBAL_RETENTION)) {
-                            affectedByMaxRetentionCounter++;
-                        }
-                        if (effectiveDataRetentionWithSource.v2().equals(DataStreamLifecycle.RetentionSource.DEFAULT_FAILURES_RETENTION)) {
-                            affectedByFailuresDefaultRetentionCounter++;
-                        }
+                    if (effectiveDataRetentionWithSource.v2().equals(DataStreamLifecycle.RetentionSource.DEFAULT_FAILURES_RETENTION)) {
+                        affectedByFailuresDefaultRetentionCounter++;
                     }
                 }
             }

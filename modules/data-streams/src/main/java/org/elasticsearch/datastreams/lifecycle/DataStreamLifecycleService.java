@@ -378,11 +378,9 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
             // These are the pre-rollover write indices. They may or may not be the write index after maybeExecuteRollover has executed,
             // depending on rollover criteria, for this reason we exclude them for the remaining run.
             indicesToExcludeForRemainingRun.add(maybeExecuteRollover(project, dataStream, false));
-            if (DataStream.isFailureStoreFeatureFlagEnabled()) {
-                Index failureStoreWriteIndex = maybeExecuteRollover(project, dataStream, true);
-                if (failureStoreWriteIndex != null) {
-                    indicesToExcludeForRemainingRun.add(failureStoreWriteIndex);
-                }
+            Index failureStoreWriteIndex = maybeExecuteRollover(project, dataStream, true);
+            if (failureStoreWriteIndex != null) {
+                indicesToExcludeForRemainingRun.add(failureStoreWriteIndex);
             }
 
             // tsds indices that are still within their time bounds (i.e. now < time_series.end_time) - we don't want these indices to be
@@ -805,7 +803,7 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
                 targetIndices.add(index);
             }
         }
-        if (withFailureStore && DataStream.isFailureStoreFeatureFlagEnabled() && dataStream.getFailureIndices().isEmpty() == false) {
+        if (withFailureStore && dataStream.getFailureIndices().isEmpty() == false) {
             for (Index index : dataStream.getFailureIndices()) {
                 if (dataStream.isIndexManagedByDataStreamLifecycle(index, indexMetadataSupplier)
                     && indicesToExcludeForRemainingRun.contains(index) == false) {
@@ -1363,9 +1361,6 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
 
     @Nullable
     private static TimeValue getRetention(DataStream dataStream, DataStreamGlobalRetention globalRetention, boolean failureStore) {
-        if (failureStore && DataStream.isFailureStoreFeatureFlagEnabled() == false) {
-            return null;
-        }
         DataStreamLifecycle lifecycle = failureStore ? dataStream.getFailuresLifecycle() : dataStream.getDataLifecycle();
         return lifecycle == null || lifecycle.enabled() == false
             ? null

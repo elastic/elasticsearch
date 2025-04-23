@@ -16,7 +16,6 @@ import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.admin.indices.rollover.RolloverConfiguration;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.local.LocalClusterStateRequest;
-import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.DataStreamGlobalRetention;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -282,7 +281,7 @@ public class GetDataStreamLifecycleAction {
                     if (globalRetention.defaultRetention() != null) {
                         builder.field("default_retention", globalRetention.defaultRetention().getStringRep());
                     }
-                    if (DataStream.isFailureStoreFeatureFlagEnabled() && globalRetention.failuresDefaultRetention() != null) {
+                    if (globalRetention.failuresDefaultRetention() != null) {
                         builder.field("failures_default_retention", globalRetention.failuresDefaultRetention().getStringRep());
                     }
                 }

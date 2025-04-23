@@ -100,6 +100,7 @@ import org.elasticsearch.xpack.esql.optimizer.rules.logical.LiteralsOnTheRight;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.OptimizerRules;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.PruneRedundantOrderBy;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.PushDownAndCombineLimits;
+import org.elasticsearch.xpack.esql.optimizer.rules.logical.PushDownCompletion;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.PushDownEnrich;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.PushDownEval;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.PushDownRegexExtract;
@@ -123,6 +124,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Row;
 import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesAggregate;
 import org.elasticsearch.xpack.esql.plan.logical.TopN;
 import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
+import org.elasticsearch.xpack.esql.plan.logical.inference.Completion;
 import org.elasticsearch.xpack.esql.plan.logical.join.InlineJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.Join;
 import org.elasticsearch.xpack.esql.plan.logical.join.JoinConfig;
@@ -162,6 +164,7 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.fieldAttribute;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.getFieldAttribute;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.loadMapping;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.localSource;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.randomLiteral;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.referenceAttribute;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.singleValue;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.unboundLogicalOptimizerContext;
@@ -176,6 +179,7 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.GEO_POINT;
 import static org.elasticsearch.xpack.esql.core.type.DataType.INTEGER;
 import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
 import static org.elasticsearch.xpack.esql.core.type.DataType.LONG;
+import static org.elasticsearch.xpack.esql.core.type.DataType.TEXT;
 import static org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.EsqlBinaryComparison.BinaryComparisonOperation.EQ;
 import static org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.EsqlBinaryComparison.BinaryComparisonOperation.GT;
 import static org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.EsqlBinaryComparison.BinaryComparisonOperation.GTE;
@@ -2778,6 +2782,24 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
 
     private static List<String> orderNames(TopN topN) {
         return topN.order().stream().map(o -> as(o.child(), NamedExpression.class).name()).toList();
+    }
+
+    /**
+     * Expects
+     * Eval[[2[INTEGER] AS x]]
+     * \_Limit[1000[INTEGER],false]
+     *   \_LocalRelation[[{e}#9],[ConstantNullBlock[positions=1]]]
+     */
+    public void testEvalAfterStats() {
+        var plan = optimizedPlan("""
+            ROW foo = 1
+            | STATS x = max(foo)
+            | EVAL x = 2
+            """);
+        var eval = as(plan, Eval.class);
+        var limit = as(eval.child(), Limit.class);
+        var localRelation = as(limit.child(), LocalRelation.class);
+        assertThat(Expressions.names(eval.output()), contains("x"));
     }
 
     public void testCombineLimitWithOrderByThroughFilterAndEval() {
@@ -5556,6 +5578,17 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
                 )
             ),
             new PushDownEnrich()
+        ),
+        // | COMPLETION CONCAT(some text, x) WITH inferenceID AS y
+        new PushdownShadowingGeneratingPlanTestCase(
+            (plan, attr) -> new Completion(
+                EMPTY,
+                plan,
+                randomLiteral(TEXT),
+                new Concat(EMPTY, randomLiteral(TEXT), List.of(attr)),
+                new ReferenceAttribute(EMPTY, "y", KEYWORD)
+            ),
+            new PushDownCompletion()
         ) };
 
     /**
@@ -6814,7 +6847,8 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         Eval addEval = as(aggsByTsid.child(), Eval.class);
         assertThat(addEval.fields(), hasSize(1));
         Add add = as(Alias.unwrap(addEval.fields().get(0)), Add.class);
-        as(addEval.child(), EsRelation.class);
+        EsRelation relation = as(addEval.child(), EsRelation.class);
+        assertThat(relation.indexMode(), equalTo(IndexMode.TIME_SERIES));
 
         assertThat(Expressions.attribute(mul.left()).id(), equalTo(finalAggs.aggregates().get(1).id()));
         assertThat(mul.right().fold(FoldContext.small()), equalTo(1.1));
@@ -6844,7 +6878,8 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         TimeSeriesAggregate aggsByTsid = as(aggsByCluster.child(), TimeSeriesAggregate.class);
         assertThat(aggsByTsid.aggregates(), hasSize(2)); // _tsid is dropped
         assertNull(aggsByTsid.timeBucket());
-        as(aggsByTsid.child(), EsRelation.class);
+        EsRelation relation = as(aggsByTsid.child(), EsRelation.class);
+        assertThat(relation.indexMode(), equalTo(IndexMode.TIME_SERIES));
 
         Sum sum = as(Alias.unwrap(aggsByCluster.aggregates().get(0)), Sum.class);
         assertThat(Expressions.attribute(sum.field()).id(), equalTo(aggsByTsid.aggregates().get(0).id()));
@@ -6871,7 +6906,8 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         TimeSeriesAggregate aggsByTsid = as(finalAggs.child(), TimeSeriesAggregate.class);
         assertThat(aggsByTsid.aggregates(), hasSize(3)); // _tsid is dropped
         assertNull(aggsByTsid.timeBucket());
-        as(aggsByTsid.child(), EsRelation.class);
+        EsRelation relation = as(aggsByTsid.child(), EsRelation.class);
+        assertThat(relation.indexMode(), equalTo(IndexMode.TIME_SERIES));
 
         Div div = as(Alias.unwrap(eval.fields().get(0)), Div.class);
         assertThat(Expressions.attribute(div.left()).id(), equalTo(finalAggs.aggregates().get(0).id()));
@@ -6910,7 +6946,8 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         assertThat(aggsByTsid.timeBucket().buckets().fold(FoldContext.small()), equalTo(Duration.ofHours(1)));
         Eval eval = as(aggsByTsid.child(), Eval.class);
         assertThat(eval.fields(), hasSize(1));
-        as(eval.child(), EsRelation.class);
+        EsRelation relation = as(eval.child(), EsRelation.class);
+        assertThat(relation.indexMode(), equalTo(IndexMode.TIME_SERIES));
 
         Sum sum = as(Alias.unwrap(finalAgg.aggregates().get(0)), Sum.class);
         assertThat(Expressions.attribute(sum.field()).id(), equalTo(aggsByTsid.aggregates().get(0).id()));
@@ -6944,7 +6981,8 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         assertNotNull(aggsByTsid.timeBucket());
         assertThat(aggsByTsid.timeBucket().buckets().fold(FoldContext.small()), equalTo(Duration.ofMinutes(5)));
         Eval bucket = as(aggsByTsid.child(), Eval.class);
-        as(bucket.child(), EsRelation.class);
+        EsRelation relation = as(bucket.child(), EsRelation.class);
+        assertThat(relation.indexMode(), equalTo(IndexMode.TIME_SERIES));
         assertThat(Expressions.attribute(div.left()).id(), equalTo(finalAgg.aggregates().get(0).id()));
         assertThat(Expressions.attribute(div.right()).id(), equalTo(finalAgg.aggregates().get(1).id()));
 
@@ -6985,7 +7023,8 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         assertNotNull(aggsByTsid.timeBucket());
         assertThat(aggsByTsid.timeBucket().buckets().fold(FoldContext.small()), equalTo(Duration.ofMinutes(5)));
         Eval bucket = as(aggsByTsid.child(), Eval.class);
-        as(bucket.child(), EsRelation.class);
+        EsRelation relation = as(bucket.child(), EsRelation.class);
+        assertThat(relation.indexMode(), equalTo(IndexMode.TIME_SERIES));
         assertThat(Expressions.attribute(div.left()).id(), equalTo(finalAgg.aggregates().get(0).id()));
         assertThat(Expressions.attribute(div.right()).id(), equalTo(finalAgg.aggregates().get(1).id()));
 
@@ -7049,7 +7088,8 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         Eval evalBucket = as(aggsByTsid.child(), Eval.class);
         assertThat(evalBucket.fields(), hasSize(1));
         Bucket bucket = as(Alias.unwrap(evalBucket.fields().get(0)), Bucket.class);
-        as(evalBucket.child(), EsRelation.class);
+        EsRelation relation = as(evalBucket.child(), EsRelation.class);
+        assertThat(relation.indexMode(), equalTo(IndexMode.TIME_SERIES));
 
         assertThat(Expressions.attribute(div.left()).id(), equalTo(finalAgg.aggregates().get(0).id()));
         assertThat(Expressions.attribute(div.right()).id(), equalTo(finalAgg.aggregates().get(1).id()));
@@ -7087,7 +7127,8 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         assertThat(aggsByTsid.timeBucket().buckets().fold(FoldContext.small()), equalTo(Duration.ofHours(1)));
         Eval eval = as(aggsByTsid.child(), Eval.class);
         assertThat(eval.fields(), hasSize(1));
-        as(eval.child(), EsRelation.class);
+        EsRelation relation = as(eval.child(), EsRelation.class);
+        assertThat(relation.indexMode(), equalTo(IndexMode.STANDARD));
 
         Sum sum = as(Alias.unwrap(finalAgg.aggregates().get(0)), Sum.class);
         assertThat(Expressions.attribute(sum.field()).id(), equalTo(aggsByTsid.aggregates().get(0).id()));
@@ -7116,7 +7157,8 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         assertThat(aggsByTsid.timeBucket().buckets().fold(FoldContext.small()), equalTo(Duration.ofHours(1)));
         Eval evalBucket = as(aggsByTsid.child(), Eval.class);
         assertThat(evalBucket.fields(), hasSize(1));
-        as(evalBucket.child(), EsRelation.class);
+        EsRelation relation = as(evalBucket.child(), EsRelation.class);
+        assertThat(relation.indexMode(), equalTo(IndexMode.STANDARD));
 
         Sum sum = as(Alias.unwrap(finalAgg.aggregates().get(0)), Sum.class);
         assertThat(Expressions.attribute(sum.field()).id(), equalTo(evalAvg.fields().get(0).id()));

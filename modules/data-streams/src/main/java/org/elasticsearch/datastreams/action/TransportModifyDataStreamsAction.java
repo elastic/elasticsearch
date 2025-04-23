@@ -26,13 +26,13 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
-public class ModifyDataStreamsTransportAction extends AcknowledgedTransportMasterNodeProjectAction<ModifyDataStreamsAction.Request> {
+public class TransportModifyDataStreamsAction extends AcknowledgedTransportMasterNodeProjectAction<ModifyDataStreamsAction.Request> {
 
     private final IndexNameExpressionResolver indexNameExpressionResolver;
     private final MetadataDataStreamsService metadataDataStreamsService;
 
     @Inject
-    public ModifyDataStreamsTransportAction(
+    public TransportModifyDataStreamsAction(
         TransportService transportService,
         ClusterService clusterService,
         ThreadPool threadPool,

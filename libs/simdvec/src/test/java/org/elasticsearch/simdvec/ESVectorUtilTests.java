@@ -231,7 +231,7 @@ public class ESVectorUtilTests extends BaseVectorizationTests {
         }
     }
 
-    void testIpByteBinImpl(ToLongBiFunction<byte[], byte[]> ipByteBinFunc) {
+    void testIpByteBinImpl(IpByteBin ipByteBinFunc) {
         int iterations = atLeast(50);
         for (int i = 0; i < iterations; i++) {
             int size = random().nextInt(5000);

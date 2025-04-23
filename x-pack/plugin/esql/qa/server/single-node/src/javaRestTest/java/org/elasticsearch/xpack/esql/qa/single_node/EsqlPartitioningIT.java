@@ -70,8 +70,12 @@ public class EsqlPartitioningIT extends ESRestTestCase {
                     new Case("| WHERE a == 1 | STATS SUM(a)", "SEGMENT"),
                     new Case("| WHERE a == 1 | MV_EXPAND a | STATS SUM(a)", "SEGMENT"),
                     new Case("| WHERE MATCH(a, \"1\")", "SHARD"),
+                    new Case("| WHERE QSTR(\"a:1\")", "SHARD"),
+                    new Case("| WHERE KQL(\"a:1\")", "SHARD"),
                     new Case("| WHERE a:\"1\"", "SHARD"),
                     new Case("| WHERE MATCH(a, \"2\") | SORT _score DESC", "SHARD", true),
+                    new Case("| WHERE QSTR(\"a:2\") | SORT _score DESC", "SHARD", true),
+                    new Case("| WHERE KQL(\"a:2\") | SORT _score DESC", "SHARD", true),
                     new Case("| WHERE MATCH(a, \"3\") | SORT _score DESC | LIMIT 10", "SHARD", true),
                     new Case("| WHERE MATCH(a, \"3\") OR MATCH(a, \"4\") | SORT _score DESC | LIMIT 10", "SHARD", true),
                     new Case("| WHERE a:\"3\" | WHERE a:\"4\" | SORT _score DESC | LIMIT 10", "SHARD", true), }) {

@@ -2830,8 +2830,7 @@ public class InternalEngine extends Engine {
         System.out.println("activateThrottling, throttleRequestCount = " + count);
         // This means that the first time we activateThrottling with pauseIndexing set to
         // true, this condition will remain true while this shard is active.
-        if (pauseIndexing)
-        {
+        if (pauseIndexing) {
             throttleShouldPauseIndexing.setRelease(true);
         }
         assert count >= 1 : "invalid post-increment throttleRequestCount=" + count;

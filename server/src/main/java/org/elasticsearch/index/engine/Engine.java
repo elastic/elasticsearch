@@ -481,8 +481,7 @@ public abstract class Engine implements Closeable {
             if (pauseIndexing.getAcquire()) {
                 pauseIndexing.setRelease(true);
                 lock = pauseLockReference;
-            }
-            else {
+            } else {
                 lock = lockReference;
             }
         }
@@ -491,8 +490,7 @@ public abstract class Engine implements Closeable {
         public void deactivate() {
             assert lock != NOOP_LOCK : "throttling deactivated but not active";
 
-            if(lock == pauseLockReference)
-            {
+            if (lock == pauseLockReference) {
                 System.out.println("throttle deactivate: here1");
                 pauseIndexing.setRelease(false);
                 // Signal the threads that are waiting on pauseCondition

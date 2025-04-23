@@ -27,12 +27,12 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
-public class MigrateToDataStreamTransportAction extends AcknowledgedTransportMasterNodeProjectAction<MigrateToDataStreamAction.Request> {
+public class TransportMigrateToDataStreamAction extends AcknowledgedTransportMasterNodeProjectAction<MigrateToDataStreamAction.Request> {
 
     private final MetadataMigrateToDataStreamService metadataMigrateToDataStreamService;
 
     @Inject
-    public MigrateToDataStreamTransportAction(
+    public TransportMigrateToDataStreamAction(
         TransportService transportService,
         ClusterService clusterService,
         ThreadPool threadPool,

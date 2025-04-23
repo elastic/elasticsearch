@@ -5,7 +5,7 @@ setup:
       capabilities:
         - method: GET
           path: /_data_stream/{target}
-          capabilities: [ 'failures_lifecycle' ]
+          capabilities: [ 'failure_store.lifecycle' ]
   - do:
       allowed_warnings:
         - "index template [my-template1] has index patterns [fs-data-stream] matching patterns from existing older templates [global] with patterns (global => [*]); this template [my-template1] will take precedence during new index creation"
@@ -236,3 +236,5 @@ teardown:
   - match: { data_streams.0.failure_store.lifecycle.enabled: true }
   - length: { data_streams.0.failure_store.indices: 1 }
   - match: { data_streams.0.failure_store.indices.0.index_name: '/\.fs-fs-default-data-stream-(\d{4}\.\d{2}\.\d{2}-)?000002/' }
+  - is_false: data_streams.0.failure_store.indices.0.prefer_ilm
+  - match: { data_streams.0.failure_store.indices.0.managed_by: 'Data stream lifecycle' }

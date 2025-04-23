@@ -3402,7 +3402,9 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
              * Applies a shard snapshot status update to an updated statuses builder, after a few sanity checks / filtering.
              *
              * @param existingShardSnapshotStatuses Maps shard ID to ShardSnapshotStatus
-             * @param newShardSnapshotStatusesSupplier Supplies a builder mapping shard ID to updated ShardSnapshotStatus
+             * @param newShardSnapshotStatusesSupplier Supplies a builder. Initially maps shard ID to existing ShardSnapshotStatus. As shard
+             *                                         snapshot status updates are applied, the original status entries are replaced with
+             *                                         updated ones.
              * @param shardSnapshotStatusUpdate The update to apply to build a new updated ShardSnapshotStatus
              * @param shardSnapshotId The shard snapshot ID of the shard being updated (for type reasons)
              */
@@ -3433,7 +3435,8 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
 
                 final var newShardSnapshotStatusesBuilder = newShardSnapshotStatusesSupplier.get();
                 final var newShardSnapshotStatus = newShardSnapshotStatusesBuilder.get(shardSnapshotId);
-                if (newShardSnapshotStatus != null && newShardSnapshotStatus.state().completed()) {
+                assert newShardSnapshotStatus != null; // builder is seeded with all the original statuses.
+                if (newShardSnapshotStatus.state().completed()) {
                     // An out-of-order status update arrived. It should not be applied because the shard snapshot is already finished.
                     // For example, a delayed/retried PAUSED update should not override a completed shard snapshot.
                     iterator.remove();

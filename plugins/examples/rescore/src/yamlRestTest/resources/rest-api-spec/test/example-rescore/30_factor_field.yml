@@ -50,6 +50,9 @@ setup:
 
 ---
 "referencing a missing field returns bad request":
+  - requires:
+      cluster_features: [ "search.rescorer.missing.field.bad.request" ]
+      reason: "Testing the behaviour change with this feature"
   - do:
       catch: bad_request
       search:

@@ -34,7 +34,6 @@ import static org.elasticsearch.entitlement.runtime.policy.PolicyManager.ALL_UNN
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-@ESTestCase.WithoutSecurityManager
 public class ScopeResolverTests extends ESTestCase {
     /**
      * A test agent package name for use in tests.

@@ -1327,8 +1327,7 @@ public class TopHitsIT extends ESIntegTestCase {
                         public void process(FetchSubPhase.HitContext hitContext) {
                             leafSearchLookup.setDocument(hitContext.docId());
                             FieldLookup fieldLookup = leafSearchLookup.fields().get("text");
-                            hitContext.hit()
-                                .setDocumentField("text_stored_lookup", new DocumentField("text_stored_lookup", fieldLookup.getValues()));
+                            hitContext.hit().setDocumentField(new DocumentField("text_stored_lookup", fieldLookup.getValues()));
                         }
 
                         @Override

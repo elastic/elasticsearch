@@ -685,7 +685,7 @@ public class SnapshotsServiceTests extends ESTestCase {
             final SnapshotsInProgress existing = SnapshotsInProgress.get(batchExecutionContext.initialState());
             final var context = new SnapshotsService.SnapshotShardsUpdateContext(
                 batchExecutionContext,
-                /* on completion handler */ (a, b, c) -> {}
+                /* on completion handler */ (shardSnapshotUpdateResult, newlyCompletedEntries, updatedRepositories) -> {}
             );
             final SnapshotsInProgress updated = context.computeUpdatedState();
             context.completeWithUpdatedState(updated);

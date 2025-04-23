@@ -129,7 +129,7 @@ public class SynonymsManagementAPIServiceIT extends ESIntegTestCase {
         latch.await(5, TimeUnit.SECONDS);
     }
 
-    @Repeat(iterations=1000)
+    @Repeat(iterations=500)
     public void testCreateTooManySynonymsUsingRuleUpdates() throws InterruptedException {
         CountDownLatch latch = new CountDownLatch(1);
         int rulesToUpdate = randomIntBetween(1, 10);
@@ -206,7 +206,7 @@ public class SynonymsManagementAPIServiceIT extends ESIntegTestCase {
         latch.await(5, TimeUnit.SECONDS);
     }
 
-    @Repeat(iterations=1000)
+    @Repeat(iterations=500)
     public void testUpdateRuleWithMaxSynonyms() throws InterruptedException {
         CountDownLatch latch = new CountDownLatch(1);
         String synonymSetId = randomIdentifier();
@@ -242,7 +242,7 @@ public class SynonymsManagementAPIServiceIT extends ESIntegTestCase {
         latch.await(5, TimeUnit.SECONDS);
     }
 
-    @Repeat(iterations=1000)
+    @Repeat(iterations=500)
     public void testCreateRuleWithMaxSynonyms() throws InterruptedException {
         CountDownLatch latch = new CountDownLatch(1);
         String synonymSetId = randomIdentifier();

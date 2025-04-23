@@ -84,7 +84,7 @@ public class DefaultMappingParametersHandler implements DataSourceHandler {
         };
     }
 
-    private Supplier<Map<String, Object>> keywordMapping(
+    public static Supplier<Map<String, Object>> keywordMapping(
         DataSourceRequest.LeafMappingParametersGenerator request,
         Map<String, Object> injected
     ) {
@@ -109,6 +109,14 @@ public class DefaultMappingParametersHandler implements DataSourceHandler {
             }
             if (ESTestCase.randomDouble() <= 0.2) {
                 injected.put("null_value", ESTestCase.randomAlphaOfLengthBetween(0, 10));
+            }
+
+            if (ESTestCase.randomDouble() <= 0.1) {
+                var textMultiFieldMapping = textMapping(request, new HashMap<>()).get();
+                textMultiFieldMapping.put("type", "text");
+                textMultiFieldMapping.remove("fields");
+
+                injected.put("fields", Map.of("txt", textMultiFieldMapping));
             }
 
             return injected;
@@ -192,7 +200,7 @@ public class DefaultMappingParametersHandler implements DataSourceHandler {
         };
     }
 
-    private Supplier<Map<String, Object>> textMapping(
+    public static Supplier<Map<String, Object>> textMapping(
         DataSourceRequest.LeafMappingParametersGenerator request,
         Map<String, Object> injected
     ) {
@@ -206,7 +214,6 @@ public class DefaultMappingParametersHandler implements DataSourceHandler {
                 keywordMultiFieldMapping.remove("copy_to");
 
                 injected.put("fields", Map.of("kwd", keywordMultiFieldMapping));
-
             }
 
             return injected;
@@ -250,7 +257,7 @@ public class DefaultMappingParametersHandler implements DataSourceHandler {
         };
     }
 
-    private static HashMap<String, Object> commonMappingParameters() {
+    public static HashMap<String, Object> commonMappingParameters() {
         var map = new HashMap<String, Object>();
         map.put("store", ESTestCase.randomBoolean());
         map.put("index", ESTestCase.randomBoolean());

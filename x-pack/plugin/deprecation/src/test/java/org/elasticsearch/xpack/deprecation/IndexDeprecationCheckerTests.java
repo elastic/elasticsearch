@@ -291,7 +291,12 @@ public class IndexDeprecationCheckerTests extends ESTestCase {
             DeprecationIssue.Level.WARNING,
             "Old index with a compatibility version < 8.0 has been ignored",
             "https://ela.st/es-deprecation-9-index-version",
-            "This read-only index has version: " + OLD_VERSION.toReleaseVersion() + " and will be supported as read-only in 9.0",
+            "This read-only index has version: "
+                + OLD_VERSION.toReleaseVersion()
+                + " and will be supported as read-only in "
+                + Version.CURRENT.major
+                + 1
+                + ".0",
             false,
             singletonMap("reindex_required", true)
         );

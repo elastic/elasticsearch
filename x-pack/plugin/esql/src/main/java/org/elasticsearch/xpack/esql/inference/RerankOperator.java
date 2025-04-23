@@ -25,7 +25,7 @@ import org.elasticsearch.xpack.core.inference.results.RankedDocsResults;
 
 import java.util.List;
 
-public class RerankOperator extends InferenceOperator<Page> {
+public class RerankOperator extends InferenceOperator<Page, RankedDocsResults> {
     public record Factory(
         InferenceRunner inferenceRunner,
         String inferenceId,
@@ -65,7 +65,7 @@ public class RerankOperator extends InferenceOperator<Page> {
         ExpressionEvaluator rowEncoder,
         int scoreChannel
     ) {
-        super(driverContext, inferenceRunner.getThreadContext(), inferenceRunner, inferenceId);
+        super(driverContext, inferenceRunner.getThreadContext(), inferenceRunner, inferenceId, RankedDocsResults.class);
 
         this.blockFactory = driverContext.blockFactory();
         this.queryText = queryText;
@@ -81,10 +81,7 @@ public class RerankOperator extends InferenceOperator<Page> {
         try {
             doInference(
                 buildInferenceRequest(inputPage),
-                ActionListener.wrap(
-                    inferenceResponse -> outputListener.onResponse(buildOutput(inputPage, inferenceResponse)),
-                    outputListener::onFailure
-                )
+                outputListener.delegateFailureAndWrap((l, r) -> l.onResponse(buildOutput(inputPage, r)))
             );
         } catch (Exception e) {
             outputListener.onFailure(e);
@@ -109,21 +106,6 @@ public class RerankOperator extends InferenceOperator<Page> {
     @Override
     public String toString() {
         return "RerankOperator[inference_id=[" + inferenceId() + "], query=[" + queryText + "], score_channel=[" + scoreChannel + "]]";
-    }
-
-    private Page buildOutput(Page inputPage, InferenceAction.Response inferenceResponse) {
-        if (inferenceResponse.getResults() instanceof RankedDocsResults rankedDocsResults) {
-            return buildOutput(inputPage, rankedDocsResults);
-
-        }
-
-        throw new IllegalStateException(
-            "Inference result has wrong type. Got ["
-                + inferenceResponse.getResults().getClass()
-                + "] while expecting ["
-                + RankedDocsResults.class
-                + "]"
-        );
     }
 
     private Page buildOutput(Page inputPage, RankedDocsResults rankedDocsResults) {

@@ -19,10 +19,12 @@ import org.elasticsearch.core.ReleasableIterator;
 import org.elasticsearch.core.Releasables;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.function.Consumer;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 
 public class TopNBlockHashTests extends BlockHashTestCase {
 
@@ -73,7 +75,7 @@ public class TopNBlockHashTests extends BlockHashTestCase {
             } else {
                 assertThat(
                     ordsAndKeys.description(),
-                    equalTo("LongTopNBlockHash{channel=0, " + topNParametersString(4) + ", hasNull=false}")
+                    equalTo("LongTopNBlockHash{channel=0, " + topNParametersString(4, 0) + ", hasNull=false}")
                 );
                 if (limit == LIMIT_HIGH) {
                     assertKeys(ordsAndKeys.keys(), 2L, 1L, 4L, 3L);
@@ -94,6 +96,40 @@ public class TopNBlockHashTests extends BlockHashTestCase {
         }, blockFactory.newLongArrayVector(values, values.length).asBlock());
     }
 
+    public void testLongHashBatched() {
+        long[][] arrays = { new long[] { 2, 1, 4, 2 }, new long[] { 4, 1, 3, 4 } };
+
+        hashBatchesCallbackOnLast(ordsAndKeys -> {
+            if (forcePackedHash) {
+                // TODO: Not tested yet
+            } else {
+                assertThat(
+                    ordsAndKeys.description(),
+                    equalTo("LongTopNBlockHash{channel=0, " + topNParametersString(4, asc ? 0 : 1) + ", hasNull=false}")
+                );
+                if (limit == LIMIT_HIGH) {
+                    assertKeys(ordsAndKeys.keys(), 2L, 1L, 4L, 3L);
+                    assertOrds(ordsAndKeys.ords(), 3, 2, 4, 3);
+                    assertThat(ordsAndKeys.nonEmpty(), equalTo(intRange(1, 5)));
+                } else {
+                    if (asc) {
+                        assertKeys(ordsAndKeys.keys(), 2L, 1L);
+                        assertOrds(ordsAndKeys.ords(), null, 2, null, null);
+                        assertThat(ordsAndKeys.nonEmpty(), equalTo(intVector(1, 2)));
+                    } else {
+                        assertKeys(ordsAndKeys.keys(), 4L, 3L);
+                        assertOrds(ordsAndKeys.ords(), 2, null, 3, 2);
+                        assertThat(ordsAndKeys.nonEmpty(), equalTo(intVector(2, 3)));
+                    }
+                }
+            }
+        },
+            Arrays.stream(arrays)
+                .map(array -> new Block[] { blockFactory.newLongArrayVector(array, array.length).asBlock() })
+                .toArray(Block[][]::new)
+        );
+    }
+
     public void testLongHashWithNulls() {
         try (LongBlock.Builder builder = blockFactory.newLongBlockBuilder(4)) {
             builder.appendLong(0);
@@ -111,7 +147,7 @@ public class TopNBlockHashTests extends BlockHashTestCase {
                         ordsAndKeys.description(),
                         equalTo(
                             "LongTopNBlockHash{channel=0, "
-                                + topNParametersString(hasTwoNonNullValues ? 2 : 1)
+                                + topNParametersString(hasTwoNonNullValues ? 2 : 1, 0)
                                 + ", hasNull="
                                 + hasNull
                                 + "}"
@@ -172,7 +208,7 @@ public class TopNBlockHashTests extends BlockHashTestCase {
                     if (limit == LIMIT_HIGH) {
                         assertThat(
                             ordsAndKeys.description(),
-                            equalTo("LongTopNBlockHash{channel=0, " + topNParametersString(3) + ", hasNull=true}")
+                            equalTo("LongTopNBlockHash{channel=0, " + topNParametersString(3, 0) + ", hasNull=true}")
                         );
                         assertOrds(
                             ordsAndKeys.ords(),
@@ -188,7 +224,11 @@ public class TopNBlockHashTests extends BlockHashTestCase {
                         assertThat(
                             ordsAndKeys.description(),
                             equalTo(
-                                "LongTopNBlockHash{channel=0, " + topNParametersString(nullsFirst ? 1 : 2) + ", hasNull=" + nullsFirst + "}"
+                                "LongTopNBlockHash{channel=0, "
+                                    + topNParametersString(nullsFirst ? 1 : 2, 0)
+                                    + ", hasNull="
+                                    + nullsFirst
+                                    + "}"
                             )
                         );
                         if (nullsFirst) {
@@ -279,12 +319,44 @@ public class TopNBlockHashTests extends BlockHashTestCase {
         }
     }
 
-    private void hash(Consumer<OrdsAndKeys> callback, int emitBatchSize, Block.Builder... values) {
-        Block[] blocks = Block.Builder.buildAll(values);
-        try (BlockHash hash = buildBlockHash(emitBatchSize, blocks)) {
-            hash(true, hash, callback, blocks);
+    // TODO: Randomize this instead?
+    /**
+     * Hashes multiple separated batches of values.
+     *
+     * @param callback Callback with the OrdsAndKeys for the last batch
+     */
+    private void hashBatchesCallbackOnLast(Consumer<OrdsAndKeys> callback, Block[]... batches) {
+        // Ensure all batches share the same specs
+        assertThat(batches.length, greaterThan(0));
+        for (Block[] batch : batches) {
+            assertThat(batch.length, equalTo(batches[0].length));
+            for (int i = 0; i < batch.length; i++) {
+                assertThat(batches[0][i].elementType(), equalTo(batch[i].elementType()));
+            }
+        }
+
+        boolean[] called = new boolean[] { false };
+        try (BlockHash hash = buildBlockHash(16 * 1024, batches[0])) {
+            for (Block[] batch : batches) {
+                called[0] = false;
+                hash(true, hash, ordsAndKeys -> {
+                    if (called[0]) {
+                        throw new IllegalStateException("hash produced more than one block");
+                    }
+                    called[0] = true;
+                    if (batch == batches[batches.length - 1]) {
+                        callback.accept(ordsAndKeys);
+                    }
+                    try (ReleasableIterator<IntBlock> lookup = hash.lookup(new Page(batch), ByteSizeValue.ofKb(between(1, 100)))) {
+                        assertThat(lookup.hasNext(), equalTo(true));
+                        try (IntBlock ords = lookup.next()) {
+                            assertThat(ords, equalTo(ordsAndKeys.ords()));
+                        }
+                    }
+                }, batch);
+            }
         } finally {
-            Releasables.closeExpectNoException(blocks);
+            Releasables.close(Arrays.stream(batches).flatMap(Arrays::stream).toList());
         }
     }
 
@@ -304,7 +376,14 @@ public class TopNBlockHashTests extends BlockHashTestCase {
     /**
      * Returns the common toString() part of the TopNBlockHash using the test parameters.
      */
-    private String topNParametersString(int differentValues) {
-        return "asc=" + asc + ", nullsFirst=" + nullsFirst + ", limit=" + limit + ", entries=" + Math.min(differentValues, limit);
+    private String topNParametersString(int differentValues, int unusedInsertedValues) {
+        return "asc="
+            + asc
+            + ", nullsFirst="
+            + nullsFirst
+            + ", limit="
+            + limit
+            + ", entries="
+            + Math.min(differentValues, limit + unusedInsertedValues);
     }
 }

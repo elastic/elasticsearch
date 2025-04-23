@@ -11,6 +11,7 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.BitArray;
 import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.compute.aggregation.GroupingAggregatorFunction;
@@ -108,6 +109,7 @@ public abstract class BlockHashTestCase extends ESTestCase {
                 fail("hashes should not close AddInput");
             }
         });
+        assertSeenGroupIdsAndNonEmpty(blockHash);
         if (blockHash instanceof LongLongBlockHash == false
             && blockHash instanceof BytesRefLongBlockHash == false
             && blockHash instanceof BytesRef2BlockHash == false
@@ -123,6 +125,21 @@ public abstract class BlockHashTestCase extends ESTestCase {
                 }
             } finally {
                 Releasables.closeExpectNoException(keys);
+            }
+        }
+    }
+
+    private static void assertSeenGroupIdsAndNonEmpty(BlockHash blockHash) {
+        try (BitArray seenGroupIds = blockHash.seenGroupIds(BigArrays.NON_RECYCLING_INSTANCE); IntVector nonEmpty = blockHash.nonEmpty()) {
+            assertThat(
+                "seenGroupIds cardinality doesn't match with nonEmpty size",
+                seenGroupIds.cardinality(),
+                equalTo((long) nonEmpty.getPositionCount())
+            );
+
+            for (int position = 0; position < nonEmpty.getPositionCount(); position++) {
+                int groupId = nonEmpty.getInt(position);
+                assertThat("group " + groupId + " from nonEmpty isn't set in seenGroupIds", seenGroupIds.get(groupId), is(true));
             }
         }
     }

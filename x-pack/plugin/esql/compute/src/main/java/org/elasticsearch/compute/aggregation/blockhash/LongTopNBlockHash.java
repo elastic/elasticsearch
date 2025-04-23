@@ -289,7 +289,18 @@ public final class LongTopNBlockHash extends BlockHash {
 
     @Override
     public BitArray seenGroupIds(BigArrays bigArrays) {
-        return new Range(hasNull ? 0 : 1, Math.toIntExact(hash.size() + 1)).seenGroupIds(bigArrays);
+        BitArray seenGroups = new BitArray(111, bigArrays);
+        if (hasNull) {
+            seenGroups.set(0);
+        }
+        // TODO: Can we instead iterate the top and take the ids from the hash? To avoid checking unused values
+        for (int i = 1; i < hash.size() + 1; i++) {
+            long value = hash.get(i - 1);
+            if (isInTop(value)) {
+                seenGroups.set(i);
+            }
+        }
+        return seenGroups;
     }
 
     @Override

@@ -44,8 +44,8 @@ final class ComputeListener implements Releasable {
      * This listener allows to complete the computation early without waiting for all dependencies.
      * This discards waiting for slow data node responses if results set already populated (for example if we reached the limit).
      */
-    ActionListener<Void> completeImmediately() {
-        return delegate;
+    void completeImmediately() {
+        delegate.onResponse(null);
     }
 
     /**
@@ -66,14 +66,14 @@ final class ComputeListener implements Releasable {
      * Acquires a new listener that collects compute result. This listener will also collect warnings emitted during compute
      */
     ActionListener<DriverCompletionInfo> acquireCompute() {
-        final ActionListener<Void> delegate = acquireAvoid();
+        final ActionListener<Void> listener = acquireAvoid();
         return ActionListener.wrap(info -> {
             responseHeaders.collect();
             completionInfoAccumulator.accumulate(info);
-            delegate.onResponse(null);
+            listener.onResponse(null);
         }, e -> {
             responseHeaders.collect();
-            delegate.onFailure(e);
+            listener.onFailure(e);
         });
     }
 

@@ -388,6 +388,7 @@ public class ComputeService {
                         })
                     )
                 ) {
+                    var delegate = localListener.acquireCompute();
                     runCompute(
                         rootTask,
                         new ComputeContext(
@@ -401,10 +402,13 @@ public class ComputeService {
                             exchangeSinkSupplier
                         ),
                         coordinatorPlan,
-                        localListener.acquireCompute()
+                        delegate.delegateFailure((l, r) -> {
+                            l.onResponse(r);
+                            if (exchangeSource.isFinished()) {
+                                localListener.completeImmediately();
+                            }
+                        })
                     );
-
-                    exchangeSource.onCompletion(localListener.completeImmediately());
 
                     // starts computes on data nodes on the main cluster
                     if (localConcreteIndices != null && localConcreteIndices.indices().length > 0) {

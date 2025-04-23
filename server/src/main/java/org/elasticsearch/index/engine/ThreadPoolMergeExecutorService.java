@@ -149,7 +149,7 @@ public class ThreadPoolMergeExecutorService {
     private void enqueueMergeTask(MergeTask mergeTask) {
         synchronized (mergeEventsMutex) {
             if (queuedMergeTasks.add(mergeTask)) {
-                mergeEventListeners.forEach(l -> l.onMergeQueued(mergeTask.getOnGoingMerge(), mergeTask.getEstimateMergeMemoryBytes()));
+                mergeEventListeners.forEach(l -> l.onMergeQueued(mergeTask.getOnGoingMerge(), mergeTask.getMergeMemoryEstimateBytes()));
             }
         }
     }

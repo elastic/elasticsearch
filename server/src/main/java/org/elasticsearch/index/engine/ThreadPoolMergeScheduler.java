@@ -317,14 +317,14 @@ public class ThreadPoolMergeScheduler extends MergeScheduler implements Elastics
         private final OnGoingMerge onGoingMerge;
         private final MergeRateLimiter rateLimiter;
         private final boolean supportsIOThrottling;
-        private final long estimateMergeMemoryBytes;
+        private final long mergeMemoryEstimateBytes;
 
         MergeTask(
             MergeSource mergeSource,
             MergePolicy.OneMerge merge,
             boolean supportsIOThrottling,
             String name,
-            long estimateMergeMemoryBytes
+            long mergeMemoryEstimateBytes
         ) {
             this.name = name;
             this.mergeStartTimeNS = new AtomicLong();
@@ -332,7 +332,7 @@ public class ThreadPoolMergeScheduler extends MergeScheduler implements Elastics
             this.onGoingMerge = new OnGoingMerge(merge);
             this.rateLimiter = new MergeRateLimiter(merge.getMergeProgress());
             this.supportsIOThrottling = supportsIOThrottling;
-            this.estimateMergeMemoryBytes = estimateMergeMemoryBytes;
+            this.mergeMemoryEstimateBytes = mergeMemoryEstimateBytes;
         }
 
         Schedule schedule() {
@@ -462,8 +462,8 @@ public class ThreadPoolMergeScheduler extends MergeScheduler implements Elastics
             return onGoingMerge.getMerge().getStoreMergeInfo().estimatedMergeBytes();
         }
 
-        public long getEstimateMergeMemoryBytes() {
-            return estimateMergeMemoryBytes;
+        public long getMergeMemoryEstimateBytes() {
+            return mergeMemoryEstimateBytes;
         }
 
         public OnGoingMerge getOnGoingMerge() {

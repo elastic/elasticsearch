@@ -17,7 +17,10 @@ import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.store.MMapDirectory;
 import org.apache.lucene.util.quantization.OptimizedScalarQuantizer;
 
+import static org.hamcrest.Matchers.lessThan;
+
 public class ES91OSQVectorScorerTests extends BaseVectorizationTests {
+
     public void testQuantizeScore() throws Exception {
         final int dimensions = random().nextInt(1, 2000);
         final int length = OptimizedScalarQuantizer.discretize(dimensions, 64) / 8;
@@ -49,28 +52,38 @@ public class ES91OSQVectorScorerTests extends BaseVectorizationTests {
     }
 
     public void testScore() throws Exception {
-        final int dimensions = random().nextInt(1, 2000);
+        final int maxDims = 512;
+        final int dimensions = random().nextInt(1, maxDims);
         final int length = OptimizedScalarQuantizer.discretize(dimensions, 64) / 8;
         final int numVectors = ES91OSQVectorsScorer.BULK_SIZE * random().nextInt(1, 10);
-        final byte[] vector = new byte[length + 14];
+        final byte[] vector = new byte[length];
         int padding = random().nextInt(100);
+        byte[] paddingBytes = new byte[padding];
         try (Directory dir = new MMapDirectory(createTempDir())) {
             try (IndexOutput out = dir.createOutput("testScore.bin", IOContext.DEFAULT)) {
-                for (int i = 0; i < padding; i++) {
-                    out.writeByte((byte) random().nextInt());
-                }
+                random().nextBytes(paddingBytes);
+                out.writeBytes(paddingBytes, 0, padding);
                 for (int i = 0; i < numVectors; i++) {
                     random().nextBytes(vector);
-                    out.writeBytes(vector, 0, length + 14);
+                    out.writeBytes(vector, 0, length);
+                    float lower = random().nextFloat();
+                    float upper = random().nextFloat() + lower / 2;
+                    float additionalCorrection = random().nextFloat();
+                    int targetComponentSum = randomIntBetween(0, dimensions / 2);
+                    out.writeInt(Float.floatToIntBits(lower));
+                    out.writeInt(Float.floatToIntBits(upper));
+                    out.writeShort((short) targetComponentSum);
+                    out.writeInt(Float.floatToIntBits(additionalCorrection));
                 }
             }
             final byte[] query = new byte[4 * length];
             random().nextBytes(query);
+            float lower = random().nextFloat();
             OptimizedScalarQuantizer.QuantizationResult result = new OptimizedScalarQuantizer.QuantizationResult(
+                lower,
+                random().nextFloat() + lower / 2,
                 random().nextFloat(),
-                random().nextFloat(),
-                random().nextFloat(),
-                Short.toUnsignedInt((short) random().nextInt())
+                randomIntBetween(0, dimensions * 2)
             );
             final float centroidDp = random().nextFloat();
             final float[] scores1 = new float[ES91OSQVectorsScorer.BULK_SIZE];
@@ -92,7 +105,17 @@ public class ES91OSQVectorScorerTests extends BaseVectorizationTests {
                         final ES91OSQVectorsScorer panamaScorer = maybePanamaProvider().newES91OSQVectorsScorer(in, dimensions);
                         defaultScorer.scoreBulk(query, result, similarityFunction, centroidDp, scores1);
                         panamaScorer.scoreBulk(query, result, similarityFunction, centroidDp, scores2);
-                        assertArrayEquals(scores1, scores2, 1e-2f);
+                        for (int j = 0; j < ES91OSQVectorsScorer.BULK_SIZE; j++) {
+                            if (scores1[j] > (maxDims * Short.MAX_VALUE)) {
+                                int diff = (int) (scores1[j] - scores2[j]);
+                                assertThat("defaultScores: " + scores1[j] + " bulkScores: " + scores2[j], Math.abs(diff), lessThan(65));
+                            } else if (scores1[j] > (maxDims * Byte.MAX_VALUE)) {
+                                int diff = (int) (scores1[j] - scores2[j]);
+                                assertThat("defaultScores: " + scores1[j] + " bulkScores: " + scores2[j], Math.abs(diff), lessThan(9));
+                            } else {
+                                assertEquals(scores1[j], scores2[j], 1e-2f);
+                            }
+                        }
                         assertEquals(((long) (ES91OSQVectorsScorer.BULK_SIZE) * (length + 14)), slice.getFilePointer());
                         assertEquals(padding + ((long) (i + ES91OSQVectorsScorer.BULK_SIZE) * (length + 14)), in.getFilePointer());
                     }

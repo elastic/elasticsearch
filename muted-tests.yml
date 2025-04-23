@@ -417,15 +417,6 @@ tests:
 - class: org.elasticsearch.packaging.test.DockerTests
   method: test026InstallBundledRepositoryPlugins
   issue: https://github.com/elastic/elasticsearch/issues/127081
-- class: org.elasticsearch.multiproject.test.XpackWithMultipleProjectsClientYamlTestSuiteIT
-  method: test {yaml=esql/10_basic/basic with documents_found}
-  issue: https://github.com/elastic/elasticsearch/issues/127088
-- class: org.elasticsearch.xpack.esql.qa.single_node.EsqlClientYamlAsyncIT
-  method: test {p0=esql/10_basic/basic with documents_found}
-  issue: https://github.com/elastic/elasticsearch/issues/127080
-- class: org.elasticsearch.xpack.esql.qa.multi_node.EsqlClientYamlIT
-  method: test {p0=esql/10_basic/basic with documents_found}
-  issue: https://github.com/elastic/elasticsearch/issues/127046
 - class: org.elasticsearch.search.query.QueryPhaseTimeoutTests
   method: testBulkScorerTimeout
   issue: https://github.com/elastic/elasticsearch/issues/127156
@@ -438,15 +429,7 @@ tests:
 - class: org.elasticsearch.xpack.esql.plugin.DataNodeRequestSenderIT
   method: testSearchWhileRelocating
   issue: https://github.com/elastic/elasticsearch/issues/127188
-- class: org.elasticsearch.synonyms.SynonymsManagementAPIServiceIT
-  method: testUpdateRuleWithMaxSynonyms
-  issue: https://github.com/elastic/elasticsearch/issues/127195
-- class: org.elasticsearch.synonyms.SynonymsManagementAPIServiceIT
-  method: testCreateRuleWithMaxSynonyms
-  issue: https://github.com/elastic/elasticsearch/issues/127203
-- class: org.elasticsearch.synonyms.SynonymsManagementAPIServiceIT
-  method: testTooManySynonymsOnIndexTriggersWarning
-  issue: https://github.com/elastic/elasticsearch/issues/127241
+
 
 # Examples:
 #

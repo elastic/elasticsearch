@@ -23,7 +23,7 @@ import org.elasticsearch.xpack.core.inference.results.ChatCompletionResults;
 
 import java.util.List;
 
-public class CompletionOperator extends InferenceOperator<Page> {
+public class CompletionOperator extends InferenceOperator<Page, ChatCompletionResults> {
 
     public record Factory(InferenceRunner inferenceRunner, String inferenceId, ExpressionEvaluator.Factory promptEvaluatorFactory)
         implements
@@ -48,7 +48,7 @@ public class CompletionOperator extends InferenceOperator<Page> {
         String inferenceId,
         ExpressionEvaluator promptEvaluator
     ) {
-        super(driverContext, inferenceRunner.getThreadContext(), inferenceRunner, inferenceId);
+        super(driverContext, inferenceRunner.getThreadContext(), inferenceRunner, inferenceId, ChatCompletionResults.class);
         this.promptEvaluator = promptEvaluator;
         this.blockFactory = driverContext.blockFactory();
     }
@@ -61,7 +61,7 @@ public class CompletionOperator extends InferenceOperator<Page> {
         CountDownActionListener countDownListener = new CountDownActionListener(
             inputPage.getPositionCount(),
             listener.delegateFailureIgnoreResponseAndWrap(l -> {
-                try(BytesRefBlock.Builder outputBlockBuilder = blockFactory.newBytesRefBlockBuilder(pageSize)) {
+                try (BytesRefBlock.Builder outputBlockBuilder = blockFactory.newBytesRefBlockBuilder(pageSize)) {
                     BytesRefBuilder bytesRefBuilder = new BytesRefBuilder();
                     for (int pos = 0; pos < pageSize; pos++) {
                         if (responses[pos] == null) {
@@ -91,21 +91,12 @@ public class CompletionOperator extends InferenceOperator<Page> {
                     }
 
                     InferenceAction.Request request = InferenceAction.Request.builder(inferenceId(), TaskType.COMPLETION)
-                        .setInput(List.of(promptBuilder.toString())).build();
+                        .setInput(List.of(promptBuilder.toString()))
+                        .build();
 
                     doInference(request, countDownListener.delegateFailureAndWrap((l, r) -> {
-                        if (r.getResults() instanceof ChatCompletionResults completionResults) {
-                            responses[currentPos] = completionResults.results().getFirst().content();
-                            l.onResponse(null);
-                        } else {
-                            l.onFailure(new IllegalStateException(
-                                "Inference result has wrong type. Got ["
-                                    + r.getResults().getClass()
-                                    + "] while expecting ["
-                                    + ChatCompletionResults.class
-                                    + "]"
-                            ));
-                        }
+                        responses[currentPos] = r.results().getFirst().content();
+                        l.onResponse(null);
                     }));
                 }
             }
@@ -131,5 +122,4 @@ public class CompletionOperator extends InferenceOperator<Page> {
     public String toString() {
         return "CompletionOperator[inference_id=[" + inferenceId() + "]]";
     }
-
 }

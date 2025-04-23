@@ -102,4 +102,8 @@ public class ColumnInfoImpl implements ColumnInfo {
     public DataType type() {
         return type;
     }
+
+    public String toString() {
+        return "ColumnInfoImpl{" + "name='" + name + '\'' + ", type=" + type + '}';
+    }
 }

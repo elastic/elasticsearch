@@ -16,7 +16,9 @@ For example, you can use `LOOKUP JOIN` to:
 * Quickly see if any source IPs match known malicious addresses.
 * Tag logs with the owning team or escalation info for faster triage and incident response.
 
-[`LOOKUP join`](/reference/query-languages/esql/commands/processing-commands.md#esql-lookup-join) is similar to [`ENRICH`](/reference/query-languages/esql/commands/processing-commands.md#esql-enrich) in the fact that they both help you join data together. You should use `LOOKUP JOIN` when:
+## Compare with `ENRICH`
+
+[`LOOKUP JOIN`](/reference/query-languages/esql/commands/processing-commands.md#esql-lookup-join) is similar to [`ENRICH`](/reference/query-languages/esql/commands/processing-commands.md#esql-enrich) in the fact that they both help you join data together. You should use `LOOKUP JOIN` when:
 
 * Your enrichment data changes frequently
 * You want to avoid index-time processing
@@ -26,25 +28,31 @@ For example, you can use `LOOKUP JOIN` to:
 * You want to restrict users to use only specific lookup indices
 * You do not need to match using ranges or spatial relations
 
-## How the `LOOKUP JOIN` command works [esql-how-lookup-join-works]
+## How the command works [esql-how-lookup-join-works]
 
-The `LOOKUP JOIN` command adds new columns to a table, with data from {{es}} indices.
+The `LOOKUP JOIN` command adds fields from the lookup index as new columns to your results table based on matching values in the join field.
+
+The command requires two parameters:
+- The name of the lookup index (which must have the `lookup` [`index.mode setting`](/reference/elasticsearch/index-settings/index-modules.md#index-mode-setting))
+- The name of the field to join on
+
+```esql
+LOOKUP JOIN <lookup_index> ON <field_name>
+```
 
 :::{image} ../images/esql-lookup-join.png
-:alt: esql lookup join
+:alt: Illustration of the `LOOKUP JOIN` command, where the input table is joined with a lookup index to create an enriched output table.
 :::
-
-`<lookup_index>`
-: The name of the lookup index. This must be a specific index name - wildcards, aliases, and remote cluster references are not supported. Indices used for lookups must be configured with the [`lookup` index mode](/reference/elasticsearch/index-settings/index-modules.md#index-mode-setting).
-
-`<field_name>`
-: The field to join on. This field must exist in both your current query results and in the lookup index. If the field contains multi-valued entries, those entries will not match anything (the added fields will contain `null` for those rows).
 
 ## Example
 
-`LOOKUP JOIN` has left-join behavior. If no rows match in the lookup index, `LOOKUP JOIN` retains the incoming row and adds `null`s. If many rows in the lookup index match, `LOOKUP JOIN` adds one row per match.
+If you're familiar with SQL, `LOOKUP JOIN` has left-join behavior. This means that if no rows match in the lookup index, the incoming row is retained and `null`s are added. If many rows in the lookup index match, `LOOKUP JOIN` adds one row per match.
 
-In this example, we have two sample tables:
+### Sample tables
+
+In this example, we have two sample tables, `employees` and `languages_non_unique_key`. The `employees` table contains employee information, including their language code. The `languages_non_unique_key` table contains language codes and their corresponding names and countries.
+
+:::{dropdown} Show the sample tables
 
 **employees**
 
@@ -73,8 +81,11 @@ In this example, we have two sample tables:
 |[7\|8]|Mv-Lang2|Mv-Land2|
 ||Null-Lang|Null-Land|
 ||Null-Lang2|Null-Land2|
+:::
 
-Running the following query would provide the results shown below.
+### Query 
+
+Running this query against the sample tables would produce the following results.
 
 ```esql
 FROM employees
@@ -100,8 +111,11 @@ FROM employees
 
 ::::{important}
 `LOOKUP JOIN` does not guarantee the output to be in any particular order. If a certain order is required, users should use a [`SORT`](/reference/query-languages/esql/commands/processing-commands.md#esql-sort) somewhere after the `LOOKUP JOIN`.
-
 ::::
+
+### Additional examples
+
+Refer to the examples section of the [`LOOKUP JOIN`](/reference/query-languages/esql/commands/processing-commands.md#esql-lookup-join) command reference for more examples.
 
 ## Prerequisites [esql-lookup-join-prereqs]
 

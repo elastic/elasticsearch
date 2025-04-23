@@ -1090,7 +1090,7 @@ public class IndicesService extends AbstractLifecycleComponent
      *
      * Package private for testing
      */
-    void deleteIndexStore(String reason, IndexMetadata metadata, IndexRemovalReason indexRemovalReason) throws IOException {
+    void deleteIndexStore(String reasonText, IndexMetadata metadata, IndexRemovalReason reason) throws IOException {
         if (nodeEnv.hasNodeFile()) {
             synchronized (this) {
                 Index index = metadata.getIndex();
@@ -1108,35 +1108,35 @@ public class IndicesService extends AbstractLifecycleComponent
                 }
             }
             final IndexSettings indexSettings = buildIndexSettings(metadata);
-            deleteIndexStore(reason, indexSettings.getIndex(), indexSettings, indexRemovalReason);
+            deleteIndexStore(reasonText, indexSettings.getIndex(), indexSettings, reason);
         }
     }
 
-    private void deleteIndexStore(String reason, Index index, IndexSettings indexSettings, IndexRemovalReason indexRemovalReason)
+    private void deleteIndexStore(String reasonText, Index index, IndexSettings indexSettings, IndexRemovalReason reason)
         throws IOException {
-        deleteIndexStoreIfDeletionAllowed(reason, index, indexSettings, DEFAULT_INDEX_DELETION_PREDICATE, indexRemovalReason);
+        deleteIndexStoreIfDeletionAllowed(reasonText, index, indexSettings, DEFAULT_INDEX_DELETION_PREDICATE, reason);
     }
 
     private void deleteIndexStoreIfDeletionAllowed(
-        final String reason,
+        final String reasonText,
         final Index index,
         final IndexSettings indexSettings,
         final IndexDeletionAllowedPredicate predicate,
-        final IndexRemovalReason indexRemovalReason
+        final IndexRemovalReason reason
     ) throws IOException {
         boolean success = false;
         try {
             // we are trying to delete the index store here - not a big deal if the lock can't be obtained
             // the store metadata gets wiped anyway even without the lock this is just best effort since
             // every shards deletes its content under the shard lock it owns.
-            logger.debug("{} deleting index store reason [{}]", index, reason);
+            logger.debug("{} deleting index store reason [{}]", index, reasonText);
             if (predicate.apply(index, indexSettings)) {
                 // its safe to delete all index metadata and shard data
                 nodeEnv.deleteIndexDirectorySafe(
                     index,
                     0,
                     indexSettings,
-                    paths -> indexFoldersDeletionListeners.beforeIndexFoldersDeleted(index, indexSettings, paths, indexRemovalReason)
+                    paths -> indexFoldersDeletionListeners.beforeIndexFoldersDeleted(index, indexSettings, paths, reason)
                 );
             }
             success = true;
@@ -1146,7 +1146,7 @@ public class IndicesService extends AbstractLifecycleComponent
             logger.warn(() -> format("%s failed to delete index", index), ex);
         } finally {
             if (success == false) {
-                addPendingDelete(index, indexSettings, indexRemovalReason);
+                addPendingDelete(index, indexSettings, reason);
             }
             // this is a pure protection to make sure this index doesn't get re-imported as a dangling index.
             // we should in the future rather write a tombstone rather than wiping the metadata.
@@ -1156,16 +1156,16 @@ public class IndicesService extends AbstractLifecycleComponent
 
     /**
      * Deletes the shard with an already acquired shard lock.
-     * @param reasonMessage the reason for the shard deletion
+     * @param reasonText the reason for the shard deletion
      * @param lock the lock of the shard to delete
      * @param indexSettings the shards index settings.
      * @throws IOException if an IOException occurs
      */
     @Override
-    public void deleteShardStore(String reasonMessage, ShardLock lock, IndexSettings indexSettings, IndexRemovalReason reason)
+    public void deleteShardStore(String reasonText, ShardLock lock, IndexSettings indexSettings, IndexRemovalReason reason)
         throws IOException {
         ShardId shardId = lock.getShardId();
-        logger.trace("{} deleting shard reason [{}]", shardId, reasonMessage);
+        logger.trace("{} deleting shard reason [{}]", shardId, reasonText);
         nodeEnv.deleteShardDirectoryUnderLock(
             lock,
             indexSettings,

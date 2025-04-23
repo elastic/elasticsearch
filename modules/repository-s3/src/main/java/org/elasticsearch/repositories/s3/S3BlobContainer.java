@@ -887,6 +887,11 @@ class S3BlobContainer extends AbstractBlobContainer {
          * @return {@code true} if there are already ongoing uploads, so we should not proceed with the operation
          */
         private boolean hasPreexistingUploads() {
+            final var timeToLiveMillis = blobStore.getCompareAndExchangeTimeToLive().millis();
+            if (timeToLiveMillis < 0) {
+                return false; // proceed always
+            }
+
             final var uploads = listMultipartUploads();
             logUploads("preexisting uploads", uploads);
 
@@ -895,9 +900,7 @@ class S3BlobContainer extends AbstractBlobContainer {
                 return false;
             }
 
-            final var expiryDate = Instant.ofEpochMilli(
-                blobStore.getThreadPool().absoluteTimeInMillis() - blobStore.getCompareAndExchangeTimeToLive().millis()
-            );
+            final var expiryDate = Instant.ofEpochMilli(blobStore.getThreadPool().absoluteTimeInMillis() - timeToLiveMillis);
             if (uploads.stream().anyMatch(upload -> upload.initiated().compareTo(expiryDate) > 0)) {
                 logger.trace("[{}] fresh preexisting uploads vs {}", blobKey, expiryDate);
                 return true;
@@ -972,7 +975,7 @@ class S3BlobContainer extends AbstractBlobContainer {
                     final var currentTimeMillis = blobStore.getThreadPool().absoluteTimeInMillis();
                     final var ageMillis = currentTimeMillis - multipartUpload.initiated().toEpochMilli();
                     final var expectedAgeRangeMillis = blobStore.getCompareAndExchangeTimeToLive().millis();
-                    if (ageMillis < -expectedAgeRangeMillis || ageMillis > expectedAgeRangeMillis) {
+                    if (0 <= expectedAgeRangeMillis && (ageMillis < -expectedAgeRangeMillis || ageMillis > expectedAgeRangeMillis)) {
                         logger.warn(
                             """
                                 compare-and-exchange of blob [{}:{}] was initiated at [{}={}] \

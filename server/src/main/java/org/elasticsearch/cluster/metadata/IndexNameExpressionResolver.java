@@ -374,11 +374,14 @@ public class IndexNameExpressionResolver {
                 return List.of();
             }
         } else {
-            Predicate<String> isMatchAll = (((Predicate<String>) Metadata.ALL::equals)).or(Regex::isMatchAllPattern);
             if (expressions == null
                 || expressions.length == 0
                 || expressions.length == 1
-                    && (SelectorResolver.selectorsValidatedAndMatchesPredicate(expressions[0], context, isMatchAll))) {
+                    && (SelectorResolver.selectorsValidatedAndMatchesPredicate(
+                        expressions[0],
+                        context,
+                        s -> Metadata.ALL.equals(s) || Regex.isMatchAllPattern(s)
+                    ))) {
                 IndexComponentSelector selector;
                 if (expressions != null && expressions.length == 1) {
                     selector = SelectorResolver.parseMatchAllToSelector(context, expressions[0]);

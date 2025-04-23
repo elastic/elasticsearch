@@ -315,11 +315,12 @@ public class ComposableIndexTemplate implements SimpleDiffable<ComposableIndexTe
      * given settings are removed from the settings in the returned ComposableIndexTemplate. If this
      * ComposableIndexTemplate has no settings, the given settings are the only ones in the returned template
      * (with any null values removed). If this ComposableIndexTemplate has no template, an empty template with
-     * those settings is created. If the given settings are null or empty, this ComposableIndexTemplate is just
+     * those settings is created. If the given settings are empty, this ComposableIndexTemplate is just
      * returned unchanged. This method never changes this object.
      */
     public ComposableIndexTemplate mergeSettings(Settings settings) {
-        if (settings == null || Settings.EMPTY.equals(settings)) {
+        Objects.requireNonNull(settings);
+        if (Settings.EMPTY.equals(settings)) {
             return this;
         }
         ComposableIndexTemplate.Builder mergedIndexTemplateBuilder = this.toBuilder();

@@ -284,6 +284,7 @@ public class ComposableIndexTemplateTests extends SimpleDiffableSerializationTes
         Settings templateSettings = randomSettings();
         Template.Builder templateBuilder = Template.builder().settings(templateSettings).mappings(randomMappings(null));
         ComposableIndexTemplate indexTemplate = randomInstance();
+        expectThrows(NullPointerException.class, () -> indexTemplate.mergeSettings(null));
         assertThat(indexTemplate.mergeSettings(Settings.EMPTY), equalTo(indexTemplate));
     }
 

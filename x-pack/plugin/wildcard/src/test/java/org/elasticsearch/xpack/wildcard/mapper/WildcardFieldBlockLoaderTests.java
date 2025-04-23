@@ -8,8 +8,8 @@
 package org.elasticsearch.xpack.wildcard.mapper;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.datageneration.FieldType;
 import org.elasticsearch.index.mapper.BlockLoaderTestCase;
-import org.elasticsearch.logsdb.datageneration.FieldType;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.xpack.wildcard.Wildcard;
 

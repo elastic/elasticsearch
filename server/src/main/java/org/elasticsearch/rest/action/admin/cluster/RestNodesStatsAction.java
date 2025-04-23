@@ -39,6 +39,8 @@ import static org.elasticsearch.rest.RestUtils.getTimeout;
 @ServerlessScope(Scope.INTERNAL)
 public class RestNodesStatsAction extends BaseRestHandler {
 
+    private static final Set<String> SUPPORTED_CAPABILITIES = Set.of("dense_vector_off_heap_stats");
+
     @Override
     public List<Route> routes() {
         return List.of(
@@ -64,6 +66,11 @@ public class RestNodesStatsAction extends BaseRestHandler {
     @Override
     public String getName() {
         return "nodes_stats_action";
+    }
+
+    @Override
+    public Set<String> supportedCapabilities() {
+        return SUPPORTED_CAPABILITIES;
     }
 
     @Override

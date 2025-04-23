@@ -9,67 +9,71 @@
 package org.elasticsearch.datastreams.action;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.datastreams.ModifyDataStreamsAction;
+import org.elasticsearch.action.datastreams.MigrateToDataStreamAction;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.support.master.AcknowledgedTransportMasterNodeAction;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
-import org.elasticsearch.cluster.metadata.MetadataDataStreamsService;
+import org.elasticsearch.cluster.metadata.MetadataCreateIndexService;
+import org.elasticsearch.cluster.metadata.MetadataMigrateToDataStreamService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
-public class ModifyDataStreamsTransportAction extends AcknowledgedTransportMasterNodeAction<ModifyDataStreamsAction.Request> {
+public class TransportMigrateToDataStreamAction extends AcknowledgedTransportMasterNodeAction<MigrateToDataStreamAction.Request> {
 
-    private final IndexNameExpressionResolver indexNameExpressionResolver;
-    private final MetadataDataStreamsService metadataDataStreamsService;
+    private final MetadataMigrateToDataStreamService metadataMigrateToDataStreamService;
 
     @Inject
-    public ModifyDataStreamsTransportAction(
+    public TransportMigrateToDataStreamAction(
         TransportService transportService,
         ClusterService clusterService,
         ThreadPool threadPool,
         ActionFilters actionFilters,
-        IndexNameExpressionResolver indexNameExpressionResolver,
-        MetadataDataStreamsService metadataDataStreamsService
+        IndicesService indicesService,
+        MetadataCreateIndexService metadataCreateIndexService
     ) {
         super(
-            ModifyDataStreamsAction.NAME,
+            MigrateToDataStreamAction.NAME,
             transportService,
             clusterService,
             threadPool,
             actionFilters,
-            ModifyDataStreamsAction.Request::new,
+            MigrateToDataStreamAction.Request::new,
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
-        this.indexNameExpressionResolver = indexNameExpressionResolver;
-        this.metadataDataStreamsService = metadataDataStreamsService;
+        this.metadataMigrateToDataStreamService = new MetadataMigrateToDataStreamService(
+            threadPool,
+            clusterService,
+            indicesService,
+            metadataCreateIndexService
+        );
     }
 
     @Override
     protected void masterOperation(
         Task task,
-        ModifyDataStreamsAction.Request request,
+        MigrateToDataStreamAction.Request request,
         ClusterState state,
         ActionListener<AcknowledgedResponse> listener
     ) throws Exception {
-        metadataDataStreamsService.modifyDataStream(request, listener);
+        MetadataMigrateToDataStreamService.MigrateToDataStreamClusterStateUpdateRequest updateRequest =
+            new MetadataMigrateToDataStreamService.MigrateToDataStreamClusterStateUpdateRequest(
+                request.getAliasName(),
+                request.masterNodeTimeout(),
+                request.ackTimeout()
+            );
+        metadataMigrateToDataStreamService.migrateToDataStream(updateRequest, listener);
     }
 
     @Override
-    protected ClusterBlockException checkBlock(ModifyDataStreamsAction.Request request, ClusterState state) {
-        ClusterBlockException globalBlock = state.blocks().globalBlockedException(ClusterBlockLevel.METADATA_WRITE);
-        if (globalBlock != null) {
-            return globalBlock;
-        }
-        return state.blocks()
-            .indicesBlockedException(ClusterBlockLevel.METADATA_WRITE, indexNameExpressionResolver.concreteIndexNames(state, request));
+    protected ClusterBlockException checkBlock(MigrateToDataStreamAction.Request request, ClusterState state) {
+        return state.blocks().globalBlockedException(ClusterBlockLevel.METADATA_WRITE);
     }
-
 }

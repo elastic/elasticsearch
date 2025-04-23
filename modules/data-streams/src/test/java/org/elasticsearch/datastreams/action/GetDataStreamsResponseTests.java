@@ -31,6 +31,7 @@ import java.util.Map;
 import static org.elasticsearch.cluster.metadata.DataStream.getDefaultBackingIndexName;
 import static org.elasticsearch.cluster.metadata.DataStream.getDefaultFailureStoreName;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
 public class GetDataStreamsResponseTests extends ESTestCase {
@@ -135,13 +136,13 @@ public class GetDataStreamsResponseTests extends ESTestCase {
                 );
 
                 var failureStore = (Map<String, Object>) dataStreamMap.get(DataStream.FAILURE_STORE_FIELD.getPreferredName());
-                List<Object> failureStoresRepresentation = (List<Object>) failureStore.get(DataStream.INDICES_FIELD.getPreferredName());
-                Map<String, Object> failureStoreRepresentation = (Map<String, Object>) failureStoresRepresentation.get(0);
-                assertThat(failureStoreRepresentation.get("index_name"), is(failureStoreIndex.getName()));
-                assertThat(failureStoreRepresentation.get(Response.DataStreamInfo.PREFER_ILM.getPreferredName()), is(false));
-                assertThat(failureStoreRepresentation.get(Response.DataStreamInfo.ILM_POLICY_FIELD.getPreferredName()), is(nullValue()));
+                List<Object> failureIndices = (List<Object>) failureStore.get(DataStream.INDICES_FIELD.getPreferredName());
+                Map<String, Object> failureIndexRepresentation = (Map<String, Object>) failureIndices.get(0);
+                assertThat(failureIndexRepresentation.get("index_name"), is(failureStoreIndex.getName()));
+                assertThat(failureIndexRepresentation.get(Response.DataStreamInfo.PREFER_ILM.getPreferredName()), nullValue());
+                assertThat(failureIndexRepresentation.get(Response.DataStreamInfo.ILM_POLICY_FIELD.getPreferredName()), is(nullValue()));
                 assertThat(
-                    failureStoreRepresentation.get(Response.DataStreamInfo.MANAGED_BY.getPreferredName()),
+                    failureIndexRepresentation.get(Response.DataStreamInfo.MANAGED_BY.getPreferredName()),
                     is(ManagedBy.LIFECYCLE.displayValue)
                 );
             }
@@ -153,7 +154,7 @@ public class GetDataStreamsResponseTests extends ESTestCase {
                 .setGeneration(3)
                 .setAllowCustomRouting(true)
                 .setIndexMode(IndexMode.STANDARD)
-                .setLifecycle(new DataStreamLifecycle(false, null, null))
+                .setLifecycle(DataStreamLifecycle.createDataLifecycle(false, null, null))
                 .setDataStreamOptions(DataStreamOptions.FAILURE_STORE_ENABLED)
                 .setFailureIndices(DataStream.DataStreamIndices.failureIndicesBuilder(failureStores).build())
                 .build();
@@ -227,11 +228,71 @@ public class GetDataStreamsResponseTests extends ESTestCase {
                 List<Object> failureStoresRepresentation = (List<Object>) failureStore.get(DataStream.INDICES_FIELD.getPreferredName());
                 Map<String, Object> failureStoreRepresentation = (Map<String, Object>) failureStoresRepresentation.get(0);
                 assertThat(failureStoreRepresentation.get("index_name"), is(failureStoreIndex.getName()));
-                assertThat(failureStoreRepresentation.get(Response.DataStreamInfo.PREFER_ILM.getPreferredName()), is(false));
+                assertThat(failureStoreRepresentation.get(Response.DataStreamInfo.PREFER_ILM.getPreferredName()), nullValue());
                 assertThat(failureStoreRepresentation.get(Response.DataStreamInfo.ILM_POLICY_FIELD.getPreferredName()), is(nullValue()));
                 assertThat(
                     failureStoreRepresentation.get(Response.DataStreamInfo.MANAGED_BY.getPreferredName()),
                     is(ManagedBy.UNMANAGED.displayValue)
+                );
+            }
+        }
+
+        {
+            // one failure index that have ILM policy
+            DataStream logs = DataStream.builder("logs", indices)
+                .setGeneration(3)
+                .setAllowCustomRouting(true)
+                .setIndexMode(IndexMode.STANDARD)
+                .setLifecycle(DataStreamLifecycle.DEFAULT_DATA_LIFECYCLE)
+                .setDataStreamOptions(DataStreamOptions.FAILURE_STORE_ENABLED)
+                .setFailureIndices(DataStream.DataStreamIndices.failureIndicesBuilder(failureStores).build())
+                .build();
+
+            String ilmPolicyName = "rollover-30days";
+            Map<Index, Response.IndexProperties> indexSettingsValues = Map.of(
+                firstGenerationIndex,
+                new Response.IndexProperties(true, ilmPolicyName, ManagedBy.ILM, null),
+                secondGenerationIndex,
+                new Response.IndexProperties(false, ilmPolicyName, ManagedBy.LIFECYCLE, null),
+                writeIndex,
+                new Response.IndexProperties(true, null, ManagedBy.LIFECYCLE, null),
+                failureStoreIndex,
+                new Response.IndexProperties(randomBoolean(), ilmPolicyName, ManagedBy.LIFECYCLE, null)
+            );
+
+            Response.DataStreamInfo dataStreamInfo = new Response.DataStreamInfo(
+                logs,
+                true,
+                ClusterHealthStatus.GREEN,
+                "index-template",
+                null,
+                null,
+                indexSettingsValues,
+                false,
+                null,
+                null
+            );
+            Response response = new Response(List.of(dataStreamInfo));
+            XContentBuilder contentBuilder = XContentFactory.jsonBuilder();
+            response.toXContent(contentBuilder, ToXContent.EMPTY_PARAMS);
+
+            BytesReference bytes = BytesReference.bytes(contentBuilder);
+            try (XContentParser parser = createParser(JsonXContent.jsonXContent, bytes)) {
+                Map<String, Object> map = parser.map();
+                List<Object> dataStreams = (List<Object>) map.get(Response.DATA_STREAMS_FIELD.getPreferredName());
+                assertThat(dataStreams.size(), is(1));
+                Map<String, Object> dataStreamMap = (Map<String, Object>) dataStreams.get(0);
+                assertThat(dataStreamMap.get(DataStream.NAME_FIELD.getPreferredName()), is(dataStreamName));
+
+                var failureStore = (Map<String, Object>) dataStreamMap.get(DataStream.FAILURE_STORE_FIELD.getPreferredName());
+                List<Object> failureIndices = (List<Object>) failureStore.get(DataStream.INDICES_FIELD.getPreferredName());
+                Map<String, Object> failureIndexRepresentation = (Map<String, Object>) failureIndices.get(0);
+                assertThat(failureIndexRepresentation.get("index_name"), is(failureStoreIndex.getName()));
+                assertThat(failureIndexRepresentation.get(Response.DataStreamInfo.PREFER_ILM.getPreferredName()), notNullValue());
+                assertThat(failureIndexRepresentation.get(Response.DataStreamInfo.ILM_POLICY_FIELD.getPreferredName()), is(ilmPolicyName));
+                assertThat(
+                    failureIndexRepresentation.get(Response.DataStreamInfo.MANAGED_BY.getPreferredName()),
+                    is(ManagedBy.LIFECYCLE.displayValue)
                 );
             }
         }

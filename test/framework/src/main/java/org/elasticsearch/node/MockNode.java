@@ -10,7 +10,6 @@
 package org.elasticsearch.node;
 
 import org.elasticsearch.action.search.OnlinePrewarmingService;
-import org.elasticsearch.action.search.OnlinePrewarmingServiceProvider;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.ClusterInfoService;
 import org.elasticsearch.cluster.MockInternalClusterInfoService;

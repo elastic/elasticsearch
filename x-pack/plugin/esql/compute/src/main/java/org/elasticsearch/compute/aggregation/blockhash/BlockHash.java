@@ -155,13 +155,7 @@ public abstract class BlockHash implements Releasable, SeenGroupIds {
             GroupSpec group = groups.get(0);
             if (group.topNDef() != null && group.elementType() == ElementType.LONG) {
                 TopNDef topNDef = group.topNDef();
-                return new LongTopNBlockHash(
-                    group.channel(),
-                    topNDef.asc(),
-                    topNDef.nullsFirst(),
-                    topNDef.limit(),
-                    blockFactory
-                );
+                return new LongTopNBlockHash(group.channel(), topNDef.asc(), topNDef.nullsFirst(), topNDef.limit(), blockFactory);
             }
             return newForElementType(group.channel(), group.elementType(), blockFactory);
         }

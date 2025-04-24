@@ -132,7 +132,7 @@ public class SetBackedScalingCuckooFilterTests extends AbstractWireSerializingTe
         );
     }
 
-    public void testMergeBigSmall(){
+    public void testMergeBigSmall() {
         int threshold = 1000;
 
         // Setup the first filter
@@ -150,7 +150,7 @@ public class SetBackedScalingCuckooFilterTests extends AbstractWireSerializingTe
 
         SetBackedScalingCuckooFilter filter2 = new SetBackedScalingCuckooFilter(threshold, Randomness.get(), 0.01);
         long value = randomLong();
-        while(filter.mightContain(value)){
+        while (filter.mightContain(value)) {
             value = randomLong();
         }
 

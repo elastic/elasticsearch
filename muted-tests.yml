@@ -432,6 +432,15 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeIT
   method: test
   issue: https://github.com/elastic/elasticsearch/issues/127157
+- class: org.elasticsearch.xpack.esql.qa.single_node.EsqlSpecIT
+  method: test {fork.ForkWithWhereSortDescAndLimit SYNC}
+  issue: https://github.com/elastic/elasticsearch/issues/127326
+- class: org.elasticsearch.geometry.utils.SpatialEnvelopeVisitorTests
+  method: testVisitGeoPointsWrapping
+  issue: https://github.com/elastic/elasticsearch/issues/123425
+- class: org.elasticsearch.xpack.esql.action.CrossClusterQueryWithFiltersIT
+  method: testTimestampFilterFromQuery
+  issue: https://github.com/elastic/elasticsearch/issues/127332
 
 # Examples:
 #

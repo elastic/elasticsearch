@@ -247,10 +247,11 @@ is not supported for querying the field data.
 
 ## Updates to `semantic_text` fields [update-script]
 
-Updates that use scripts are not supported for an index contains a
-`semantic_text` field. Even if the script targets non-`semantic_text` fields,
-the update will fail when the index contains a `semantic_text` field.
+For indices containing `semantic_text` fields, scripted updates have the following
+behavior:
 
+* Are supported through the [Update API](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-update).
+* Are not supported through the [Bulk API](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-bulk-1) and will fail. This applies to all script-based updates on the index, even when targeting non-`semantic_text` fields.
 ## `copy_to` and multi-fields support [copy-to-support]
 
 The semantic_text field type can serve as the target

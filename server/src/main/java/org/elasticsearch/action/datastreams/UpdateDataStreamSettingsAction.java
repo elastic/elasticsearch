@@ -101,12 +101,15 @@ public class UpdateDataStreamSettingsAction extends ActionType<UpdateDataStreamS
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
             Request request = (Request) o;
-            return Arrays.equals(dataStreamNames, request.dataStreamNames) && settings.equals(request.settings);
+            return Arrays.equals(dataStreamNames, request.dataStreamNames)
+                && settings.equals(request.settings)
+                && Objects.equals(masterNodeTimeout(), request.masterNodeTimeout())
+                && Objects.equals(ackTimeout(), request.ackTimeout());
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(dataStreamNames, settings);
+            return Objects.hash(Arrays.hashCode(dataStreamNames), settings, masterNodeTimeout(), ackTimeout());
         }
 
     }
@@ -138,6 +141,19 @@ public class UpdateDataStreamSettingsAction extends ActionType<UpdateDataStreamS
                 dataStreamSettingsResponses.stream().map(dataStreamSettingsResponse -> (ToXContent) dataStreamSettingsResponse).iterator(),
                 Iterators.single((builder, params1) -> builder.endArray().endObject())
             );
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+            Response response = (Response) o;
+            return Objects.equals(dataStreamSettingsResponses, response.dataStreamSettingsResponses);
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(dataStreamSettingsResponses);
         }
     }
 

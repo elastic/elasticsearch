@@ -166,6 +166,168 @@ public class RerankResponseParserTests extends AbstractBWCWireSerializationTestC
         );
     }
 
+    public void testParse_ThrowsException_WhenIndex_IsInvalid() {
+        String responseJson = """
+            {
+              "request_id": "450fcb80-f796-46c1-8d69-e1e86d29aa9f",
+              "latency": 564.903929,
+              "usage": {
+                "doc_count": 2
+              },
+              "result": {
+               "scores":[
+                 {
+                   "index":"abc",
+                   "score": 1.37
+                 },
+                 {
+                   "index":0,
+                   "score": -0.3
+                 }
+               ]
+              }
+            }
+            """;
+
+        var parser = new RerankResponseParser("$.result.scores[*].score", "$.result.scores[*].index", null);
+
+        var exception = expectThrows(
+            IllegalStateException.class,
+            () -> parser.parse(new HttpResult(mock(HttpResponse.class), responseJson.getBytes(StandardCharsets.UTF_8)))
+        );
+
+        assertThat(
+            exception.getMessage(),
+            is("Failed to parse rerank indices, error: Unable to convert field [result.scores] of type [String] to Number")
+        );
+    }
+
+    public void testParse_ThrowsException_WhenScore_IsInvalid() {
+        String responseJson = """
+            {
+              "request_id": "450fcb80-f796-46c1-8d69-e1e86d29aa9f",
+              "latency": 564.903929,
+              "usage": {
+                "doc_count": 2
+              },
+              "result": {
+               "scores":[
+                 {
+                   "index":1,
+                   "score": true
+                 },
+                 {
+                   "index":0,
+                   "score": -0.3
+                 }
+               ]
+              }
+            }
+            """;
+
+        var parser = new RerankResponseParser("$.result.scores[*].score", "$.result.scores[*].index", null);
+
+        var exception = expectThrows(
+            IllegalStateException.class,
+            () -> parser.parse(new HttpResult(mock(HttpResponse.class), responseJson.getBytes(StandardCharsets.UTF_8)))
+        );
+
+        assertThat(
+            exception.getMessage(),
+            is("Failed to parse rerank scores, error: Unable to convert field [result.scores] of type [Boolean] to Number")
+        );
+    }
+
+    public void testParse_ThrowsException_WhenDocument_IsInvalid() {
+        String responseJson = """
+            {
+              "request_id": "450fcb80-f796-46c1-8d69-e1e86d29aa9f",
+              "latency": 564.903929,
+              "usage": {
+                "doc_count": 2
+              },
+              "result": {
+               "scores":[
+                 {
+                   "index":1,
+                   "score": 0.2,
+                   "document": 1
+                 },
+                 {
+                   "index":0,
+                   "score": -0.3,
+                   "document": "a document"
+                 }
+               ]
+              }
+            }
+            """;
+
+        var parser = new RerankResponseParser("$.result.scores[*].score", "$.result.scores[*].index", "$.result.scores[*].document");
+
+        var exception = expectThrows(
+            IllegalStateException.class,
+            () -> parser.parse(new HttpResult(mock(HttpResponse.class), responseJson.getBytes(StandardCharsets.UTF_8)))
+        );
+
+        assertThat(
+            exception.getMessage(),
+            is("Failed to parse rerank documents, error: Unable to convert field [result.scores] of type [Integer] to String")
+        );
+    }
+
+    public void testParse_ThrowsException_WhenIndices_ListSizeDoesNotMatchScores() {
+        String responseJson = """
+            {
+              "request_id": "450fcb80-f796-46c1-8d69-e1e86d29aa9f",
+              "latency": 564.903929,
+              "usage": {
+                "doc_count": 2
+              },
+              "result": {
+                "indices": [1],
+                "scores": [0.2, 0.3],
+                "documents": ["a", "b"]
+              }
+            }
+            """;
+
+        var parser = new RerankResponseParser("$.result.scores", "$.result.indices", "$.result.documents");
+
+        var exception = expectThrows(
+            IllegalStateException.class,
+            () -> parser.parse(new HttpResult(mock(HttpResponse.class), responseJson.getBytes(StandardCharsets.UTF_8)))
+        );
+
+        assertThat(exception.getMessage(), is("The number of index fields [1] was not the same as the number of scores [2]"));
+    }
+
+    public void testParse_ThrowsException_WhenDocuments_ListSizeDoesNotMatchScores() {
+        String responseJson = """
+            {
+              "request_id": "450fcb80-f796-46c1-8d69-e1e86d29aa9f",
+              "latency": 564.903929,
+              "usage": {
+                "doc_count": 2
+              },
+              "result": {
+                "indices": [1, 0],
+                "scores": [0.2, 0.3],
+                "documents": ["a"]
+              }
+            }
+            """;
+
+        var parser = new RerankResponseParser("$.result.scores", "$.result.indices", "$.result.documents");
+
+        var exception = expectThrows(
+            IllegalStateException.class,
+            () -> parser.parse(new HttpResult(mock(HttpResponse.class), responseJson.getBytes(StandardCharsets.UTF_8)))
+        );
+
+        assertThat(exception.getMessage(), is("The number of document fields [1] was not the same as the number of scores [2]"));
+    }
+
     public void testParse_WithoutIndex() throws IOException {
         String responseJson = """
             {

@@ -81,19 +81,22 @@ public class CompletionResponseParser extends BaseCustomResponseParser<ChatCompl
 
     @Override
     public ChatCompletionResults transform(Map<String, Object> map) {
-        var extractedField = MapPathExtractor.extract(map, completionResultPath);
+        var result = MapPathExtractor.extract(map, completionResultPath);
+        var extractedField = result.extractedObject();
 
-        validateNonNull(extractedField);
+        validateNonNull(extractedField, completionResultPath);
 
         if (extractedField instanceof List<?> extractedList) {
-            var completionList = validateAndCastList(extractedList, (obj) -> toType(obj, String.class));
+            var completionList = castList(extractedList, (obj, fieldName) -> toType(obj, String.class, fieldName), completionResultPath);
             return new ChatCompletionResults(completionList.stream().map(ChatCompletionResults.Result::new).toList());
         } else if (extractedField instanceof String extractedString) {
             return new ChatCompletionResults(List.of(new ChatCompletionResults.Result(extractedString)));
         } else {
             throw new IllegalArgumentException(
                 Strings.format(
-                    "Extracted field is an invalid type, expected a list or a string but received [%s]",
+                    "Extracted field [%s] from path [%s] is an invalid type, expected a list or a string but received [%s]",
+                    result.getArrayFieldName(0),
+                    completionResultPath,
                     extractedField.getClass().getSimpleName()
                 )
             );

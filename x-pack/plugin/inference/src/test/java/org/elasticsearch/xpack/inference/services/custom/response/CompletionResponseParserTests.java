@@ -250,7 +250,10 @@ public class CompletionResponseParserTests extends AbstractBWCWireSerializationT
             () -> parser.parse(new HttpResult(mock(HttpResponse.class), responseJson.getBytes(StandardCharsets.UTF_8)))
         );
 
-        assertThat(exception.getMessage(), is("Extracted field is an invalid type, expected a list or a string but received [Integer]"));
+        assertThat(
+            exception.getMessage(),
+            is("Extracted field [result] from path [$.result] is an invalid type, expected a list or a string but received [Integer]")
+        );
     }
 
     @Override

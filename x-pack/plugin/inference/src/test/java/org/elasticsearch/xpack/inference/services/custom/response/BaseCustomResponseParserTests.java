@@ -14,92 +14,95 @@ import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 
+import static org.elasticsearch.xpack.inference.services.custom.response.BaseCustomResponseParser.castList;
 import static org.elasticsearch.xpack.inference.services.custom.response.BaseCustomResponseParser.convertToListOfFloats;
 import static org.elasticsearch.xpack.inference.services.custom.response.BaseCustomResponseParser.toFloat;
 import static org.elasticsearch.xpack.inference.services.custom.response.BaseCustomResponseParser.toType;
-import static org.elasticsearch.xpack.inference.services.custom.response.BaseCustomResponseParser.validateAndCastList;
 import static org.elasticsearch.xpack.inference.services.custom.response.BaseCustomResponseParser.validateList;
 import static org.elasticsearch.xpack.inference.services.custom.response.BaseCustomResponseParser.validateMap;
 import static org.hamcrest.Matchers.is;
 
 public class BaseCustomResponseParserTests extends ESTestCase {
     public void testValidateNonNull_ThrowsException_WhenPassedNull() {
-        var exception = expectThrows(NullPointerException.class, () -> BaseCustomResponseParser.validateNonNull(null));
-        assertThat(exception.getMessage(), is("Failed to parse response, extracted field was null"));
+        var exception = expectThrows(NullPointerException.class, () -> BaseCustomResponseParser.validateNonNull(null, "field"));
+        assertThat(exception.getMessage(), is("Failed to parse field [field], extracted field was null"));
     }
 
     public void testValidateList_ThrowsException_WhenPassedAnObjectThatIsNotAList() {
-        var exception = expectThrows(IllegalArgumentException.class, () -> validateList(new Object()));
-        assertThat(exception.getMessage(), is("Extracted field is an invalid type, expected a list but received [Object]"));
+        var exception = expectThrows(IllegalArgumentException.class, () -> validateList(new Object(), "field"));
+        assertThat(exception.getMessage(), is("Extracted field [field] is an invalid type, expected a list but received [Object]"));
     }
 
     public void testValidateList_ReturnsList() {
         Object obj = List.of("abc", "123");
-        assertThat(validateList(obj), is(List.of("abc", "123")));
+        assertThat(validateList(obj, "field"), is(List.of("abc", "123")));
     }
 
     public void testConvertToListOfFloats_ThrowsException_WhenAnItemInTheListIsNotANumber() {
         var list = List.of(1, "hello");
 
-        var exception = expectThrows(IllegalArgumentException.class, () -> convertToListOfFloats(list));
-        assertThat(exception.getMessage(), is("Unable to convert type [String] to Number"));
+        var exception = expectThrows(IllegalArgumentException.class, () -> convertToListOfFloats(list, "field"));
+        assertThat(exception.getMessage(), is("Unable to convert field [field] of type [String] to Number"));
     }
 
     public void testConvertToListOfFloats_ReturnsList() {
         var list = List.of(1, 1.1f, -2.0d, new AtomicInteger(1));
 
-        assertThat(convertToListOfFloats(list), is(List.of(1f, 1.1f, -2f, 1f)));
+        assertThat(convertToListOfFloats(list, "field"), is(List.of(1f, 1.1f, -2f, 1f)));
     }
 
-    public void testValidateAndCastList() {
+    public void testCastList() {
         var list = List.of("abc", "123", 1, 2.2d);
 
-        assertThat(validateAndCastList(list, Object::toString), is(List.of("abc", "123", "1", "2.2")));
+        assertThat(castList(list, (obj, fieldName) -> obj.toString(), "field"), is(List.of("abc", "123", "1", "2.2")));
     }
 
-    public void testValidateAndCastList_ThrowsException() {
+    public void testCastList_ThrowsException() {
         var list = List.of("abc");
 
-        var exception = expectThrows(IllegalArgumentException.class, () -> validateAndCastList(list, (obj) -> {
+        var exception = expectThrows(IllegalArgumentException.class, () -> castList(list, (obj, fieldName) -> {
             throw new IllegalArgumentException("failed");
-        }));
+        }, "field"));
 
         assertThat(exception.getMessage(), is("failed"));
     }
 
     public void testValidateMap() {
-        assertThat(validateMap(Map.of("abc", 123)), is(Map.of("abc", 123)));
+        assertThat(validateMap(Map.of("abc", 123), "field"), is(Map.of("abc", 123)));
     }
 
     public void testValidateMap_ThrowsException_WhenObjectIsNotAMap() {
-        var exception = expectThrows(IllegalArgumentException.class, () -> validateMap("hello"));
-        assertThat(exception.getMessage(), is("Extracted field is an invalid type, expected a map but received [String]"));
+        var exception = expectThrows(IllegalArgumentException.class, () -> validateMap("hello", "field"));
+        assertThat(exception.getMessage(), is("Extracted field [field] is an invalid type, expected a map but received [String]"));
     }
 
     public void testValidateMap_ThrowsException_WhenKeysAreNotStrings() {
-        var exception = expectThrows(IllegalStateException.class, () -> validateMap(Map.of("key", "value", 1, "abc")));
-        assertThat(exception.getMessage(), is("Extracted map has an invalid key type. Expected a string but received [Integer]"));
+        var exception = expectThrows(IllegalStateException.class, () -> validateMap(Map.of("key", "value", 1, "abc"), "field"));
+        assertThat(
+            exception.getMessage(),
+            is("Extracted field [field] map has an invalid key type. Expected a string but received [Integer]")
+        );
     }
 
     public void testToFloat() {
-        assertThat(toFloat(1), is(1f));
+        assertThat(toFloat(1, "field"), is(1f));
     }
 
     public void testToFloat_AtomicLong() {
-        assertThat(toFloat(new AtomicLong(100)), is(100f));
+        assertThat(toFloat(new AtomicLong(100), "field"), is(100f));
     }
 
     public void testToFloat_Double() {
-        assertThat(toFloat(1.123d), is(1.123f));
+        assertThat(toFloat(1.123d, "field"), is(1.123f));
     }
 
     public void testToType() {
         Object obj = "hello";
-        assertThat(toType(obj, String.class), is("hello"));
+        assertThat(toType(obj, String.class, "field"), is("hello"));
     }
 
     public void testToType_List() {
         Object obj = List.of(123, 456);
-        assertThat(toType(obj, List.class), is(List.of(123, 456)));
+        assertThat(toType(obj, List.class, "field"), is(List.of(123, 456)));
     }
 }

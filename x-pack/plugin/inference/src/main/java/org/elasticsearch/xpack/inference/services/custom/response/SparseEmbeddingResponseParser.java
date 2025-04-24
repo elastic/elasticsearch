@@ -93,19 +93,32 @@ public class SparseEmbeddingResponseParser extends BaseCustomResponseParser<Spar
     @Override
     protected SparseEmbeddingResults transform(Map<String, Object> map) {
         // These will be List<List<T>>
-        var tokens = validateList(MapPathExtractor.extract(map, tokenPath));
-        var weights = validateList(MapPathExtractor.extract(map, weightPath));
+        var tokenResult = MapPathExtractor.extract(map, tokenPath);
+        var tokens = validateList(tokenResult.extractedObject(), tokenResult.getArrayFieldName(0));
+
+        // These will be List<List<T>>
+        var weightResult = MapPathExtractor.extract(map, weightPath);
+        var weights = validateList(weightResult.extractedObject(), weightResult.getArrayFieldName(0));
 
         validateListsSize(tokens, weights);
 
+        var tokenEntryFieldName = tokenResult.getArrayFieldName(1);
+        var weightEntryFieldName = weightResult.getArrayFieldName(1);
         var embeddings = new ArrayList<SparseEmbeddingResults.Embedding>();
         for (int responseCounter = 0; responseCounter < tokens.size(); responseCounter++) {
-            var tokenEntryList = validateList(tokens.get(responseCounter));
-            var weightEntryList = validateList(weights.get(responseCounter));
+            try {
+                var tokenEntryList = validateList(tokens.get(responseCounter), tokenEntryFieldName);
+                var weightEntryList = validateList(weights.get(responseCounter), weightEntryFieldName);
 
-            validateListsSize(tokenEntryList, weightEntryList);
+                validateListsSize(tokenEntryList, weightEntryList);
 
-            embeddings.add(createEmbedding(tokenEntryList, weightEntryList));
+                embeddings.add(createEmbedding(tokenEntryList, weightEntryList, weightEntryFieldName));
+            } catch (Exception e) {
+                throw new IllegalStateException(
+                    Strings.format("Failed to parse sparse embedding entry [%d], error: %s", responseCounter, e.getMessage()),
+                    e
+                );
+            }
         }
 
         return new SparseEmbeddingResults(Collections.unmodifiableList(embeddings));
@@ -123,7 +136,11 @@ public class SparseEmbeddingResponseParser extends BaseCustomResponseParser<Spar
         }
     }
 
-    private static SparseEmbeddingResults.Embedding createEmbedding(List<?> tokenEntryList, List<?> weightEntryList) {
+    private static SparseEmbeddingResults.Embedding createEmbedding(
+        List<?> tokenEntryList,
+        List<?> weightEntryList,
+        String weightFieldName
+    ) {
         var weightedTokens = new ArrayList<WeightedToken>();
 
         for (int embeddingCounter = 0; embeddingCounter < tokenEntryList.size(); embeddingCounter++) {
@@ -132,8 +149,15 @@ public class SparseEmbeddingResponseParser extends BaseCustomResponseParser<Spar
 
             // Alibaba can return a token id which is an integer and needs to be converted to a string
             var tokenIdAsString = token.toString();
-            var weightAsFloat = toFloat(weight);
-            weightedTokens.add(new WeightedToken(tokenIdAsString, weightAsFloat));
+            try {
+                var weightAsFloat = toFloat(weight, weightFieldName);
+                weightedTokens.add(new WeightedToken(tokenIdAsString, weightAsFloat));
+            } catch (IllegalArgumentException e) {
+                throw new IllegalArgumentException(
+                    Strings.format("Failed to parse weight item: [%d] of array, error: %s", embeddingCounter, e.getMessage()),
+                    e
+                );
+            }
         }
 
         return new SparseEmbeddingResults.Embedding(weightedTokens, false);

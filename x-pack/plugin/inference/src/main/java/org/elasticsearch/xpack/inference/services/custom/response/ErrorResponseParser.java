@@ -94,7 +94,7 @@ public class ErrorResponseParser implements ToXContentFragment, Function<HttpRes
             // the outer error field does exist, but it doesn't contain the nested field we were looking for.
             // If in the future we want the previous behavior, we can add a new message_path field or something and have
             // the current path field point to the field that indicates whether we found an error object.
-            var errorText = toType(MapPathExtractor.extract(map, messagePath), String.class);
+            var errorText = toType(MapPathExtractor.extract(map, messagePath).extractedObject(), String.class, messagePath);
             return new ErrorResponse(errorText);
         } catch (Exception e) {
             // swallow the error

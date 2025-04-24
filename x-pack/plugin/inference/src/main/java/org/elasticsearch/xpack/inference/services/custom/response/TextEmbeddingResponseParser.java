@@ -80,12 +80,13 @@ public class TextEmbeddingResponseParser extends BaseCustomResponseParser<TextEm
 
     @Override
     protected TextEmbeddingFloatResults transform(Map<String, Object> map) {
-        var mapResultsList = validateList(MapPathExtractor.extract(map, textEmbeddingsPath));
+        var extractedResult = MapPathExtractor.extract(map, textEmbeddingsPath);
+        var mapResultsList = validateList(extractedResult.extractedObject(), extractedResult.getArrayFieldName(0));
 
         var embeddings = new ArrayList<TextEmbeddingFloatResults.Embedding>(mapResultsList.size());
 
         for (var entry : mapResultsList) {
-            var embeddingsAsListFloats = convertToListOfFloats(entry);
+            var embeddingsAsListFloats = convertToListOfFloats(entry, extractedResult.getArrayFieldName(1));
             embeddings.add(TextEmbeddingFloatResults.Embedding.of(embeddingsAsListFloats));
         }
 

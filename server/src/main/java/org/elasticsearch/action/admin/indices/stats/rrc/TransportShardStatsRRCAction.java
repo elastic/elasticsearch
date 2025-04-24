@@ -9,6 +9,8 @@
 
 package org.elasticsearch.action.admin.indices.stats.rrc;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.broadcast.node.TransportBroadcastByNodeAction;
@@ -21,7 +23,7 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardsIterator;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.index.search.stats.SearchStats;
+import org.elasticsearch.index.search.stats.ShardSearchRRCStats;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesService;
@@ -35,6 +37,8 @@ import java.io.IOException;
 
 public class TransportShardStatsRRCAction extends
     TransportBroadcastByNodeAction<ShardStatsRRCRequest, ShardStatsRRCResponse, ShardStatsRRC> {
+
+    private static final Logger logger = LogManager.getLogger(TransportShardStatsRRCAction.class);
 
     private final IndicesService indicesService;
     private final ProjectResolver projectResolver;
@@ -108,14 +112,15 @@ public class TransportShardStatsRRCAction extends
 
             ShardId shardId = shardRouting.shardId();
             IndexShard indexShard = indicesService.indexServiceSafe(shardId.getIndex()).getShard(shardId.id());
-            SearchStats.Stats stats = indexShard.searchStats().getTotal();
+            ShardSearchRRCStats.ShardStats shardStats = indexShard.shardRRCStats();
 
-            long trackedTime = stats.getQueryTimeInMillis() +
-                stats.getFetchTimeInMillis() +
-                stats.getScrollTimeInMillis() +
-                stats.getScrollTimeInMillis();
+            String shardName = shardId.getIndex().getName() + "_" + shardId.getId() + "_" + shardRouting.allocationId().getId();
 
-            return new ShardStatsRRC(shardId.getIndex().getName(), shardId.getId(), shardRouting.allocationId().getId(), trackedTime);
+            logger.info(
+                "Multi SN - Shard: [{}], response time [{}], delta [{}] ewma [{}]",
+                shardName, shardStats.responseTime(), shardStats.delta(), shardStats.ewma());
+
+            return new ShardStatsRRC(shardId.getIndex().getName(), shardId.getId(), shardRouting.allocationId().getId(), shardStats.ewma());
         });
     }
 }

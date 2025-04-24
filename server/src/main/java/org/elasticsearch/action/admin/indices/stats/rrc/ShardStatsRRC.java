@@ -27,21 +27,21 @@ public class ShardStatsRRC implements Writeable, ToXContentFragment {
 
     private final String allocationId;
 
-    private final Long timeTracked;
+    private final Double ewma;
 
     public ShardStatsRRC(StreamInput in) throws IOException {
         assert Transports.assertNotTransportThread("O(#shards) work must always fork to an appropriate executor");
         this.indexName = in.readString();
         this.shardId = in.readVInt();
         this.allocationId = in.readString();
-        this.timeTracked = in.readLong();
+        this.ewma = in.readDouble();
     }
 
-    public ShardStatsRRC(String indexName, Integer shardId, String allocationId, Long timeTracked) {
+    public ShardStatsRRC(String indexName, Integer shardId, String allocationId, Double ewma) {
         this.indexName = indexName;
         this.shardId = shardId;
         this.allocationId = allocationId;
-        this.timeTracked = timeTracked;
+        this.ewma = ewma;
     }
 
     @Override
@@ -52,7 +52,7 @@ public class ShardStatsRRC implements Writeable, ToXContentFragment {
         return Objects.equals(indexName, that.indexName)
             && Objects.equals(shardId, that.shardId)
             && Objects.equals(allocationId, that.allocationId)
-            && Objects.equals(timeTracked, that.timeTracked);
+            && Objects.equals(ewma, that.ewma);
     }
 
     @Override
@@ -61,7 +61,7 @@ public class ShardStatsRRC implements Writeable, ToXContentFragment {
             indexName,
             shardId,
             allocationId,
-            timeTracked
+            ewma
         );
     }
 
@@ -82,8 +82,8 @@ public class ShardStatsRRC implements Writeable, ToXContentFragment {
         return this.indexName + "_" + this.shardId + "_" + this.allocationId;
     }
 
-    public Long getTimeTracked() {
-        return this.timeTracked;
+    public Double getEWMA() {
+        return this.ewma;
     }
 
     @Override
@@ -91,7 +91,7 @@ public class ShardStatsRRC implements Writeable, ToXContentFragment {
          out.writeString(indexName);
          out.writeVInt(shardId);
          out.writeString(allocationId);
-         out.writeLong(timeTracked);
+         out.writeDouble(ewma);
     }
 
     @Override
@@ -100,7 +100,7 @@ public class ShardStatsRRC implements Writeable, ToXContentFragment {
             .field(Fields.INDEX_NAME, indexName)
             .field(Fields.SHARD_ID, shardId)
             .field(Fields.ALLOCATION_ID, allocationId)
-            .field(Fields.TIME, timeTracked)
+            .field(Fields.EWMA, ewma)
             .endObject();
         return builder;
     }
@@ -110,6 +110,6 @@ public class ShardStatsRRC implements Writeable, ToXContentFragment {
         static final String INDEX_NAME = "index_name";
         static final String SHARD_ID = "shard_id";
         static final String ALLOCATION_ID = "allocation_id";
-        static final String TIME = "time";
+        static final String EWMA = "ewma";
     }
 }

@@ -1533,6 +1533,7 @@ public class DataStreamLifecycleServiceTests extends ESTestCase {
                 )
             )
             .build(); // failure store is managed even when disabled
+        builder.put(dataStream);
 
         ClusterState state = ClusterState.builder(ClusterName.DEFAULT).putProjectMetadata(builder).build();
 

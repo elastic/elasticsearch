@@ -173,5 +173,5 @@ teardown:
         body:
           index_patterns: [ no-data-stream ]
           composed_of: [my-component-template, reset-lifecycle-template, reset-enabled-template]
-          data_streams_options: {}
+          data_stream: {}
   - match: { template.data_stream_options.failure_store: null }

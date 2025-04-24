@@ -34,6 +34,8 @@ import org.apache.lucene.util.hnsw.RandomVectorScorerSupplier;
 import org.apache.lucene.util.quantization.QuantizedByteVectorValues;
 import org.apache.lucene.util.quantization.QuantizedVectorsReader;
 import org.apache.lucene.util.quantization.ScalarQuantizer;
+import org.elasticsearch.index.codec.vectors.reflect.OffHeapByteSizeUtils;
+import org.elasticsearch.index.codec.vectors.reflect.OffHeapStats;
 import org.elasticsearch.simdvec.VectorScorerFactory;
 import org.elasticsearch.simdvec.VectorSimilarityType;
 
@@ -175,7 +177,7 @@ public class ES814ScalarQuantizedVectorsFormat extends FlatVectorsFormat {
         }
     }
 
-    static final class ES814ScalarQuantizedVectorsReader extends FlatVectorsReader implements QuantizedVectorsReader {
+    static final class ES814ScalarQuantizedVectorsReader extends FlatVectorsReader implements QuantizedVectorsReader, OffHeapStats {
 
         final Lucene99ScalarQuantizedVectorsReader delegate;
 

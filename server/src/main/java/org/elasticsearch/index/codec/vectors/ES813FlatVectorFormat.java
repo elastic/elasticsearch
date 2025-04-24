@@ -29,6 +29,8 @@ import org.apache.lucene.search.KnnCollector;
 import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.hnsw.OrdinalTranslatedKnnCollector;
 import org.apache.lucene.util.hnsw.RandomVectorScorer;
+import org.elasticsearch.index.codec.vectors.reflect.OffHeapByteSizeUtils;
+import org.elasticsearch.index.codec.vectors.reflect.OffHeapStats;
 
 import java.io.IOException;
 import java.util.Map;
@@ -103,7 +105,7 @@ public class ES813FlatVectorFormat extends KnnVectorsFormat {
         }
     }
 
-    static class ES813FlatVectorReader extends KnnVectorsReader {
+    static class ES813FlatVectorReader extends KnnVectorsReader implements OffHeapStats {
 
         private final FlatVectorsReader reader;
 
@@ -157,6 +159,11 @@ public class ES813FlatVectorFormat extends KnnVectorsFormat {
         @Override
         public void close() throws IOException {
             reader.close();
+        }
+
+        @Override
+        public Map<String, Long> getOffHeapByteSize(FieldInfo fieldInfo) {
+            return OffHeapByteSizeUtils.getOffHeapByteSize(reader, fieldInfo);
         }
     }
 }

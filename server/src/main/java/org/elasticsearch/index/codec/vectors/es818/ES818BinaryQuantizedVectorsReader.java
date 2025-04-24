@@ -45,10 +45,14 @@ import org.apache.lucene.util.SuppressForbidden;
 import org.apache.lucene.util.hnsw.OrdinalTranslatedKnnCollector;
 import org.apache.lucene.util.hnsw.RandomVectorScorer;
 import org.elasticsearch.index.codec.vectors.BQVectorUtils;
+import org.elasticsearch.index.codec.vectors.OptimizedScalarQuantizer;
+import org.elasticsearch.index.codec.vectors.reflect.OffHeapByteSizeUtils;
+import org.elasticsearch.index.codec.vectors.reflect.OffHeapStats;
 
 import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Objects;
 
 import static org.apache.lucene.codecs.lucene99.Lucene99HnswVectorsReader.readSimilarityFunction;
 import static org.apache.lucene.codecs.lucene99.Lucene99HnswVectorsReader.readVectorEncoding;
@@ -58,7 +62,7 @@ import static org.elasticsearch.index.codec.vectors.es818.ES818BinaryQuantizedVe
  * Copied from Lucene, replace with Lucene's implementation sometime after Lucene 10
  */
 @SuppressForbidden(reason = "Lucene classes")
-class ES818BinaryQuantizedVectorsReader extends FlatVectorsReader {
+public class ES818BinaryQuantizedVectorsReader extends FlatVectorsReader implements OffHeapStats {
 
     private static final long SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(ES818BinaryQuantizedVectorsReader.class);
 
@@ -102,7 +106,7 @@ class ES818BinaryQuantizedVectorsReader extends FlatVectorsReader {
             quantizedVectorData = openDataInput(
                 state,
                 versionMeta,
-                ES818BinaryQuantizedVectorsFormat.VECTOR_DATA_EXTENSION,
+                VECTOR_DATA_EXTENSION,
                 ES818BinaryQuantizedVectorsFormat.VECTOR_DATA_CODEC_NAME,
                 // Quantized vectors are accessed randomly from their node ID stored in the HNSW
                 // graph.

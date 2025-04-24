@@ -12,6 +12,7 @@ import org.elasticsearch.action.support.CountDownActionListener;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.inference.TaskType;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.inference.action.GetInferenceModelAction;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
@@ -19,17 +20,24 @@ import org.elasticsearch.xpack.esql.plan.logical.inference.InferencePlan;
 
 import java.util.List;
 import java.util.Set;
+import java.util.concurrent.ExecutorService;
 import java.util.stream.Collectors;
 
 public class InferenceRunner {
 
     private final Client client;
 
+    private final ExecutorService executorService;
+    private final ThreadContext threadContext;
+
     public InferenceRunner(Client client) {
         this.client = client;
+        // TODO: revisit the executor service instantiation and thread pool choice.
+        this.executorService = client.threadPool().executor(ThreadPool.Names.SEARCH);
+        this.threadContext = client.threadPool().getThreadContext();
     }
 
-    public ThreadContext getThreadContext() {
+    public ThreadContext threadContext() {
         return client.threadPool().getThreadContext();
     }
 
@@ -72,7 +80,20 @@ public class InferenceRunner {
         return plan.inferenceId().fold(FoldContext.small()).toString();
     }
 
-    public void doInference(InferenceAction.Request request, ActionListener<InferenceAction.Response> listener) {
-        client.execute(InferenceAction.INSTANCE, request, listener);
+    public void doInference(InferenceRequestSupplier request, ActionListener<InferenceAction.Response> listener) {
+        try {
+            if (request == null) {
+                listener.onResponse(null);
+            }
+            executorService.submit(() -> {
+                try {
+                    client.execute(InferenceAction.INSTANCE, request.get(), listener);
+                } catch (Exception e) {
+                    listener.onFailure(e);
+                }
+            });
+        } catch (Exception e) {
+            listener.onFailure(e);
+        }
     }
 }

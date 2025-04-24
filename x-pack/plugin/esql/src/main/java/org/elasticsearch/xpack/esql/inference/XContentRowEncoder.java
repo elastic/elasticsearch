@@ -108,6 +108,7 @@ public class XContentRowEncoder implements ExpressionEvaluator {
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         } finally {
+            Arrays.stream(fieldValueBlocks).forEach(Block::allowPassingToDifferentDriver);
             Releasables.closeExpectNoException(fieldValueBlocks);
         }
     }

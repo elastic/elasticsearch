@@ -6,8 +6,6 @@ navigation_title: "Types and fields"
 
 This section details how {{esql}} handles different data types and special fields.
 
-## What's in this section
-
 * [Implicit casting](esql-implicit-casting.md): Understand how {{esql}} automatically converts between data types in expressions.
 
 * [Time spans](esql-time-spans.md): Learn how to work with time intervals in {{esql}}.

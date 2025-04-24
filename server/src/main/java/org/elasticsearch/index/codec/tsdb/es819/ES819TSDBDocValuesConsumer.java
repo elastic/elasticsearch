@@ -274,9 +274,9 @@ final class ES819TSDBDocValuesConsumer extends XDocValuesConsumer {
         meta.writeByte(ES819TSDBDocValuesFormat.BINARY);
 
         if (valuesProducer instanceof TsdbDocValuesProducer tsdbValuesProducer && tsdbValuesProducer.mergeStats.supported()) {
-            int numDocsWithField = tsdbValuesProducer.mergeStats.sumNumDocsWithField();
-            int minLength = tsdbValuesProducer.mergeStats.minLength();
-            int maxLength = tsdbValuesProducer.mergeStats.maxLength();
+            final int numDocsWithField = tsdbValuesProducer.mergeStats.sumNumDocsWithField();
+            final int minLength = tsdbValuesProducer.mergeStats.minLength();
+            final int maxLength = tsdbValuesProducer.mergeStats.maxLength();
 
             assert numDocsWithField <= maxDoc;
 
@@ -321,13 +321,7 @@ final class ES819TSDBDocValuesConsumer extends XDocValuesConsumer {
                 } else {
                     long offset = data.getFilePointer();
                     meta.writeLong(offset); // docsWithFieldOffset
-                    final short jumpTableEntryCount;
-                    if (disiAccumulator != null) {
-                        jumpTableEntryCount = disiAccumulator.build(data);
-                    } else {
-                        values = valuesProducer.getBinary(field);
-                        jumpTableEntryCount = IndexedDISI.writeBitSet(values, data, IndexedDISI.DEFAULT_DENSE_RANK_POWER);
-                    }
+                    final short jumpTableEntryCount = disiAccumulator.build(data);
                     meta.writeLong(data.getFilePointer() - offset); // docsWithFieldLength
                     meta.writeShort(jumpTableEntryCount);
                     meta.writeByte(IndexedDISI.DEFAULT_DENSE_RANK_POWER);

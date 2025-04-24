@@ -18,7 +18,7 @@ import org.elasticsearch.xpack.core.inference.results.TextEmbeddingFloatResults;
 import org.elasticsearch.xpack.core.ml.search.WeightedToken;
 import org.elasticsearch.xpack.inference.external.http.HttpResult;
 import org.elasticsearch.xpack.inference.services.custom.CustomModelTests;
-import org.elasticsearch.xpack.inference.services.custom.request.CustomRequestTests;
+import org.elasticsearch.xpack.inference.services.custom.request.CustomRequest;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -53,7 +53,7 @@ public class CustomResponseEntityTests extends ESTestCase {
             }
             """;
 
-        var request = CustomRequestTests.createRequest(
+        var request = new CustomRequest(
             null,
             List.of("abc"),
             CustomModelTests.getTestModel(TaskType.TEXT_EMBEDDING, new TextEmbeddingResponseParser("$.result.embeddings[*].embedding"))
@@ -98,7 +98,7 @@ public class CustomResponseEntityTests extends ESTestCase {
             }
             """;
 
-        var request = CustomRequestTests.createRequest(
+        var request = new CustomRequest(
             null,
             List.of("abc"),
             CustomModelTests.getTestModel(
@@ -152,7 +152,7 @@ public class CustomResponseEntityTests extends ESTestCase {
             }
             """;
 
-        var request = CustomRequestTests.createRequest(
+        var request = new CustomRequest(
             null,
             List.of("abc"),
             CustomModelTests.getTestModel(
@@ -192,7 +192,7 @@ public class CustomResponseEntityTests extends ESTestCase {
             }
             """;
 
-        var request = CustomRequestTests.createRequest(
+        var request = new CustomRequest(
             null,
             List.of("abc"),
             CustomModelTests.getTestModel(TaskType.COMPLETION, new CompletionResponseParser("$.result.text"))

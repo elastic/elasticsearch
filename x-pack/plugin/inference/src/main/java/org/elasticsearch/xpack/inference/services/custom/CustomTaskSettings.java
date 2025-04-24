@@ -29,6 +29,7 @@ import static org.elasticsearch.xpack.inference.services.ServiceUtils.validateMa
 public class CustomTaskSettings implements TaskSettings {
     public static final String NAME = "custom_task_settings";
 
+    public static final String PARAMETERS = "json_parameters";
     public static final String PARAMETERS = "parameters";
 
     static final CustomTaskSettings EMPTY_SETTINGS = new CustomTaskSettings(new HashMap<>());
@@ -41,7 +42,13 @@ public class CustomTaskSettings implements TaskSettings {
 
         Map<String, Object> parameters = extractOptionalMap(map, PARAMETERS, ModelConfigurations.TASK_SETTINGS, validationException);
         removeNullValues(parameters);
-        validateMapValues(parameters, List.of(String.class, Integer.class, Double.class, Float.class, Boolean.class), PARAMETERS, validationException, false);
+        validateMapValues(
+            parameters,
+            List.of(String.class, Integer.class, Double.class, Float.class, Boolean.class),
+            PARAMETERS,
+            validationException,
+            false
+        );
 
         if (validationException.validationErrors().isEmpty() == false) {
             throw validationException;

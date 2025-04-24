@@ -9,13 +9,21 @@ package org.elasticsearch.xpack.inference.services.custom.request;
 
 import org.apache.http.HttpHeaders;
 import org.apache.http.client.methods.HttpPost;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.inference.SimilarityMeasure;
+import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentType;
-import org.elasticsearch.xpack.inference.services.custom.CustomModel;
 import org.elasticsearch.xpack.inference.services.custom.CustomModelTests;
-import org.hamcrest.MatcherAssert;
+import org.elasticsearch.xpack.inference.services.custom.CustomSecretSettings;
+import org.elasticsearch.xpack.inference.services.custom.CustomServiceSettings;
+import org.elasticsearch.xpack.inference.services.custom.CustomTaskSettings;
+import org.elasticsearch.xpack.inference.services.custom.response.ErrorResponseParser;
+import org.elasticsearch.xpack.inference.services.custom.response.TextEmbeddingResponseParser;
+import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
+import org.elasticsearch.xpack.inference.services.settings.SerializableSecureString;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -24,43 +32,53 @@ import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.Map;
 
-import static org.elasticsearch.xpack.inference.external.http.Utils.entityAsMap;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 
 public class CustomRequestTests extends ESTestCase {
+
     public void testCreateRequest() throws IOException {
-        // create request
-        var request = createRequest(null, List.of("abc"), CustomModelTests.getTestModel());
+        var dims = 1536;
+        var maxInputTokens = 512;
+        Map<String, String> headers = Map.of(HttpHeaders.AUTHORIZATION, Strings.format("${api_key}"));
+        var requestContentString = "\"input\":${input}";
+
+        var serviceSettings = new CustomServiceSettings(
+            SimilarityMeasure.DOT_PRODUCT,
+            dims,
+            maxInputTokens,
+            "http://${url}",
+            headers,
+            requestContentString,
+            new TextEmbeddingResponseParser("$.result.embeddings"),
+            new RateLimitSettings(10_000),
+            new ErrorResponseParser("$.error.message")
+        );
+
+        var model = CustomModelTests.createModel(
+            "service",
+            TaskType.TEXT_EMBEDDING,
+            serviceSettings,
+            new CustomTaskSettings(Map.of("url", "elastic.com")),
+            new CustomSecretSettings(Map.of("api_key", new SerializableSecureString("my-secret-key")))
+        );
+
+        var request = new CustomRequest(null, List.of("abc", "123"), model);
         var httpRequest = request.createHttpRequest();
         assertThat(httpRequest.httpRequestBase(), instanceOf(HttpPost.class));
 
-        String queryStringRes = "?query=" + CustomModelTests.taskSettingsValue;
         var httpPost = (HttpPost) httpRequest.httpRequestBase();
-        var uri = httpPost.getURI().toString();
-        MatcherAssert.assertThat(uri, is(CustomModelTests.url + CustomModelTests.path + queryStringRes));
-        MatcherAssert.assertThat(httpPost.getLastHeader(HttpHeaders.CONTENT_TYPE).getValue(), is(XContentType.JSON.mediaType()));
-        MatcherAssert.assertThat(httpPost.getLastHeader(HttpHeaders.AUTHORIZATION).getValue(), is(CustomModelTests.secretSettingsValue));
+        assertThat(httpPost.getURI().toString(), is("http://elastic.com"));
+        assertThat(httpPost.getLastHeader(HttpHeaders.CONTENT_TYPE).getValue(), is(XContentType.JSON.mediaType()));
+        assertThat(httpPost.getLastHeader(HttpHeaders.AUTHORIZATION).getValue(), is("my-secret-key"));
 
-        String requestBody = convertToString(httpPost.getEntity().getContent());
+        var expectedBody = XContentHelper.stripWhitespace("""
+            {
+              "input": ["abc", "123"]
+            }
+            """);
 
-        assertThat(entityAsMap(httpPost.getEntity().getContent()), is(Map.of("input", List.of("abc"))));
-    }
-
-//    public void testPlaceholderValidation() {
-//        CustomRequest.placeholderValidation("all substituted", randomBoolean() ? false : null);
-//        CustomRequest.placeholderValidation("all substituted", true);
-//
-//        var e = expectThrows(
-//            IllegalArgumentException.class,
-//            () -> CustomRequest.placeholderValidation("contains ${a} substitution", randomBoolean() ? false : null)
-//        );
-//        assertThat(e.getMessage(), containsString("variable is not replaced, found placeholder in [contains ${a} substitution]"));
-//        CustomRequest.placeholderValidation("contains ${a unsubstituted value} but not checked", true);
-//    }
-
-    public static CustomRequest createRequest(String query, List<String> input, CustomModel model) {
-        return new CustomRequest(query, input, model);
+        assertThat(convertToString(httpPost.getEntity().getContent()), is(expectedBody));
     }
 
     private static String convertToString(InputStream inputStream) throws IOException {

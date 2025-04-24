@@ -98,6 +98,10 @@ public class CustomModelTests extends ESTestCase {
     }
 
     public static CustomModel getTestModel(TaskType taskType, CustomResponseParser responseParser) {
+        return getTestModel(taskType, responseParser, url);
+    }
+
+    public static CustomModel getTestModel(TaskType taskType, CustomResponseParser responseParser, String url) {
         Integer dims = 1536;
         Integer maxInputTokens = 512;
         Map<String, String> headers = Map.of(HttpHeaders.AUTHORIZATION, "${" + secretSettingsKey + "}");

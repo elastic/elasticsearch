@@ -54,6 +54,7 @@ public class CustomServiceSettings extends FilteredXContentObject implements Ser
     public static final String NAME = "custom_service_settings";
     public static final String URL = "url";
     public static final String HEADERS = "headers";
+    public static final String QUERY_PARAMETERS = "query_parameters";
     public static final String REQUEST = "request";
     public static final String REQUEST_CONTENT = "content";
     public static final String RESPONSE = "response";
@@ -70,6 +71,15 @@ public class CustomServiceSettings extends FilteredXContentObject implements Ser
         Integer maxInputTokens = removeAsType(map, MAX_INPUT_TOKENS, Integer.class);
 
         String url = extractRequiredString(map, URL, ModelConfigurations.SERVICE_SETTINGS, validationException);
+
+        Map<String, Object> queryParameters = extractOptionalMap(
+            map,
+            QUERY_PARAMETERS,
+            ModelConfigurations.SERVICE_SETTINGS,
+            validationException
+        );
+        removeNullValues(queryParameters);
+        var stringQueryParameters = validateMapStringValues(queryParameters, QUERY_PARAMETERS, validationException, false);
 
         Map<String, Object> headers = extractOptionalMap(map, HEADERS, ModelConfigurations.SERVICE_SETTINGS, validationException);
         removeNullValues(headers);
@@ -136,6 +146,7 @@ public class CustomServiceSettings extends FilteredXContentObject implements Ser
             maxInputTokens,
             url,
             stringHeaders,
+            stringQueryParameters,
             requestContentString,
             responseJsonParser,
             rateLimitSettings,
@@ -148,6 +159,7 @@ public class CustomServiceSettings extends FilteredXContentObject implements Ser
     private final Integer maxInputTokens;
     private final String url;
     private final Map<String, String> headers;
+    private final Map<String, String> queryParameters;
     private final String requestContentString;
     private final CustomResponseParser responseJsonParser;
     private final RateLimitSettings rateLimitSettings;
@@ -159,6 +171,7 @@ public class CustomServiceSettings extends FilteredXContentObject implements Ser
         @Nullable Integer maxInputTokens,
         String url,
         @Nullable Map<String, String> headers,
+        @Nullable Map<String, String> queryParameters,
         String requestContentString,
         CustomResponseParser responseJsonParser,
         @Nullable RateLimitSettings rateLimitSettings,
@@ -169,6 +182,7 @@ public class CustomServiceSettings extends FilteredXContentObject implements Ser
         this.maxInputTokens = maxInputTokens;
         this.url = Objects.requireNonNull(url);
         this.headers = Collections.unmodifiableMap(Objects.requireNonNullElse(headers, Map.of()));
+        this.queryParameters = Collections.unmodifiableMap(Objects.requireNonNullElse(queryParameters, Map.of()));
         this.requestContentString = Objects.requireNonNull(requestContentString);
         this.responseJsonParser = Objects.requireNonNull(responseJsonParser);
         this.rateLimitSettings = Objects.requireNonNullElse(rateLimitSettings, DEFAULT_RATE_LIMIT_SETTINGS);
@@ -181,6 +195,7 @@ public class CustomServiceSettings extends FilteredXContentObject implements Ser
         maxInputTokens = in.readOptionalVInt();
         url = in.readString();
         headers = in.readImmutableMap(StreamInput::readString);
+        queryParameters = in.readImmutableMap(StreamInput::readString);
         requestContentString = in.readString();
         responseJsonParser = in.readNamedWriteable(CustomResponseParser.class);
         rateLimitSettings = new RateLimitSettings(in);
@@ -212,6 +227,10 @@ public class CustomServiceSettings extends FilteredXContentObject implements Ser
 
     public Map<String, String> getHeaders() {
         return headers;
+    }
+
+    public Map<String, String> getQueryParameters() {
+        return queryParameters;
     }
 
     public String getRequestContentString() {
@@ -267,6 +286,10 @@ public class CustomServiceSettings extends FilteredXContentObject implements Ser
             builder.field(HEADERS, headers);
         }
 
+        if (queryParameters.isEmpty() == false) {
+            builder.field(QUERY_PARAMETERS, queryParameters);
+        }
+
         builder.startObject(REQUEST);
         {
             builder.field(REQUEST_CONTENT, requestContentString);
@@ -302,6 +325,7 @@ public class CustomServiceSettings extends FilteredXContentObject implements Ser
         out.writeOptionalVInt(maxInputTokens);
         out.writeString(url);
         out.writeMap(headers, StreamOutput::writeString, StreamOutput::writeString);
+        out.writeMap(queryParameters, StreamOutput::writeString, StreamOutput::writeString);
         out.writeString(requestContentString);
         out.writeNamedWriteable(responseJsonParser);
         rateLimitSettings.writeTo(out);
@@ -318,6 +342,7 @@ public class CustomServiceSettings extends FilteredXContentObject implements Ser
             && Objects.equals(maxInputTokens, that.maxInputTokens)
             && Objects.equals(url, that.url)
             && Objects.equals(headers, that.headers)
+            && Objects.equals(queryParameters, that.queryParameters)
             && Objects.equals(requestContentString, that.requestContentString)
             && Objects.equals(responseJsonParser, that.responseJsonParser)
             && Objects.equals(rateLimitSettings, that.rateLimitSettings)
@@ -332,6 +357,7 @@ public class CustomServiceSettings extends FilteredXContentObject implements Ser
             maxInputTokens,
             url,
             headers,
+            queryParameters,
             requestContentString,
             responseJsonParser,
             rateLimitSettings,

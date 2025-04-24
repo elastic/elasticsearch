@@ -52,6 +52,7 @@ public class CustomServiceSettingsTests extends AbstractBWCWireSerializationTest
         Integer maxInputTokens = randomBoolean() ? null : randomIntBetween(128, 256);
         String url = inputUrl != null ? inputUrl : randomAlphaOfLength(15);
         Map<String, String> headers = randomBoolean() ? Map.of() : Map.of("key", "value");
+        Map<String, String> queryParameters = randomBoolean() ? Map.of() : Map.of("param1", "value1");
         String requestContentString = randomAlphaOfLength(10);
 
         var responseJsonParser = switch (taskType) {
@@ -79,6 +80,7 @@ public class CustomServiceSettingsTests extends AbstractBWCWireSerializationTest
             maxInputTokens,
             url,
             headers,
+            queryParameters,
             requestContentString,
             responseJsonParser,
             rateLimitSettings,
@@ -96,6 +98,7 @@ public class CustomServiceSettingsTests extends AbstractBWCWireSerializationTest
         Integer maxInputTokens = 512;
         String url = "http://www.abc.com";
         Map<String, String> headers = Map.of("key", "value");
+        Map<String, String> queryParameters = Map.of("param1", "value1");
         String requestContentString = "request body";
 
         var responseParser = new TextEmbeddingResponseParser("$.result.embeddings[*].embedding");
@@ -113,6 +116,8 @@ public class CustomServiceSettingsTests extends AbstractBWCWireSerializationTest
                     url,
                     CustomServiceSettings.HEADERS,
                     headers,
+                    CustomServiceSettings.QUERY_PARAMETERS,
+                    queryParameters,
                     CustomServiceSettings.REQUEST,
                     new HashMap<>(Map.of(CustomServiceSettings.REQUEST_CONTENT, requestContentString)),
                     CustomServiceSettings.RESPONSE,
@@ -132,7 +137,7 @@ public class CustomServiceSettingsTests extends AbstractBWCWireSerializationTest
             TaskType.TEXT_EMBEDDING
         );
 
-        MatcherAssert.assertThat(
+        assertThat(
             settings,
             is(
                 new CustomServiceSettings(
@@ -141,6 +146,7 @@ public class CustomServiceSettingsTests extends AbstractBWCWireSerializationTest
                     maxInputTokens,
                     url,
                     headers,
+                    queryParameters,
                     requestContentString,
                     responseParser,
                     new RateLimitSettings(10_000),
@@ -189,6 +195,7 @@ public class CustomServiceSettingsTests extends AbstractBWCWireSerializationTest
                     null,
                     url,
                     Map.of(),
+                    Map.of(),
                     requestContentString,
                     responseParser,
                     new RateLimitSettings(10_000),
@@ -198,7 +205,7 @@ public class CustomServiceSettingsTests extends AbstractBWCWireSerializationTest
         );
     }
 
-    public void testFromMap_RemovesNullValues_FromHeaders() {
+    public void testFromMap_RemovesNullValues_FromMaps() {
         String similarity = SimilarityMeasure.DOT_PRODUCT.toString();
         Integer dims = 1536;
         Integer maxInputTokens = 512;
@@ -207,6 +214,10 @@ public class CustomServiceSettingsTests extends AbstractBWCWireSerializationTest
         var headersWithNulls = new HashMap<String, Object>();
         headersWithNulls.put("value", "abc");
         headersWithNulls.put("null", null);
+
+        var queryParamsWithNulls = new HashMap<String, Object>();
+        queryParamsWithNulls.put("value", "abc");
+        queryParamsWithNulls.put("null", null);
 
         String requestContentString = "request body";
 
@@ -225,6 +236,8 @@ public class CustomServiceSettingsTests extends AbstractBWCWireSerializationTest
                     url,
                     CustomServiceSettings.HEADERS,
                     headersWithNulls,
+                    CustomServiceSettings.QUERY_PARAMETERS,
+                    queryParamsWithNulls,
                     CustomServiceSettings.REQUEST,
                     new HashMap<>(Map.of(CustomServiceSettings.REQUEST_CONTENT, requestContentString)),
                     CustomServiceSettings.RESPONSE,

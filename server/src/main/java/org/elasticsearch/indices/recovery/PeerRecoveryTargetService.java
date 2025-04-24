@@ -310,21 +310,12 @@ public class PeerRecoveryTargetService implements IndexEventListener {
                         indexShard.routingEntry().allocationId().getId(),
                         recoveryTarget.clusterStateVersion()
                     ),
-                    new ActionListener<>() {
-                        @Override
-                        public void onResponse(ActionResponse.Empty empty) {
+                    cleanupOnly.delegateFailure((l, unused) -> {
+                        ActionListener.completeWith(l, () -> {
                             onGoingRecoveries.markRecoveryAsDone(recoveryId);
-                        }
-
-                        @Override
-                        public void onFailure(Exception e) {
-                            onGoingRecoveries.failRecovery(
-                                recoveryId,
-                                new RecoveryFailedException(recoveryState, "failed to recover unpromotable shard", e),
-                                true
-                            );
-                        }
-                    }
+                            return null;
+                        });
+                    })
                 );
             }
             return;

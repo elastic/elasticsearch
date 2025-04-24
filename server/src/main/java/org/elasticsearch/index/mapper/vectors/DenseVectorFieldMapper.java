@@ -135,7 +135,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
                                                                         // vector
     public static final int MAGNITUDE_BYTES = 4;
     public static final int OVERSAMPLE_LIMIT = 10_000; // Max oversample allowed
-    private static final float DEFAULT_OVERSAMPLE = 3.0F; // Default oversample value
+    public static final float DEFAULT_OVERSAMPLE = 3.0F; // Default oversample value
 
     private static DenseVectorFieldMapper toType(FieldMapper in) {
         return (DenseVectorFieldMapper) in;

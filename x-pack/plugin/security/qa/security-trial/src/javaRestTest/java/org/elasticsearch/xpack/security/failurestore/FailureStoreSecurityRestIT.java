@@ -2771,6 +2771,7 @@ public class FailureStoreSecurityRestIT extends ESRestTestCase {
             json.endObject();
             var request = new Request("POST", "_query");
             request.setJsonEntity(Strings.toString(json));
+            request.addParameter("allow_partial_results", Boolean.toString(false));
             return request;
         }
     }

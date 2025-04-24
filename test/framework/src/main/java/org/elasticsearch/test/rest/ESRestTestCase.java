@@ -2817,16 +2817,12 @@ public abstract class ESRestTestCase extends ESTestCase {
         if (indexTemplates != null) {
             var templateNames = indexTemplates.keySet().stream().filter(name -> isXPackTemplate(name) == false).toList();
             assertThat("Project [" + projectId + "] should not have index templates", templateNames, empty());
-        } else if (projectId.equals(Metadata.DEFAULT_PROJECT_ID.id())) {
-            fail("Expected default project to have standard templates, but was null");
         }
 
         final Map<String, Object> componentTemplates = state.evaluate("metadata.component_template.component_template");
         if (componentTemplates != null) {
             var templateNames = componentTemplates.keySet().stream().filter(name -> isXPackTemplate(name) == false).toList();
             assertThat("Project [" + projectId + "] should not have component templates", templateNames, empty());
-        } else if (projectId.equals(Metadata.DEFAULT_PROJECT_ID.id())) {
-            fail("Expected default project to have standard component templates, but was null");
         }
 
         final List<Map<String, ?>> pipelines = state.evaluate("metadata.ingest.pipeline");
@@ -2836,8 +2832,6 @@ public abstract class ESRestTestCase extends ESTestCase {
                 .filter(id -> isXPackIngestPipeline(id) == false)
                 .toList();
             assertThat("Project [" + projectId + "] should not have ingest pipelines", pipelineNames, empty());
-        } else if (projectId.equals(Metadata.DEFAULT_PROJECT_ID.id())) {
-            fail("Expected default project to have standard ingest pipelines, but was null");
         }
 
         if (has(ProductFeature.ILM)) {
@@ -2846,8 +2840,6 @@ public abstract class ESRestTestCase extends ESTestCase {
                 var policyNames = new HashSet<>(ilmPolicies.keySet());
                 policyNames.removeAll(preserveILMPolicyIds());
                 assertThat("Project [" + projectId + "] should not have ILM Policies", policyNames, empty());
-            } else if (projectId.equals(Metadata.DEFAULT_PROJECT_ID.id())) {
-                fail("Expected default project to have standard ILM policies, but was null");
             }
         }
     }

@@ -13,7 +13,6 @@ import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.cluster.RemoteException;
-import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.RunOnce;
@@ -70,10 +69,12 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.ExecutorService;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Supplier;
 
+import static org.elasticsearch.core.TimeValue.timeValueSeconds;
 import static org.elasticsearch.xpack.esql.plugin.EsqlPlugin.ESQL_WORKER_THREAD_POOL_NAME;
 
 /**
@@ -127,14 +128,14 @@ public class ComputeService {
     private final SearchService searchService;
     private final BigArrays bigArrays;
     private final BlockFactory blockFactory;
-
+    private final ThreadPool threadPool;
+    private final ExecutorService esqlExecutor;
     private final TransportService transportService;
     private final DriverTaskRunner driverRunner;
     private final EnrichLookupService enrichLookupService;
     private final LookupFromIndexService lookupFromIndexService;
     private final InferenceRunner inferenceRunner;
     private final ClusterService clusterService;
-    private final ProjectResolver projectResolver;
     private final AtomicLong childSessionIdGenerator = new AtomicLong();
     private final DataNodeComputeHandler dataNodeComputeHandler;
     private final ClusterComputeHandler clusterComputeHandler;
@@ -152,21 +153,21 @@ public class ComputeService {
         BlockFactory blockFactory
     ) {
         this.searchService = transportActionServices.searchService();
+        this.threadPool = threadPool;
+        this.esqlExecutor = threadPool.executor(ThreadPool.Names.SEARCH);
         this.transportService = transportActionServices.transportService();
         this.exchangeService = transportActionServices.exchangeService();
         this.bigArrays = bigArrays.withCircuitBreaking();
         this.blockFactory = blockFactory;
-        var esqlExecutor = threadPool.executor(ThreadPool.Names.SEARCH);
         this.driverRunner = new DriverTaskRunner(transportService, esqlExecutor);
         this.enrichLookupService = enrichLookupService;
         this.lookupFromIndexService = lookupFromIndexService;
         this.inferenceRunner = transportActionServices.inferenceRunner();
         this.clusterService = transportActionServices.clusterService();
-        this.projectResolver = transportActionServices.projectResolver();
         this.dataNodeComputeHandler = new DataNodeComputeHandler(
             this,
             clusterService,
-            projectResolver,
+            transportActionServices.projectResolver(),
             searchService,
             transportService,
             exchangeService,
@@ -406,8 +407,12 @@ public class ComputeService {
                         coordinatorPlan,
                         delegate.delegateFailure((l, r) -> {
                             l.onResponse(r);
-                            if (exchangeSource.isFinished()) {
-                                localListener.completeImmediately();
+                            if (configuration.profile() == false && exchangeSource.isFinished()) {
+                                threadPool.scheduleUnlessShuttingDown(
+                                    timeValueSeconds(1),
+                                    esqlExecutor,
+                                    localListener::completeImmediately
+                                );
                             }
                         })
                     );

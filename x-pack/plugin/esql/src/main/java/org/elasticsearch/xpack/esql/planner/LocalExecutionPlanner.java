@@ -115,6 +115,7 @@ import org.elasticsearch.xpack.esql.plan.physical.SampleExec;
 import org.elasticsearch.xpack.esql.plan.physical.ShowExec;
 import org.elasticsearch.xpack.esql.plan.physical.TimeSeriesSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.TopNExec;
+import org.elasticsearch.xpack.esql.plan.physical.inference.CompletionExec;
 import org.elasticsearch.xpack.esql.plan.physical.inference.RerankExec;
 import org.elasticsearch.xpack.esql.planner.EsPhysicalOperationProviders.ShardContext;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
@@ -260,9 +261,12 @@ public class LocalExecutionPlanner {
             return planRerank(rerank, context);
         } else if (node instanceof ChangePointExec changePoint) {
             return planChangePoint(changePoint, context);
+        } else if (node instanceof CompletionExec completion) {
+            return planCompletion(completion, context);
         } else if (node instanceof SampleExec Sample) {
             return planSample(Sample, context);
         }
+
         // source nodes
         else if (node instanceof EsQueryExec esQuery) {
             return planEsQueryNode(esQuery, context);
@@ -295,6 +299,19 @@ public class LocalExecutionPlanner {
         }
 
         throw new EsqlIllegalArgumentException("unknown physical plan node [" + node.nodeName() + "]");
+    }
+
+    private PhysicalOperation planCompletion(CompletionExec completion, LocalExecutionPlannerContext context) {
+        PhysicalOperation source = plan(completion.child(), context);
+        String inferenceId = BytesRefs.toString(completion.inferenceId().fold(context.foldCtx()));
+        Layout outputLayout = source.layout.builder().append(completion.targetField()).build();
+        EvalOperator.ExpressionEvaluator.Factory promptEvaluatorFactory = EvalMapper.toEvaluator(
+            context.foldCtx(),
+            completion.prompt(),
+            source.layout
+        );
+
+       return source.with(new CompletionOperator.Factory(inferenceRunner, inferenceId, promptEvaluatorFactory), outputLayout);
     }
 
     private PhysicalOperation planRrfScoreEvalExec(RrfScoreEvalExec rrf, LocalExecutionPlannerContext context) {

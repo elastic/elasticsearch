@@ -215,4 +215,4 @@ PUT test-index
 
 * `semantic_text` fields are not currently supported as elements of [nested fields](/reference/elasticsearch/mapping-reference/nested.md).
 * `semantic_text` fields can’t currently be set as part of [Dynamic templates](docs-content://manage-data/data-store/mapping/dynamic-templates.md).
-* `semantic_text` fields are not currently behavior for indices with semantic_text fields, flag CCS/CCR limitation (#127310))
+* `semantic_text` fields are not currently supported with Cross-Cluster Search (CCS) or Cross-Cluster Replication (CCR).

@@ -90,7 +90,7 @@ public class ErrorResponseParser implements ToXContentFragment, Function<HttpRes
             // NOTE: This deviates from what we've done in the past. In the ErrorMessageResponseEntity logic
             // if we find the top level error field we'll return a response with an empty message but indicate
             // that we found the structure of the error object. Here if we're missing the final field we will return
-            // a ErrorResponse.UNDEFINED_ERROR with will indicate that we did not find the structure even if for example
+            // a ErrorResponse.UNDEFINED_ERROR which will indicate that we did not find the structure even if for example
             // the outer error field does exist, but it doesn't contain the nested field we were looking for.
             // If in the future we want the previous behavior, we can add a new message_path field or something and have
             // the current path field point to the field that indicates whether we found an error object.

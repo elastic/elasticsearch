@@ -12,17 +12,15 @@ import org.elasticsearch.features.NodeFeature;
 
 import java.util.Set;
 
-import static org.elasticsearch.xpack.searchbusinessrules.retriever.PinnedRetrieverBuilder.PINNED_RETRIEVER_FEATURE;
-
 public class SearchBusinessRulesFeatures implements FeatureSpecification {
 
     @Override
     public Set<NodeFeature> getFeatures() {
-        return Set.of(PINNED_RETRIEVER_FEATURE);
+        return Set.of(new NodeFeature("pinned_retriever_supported"));
     }
 
     @Override
     public Set<NodeFeature> getTestFeatures() {
-        return Set.of();
+        return Set.of(new NodeFeature("pinned_retriever_supported"));
     }
 }

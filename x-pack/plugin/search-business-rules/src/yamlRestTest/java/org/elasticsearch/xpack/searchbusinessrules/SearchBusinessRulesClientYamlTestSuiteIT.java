@@ -21,6 +21,7 @@ public class SearchBusinessRulesClientYamlTestSuiteIT extends ESClientYamlSuiteT
         .distribution(DistributionType.DEFAULT)
         .setting("xpack.license.self_generated.type", "basic")
         .setting("xpack.security.enabled", "false")
+        .module("search-business-rules")
         .build();
 
     public SearchBusinessRulesClientYamlTestSuiteIT(final ClientYamlTestCandidate testCandidate) {
@@ -29,7 +30,7 @@ public class SearchBusinessRulesClientYamlTestSuiteIT extends ESClientYamlSuiteT
 
     @ParametersFactory
     public static Iterable<Object[]> parameters() throws Exception {
-        return ESClientYamlSuiteTestCase.createParameters(new String[] { "search-business-rules/10_pinned_retriever_basic" });
+        return ESClientYamlSuiteTestCase.createParameters(new String[] { "search-business-rules/10_pinned_retriever" });
     }
 
     @Override

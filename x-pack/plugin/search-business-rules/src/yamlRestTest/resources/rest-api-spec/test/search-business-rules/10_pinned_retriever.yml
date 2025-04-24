@@ -391,16 +391,15 @@ setup:
               ids: ["doc1"]
               retriever:
                 standard: {}
+
 ---
 "pinned retriever combined with rrf":
+  - skip: { features: headers }
   - do:
       cluster.put_settings:
         body:
           persistent:
             xpack.license.self_generated.type: trial
-  - skip:
-      features: headers
-
   - do:
       headers:
         Content-Type: application/json
@@ -439,12 +438,12 @@ setup:
 
 ---
 "pinned retriever as a sub-retriever":
+  - skip: { features: headers }
   - do:
       cluster.put_settings:
         body:
           persistent:
             xpack.license.self_generated.type: trial
-  - skip: { features: headers }
   - do:
       headers: { Content-Type: application/json }
       search:

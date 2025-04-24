@@ -15,9 +15,9 @@ base {
 dependencies {
   compileOnly project(path: xpackModule('core'))
   compileOnly project(':server')
-  compileOnly project(':libs:x-content')
   testImplementation(testArtifact(project(xpackModule('core'))))
   testImplementation(testArtifact(project(':server')))
+  clusterModules project(xpackModule('search-business-rules'))
 }
 
 tasks.named("yamlRestTest") {

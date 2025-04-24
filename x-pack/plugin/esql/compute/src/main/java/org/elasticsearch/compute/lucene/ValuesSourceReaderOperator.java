@@ -72,10 +72,18 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingOperator {
      * @param shardContexts per-shard loading information
      * @param docChannel the channel containing the shard, leaf/segment and doc id
      */
-    public record Factory(List<FieldInfo> fields, List<ShardContext> shardContexts, int docChannel) implements OperatorFactory {
+    public record Factory(List<FieldInfo> fields, List<ShardContext> shardContexts, int docChannel, double storedFieldsSequentialProportion)
+        implements
+            OperatorFactory {
         @Override
         public Operator get(DriverContext driverContext) {
-            return new ValuesSourceReaderOperator(driverContext.blockFactory(), fields, shardContexts, docChannel);
+            return new ValuesSourceReaderOperator(
+                driverContext.blockFactory(),
+                fields,
+                shardContexts,
+                docChannel,
+                storedFieldsSequentialProportion
+            );
         }
 
         @Override
@@ -113,6 +121,7 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingOperator {
     private final List<ShardContext> shardContexts;
     private final int docChannel;
     private final BlockFactory blockFactory;
+    private final double storedFieldsSequentialProportion;
 
     private final Map<String, Integer> readersBuilt = new TreeMap<>();
     private long valuesLoaded;
@@ -125,11 +134,18 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingOperator {
      * @param fields fields to load
      * @param docChannel the channel containing the shard, leaf/segment and doc id
      */
-    public ValuesSourceReaderOperator(BlockFactory blockFactory, List<FieldInfo> fields, List<ShardContext> shardContexts, int docChannel) {
+    public ValuesSourceReaderOperator(
+        BlockFactory blockFactory,
+        List<FieldInfo> fields,
+        List<ShardContext> shardContexts,
+        int docChannel,
+        double storedFieldsSequentialProportion
+    ) {
         this.fields = fields.stream().map(f -> new FieldWork(f)).toArray(FieldWork[]::new);
         this.shardContexts = shardContexts;
         this.docChannel = docChannel;
         this.blockFactory = blockFactory;
+        this.storedFieldsSequentialProportion = storedFieldsSequentialProportion;
     }
 
     @Override
@@ -440,7 +456,11 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingOperator {
      */
     private boolean useSequentialStoredFieldsReader(BlockLoader.Docs docs) {
         int count = docs.count();
-        return count >= SEQUENTIAL_BOUNDARY && docs.get(count - 1) - docs.get(0) == count - 1;
+        if (count < SEQUENTIAL_BOUNDARY) {
+            return false;
+        }
+        int range = docs.get(count - 1) - docs.get(0);
+        return range * storedFieldsSequentialProportion < count - 1;
     }
 
     private void trackStoredFields(StoredFieldsSpec spec, boolean sequential) {

@@ -204,6 +204,7 @@ public class OperatorTests extends MapperServiceTestCase {
                         gField,
                         List.of(CountAggregatorFunction.supplier().groupingAggregatorFactory(INITIAL, List.of(1))),
                         randomPageSize(),
+                        0.1,
                         driverContext
                     )
                 );

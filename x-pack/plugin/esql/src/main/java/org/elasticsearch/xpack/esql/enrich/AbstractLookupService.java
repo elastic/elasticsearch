@@ -409,7 +409,8 @@ public abstract class AbstractLookupService<R extends AbstractLookupService.Requ
             driverContext.blockFactory(),
             fields,
             List.of(new ValuesSourceReaderOperator.ShardContext(shardContext.searcher().getIndexReader(), shardContext::newSourceLoader)),
-            0
+            0,
+            0.1
         );
     }
 

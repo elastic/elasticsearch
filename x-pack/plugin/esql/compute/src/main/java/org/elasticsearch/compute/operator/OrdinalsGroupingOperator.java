@@ -63,7 +63,8 @@ public class OrdinalsGroupingOperator implements Operator {
         int docChannel,
         String groupingField,
         List<Factory> aggregators,
-        int maxPageSize
+        int maxPageSize,
+        double storedFieldsSequentialProportion
     ) implements OperatorFactory {
 
         @Override
@@ -76,6 +77,7 @@ public class OrdinalsGroupingOperator implements Operator {
                 groupingField,
                 aggregators,
                 maxPageSize,
+                storedFieldsSequentialProportion,
                 driverContext
             );
         }
@@ -94,6 +96,7 @@ public class OrdinalsGroupingOperator implements Operator {
     private final List<Factory> aggregatorFactories;
     private final ElementType groupingElementType;
     private final Map<SegmentID, OrdinalSegmentAggregator> ordinalAggregators;
+    private final double storedFieldsSequentialProportion;
 
     private final DriverContext driverContext;
 
@@ -111,6 +114,7 @@ public class OrdinalsGroupingOperator implements Operator {
         String groupingField,
         List<GroupingAggregator.Factory> aggregatorFactories,
         int maxPageSize,
+        double storedFieldsSequentialProportion,
         DriverContext driverContext
     ) {
         Objects.requireNonNull(aggregatorFactories);
@@ -122,6 +126,7 @@ public class OrdinalsGroupingOperator implements Operator {
         this.aggregatorFactories = aggregatorFactories;
         this.ordinalAggregators = new HashMap<>();
         this.maxPageSize = maxPageSize;
+        this.storedFieldsSequentialProportion = storedFieldsSequentialProportion;
         this.driverContext = driverContext;
     }
 
@@ -171,6 +176,7 @@ public class OrdinalsGroupingOperator implements Operator {
                         channelIndex,
                         aggregatorFactories,
                         maxPageSize,
+                        storedFieldsSequentialProportion,
                         driverContext
                     );
                 }
@@ -485,6 +491,7 @@ public class OrdinalsGroupingOperator implements Operator {
     private static class ValuesAggregator implements Releasable {
         private final ValuesSourceReaderOperator extractor;
         private final HashAggregationOperator aggregator;
+        private final double storedFieldsSequentialProportion;
 
         ValuesAggregator(
             IntFunction<BlockLoader> blockLoaders,
@@ -495,13 +502,15 @@ public class OrdinalsGroupingOperator implements Operator {
             int channelIndex,
             List<GroupingAggregator.Factory> aggregatorFactories,
             int maxPageSize,
+            double storedFieldsSequentialProportion,
             DriverContext driverContext
         ) {
             this.extractor = new ValuesSourceReaderOperator(
                 driverContext.blockFactory(),
                 List.of(new ValuesSourceReaderOperator.FieldInfo(groupingField, groupingElementType, blockLoaders)),
                 shardContexts,
-                docChannel
+                docChannel,
+                storedFieldsSequentialProportion
             );
             this.aggregator = new HashAggregationOperator(
                 aggregatorFactories,
@@ -513,6 +522,7 @@ public class OrdinalsGroupingOperator implements Operator {
                 ),
                 driverContext
             );
+            this.storedFieldsSequentialProportion = storedFieldsSequentialProportion;
         }
 
         void addInput(Page page) {

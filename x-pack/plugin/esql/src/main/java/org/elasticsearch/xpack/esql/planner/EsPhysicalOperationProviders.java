@@ -103,16 +103,19 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
 
     private final List<ShardContext> shardContexts;
     private final DataPartitioning defaultDataPartitioning;
+    private final double storedFieldsSequentialProportion;
 
     public EsPhysicalOperationProviders(
         FoldContext foldContext,
         List<ShardContext> shardContexts,
         AnalysisRegistry analysisRegistry,
-        DataPartitioning defaultDataPartitioning
+        DataPartitioning defaultDataPartitioning,
+        double storedFieldsSequentialProportion
     ) {
         super(foldContext, analysisRegistry);
         this.shardContexts = shardContexts;
         this.defaultDataPartitioning = defaultDataPartitioning;
+        this.storedFieldsSequentialProportion = storedFieldsSequentialProportion;
     }
 
     @Override
@@ -132,7 +135,10 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
             IntFunction<BlockLoader> loader = s -> getBlockLoaderFor(s, attr, fieldExtractPreference);
             fields.add(new ValuesSourceReaderOperator.FieldInfo(getFieldName(attr), elementType, loader));
         }
-        return source.with(new ValuesSourceReaderOperator.Factory(fields, readers, docChannel), layout.build());
+        return source.with(
+            new ValuesSourceReaderOperator.Factory(fields, readers, docChannel, storedFieldsSequentialProportion),
+            layout.build()
+        );
     }
 
     private static String getFieldName(Attribute attr) {
@@ -278,7 +284,8 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
             docChannel,
             attrSource.name(),
             aggregatorFactories,
-            context.pageSize(aggregateExec.estimatedRowSize())
+            context.pageSize(aggregateExec.estimatedRowSize()),
+            storedFieldsSequentialProportion
         );
     }
 

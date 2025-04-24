@@ -23,7 +23,6 @@ import org.apache.lucene.codecs.lucene95.HasIndexSlice;
 import org.apache.lucene.index.FloatVectorValues;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.util.Bits;
-import org.apache.lucene.util.MathUtil;
 
 import java.io.IOException;
 import java.util.Random;
@@ -85,49 +84,32 @@ class SampleReader extends FloatVectorValues implements HasIndexSlice {
         if (k >= origin.size()) {
             new SampleReader(origin, origin.size(), i -> i);
         }
-        Random rnd = new Random(seed);
-        RandomLinearCongruentialMapper mapper = new RandomLinearCongruentialMapper(k, origin.size(), rnd);
-        return new SampleReader(origin, k, i -> (int) mapper.map(i));
+        // TODO maybe use bigArrays?
+        int[] samples = reservoirSample(origin.size(), k, seed);
+        return new SampleReader(origin, samples.length, i -> samples[i]);
     }
 
     /**
-     * RandomLinearCongruentialMapper is used to map a range of integers [1, n] to a range of integers [1, m]
+     * Sample k elements from n elements according to reservoir sampling algorithm.
+     *
+     * @param n number of elements
+     * @param k number of samples
+     * @param seed random seed
+     * @return array of k samples
      */
-    static class RandomLinearCongruentialMapper {
-        private final long n;
-        private final long m;
-        private final long multiplier;
-        private final int randomLinearShift;
-
-        RandomLinearCongruentialMapper(long smaller, long larger, Random random) {
-            assert smaller > 0 && larger > 0 : "smaller and larger must be positive; received: " + smaller + ", " + larger;
-            assert smaller < larger;
-            this.n = smaller;
-            this.m = larger;
-            this.multiplier = findLargeOddCoprime(n);
-            this.randomLinearShift = random.nextInt(1024, 1024 * 1024) | 1;
+    public static int[] reservoirSample(int n, int k, long seed) {
+        Random rnd = new Random(seed);
+        int[] reservoir = new int[k];
+        for (int i = 0; i < k; i++) {
+            reservoir[i] = i;
         }
-
-        // need to ensure positive modulus only
-        private static long mod(long x, long m) {
-            long r = x % m;
-            return r < 0 ? r + m : r;
-        }
-
-        long map(long i) {
-            if (i < 0 || i >= n) {
-                throw new IllegalArgumentException("i out of range");
+        for (int i = k; i < n; i++) {
+            int j = rnd.nextInt(i + 1);
+            if (j < k) {
+                reservoir[j] = i;
             }
-            long permuted = mod((i * multiplier + randomLinearShift), n);
-            return 1 + mod(permuted, m);
         }
-
-        private static long findLargeOddCoprime(long n) {
-            long candidate = Math.max(n | 1, 5); // make sure it's odd
-            while (MathUtil.gcd(candidate, n) != 1) {
-                candidate += 4;
-            }
-            return candidate;
-        }
+        return reservoir;
     }
+
 }

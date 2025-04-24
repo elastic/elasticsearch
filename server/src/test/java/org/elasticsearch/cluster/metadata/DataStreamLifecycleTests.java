@@ -330,7 +330,6 @@ public class DataStreamLifecycleTests extends AbstractWireSerializingTestCase<Da
             DataStreamLifecycle noFailuresRetentionLifecycle = DataStreamLifecycle.failuresLifecycleBuilder().build();
             TimeValue maxRetention = TimeValue.timeValueDays(randomIntBetween(50, 100));
             TimeValue defaultRetention = TimeValue.timeValueDays(randomIntBetween(1, 50));
-            TimeValue failuresDefaultRetention = TimeValue.timeValueDays(randomIntBetween(1, 100));
 
             // No global retention
             // Data lifecycle
@@ -372,13 +371,8 @@ public class DataStreamLifecycleTests extends AbstractWireSerializingTestCase<Da
                 new DataStreamGlobalRetention(defaultRetention, maxRetention),
                 false
             );
-            if (maxRetention.getMillis() < failuresDefaultRetention.getMillis()) {
-                assertThat(effectiveFailuresRetentionWithSource.v1(), equalTo(maxRetention));
-                assertThat(effectiveFailuresRetentionWithSource.v2(), equalTo(MAX_GLOBAL_RETENTION));
-            } else {
-                assertThat(effectiveFailuresRetentionWithSource.v1(), equalTo(failuresDefaultRetention));
-                assertThat(effectiveFailuresRetentionWithSource.v2(), equalTo(DEFAULT_GLOBAL_RETENTION));
-            }
+            assertThat(effectiveFailuresRetentionWithSource.v1(), equalTo(defaultRetention));
+            assertThat(effectiveFailuresRetentionWithSource.v2(), equalTo(DEFAULT_GLOBAL_RETENTION));
         }
 
         // With retention in the data stream lifecycle

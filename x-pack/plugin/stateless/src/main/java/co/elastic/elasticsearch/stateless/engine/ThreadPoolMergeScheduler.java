@@ -30,6 +30,7 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.engine.ElasticsearchMergeScheduler;
+import org.elasticsearch.index.engine.MergeMemoryEstimateProvider;
 import org.elasticsearch.index.engine.MergeTracking;
 import org.elasticsearch.index.merge.MergeStats;
 import org.elasticsearch.index.merge.OnGoingMerge;
@@ -88,7 +89,7 @@ public class ThreadPoolMergeScheduler extends MergeScheduler implements Elastics
     private final Consumer<OnGoingMerge> onMergeExecutedOrAborted;
     private final MergeTracking mergeTracking;
     private final SameThreadExecutorService sameThreadExecutorService = new SameThreadExecutorService();
-    private final MergeMemoryEstimator mergeMemoryEstimator;
+    private final MergeMemoryEstimateProvider mergeMemoryEstimator;
 
     // TODO: We could consider using a prioritized executor to compare merges. In particular, when comparing two merges between the same
     // shard perhaps we should prefer to execute a smaller merge first. This should probably be follow-up work.
@@ -103,7 +104,7 @@ public class ThreadPoolMergeScheduler extends MergeScheduler implements Elastics
         Consumer<Exception> exceptionHandler,
         Consumer<OnGoingMerge> onMergeQueued,
         Consumer<OnGoingMerge> onMergeExecutedOrAborted,
-        MergeMemoryEstimator mergeMemoryEstimator
+        MergeMemoryEstimateProvider mergeMemoryEstimator
     ) {
         this.logger = Loggers.getLogger(getClass(), shardId);
         this.prewarm = prewarm;
@@ -268,14 +269,5 @@ public class ThreadPoolMergeScheduler extends MergeScheduler implements Elastics
     @Override
     public MergeScheduler getMergeScheduler() {
         return this;
-    }
-
-    @FunctionalInterface
-    public interface MergeMemoryEstimator {
-
-        /**
-         * Returns an estimate of the memory needed to perform a merge
-         */
-        long estimateMergeMemoryBytes(MergePolicy.OneMerge merge);
     }
 }

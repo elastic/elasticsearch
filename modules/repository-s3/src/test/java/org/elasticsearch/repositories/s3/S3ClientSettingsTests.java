@@ -192,10 +192,8 @@ public class S3ClientSettingsTests extends ESTestCase {
             Region otherRegion = s3Service.getClientRegion(otherSettings);
             assertEquals(randomRegion, otherRegion.toString());
 
-            var defaultSettings = settings.get("default");
-            Region defaultRegion = s3Service.getClientRegion(defaultSettings);
-            assertNotEquals(randomRegion, defaultRegion.toString());
-            assertEquals("us-east-1", defaultRegion.toString()); // us-east-1 is the default absent any other settings.
+            // by default, we simply do not know the region (which S3Service maps to us-east-1 with cross-region access enabled)
+            assertNull(s3Service.getClientRegion(settings.get("default")));
         }
     }
 

@@ -187,7 +187,9 @@ public class S3ServiceTests extends ESTestCase {
                     "warning",
                     S3Service.class.getCanonicalName(),
                     Level.DEBUG,
-                    "found S3 client with no configured region, using region [" + defaultRegion.id() + "] from SDK"
+                    "found S3 client with no configured region and no configured endpoint, using region ["
+                        + defaultRegion.id()
+                        + "] from SDK"
                 )
             );
         }
@@ -206,13 +208,11 @@ public class S3ServiceTests extends ESTestCase {
             final var clientName = randomBoolean() ? "default" : randomIdentifier();
 
             MockLog.assertThatLogger(
-                () -> assertSame(
-                    Region.US_EAST_1,
-                    s3Service.getClientRegion(S3ClientSettings.getClientSettings(Settings.EMPTY, clientName))
-                ),
+                () -> assertNull(s3Service.getClientRegion(S3ClientSettings.getClientSettings(Settings.EMPTY, clientName))),
                 S3Service.class,
                 new MockLog.SeenEventExpectation("warning", S3Service.class.getCanonicalName(), Level.WARN, """
-                    found S3 client with no configured region, falling back to [us-east-1]; \
+                    found S3 client with no configured region and no configured endpoint, \
+                    falling back to [us-east-1] and enabling cross-region access; \
                     to suppress this warning, configure the [s3.client.CLIENT_NAME.region] setting on this node""")
             );
         }

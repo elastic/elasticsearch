@@ -244,7 +244,14 @@ class S3Service extends AbstractLifecycleComponent {
             s3clientBuilder.forcePathStyle(true);
         }
 
-        s3clientBuilder.region(getClientRegion(clientSettings));
+        final var clientRegion = getClientRegion(clientSettings);
+        if (clientRegion == null) {
+            // If no region or endpoint is specified then (for BwC with SDKv1) default to us-east-1 and enable cross-region access:
+            s3clientBuilder.region(Region.US_EAST_1);
+            s3clientBuilder.crossRegionAccessEnabled(true);
+        } else {
+            s3clientBuilder.region(clientRegion);
+        }
 
         if (Strings.hasLength(clientSettings.endpoint)) {
             s3clientBuilder.endpointOverride(URI.create(clientSettings.endpoint));
@@ -253,11 +260,14 @@ class S3Service extends AbstractLifecycleComponent {
         return s3clientBuilder;
     }
 
+    @Nullable // if the region is wholly unknown (falls back to us-east-1 and enables cross-region access)
     Region getClientRegion(S3ClientSettings clientSettings) {
         if (Strings.hasLength(clientSettings.region)) {
             return Region.of(clientSettings.region);
         }
-        if (Strings.hasLength(clientSettings.endpoint)) {
+        final String endpointDescription;
+        final var hasEndpoint = Strings.hasLength(clientSettings.endpoint);
+        if (hasEndpoint) {
             final var guessedRegion = RegionFromEndpointGuesser.guessRegion(clientSettings.endpoint);
             if (guessedRegion != null) {
                 LOGGER.warn(
@@ -269,30 +279,39 @@ class S3Service extends AbstractLifecycleComponent {
                     S3ClientSettings.REGION.getConcreteSettingForNamespace("CLIENT_NAME").getKey()
                 );
                 return Region.of(guessedRegion);
-            } else {
-                LOGGER.info(
-                    """
-                        found S3 client with endpoint [{}] which does not map to a known AWS region; \
-                        to suppress this message, configure the [{}] setting on this node""",
-                    clientSettings.endpoint,
-                    S3ClientSettings.REGION.getConcreteSettingForNamespace("CLIENT_NAME").getKey()
-                );
             }
+            endpointDescription = "configured endpoint [" + clientSettings.endpoint + "]";
+        } else {
+            endpointDescription = "no configured endpoint";
         }
         final var defaultRegion = this.defaultRegion;
         if (defaultRegion != null) {
             LOGGER.debug("""
-                found S3 client with no configured region, using region [{}] from SDK""", defaultRegion);
+                found S3 client with no configured region and {}, using region [{}] from SDK""", endpointDescription, defaultRegion);
             return defaultRegion;
         }
-        LOGGER.warn(
-            """
-                found S3 client with no configured region, falling back to [{}]; \
-                to suppress this warning, configure the [{}] setting on this node""",
-            Region.US_EAST_1,
-            S3ClientSettings.REGION.getConcreteSettingForNamespace("CLIENT_NAME").getKey()
-        );
-        return Region.US_EAST_1;
+
+        if (hasEndpoint) {
+            LOGGER.warn(
+                """
+                    found S3 client with no configured region and {}, falling back to [{}]; \
+                    to suppress this warning, configure the [{}] setting on this node""",
+                endpointDescription,
+                Region.US_EAST_1,
+                S3ClientSettings.REGION.getConcreteSettingForNamespace("CLIENT_NAME").getKey()
+            );
+            return Region.US_EAST_1;
+        } else {
+            LOGGER.warn(
+                """
+                    found S3 client with no configured region and {}, falling back to [{}] and enabling cross-region access; \
+                    to suppress this warning, configure the [{}] setting on this node""",
+                endpointDescription,
+                Region.US_EAST_1,
+                S3ClientSettings.REGION.getConcreteSettingForNamespace("CLIENT_NAME").getKey()
+            );
+            return null;
+        }
     }
 
     @Nullable // in production, but exposed for tests to override

@@ -943,6 +943,7 @@ public class Security extends Plugin
 
         List<ServiceAccountTokenStore> extensionTokenStores = securityExtensions.stream()
             .map(extension -> extension.getServiceAccountTokenStore(extensionComponents))
+            .filter(Objects::nonNull)
             .toList();
 
         ServiceAccountService serviceAccountService;

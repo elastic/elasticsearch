@@ -25,6 +25,12 @@ public class ThrottledTaskRunner extends AbstractThrottledTaskRunner<ActionListe
         super(name, maxRunningTasks, executor, ConcurrentCollections.newBlockingQueue());
     }
 
+    /**
+     * Builds an executor that executes one task at a time from a throttled task runner.
+     * @param name name for the executor
+     * @param executor executor to use for executing the tasks
+     * @return executor that forwards and runs a single task at a time on the provided {@code executor}
+     */
     public static Executor buildSingleThreadedExecutor(String name, Executor executor) {
         final ThrottledTaskRunner throttledTaskRunner = new ThrottledTaskRunner(name, 1, executor);
         return r -> throttledTaskRunner.enqueueTask(new ActionListener<>() {

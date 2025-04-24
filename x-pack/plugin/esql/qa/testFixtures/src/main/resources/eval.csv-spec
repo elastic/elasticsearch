@@ -637,3 +637,118 @@ foo:keyword
 ;
 
 
+evalAfterAvgUsingSameName
+required_capability: remove_empty_attribute_in_merging_output
+from employees 
+| stats avg = avg(salary) 
+| eval avg = 12
+;
+
+avg:integer
+12
+;
+
+evalAfterStatsUsingSameName
+required_capability: remove_empty_attribute_in_merging_output
+from employees 
+| stats count = count(emp_no), median = median(salary), top_salaries = TOP(salary, 3, "desc")
+| keep median, top_salaries
+| rename top_salaries as median
+| eval median = 12
+;
+
+median:integer
+12
+;
+
+evalAfterStatsUsingSameName2
+required_capability: remove_empty_attribute_in_merging_output
+ROW foo = [10, 11, 12]
+| mv_expand foo
+| stats sum = sum(foo), max = max(foo)
+| rename sum as max
+| eval max = 13
+;
+
+max:integer
+13
+;
+
+evalAfterAvgGroupingUsingSameName
+required_capability: retain_aggregate_when_grouping
+from employees
+| stats max = max(salary), avg = avg(salary) by g = gender 
+| keep max, g
+| eval max = 12, g = 3
+;
+
+max:integer | g:integer
+12          | 3
+12          | 3
+12          | 3
+;
+
+evalAfterGroupingUsingSameName
+required_capability: retain_aggregate_when_grouping
+row foo = [10,11,9], bar = [1,2,3]
+| mv_expand foo
+| mv_expand bar 
+| stats this = max(foo) by bar 
+| keep this 
+| eval this = 12
+;
+
+this:integer
+12
+12
+12
+;
+
+evalAfterGroupingUsingSameName2
+required_capability: retain_aggregate_when_grouping
+from employees 
+| stats count = count(emp_no) by gender, is_rehired 
+| keep count 
+| rename count as x 
+| keep x 
+| eval x = 12
+;
+
+x:integer
+12
+12
+12
+12
+12
+12
+12
+12
+12
+;
+
+evalAfterGroupingUsingSameName3
+required_capability: retain_aggregate_when_grouping
+row foo = 10 
+| stats field_1 = max(foo), this = count(*), field_2 = max(foo) by foo  
+| rename this AS field_2 
+| keep field_1, field_2  
+| eval field_2 = 1, field_1 = 1
+;
+
+field_2:integer | field_1:integer
+1               | 1
+;
+
+evalAfterGroupingUsingSameName4
+required_capability: retain_aggregate_when_grouping
+from employees
+| stats sum = sum(salary), max = max(salary) by g = gender
+| keep max, g
+| eval g = 12, max = 2
+;
+
+g:integer   | max:integer
+12          | 2
+12          | 2
+12          | 2
+;

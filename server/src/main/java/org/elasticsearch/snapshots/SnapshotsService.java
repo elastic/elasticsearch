@@ -3398,16 +3398,31 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
                 startedCount++;
             }
 
+            /**
+             * Applies a shard snapshot status update to an updated statuses builder, after a few sanity checks / filtering.
+             *
+             * @param existingShardSnapshotStatuses Maps shard ID to ShardSnapshotStatus
+             * @param newShardSnapshotStatusesSupplier Supplies a builder. Initially maps shard ID to existing ShardSnapshotStatus. As shard
+             *                                         snapshot status updates are applied, the original status entries are replaced with
+             *                                         updated ones.
+             * @param shardSnapshotStatusUpdate The update to apply to build a new updated ShardSnapshotStatus
+             * @param shardSnapshotId The shard snapshot ID of the shard being updated (for type reasons)
+             */
             private <T> void executeShardSnapshotUpdate(
-                Map<T, ShardSnapshotStatus> existingStates,
-                Supplier<ImmutableOpenMap.Builder<T, ShardSnapshotStatus>> newStates,
-                ShardSnapshotUpdate updateSnapshotState,
-                T updatedShard
+                Map<T, ShardSnapshotStatus> existingShardSnapshotStatuses,
+                Supplier<ImmutableOpenMap.Builder<T, ShardSnapshotStatus>> newShardSnapshotStatusesSupplier,
+                ShardSnapshotUpdate shardSnapshotStatusUpdate,
+                T shardSnapshotId
             ) {
-                assert updateSnapshotState.snapshot.equals(entry.snapshot());
-                final ShardSnapshotStatus existing = existingStates.get(updatedShard);
+                assert shardSnapshotStatusUpdate.snapshot.equals(entry.snapshot());
+
+                final ShardSnapshotStatus existing = existingShardSnapshotStatuses.get(shardSnapshotId);
                 if (existing == null) {
-                    logger.warn("Received shard snapshot status update [{}] but this shard is not tracked in [{}]", updatedShard, entry);
+                    logger.error(
+                        "Received shard snapshot status update [{}] but this shard is not tracked in [{}]",
+                        shardSnapshotStatusUpdate,
+                        entry
+                    );
                     assert false : "This should never happen, should only receive updates for expected shards";
                     return;
                 }
@@ -3418,34 +3433,49 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
                     return;
                 }
 
-                final ShardSnapshotStatus updatedState;
+                final var newShardSnapshotStatusesBuilder = newShardSnapshotStatusesSupplier.get();
+                final var newShardSnapshotStatus = newShardSnapshotStatusesBuilder.get(shardSnapshotId);
+                assert newShardSnapshotStatus != null; // builder is seeded with all the original statuses.
+                if (newShardSnapshotStatus.state().completed()) {
+                    // An out-of-order status update arrived. It should not be applied because the shard snapshot is already finished.
+                    // For example, a delayed/retried PAUSED update should not override a completed shard snapshot.
+                    iterator.remove();
+                    return;
+                }
+
+                final ShardSnapshotStatus updatedShardSnapshotStatus;
                 if (existing.state() == ShardState.ABORTED
-                    && updateSnapshotState.updatedState.state() == ShardState.PAUSED_FOR_NODE_REMOVAL) {
+                    && shardSnapshotStatusUpdate.updatedState.state() == ShardState.PAUSED_FOR_NODE_REMOVAL) {
                     // concurrently pausing the shard snapshot due to node shutdown and aborting the snapshot - this shard is no longer
                     // actively snapshotting but we don't want it to resume, so mark it as FAILED since it didn't complete
-                    updatedState = new ShardSnapshotStatus(
-                        updateSnapshotState.updatedState.nodeId(),
+                    updatedShardSnapshotStatus = new ShardSnapshotStatus(
+                        shardSnapshotStatusUpdate.updatedState.nodeId(),
                         ShardState.FAILED,
-                        updateSnapshotState.updatedState.generation(),
+                        shardSnapshotStatusUpdate.updatedState.generation(),
                         "snapshot aborted"
                     );
                 } else {
-                    updatedState = updateSnapshotState.updatedState;
+                    updatedShardSnapshotStatus = shardSnapshotStatusUpdate.updatedState;
                 }
 
-                if (updatedState.state() == ShardState.PAUSED_FOR_NODE_REMOVAL) {
+                if (updatedShardSnapshotStatus.state() == ShardState.PAUSED_FOR_NODE_REMOVAL) {
                     // leave subsequent entries for this shard alone until this one is unpaused
                     iterator.remove();
                 } else {
                     // All other shard updates leave the shard in a complete state, which means we should leave this update in the list so
-                    // it can fall through to later entries and start any waiting shard snapshots:
-                    assert updatedState.isActive() == false : updatedState;
+                    // that it can fall through to later entries and start any waiting shard snapshots:
+                    assert updatedShardSnapshotStatus.isActive() == false : updatedShardSnapshotStatus;
                 }
 
-                logger.trace("[{}] Updating shard [{}] with status [{}]", updateSnapshotState.snapshot, updatedShard, updatedState.state());
+                logger.trace(
+                    "[{}] Updating shard [{}] with status [{}]",
+                    shardSnapshotStatusUpdate.snapshot,
+                    shardSnapshotId,
+                    updatedShardSnapshotStatus.state()
+                );
                 changedCount++;
-                newStates.get().put(updatedShard, updatedState);
-                executedUpdates.add(updateSnapshotState);
+                newShardSnapshotStatusesBuilder.put(shardSnapshotId, updatedShardSnapshotStatus);
+                executedUpdates.add(shardSnapshotStatusUpdate);
             }
 
             private void tryStartNextTaskAfterCloneUpdated(RepositoryShardId repoShardId, ShardSnapshotStatus updatedState) {

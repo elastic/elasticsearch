@@ -23,7 +23,6 @@ import org.apache.lucene.codecs.hnsw.FlatVectorScorerUtil;
 import org.apache.lucene.codecs.hnsw.FlatVectorsFormat;
 import org.apache.lucene.codecs.hnsw.FlatVectorsReader;
 import org.apache.lucene.codecs.hnsw.FlatVectorsWriter;
-import org.apache.lucene.codecs.lucene99.Lucene99FlatVectorsFormat;
 import org.apache.lucene.index.SegmentReadState;
 import org.apache.lucene.index.SegmentWriteState;
 import org.elasticsearch.index.codec.vectors.OptimizedScalarQuantizer;
@@ -98,7 +97,7 @@ public class ES818BinaryQuantizedVectorsFormat extends FlatVectorsFormat {
     static final String VECTOR_DATA_EXTENSION = "veb";
     static final int DIRECT_MONOTONIC_BLOCK_SHIFT = 16;
 
-    private static final FlatVectorsFormat rawVectorFormat = new Lucene99FlatVectorsFormat(
+    private static final DirectIOLucene99FlatVectorsFormat rawVectorFormat = new DirectIOLucene99FlatVectorsFormat(
         FlatVectorScorerUtil.getLucene99FlatVectorsScorer()
     );
 

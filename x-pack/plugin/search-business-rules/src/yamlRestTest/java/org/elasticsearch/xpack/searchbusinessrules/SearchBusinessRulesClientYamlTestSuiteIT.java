@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.searchbusinessrules;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
-import org.elasticsearch.test.cluster.local.distribution.DistributionType;
 import org.elasticsearch.test.rest.yaml.ClientYamlTestCandidate;
 import org.elasticsearch.test.rest.yaml.ESClientYamlSuiteTestCase;
 import org.junit.ClassRule;
@@ -18,10 +17,13 @@ public class SearchBusinessRulesClientYamlTestSuiteIT extends ESClientYamlSuiteT
 
     @ClassRule
     public static ElasticsearchCluster cluster = ElasticsearchCluster.local()
-        .distribution(DistributionType.DEFAULT)
+        .nodes(1)
+        .module("search-business-rules")
+        .module("mapper-extras")
+        .module("lang-painless")
+        .module("x-pack-inference")
         .setting("xpack.license.self_generated.type", "basic")
         .setting("xpack.security.enabled", "false")
-        .module("search-business-rules")
         .build();
 
     public SearchBusinessRulesClientYamlTestSuiteIT(final ClientYamlTestCandidate testCandidate) {

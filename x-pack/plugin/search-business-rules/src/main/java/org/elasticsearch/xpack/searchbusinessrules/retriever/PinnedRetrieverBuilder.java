@@ -165,7 +165,7 @@ public final class PinnedRetrieverBuilder extends CompoundRetrieverBuilder<Pinne
     private QueryBuilder createPinnedQuery(QueryBuilder baseQuery) {
         Objects.requireNonNull(baseQuery, "Underlying query cannot be null for pinned retriever");
 
-        if (docs.isEmpty() == false) {
+        if (docs != null && docs.isEmpty() == false) {
             return new PinnedQueryBuilder(baseQuery, docs.toArray(new SpecifiedDocument[0]));
         }
         return new PinnedQueryBuilder(baseQuery, ids.toArray(new String[0]));

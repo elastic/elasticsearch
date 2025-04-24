@@ -73,9 +73,4 @@ public class PinnedRankDoc extends RankDoc {
     protected int doHashCode() {
         return Objects.hash(super.doHashCode(), isPinned);
     }
-
-    @Override
-    public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.COHERE_BIT_EMBEDDING_TYPE_SUPPORT_ADDED;
-    }
 }

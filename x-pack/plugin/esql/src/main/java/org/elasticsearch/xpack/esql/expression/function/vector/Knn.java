@@ -46,18 +46,10 @@ public class Knn extends Function implements TranslationAware {
     private final Expression field;
     private final Expression query;
 
-    @FunctionInfo(
-        returnType = "boolean",
-        preview = true,
-        description = """
-            Finds the k nearest vectors to a query vector, as measured by a similarity metric.
-            knn function finds nearest vectors through approximate search on indexed dense_vectors
-            """,
-        appliesTo = {
-            @FunctionAppliesTo(
-                lifeCycle = FunctionAppliesToLifecycle.DEVELOPMENT
-            ) }
-    )
+    @FunctionInfo(returnType = "boolean", preview = true, description = """
+        Finds the k nearest vectors to a query vector, as measured by a similarity metric.
+        knn function finds nearest vectors through approximate search on indexed dense_vectors
+        """, appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.DEVELOPMENT) })
     public Knn(Source source, Expression field, Expression query) {
         super(source, List.of(field, query));
         this.field = field;

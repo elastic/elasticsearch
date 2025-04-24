@@ -3,6 +3,9 @@
 <titleabbrev>Correlate data with LOOKUP JOIN</titleabbrev>
 ++++
 
+// hack because page didn't have explicit id originally we could link to using internal link syntax
+[[esql-lookup-join-landing-page]]
+
 [WARNING]
 ====
 This functionality is in technical preview and may be

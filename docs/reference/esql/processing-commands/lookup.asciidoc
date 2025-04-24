@@ -14,7 +14,7 @@ SLA of official GA features.
 index, to your {esql} query results, simplifying data enrichment
 and analysis workflows.
 
-See {ref}/esql-lookup-join.html[the high-level landing page] for an overview of the `LOOKUP JOIN` command, including use cases, prerequisites, and current limitations.
+See <<esql-lookup-join-landing-page,the high-level landing page>> for an overview of the `LOOKUP JOIN` command, including use cases, prerequisites, and current limitations.
 
 *Syntax*
 

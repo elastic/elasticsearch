@@ -1044,7 +1044,12 @@ public class EsqlCapabilities {
         /**
          * Support for dense_vector field type
          */
-        DENSE_VECTOR_SUPPORT(DENSE_VECTOR_FEATURE_FLAG);
+        DENSE_VECTOR_SUPPORT(DENSE_VECTOR_FEATURE_FLAG),
+
+        /**
+         * Support knn function
+         */
+        KNN_FUNCTION(Build.current().isSnapshot());
 
         private final boolean enabled;
 

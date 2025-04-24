@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.optimizer;
 
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.index.IndexMode;
@@ -22,6 +23,7 @@ import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
+import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -149,10 +151,10 @@ public class LocalLogicalPlanOptimizerTests extends ESTestCase {
 
     /**
      * Expects
-     * Project[[last_name{f}#6]]
+     * Project[[last_name{r}#7]]
      * \_Eval[[null[KEYWORD] AS last_name]]
-     *  \_Limit[10000[INTEGER]]
-     *   \_EsRelation[test][_meta_field{f}#8, emp_no{f}#2, first_name{f}#3, gen..]
+     *   \_Limit[1000[INTEGER],false]
+     *     \_EsRelation[test][_meta_field{f}#9, emp_no{f}#3, first_name{f}#4, gen..]
      */
     public void testMissingFieldInProject() {
         var plan = plan("""
@@ -166,12 +168,45 @@ public class LocalLogicalPlanOptimizerTests extends ESTestCase {
         var project = as(localPlan, Project.class);
         var projections = project.projections();
         assertThat(Expressions.names(projections), contains("last_name"));
-        as(projections.get(0), FieldAttribute.class);
+        as(projections.get(0), ReferenceAttribute.class);
         var eval = as(project.child(), Eval.class);
         assertThat(Expressions.names(eval.fields()), contains("last_name"));
         var alias = as(eval.fields().get(0), Alias.class);
         var literal = as(alias.child(), Literal.class);
         assertThat(literal.value(), is(nullValue()));
+        assertThat(literal.dataType(), is(DataType.KEYWORD));
+
+        var limit = as(eval.child(), Limit.class);
+        var source = as(limit.child(), EsRelation.class);
+        assertThat(Expressions.names(source.output()), not(contains("last_name")));
+    }
+
+    /*
+     * Expects a similar plan to testMissingFieldInProject() above, except for the Alias's child value
+     * Project[[last_name{r}#4]]
+     * \_Eval[[[66 6f 6f][KEYWORD] AS last_name]]
+     *   \_Limit[1000[INTEGER],false]
+     *     \_EsRelation[test][_meta_field{f}#11, emp_no{f}#5, first_name{f}#6, ge..]
+     */
+    public void testReassignedMissingFieldInProject() {
+        var plan = plan("""
+              from test
+            | keep last_name
+            | eval last_name = "foo"
+            """);
+
+        var testStats = statsForMissingField("last_name");
+        var localPlan = localPlan(plan, testStats);
+
+        var project = as(localPlan, Project.class);
+        var projections = project.projections();
+        assertThat(Expressions.names(projections), contains("last_name"));
+        as(projections.get(0), ReferenceAttribute.class);
+        var eval = as(project.child(), Eval.class);
+        assertThat(Expressions.names(eval.fields()), contains("last_name"));
+        var alias = as(eval.fields().get(0), Alias.class);
+        var literal = as(alias.child(), Literal.class);
+        assertThat(literal.value(), is(new BytesRef("foo")));
         assertThat(literal.dataType(), is(DataType.KEYWORD));
 
         var limit = as(eval.child(), Limit.class);

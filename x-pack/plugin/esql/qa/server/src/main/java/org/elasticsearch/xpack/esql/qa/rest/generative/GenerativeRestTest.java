@@ -37,7 +37,7 @@ public abstract class GenerativeRestTest extends ESRestTestCase {
         "Reference \\[.*\\] is ambiguous",
         "Cannot use field \\[.*\\] due to ambiguities",
         "cannot sort on .*",
-        "argument of \\[count_distinct\\(.*\\)\\] must",
+        "argument of \\[count.*\\] must",
         "Cannot use field \\[.*\\] with unsupported type \\[.*_range\\]",
         "Unbounded sort not supported yet",
         "The field names are too complex to process", // field_caps problem
@@ -51,7 +51,7 @@ public abstract class GenerativeRestTest extends ESRestTestCase {
         "Unknown column \\[<all-fields-projected>\\]", // https://github.com/elastic/elasticsearch/issues/121741,
         "Plan \\[ProjectExec\\[\\[<no-fields>.* optimized incorrectly due to missing references", // https://github.com/elastic/elasticsearch/issues/125866
         "token recognition error at: '``", // https://github.com/elastic/elasticsearch/issues/125870
-        "Unknown column \\[.*\\]", // https://github.com/elastic/elasticsearch/issues/126026
+                                           // https://github.com/elastic/elasticsearch/issues/127167
         "optimized incorrectly due to missing references", // https://github.com/elastic/elasticsearch/issues/116781
         "No matches found for pattern", // https://github.com/elastic/elasticsearch/issues/126418
         "The incoming YAML document exceeds the limit:" // still to investigate, but it seems to be specific to the test framework

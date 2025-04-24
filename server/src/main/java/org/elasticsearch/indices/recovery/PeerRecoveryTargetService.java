@@ -333,23 +333,43 @@ public class PeerRecoveryTargetService implements IndexEventListener {
         if (indexShard.routingEntry().isSearchable() == false && recoveryState.getPrimary()) {
             assert preExistingRequest == null;
             assert indexShard.indexSettings().getIndexMetadata().isSearchableSnapshot() == false;
-            client.execute(
-                StatelessPrimaryRelocationAction.TYPE,
-                new StatelessPrimaryRelocationAction.Request(
-                    recoveryId,
-                    indexShard.shardId(),
-                    transportService.getLocalNode(),
-                    indexShard.routingEntry().allocationId().getId(),
-                    recoveryTarget.clusterStateVersion()
-                ),
-                cleanupOnly.delegateFailure((l, unused) -> {
-                    ActionListener.completeWith(l, () -> {
-                        onGoingRecoveries.markRecoveryAsDone(recoveryId);
-                        return null;
-                    });
-                })
-            );
-            return;
+            try (onCompletion) {
+                client.execute(
+                    StatelessPrimaryRelocationAction.TYPE,
+                    new StatelessPrimaryRelocationAction.Request(
+                        recoveryId,
+                        indexShard.shardId(),
+                        transportService.getLocalNode(),
+                        indexShard.routingEntry().allocationId().getId(),
+                        recoveryTarget.clusterStateVersion()
+                    ),
+                    new ActionListener<>() {
+                        @Override
+                        public void onResponse(ActionResponse.Empty ignored) {
+                            onGoingRecoveries.markRecoveryAsDone(recoveryId);
+                        }
+
+                        @Override
+                        public void onFailure(Exception e) {
+                            final var cause = ExceptionsHelper.unwrapCause(e);
+                            final var sendShardFailure =
+                                // these indicate the source shard has already failed, which will independently notify the master and fail
+                                // the target shard
+                                false == (cause instanceof ShardNotFoundException
+                                    || cause instanceof IndexNotFoundException
+                                    || cause instanceof AlreadyClosedException);
+
+                            // TODO retries? See RecoveryResponseHandler#handleException
+                            onGoingRecoveries.failRecovery(
+                                recoveryId,
+                                new RecoveryFailedException(recoveryState, null, e),
+                                sendShardFailure
+                            );
+                        }
+                    }
+                );
+                return;
+            }
         }
 
         record StartRecoveryRequestToSend(StartRecoveryRequest startRecoveryRequest, String actionName, TransportRequest requestToSend) {}

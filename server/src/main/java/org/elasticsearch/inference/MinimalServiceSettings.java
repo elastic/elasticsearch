@@ -249,6 +249,10 @@ public record MinimalServiceSettings(
         }
     }
 
+    public ModelConfigurations toModelConfigurations(String inferenceEntityId) {
+        return new ModelConfigurations(inferenceEntityId, taskType, service == null ? UNKNOWN_SERVICE : service, this);
+    }
+
     /**
      * Checks if the given {@link MinimalServiceSettings} is equivalent to the current definition.
      */
@@ -256,6 +260,7 @@ public record MinimalServiceSettings(
         return taskType == other.taskType
             && Objects.equals(dimensions, other.dimensions)
             && similarity == other.similarity
-            && elementType == other.elementType;
+            && elementType == other.elementType
+            && (service == null || service.equals(other.service));
     }
 }

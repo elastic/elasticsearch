@@ -15,7 +15,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.node.NodeRoleSettings;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.ESTestCase.WithoutSecurityManager;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -41,7 +40,6 @@ import static org.junit.Assert.assertThat;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
-@WithoutSecurityManager
 @SuppressFileSystems("*")
 public class JvmErgonomicsTests extends ESTestCase {
 

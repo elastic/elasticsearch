@@ -12,13 +12,13 @@ Range field types represent a continuous range of values between an upper and lo
 The following range types are supported:
 
 `integer_range`
-:   A range of signed 32-bit integers with a minimum value of `-231` and maximum of `231-1`.
+:   A range of signed 32-bit integers with a minimum value of `-2^31` and maximum of `2^31 - 1`.
 
 `float_range`
 :   A range of single-precision 32-bit IEEE 754 floating point values.
 
 `long_range`
-:   A range of signed 64-bit integers with a minimum value of `-263` and maximum of `263-1`.
+:   A range of signed 64-bit integers with a minimum value of `-2^63` and maximum of `2^63 - 1`.
 
 `double_range`
 :   A range of double-precision 64-bit IEEE 754 floating point values.

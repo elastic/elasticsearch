@@ -36,6 +36,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.PriorityQueue;
 import java.util.Set;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -199,6 +200,8 @@ public class ThreadPoolMergeExecutorService implements Closeable {
     private final int concurrentMergesCeilLimitForThrottling;
     private final AvailableDiskSpacePeriodicMonitor availableDiskSpacePeriodicMonitor;
 
+    private final List<MergeEventListener> mergeEventListeners = new CopyOnWriteArrayList<>();
+
     public static @Nullable ThreadPoolMergeExecutorService maybeCreateThreadPoolMergeExecutorService(
         ThreadPool threadPool,
         ClusterSettings clusterSettings,
@@ -266,7 +269,7 @@ public class ThreadPoolMergeExecutorService implements Closeable {
                 );
             }
             // then enqueue the merge task proper
-            queuedMergeTasks.add(mergeTask);
+            enqueueMergeTask(mergeTask);
             return true;
         }
     }
@@ -358,6 +361,7 @@ public class ThreadPoolMergeExecutorService implements Closeable {
             if (mergeTask.supportsIOThrottling()) {
                 ioThrottledMergeTasksCount.decrementAndGet();
             }
+            mergeEventListeners.forEach(l -> l.onMergeCompleted(mergeTask.getOnGoingMerge()));
         }
     }
 
@@ -370,6 +374,7 @@ public class ThreadPoolMergeExecutorService implements Closeable {
             if (mergeTask.supportsIOThrottling()) {
                 ioThrottledMergeTasksCount.decrementAndGet();
             }
+            mergeEventListeners.forEach(l -> l.onMergeAborted(mergeTask.getOnGoingMerge()));
         }
     }
 
@@ -758,6 +763,10 @@ public class ThreadPoolMergeExecutorService implements Closeable {
 
     public boolean usingMaxTargetIORateBytesPerSec() {
         return MAX_IO_RATE.getBytes() == targetIORateBytesPerSec.get();
+    }
+
+    public void registerMergeEventListener(MergeEventListener consumer) {
+        mergeEventListeners.add(consumer);
     }
 
     // exposed for tests

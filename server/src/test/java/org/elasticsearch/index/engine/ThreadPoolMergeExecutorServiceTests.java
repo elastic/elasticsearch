@@ -19,6 +19,7 @@ import org.elasticsearch.index.engine.ThreadPoolMergeExecutorService.MergeTaskPr
 import org.elasticsearch.index.engine.ThreadPoolMergeExecutorService.PriorityBlockingQueueWithBudget;
 import org.elasticsearch.index.engine.ThreadPoolMergeScheduler.MergeTask;
 import org.elasticsearch.index.engine.ThreadPoolMergeScheduler.Schedule;
+import org.elasticsearch.index.merge.OnGoingMerge;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -116,6 +117,8 @@ public class ThreadPoolMergeExecutorServiceTests extends ESTestCase {
         Semaphore runMergeSemaphore = new Semaphore(0);
         ThreadPoolExecutor threadPoolExecutor = (ThreadPoolExecutor) testThreadPool.executor(ThreadPool.Names.MERGE);
         AtomicInteger doneMergesCount = new AtomicInteger(0);
+        AtomicInteger reEnqueuedBackloggedMergesCount = new AtomicInteger();
+        AtomicInteger abortedMergesCount = new AtomicInteger();
         // submit more merge tasks than there are threads so that some are enqueued
         for (int i = 0; i < mergesToSubmit; i++) {
             MergeTask mergeTask = mock(MergeTask.class);
@@ -127,6 +130,7 @@ public class ThreadPoolMergeExecutorServiceTests extends ESTestCase {
                 if (schedule == BACKLOG) {
                     // reenqueue backlogged merge task
                     new Thread(() -> threadPoolMergeExecutorService.reEnqueueBackloggedMergeTask(mergeTask)).start();
+                    reEnqueuedBackloggedMergesCount.incrementAndGet();
                 }
                 return schedule;
             }).when(mergeTask).schedule();
@@ -146,6 +150,7 @@ public class ThreadPoolMergeExecutorServiceTests extends ESTestCase {
                 }
                 runMergeSemaphore.acquireUninterruptibly();
                 doneMergesCount.incrementAndGet();
+                abortedMergesCount.incrementAndGet();
                 return null;
             }).when(mergeTask).abort();
             threadPoolMergeExecutorService.submitMergeTask(mergeTask);
@@ -157,6 +162,12 @@ public class ThreadPoolMergeExecutorServiceTests extends ESTestCase {
             // with the other merge tasks enqueued
             assertThat(threadPoolExecutor.getQueue().size(), is(mergesToSubmit - mergeExecutorThreadCount));
         });
+        assertBusy(
+            () -> assertThat(
+                countingListener.queued.get(),
+                equalTo(threadPoolExecutor.getActiveCount() + threadPoolExecutor.getQueue().size() + reEnqueuedBackloggedMergesCount.get())
+            )
+        );
         // shutdown prevents new merge tasks to be enqueued but existing ones should be allowed to continue
         testThreadPool.shutdown();
         // assert all executors, except the merge one, are terminated
@@ -197,6 +208,8 @@ public class ThreadPoolMergeExecutorServiceTests extends ESTestCase {
             assertTrue(threadPoolExecutor.isTerminated());
             assertTrue(threadPoolMergeExecutorService.allDone());
         });
+        assertThat(countingListener.aborted.get() + countingListener.completed.get(), equalTo(doneMergesCount.get()));
+        assertThat(countingListener.aborted.get(), equalTo(abortedMergesCount.get()));
     }
 
     public void testTargetIORateChangesWhenSubmittingMergeTasks() throws Exception {

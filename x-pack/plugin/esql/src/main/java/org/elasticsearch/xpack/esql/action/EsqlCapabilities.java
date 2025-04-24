@@ -20,6 +20,7 @@ import java.util.Locale;
 import java.util.Set;
 
 import static org.elasticsearch.xpack.esql.core.plugin.EsqlCorePlugin.AGGREGATE_METRIC_DOUBLE_FEATURE_FLAG;
+import static org.elasticsearch.xpack.esql.core.plugin.EsqlCorePlugin.DENSE_VECTOR_FEATURE_FLAG;
 
 /**
  * A {@link Set} of "capabilities" supported by the {@link RestEsqlQueryAction}
@@ -1038,7 +1039,12 @@ public class EsqlCapabilities {
         /**
          * Support for the SAMPLE command
          */
-        SAMPLE(Build.current().isSnapshot());
+        SAMPLE(Build.current().isSnapshot()),
+
+        /**
+         * Support for dense_vector field type
+         */
+        DENSE_VECTOR_SUPPORT(DENSE_VECTOR_FEATURE_FLAG);
 
         private final boolean enabled;
 

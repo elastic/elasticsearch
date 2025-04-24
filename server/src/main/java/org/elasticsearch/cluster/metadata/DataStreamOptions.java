@@ -9,6 +9,7 @@
 
 package org.elasticsearch.cluster.metadata;
 
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.cluster.SimpleDiffable;
 import org.elasticsearch.common.Strings;
@@ -72,7 +73,15 @@ public record DataStreamOptions(@Nullable DataStreamFailureStore failureStore)
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeOptionalWriteable(failureStore);
+        if (out.getTransportVersion().onOrAfter(TransportVersions.INTRODUCE_FAILURES_LIFECYCLE)
+            || failureStore == null
+            || failureStore().enabled() != null) {
+            out.writeOptionalWriteable(failureStore);
+        } else {
+            // When communicating with older versions we need to ensure we do not sent an invalid failure store config.
+            // If the enabled flag is not defined, we treat it as null.
+            out.writeOptionalWriteable(null);
+        }
     }
 
     @Override
@@ -129,7 +138,18 @@ public record DataStreamOptions(@Nullable DataStreamFailureStore failureStore)
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            ResettableValue.write(out, failureStore, (o, v) -> v.writeTo(o));
+            if (out.getTransportVersion().onOrAfter(TransportVersions.INTRODUCE_FAILURES_LIFECYCLE)
+                || failureStore.get() == null
+                || failureStore().mapAndGet(DataStreamFailureStore.Template::enabled).get() != null) {
+                ResettableValue.write(out, failureStore, (o, v) -> v.writeTo(o));
+                // When communicating with older versions we need to ensure we do not sent an invalid failure store config.
+            } else {
+                // If the enabled flag is not defined, we treat failure store as not defined, if reset we treat the failure store as reset
+                ResettableValue<DataStreamFailureStore.Template> bwcFailureStore = failureStore.get().enabled().shouldReset()
+                    ? ResettableValue.reset()
+                    : ResettableValue.undefined();
+                ResettableValue.write(out, bwcFailureStore, (o, v) -> v.writeTo(o));
+            }
         }
 
         public static Template read(StreamInput in) throws IOException {

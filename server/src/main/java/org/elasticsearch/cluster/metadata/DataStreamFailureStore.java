@@ -160,7 +160,7 @@ public record DataStreamFailureStore(@Nullable Boolean enabled, @Nullable DataSt
             if (enabled.isDefined() == false && lifecycle.isDefined() == false) {
                 throw new IllegalArgumentException(EMPTY_FAILURE_STORE_ERROR_MESSAGE);
             }
-            assert lifecycle.mapAndGet(l -> l == null || l.toDataStreamLifecycle().targetsFailureStore())
+            assert lifecycle.get() == null || lifecycle.mapAndGet(l -> l.toDataStreamLifecycle().targetsFailureStore())
                 : "Invalid lifecycle type in failure store template";
         }
 

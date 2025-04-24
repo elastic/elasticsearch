@@ -11,6 +11,7 @@ import org.elasticsearch.Build;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.CompositeIndicesRequest;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
@@ -22,6 +23,7 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.xpack.esql.Column;
 import org.elasticsearch.xpack.esql.parser.QueryParams;
+import org.elasticsearch.xpack.esql.plugin.EsqlDocIdStatus;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 
 import java.io.IOException;
@@ -243,8 +245,14 @@ public class EsqlQueryRequest extends org.elasticsearch.xpack.core.esql.action.E
 
     @Override
     public Task createTask(long id, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
+        EsqlDocIdStatus status = new EsqlDocIdStatus(UUIDs.randomBase64UUID());
         // Pass the query as the description
-        return new CancellableTask(id, type, action, query, parentTaskId, headers);
+        return new CancellableTask(id, type, action, query, parentTaskId, headers) {
+            @Override
+            public Status getStatus() {
+                return status;
+            }
+        };
     }
 
     // Setter for tests

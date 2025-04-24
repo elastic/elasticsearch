@@ -1,6 +1,9 @@
 ---
 mapped_pages:
   - https://www.elastic.co/guide/en/elasticsearch/reference/current/ccr-settings.html
+applies_to:
+  deployment:
+    self:
 ---
 
 # Cross-cluster replication settings [ccr-settings]

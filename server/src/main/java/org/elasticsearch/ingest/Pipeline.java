@@ -10,6 +10,7 @@
 package org.elasticsearch.ingest;
 
 import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.script.ScriptService;
 
@@ -89,19 +90,26 @@ public final class Pipeline {
         String id,
         Map<String, Object> config,
         Map<String, Processor.Factory> processorFactories,
-        ScriptService scriptService
+        ScriptService scriptService,
+        ProjectId projectId
     ) throws Exception {
         String description = ConfigurationUtils.readOptionalStringProperty(null, null, config, DESCRIPTION_KEY);
         Integer version = ConfigurationUtils.readIntProperty(null, null, config, VERSION_KEY, null);
         Map<String, Object> metadata = ConfigurationUtils.readOptionalMap(null, null, config, META_KEY);
         Boolean deprecated = ConfigurationUtils.readOptionalBooleanProperty(null, null, config, DEPRECATED_KEY);
         List<Map<String, Object>> processorConfigs = ConfigurationUtils.readList(null, null, config, PROCESSORS_KEY);
-        List<Processor> processors = ConfigurationUtils.readProcessorConfigs(processorConfigs, scriptService, processorFactories);
+        List<Processor> processors = ConfigurationUtils.readProcessorConfigs(
+            processorConfigs,
+            scriptService,
+            processorFactories,
+            projectId
+        );
         List<Map<String, Object>> onFailureProcessorConfigs = ConfigurationUtils.readOptionalList(null, null, config, ON_FAILURE_KEY);
         List<Processor> onFailureProcessors = ConfigurationUtils.readProcessorConfigs(
             onFailureProcessorConfigs,
             scriptService,
-            processorFactories
+            processorFactories,
+            projectId
         );
         if (config.isEmpty() == false) {
             throw new ElasticsearchParseException(

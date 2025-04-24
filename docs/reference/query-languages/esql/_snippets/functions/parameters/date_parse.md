@@ -3,7 +3,7 @@
 **Parameters**
 
 `datePattern`
-:   The date format. Refer to the [`DateTimeFormatter` documentation](https://docs.oracle.com/en/java/javase/14/docs/api/java.base/java/time/format/DateTimeFormatter.md) for the syntax. If `null`, the function returns `null`.
+:   The date format. Refer to the [`DateTimeFormatter` documentation](https://docs.oracle.com/en/java/javase/14/docs/api/java.base/java/time/format/DateTimeFormatter.html) for the syntax. If `null`, the function returns `null`.
 
 `dateString`
 :   Date expression as a string. If `null` or an empty string, the function returns `null`.

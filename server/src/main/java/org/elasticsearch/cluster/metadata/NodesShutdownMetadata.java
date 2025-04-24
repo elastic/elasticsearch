@@ -43,7 +43,6 @@ import java.util.stream.Collectors;
  */
 public class NodesShutdownMetadata implements Metadata.ClusterCustom {
     public static final String TYPE = "node_shutdown";
-    public static final TransportVersion NODE_SHUTDOWN_VERSION = TransportVersions.V_7_13_0;
     public static final NodesShutdownMetadata EMPTY = new NodesShutdownMetadata(Map.of());
 
     private static final ParseField NODES_FIELD = new ParseField("nodes");
@@ -173,7 +172,7 @@ public class NodesShutdownMetadata implements Metadata.ClusterCustom {
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return NODE_SHUTDOWN_VERSION;
+        return TransportVersions.ZERO;
     }
 
     @Override
@@ -236,7 +235,7 @@ public class NodesShutdownMetadata implements Metadata.ClusterCustom {
 
         @Override
         public TransportVersion getMinimalSupportedVersion() {
-            return NODE_SHUTDOWN_VERSION;
+            return TransportVersions.ZERO;
         }
 
     }

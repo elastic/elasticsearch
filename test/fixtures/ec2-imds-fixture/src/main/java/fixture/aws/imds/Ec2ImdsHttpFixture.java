@@ -26,7 +26,10 @@ import java.util.Objects;
 
 public class Ec2ImdsHttpFixture extends ExternalResource {
 
-    public static final String ENDPOINT_OVERRIDE_SYSPROP_NAME = "com.amazonaws.sdk.ec2MetadataServiceEndpointOverride";
+    /**
+     * Name of the JVM system property that allows to override the IMDS endpoint address when using the AWS v2 SDK.
+     */
+    public static final String ENDPOINT_OVERRIDE_SYSPROP_NAME_SDK2 = "aws.ec2MetadataServiceEndpoint";
 
     private final Ec2ImdsServiceBuilder ec2ImdsServiceBuilder;
     private HttpServer server;
@@ -62,12 +65,18 @@ public class Ec2ImdsHttpFixture extends ExternalResource {
         }
     }
 
+    /**
+     * Overrides the EC2 service endpoint for the lifetime of the method response. Resets back to the original endpoint property when
+     * closed.
+     */
     @SuppressForbidden(reason = "deliberately adjusting system property for endpoint override for use in internal-cluster tests")
     public static Releasable withEc2MetadataServiceEndpointOverride(String endpointOverride) {
-        final PrivilegedAction<String> resetProperty = System.getProperty(ENDPOINT_OVERRIDE_SYSPROP_NAME) instanceof String originalValue
-            ? () -> System.setProperty(ENDPOINT_OVERRIDE_SYSPROP_NAME, originalValue)
-            : () -> System.clearProperty(ENDPOINT_OVERRIDE_SYSPROP_NAME);
-        doPrivileged(() -> System.setProperty(ENDPOINT_OVERRIDE_SYSPROP_NAME, endpointOverride));
+        final PrivilegedAction<String> resetProperty = System.getProperty(
+            ENDPOINT_OVERRIDE_SYSPROP_NAME_SDK2
+        ) instanceof String originalValue
+            ? () -> System.setProperty(ENDPOINT_OVERRIDE_SYSPROP_NAME_SDK2, originalValue)
+            : () -> System.clearProperty(ENDPOINT_OVERRIDE_SYSPROP_NAME_SDK2);
+        doPrivileged(() -> System.setProperty(ENDPOINT_OVERRIDE_SYSPROP_NAME_SDK2, endpointOverride));
         return () -> doPrivileged(resetProperty);
     }
 
@@ -75,6 +84,10 @@ public class Ec2ImdsHttpFixture extends ExternalResource {
         AccessController.doPrivileged(privilegedAction);
     }
 
+    /**
+     * Adapter to allow running a {@link Ec2ImdsHttpFixture} directly rather than via a {@code @ClassRule}. Creates an HTTP handler (see
+     * {@link Ec2ImdsHttpHandler}) from the given builder, and provides the handler to the action, and then cleans up the handler.
+     */
     public static void runWithFixture(Ec2ImdsServiceBuilder ec2ImdsServiceBuilder, CheckedConsumer<Ec2ImdsHttpFixture, Exception> action) {
         final var imdsFixture = new Ec2ImdsHttpFixture(ec2ImdsServiceBuilder);
         try {
@@ -86,6 +99,8 @@ public class Ec2ImdsHttpFixture extends ExternalResource {
             }, Description.EMPTY).evaluate();
         } catch (Throwable e) {
             throw new AssertionError(e);
+        } finally {
+            imdsFixture.stop(0);
         }
     }
 

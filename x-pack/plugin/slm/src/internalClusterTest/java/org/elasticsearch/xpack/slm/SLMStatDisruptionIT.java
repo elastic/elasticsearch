@@ -244,11 +244,11 @@ public class SLMStatDisruptionIT extends AbstractSnapshotIntegTestCase {
                 fsc.snapshotInfo(),
                 fsc.repositoryMetaVersion(),
                 fsc,
-                snapshotInfo -> {
+                () -> {
                     // run the passed lambda before calling the usual callback
                     // this is where the cluster can be restarted before SLM is called back with the snapshotInfo
                     beforeResponseRunnable.run();
-                    fsc.onDone(snapshotInfo);
+                    fsc.onDone();
                 }
             );
             super.finalizeSnapshot(newFinalizeContext);

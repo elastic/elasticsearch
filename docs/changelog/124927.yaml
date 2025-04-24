@@ -1,0 +1,5 @@
+pr: 124927
+summary: Use `FallbackSyntheticSourceBlockLoader` for `shape` and `geo_shape`
+area: Mapping
+type: enhancement
+issues: []

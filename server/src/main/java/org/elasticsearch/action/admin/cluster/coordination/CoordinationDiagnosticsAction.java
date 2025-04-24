@@ -84,7 +84,6 @@ public class CoordinationDiagnosticsAction extends ActionType<CoordinationDiagno
         private final CoordinationDiagnosticsResult result;
 
         public Response(StreamInput in) throws IOException {
-            super(in);
             result = new CoordinationDiagnosticsResult(in);
         }
 

@@ -135,3 +135,28 @@ setup:
         id: "1"
         body:
           vector1: [[2, -1, 1], [[2, -1, 1]]]
+---
+"Updating dim to null is not allowed":
+  - requires:
+      cluster_features: "mapper.npe_on_dims_update_fix"
+      reason: "dims update fix"
+  - do:
+      indices.create:
+        index: test_index
+
+  - do:
+      indices.put_mapping:
+        index: test_index
+        body:
+          properties:
+            embedding:
+              type: rank_vectors
+              dims: 4
+  - do:
+      catch: bad_request
+      indices.put_mapping:
+        index: test_index
+        body:
+          properties:
+            embedding:
+              type: rank_vectors

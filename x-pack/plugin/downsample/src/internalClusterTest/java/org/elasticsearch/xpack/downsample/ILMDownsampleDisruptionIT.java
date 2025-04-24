@@ -192,8 +192,8 @@ public class ILMDownsampleDisruptionIT extends ESIntegTestCase {
                 throw new AssertionError(e);
             }
         }, 1, TimeUnit.MINUTES);
+        awaitIndexExists(targetIndex, TimeValue.timeValueSeconds(60));
         assertBusy(() -> {
-            assertTrue("target index [" + targetIndex + "] does not exist", indexExists(targetIndex));
             var getSettingsResponse = client().admin()
                 .indices()
                 .getSettings(new GetSettingsRequest(TEST_REQUEST_TIMEOUT).indices(targetIndex))

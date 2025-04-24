@@ -12,10 +12,15 @@ package org.elasticsearch.ingest;
 import org.elasticsearch.action.bulk.FailureStoreMetrics;
 import org.elasticsearch.action.bulk.SimulateBulkRequest;
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.DataStream;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.project.TestProjectResolvers;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.features.FeatureService;
+import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.plugins.IngestPlugin;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -48,21 +53,21 @@ public class SimulateIngestServiceTests extends ESTestCase {
         Map<String, Processor.Factory> processors = new HashMap<>();
         processors.put(
             "processor1",
-            (factories, tag, description, config) -> new FakeProcessor("processor1", tag, description, ingestDocument -> {}) {
+            (factories, tag, description, config, projectId) -> new FakeProcessor("processor1", tag, description, ingestDocument -> {}) {
             }
         );
         processors.put(
             "processor2",
-            (factories, tag, description, config) -> new FakeProcessor("processor2", tag, description, ingestDocument -> {}) {
+            (factories, tag, description, config, projectId) -> new FakeProcessor("processor2", tag, description, ingestDocument -> {}) {
             }
         );
         processors.put(
             "processor3",
-            (factories, tag, description, config) -> new FakeProcessor("processor3", tag, description, ingestDocument -> {}) {
+            (factories, tag, description, config, projectId) -> new FakeProcessor("processor3", tag, description, ingestDocument -> {}) {
             }
         );
-        IngestService ingestService = createWithProcessors(processors);
         final var projectId = randomProjectIdOrDefault();
+        IngestService ingestService = createWithProcessors(projectId, processors);
         ingestService.innerUpdatePipelines(projectId, ingestMetadata);
         {
             // First we make sure that if there are no substitutions that we get our original pipeline back:
@@ -113,7 +118,7 @@ public class SimulateIngestServiceTests extends ESTestCase {
         }
     }
 
-    private static IngestService createWithProcessors(Map<String, Processor.Factory> processors) {
+    private static IngestService createWithProcessors(ProjectId projectId, Map<String, Processor.Factory> processors) {
         Client client = mock(Client.class);
         ThreadPool threadPool = mock(ThreadPool.class);
         when(threadPool.generic()).thenReturn(EsExecutors.DIRECT_EXECUTOR_SERVICE);
@@ -134,7 +139,13 @@ public class SimulateIngestServiceTests extends ESTestCase {
             client,
             null,
             FailureStoreMetrics.NOOP,
-            TestProjectResolvers.singleProjectOnly()
+            TestProjectResolvers.singleProject(projectId),
+            new FeatureService(List.of()) {
+                @Override
+                public boolean clusterHasFeature(ClusterState state, NodeFeature feature) {
+                    return DataStream.DATA_STREAM_FAILURE_STORE_FEATURE.equals(feature);
+                }
+            }
         );
     }
 }

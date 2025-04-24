@@ -2,5 +2,5 @@
 
 **Description**
 
-Converts an input value to a double value. If the input parameter is of a date type, its value will be interpreted as milliseconds since the [Unix epoch](https://en.wikipedia.org/wiki/Unix_time), converted to double. Boolean **true** will be converted to double **1.0**, **false** to **0.0**.
+Converts an input value to a double value. If the input parameter is of a date type, its value will be interpreted as milliseconds since the [Unix epoch](https://en.wikipedia.org/wiki/Unix_time), converted to double. Boolean `true` will be converted to double `1.0`, `false` to `0.0`.
 

@@ -18,3 +18,6 @@
 
 :::{include} ../types/mv_append.md
 :::
+
+:::{include} ../examples/mv_append.md
+:::

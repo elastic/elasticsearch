@@ -188,8 +188,8 @@ public final class ValuesLongGroupingAggregatorFunction implements GroupingAggre
 
   @Override
   public void evaluateFinal(Block[] blocks, int offset, IntVector selected,
-      DriverContext driverContext) {
-    blocks[offset] = ValuesLongAggregator.evaluateFinal(state, selected, driverContext);
+      GroupingAggregatorEvaluationContext evaluatorContext) {
+    blocks[offset] = ValuesLongAggregator.evaluateFinal(state, selected, evaluatorContext.driverContext());
   }
 
   @Override

@@ -1,6 +1,10 @@
 ---
 mapped_pages:
   - https://www.elastic.co/guide/en/elasticsearch/reference/current/modules-network.html
+applies_to:
+  deployment:
+    ess:
+    self:
 ---
 
 # Networking settings [modules-network]
@@ -198,7 +202,7 @@ Use the following advanced settings to configure the HTTP interface independentl
 
 $$$http-compression$$$
 
-`http.compression` ![logo cloud](https://doc-icons.s3.us-east-2.amazonaws.com/logo_cloud.svg "Supported on {{ess}}")
+`http.compression` ![logo cloud](https://doc-icons.s3.us-east-2.amazonaws.com/logo_cloud.svg "Supported on Elastic Cloud Hosted")
 :   ([Static](docs-content://deploy-manage/deploy/self-managed/configure-elasticsearch.md#static-cluster-setting), boolean) Support for compression when possible (with Accept-Encoding). If HTTPS is enabled, defaults to `false`. Otherwise, defaults to `true`.
 
     Disabling compression for HTTPS mitigates potential security risks, such as a [BREACH attack](https://en.wikipedia.org/wiki/BREACH). To compress HTTPS traffic, you must explicitly set `http.compression` to `true`.
@@ -209,7 +213,7 @@ $$$http-compression$$$
 
 $$$http-cors-enabled$$$
 
-`http.cors.enabled` ![logo cloud](https://doc-icons.s3.us-east-2.amazonaws.com/logo_cloud.svg "Supported on {{ess}}")
+`http.cors.enabled` ![logo cloud](https://doc-icons.s3.us-east-2.amazonaws.com/logo_cloud.svg "Supported on Elastic Cloud Hosted")
 :   ([Static](docs-content://deploy-manage/deploy/self-managed/configure-elasticsearch.md#static-cluster-setting), boolean) Enable or disable cross-origin resource sharing, which determines whether a browser on another origin can execute requests against {{es}}. Set to `true` to enable {{es}} to process pre-flight [CORS](https://en.wikipedia.org/wiki/Cross-origin_resource_sharing) requests. {{es}} will respond to those requests with the `Access-Control-Allow-Origin` header if the `Origin` sent in the request is permitted by the `http.cors.allow-origin` list. Set to `false` (the default) to make {{es}} ignore the `Origin` request header, effectively disabling CORS requests because {{es}} will never respond with the `Access-Control-Allow-Origin` response header.
 
     ::::{note}
@@ -219,7 +223,7 @@ $$$http-cors-enabled$$$
 
 $$$http-cors-allow-origin$$$
 
-`http.cors.allow-origin` ![logo cloud](https://doc-icons.s3.us-east-2.amazonaws.com/logo_cloud.svg "Supported on {{ess}}")
+`http.cors.allow-origin` ![logo cloud](https://doc-icons.s3.us-east-2.amazonaws.com/logo_cloud.svg "Supported on Elastic Cloud Hosted")
 :   ([Static](docs-content://deploy-manage/deploy/self-managed/configure-elasticsearch.md#static-cluster-setting), string) Which origins to allow. If you prepend and append a forward slash (`/`) to the value, this will be treated as a regular expression, allowing you to support HTTP and HTTPs. For example, using `/https?:\/\/localhost(:[0-9]+)?/` would return the request header appropriately in both cases. Defaults to no origins allowed.
 
     ::::{important}
@@ -229,27 +233,27 @@ $$$http-cors-allow-origin$$$
 
 $$$http-cors-max-age$$$
 
-`http.cors.max-age` ![logo cloud](https://doc-icons.s3.us-east-2.amazonaws.com/logo_cloud.svg "Supported on {{ess}}")
+`http.cors.max-age` ![logo cloud](https://doc-icons.s3.us-east-2.amazonaws.com/logo_cloud.svg "Supported on Elastic Cloud Hosted")
 :   ([Static](docs-content://deploy-manage/deploy/self-managed/configure-elasticsearch.md#static-cluster-setting), integer) Browsers send a "preflight" OPTIONS-request to determine CORS settings. `max-age` defines for how long, in seconds, the result should be cached. Defaults to `1728000` (20 days).
 
 $$$http-cors-allow-methods$$$
 
-`http.cors.allow-methods` ![logo cloud](https://doc-icons.s3.us-east-2.amazonaws.com/logo_cloud.svg "Supported on {{ess}}")
+`http.cors.allow-methods` ![logo cloud](https://doc-icons.s3.us-east-2.amazonaws.com/logo_cloud.svg "Supported on Elastic Cloud Hosted")
 :   ([Static](docs-content://deploy-manage/deploy/self-managed/configure-elasticsearch.md#static-cluster-setting), string) Which methods to allow. Defaults to `OPTIONS, HEAD, GET, POST, PUT, DELETE`.
 
 $$$http-cors-allow-headers$$$
 
-`http.cors.allow-headers` ![logo cloud](https://doc-icons.s3.us-east-2.amazonaws.com/logo_cloud.svg "Supported on {{ess}}")
+`http.cors.allow-headers` ![logo cloud](https://doc-icons.s3.us-east-2.amazonaws.com/logo_cloud.svg "Supported on Elastic Cloud Hosted")
 :   ([Static](docs-content://deploy-manage/deploy/self-managed/configure-elasticsearch.md#static-cluster-setting), string) Which headers to allow. Defaults to `X-Requested-With, Content-Type, Content-Length, Authorization, Accept, User-Agent, X-Elastic-Client-Meta`.
 
 $$$http-cors-expose-headers$$$
 
-`http.cors.expose-headers` ![logo cloud](https://doc-icons.s3.us-east-2.amazonaws.com/logo_cloud.svg "Supported on {{ess}}")
+`http.cors.expose-headers` ![logo cloud](https://doc-icons.s3.us-east-2.amazonaws.com/logo_cloud.svg "Supported on Elastic Cloud Hosted")
 :   ([Static](docs-content://deploy-manage/deploy/self-managed/configure-elasticsearch.md#static-cluster-setting)) Which response headers to expose in the client. Defaults to `X-elastic-product`.
 
 $$$http-cors-allow-credentials$$$
 
-`http.cors.allow-credentials` ![logo cloud](https://doc-icons.s3.us-east-2.amazonaws.com/logo_cloud.svg "Supported on {{ess}}")
+`http.cors.allow-credentials` ![logo cloud](https://doc-icons.s3.us-east-2.amazonaws.com/logo_cloud.svg "Supported on Elastic Cloud Hosted")
 :   ([Static](docs-content://deploy-manage/deploy/self-managed/configure-elasticsearch.md#static-cluster-setting), boolean) Whether the `Access-Control-Allow-Credentials` header should be returned. Defaults to `false`.
 
     ::::{note}
@@ -337,7 +341,7 @@ Use the following advanced settings to configure the transport interface indepen
 
 $$$transport-settings-compress$$$
 
-`transport.compress`
+`transport.compress` ![logo cloud](https://doc-icons.s3.us-east-2.amazonaws.com/logo_cloud.svg "Supported on Elastic Cloud Hosted")
 :   ([Static](docs-content://deploy-manage/deploy/self-managed/configure-elasticsearch.md#static-cluster-setting), string) Determines which transport requests are compressed before sending them to another node. {{es}} will compress transport responses if and only if the corresponding request was compressed. See also `transport.compression_scheme`, which specifies the compression scheme which is used. Accepts the following values:
 
     `false`
@@ -352,7 +356,7 @@ $$$transport-settings-compress$$$
 
 $$$transport-settings-compression-scheme$$$
 
-`transport.compression_scheme`
+`transport.compression_scheme` ![logo cloud](https://doc-icons.s3.us-east-2.amazonaws.com/logo_cloud.svg "Supported on Elastic Cloud Hosted")
 :   ([Static](docs-content://deploy-manage/deploy/self-managed/configure-elasticsearch.md#static-cluster-setting), string) Configures the compression scheme for requests which are selected for compression by to the `transport.compress` setting. Accepts either `deflate` or `lz4`, which offer different trade-offs between compression ratio and CPU usage. {{es}} will use the same compression scheme for responses as for the corresponding requests. Defaults to `lz4`.
 
 `transport.tcp.keep_alive`
@@ -409,6 +413,8 @@ Profiles also support all the other transport settings specified in the [transpo
 ### Long-lived idle connections [long-lived-connections]
 
 A transport connection between two nodes is made up of a number of long-lived TCP connections, some of which may be idle for an extended period of time. Nonetheless, {{es}} requires these connections to remain open, and it can disrupt the operation of your cluster if any inter-node connections are closed by an external influence such as a firewall. It is important to configure your network to preserve long-lived idle connections between {{es}} nodes, for instance by leaving `*.tcp.keep_alive` enabled and ensuring that the keepalive interval is shorter than any timeout that might cause idle connections to be closed, or by setting `transport.ping_schedule` if keepalives cannot be configured. Devices which drop connections when they reach a certain age are a common source of problems to {{es}} clusters, and must not be used.
+
+If an {{es}} node is temporarily unable to handle network traffic it may stop reading data from the network and advertise a zero-length TCP window to its peers so that they pause the transmission of data to the unavailable node. This is the standard backpressure mechanism built into TCP. When the node becomes available again, it will resume reading from the network. Configure your network to permit TCP connections to exist in this paused state without disruption. Do not impose any limit on the length of time that a connection may remain in this paused state.
 
 For information about troubleshooting unexpected network disconnections, see [Diagnosing other network disconnections](docs-content://troubleshoot/elasticsearch/troubleshooting-unstable-cluster.md#troubleshooting-unstable-cluster-network).
 

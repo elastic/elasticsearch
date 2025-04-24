@@ -67,7 +67,7 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.core.UpdateForV10;
 import org.elasticsearch.env.Environment;
-import org.elasticsearch.features.NodeFeature;
+import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.grok.MatcherWatchdog;
 import org.elasticsearch.index.IndexSettings;
@@ -118,8 +118,6 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
 
     public static final String INGEST_ORIGIN = "ingest";
 
-    public static final NodeFeature PIPELINE_NAME_VALIDATION_WARNINGS = new NodeFeature("ingest.pipeline_name_special_chars_warning");
-
     private static final Logger logger = LogManager.getLogger(IngestService.class);
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(IngestService.class);
 
@@ -138,6 +136,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
     private final List<Consumer<ClusterState>> ingestClusterStateListeners = new CopyOnWriteArrayList<>();
     private volatile ClusterState state;
     private final ProjectResolver projectResolver;
+    private final FeatureService featureService;
 
     private static BiFunction<Long, Runnable, Scheduler.ScheduledCancellable> createScheduler(ThreadPool threadPool) {
         return (delay, command) -> threadPool.schedule(command, TimeValue.timeValueMillis(delay), threadPool.generic());
@@ -224,7 +223,8 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
         Client client,
         MatcherWatchdog matcherWatchdog,
         FailureStoreMetrics failureStoreMetrics,
-        ProjectResolver projectResolver
+        ProjectResolver projectResolver,
+        FeatureService featureService
     ) {
         this.clusterService = clusterService;
         this.scriptService = scriptService;
@@ -247,6 +247,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
         this.taskQueue = clusterService.createTaskQueue("ingest-pipelines", Priority.NORMAL, PIPELINE_TASK_EXECUTOR);
         this.failureStoreMetrics = failureStoreMetrics;
         this.projectResolver = projectResolver;
+        this.featureService = featureService;
     }
 
     /**
@@ -264,6 +265,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
         this.state = ingestService.state;
         this.failureStoreMetrics = ingestService.failureStoreMetrics;
         this.projectResolver = ingestService.projectResolver;
+        this.featureService = ingestService.featureService;
     }
 
     private static Map<String, Processor.Factory> processorFactories(List<IngestPlugin> ingestPlugins, Processor.Parameters parameters) {
@@ -370,6 +372,10 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
 
     public ScriptService getScriptService() {
         return scriptService;
+    }
+
+    public ProjectResolver getProjectResolver() {
+        return projectResolver;
     }
 
     /**
@@ -522,7 +528,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
         }
 
         nodeInfoListener.accept(listener.delegateFailureAndWrap((l, nodeInfos) -> {
-            validatePipelineRequest(request, nodeInfos);
+            validatePipelineRequest(projectId, request, nodeInfos);
 
             taskQueue.submitTask(
                 "put-pipeline-" + request.getId(),
@@ -532,14 +538,14 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
         }));
     }
 
-    public void validatePipelineRequest(PutPipelineRequest request, NodesInfoResponse nodeInfos) throws Exception {
+    public void validatePipelineRequest(ProjectId projectId, PutPipelineRequest request, NodesInfoResponse nodeInfos) throws Exception {
         final Map<String, Object> config = XContentHelper.convertToMap(request.getSource(), false, request.getXContentType()).v2();
         Map<DiscoveryNode, IngestInfo> ingestInfos = new HashMap<>();
         for (NodeInfo nodeInfo : nodeInfos.getNodes()) {
             ingestInfos.put(nodeInfo.getNode(), nodeInfo.getInfo(IngestInfo.class));
         }
 
-        validatePipeline(ingestInfos, request.getId(), config);
+        validatePipeline(ingestInfos, projectId, request.getId(), config);
     }
 
     public static boolean isNoOpPipelineUpdate(ProjectMetadata metadata, PutPipelineRequest request) {
@@ -729,8 +735,12 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
     }
 
     @UpdateForV10(owner = DATA_MANAGEMENT) // Change deprecation log for special characters in name to a failure
-    void validatePipeline(Map<DiscoveryNode, IngestInfo> ingestInfos, String pipelineId, Map<String, Object> pipelineConfig)
-        throws Exception {
+    void validatePipeline(
+        Map<DiscoveryNode, IngestInfo> ingestInfos,
+        ProjectId projectId,
+        String pipelineId,
+        Map<String, Object> pipelineConfig
+    ) throws Exception {
         if (ingestInfos.isEmpty()) {
             throw new IllegalStateException("Ingest info is empty");
         }
@@ -746,7 +756,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
             deprecationLogger.critical(DeprecationCategory.API, "pipeline_name_special_chars", e.getMessage());
         }
 
-        Pipeline pipeline = Pipeline.create(pipelineId, pipelineConfig, processorFactories, scriptService);
+        Pipeline pipeline = Pipeline.create(pipelineId, pipelineConfig, processorFactories, scriptService, projectId);
         List<Exception> exceptions = new ArrayList<>();
         for (Processor processor : pipeline.flattenAllProcessors()) {
 
@@ -833,6 +843,9 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
     ) {
         assert numberOfActionRequests > 0 : "numberOfActionRequests must be greater than 0 but was [" + numberOfActionRequests + "]";
 
+        // Adapt handler to ensure node features during ingest logic
+        final Function<String, Boolean> adaptedResolveFailureStore = wrapResolverWithFeatureCheck(resolveFailureStore);
+
         executor.execute(new AbstractRunnable() {
 
             @Override
@@ -915,7 +928,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
                             }
                         );
 
-                        executePipelines(pipelines, indexRequest, ingestDocument, resolveFailureStore, documentListener);
+                        executePipelines(pipelines, indexRequest, ingestDocument, adaptedResolveFailureStore, documentListener);
                         assert actionRequest.index() != null;
 
                         i++;
@@ -923,6 +936,28 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
                 }
             }
         });
+    }
+
+    /**
+     * Adapts failure store resolver function so that if the failure store node feature is not present on every node it reverts to the
+     * old ingest behavior.
+     * @param resolveFailureStore Function that surfaces if failures for an index should be redirected to failure store.
+     * @return An adapted function that mutes the original if the cluster does not have the node feature universally applied.
+     */
+    private Function<String, Boolean> wrapResolverWithFeatureCheck(Function<String, Boolean> resolveFailureStore) {
+        final boolean clusterHasFailureStoreFeature = featureService.clusterHasFeature(
+            clusterService.state(),
+            DataStream.DATA_STREAM_FAILURE_STORE_FEATURE
+        );
+        return (indexName) -> {
+            if (clusterHasFailureStoreFeature) {
+                return resolveFailureStore.apply(indexName);
+            } else {
+                // If we get a non-null result but the cluster is not yet fully updated with required node features,
+                // force the result null to maintain old logic until all nodes are updated
+                return null;
+            }
+        };
     }
 
     /**
@@ -1394,7 +1429,8 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
                     newConfiguration.getId(),
                     newConfiguration.getConfig(false),
                     processorFactories,
-                    scriptService
+                    scriptService,
+                    projectId
                 );
                 newPipelines.put(newConfiguration.getId(), new PipelineHolder(newConfiguration, newPipeline));
 
@@ -1523,7 +1559,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
     public synchronized void reloadPipeline(ProjectId projectId, String id) throws Exception {
         var originalPipelines = this.pipelines.getOrDefault(projectId, ImmutableOpenMap.of());
         PipelineHolder holder = originalPipelines.get(id);
-        Pipeline updatedPipeline = Pipeline.create(id, holder.configuration.getConfig(false), processorFactories, scriptService);
+        Pipeline updatedPipeline = Pipeline.create(id, holder.configuration.getConfig(false), processorFactories, scriptService, projectId);
         ImmutableOpenMap<String, PipelineHolder> updatedPipelines = ImmutableOpenMap.builder(originalPipelines)
             .fPut(id, new PipelineHolder(holder.configuration, updatedPipeline))
             .build();

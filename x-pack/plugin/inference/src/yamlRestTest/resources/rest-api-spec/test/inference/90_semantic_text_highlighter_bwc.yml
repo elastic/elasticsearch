@@ -243,4 +243,48 @@ setup:
   - match:  { hits.hits.0.highlight.body.0: "You Know, for Search!" }
   - match:  { hits.hits.0.highlight.body.1: "ElasticSearch is an open source, distributed, RESTful, search engine which is built on top of Lucene internally and enjoys all the features it provides." }
 
+---
+"Highlighting and multi chunks with empty input":
+  - requires:
+      cluster_features: "semantic_text.handle_empty_input"
+      reason: Skips embedding generation when semantic_text is empty or contains only whitespace, effective from 8.19 and 9.1.0.
 
+  - do:
+      indices.create:
+        index: test-multi-chunk-index
+        body:
+          settings:
+            index.mapping.semantic_text.use_legacy_format: true
+          mappings:
+            properties:
+              semantic_text_field:
+                type: semantic_text
+                inference_id: sparse-inference-id
+
+  - do:
+      index:
+        index: test-multi-chunk-index
+        id: doc_1
+        body:
+          semantic_text_field: ["some test data", "    ", "now with chunks"]
+        refresh: true
+
+  - do:
+      search:
+        index: test-multi-chunk-index
+        body:
+          query:
+            semantic:
+              field: "semantic_text_field"
+              query: "test"
+          highlight:
+            fields:
+              semantic_text_field:
+                type: "semantic"
+                number_of_fragments: 3
+
+  - match: { hits.total.value: 1 }
+  - match: { hits.hits.0._id: "doc_1" }
+  - length: { hits.hits.0.highlight.semantic_text_field: 2 }
+  - match: { hits.hits.0.highlight.semantic_text_field.0: "some test data" }
+  - match: { hits.hits.0.highlight.semantic_text_field.1: "now with chunks" }

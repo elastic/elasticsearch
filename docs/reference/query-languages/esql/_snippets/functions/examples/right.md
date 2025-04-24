@@ -6,8 +6,6 @@
 FROM employees
 | KEEP last_name
 | EVAL right = RIGHT(last_name, 3)
-| SORT last_name ASC
-| LIMIT 5
 ```
 
 | last_name:keyword | right:keyword |

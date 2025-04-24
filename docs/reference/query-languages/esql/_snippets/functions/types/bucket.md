@@ -4,7 +4,7 @@
 
 | field | buckets | from | to | result |
 | --- | --- | --- | --- | --- |
-| date | date_period |  |  | date |
+| date | date_period | | | date |
 | date | integer | date | date | date |
 | date | integer | date | keyword | date |
 | date | integer | date | text | date |
@@ -14,8 +14,8 @@
 | date | integer | text | date | date |
 | date | integer | text | keyword | date |
 | date | integer | text | text | date |
-| date | time_duration |  |  | date |
-| date_nanos | date_period |  |  | date_nanos |
+| date | time_duration | | | date |
+| date_nanos | date_period | | | date_nanos |
 | date_nanos | integer | date | date | date_nanos |
 | date_nanos | integer | date | keyword | date_nanos |
 | date_nanos | integer | date | text | date_nanos |
@@ -25,8 +25,8 @@
 | date_nanos | integer | text | date | date_nanos |
 | date_nanos | integer | text | keyword | date_nanos |
 | date_nanos | integer | text | text | date_nanos |
-| date_nanos | time_duration |  |  | date_nanos |
-| double | double |  |  | double |
+| date_nanos | time_duration | | | date_nanos |
+| double | double | | | double |
 | double | integer | double | double | double |
 | double | integer | double | integer | double |
 | double | integer | double | long | double |
@@ -36,9 +36,9 @@
 | double | integer | long | double | double |
 | double | integer | long | integer | double |
 | double | integer | long | long | double |
-| double | integer |  |  | double |
-| double | long |  |  | double |
-| integer | double |  |  | double |
+| double | integer | | | double |
+| double | long | | | double |
+| integer | double | | | double |
 | integer | integer | double | double | double |
 | integer | integer | double | integer | double |
 | integer | integer | double | long | double |
@@ -48,9 +48,9 @@
 | integer | integer | long | double | double |
 | integer | integer | long | integer | double |
 | integer | integer | long | long | double |
-| integer | integer |  |  | double |
-| integer | long |  |  | double |
-| long | double |  |  | double |
+| integer | integer | | | double |
+| integer | long | | | double |
+| long | double | | | double |
 | long | integer | double | double | double |
 | long | integer | double | integer | double |
 | long | integer | double | long | double |
@@ -60,6 +60,6 @@
 | long | integer | long | double | double |
 | long | integer | long | integer | double |
 | long | integer | long | long | double |
-| long | integer |  |  | double |
-| long | long |  |  | double |
+| long | integer | | | double |
+| long | long | | | double |
 

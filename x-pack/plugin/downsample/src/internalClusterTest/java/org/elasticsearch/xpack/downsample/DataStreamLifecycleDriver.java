@@ -70,7 +70,7 @@ public class DataStreamLifecycleDriver {
         String dataStreamName,
         @Nullable String startTime,
         @Nullable String endTime,
-        DataStreamLifecycle lifecycle,
+        DataStreamLifecycle.Template lifecycle,
         int docCount,
         String firstDocTimestamp
     ) throws IOException {
@@ -94,7 +94,7 @@ public class DataStreamLifecycleDriver {
         String pattern,
         @Nullable String startTime,
         @Nullable String endTime,
-        DataStreamLifecycle lifecycle
+        DataStreamLifecycle.Template lifecycle
     ) throws IOException {
         Settings.Builder settings = indexSettings(1, 0).put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES)
             .putList(IndexMetadata.INDEX_ROUTING_PATH.getKey(), List.of(FIELD_DIMENSION_1));
@@ -138,8 +138,8 @@ public class DataStreamLifecycleDriver {
         List<String> patterns,
         @Nullable Settings settings,
         @Nullable Map<String, Object> metadata,
-        @Nullable DataStreamLifecycle lifecycle
-    ) throws IOException {
+        @Nullable DataStreamLifecycle.Template lifecycle
+    ) {
         TransportPutComposableIndexTemplateAction.Request request = new TransportPutComposableIndexTemplateAction.Request(id);
         request.indexTemplate(
             ComposableIndexTemplate.builder()

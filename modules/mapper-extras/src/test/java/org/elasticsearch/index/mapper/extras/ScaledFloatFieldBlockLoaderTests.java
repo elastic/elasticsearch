@@ -9,8 +9,8 @@
 
 package org.elasticsearch.index.mapper.extras;
 
+import org.elasticsearch.datageneration.FieldType;
 import org.elasticsearch.index.mapper.NumberFieldBlockLoaderTestCase;
-import org.elasticsearch.logsdb.datageneration.FieldType;
 import org.elasticsearch.plugins.Plugin;
 
 import java.util.Collection;
@@ -18,8 +18,8 @@ import java.util.List;
 import java.util.Map;
 
 public class ScaledFloatFieldBlockLoaderTests extends NumberFieldBlockLoaderTestCase<Double> {
-    public ScaledFloatFieldBlockLoaderTests() {
-        super(FieldType.SCALED_FLOAT);
+    public ScaledFloatFieldBlockLoaderTests(Params params) {
+        super(FieldType.SCALED_FLOAT, params);
     }
 
     @Override

@@ -2,6 +2,10 @@
 navigation_title: "Machine learning settings"
 mapped_pages:
   - https://www.elastic.co/guide/en/elasticsearch/reference/current/ml-settings.html
+applies_to:
+  deployment:
+    ess:
+    self:
 ---
 
 # Machine learning settings in Elasticsearch [ml-settings]
@@ -53,8 +57,8 @@ To control memory usage used by {{ml}} jobs, you can use the [machine learning c
 
 $$$xpack-interference-model-ttl$$$
 
-`xpack.ml.inference_model.time_to_live` ![logo cloud](https://doc-icons.s3.us-east-2.amazonaws.com/logo_cloud.svg "Supported on {{ess}}")
-:   ([Static](docs-content://deploy-manage/deploy/self-managed/configure-elasticsearch.md#static-cluster-setting)) The time to live (TTL) for trained models in the inference model cache. The TTL is calculated from last access. Users of the cache (such as the inference processor or inference aggregator) cache a model on its first use and reset the TTL on every use. If a cached model is not accessed for the duration of the TTL, it is flagged for eviction from the cache. If a document is processed later, the model is again loaded into the cache. To update this setting in {{ess}}, see [Add {{es}} user settings](/reference/elasticsearch/configuration-reference/elastic-cloud-hosted-elasticsearch-settings.md). Defaults to `5m`.
+`xpack.ml.inference_model.time_to_live` ![logo cloud](https://doc-icons.s3.us-east-2.amazonaws.com/logo_cloud.svg "Supported on Elastic Cloud Hosted")
+:   ([Static](docs-content://deploy-manage/deploy/self-managed/configure-elasticsearch.md#static-cluster-setting)) The time to live (TTL) for trained models in the inference model cache. The TTL is calculated from last access. Users of the cache (such as the inference processor or inference aggregator) cache a model on its first use and reset the TTL on every use. If a cached model is not accessed for the duration of the TTL, it is flagged for eviction from the cache. If a document is processed later, the model is again loaded into the cache. To update this setting in {{ess}}, see [Add {{es}} user settings](/reference/elasticsearch/configuration-reference/index.md). Defaults to `5m`.
 
 `xpack.ml.max_inference_processors`
 :   ([Dynamic](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-cluster-put-settings)) The total number of `inference` type processors allowed across all ingest pipelines. Once the limit is reached, adding an `inference` processor to a pipeline is disallowed. Defaults to `50`.

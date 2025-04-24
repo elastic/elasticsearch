@@ -7,6 +7,8 @@
 
 package org.elasticsearch.xpack.security.authz;
 
+import org.elasticsearch.action.support.IndexComponentSelector;
+import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.Nullable;
@@ -24,6 +26,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.SortedSet;
+import java.util.function.Predicate;
 
 import static org.elasticsearch.common.Strings.collectionToCommaDelimitedString;
 import static org.elasticsearch.xpack.security.audit.logfile.LoggingAuditTrail.PRINCIPAL_ROLES_FIELD_NAME;
@@ -90,22 +93,47 @@ public interface AuthorizationDenialMessages {
 
             if (ClusterPrivilegeResolver.isClusterAction(action)) {
                 final Collection<String> privileges = findClusterPrivilegesThatGrant(authentication, action, request);
-                if (privileges != null && privileges.size() > 0) {
+                if (privileges != null && false == privileges.isEmpty()) {
                     message = message
                         + ", this action is granted by the cluster privileges ["
                         + collectionToCommaDelimitedString(privileges)
                         + "]";
                 }
             } else if (isIndexAction(action)) {
-                final Collection<String> privileges = findIndexPrivilegesThatGrant(action);
-                if (privileges != null && privileges.size() > 0) {
+                // this includes `all`
+                final Collection<String> privileges = findIndexPrivilegesThatGrant(
+                    action,
+                    p -> p.getSelectorPredicate().test(IndexComponentSelector.DATA)
+                );
+                // this is an invariant since `all` is included in the above so the only way
+                // we can get an empty result here is a bogus action, which will never be covered by a failures privilege
+                assert false == privileges.isEmpty()
+                    || findIndexPrivilegesThatGrant(
+                        action,
+                        p -> p.getSelectorPredicate().test(IndexComponentSelector.FAILURES)
+                            && false == p.getSelectorPredicate().test(IndexComponentSelector.DATA)
+                    ).isEmpty()
+                    : "action [" + action + "] is not covered by any regular index privilege, only by failures-selector privileges";
+
+                if (false == privileges.isEmpty()) {
                     message = message
                         + ", this action is granted by the index privileges ["
                         + collectionToCommaDelimitedString(privileges)
                         + "]";
+
+                    final Collection<String> privilegesForFailuresOnly = findIndexPrivilegesThatGrant(
+                        action,
+                        p -> p.getSelectorPredicate().test(IndexComponentSelector.FAILURES)
+                            && false == p.getSelectorPredicate().test(IndexComponentSelector.DATA)
+                    );
+                    if (false == privilegesForFailuresOnly.isEmpty() && hasIndicesWithFailuresSelector(request)) {
+                        message = message
+                            + " for data access, or by ["
+                            + collectionToCommaDelimitedString(privilegesForFailuresOnly)
+                            + "] for access with the [::failures] selector";
+                    }
                 }
             }
-
             return message;
         }
 
@@ -132,12 +160,25 @@ public interface AuthorizationDenialMessages {
             return ClusterPrivilegeResolver.findPrivilegesThatGrant(action, request, authentication);
         }
 
-        protected Collection<String> findIndexPrivilegesThatGrant(String action) {
-            return IndexPrivilege.findPrivilegesThatGrant(action);
+        protected Collection<String> findIndexPrivilegesThatGrant(String action, Predicate<IndexPrivilege> preCondition) {
+            return IndexPrivilege.findPrivilegesThatGrant(action, preCondition);
         }
 
         private String remoteClusterText(@Nullable String clusterAlias) {
             return Strings.format("towards remote cluster%s ", clusterAlias == null ? "" : " [" + clusterAlias + "]");
+        }
+
+        private boolean hasIndicesWithFailuresSelector(TransportRequest request) {
+            String[] indices = AuthorizationEngine.RequestInfo.indices(request);
+            if (indices == null) {
+                return false;
+            }
+            for (String index : indices) {
+                if (IndexNameExpressionResolver.hasSelector(index, IndexComponentSelector.FAILURES)) {
+                    return true;
+                }
+            }
+            return false;
         }
 
         private String authenticatedUserDescription(Authentication authentication) {

@@ -14,21 +14,31 @@ import java.util.Objects;
 
 import static org.elasticsearch.index.query.QueryBuilders.termQuery;
 
+/**
+ * Term query. It can be considered for scoring or not - filters that use term query as implementation will not use scoring,
+ * but the Term full text function will
+ */
 public class TermQuery extends Query {
 
     private final String term;
     private final Object value;
     private final boolean caseInsensitive;
+    private final boolean scorable;
 
     public TermQuery(Source source, String term, Object value) {
         this(source, term, value, false);
     }
 
     public TermQuery(Source source, String term, Object value, boolean caseInsensitive) {
+        this(source, term, value, caseInsensitive, false);
+    }
+
+    public TermQuery(Source source, String term, Object value, boolean caseInsensitive, boolean scorable) {
         super(source);
         this.term = term;
         this.value = value;
         this.caseInsensitive = caseInsensitive;
+        this.scorable = scorable;
     }
 
     public String term() {
@@ -44,7 +54,7 @@ public class TermQuery extends Query {
     }
 
     @Override
-    public QueryBuilder asBuilder() {
+    protected QueryBuilder asBuilder() {
         TermQueryBuilder qb = termQuery(term, value);
         // ES does not allow case_insensitive to be set to "false", it should be either "true" or not specified
         return caseInsensitive == false ? qb : qb.caseInsensitive(caseInsensitive);
@@ -52,7 +62,7 @@ public class TermQuery extends Query {
 
     @Override
     public int hashCode() {
-        return Objects.hash(term, value, caseInsensitive);
+        return Objects.hash(term, value, caseInsensitive, scorable);
     }
 
     @Override
@@ -68,11 +78,17 @@ public class TermQuery extends Query {
         TermQuery other = (TermQuery) obj;
         return Objects.equals(term, other.term)
             && Objects.equals(value, other.value)
-            && Objects.equals(caseInsensitive, other.caseInsensitive);
+            && Objects.equals(caseInsensitive, other.caseInsensitive)
+            && scorable == other.scorable;
     }
 
     @Override
     protected String innerToString() {
         return term + ":" + value;
+    }
+
+    @Override
+    public boolean scorable() {
+        return scorable;
     }
 }

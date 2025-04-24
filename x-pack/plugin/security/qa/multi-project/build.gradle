@@ -1,9 +1,10 @@
 apply plugin: 'elasticsearch.internal-java-rest-test'
 
 dependencies {
-  javaRestTestImplementation "com.nimbusds:nimbus-jose-jwt:10.0.1"
+  javaRestTestImplementation "com.nimbusds:nimbus-jose-jwt:10.0.2"
 }
 
 tasks.named('javaRestTest') {
-  usesDefaultDistribution()
+  usesDefaultDistribution("to be triaged")
+  it.onlyIf("snapshot build") { buildParams.snapshotBuild }
 }

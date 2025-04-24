@@ -98,11 +98,9 @@ public abstract class AbstractAuditor<T extends AbstractAuditMessage> {
      */
     public void reset() {
         indexAndAliasCreated.set(false);
-        if (backlog == null) {
-            // create a new backlog in case documents need
-            // to be temporarily stored when the new index/alias is created
-            backlog = new ConcurrentLinkedQueue<>();
-        }
+        // create a new backlog in case documents need
+        // to be temporarily stored when the new index/alias is created
+        backlog = new ConcurrentLinkedQueue<>();
     }
 
     private static void onIndexResponse(DocWriteResponse response) {
@@ -134,14 +132,13 @@ public abstract class AbstractAuditor<T extends AbstractAuditMessage> {
             if (indexAndAliasCreated.get() == false) {
                 // synchronized so that hasLatestTemplate does not change value
                 // between the read and adding to the backlog
-                assert backlog != null;
                 if (backlog != null) {
                     if (backlog.size() >= MAX_BUFFER_SIZE) {
                         backlog.remove();
                     }
                     backlog.add(toXContent);
                 } else {
-                    logger.error("Latest audit template missing and audit message cannot be added to the backlog");
+                    logger.error("Audit message cannot be added to the backlog");
                 }
 
                 // stop multiple invocations
@@ -186,7 +183,6 @@ public abstract class AbstractAuditor<T extends AbstractAuditMessage> {
     }
 
     protected void writeBacklog() {
-        assert backlog != null;
         if (backlog == null) {
             logger.debug("Message back log has already been written");
             return;

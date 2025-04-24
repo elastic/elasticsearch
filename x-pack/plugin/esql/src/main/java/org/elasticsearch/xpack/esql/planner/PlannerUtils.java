@@ -23,6 +23,7 @@ import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
+import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.Holder;
@@ -32,8 +33,11 @@ import org.elasticsearch.xpack.esql.optimizer.LocalLogicalOptimizerContext;
 import org.elasticsearch.xpack.esql.optimizer.LocalLogicalPlanOptimizer;
 import org.elasticsearch.xpack.esql.optimizer.LocalPhysicalOptimizerContext;
 import org.elasticsearch.xpack.esql.optimizer.LocalPhysicalPlanOptimizer;
+import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.LucenePushdownPredicates;
+import org.elasticsearch.xpack.esql.plan.QueryPlan;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
+import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.physical.AggregateExec;
 import org.elasticsearch.xpack.esql.plan.physical.EsSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.EstimatesRowSize;
@@ -41,6 +45,7 @@ import org.elasticsearch.xpack.esql.plan.physical.ExchangeExec;
 import org.elasticsearch.xpack.esql.plan.physical.ExchangeSinkExec;
 import org.elasticsearch.xpack.esql.plan.physical.ExchangeSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.FragmentExec;
+import org.elasticsearch.xpack.esql.plan.physical.MergeExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.planner.mapper.LocalMapper;
 import org.elasticsearch.xpack.esql.planner.mapper.Mapper;
@@ -64,6 +69,34 @@ import static org.elasticsearch.xpack.esql.optimizer.rules.physical.local.PushFi
 import static org.elasticsearch.xpack.esql.planner.TranslatorHandler.TRANSLATOR_HANDLER;
 
 public class PlannerUtils {
+
+    /**
+     * When the plan contains children like {@code MergeExec} resulted from the planning of commands such as FORK,
+     * we need to break the plan into sub plans and a main coordinator plan.
+     * The result pages from each sub plan will be funneled to the main coordinator plan.
+     * To achieve this, we wire each sub plan with a {@code ExchangeSinkExec} and add a {@code ExchangeSourceExec}
+     * to the main coordinator plan.
+     * There is an additional split of each sub plan into a data node plan and coordinator plan.
+     * This split is not done here, but as part of {@code PlannerUtils#breakPlanBetweenCoordinatorAndDataNode}.
+     */
+    public static Tuple<List<PhysicalPlan>, PhysicalPlan> breakPlanIntoSubPlansAndMainPlan(PhysicalPlan plan) {
+        var subplans = new Holder<List<PhysicalPlan>>();
+        PhysicalPlan mainPlan = plan.transformUp(MergeExec.class, me -> {
+            subplans.set(me.children().stream().map(child -> {
+                // TODO: we are adding a Project plan to force InsertFieldExtraction - we should remove this transformation
+                child = child.transformUp(FragmentExec.class, f -> {
+                    var logicalFragment = f.fragment();
+                    logicalFragment = new Project(logicalFragment.source(), logicalFragment, logicalFragment.output());
+                    return new FragmentExec(logicalFragment);
+                });
+
+                return (PhysicalPlan) new ExchangeSinkExec(child.source(), child.output(), false, child);
+            }).toList());
+            return new ExchangeSourceExec(me.source(), me.output(), false);
+        });
+
+        return new Tuple<>(subplans.get(), mainPlan);
+    }
 
     public static Tuple<PhysicalPlan, PhysicalPlan> breakPlanBetweenCoordinatorAndDataNode(PhysicalPlan plan, Configuration config) {
         var dataNodePlan = new Holder<PhysicalPlan>();
@@ -207,18 +240,20 @@ public class PlannerUtils {
                     var conjunctions = Predicates.splitAnd(f.condition());
                     // look only at expressions that contain literals and the target field
                     for (var exp : conjunctions) {
-                        var refs = new AttributeSet(exp.references());
+                        var refsBuilder = AttributeSet.builder().addAll(exp.references());
                         // remove literals or attributes that match by name
-                        boolean matchesField = refs.removeIf(e -> fieldName.test(e.name()));
+                        boolean matchesField = refsBuilder.removeIf(e -> fieldName.test(e.name()));
                         // the expression only contains the target reference
                         // and the expression is pushable (functions can be fully translated)
-                        if (matchesField && refs.isEmpty() && canPushToSource(exp)) {
+                        if (matchesField && refsBuilder.isEmpty() && canPushToSource(exp)) {
                             matches.add(exp);
                         }
                     }
                 }
                 if (matches.isEmpty() == false) {
-                    requestFilters.add(TRANSLATOR_HANDLER.asQuery(Predicates.combineAnd(matches)).asBuilder());
+                    requestFilters.add(
+                        TRANSLATOR_HANDLER.asQuery(LucenePushdownPredicates.DEFAULT, Predicates.combineAnd(matches)).toQueryBuilder()
+                    );
                 }
             });
         });
@@ -256,7 +291,7 @@ public class PlannerUtils {
             case INTEGER, COUNTER_INTEGER -> ElementType.INT;
             case DOUBLE, COUNTER_DOUBLE -> ElementType.DOUBLE;
             // unsupported fields are passed through as a BytesRef
-            case KEYWORD, TEXT, IP, SOURCE, VERSION, SEMANTIC_TEXT, UNSUPPORTED -> ElementType.BYTES_REF;
+            case KEYWORD, TEXT, IP, SOURCE, VERSION, UNSUPPORTED -> ElementType.BYTES_REF;
             case NULL -> ElementType.NULL;
             case BOOLEAN -> ElementType.BOOLEAN;
             case DOC_DATA_TYPE -> ElementType.DOC;
@@ -278,4 +313,8 @@ public class PlannerUtils {
         new NoopCircuitBreaker("noop-esql-breaker"),
         BigArrays.NON_RECYCLING_INSTANCE
     );
+
+    public static boolean usesScoring(QueryPlan<?> plan) {
+        return plan.output().stream().anyMatch(attr -> attr instanceof MetadataAttribute ma && ma.name().equals(MetadataAttribute.SCORE));
+    }
 }

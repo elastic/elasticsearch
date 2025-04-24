@@ -4,7 +4,7 @@
 
 ```esql
 FROM employees
-| STATS w_avg = WEIGHTED_AVG(salary, height) by languages
+| STATS w_avg = WEIGHTED_AVG(salary, height) BY languages
 | EVAL w_avg = ROUND(w_avg)
 | KEEP w_avg, languages
 | SORT languages
@@ -18,3 +18,5 @@ FROM employees
 | 47990.0 | 4 |
 | 42119.0 | 5 |
 | 52142.0 | null |
+
+

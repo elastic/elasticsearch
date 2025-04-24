@@ -53,9 +53,12 @@ import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.FixForMultiProject;
+import org.elasticsearch.core.Predicates;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.features.FeatureService;
+import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
@@ -97,6 +100,7 @@ import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.IntConsumer;
 import java.util.function.LongSupplier;
+import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.cluster.metadata.Metadata.DEFAULT_PROJECT_ID;
@@ -135,7 +139,7 @@ public class IngestServiceTests extends ESTestCase {
     private static final IngestPlugin DUMMY_PLUGIN = new IngestPlugin() {
         @Override
         public Map<String, Processor.Factory> getProcessors(Processor.Parameters parameters) {
-            return Map.of("foo", (factories, tag, description, config) -> null);
+            return Map.of("foo", (factories, tag, description, config, projectId) -> null);
         }
     };
 
@@ -160,7 +164,13 @@ public class IngestServiceTests extends ESTestCase {
             client,
             null,
             FailureStoreMetrics.NOOP,
-            TestProjectResolvers.singleProjectOnly()
+            TestProjectResolvers.alwaysThrow(),
+            new FeatureService(List.of()) {
+                @Override
+                public boolean clusterHasFeature(ClusterState state, NodeFeature feature) {
+                    return DataStream.DATA_STREAM_FAILURE_STORE_FEATURE.equals(feature);
+                }
+            }
         );
         Map<String, Processor.Factory> factories = ingestService.getProcessorFactories();
         assertTrue(factories.containsKey("foo"));
@@ -181,7 +191,13 @@ public class IngestServiceTests extends ESTestCase {
                 client,
                 null,
                 FailureStoreMetrics.NOOP,
-                TestProjectResolvers.singleProjectOnly()
+                TestProjectResolvers.alwaysThrow(),
+                new FeatureService(List.of()) {
+                    @Override
+                    public boolean clusterHasFeature(ClusterState state, NodeFeature feature) {
+                        return DataStream.DATA_STREAM_FAILURE_STORE_FEATURE.equals(feature);
+                    }
+                }
             )
         );
         assertTrue(e.getMessage(), e.getMessage().contains("already registered"));
@@ -199,7 +215,13 @@ public class IngestServiceTests extends ESTestCase {
             client,
             null,
             FailureStoreMetrics.NOOP,
-            TestProjectResolvers.singleProjectOnly()
+            TestProjectResolvers.alwaysThrow(),
+            new FeatureService(List.of()) {
+                @Override
+                public boolean clusterHasFeature(ClusterState state, NodeFeature feature) {
+                    return DataStream.DATA_STREAM_FAILURE_STORE_FEATURE.equals(feature);
+                }
+            }
         );
         final IndexRequest indexRequest = new IndexRequest("_index").id("_id")
             .source(Map.of())
@@ -347,11 +369,11 @@ public class IngestServiceTests extends ESTestCase {
 
     public void testInnerUpdatePipelinesValidation() {
         Map<String, Processor.Factory> processors = new HashMap<>();
-        processors.put("fail_validation", (factories, tag, description, config) -> {
+        processors.put("fail_validation", (factories, tag, description, config, projectId) -> {
             // ordinary validation issues happen at processor construction time
             throw newConfigurationException("fail_validation", tag, "no_property_name", "validation failure reason");
         });
-        processors.put("fail_extra_validation", (factories, tag, description, config) -> {
+        processors.put("fail_extra_validation", (factories, tag, description, config, projectId) -> {
             // 'extra validation' issues happen post- processor construction time
             return new FakeProcessor("fail_extra_validation", tag, description, ingestDocument -> {}) {
                 @Override
@@ -444,16 +466,17 @@ public class IngestServiceTests extends ESTestCase {
         PutPipelineRequest putRequest = putJsonPipelineRequest("pipeline-id", """
             {"processors": [{"set" : {"field": "_field", "value": "_value"}}]}""");
 
+        var projectId = randomProjectIdOrDefault();
         var pipelineConfig = XContentHelper.convertToMap(putRequest.getSource(), false, putRequest.getXContentType()).v2();
         Exception e = expectThrows(
             IllegalStateException.class,
-            () -> ingestService.validatePipeline(Map.of(), putRequest.getId(), pipelineConfig)
+            () -> ingestService.validatePipeline(Map.of(), projectId, putRequest.getId(), pipelineConfig)
         );
         assertEquals("Ingest info is empty", e.getMessage());
 
         DiscoveryNode discoveryNode = DiscoveryNodeUtils.create("_node_id", buildNewFakeTransportAddress(), Map.of(), Set.of());
         IngestInfo ingestInfo = new IngestInfo(List.of(new ProcessorInfo("set")));
-        ingestService.validatePipeline(Map.of(discoveryNode, ingestInfo), putRequest.getId(), pipelineConfig);
+        ingestService.validatePipeline(Map.of(discoveryNode, ingestInfo), projectId, putRequest.getId(), pipelineConfig);
     }
 
     public void testValidateNotInUse() {
@@ -618,7 +641,7 @@ public class IngestServiceTests extends ESTestCase {
         boolean[] externalProperty = new boolean[] { false };
 
         Map<String, Processor.Factory> processorFactories = new HashMap<>();
-        processorFactories.put("set", (factories, tag, description, config) -> {
+        processorFactories.put("set", (factories, tag, description, config, projectId) -> {
             String field = (String) config.remove("field");
             String value = (String) config.remove("value");
             if (externalProperty[0]) {
@@ -685,7 +708,7 @@ public class IngestServiceTests extends ESTestCase {
         );
 
         Map<String, Processor.Factory> processors = new HashMap<>();
-        processors.put("complexSet", (factories, tag, description, config) -> {
+        processors.put("complexSet", (factories, tag, description, config, projectId) -> {
             String field = (String) config.remove("field");
             String value = (String) config.remove("value");
 
@@ -1017,6 +1040,7 @@ public class IngestServiceTests extends ESTestCase {
 
     public void testValidateProcessorTypeOnAllNodes() throws Exception {
         IngestService ingestService = createWithProcessors();
+        var projectId = randomProjectIdOrDefault();
         PutPipelineRequest putRequest = putJsonPipelineRequest("pipeline-id", """
             {
               "processors": [
@@ -1045,7 +1069,7 @@ public class IngestServiceTests extends ESTestCase {
 
         ElasticsearchParseException e = expectThrows(
             ElasticsearchParseException.class,
-            () -> ingestService.validatePipeline(ingestInfos, putRequest.getId(), pipelineConfig)
+            () -> ingestService.validatePipeline(ingestInfos, projectId, putRequest.getId(), pipelineConfig)
         );
         assertEquals("Processor type [remove] is not installed on node [" + node2 + "]", e.getMessage());
         assertEquals("remove", e.getMetadata("es.processor_type").get(0));
@@ -1053,14 +1077,15 @@ public class IngestServiceTests extends ESTestCase {
 
         var pipelineConfig2 = XContentHelper.convertToMap(putRequest.getSource(), false, putRequest.getXContentType()).v2();
         ingestInfos.put(node2, new IngestInfo(List.of(new ProcessorInfo("set"), new ProcessorInfo("remove"))));
-        ingestService.validatePipeline(ingestInfos, putRequest.getId(), pipelineConfig2);
+        ingestService.validatePipeline(ingestInfos, projectId, putRequest.getId(), pipelineConfig2);
     }
 
     public void testValidateConfigurationExceptions() {
-        IngestService ingestService = createWithProcessors(Map.of("fail_validation", (factories, tag, description, config) -> {
+        IngestService ingestService = createWithProcessors(Map.of("fail_validation", (factories, tag, description, config, projectId) -> {
             // ordinary validation issues happen at processor construction time
             throw newConfigurationException("fail_validation", tag, "no_property_name", "validation failure reason");
         }));
+        var projectId = randomProjectIdOrDefault();
         PutPipelineRequest putRequest = putJsonPipelineRequest("pipeline-id", """
             {
               "processors": [
@@ -1079,22 +1104,30 @@ public class IngestServiceTests extends ESTestCase {
 
         ElasticsearchParseException e = expectThrows(
             ElasticsearchParseException.class,
-            () -> ingestService.validatePipeline(ingestInfos, putRequest.getId(), pipelineConfig)
+            () -> ingestService.validatePipeline(ingestInfos, projectId, putRequest.getId(), pipelineConfig)
         );
         assertEquals("[no_property_name] validation failure reason", e.getMessage());
         assertEquals("fail_validation", e.getMetadata("es.processor_type").get(0));
     }
 
     public void testValidateExtraValidationConfigurationExceptions() {
-        IngestService ingestService = createWithProcessors(Map.of("fail_extra_validation", (factories, tag, description, config) -> {
-            // 'extra validation' issues happen post- processor construction time
-            return new FakeProcessor("fail_extra_validation", tag, description, ingestDocument -> {}) {
-                @Override
-                public void extraValidation() throws Exception {
-                    throw newConfigurationException("fail_extra_validation", tag, "no_property_name", "extra validation failure reason");
-                }
-            };
-        }));
+        IngestService ingestService = createWithProcessors(
+            Map.of("fail_extra_validation", (factories, tag, description, config, projectId) -> {
+                // 'extra validation' issues happen post- processor construction time
+                return new FakeProcessor("fail_extra_validation", tag, description, ingestDocument -> {}) {
+                    @Override
+                    public void extraValidation() throws Exception {
+                        throw newConfigurationException(
+                            "fail_extra_validation",
+                            tag,
+                            "no_property_name",
+                            "extra validation failure reason"
+                        );
+                    }
+                };
+            })
+        );
+        var projectId = randomProjectIdOrDefault();
         PutPipelineRequest putRequest = putJsonPipelineRequest("pipeline-id", """
             {
               "processors": [
@@ -1113,13 +1146,14 @@ public class IngestServiceTests extends ESTestCase {
 
         ElasticsearchParseException e = expectThrows(
             ElasticsearchParseException.class,
-            () -> ingestService.validatePipeline(ingestInfos, putRequest.getId(), pipelineConfig)
+            () -> ingestService.validatePipeline(ingestInfos, projectId, putRequest.getId(), pipelineConfig)
         );
         assertEquals("[no_property_name] extra validation failure reason", e.getMessage());
         assertEquals("fail_extra_validation", e.getMetadata("es.processor_type").get(0));
     }
 
     public void testValidatePipelineName() throws Exception {
+        var projectId = randomProjectIdOrDefault();
         IngestService ingestService = createWithProcessors();
         for (Character badChar : List.of('\\', '/', '*', '?', '"', '<', '>', '|', ' ', ',')) {
             PutPipelineRequest putRequest = new PutPipelineRequest(
@@ -1135,7 +1169,7 @@ public class IngestServiceTests extends ESTestCase {
             Map<DiscoveryNode, IngestInfo> ingestInfos = new HashMap<>();
             ingestInfos.put(node1, new IngestInfo(List.of(new ProcessorInfo("set"))));
             final String name = randomAlphaOfLength(5) + badChar + randomAlphaOfLength(5);
-            ingestService.validatePipeline(ingestInfos, name, pipelineConfig);
+            ingestService.validatePipeline(ingestInfos, projectId, name, pipelineConfig);
             assertCriticalWarnings(
                 "Pipeline name ["
                     + name
@@ -1147,7 +1181,7 @@ public class IngestServiceTests extends ESTestCase {
 
     public void testExecuteIndexPipelineExistsButFailedParsing() {
         IngestService ingestService = createWithProcessors(
-            Map.of("mock", (factories, tag, description, config) -> new AbstractProcessor("mock", "description") {
+            Map.of("mock", (factories, tag, description, config, projectId) -> new AbstractProcessor("mock", "description") {
                 @Override
                 public IngestDocument execute(IngestDocument ingestDocument) {
                     throw new IllegalStateException("error");
@@ -1213,7 +1247,7 @@ public class IngestServiceTests extends ESTestCase {
 
     public void testExecuteBulkPipelineDoesNotExist() {
         IngestService ingestService = createWithProcessors(
-            Map.of("mock", (factories, tag, description, config) -> mockCompoundProcessor())
+            Map.of("mock", (factories, tag, description, config, projectId) -> mockCompoundProcessor())
         );
 
         PutPipelineRequest putRequest = putJsonPipelineRequest("_id", "{\"processors\": [{\"mock\" : {}}]}");
@@ -1267,7 +1301,7 @@ public class IngestServiceTests extends ESTestCase {
 
     public void testExecuteSuccess() {
         IngestService ingestService = createWithProcessors(
-            Map.of("mock", (factories, tag, description, config) -> mockCompoundProcessor())
+            Map.of("mock", (factories, tag, description, config, projectId) -> mockCompoundProcessor())
         );
         PutPipelineRequest putRequest = putJsonPipelineRequest("_id", "{\"processors\": [{\"mock\" : {}}]}");
         var projectId = randomProjectIdOrDefault();
@@ -1304,7 +1338,7 @@ public class IngestServiceTests extends ESTestCase {
         IngestService ingestService = createWithProcessors(
             Map.of(
                 "set",
-                (factories, tag, description, config) -> new FakeProcessor(
+                (factories, tag, description, config, projectId) -> new FakeProcessor(
                     "set",
                     "",
                     "",
@@ -1380,7 +1414,7 @@ public class IngestServiceTests extends ESTestCase {
 
     public void testExecutePropagateAllMetadataUpdates() throws Exception {
         final CompoundProcessor processor = mockCompoundProcessor();
-        IngestService ingestService = createWithProcessors(Map.of("mock", (factories, tag, description, config) -> processor));
+        IngestService ingestService = createWithProcessors(Map.of("mock", (factories, tag, description, config, projectId) -> processor));
         PutPipelineRequest putRequest = putJsonPipelineRequest("_id", "{\"processors\": [{\"mock\" : {}}]}");
         var projectId = randomProjectIdOrDefault();
         ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
@@ -1454,9 +1488,9 @@ public class IngestServiceTests extends ESTestCase {
         IngestService ingestService = createWithProcessors(
             Map.of(
                 "mock",
-                (factories, tag, description, config) -> processor,
+                (factories, tag, description, config, projectId) -> processor,
                 "set",
-                (factories, tag, description, config) -> new FakeProcessor("set", "", "", (ingestDocument) -> fail())
+                (factories, tag, description, config, projectId) -> new FakeProcessor("set", "", "", (ingestDocument) -> fail())
             )
         );
         PutPipelineRequest putRequest1 = putJsonPipelineRequest("_id1", "{\"processors\": [{\"mock\" : {}}]}");
@@ -1526,7 +1560,9 @@ public class IngestServiceTests extends ESTestCase {
             List.of(processor),
             List.of(new CompoundProcessor(onFailureProcessor))
         );
-        IngestService ingestService = createWithProcessors(Map.of("mock", (factories, tag, description, config) -> compoundProcessor));
+        IngestService ingestService = createWithProcessors(
+            Map.of("mock", (factories, tag, description, config, projectId) -> compoundProcessor)
+        );
         PutPipelineRequest putRequest = putJsonPipelineRequest("_id", "{\"processors\": [{\"mock\" : {}}]}");
         var projectId = randomProjectIdOrDefault();
         ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
@@ -1572,7 +1608,9 @@ public class IngestServiceTests extends ESTestCase {
             List.of(processor),
             List.of(new CompoundProcessor(false, processors, onFailureProcessors))
         );
-        IngestService ingestService = createWithProcessors(Map.of("mock", (factories, tag, description, config) -> compoundProcessor));
+        IngestService ingestService = createWithProcessors(
+            Map.of("mock", (factories, tag, description, config, projectId) -> compoundProcessor)
+        );
         PutPipelineRequest putRequest = putJsonPipelineRequest("_id", "{\"processors\": [{\"mock\" : {}}]}");
         var projectId = randomProjectIdOrDefault();
         ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
@@ -1650,7 +1688,7 @@ public class IngestServiceTests extends ESTestCase {
             handler.accept(null, error);
             return null;
         }).when(processor).execute(any(), any());
-        IngestService ingestService = createWithProcessors(Map.of("mock", (factories, tag, description, config) -> processor));
+        IngestService ingestService = createWithProcessors(Map.of("mock", (factories, tag, description, config, projectId) -> processor));
         PutPipelineRequest putRequest = putJsonPipelineRequest("_id", "{\"processors\": [{\"mock\" : {}}]}");
         var projectId = randomProjectIdOrDefault();
         ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
@@ -1691,9 +1729,9 @@ public class IngestServiceTests extends ESTestCase {
         IngestService ingestService = createWithProcessors(
             Map.of(
                 "mock",
-                (factories, tag, description, config) -> processor,
+                (factories, tag, description, config, projectId) -> processor,
                 "set",
-                (factories, tag, description, config) -> new FakeProcessor("set", "", "", (ingestDocument) -> fail())
+                (factories, tag, description, config, projectId) -> new FakeProcessor("set", "", "", (ingestDocument) -> fail())
             )
         );
         PutPipelineRequest putRequest1 = putJsonPipelineRequest("_id1", "{\"processors\": [{\"mock\" : {}}]}");
@@ -1737,14 +1775,70 @@ public class IngestServiceTests extends ESTestCase {
         verify(completionHandler, times(1)).accept(Thread.currentThread(), null);
     }
 
+    public void testFailureRedirectionWithoutNodeFeatureEnabled() throws Exception {
+        final CompoundProcessor processor = mockCompoundProcessor();
+        IngestService ingestService = createWithProcessors(
+            Map.of(
+                "mock",
+                (factories, tag, description, config, projectId) -> processor,
+                "set",
+                (factories, tag, description, config, projectId) -> new FakeProcessor("set", "", "", (ingestDocument) -> fail())
+            ),
+            Predicates.never()
+        );
+        PutPipelineRequest putRequest1 = putJsonPipelineRequest("_id1", "{\"processors\": [{\"mock\" : {}}]}");
+        // given that set -> fail() above, it's a failure if a document executes against this pipeline
+        PutPipelineRequest putRequest2 = putJsonPipelineRequest("_id2", "{\"processors\": [{\"set\" : {}}]}");
+        var projectId = randomProjectIdOrDefault();
+        ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
+            .putProjectMetadata(ProjectMetadata.builder(projectId).build())
+            .build();
+        ClusterState previousClusterState = clusterState;
+        clusterState = executePut(projectId, putRequest1, clusterState);
+        clusterState = executePut(projectId, putRequest2, clusterState);
+        ingestService.applyClusterState(new ClusterChangedEvent("", clusterState, previousClusterState));
+        final IndexRequest indexRequest = new IndexRequest("_index").id("_id")
+            .source(Map.of())
+            .setPipeline("_id1")
+            .setFinalPipeline("_id2");
+        doThrow(new RuntimeException()).when(processor)
+            .execute(eqIndexTypeId(indexRequest.version(), indexRequest.versionType(), Map.of()), any());
+        final Function<String, Boolean> redirectCheck = (idx) -> indexRequest.index().equals(idx);
+        @SuppressWarnings("unchecked")
+        final TriConsumer<Integer, String, Exception> redirectHandler = mock(TriConsumer.class);
+        @SuppressWarnings("unchecked")
+        final TriConsumer<Integer, Exception, IndexDocFailureStoreStatus> failureHandler = mock(TriConsumer.class);
+        @SuppressWarnings("unchecked")
+        final BiConsumer<Thread, Exception> completionHandler = mock(BiConsumer.class);
+        ingestService.executeBulkRequest(
+            projectId,
+            1,
+            List.of(indexRequest),
+            indexReq -> {},
+            redirectCheck,
+            redirectHandler,
+            failureHandler,
+            completionHandler,
+            EsExecutors.DIRECT_EXECUTOR_SERVICE
+        );
+        verify(processor).execute(eqIndexTypeId(indexRequest.version(), indexRequest.versionType(), Map.of()), any());
+        verifyNoInteractions(redirectHandler);
+        verify(failureHandler, times(1)).apply(
+            eq(0),
+            any(RuntimeException.class),
+            eq(IndexDocFailureStoreStatus.NOT_APPLICABLE_OR_UNKNOWN)
+        );
+        verify(completionHandler, times(1)).accept(Thread.currentThread(), null);
+    }
+
     public void testExecuteFailureStatusOnFailureWithoutRedirection() throws Exception {
         final CompoundProcessor processor = mockCompoundProcessor();
         IngestService ingestService = createWithProcessors(
             Map.of(
                 "mock",
-                (factories, tag, description, config) -> processor,
+                (factories, tag, description, config, projectId) -> processor,
                 "set",
-                (factories, tag, description, config) -> new FakeProcessor("set", "", "", (ingestDocument) -> fail())
+                (factories, tag, description, config, projectId) -> new FakeProcessor("set", "", "", (ingestDocument) -> fail())
             )
         );
         PutPipelineRequest putRequest1 = putJsonPipelineRequest("_id1", "{\"processors\": [{\"mock\" : {}}]}");
@@ -1799,7 +1893,9 @@ public class IngestServiceTests extends ESTestCase {
             List.of(processor),
             List.of(new CompoundProcessor(false, processors, onFailureProcessors))
         );
-        IngestService ingestService = createWithProcessors(Map.of("mock", (factories, tag, description, config) -> compoundProcessor));
+        IngestService ingestService = createWithProcessors(
+            Map.of("mock", (factories, tag, description, config, projectId) -> compoundProcessor)
+        );
         PutPipelineRequest putRequest = putJsonPipelineRequest("_id", "{\"processors\": [{\"mock\" : {}}]}");
         var projectId = randomProjectIdOrDefault();
         ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
@@ -1875,7 +1971,7 @@ public class IngestServiceTests extends ESTestCase {
             handler.accept(null, error);
             return null;
         }).when(processor).execute(any(), any());
-        IngestService ingestService = createWithProcessors(Map.of("mock", (factories, tag, description, config) -> processor));
+        IngestService ingestService = createWithProcessors(Map.of("mock", (factories, tag, description, config, projectId) -> processor));
         PutPipelineRequest putRequest = putJsonPipelineRequest("_id", "{\"processors\": [{\"mock\" : {}}]}");
         var projectId = randomProjectIdOrDefault();
         ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
@@ -1939,7 +2035,7 @@ public class IngestServiceTests extends ESTestCase {
             return null;
         }).when(processor).execute(any(), any());
         Map<String, Processor.Factory> map = Maps.newMapWithExpectedSize(2);
-        map.put("mock", (factories, tag, description, config) -> processor);
+        map.put("mock", (factories, tag, description, config, projectId) -> processor);
 
         IngestService ingestService = createWithProcessors(map);
         PutPipelineRequest putRequest = putJsonPipelineRequest("_id", """
@@ -2007,14 +2103,20 @@ public class IngestServiceTests extends ESTestCase {
         IngestService ingestService = createWithProcessors(
             Map.of(
                 "pipeline",
-                (factories, tag, description, config) -> new PipelineProcessor(tag, description, (params) -> new TemplateScript(params) {
-                    @Override
-                    public String execute() {
-                        return "_id3";
-                    } // this pipeline processor will always execute the '_id3' processor
-                }, false, pipelineIngestService),
+                (factories, tag, description, config, projectId) -> new PipelineProcessor(
+                    tag,
+                    description,
+                    (params) -> new TemplateScript(params) {
+                        @Override
+                        public String execute() {
+                            return "_id3";
+                        } // this pipeline processor will always execute the '_id3' processor
+                    },
+                    false,
+                    pipelineIngestService
+                ),
                 "mock",
-                (factories, tag, description, config) -> processor
+                (factories, tag, description, config, projectId) -> processor
             )
         );
 
@@ -2116,8 +2218,8 @@ public class IngestServiceTests extends ESTestCase {
             return null;
         }).when(processorFailure).execute(any(IngestDocument.class), any());
         Map<String, Processor.Factory> map = Maps.newMapWithExpectedSize(2);
-        map.put("mock", (factories, tag, description, config) -> processor);
-        map.put("failure-mock", (factories, tag, description, config) -> processorFailure);
+        map.put("mock", (factories, tag, description, config, projectId) -> processor);
+        map.put("failure-mock", (factories, tag, description, config, projectId) -> processorFailure);
         map.put("drop", new DropProcessor.Factory());
         IngestService ingestService = createWithProcessors(map);
 
@@ -2324,7 +2426,7 @@ public class IngestServiceTests extends ESTestCase {
     public void testExecuteWithDrop() {
         Map<String, Processor.Factory> factories = new HashMap<>();
         factories.put("drop", new DropProcessor.Factory());
-        factories.put("mock", (processorFactories, tag, description, config) -> new Processor() {
+        factories.put("mock", (processorFactories, tag, description, config, projectId) -> new Processor() {
             @Override
             public IngestDocument execute(final IngestDocument ingestDocument) {
                 throw new AssertionError("Document should have been dropped but reached this processor");
@@ -2397,7 +2499,7 @@ public class IngestServiceTests extends ESTestCase {
         IngestPlugin testPlugin = new IngestPlugin() {
             @Override
             public Map<String, Processor.Factory> getProcessors(Processor.Parameters parameters) {
-                return Map.of("test", (factories, tag, description, config) -> {
+                return Map.of("test", (factories, tag, description, config, projectId) -> {
                     assertThat(counter.compareAndSet(1, 2), is(true));
                     return new FakeProcessor("test", tag, description, ingestDocument -> {});
                 });
@@ -2416,7 +2518,13 @@ public class IngestServiceTests extends ESTestCase {
             client,
             null,
             FailureStoreMetrics.NOOP,
-            TestProjectResolvers.singleProjectOnly()
+            TestProjectResolvers.alwaysThrow(),
+            new FeatureService(List.of()) {
+                @Override
+                public boolean clusterHasFeature(ClusterState state, NodeFeature feature) {
+                    return DataStream.DATA_STREAM_FAILURE_STORE_FEATURE.equals(feature);
+                }
+            }
         );
         ingestService.addIngestClusterStateListener(ingestClusterStateListener);
 
@@ -2438,7 +2546,7 @@ public class IngestServiceTests extends ESTestCase {
         AtomicReference<Object> reference = new AtomicReference<>();
         Consumer<IngestDocument> executor = doc -> reference.set(doc.getFieldValueAsBytes("data"));
         final IngestService ingestService = createWithProcessors(
-            Map.of("foo", (factories, tag, description, config) -> new FakeProcessor("foo", tag, description, executor))
+            Map.of("foo", (factories, tag, description, config, projectId) -> new FakeProcessor("foo", tag, description, executor))
         );
 
         var projectId = randomProjectIdOrDefault();
@@ -2481,9 +2589,9 @@ public class IngestServiceTests extends ESTestCase {
         IngestService ingestService = createWithProcessors(
             Map.of(
                 "mock",
-                (factories, tag, description, config) -> mockCompoundProcessor(),
+                (factories, tag, description, config, projectId) -> mockCompoundProcessor(),
                 "set",
-                (factories, tag, description, config) -> new FakeProcessor(
+                (factories, tag, description, config, projectId) -> new FakeProcessor(
                     "set",
                     tag,
                     description,
@@ -2905,7 +3013,13 @@ public class IngestServiceTests extends ESTestCase {
             client,
             null,
             FailureStoreMetrics.NOOP,
-            TestProjectResolvers.singleProjectOnly()
+            TestProjectResolvers.alwaysThrow(),
+            new FeatureService(List.of()) {
+                @Override
+                public boolean clusterHasFeature(ClusterState state, NodeFeature feature) {
+                    return DataStream.DATA_STREAM_FAILURE_STORE_FEATURE.equals(feature);
+                }
+            }
         );
         ingestService.applyClusterState(new ClusterChangedEvent("", clusterState, clusterState));
 
@@ -3206,12 +3320,12 @@ public class IngestServiceTests extends ESTestCase {
 
     private static IngestService createWithProcessors() {
         Map<String, Processor.Factory> processors = new HashMap<>();
-        processors.put("set", (factories, tag, description, config) -> {
+        processors.put("set", (factories, tag, description, config, projectId) -> {
             String field = (String) config.remove("field");
             String value = (String) config.remove("value");
             return new FakeProcessor("set", tag, description, (ingestDocument) -> ingestDocument.setFieldValue(field, value));
         });
-        processors.put("remove", (factories, tag, description, config) -> {
+        processors.put("remove", (factories, tag, description, config, projectId) -> {
             String field = (String) config.remove("field");
             return new WrappingProcessorImpl("remove", tag, description, (ingestDocument -> ingestDocument.removeField(field))) {
             };
@@ -3220,6 +3334,10 @@ public class IngestServiceTests extends ESTestCase {
     }
 
     private static IngestService createWithProcessors(Map<String, Processor.Factory> processors) {
+        return createWithProcessors(processors, DataStream.DATA_STREAM_FAILURE_STORE_FEATURE::equals);
+    }
+
+    private static IngestService createWithProcessors(Map<String, Processor.Factory> processors, Predicate<NodeFeature> featureTest) {
         Client client = mock(Client.class);
         ThreadPool threadPool = mock(ThreadPool.class);
         when(threadPool.generic()).thenReturn(EsExecutors.DIRECT_EXECUTOR_SERVICE);
@@ -3239,7 +3357,13 @@ public class IngestServiceTests extends ESTestCase {
             client,
             null,
             FailureStoreMetrics.NOOP,
-            TestProjectResolvers.singleProjectOnly()
+            TestProjectResolvers.alwaysThrow(),
+            new FeatureService(List.of()) {
+                @Override
+                public boolean clusterHasFeature(ClusterState state, NodeFeature feature) {
+                    return featureTest.test(feature);
+                }
+            }
         );
         if (randomBoolean()) {
             /*

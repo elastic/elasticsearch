@@ -3,9 +3,9 @@
 **Example**
 
 ```esql
-  FROM employees
+FROM employees
 | EVAL first_letter = SUBSTRING(first_name, 0, 1)
-| STATS first_name=MV_SORT(VALUES(first_name)) BY first_letter
+| STATS first_name = MV_SORT(VALUES(first_name)) BY first_letter
 | SORT first_letter
 ```
 
@@ -35,11 +35,5 @@
 | [Yinghua, Yishay, Yongqiao] | Y |
 | [Zhongwei, Zvonko] | Z |
 | null | null |
-
-::::{warning}
-This can use a significant amount of memory and ES|QL doesn’t yet grow aggregations beyond memory. So this aggregation will work until it is used to collect more values than can fit into memory. Once it collects too many values it will fail the query with a [Circuit Breaker Error](docs-content://troubleshoot/elasticsearch/circuit-breaker-errors.md).
-
-::::
-
 
 

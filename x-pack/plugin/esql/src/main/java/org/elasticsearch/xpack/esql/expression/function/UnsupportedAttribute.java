@@ -28,6 +28,7 @@ import org.elasticsearch.xpack.esql.core.util.PlanStreamOutput;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 
 import java.io.IOException;
+import java.util.List;
 import java.util.Objects;
 
 import static org.elasticsearch.xpack.esql.core.util.PlanStreamInput.readCachedStringWithVersionCheck;
@@ -56,11 +57,11 @@ public final class UnsupportedAttribute extends FieldAttribute implements Unreso
         UnsupportedAttribute::readFrom
     );
 
-    private final String message;
     private final boolean hasCustomMessage; // TODO remove me and just use message != null?
+    private final String message;
 
     private static String errorMessage(String name, UnsupportedEsField field) {
-        return "Cannot use field [" + name + "] with unsupported type [" + field.getOriginalType() + "]";
+        return "Cannot use field [" + name + "] with unsupported type [" + String.join(",", field.getOriginalTypes()) + "]";
     }
 
     public UnsupportedAttribute(Source source, String name, UnsupportedEsField field) {
@@ -162,16 +163,22 @@ public final class UnsupportedAttribute extends FieldAttribute implements Unreso
     }
 
     @Override
+    @SuppressWarnings("checkstyle:EqualsHashCode")// equals is implemented in parent. See innerEquals instead
     public int hashCode() {
         return Objects.hash(super.hashCode(), hasCustomMessage, message);
     }
 
     @Override
-    public boolean equals(Object obj) {
-        if (super.equals(obj)) {
-            var ua = (UnsupportedAttribute) obj;
-            return Objects.equals(hasCustomMessage, ua.hasCustomMessage) && Objects.equals(message, ua.message);
-        }
-        return false;
+    protected boolean innerEquals(Object o) {
+        var other = (UnsupportedAttribute) o;
+        return super.innerEquals(other) && hasCustomMessage == other.hasCustomMessage && Objects.equals(message, other.message);
+    }
+
+    /**
+     * This contains all the underlying ES types.
+     * On a type conflict this will have many elements, some or all of which may be actually supported types.
+     */
+    public List<String> originalTypes() {
+        return field().getOriginalTypes();
     }
 }

@@ -14,3 +14,5 @@ com.azure.identity:
     - relative_path: "storage-azure/" #/config/storage-azure/azure-federated-token
       relative_to: config
       mode: read
+reactor.core:
+  - manage_threads

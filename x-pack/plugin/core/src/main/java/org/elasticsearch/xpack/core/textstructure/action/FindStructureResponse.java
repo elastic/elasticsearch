@@ -27,7 +27,6 @@ public class FindStructureResponse extends ActionResponse implements ToXContentO
     }
 
     FindStructureResponse(StreamInput in) throws IOException {
-        super(in);
         textStructure = new TextStructure(in);
     }
 

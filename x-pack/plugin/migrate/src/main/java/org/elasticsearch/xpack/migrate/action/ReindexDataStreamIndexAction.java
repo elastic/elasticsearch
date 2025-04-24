@@ -102,7 +102,6 @@ public class ReindexDataStreamIndexAction extends ActionType<ReindexDataStreamIn
         }
 
         public Response(StreamInput in) throws IOException {
-            super(in);
             this.destIndex = in.readString();
         }
 

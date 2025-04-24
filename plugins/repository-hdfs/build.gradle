@@ -111,7 +111,7 @@ tasks.named("dependencyLicenses").configure {
 }
 
 tasks.withType(RestIntegTestTask).configureEach {
-  usesDefaultDistribution()
+  usesDefaultDistribution("to be triaged")
   buildParams.withFipsEnabledOnly(it)
   jvmArgs '--add-exports', 'java.security.jgss/sun.security.krb5=ALL-UNNAMED'
 }

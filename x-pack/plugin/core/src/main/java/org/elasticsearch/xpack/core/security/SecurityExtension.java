@@ -116,11 +116,13 @@ public interface SecurityExtension {
     }
 
     /**
-     * Returns a service account token store to authenticate service account tokens, or null to use the default service account token stores
+     * Returns a {@link ServiceAccountTokenStore} used to authenticate service account tokens.
+     * If {@code null} is returned, the default service account token stores will be used.
      *
-     * If a {@link ServiceAccountTokenStore} is provided here it will replace existing service account token stores
+     * Providing a custom {@link ServiceAccountTokenStore} here overrides the default implementation.
      *
-     * @param components Access to components that may be used to authenticate service account tokens
+     * @param components Access to components that can be used to authenticate service account tokens
+     * @return A custom {@link ServiceAccountTokenStore}, or {@code null} to use the default
      */
     default ServiceAccountTokenStore getServiceAccountTokenStore(SecurityComponents components) {
         return null;

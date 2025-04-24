@@ -959,7 +959,6 @@ public class Security extends Plugin
                 client,
                 new CompositeServiceAccountTokenStore(extensionTokenStores, client.threadPool().getThreadContext())
             );
-            // TODO Should this also register with the cacheInvalidatorRegistry?
         }
 
         components.add(serviceAccountService);

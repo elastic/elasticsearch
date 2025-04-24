@@ -1,5 +1,5 @@
 setup:
-  - skip: 
+  - skip:
       features: allowed_warnings
 
 ---
@@ -31,6 +31,22 @@ setup:
         wait_for_status: green
 
   - do:
+      indices.get_data_stream_settings:
+        name: my-data-stream-1
+  - match: { data_streams.0.name: my-data-stream-1 }
+  - match: { data_streams.0.settings: {} }
+  - match: { data_streams.0.effective_settings.index.number_of_shards: null }
+  - match: { data_streams.0.effective_settings.index.number_of_replicas: "0" }
+  - match: { data_streams.0.effective_settings.index.lifecycle.name: "my-policy" }
+
+  - do:
+      indices.get_data_stream:
+        name: my-data-stream-1
+  - match: { data_streams.0.name: my-data-stream-1 }
+  - match: { data_streams.0.settings: {} }
+  - match: { data_streams.0.effective_settings: null }
+
+  - do:
       indices.put_data_stream_settings:
         name: my-data-stream-1
         body:
@@ -44,6 +60,22 @@ setup:
   - match: { data_streams.0.effective_settings.index.number_of_shards: "2" }
   - match: { data_streams.0.effective_settings.index.number_of_replicas: "0" }
   - match: { data_streams.0.effective_settings.index.lifecycle.name: "my-policy" }
+
+  - do:
+      indices.get_data_stream_settings:
+        name: my-data-stream-1
+  - match: { data_streams.0.name: my-data-stream-1 }
+  - match: { data_streams.0.settings.index.number_of_shards: "2" }
+  - match: { data_streams.0.effective_settings.index.number_of_shards: "2" }
+  - match: { data_streams.0.effective_settings.index.number_of_replicas: "0" }
+  - match: { data_streams.0.effective_settings.index.lifecycle.name: "my-policy" }
+
+  - do:
+      indices.get_data_stream:
+        name: my-data-stream-1
+  - match: { data_streams.0.name: my-data-stream-1 }
+  - match: { data_streams.0.settings.index.number_of_shards: "2" }
+  - match: { data_streams.0.effective_settings: null }
 
 ---
 "Test invalid settings":

@@ -102,8 +102,6 @@ public abstract class BaseTransportInferenceAction<Request extends BaseInference
         NodeClient nodeClient,
         ThreadPool threadPool
     ) {
-        // TransportInferenceActionProxy depends on this action passing EsExecutors.DIRECT_EXECUTOR_SERVICE to preserve the headers.
-        // If we change the ExecutorService, change the listener in TransportInferenceActionProxy to ContextPreservingActionListener.
         super(inferenceActionName, transportService, actionFilters, requestReader, EsExecutors.DIRECT_EXECUTOR_SERVICE);
         this.licenseState = licenseState;
         this.modelRegistry = modelRegistry;

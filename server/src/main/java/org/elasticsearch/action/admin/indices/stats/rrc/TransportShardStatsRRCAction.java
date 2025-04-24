@@ -115,10 +115,15 @@ public class TransportShardStatsRRCAction extends
             ShardSearchRRCStats.ShardStats shardStats = indexShard.shardRRCStats();
 
             String shardName = shardId.getIndex().getName() + "_" + shardId.getId() + "_" + shardRouting.allocationId().getId();
-
             logger.info(
-                "Multi SN - Shard: [{}], response time [{}], delta [{}] ewma [{}]",
-                shardName, shardStats.responseTime(), shardStats.delta(), shardStats.ewma());
+                "Multi - Shard: [{}], response time [{}], delta [{}] ewma [{}]",
+                shardName, shardStats.lastTrackedTime(), shardStats.delta(), shardStats.ewma());
+
+
+            try {
+                Thread.sleep(100);
+            } catch (InterruptedException e) {
+            }
 
             return new ShardStatsRRC(shardId.getIndex().getName(), shardId.getId(), shardRouting.allocationId().getId(), shardStats.ewma());
         });

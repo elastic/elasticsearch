@@ -38,8 +38,8 @@ public class ShardSearchRRCStats {
             ewma.addValue(delta);
         }
 
-        return new ShardStats(trackedTime, delta, ewma.getAverage());
+        return new ShardStats(lastTrackedTime, delta, ewma.getAverage());
     }
 
-    public record ShardStats(long responseTime, long delta, double ewma) {}
+    public record ShardStats(long lastTrackedTime, long delta, double ewma) {}
 }

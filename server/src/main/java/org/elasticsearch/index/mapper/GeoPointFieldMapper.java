@@ -57,6 +57,7 @@ import org.elasticsearch.xcontent.FilterXContentParserWrapper;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentString;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -325,6 +326,11 @@ public class GeoPointFieldMapper extends AbstractPointGeometryFieldMapper<GeoPoi
         GeoHashMultiFieldParser(XContentParser innerParser, String value) {
             super(innerParser);
             this.value = value;
+        }
+
+        @Override
+        public XContentString xContentTextOrNull() throws IOException {
+            return new XContentString(value);
         }
 
         @Override

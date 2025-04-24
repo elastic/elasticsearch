@@ -10,29 +10,23 @@
 package org.elasticsearch.common.settings;
 
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.metadata.Metadata;
-import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.core.Tuple;
 
-import java.util.Map;
-
 import static org.elasticsearch.cluster.ClusterState.builder;
-import static org.elasticsearch.common.settings.AbstractScopedSettings.ARCHIVED_SETTINGS_PREFIX;
 
 /**
  * Updates transient and persistent cluster state settings if there are any changes
  * due to the update.
  */
-public final class SettingsUpdater {
+public final class SettingsUpdater extends BaseSettingsUpdater {
     final Settings.Builder transientUpdates = Settings.builder();
     final Settings.Builder persistentUpdates = Settings.builder();
-    private final AbstractScopedSettings scopedSettings;
 
-    public SettingsUpdater(AbstractScopedSettings scopedSettings) {
-        this.scopedSettings = scopedSettings;
+    public SettingsUpdater(ClusterSettings scopedSettings) {
+        super(scopedSettings);
     }
 
     public synchronized Settings getTransientUpdates() {
@@ -125,90 +119,4 @@ public final class SettingsUpdater {
 
         return clusterState;
     }
-
-    public synchronized ProjectMetadata updateProjectSettings(
-        final ProjectMetadata projectMetadata,
-        final Settings settingsToApply,
-        final Logger logger
-    ) {
-        final Tuple<Settings, Settings> partitionedSettings = partitionKnownAndValidSettings(projectMetadata.settings(), "project", logger);
-        final Settings knownAndValidPersistentSettings = partitionedSettings.v1();
-        final Settings unknownOrInvalidSettings = partitionedSettings.v2();
-        Settings.Builder builder = Settings.builder().put(knownAndValidPersistentSettings);
-
-        boolean changed = scopedSettings.updateSettings(
-            settingsToApply,
-            builder,
-            persistentUpdates,
-            "project[" + projectMetadata.id() + "]"
-        );
-        if (changed == false) {
-            return projectMetadata;
-        }
-
-        Settings finalSettings = builder.build();
-        // validate that settings and their values are correct
-        scopedSettings.validate(finalSettings, true);
-
-        Settings resultSettings = Settings.builder().put(finalSettings).put(unknownOrInvalidSettings).build();
-        ProjectMetadata.Builder result = ProjectMetadata.builder(projectMetadata).settings(resultSettings);
-        // validate that SettingsUpdaters can be applied without errors
-        scopedSettings.validateUpdate(resultSettings);
-
-        return result.build();
-    }
-
-    /**
-     * Partitions the settings into those that are known and valid versus those that are unknown or invalid. The resulting tuple contains
-     * the known and valid settings in the first component and the unknown or invalid settings in the second component. Note that archived
-     * settings contained in the settings to partition are included in the first component.
-     *
-     * @param settings     the settings to partition
-     * @param settingsType a string to identify the settings (for logging)
-     * @param logger       a logger to sending warnings to
-     * @return the partitioned settings
-     */
-    private Tuple<Settings, Settings> partitionKnownAndValidSettings(
-        final Settings settings,
-        final String settingsType,
-        final Logger logger
-    ) {
-        final Settings existingArchivedSettings = settings.filter(k -> k.startsWith(ARCHIVED_SETTINGS_PREFIX));
-        final Settings settingsExcludingExistingArchivedSettings = settings.filter(k -> k.startsWith(ARCHIVED_SETTINGS_PREFIX) == false);
-        final Settings settingsWithUnknownOrInvalidArchived = scopedSettings.archiveUnknownOrInvalidSettings(
-            settingsExcludingExistingArchivedSettings,
-            e -> logUnknownSetting(settingsType, e, logger),
-            (e, ex) -> logInvalidSetting(settingsType, e, ex, logger)
-        );
-        return Tuple.tuple(
-            Settings.builder()
-                .put(settingsWithUnknownOrInvalidArchived.filter(k -> k.startsWith(ARCHIVED_SETTINGS_PREFIX) == false))
-                .put(existingArchivedSettings)
-                .build(),
-            settingsWithUnknownOrInvalidArchived.filter(k -> k.startsWith(ARCHIVED_SETTINGS_PREFIX))
-        );
-    }
-
-    private static void logUnknownSetting(final String settingType, final Map.Entry<String, String> e, final Logger logger) {
-        logger.warn("ignoring existing unknown {} setting: [{}] with value [{}]; archiving", settingType, e.getKey(), e.getValue());
-    }
-
-    private static void logInvalidSetting(
-        final String settingType,
-        final Map.Entry<String, String> e,
-        final IllegalArgumentException ex,
-        final Logger logger
-    ) {
-        logger.warn(
-            (Supplier<?>) () -> "ignoring existing invalid "
-                + settingType
-                + " setting: ["
-                + e.getKey()
-                + "] with value ["
-                + e.getValue()
-                + "]; archiving",
-            ex
-        );
-    }
-
 }

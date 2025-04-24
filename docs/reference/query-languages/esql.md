@@ -12,9 +12,9 @@ This section provides detailed **reference information** about the {{esql}} lang
 For overview, conceptual, and getting started information, refer to the [{{esql}} language overview](docs-content://explore-analyze/query-filter/languages/esql.md) in the **Explore and analyze** section.
 :::
 
-{{esql}} is a SQL-like query language for querying and analyzing time series data in {{es}}. It is designed to be easy to use and understand, while also being powerful enough to handle complex queries.
+{{esql}} is a piped query language for exploring and analyzing data in {{es}}. It is designed to be easy to use and understand, while also being powerful enough to handle complex data processing.
 
-This reference section provides detailed technical information about {{esql}} features, syntax, and behaviors:
+This reference section provides detailed technical information about {{esql}} features, syntax, and behavior:
 
 * [Syntax reference](esql/esql-syntax-reference.md): Learn the basic syntax of commands, functions, and operators
 * [Advanced commands](esql/esql-advanced-commands.md): Learn about structured text extraction with `DISSECT` and `GROK`, and combining data from multiple indices with `ENRICH` and `LOOKUP JOIN`

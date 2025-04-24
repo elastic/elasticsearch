@@ -2,7 +2,7 @@
 navigation_title: "Types and fields"
 ---
 
-# Types and fields in {{esql}}
+# Types and special fields in {{esql}}
 
 This section details how {{esql}} handles different data types and special fields.
 
@@ -10,6 +10,6 @@ This section details how {{esql}} handles different data types and special field
 
 * [Time spans](esql-time-spans.md): Learn how to work with time intervals in {{esql}}.
 
-* [Metadata fields](esql-metadata-fields.md): Learn about the metadata fields supported by {{esql}}, including `index` and `score`.
+* [Metadata fields](esql-metadata-fields.md): Learn about the metadata fields supported by {{esql}}, including `_index` and `_score`.
 
 * [Multivalued fields](esql-multivalued-fields.md): Learn how to work with fields that contain multiple values in {{esql}}.

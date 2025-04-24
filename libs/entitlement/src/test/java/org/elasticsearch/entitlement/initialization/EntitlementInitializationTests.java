@@ -27,7 +27,6 @@ import static org.hamcrest.Matchers.both;
 import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.startsWith;
 
-@ESTestCase.WithoutSecurityManager
 public class EntitlementInitializationTests extends ESTestCase {
 
     private static PathLookup TEST_PATH_LOOKUP;

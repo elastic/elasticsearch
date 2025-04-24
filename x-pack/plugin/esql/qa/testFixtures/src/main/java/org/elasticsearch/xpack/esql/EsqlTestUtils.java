@@ -294,6 +294,11 @@ public final class EsqlTestUtils {
         public boolean isSingleValue(String field) {
             return false;
         }
+
+        @Override
+        public boolean canUseEqualityOnSyntheticSourceDelegate(String name, String value) {
+            return false;
+        }
     }
 
     /**

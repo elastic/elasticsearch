@@ -12,6 +12,7 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
+import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.action.AbstractEsqlIntegTestCase;
 import org.junit.Before;
 
@@ -29,14 +30,34 @@ public class KnnFunctionIT extends AbstractEsqlIntegTestCase {
 
     public void testKnn() {
         var query = """
-            FROM test
-            | WHERE knn(vector, [1.0, 2.0, 3.0])
-            | KEEP id, floats
+            FROM test METADATA _score
+            | WHERE knn(vector, [1.0, 1.0, 1.0])
+            | KEEP id, floats, _score, vector
+            | SORT _score DESC
             """;
 
         try (var resp = run(query)) {
-            assertColumnNames(resp.columns(), List.of("id", "floats"));
-            assertColumnTypes(resp.columns(), List.of("integer", "double"));
+            assertColumnNames(resp.columns(), List.of("id", "floats", "_score", "vector"));
+            assertColumnTypes(resp.columns(), List.of("integer", "double", "double", "dense_vector"));
+
+            List<List<Object>> valuesList = EsqlTestUtils.getValuesList(resp);
+            assertEquals(indexedVectors.size(), valuesList.size());
+            for (int i = 0; i < valuesList.size(); i++) {
+                List<Object> row = valuesList.get(i);
+                // Vectors should be in order of ID, as they're less similar than the query vector as the ID increases
+                assertEquals(i, row.getFirst());
+                @SuppressWarnings("unchecked")
+                // Vectors should be the same
+                List<Double> floats = (List<Double>)row.get(1);
+                for(int j = 0; j < floats.size(); j++) {
+                    assertEquals(floats.get(j).floatValue(), indexedVectors.get(i).get(j), 0f);
+                }
+                var score = (Double) row.get(2);
+                assertNotNull(score);
+                assertTrue(score > 0.0);
+                // dense_vector is null for now
+                assertNull(row.get(3));
+            }
         }
     }
 
@@ -67,7 +88,7 @@ public class KnnFunctionIT extends AbstractEsqlIntegTestCase {
         var CreateRequest = client.prepareCreate(indexName).setMapping(mapping).setSettings(settingsBuilder.build());
         assertAcked(CreateRequest);
 
-        int numDocs = randomIntBetween(10, 100);
+        int numDocs = 10;
         int numDims = 3;
         IndexRequestBuilder[] docs = new IndexRequestBuilder[numDocs];
         float value = 0.0f;
@@ -76,7 +97,7 @@ public class KnnFunctionIT extends AbstractEsqlIntegTestCase {
             for (int j = 0; j < numDims; j++) {
                 vector.add(value++);
             }
-            docs[i] = prepareIndex("test").setId("" + i).setSource("id", String.valueOf(i), "vector", vector);
+            docs[i] = prepareIndex("test").setId("" + i).setSource("id", String.valueOf(i), "floats", vector, "vector", vector);
             indexedVectors.put(i, vector);
         }
 

@@ -47,4 +47,9 @@ public class KnnQuery extends Query {
     public int hashCode() {
         return Objects.hash(super.hashCode(), field, Arrays.hashCode(query));
     }
+
+    @Override
+    public boolean scorable() {
+        return true;
+    }
 }

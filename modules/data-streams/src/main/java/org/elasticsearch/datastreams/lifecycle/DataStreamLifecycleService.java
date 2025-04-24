@@ -365,7 +365,10 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
         int affectedDataStreams = 0;
         for (DataStream dataStream : project.dataStreams().values()) {
             clearErrorStoreForUnmanagedIndices(project, dataStream);
-            if (dataStream.getDataLifecycle() == null) {
+            var dataLifecycleEnabled = dataStream.getDataLifecycle() != null && dataStream.getDataLifecycle().enabled();
+            var failureLifecycle = dataStream.getFailuresLifecycle();
+            var failuresLifecycleEnabled = failureLifecycle != null && failureLifecycle.enabled();
+            if (dataLifecycleEnabled == false && failuresLifecycleEnabled == false) {
                 continue;
             }
 
@@ -924,7 +927,7 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
         }
         Set<Index> indicesToBeRemoved = new HashSet<>();
         if (backingIndicesOlderThanRetention.isEmpty() == false) {
-            assert dataStream.getDataLifecycle() != null : "data stream should have failure lifecycle if we have 'old' indices";
+            assert dataStream.getDataLifecycle() != null : "data stream should have failures lifecycle if we have 'old' indices";
             for (Index index : backingIndicesOlderThanRetention) {
                 if (indicesToExcludeForRemainingRun.contains(index) == false) {
                     IndexMetadata backingIndex = project.index(index);
@@ -957,7 +960,7 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
             }
         }
         if (failureIndicesOlderThanRetention.isEmpty() == false) {
-            assert dataStream.getFailuresLifecycle() != null : "data stream should have failure lifecycle if we have 'old' indices";
+            assert dataStream.getFailuresLifecycle() != null : "data stream should have failures lifecycle if we have 'old' indices";
             for (Index index : failureIndicesOlderThanRetention) {
                 if (indicesToExcludeForRemainingRun.contains(index) == false) {
                     IndexMetadata failureIndex = project.index(index);
@@ -1487,10 +1490,10 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
         TimeValue dataRetention,
         boolean rolloverFailureStore
     ) {
-        RolloverRequest rolloverRequest = new RolloverRequest(dataStream, null).masterNodeTimeout(TimeValue.MAX_VALUE);
-        if (rolloverFailureStore) {
-            rolloverRequest.setRolloverTarget(IndexNameExpressionResolver.combineSelector(dataStream, IndexComponentSelector.FAILURES));
-        }
+        var rolloverTarget = rolloverFailureStore
+            ? IndexNameExpressionResolver.combineSelector(dataStream, IndexComponentSelector.FAILURES)
+            : dataStream;
+        RolloverRequest rolloverRequest = new RolloverRequest(rolloverTarget, null).masterNodeTimeout(TimeValue.MAX_VALUE);
         rolloverRequest.setConditions(rolloverConfiguration.resolveRolloverConditions(dataRetention));
         return rolloverRequest;
     }

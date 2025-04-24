@@ -108,6 +108,7 @@ import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import java.util.stream.LongStream;
 
+import static org.elasticsearch.compute.lucene.ValuesSourceReaderOperatorTests.STORED_FIELDS_SEQUENTIAL_PROPORTIONS;
 import static org.elasticsearch.test.MapMatcher.assertMap;
 import static org.elasticsearch.test.MapMatcher.matchesMap;
 import static org.elasticsearch.xpack.esql.core.type.DataType.IP;
@@ -239,7 +240,7 @@ public class ValueSourceReaderTypeConversionTests extends AnyOperatorTestCase {
                 fail("unexpected shardIdx [" + shardIdx + "]");
             }
             return loader;
-        })), shardContexts, 0);
+        })), shardContexts, 0, STORED_FIELDS_SEQUENTIAL_PROPORTIONS);
     }
 
     protected SourceOperator simpleInput(DriverContext context, int size) {
@@ -488,7 +489,8 @@ public class ValueSourceReaderTypeConversionTests extends AnyOperatorTestCase {
             new ValuesSourceReaderOperator.Factory(
                 List.of(testCase.info, fieldInfo(mapperService(indexKey).fieldType("key"), ElementType.INT)),
                 shardContexts,
-                0
+                0,
+                STORED_FIELDS_SEQUENTIAL_PROPORTIONS
             ).get(driverContext)
         );
         List<Page> results = drive(operators, input.iterator(), driverContext);
@@ -598,7 +600,8 @@ public class ValueSourceReaderTypeConversionTests extends AnyOperatorTestCase {
                     fieldInfo(mapperService("index1").fieldType("indexKey"), ElementType.BYTES_REF)
                 ),
                 shardContexts,
-                0
+                0,
+                STORED_FIELDS_SEQUENTIAL_PROPORTIONS
             ).get(driverContext)
         );
         List<FieldCase> tests = new ArrayList<>();
@@ -607,7 +610,12 @@ public class ValueSourceReaderTypeConversionTests extends AnyOperatorTestCase {
             cases.removeAll(b);
             tests.addAll(b);
             operators.add(
-                new ValuesSourceReaderOperator.Factory(b.stream().map(i -> i.info).toList(), shardContexts, 0).get(driverContext)
+                new ValuesSourceReaderOperator.Factory(
+                    b.stream().map(i -> i.info).toList(),
+                    shardContexts,
+                    0,
+                    STORED_FIELDS_SEQUENTIAL_PROPORTIONS
+                ).get(driverContext)
             );
         }
         List<Page> results = drive(operators, input.iterator(), driverContext);
@@ -709,7 +717,11 @@ public class ValueSourceReaderTypeConversionTests extends AnyOperatorTestCase {
             Block.MvOrdering.DEDUPLICATED_AND_SORTED_ASCENDING
         );
         List<Operator> operators = cases.stream()
-            .map(i -> new ValuesSourceReaderOperator.Factory(List.of(i.info), shardContexts, 0).get(driverContext))
+            .map(
+                i -> new ValuesSourceReaderOperator.Factory(List.of(i.info), shardContexts, 0, STORED_FIELDS_SEQUENTIAL_PROPORTIONS).get(
+                    driverContext
+                )
+            )
             .toList();
         if (allInOnePage) {
             input = List.of(CannedSourceOperator.mergePages(input));
@@ -1385,7 +1397,8 @@ public class ValueSourceReaderTypeConversionTests extends AnyOperatorTestCase {
                             new ValuesSourceReaderOperator.FieldInfo("null2", ElementType.NULL, shardIdx -> BlockLoader.CONSTANT_NULLS)
                         ),
                         shardContexts,
-                        0
+                        0,
+                        STORED_FIELDS_SEQUENTIAL_PROPORTIONS
                     ).get(driverContext)
                 ),
                 new PageConsumerOperator(page -> {
@@ -1416,7 +1429,8 @@ public class ValueSourceReaderTypeConversionTests extends AnyOperatorTestCase {
         ValuesSourceReaderOperator.Factory factory = new ValuesSourceReaderOperator.Factory(
             cases.stream().map(c -> c.info).toList(),
             List.of(new ValuesSourceReaderOperator.ShardContext(reader(indexKey), () -> SourceLoader.FROM_STORED_SOURCE)),
-            0
+            0,
+            STORED_FIELDS_SEQUENTIAL_PROPORTIONS
         );
         assertThat(factory.describe(), equalTo("ValuesSourceReaderOperator[fields = [" + cases.size() + " fields]]"));
         try (Operator op = factory.get(driverContext())) {
@@ -1462,7 +1476,8 @@ public class ValueSourceReaderTypeConversionTests extends AnyOperatorTestCase {
                     return ft.blockLoader(blContext());
                 })),
                 readerShardContexts,
-                0
+                0,
+                STORED_FIELDS_SEQUENTIAL_PROPORTIONS
             );
             DriverContext driverContext = driverContext();
             List<Page> results = drive(

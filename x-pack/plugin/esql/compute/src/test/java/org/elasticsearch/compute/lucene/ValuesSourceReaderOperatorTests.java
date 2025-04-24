@@ -114,6 +114,8 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
         { false, true, true },
         { false, false, true, true } };
 
+    static final double STORED_FIELDS_SEQUENTIAL_PROPORTIONS = 0.1;
+
     private Directory directory = newDirectory();
     private MapperService mapperService;
     private IndexReader reader;
@@ -147,7 +149,11 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
                 fail("unexpected shardIdx [" + shardIdx + "]");
             }
             return loader;
-        })), List.of(new ValuesSourceReaderOperator.ShardContext(reader, () -> SourceLoader.FROM_STORED_SOURCE)), 0);
+        })),
+            List.of(new ValuesSourceReaderOperator.ShardContext(reader, () -> SourceLoader.FROM_STORED_SOURCE)),
+            0,
+            STORED_FIELDS_SEQUENTIAL_PROPORTIONS
+        );
     }
 
     @Override
@@ -444,7 +450,8 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
             new ValuesSourceReaderOperator.Factory(
                 List.of(testCase.info, fieldInfo(mapperService.fieldType("key"), ElementType.INT)),
                 List.of(new ValuesSourceReaderOperator.ShardContext(reader, () -> SourceLoader.FROM_STORED_SOURCE)),
-                0
+                0,
+                STORED_FIELDS_SEQUENTIAL_PROPORTIONS
             ).get(driverContext)
         );
         List<Page> results = drive(operators, input.iterator(), driverContext);
@@ -550,7 +557,8 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
             new ValuesSourceReaderOperator.Factory(
                 List.of(fieldInfo(mapperService.fieldType("key"), ElementType.INT)),
                 List.of(new ValuesSourceReaderOperator.ShardContext(reader, () -> SourceLoader.FROM_STORED_SOURCE)),
-                0
+                0,
+                STORED_FIELDS_SEQUENTIAL_PROPORTIONS
             ).get(driverContext)
         );
         List<FieldCase> tests = new ArrayList<>();
@@ -562,7 +570,8 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
                 new ValuesSourceReaderOperator.Factory(
                     b.stream().map(i -> i.info).toList(),
                     List.of(new ValuesSourceReaderOperator.ShardContext(reader, () -> SourceLoader.FROM_STORED_SOURCE)),
-                    0
+                    0,
+                    STORED_FIELDS_SEQUENTIAL_PROPORTIONS
                 ).get(driverContext)
             );
         }
@@ -652,7 +661,8 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
                 i -> new ValuesSourceReaderOperator.Factory(
                     List.of(i.info),
                     List.of(new ValuesSourceReaderOperator.ShardContext(reader, () -> SourceLoader.FROM_STORED_SOURCE)),
-                    0
+                    0,
+                    STORED_FIELDS_SEQUENTIAL_PROPORTIONS
                 ).get(driverContext)
             )
             .toList();
@@ -1418,7 +1428,8 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
                             new ValuesSourceReaderOperator.FieldInfo("null2", ElementType.NULL, shardIdx -> BlockLoader.CONSTANT_NULLS)
                         ),
                         List.of(new ValuesSourceReaderOperator.ShardContext(reader, () -> SourceLoader.FROM_STORED_SOURCE)),
-                        0
+                        0,
+                        STORED_FIELDS_SEQUENTIAL_PROPORTIONS
                     ).get(driverContext)
                 ),
                 new PageConsumerOperator(page -> {
@@ -1463,7 +1474,8 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
                 fieldInfo(storedTextField("stored_text"), ElementType.BYTES_REF)
             ),
             List.of(new ValuesSourceReaderOperator.ShardContext(reader, () -> SourceLoader.FROM_STORED_SOURCE)),
-            0
+            0,
+            STORED_FIELDS_SEQUENTIAL_PROPORTIONS
         ).get(driverContext);
         List<Page> results = drive(op, source.iterator(), driverContext);
         Checks checks = new Checks(Block.MvOrdering.UNORDERED, Block.MvOrdering.UNORDERED);
@@ -1491,7 +1503,8 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
         ValuesSourceReaderOperator.Factory factory = new ValuesSourceReaderOperator.Factory(
             cases.stream().map(c -> c.info).toList(),
             List.of(new ValuesSourceReaderOperator.ShardContext(reader, () -> SourceLoader.FROM_STORED_SOURCE)),
-            0
+            0,
+            STORED_FIELDS_SEQUENTIAL_PROPORTIONS
         );
         assertThat(factory.describe(), equalTo("ValuesSourceReaderOperator[fields = [" + cases.size() + " fields]]"));
         try (Operator op = factory.get(driverContext())) {
@@ -1535,7 +1548,8 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
                     return ft.blockLoader(blContext());
                 })),
                 readerShardContexts,
-                0
+                0,
+                STORED_FIELDS_SEQUENTIAL_PROPORTIONS
             );
             DriverContext driverContext = driverContext();
             List<Page> results = drive(

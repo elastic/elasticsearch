@@ -95,7 +95,7 @@ public class ReplaceFieldWithConstantOrNull extends ParameterizedRule<LogicalPla
             for (int i = 0, size = relationOutput.size(); i < size; i++) {
                 Attribute attr = relationOutput.get(i);
                 NamedExpression projection;
-                if (attr instanceof FieldAttribute f && (shouldBeRetained.test(f) == false)) {
+                if (attr instanceof FieldAttribute f && shouldBeRetained.test(f) == false) {
                     DataType dt = f.dataType();
                     Alias nullAlias = nullLiterals.get(dt);
                     // save the first field as null (per datatype)

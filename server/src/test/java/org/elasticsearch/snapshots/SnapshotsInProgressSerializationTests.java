@@ -248,7 +248,11 @@ public class SnapshotsInProgressSerializationTests extends SimpleDiffableWireSer
                     entries = shuffledList(entries);
                 }
                 final Entry firstEntry = perRepoEntries.get(0);
-                updatedInstance = updatedInstance.createCopyWithUpdatedEntriesForRepo(firstEntry.projectId(), firstEntry.repository(), entries);
+                updatedInstance = updatedInstance.createCopyWithUpdatedEntriesForRepo(
+                    firstEntry.projectId(),
+                    firstEntry.repository(),
+                    entries
+                );
             }
         }
         return updatedInstance;

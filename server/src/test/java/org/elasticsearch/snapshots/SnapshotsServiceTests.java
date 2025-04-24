@@ -713,7 +713,10 @@ public class SnapshotsServiceTests extends ESTestCase {
     private static ClusterState stateWithSnapshots(ClusterState state, String repository, SnapshotsInProgress.Entry... entries) {
         return ClusterState.builder(state)
             .version(state.version() + 1L)
-            .putCustom(SnapshotsInProgress.TYPE, SnapshotsInProgress.EMPTY.createCopyWithUpdatedEntriesForRepo(repository, Arrays.asList(entries)))
+            .putCustom(
+                SnapshotsInProgress.TYPE,
+                SnapshotsInProgress.EMPTY.createCopyWithUpdatedEntriesForRepo(repository, Arrays.asList(entries))
+            )
             .build();
     }
 

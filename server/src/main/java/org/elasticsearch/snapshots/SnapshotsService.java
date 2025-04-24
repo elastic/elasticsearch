@@ -4055,7 +4055,10 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
             for (final var taskContext : batchExecutionContext.taskContexts()) {
                 if (taskContext.getTask() instanceof CreateSnapshotTask task) {
                     try {
-                        registeredPolicySnapshots.addIfSnapshotIsSLMInitiated(task.createSnapshotRequest.userMetadata(), task.snapshot.getSnapshotId());
+                        registeredPolicySnapshots.addIfSnapshotIsSLMInitiated(
+                            task.createSnapshotRequest.userMetadata(),
+                            task.snapshot.getSnapshotId()
+                        );
                         final var repoMeta = RepositoriesMetadata.get(state).repository(task.snapshot.getRepository());
                         if (Objects.equals(task.initialRepositoryMetadata, repoMeta)) {
                             snapshotsInProgress = createSnapshot(task, taskContext, state, snapshotsInProgress);

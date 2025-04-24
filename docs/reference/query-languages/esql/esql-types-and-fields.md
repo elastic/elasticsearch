@@ -4,7 +4,7 @@ navigation_title: "Types and fields"
 
 # Types and fields in {{esql}}
 
-{{esql}} provides ways to work with various data types and special fields. This section covers both the type system and fields that require specific handling or offer special capabilities.
+{{esql}} has specific rules for how it handles different data types and special fields. This section explains {{esql}}'s type conversion behavior, time span representations, and how to work with metadata and multivalued fields.
 
 ## What's in this section
 

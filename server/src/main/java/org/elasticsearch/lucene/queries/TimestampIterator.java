@@ -99,6 +99,13 @@ final class TimestampIterator extends TwoPhaseIterator {
                     case YES:
                         return doc = target;
                     case MAYBE:
+                        if (target > innerApproximation.docID()) {
+                            target = innerApproximation.advance(target);
+                        }
+                        if (target <= upTo) {
+                            return doc = target;
+                        }
+                        break;
                     case NO:
                         if (match == Match.NO) {
                             primaryFieldSkipper.advance(target);

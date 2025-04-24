@@ -61,8 +61,20 @@ public final class TimestampQuery extends Query {
 
             @Override
             public ScorerSupplier scorerSupplier(LeafReaderContext context) throws IOException {
-                int maxDoc = context.reader().maxDoc();
-                var timestampSkipper = context.reader().getDocValuesSkipper(FIELD_NAME);
+                var reader = context.reader();
+                int maxDoc = reader.maxDoc();
+                if (maxDoc == 0) {
+                    return null;
+                }
+                if (reader.getFieldInfos().fieldInfo(FIELD_NAME) == null) {
+                    return null;
+                }
+
+                Sort indexSort = reader.getMetaData().sort();
+                assert indexSort != null;
+                assert indexSort.getSort().length == 1 || indexSort.getSort().length == 2;
+
+                var timestampSkipper = reader.getDocValuesSkipper(FIELD_NAME);
                 assert timestampSkipper != null;
                 if (timestampSkipper.minValue() > maxTimestamp || timestampSkipper.maxValue() < minTimestamp) {
                     return null;
@@ -71,14 +83,10 @@ public final class TimestampQuery extends Query {
                     return ConstantScoreScorerSupplier.matchAll(score(), scoreMode, maxDoc);
                 }
 
-                Sort indexSort = context.reader().getMetaData().sort();
-                assert indexSort != null;
-                assert indexSort.getSort().length == 1 || indexSort.getSort().length == 2;
-                String primarySortField = indexSort.getSort()[0].getField();
-
                 var timestamps = getNumericDocValues(context);
+                String primarySortField = indexSort.getSort()[0].getField();
                 boolean timestampIsPrimarySort = primarySortField.equals(FIELD_NAME);
-                var primaryFieldValues = timestampIsPrimarySort ? null : context.reader().getSortedDocValues(primarySortField);
+                var primaryFieldValues = timestampIsPrimarySort ? null : reader.getSortedDocValues(primarySortField);
                 if (primaryFieldValues == null || primaryFieldValues.getValueCount() <= 1) {
                     var iterator = getIteratorIfTimestampIfPrimarySort(maxDoc, timestamps, timestampSkipper, minTimestamp, maxTimestamp);
                     return ConstantScoreScorerSupplier.fromIterator(iterator, score(), scoreMode, maxDoc);
@@ -95,7 +103,7 @@ public final class TimestampQuery extends Query {
                         return 2; // 2 comparisons
                     }
                 };
-                var primaryFieldSkipper = context.reader().getDocValuesSkipper(primarySortField);
+                var primaryFieldSkipper = reader.getDocValuesSkipper(primarySortField);
                 iterator = new TimestampIterator(iterator, timestampSkipper, primaryFieldSkipper, minTimestamp, maxTimestamp);
                 return ConstantScoreScorerSupplier.fromIterator(TwoPhaseIterator.asDocIdSetIterator(iterator), score(), scoreMode, maxDoc);
             }
@@ -143,7 +151,7 @@ public final class TimestampQuery extends Query {
         var timestampValues = DocValues.getSortedNumeric(ctx.reader(), FIELD_NAME);
         assert timestampValues != null;
         var timestampSingleton = DocValues.unwrapSingleton(timestampValues);
-        assert timestampSingleton != null;
+        assert timestampSingleton != null : "@timestamp has multiple values per document";
         return timestampSingleton;
     }
 

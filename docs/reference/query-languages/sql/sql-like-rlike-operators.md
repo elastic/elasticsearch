@@ -93,9 +93,8 @@ When using `LIKE`/`RLIKE`, do consider using [full-text search predicates](/refe
 <!--
 For example:
 
-|     |     |
-| --- | --- |
 | **LIKE/RLIKE** | **QUERY/MATCH** |
+| --- | --- |
 | ``foo LIKE 'bar'`` | ``MATCH(foo, 'bar')`` |
 | ``foo LIKE 'bar' AND tar LIKE 'goo'`` | ``MATCH('foo^2, tar^5', 'bar goo', 'operator=and')`` |
 | ``foo LIKE 'barr'`` | ``QUERY('foo: bar~')`` |

@@ -13,7 +13,6 @@ import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
-import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.NoShardAvailableActionException;
 import org.elasticsearch.action.OriginalIndices;
@@ -79,11 +78,9 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
     protected final SearchTask task;
     protected final SearchPhaseResults<Result> results;
     private final long clusterStateVersion;
-    private final TransportVersion minTransportVersion;
     protected final Map<String, AliasFilter> aliasFilter;
     protected final Map<String, Float> concreteIndexBoosts;
     private final SetOnce<AtomicArray<ShardSearchFailure>> shardFailures = new SetOnce<>();
-    private final Object shardFailuresMutex = new Object();
     private final AtomicBoolean hasShardResponse = new AtomicBoolean(false);
     private final AtomicInteger successfulOps;
     protected final SearchTimeProvider timeProvider;
@@ -93,8 +90,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
     protected final SearchShardIterator[] shardIterators;
     private final AtomicInteger outstandingShards;
     private final int maxConcurrentRequestsPerNode;
-    private final Map<String, PendingExecutions> pendingExecutionsPerNode = new ConcurrentHashMap<>();
-    private final boolean throttleConcurrentRequests;
+    private final Map<String, PendingExecutions> pendingExecutionsPerNode;
     private final AtomicBoolean requestCancelled = new AtomicBoolean();
     private final int skippedCount;
 
@@ -142,7 +138,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
         Arrays.sort(shardIterators);
         this.maxConcurrentRequestsPerNode = maxConcurrentRequestsPerNode;
         // in the case were we have less shards than maxConcurrentRequestsPerNode we don't need to throttle
-        this.throttleConcurrentRequests = maxConcurrentRequestsPerNode < shardsIts.size();
+        this.pendingExecutionsPerNode = maxConcurrentRequestsPerNode < shardsIts.size() ? new ConcurrentHashMap<>() : null;
         this.timeProvider = timeProvider;
         this.logger = logger;
         this.searchTransportService = searchTransportService;
@@ -153,7 +149,6 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
         this.nodeIdToConnection = nodeIdToConnection;
         this.concreteIndexBoosts = concreteIndexBoosts;
         this.clusterStateVersion = clusterState.version();
-        this.minTransportVersion = clusterState.getMinTransportVersion();
         this.aliasFilter = aliasFilter;
         this.results = resultConsumer;
         // register the release of the query consumer to free up the circuit breaker memory
@@ -254,7 +249,8 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
     }
 
     protected final void performPhaseOnShard(final int shardIndex, final SearchShardIterator shardIt, final SearchShardTarget shard) {
-        if (throttleConcurrentRequests) {
+        var pendingExecutionsPerNode = this.pendingExecutionsPerNode;
+        if (pendingExecutionsPerNode != null) {
             var pendingExecutions = pendingExecutionsPerNode.computeIfAbsent(
                 shard.getNodeId(),
                 n -> new PendingExecutions(maxConcurrentRequestsPerNode)
@@ -464,7 +460,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
             AtomicArray<ShardSearchFailure> shardFailures = this.shardFailures.get();
             // lazily create shard failures, so we can early build the empty shard failure list in most cases (no failures)
             if (shardFailures == null) { // this is double checked locking but it's fine since SetOnce uses a volatile read internally
-                synchronized (shardFailuresMutex) {
+                synchronized (this.shardFailures) {
                     shardFailures = this.shardFailures.get(); // read again otherwise somebody else has created it?
                     if (shardFailures == null) { // still null so we are the first and create a new instance
                         shardFailures = new AtomicArray<>(getNumShards());
@@ -585,10 +581,6 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
         );
     }
 
-    boolean buildPointInTimeFromSearchResults() {
-        return false;
-    }
-
     /**
       * Builds and sends the final search response back to the user.
       *
@@ -602,21 +594,23 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
         if (allowPartialResults == false && failures.length > 0) {
             raisePhaseFailure(new SearchPhaseExecutionException("", "Shard failures", null, failures));
         } else {
-            final String scrollId = request.scroll() != null ? TransportSearchHelper.buildScrollId(queryResults) : null;
-            final BytesReference searchContextId;
-            if (buildPointInTimeFromSearchResults()) {
-                searchContextId = SearchContextId.encode(queryResults.asList(), aliasFilter, minTransportVersion, failures);
-            } else {
-                if (request.source() != null
-                    && request.source().pointInTimeBuilder() != null
-                    && request.source().pointInTimeBuilder().singleSession() == false) {
-                    searchContextId = request.source().pointInTimeBuilder().getEncodedId();
-                } else {
-                    searchContextId = null;
-                }
-            }
-            ActionListener.respondAndRelease(listener, buildSearchResponse(internalSearchResponse, failures, scrollId, searchContextId));
+            ActionListener.respondAndRelease(
+                listener,
+                buildSearchResponse(
+                    internalSearchResponse,
+                    failures,
+                    request.scroll() != null ? TransportSearchHelper.buildScrollId(queryResults) : null,
+                    buildSearchContextId(failures)
+                )
+            );
         }
+    }
+
+    protected BytesReference buildSearchContextId(ShardSearchFailure[] failures) {
+        var source = request.source();
+        return source != null && source.pointInTimeBuilder() != null && source.pointInTimeBuilder().singleSession() == false
+            ? source.pointInTimeBuilder().getEncodedId()
+            : null;
     }
 
     /**

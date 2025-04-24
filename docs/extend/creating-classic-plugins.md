@@ -80,8 +80,12 @@ The entitlements currently implemented and enforced in {{es}} that are available
 
 #### `manage_threads`
 
-Allows code to call methods that create or modify properties on Java Threads, for example `Thread#start` or `ThreadGroup#setMaxPriority`. In general, setting the name, priority, daemon state and context class loader are things no plugins should do when executing on
-{{es}} threadpools; however, many 3rd party libraries that support async operations (e.g. Apache HTTP client) need to manage their own threads. In this case it is justifiable to request this entitlement.
+Allows code to call methods that create or modify properties on Java Threads, for example `Thread#start` or `ThreadGroup#setMaxPriority`.
+
+NOTE: in general this entitlement should *not* be needed! Your plugin should use {{es}} thread pools and executors (see `Plugin#getExecutorBuilders`) instead of creating and managing its own threads. Setting the name, priority, daemon state and context class loader are things no plugins should do when executing on
+{{es}} threadpools.
+
+However, many 3rd party libraries that support async operations (e.g. Apache HTTP client) need to create and manage their own threads. In this case it is justifiable to request this entitlement.
 
 Example:
 ```yaml

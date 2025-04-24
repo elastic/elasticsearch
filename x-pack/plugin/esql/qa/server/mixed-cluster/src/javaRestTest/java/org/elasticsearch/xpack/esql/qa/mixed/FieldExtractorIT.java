@@ -45,7 +45,7 @@ public class FieldExtractorIT extends FieldExtractorTestCase {
     protected void canUsePragmasOk() {
         String bwc = System.getProperty("tests.old_cluster_version");
         if (bwc == null) {
-            bwc = System.getProperty("tests.tests.serverless.bwc_stack_version");
+            bwc = System.getProperty("tests.serverless.bwc_stack_version");
         }
         if (bwc == null) {
             throw new AssertionError("can't find bwc version");

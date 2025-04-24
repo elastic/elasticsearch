@@ -1,5 +1,0 @@
-pr: 127280
-summary: New per-project only settings can be defined and used by components
-area: Infra/Settings
-type: feature
-issues: []

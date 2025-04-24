@@ -417,21 +417,9 @@ tests:
 - class: org.elasticsearch.packaging.test.DockerTests
   method: test026InstallBundledRepositoryPlugins
   issue: https://github.com/elastic/elasticsearch/issues/127081
-- class: org.elasticsearch.multiproject.test.XpackWithMultipleProjectsClientYamlTestSuiteIT
-  method: test {yaml=esql/10_basic/basic with documents_found}
-  issue: https://github.com/elastic/elasticsearch/issues/127088
-- class: org.elasticsearch.xpack.esql.qa.single_node.EsqlClientYamlAsyncIT
-  method: test {p0=esql/10_basic/basic with documents_found}
-  issue: https://github.com/elastic/elasticsearch/issues/127080
-- class: org.elasticsearch.xpack.esql.qa.multi_node.EsqlClientYamlIT
-  method: test {p0=esql/10_basic/basic with documents_found}
-  issue: https://github.com/elastic/elasticsearch/issues/127046
 - class: org.elasticsearch.search.query.QueryPhaseTimeoutTests
   method: testBulkScorerTimeout
   issue: https://github.com/elastic/elasticsearch/issues/127156
-- class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeIT
-  method: test
-  issue: https://github.com/elastic/elasticsearch/issues/127157
 - class: org.elasticsearch.packaging.test.DockerTests
   method: test026InstallBundledRepositoryPluginsViaConfigFile
   issue: https://github.com/elastic/elasticsearch/issues/127158
@@ -441,12 +429,18 @@ tests:
 - class: org.elasticsearch.xpack.esql.plugin.DataNodeRequestSenderIT
   method: testSearchWhileRelocating
   issue: https://github.com/elastic/elasticsearch/issues/127188
-- class: org.elasticsearch.synonyms.SynonymsManagementAPIServiceIT
-  method: testUpdateRuleWithMaxSynonyms
-  issue: https://github.com/elastic/elasticsearch/issues/127195
-- class: org.elasticsearch.synonyms.SynonymsManagementAPIServiceIT
-  method: testCreateRuleWithMaxSynonyms
-  issue: https://github.com/elastic/elasticsearch/issues/127203
+- class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeIT
+  method: test
+  issue: https://github.com/elastic/elasticsearch/issues/127157
+- class: org.elasticsearch.xpack.esql.qa.single_node.EsqlSpecIT
+  method: test {fork.ForkWithWhereSortDescAndLimit SYNC}
+  issue: https://github.com/elastic/elasticsearch/issues/127326
+- class: org.elasticsearch.geometry.utils.SpatialEnvelopeVisitorTests
+  method: testVisitGeoPointsWrapping
+  issue: https://github.com/elastic/elasticsearch/issues/123425
+- class: org.elasticsearch.xpack.esql.action.CrossClusterQueryWithFiltersIT
+  method: testTimestampFilterFromQuery
+  issue: https://github.com/elastic/elasticsearch/issues/127332
 
 # Examples:
 #

@@ -24,29 +24,25 @@ To check for security updates, go to [Security announcements for the Elastic sta
 
 ### Highlights [elasticsearch-900-highlights]
 
-::::{dropdown} Add new experimental `rank_vectors` mapping for late-interaction second order ranking
-Late-interaction models are powerful rerankers. While their size and overall cost doesn't lend itself for HNSW indexing, utilizing them as second order reranking can provide excellent boosts in relevance. The new `rank_vectors` mapping allows for rescoring over new and novel multi-vector late-interaction models like ColBERT or ColPali.
+::::{dropdown} rank_vectors field type is now available for late-interaction ranking
 
-For more information, check [PR #118804](https://github.com/elastic/elasticsearch/pull/118804).
+[`rank_vectors`](../reference/elasticsearch/mapping-reference/rank-vectors.md) is a new field type released as an experimental feature in Elasticsearch 9.0. It is designed to be used with dense vectors and allows for late-interaction second order ranking.
+
+Late-interaction models are powerful rerankers. While their size and overall cost doesn’t lend itself for HNSW indexing, utilizing them as second order reranking can provide excellent boosts in relevance. The new `rank_vectors` mapping allows for rescoring over new and novel multi-vector late-interaction models like ColBERT or ColPali.
 ::::
 
-::::{dropdown} Enable LOOKUP JOIN in non-snapshot builds
-This effectively releases LOOKUP JOIN into tech preview. Docs will
-follow in a separate PR.
+::::{dropdown} ES|QL LOOKUP JOIN is now available in technical preview
 
-- Enable the lexing/grammar for LOOKUP JOIN in non-snapshot builds.
-- Remove the grammar for the unsupported `| JOIN ...` command (without `LOOKUP` as first keyword). The way the lexer modes work, otherwise we'd also have to enable `| JOIN ...` syntax on non-snapshot builds and would have to add additional validation to provide appropriate error messages.
-- Remove grammar for `LOOKUP JOIN index AS ...` because qualifiers are not yet supported. Otherwise we'd have to put in additional validation as well to prevent such queries.
+[LOOKUP JOIN](../reference/query-languages/esql/esql-commands.md) is now available in technical preview. LOOKUP JOIN combines data from your ES|QL queries with matching records from a lookup index, enabling you to:
 
-Also fix https://github.com/elastic/elasticsearch/issues/121185
-
-For more information, check [PR #121193](https://github.com/elastic/elasticsearch/pull/121193).
+- Enrich your search results with reference data
+- Speed up root-cause analysis and security investigations
+- Join data across indices without complex queries
+- Reduce operational overhead when correlating events
 ::::
 
-::::{dropdown} Release semantic_text as a GA feature
-semantic_text is now an official GA (generally available) feature! This field type allows you to easily set up and perform semantic search with minimal ramp up time.
-
-For more information, check [PR #124669](https://github.com/elastic/elasticsearch/pull/124669).
+::::{dropdown} The semantic_text field type is now GA
+[`semantic_text`](../reference/elasticsearch/mapping-reference/semantic-text.md) is now an official GA (generally available) feature! This field type allows you to easily set up and perform semantic search with minimal ramp up time.
 ::::
 
 ### Features and enhancements [elasticsearch-900-features-enhancements]

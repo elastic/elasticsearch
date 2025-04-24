@@ -967,12 +967,11 @@ public final class TextFieldMapper extends FieldMapper {
         }
 
         /**
-         * Returns true if the delegate sub-field can be used for loading and querying (ie. either isIndexed or isStored is true)
+         * Returns true if the delegate sub-field can be used for loading.
+         * A delegate by definition must have doc_values or be stored so most of the time it can be used for loading.
          */
         public boolean canUseSyntheticSourceDelegateForLoading() {
-            return syntheticSourceDelegate != null
-                && syntheticSourceDelegate.ignoreAbove() == Integer.MAX_VALUE
-                && (syntheticSourceDelegate.isIndexed() || syntheticSourceDelegate.isStored());
+            return syntheticSourceDelegate != null && syntheticSourceDelegate.ignoreAbove() == Integer.MAX_VALUE;
         }
 
         /**
@@ -982,6 +981,21 @@ public final class TextFieldMapper extends FieldMapper {
             return syntheticSourceDelegate != null
                 && syntheticSourceDelegate.ignoreAbove() == Integer.MAX_VALUE
                 && syntheticSourceDelegate.isIndexed();
+        }
+
+        /**
+         * Returns true if the delegate sub-field can be used for querying only (ie. isIndexed must be true)
+         */
+        public boolean canUseSyntheticSourceDelegateForQueryingEquality(String str) {
+            if (syntheticSourceDelegate == null
+                // Can't push equality to an index if there isn't an index
+                || syntheticSourceDelegate.isIndexed() == false
+                // ESQL needs docs values to push equality
+                || syntheticSourceDelegate.hasDocValues() == false) {
+                return false;
+            }
+            // Can't push equality if the field we're checking for is so big we'd ignore it.
+            return str.length() <= syntheticSourceDelegate.ignoreAbove();
         }
 
         @Override

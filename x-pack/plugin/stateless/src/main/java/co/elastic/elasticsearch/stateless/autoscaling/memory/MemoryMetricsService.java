@@ -19,6 +19,7 @@ package co.elastic.elasticsearch.stateless.autoscaling.memory;
 
 import co.elastic.elasticsearch.serverless.constants.ProjectType;
 import co.elastic.elasticsearch.stateless.autoscaling.MetricQuality;
+import co.elastic.elasticsearch.stateless.autoscaling.memory.MergeMemoryEstimateCollector.ShardMergeMemoryEstimate;
 
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
@@ -92,6 +93,12 @@ public class MemoryMetricsService implements ClusterStateListener {
         Setting.Property.Dynamic
     );
 
+    // We clean up a node's reported max merge when the node leaves the cluster. In order to ensure a node's reported max merges are
+    // consumed in the correct sequence, we rely on keeping a sequence no of the last reported value to be able to reject out of order
+    // publications for that node. Instead of removing the last known publication immediately when a node leaves the cluster, we wait for
+    // the interval specified below and remove it if the node doesn't come back.
+    public static final TimeValue DEFAULT_REMOVED_NODE_MERGE_MEMORY_ESTIMATION_VALIDITY = TimeValue.timeValueMinutes(1);
+
     volatile ByteSizeValue fixedShardMemoryOverhead;
     // The memory overhead of each IndexShard instance used in the adaptive estimate
     static final ByteSizeValue ADAPTIVE_SHARD_MEMORY_OVERHEAD = ByteSizeValue.ofKb(75);
@@ -114,6 +121,14 @@ public class MemoryMetricsService implements ClusterStateListener {
     static final long WORKLOAD_MEMORY_OVERHEAD = ByteSizeValue.ofMb(500).getBytes();
     // cap node mem request to 48Gb. All current instance types have max size beyond that and none have a size 2x that.
     private static final long MAX_NODE_MEMORY = ByteSizeValue.ofGb(48).getBytes();
+
+    public static final Setting<Boolean> MERGE_MEMORY_ESTIMATE_ENABLED_SETTING = Setting.boolSetting(
+        "serverless.autoscaling.memory_metrics.merge_memory_estimate.enabled",
+        true,
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
+
     private volatile boolean initialized = false;
     private final Map<ShardId, ShardMemoryMetrics> shardMemoryMetrics = new ConcurrentHashMap<>();
     private volatile int totalIndices;
@@ -129,6 +144,8 @@ public class MemoryMetricsService implements ClusterStateListener {
     private volatile long lastStaleMetricsCheckTimeNs = Long.MIN_VALUE;
     private volatile TimeValue staleMetricsCheckInterval;
     private volatile long clusterStateVersion = ClusterState.UNKNOWN_VERSION;
+    private volatile boolean mergeMemoryEstimateEnabled;
+    private final Map<String, ShardMergeMemoryEstimatePublication> maxShardMergeMemoryEstimatePerNode = new ConcurrentHashMap<>();
 
     public MemoryMetricsService(LongSupplier relativeTimeInNanosSupplier, ClusterSettings clusterSettings, ProjectType projectType) {
         this.relativeTimeInNanosSupplier = relativeTimeInNanosSupplier;
@@ -144,6 +161,7 @@ public class MemoryMetricsService implements ClusterStateListener {
         clusterSettings.initializeAndWatch(STALE_METRICS_CHECK_DURATION_SETTING, value -> staleMetricsCheckDuration = value);
         clusterSettings.initializeAndWatch(STALE_METRICS_CHECK_INTERVAL_SETTING, value -> staleMetricsCheckInterval = value);
         clusterSettings.initializeAndWatch(FIXED_SHARD_MEMORY_OVERHEAD_SETTING, value -> fixedShardMemoryOverhead = value);
+        clusterSettings.initializeAndWatch(MERGE_MEMORY_ESTIMATE_ENABLED_SETTING, value -> mergeMemoryEstimateEnabled = value);
     }
 
     public MemoryMetrics getSearchTierMemoryMetrics() {
@@ -151,7 +169,9 @@ public class MemoryMetricsService implements ClusterStateListener {
     }
 
     public MemoryMetrics getIndexingTierMemoryMetrics() {
-        return getMemoryMetrics(getNodeBaseHeapEstimateInBytes() + minimumRequiredHeapForAcceptingLargeIndexingOps());
+        var nodeHeapEstimateInBytes = getNodeBaseHeapEstimateInBytes() + minimumRequiredHeapForAcceptingLargeIndexingOps()
+            + mergeMemoryEstimation();
+        return getMemoryMetrics(nodeHeapEstimateInBytes);
     }
 
     private MemoryMetrics getMemoryMetrics(long nodeHeapEstimateInBytes) {
@@ -191,6 +211,27 @@ public class MemoryMetricsService implements ClusterStateListener {
             return 0;
         }
         return indexingHeapMemoryRequirements.minimumRequiredHeapInBytes();
+    }
+
+    // Visible for testing
+    long mergeMemoryEstimation() {
+        if (mergeMemoryEstimateEnabled == false) {
+            return 0;
+        }
+        // Clean up
+        var publicationIterator = maxShardMergeMemoryEstimatePerNode.entrySet().iterator();
+        var validityNanos = DEFAULT_REMOVED_NODE_MERGE_MEMORY_ESTIMATION_VALIDITY.nanos();
+        long now = relativeTimeInNanos();
+        while (publicationIterator.hasNext()) {
+            var publication = publicationIterator.next();
+            if (publication.getValue().hasNodeLeft()) {
+                var nodeLeftTimestamp = publication.getValue().nodeLeftTimestampNanos();
+                if (now >= nodeLeftTimestamp + validityNanos) {
+                    publicationIterator.remove();
+                }
+            }
+        }
+        return maxShardMergeMemoryEstimatePerNode.values().stream().mapToLong(e -> e.estimate.estimateInBytes()).max().orElse(0L);
     }
 
     // Estimate of total mapping size of all known indices and IndexShard instances
@@ -305,6 +346,24 @@ public class MemoryMetricsService implements ClusterStateListener {
         );
     }
 
+    void updateMergeMemoryEstimate(ShardMergeMemoryEstimatePublication receivedPublication) {
+        if (mergeMemoryEstimateEnabled == false) {
+            return;
+        }
+        maxShardMergeMemoryEstimatePerNode.compute(receivedPublication.nodeEphemeralId, (nodeId, lastPublication) -> {
+            if (lastPublication == null) {
+                return receivedPublication;
+            }
+            if (receivedPublication.seqNo <= lastPublication.seqNo) {
+                return lastPublication;
+            }
+            // It is possible to receive a publication after the node is gone. Keep the nodeLeftTimestampNanos so if the node doesn't come
+            // back
+            // we remove its entry
+            return receivedPublication.withNodeLeftTimestamp(lastPublication.nodeLeftTimestampNanos);
+        });
+    }
+
     /**
      * Update our map of {@link ShardMemoryMetrics} to represent the new cluster state. This includes:
      *
@@ -324,6 +383,7 @@ public class MemoryMetricsService implements ClusterStateListener {
     public void clusterChanged(ClusterChangedEvent event) {
         if (event.localNodeMaster() == false || event.state().blocks().hasGlobalBlock(GatewayService.STATE_NOT_RECOVERED_BLOCK)) {
             shardMemoryMetrics.clear();
+            maxShardMergeMemoryEstimatePerNode.clear();
             initialized = false;
             // Set the cluster state to unknown so we don't ignore valid updates that arrive during our next promotion
             clusterStateVersion = ClusterState.UNKNOWN_VERSION;
@@ -411,6 +471,21 @@ public class MemoryMetricsService implements ClusterStateListener {
                         }
                     }
                 }
+            }
+        }
+
+        if (event.nodesChanged()) {
+            for (var node : event.nodesDelta().removedNodes()) {
+                maxShardMergeMemoryEstimatePerNode.computeIfPresent(
+                    node.getEphemeralId(),
+                    (nodeEphemeralId, current) -> current.withNodeLeftTimestamp(relativeTimeInNanos())
+                );
+            }
+            for (var node : event.nodesDelta().addedNodes()) {
+                maxShardMergeMemoryEstimatePerNode.computeIfPresent(
+                    node.getEphemeralId(),
+                    (nodeEphemeralId, current) -> current.withoutNodeLeftTimestamp()
+                );
             }
         }
 
@@ -545,4 +620,36 @@ public class MemoryMetricsService implements ClusterStateListener {
         }
     }
 
+    /**
+     * The last shard merge memory estimate received for a node. We accept the publications only if they have a
+     * higher seq. no. than the previous value for the node. When a node leaves we update its {@code nodeLeftTimestampNanos}
+     * but keep the publication for {@code DEFAULT_REMOVED_NODE_MERGE_MEMORY_ESTIMATION_VALIDITY}.
+     */
+    public record ShardMergeMemoryEstimatePublication(
+        long seqNo,
+        String nodeEphemeralId,
+        ShardMergeMemoryEstimate estimate,
+        long nodeLeftTimestampNanos
+    ) {
+        public ShardMergeMemoryEstimatePublication(long seqNo, String nodeId, ShardMergeMemoryEstimate estimate) {
+            this(seqNo, nodeId, estimate, -1);
+        }
+
+        public ShardMergeMemoryEstimatePublication withNodeLeftTimestamp(long timestamp) {
+            return new ShardMergeMemoryEstimatePublication(seqNo, nodeEphemeralId, estimate, timestamp);
+        }
+
+        public ShardMergeMemoryEstimatePublication withoutNodeLeftTimestamp() {
+            return new ShardMergeMemoryEstimatePublication(seqNo, nodeEphemeralId, estimate);
+        }
+
+        public boolean hasNodeLeft() {
+            return nodeLeftTimestampNanos > -1;
+        }
+    }
+
+    // Visible for testing
+    public Map<String, ShardMergeMemoryEstimatePublication> getMaxShardMergeMemoryEstimatePerNode() {
+        return Map.copyOf(maxShardMergeMemoryEstimatePerNode);
+    }
 }

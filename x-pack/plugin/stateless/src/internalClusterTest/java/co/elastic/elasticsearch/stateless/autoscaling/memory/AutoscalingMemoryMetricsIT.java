@@ -41,10 +41,12 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.CollectionUtils;
+import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexingPressure;
+import org.elasticsearch.index.engine.ThreadPoolMergeScheduler;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.AutoscalingMissedIndicesUpdateException;
 import org.elasticsearch.logging.LogManager;
@@ -56,6 +58,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.disruption.ServiceDisruptionScheme;
 import org.elasticsearch.test.disruption.SlowClusterStateProcessing;
 import org.elasticsearch.test.transport.MockTransportService;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TestTransportChannel;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -71,11 +74,13 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.LongAdder;
+import java.util.function.UnaryOperator;
 import java.util.stream.Stream;
 
 import static co.elastic.elasticsearch.stateless.autoscaling.indexing.AutoscalingIndexingMetricsIT.markNodesForShutdown;
@@ -91,6 +96,9 @@ import static co.elastic.elasticsearch.stateless.autoscaling.memory.ShardsMappin
 import static co.elastic.elasticsearch.stateless.autoscaling.memory.ShardsMappingSizeCollector.RETRY_INITIAL_DELAY_SETTING;
 import static co.elastic.elasticsearch.stateless.commits.HollowShardsService.SETTING_HOLLOW_INGESTION_TTL;
 import static co.elastic.elasticsearch.stateless.commits.HollowShardsService.STATELESS_HOLLOW_INDEX_SHARDS_ENABLED;
+import static co.elastic.elasticsearch.stateless.engine.ThreadPoolMergeScheduler.MERGE_THREAD_POOL_SCHEDULER;
+import static org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.MIN_DIMS_FOR_DYNAMIC_FLOAT_MAPPING;
+import static org.elasticsearch.search.vectors.KnnSearchBuilderTests.randomVector;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.hamcrest.Matchers.equalTo;
@@ -1320,6 +1328,84 @@ public class AutoscalingMemoryMetricsIT extends AbstractStatelessIntegTestCase {
             assertThat(memoryMetrics.totalMemoryInBytes(), greaterThan(0L));
             assertThat(memoryMetrics.quality(), equalTo(MetricQuality.EXACT));
         });
+    }
+
+    public void testMergeMemoryEstimationIsConsideredInNodeMemory() throws Exception {
+        var nodeSettings = Settings.builder()
+            // Enable using the merge executor service (and disable using the stateless merge scheduler)
+            .put(ThreadPoolMergeScheduler.USE_THREAD_POOL_MERGE_SCHEDULER_SETTING.getKey(), true)
+            .put(MERGE_THREAD_POOL_SCHEDULER.getKey(), false)
+            .put(MemoryMetricsService.MERGE_MEMORY_ESTIMATE_ENABLED_SETTING.getKey(), true)
+            // Avoid accounting for indexing operation memory requirements as they skew the basic memory metrics
+            .put(INDEXING_OPERATIONS_MEMORY_REQUIREMENTS_ENABLED_SETTING.getKey(), false)
+            .put(MergeMemoryEstimateCollector.MERGE_MEMORY_ESTIMATE_PUBLICATION_MIN_CHANGE_RATIO.getKey(), 0.01)
+            .build();
+        String indexNode = startMasterAndIndexNode(nodeSettings);
+        final String indexName = randomIdentifier();
+        createIndex(indexName, indexSettings(1, 0).build());
+
+        var latch = new CountDownLatch(1);
+        var threadPool = internalCluster().getInstance(ThreadPool.class, indexNode);
+        blockMergePool(threadPool, latch);
+
+        var memoryMetricsBefore = getMemoryMetrics();
+        assertThat(memoryMetricsBefore.quality(), equalTo(MetricQuality.EXACT));
+        assertThat(memoryMetricsBefore.nodeMemoryInBytes(), greaterThan(0L));
+
+        int numDims = randomIntBetween(MIN_DIMS_FOR_DYNAMIC_FLOAT_MAPPING, MIN_DIMS_FOR_DYNAMIC_FLOAT_MAPPING + 1024);
+        int numDocs = randomIntBetween(10, 20);
+        for (int i = 0; i < numDocs; i++) {
+            indexDocs(
+                indexName,
+                randomIntBetween(10, 20),
+                UnaryOperator.identity(),
+                null,
+                () -> Map.of("vectorField", randomVector(numDims))
+            );
+            refresh(indexName);
+        }
+        var mergeFuture = client().admin().indices().prepareForceMerge(indexName).setMaxNumSegments(1).execute();
+
+        assertBusy(() -> {
+            var memoryMetricsDuring = getMemoryMetrics();
+            assertThat(memoryMetricsDuring.quality(), equalTo(MetricQuality.EXACT));
+            assertThat(memoryMetricsDuring.nodeMemoryInBytes(), greaterThan(memoryMetricsBefore.nodeMemoryInBytes()));
+        });
+
+        latch.countDown();
+        assertNoFailures(mergeFuture.actionGet());
+        // once the merge is finished a new merge estimate should be published to bring down the node memory metric
+        assertBusy(() -> {
+            var memoryMetricsAfter = getMemoryMetrics();
+            assertThat(memoryMetricsAfter.quality(), equalTo(MetricQuality.EXACT));
+            assertThat(memoryMetricsAfter.nodeMemoryInBytes(), equalTo(memoryMetricsBefore.nodeMemoryInBytes()));
+        });
+    }
+
+    public static void blockMergePool(ThreadPool threadPool, CountDownLatch finishLatch) {
+        final var threadCount = threadPool.info(ThreadPool.Names.MERGE).getMax();
+        final var startBarrier = new CyclicBarrier(threadCount + 1);
+        final var blockingTask = new AbstractRunnable() {
+            @Override
+            public void onFailure(Exception e) {
+                fail(e);
+            }
+
+            @Override
+            protected void doRun() {
+                safeAwait(startBarrier);
+                safeAwait(finishLatch);
+            }
+
+            @Override
+            public boolean isForceExecution() {
+                return true;
+            }
+        };
+        for (int i = 0; i < threadCount; i++) {
+            threadPool.executor(ThreadPool.Names.MERGE).execute(blockingTask);
+        }
+        safeAwait(startBarrier);
     }
 
     private String getSourceNodeId(PublishHeapMemoryMetricsRequest request) {

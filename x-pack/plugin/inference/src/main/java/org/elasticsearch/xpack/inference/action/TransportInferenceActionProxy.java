@@ -29,9 +29,6 @@ import org.elasticsearch.xpack.inference.registry.ModelRegistry;
 
 import java.io.IOException;
 
-import static org.elasticsearch.xpack.core.ClientHelper.INFERENCE_ORIGIN;
-import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
-
 public class TransportInferenceActionProxy extends HandledTransportAction<InferenceActionProxy.Request, InferenceAction.Response> {
     private final ModelRegistry modelRegistry;
     private final Client client;
@@ -103,7 +100,9 @@ public class TransportInferenceActionProxy extends HandledTransportAction<Infere
                 );
             }
 
-            executeAsyncWithOrigin(client, INFERENCE_ORIGIN, UnifiedCompletionAction.INSTANCE, unifiedRequest, unifiedErrorFormatListener);
+            // TransportUnifiedCompletionInferenceAction currently runs on this thread with this thread context. If this changes,
+            // change this listener to a ContextPreservingActionListener to preserve the response headers.
+            client.execute(UnifiedCompletionAction.INSTANCE, unifiedRequest, listener);
         } catch (Exception e) {
             unifiedErrorFormatListener.onFailure(e);
         }
@@ -122,6 +121,8 @@ public class TransportInferenceActionProxy extends HandledTransportAction<Infere
             inferenceActionRequestBuilder.setInferenceTimeout(request.getTimeout()).setStream(request.isStreaming());
         }
 
-        executeAsyncWithOrigin(client, INFERENCE_ORIGIN, InferenceAction.INSTANCE, inferenceActionRequestBuilder.build(), listener);
+        // TransportInferenceAction currently runs on this thread with this thread context. If this changes,
+        // change this listener to a ContextPreservingActionListener to preserve the response headers.
+        client.execute(InferenceAction.INSTANCE, inferenceActionRequestBuilder.build(), listener);
     }
 }

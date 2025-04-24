@@ -252,7 +252,12 @@ public class RepositoryCredentialsTests extends ESSingleNodeTestCase {
         }
 
         @Override
-        S3Service s3Service(Environment environment, Settings nodeSettings, ResourceWatcherService resourceWatcherService) {
+        S3Service s3Service(
+            Environment environment,
+            Settings nodeSettings,
+            ResourceWatcherService resourceWatcherService,
+            S3PerProjectClientManager s3PerProjectClientManager
+        ) {
             return new ProxyS3Service(environment, nodeSettings, resourceWatcherService);
         }
 

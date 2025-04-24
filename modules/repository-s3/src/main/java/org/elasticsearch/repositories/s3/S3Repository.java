@@ -292,6 +292,7 @@ class S3Repository extends MeteredBlobStoreRepository {
             buildBasePath(metadata),
             buildLocation(metadata)
         );
+        // TODO: add a projectId field
         this.service = service;
         this.s3RepositoriesMetrics = s3RepositoriesMetrics;
         this.snapshotExecutor = threadPool().executor(ThreadPool.Names.SNAPSHOT);

@@ -1,5 +1,5 @@
 pr: 126884
 summary: Rare terms aggregation false **positive** fix
-area: Analytics/Aggregations
+area: Aggregations
 type: bug
 issues: []

@@ -231,9 +231,11 @@ public class S3HttpHandler implements HttpHandler {
 
             } else if (request.isPutObjectRequest()) {
                 // a copy request is a put request with a copy source header
-                final var sourceBlobName = exchange.getRequestHeaders().get("X-amz-copy-source");
-                if (sourceBlobName != null) {
-                    var sourceBlob = blobs.get(sourceBlobName.getFirst());
+                final var copySources = exchange.getRequestHeaders().get("X-amz-copy-source");
+                if (copySources != null) {
+                    final var copySource = copySources.getFirst();
+                    final var prefix = copySource.length() > 0 && copySource.charAt(0) == '/' ? "" : "/";
+                    var sourceBlob = blobs.get(prefix + copySource);
                     if (sourceBlob == null) {
                         exchange.sendResponseHeaders(RestStatus.NOT_FOUND.getStatus(), -1);
                     } else {

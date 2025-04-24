@@ -4,9 +4,7 @@ navigation_title: "Syntax reference"
 
 # ES|QL syntax reference
 
-This section covers the essential components and syntax of the ES|QL language.
-
-## What's in this section
+This section covers the essential syntax of the ES|QL language.
 
 * [Basic syntax](esql-syntax.md): Learn the fundamentals of ES|QL query structure, including pipes, commands, and expressions.
 

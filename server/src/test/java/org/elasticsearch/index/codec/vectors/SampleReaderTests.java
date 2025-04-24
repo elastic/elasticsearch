@@ -31,4 +31,25 @@ public class SampleReaderTests extends ESTestCase {
         }
     }
 
+    public void testRandomSamplingEdges() {
+        for (int base = 1; base < 24; base++) {
+            int smaller = 1 << base;
+            for (int upperBase = base + 1; upperBase <= 24; upperBase++) {
+                int larger = 1 << upperBase;
+                SampleReader.RandomLinearCongruentialMapper mapper = new SampleReader.RandomLinearCongruentialMapper(
+                    smaller,
+                    larger,
+                    random()
+                );
+                FixedBitSet valueSeen = new FixedBitSet(larger + 1);
+                for (int i = 0; i < smaller; i++) {
+                    long mapped = mapper.map(i);
+                    assertTrue(mapped >= 0);
+                    assertTrue(mapped <= larger);
+                    assertFalse(valueSeen.getAndSet((int) mapped));
+                }
+            }
+        }
+    }
+
 }

@@ -100,12 +100,12 @@ class SampleReader extends FloatVectorValues implements HasIndexSlice {
         private final int randomLinearShift;
 
         RandomLinearCongruentialMapper(long smaller, long larger, Random random) {
-            assert smaller > 0 && larger > 0;
+            assert smaller > 0 && larger > 0 : "smaller and larger must be positive; received: " + smaller + ", " + larger;
             assert smaller < larger;
             this.n = smaller;
             this.m = larger;
             this.multiplier = findLargeOddCoprime(n);
-            this.randomLinearShift = random.nextInt(0, 1024 * 1024);
+            this.randomLinearShift = random.nextInt(1024, 1024 * 1024) | 1;
         }
 
         // need to ensure positive modulus only
@@ -123,9 +123,9 @@ class SampleReader extends FloatVectorValues implements HasIndexSlice {
         }
 
         private static long findLargeOddCoprime(long n) {
-            long candidate = n | 1; // make sure it's odd
+            long candidate = Math.max(n | 1, 5); // make sure it's odd
             while (MathUtil.gcd(candidate, n) != 1) {
-                candidate += 2;
+                candidate += 4;
             }
             return candidate;
         }

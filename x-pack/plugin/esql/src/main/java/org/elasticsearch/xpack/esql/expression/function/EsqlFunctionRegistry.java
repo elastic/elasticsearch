@@ -448,7 +448,7 @@ public class EsqlFunctionRegistry {
                 def(AvgOverTime.class, uni(AvgOverTime::new), "avg_over_time"),
                 def(LastOverTime.class, LastOverTime::withUnresolvedTimestamp, "last_over_time"),
                 def(Term.class, bi(Term::new), "term"),
-                def(Knn.class, bi(Knn::new), "knn") } };
+                def(Knn.class, tri(Knn::new), "knn") } };
     }
 
     public EsqlFunctionRegistry snapshotRegistry() {

@@ -28,7 +28,7 @@ public class KnnFunctionIT extends AbstractEsqlIntegTestCase {
 
     private final Map<Integer, List<Float>> indexedVectors = new HashMap<>();
 
-    public void testKnn() {
+    public void testKnnDefaults() {
         var query = """
             FROM test METADATA _score
             | WHERE knn(vector, [1.0, 1.0, 1.0])
@@ -58,6 +58,23 @@ public class KnnFunctionIT extends AbstractEsqlIntegTestCase {
                 // dense_vector is null for now
                 assertNull(row.get(3));
             }
+        }
+    }
+
+    public void testKnnOptions() {
+        var query = """
+            FROM test METADATA _score
+            | WHERE knn(vector, [1.0, 1.0, 1.0], {"k": 5})
+            | KEEP id, floats, _score, vector
+            | SORT _score DESC
+            """;
+
+        try (var resp = run(query)) {
+            assertColumnNames(resp.columns(), List.of("id", "floats", "_score", "vector"));
+            assertColumnTypes(resp.columns(), List.of("integer", "double", "double", "dense_vector"));
+
+            List<List<Object>> valuesList = EsqlTestUtils.getValuesList(resp);
+            assertEquals(5, valuesList.size());
         }
     }
 

@@ -8,55 +8,55 @@
 package org.elasticsearch.xpack.esql.inference;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.AsyncOperator;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.inference.InferenceServiceResults;
+import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
+import org.elasticsearch.xpack.esql.inference.bulk.BulkInferenceOperation;
+import org.elasticsearch.xpack.esql.inference.bulk.BulkInferenceOutputBuilder;
+import org.elasticsearch.xpack.esql.inference.bulk.BulkInferenceRequestIterator;
 
-import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
-
-abstract public class InferenceOperator<Fetched, InferenceResult extends InferenceServiceResults> extends AsyncOperator<Fetched> {
+public abstract class InferenceOperator<InferenceResult extends InferenceServiceResults> extends AsyncOperator<Page> {
 
     // Move to a setting.
     private static final int MAX_INFERENCE_WORKER = 10;
     private final InferenceRunner inferenceRunner;
     private final String inferenceId;
-    private final Class<InferenceResult> inferenceResultClass;
 
-    public InferenceOperator(
-        DriverContext driverContext,
-        ThreadContext threadContext,
-        InferenceRunner inferenceRunner,
-        String inferenceId,
-        Class<InferenceResult> inferenceResultClass
-    ) {
-        super(driverContext, threadContext, MAX_INFERENCE_WORKER);
+    public InferenceOperator(DriverContext driverContext, InferenceRunner inferenceRunner, String inferenceId) {
+        super(driverContext, inferenceRunner.threadContext(), MAX_INFERENCE_WORKER);
         this.inferenceRunner = inferenceRunner;
         this.inferenceId = inferenceId;
-        this.inferenceResultClass = inferenceResultClass;
-
-        assert inferenceRunner.getThreadContext() != null;
-    }
-
-    protected final void doInference(InferenceAction.Request inferenceRequest, ActionListener<InferenceResult> listener) {
-        inferenceRunner.doInference(inferenceRequest, listener.map(this::checkedInferenceResults));
     }
 
     protected String inferenceId() {
         return inferenceId;
     }
 
-    private InferenceResult checkedInferenceResults(InferenceAction.Response inferenceResponse) {
-        if (inferenceResultClass.isInstance(inferenceResponse.getResults())) {
-            return inferenceResultClass.cast(inferenceResponse.getResults());
-        }
-        throw new IllegalStateException(
-            format(
-                "Inference result has wrong type. Got [{}] while expecting [{}]",
-                inferenceResponse.getResults().getClass().getName(),
-                inferenceResultClass.getName()
-            )
-        );
+    @Override
+    protected void releaseFetchedOnAnyThread(Page page) {
+        releasePageOnAnyThread(page);
     }
+
+    @Override
+    public Page getOutput() {
+        return fetchFromBuffer();
+    }
+
+    @Override
+    protected void performAsync(Page input, ActionListener<Page> listener) {
+        new BulkInferenceOperation<>(bulkInferenceRequestIterator(input), bulkOutputBuilder(input)).execute(inferenceRunner, listener);
+    }
+
+    protected InferenceAction.Request.Builder inferenceRequestBuilder() {
+        return InferenceAction.Request.builder(inferenceId, taskType());
+    }
+
+    protected abstract TaskType taskType();
+
+    protected abstract BulkInferenceRequestIterator bulkInferenceRequestIterator(Page input);
+
+    protected abstract BulkInferenceOutputBuilder<InferenceResult, Page> bulkOutputBuilder(Page input);
 }

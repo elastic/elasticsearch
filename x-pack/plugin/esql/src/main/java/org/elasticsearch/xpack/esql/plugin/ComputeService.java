@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.plugin;
 
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.search.SearchRequest;
@@ -30,6 +31,7 @@ import org.elasticsearch.compute.operator.exchange.ExchangeSourceHandler;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
@@ -436,7 +438,8 @@ public class ComputeService {
                                 );
                                 dataNodesListener.onResponse(r.getCompletionInfo());
                             }, e -> {
-                                if (configuration.allowPartialResults()) {
+                                if (configuration.allowPartialResults()
+                                    && (ExceptionsHelper.unwrapCause(e) instanceof IndexNotFoundException) == false) {
                                     execInfo.swapCluster(
                                         LOCAL_CLUSTER,
                                         (k, v) -> new EsqlExecutionInfo.Cluster.Builder(v).setStatus(
@@ -454,6 +457,10 @@ public class ComputeService {
                 // starts computes on remote clusters
                 final var remoteClusters = clusterComputeHandler.getRemoteClusters(clusterToConcreteIndices, clusterToOriginalIndices);
                 for (ClusterComputeHandler.RemoteCluster cluster : remoteClusters) {
+                    if (execInfo.getCluster(cluster.clusterAlias()).getStatus() != EsqlExecutionInfo.Cluster.Status.RUNNING) {
+                        // if the cluster is already in the terminal state from the planning stage, no need to call it
+                        continue;
+                    }
                     clusterComputeHandler.startComputeOnRemoteCluster(
                         sessionId,
                         rootTask,

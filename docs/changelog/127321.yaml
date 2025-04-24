@@ -1,0 +1,6 @@
+pr: 127321
+summary: Granting `kibana_system` reserved role access to "all" privileges to `.adhoc.alerts*`
+  and `.internal.adhoc.alerts*` indices
+area: Authorization
+type: enhancement
+issues: []

@@ -487,6 +487,7 @@ public class SearchTransportService {
             (request, channel, task) -> searchService.executeFetchPhase(
                 request,
                 (SearchShardTask) task,
+                TransportService.DIRECT_RESPONSE_PROFILE.equals(channel.getProfileName()) ? null : transportService.newNetworkBytesStream(),
                 new ChannelActionListener<>(channel)
             )
         );
@@ -503,7 +504,12 @@ public class SearchTransportService {
         TransportActionProxy.registerProxyAction(transportService, RANK_FEATURE_SHARD_ACTION_NAME, true, RankFeatureResult::new);
 
         final TransportRequestHandler<ShardFetchRequest> shardFetchRequestHandler = (request, channel, task) -> searchService
-            .executeFetchPhase(request, (SearchShardTask) task, new ChannelActionListener<>(channel));
+            .executeFetchPhase(
+                request,
+                (SearchShardTask) task,
+                TransportService.DIRECT_RESPONSE_PROFILE.equals(channel.getProfileName()) ? null : transportService.newNetworkBytesStream(),
+                new ChannelActionListener<>(channel)
+            );
         transportService.registerRequestHandler(
             FETCH_ID_SCROLL_ACTION_NAME,
             EsExecutors.DIRECT_EXECUTOR_SERVICE,

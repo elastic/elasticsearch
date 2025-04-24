@@ -37,6 +37,7 @@ import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
+import org.elasticsearch.core.Predicates;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.TimeValue;
@@ -56,6 +57,7 @@ import org.elasticsearch.transport.TransportResponse;
 import org.junit.Before;
 
 import java.io.IOException;
+import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.NoSuchFileException;
 import java.util.ArrayList;
@@ -68,6 +70,7 @@ import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Predicate;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
@@ -464,11 +467,14 @@ public class S3ObjectStoreTests extends AbstractMockObjectStoreIntegTestCase {
                     // while for multi-part uploads: .../stateless_commit_N?uploadId=UUID&partNumber=N&x-purpose=Indices where the
                     // upload UUID changes with every retry.
                     long gen = Long.parseLong(request.substring(request.lastIndexOf('_') + 1, request.lastIndexOf('?')));
-                    long part = 1;
+                    final long part;
                     if (request.contains("partNumber")) {
+                        final var partNumberIndex = request.indexOf("partNumber");
                         part = Long.parseLong(
-                            request.substring(request.indexOf("partNumber") + "partNumber=".length(), request.lastIndexOf('&'))
+                            request.substring(partNumberIndex + "partNumber=".length(), request.indexOf('&', partNumberIndex))
                         );
+                    } else {
+                        part = 1;
                     }
                     String genAndPart = gen + "/" + part;
                     final AtomicInteger numberOfErrors = requestPathErrorCount.computeIfAbsent(genAndPart, k -> new AtomicInteger(0));
@@ -571,16 +577,14 @@ public class S3ObjectStoreTests extends AbstractMockObjectStoreIntegTestCase {
 
     public void testRetryOn403ForGet() throws Exception {
         final Set<String> requestsErroredFor403 = ConcurrentCollections.newConcurrentSet();
-        var getBlob = new AtomicReference<String>();
-        var listBlobs = new AtomicReference<String>();
+        var getBlobPredicate = new AtomicReference<Predicate<String>>(Predicates.never());
+        var listBlobsPredicate = new AtomicReference<Predicate<String>>(Predicates.never());
         s3HttpHandler.setInterceptor(new Interceptor() {
             @SuppressForbidden(reason = "this test uses a HttpServer to emulate an S3 endpoint")
             @Override
             public boolean intercept(HttpExchange exchange) throws IOException {
                 final String request = exchange.getRequestMethod() + " " + exchange.getRequestURI().toString();
-                if (getBlob.get() != null
-                    && listBlobs.get() != null
-                    && (request.startsWith(getBlob.get()) || request.startsWith(listBlobs.get()))
+                if ((getBlobPredicate.get().test(request) || listBlobsPredicate.get().test(request))
                     && requestsErroredFor403.add(request)) {
                     try (exchange) {
                         final byte[] response = Strings.format("""
@@ -614,9 +618,11 @@ public class S3ObjectStoreTests extends AbstractMockObjectStoreIntegTestCase {
             );
             var indexUuid = resolveIndex(indexName).getUUID();
 
-            var basePath = getCurrentMasterObjectStoreService().getObjectStore().basePath().buildAsString().replaceAll("/", "%2F");
-            listBlobs.set("GET /bucket/?prefix=" + basePath + "indices%2F" + indexUuid + "%2F");
-            getBlob.set("GET /bucket/base_path/indices/" + indexUuid + "/0/");
+            final var shardPath = "indices/" + indexUuid + "/0/";
+            final var rawPrefix = getCurrentMasterObjectStoreService().getObjectStore().basePath().buildAsString() + shardPath;
+            final var encodedPrefix = URLEncoder.encode(rawPrefix, StandardCharsets.UTF_8);
+            listBlobsPredicate.set(rq -> rq.startsWith("GET /bucket?") && rq.contains("prefix=" + encodedPrefix));
+            getBlobPredicate.set(rq -> rq.startsWith("GET /bucket/" + rawPrefix));
 
             int iters = between(1, 5);
             for (int i = 0; i < iters; i++) {

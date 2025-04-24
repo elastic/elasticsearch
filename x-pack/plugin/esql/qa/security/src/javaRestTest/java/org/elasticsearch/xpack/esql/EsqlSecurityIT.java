@@ -315,10 +315,7 @@ public class EsqlSecurityIT extends ESRestTestCase {
         setUser(searchRequest, "metadata1_read2");
 
         // ES|QL query on the same index pattern
-        var esqlResp = expectThrows(
-            ResponseException.class,
-            () -> runESQLCommand("metadata1_read2", "FROM index-user1,index-user2", false)
-        );
+        var esqlResp = expectThrows(ResponseException.class, () -> runESQLCommand("metadata1_read2", "FROM index-user1,index-user2"));
         var srchResp = expectThrows(ResponseException.class, () -> client().performRequest(searchRequest));
 
         for (ResponseException r : List.of(esqlResp, srchResp)) {
@@ -337,8 +334,7 @@ public class EsqlSecurityIT extends ESRestTestCase {
             ResponseException.class,
             () -> runESQLCommand(
                 "metadata1_read2",
-                "FROM index-user1,index-user2 METADATA _index | STATS sum=sum(value), index=VALUES(_index)",
-                false
+                "FROM index-user1,index-user2 METADATA _index | STATS sum=sum(value), index=VALUES(_index)"
             )
         );
         assertThat(
@@ -351,7 +347,7 @@ public class EsqlSecurityIT extends ESRestTestCase {
 
         resp = expectThrows(
             ResponseException.class,
-            () -> runESQLCommand("metadata1_read2", "FROM index-user1,index-user2 METADATA _index | STATS index=VALUES(_index)", false)
+            () -> runESQLCommand("metadata1_read2", "FROM index-user1,index-user2 METADATA _index | STATS index=VALUES(_index)")
         );
         assertThat(
             EntityUtils.toString(resp.getResponse().getEntity()),
@@ -363,7 +359,7 @@ public class EsqlSecurityIT extends ESRestTestCase {
 
         resp = expectThrows(
             ResponseException.class,
-            () -> runESQLCommand("metadata1_read2", "FROM index-user1,index-user2 | STATS sum=sum(value)", false)
+            () -> runESQLCommand("metadata1_read2", "FROM index-user1,index-user2 | STATS sum=sum(value)")
         );
         assertThat(
             EntityUtils.toString(resp.getResponse().getEntity()),
@@ -375,7 +371,7 @@ public class EsqlSecurityIT extends ESRestTestCase {
 
         resp = expectThrows(
             ResponseException.class,
-            () -> runESQLCommand("alias_user1", "FROM first-alias,index-user1 METADATA _index | KEEP _index, org, value | LIMIT 10", false)
+            () -> runESQLCommand("alias_user1", "FROM first-alias,index-user1 METADATA _index | KEEP _index, org, value | LIMIT 10")
         );
         assertThat(
             EntityUtils.toString(resp.getResponse().getEntity()),
@@ -389,8 +385,7 @@ public class EsqlSecurityIT extends ESRestTestCase {
             ResponseException.class,
             () -> runESQLCommand(
                 "alias_user2",
-                "from second-alias,index-user2 METADATA _index | stats sum=sum(value), index=VALUES(_index)",
-                false
+                "from second-alias,index-user2 METADATA _index | stats sum=sum(value), index=VALUES(_index)"
             )
         );
         assertThat(
@@ -864,10 +859,6 @@ public class EsqlSecurityIT extends ESRestTestCase {
     }
 
     protected Response runESQLCommand(String user, String command) throws IOException {
-        return runESQLCommand(user, command, null);
-    }
-
-    protected Response runESQLCommand(String user, String command, Boolean allowPartialResults) throws IOException {
         if (command.toLowerCase(Locale.ROOT).contains("limit") == false) {
             // add a (high) limit to avoid warnings on default limit
             command += " | limit 10000000";
@@ -881,9 +872,6 @@ public class EsqlSecurityIT extends ESRestTestCase {
         request.setJsonEntity(Strings.toString(json));
         setUser(request, user);
         request.addParameter("error_trace", "true");
-        if (allowPartialResults != null) {
-            request.addParameter("allow_partial_results", Boolean.toString(allowPartialResults));
-        }
         return client().performRequest(request);
     }
 

@@ -77,11 +77,6 @@ public abstract class AbstractCrossClusterTestCase extends AbstractMultiClusters
         return plugins;
     }
 
-    @Override
-    protected Settings nodeSettings() {
-        return Settings.builder().put(super.nodeSettings()).put(EsqlPlugin.QUERY_ALLOW_PARTIAL_RESULTS.getKey(), false).build();
-    }
-
     public static class InternalExchangePlugin extends Plugin {
         @Override
         public List<Setting<?>> getSettings() {

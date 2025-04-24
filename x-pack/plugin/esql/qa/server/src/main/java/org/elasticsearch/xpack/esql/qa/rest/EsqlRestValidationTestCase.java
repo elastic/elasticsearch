@@ -129,7 +129,6 @@ public abstract class EsqlRestValidationTestCase extends ESRestTestCase {
         final var request = new Request("POST", "/_query");
         request.addParameter("error_trace", "true");
         request.addParameter("pretty", "true");
-        request.addParameter("allow_partial_results", Boolean.toString(false));
         request.setJsonEntity(
             Strings.toString(JsonXContent.contentBuilder().startObject().field("query", "from " + indexName).endObject())
         );

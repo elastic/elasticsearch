@@ -247,9 +247,10 @@ is not supported for querying the field data.
 
 ## Updates to `semantic_text` fields [update-script]
 
-Updates that use scripts are not supported for an index contains a
-`semantic_text` field. Even if the script targets non-`semantic_text` fields,
-the update will fail when the index contains a `semantic_text` field.
+For indices containing `semantic_text` fields, updates that use scripts have the following behavior:
+
+* Are supported through the [Update API](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-update).
+* Are not supported through the [Bulk API](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-bulk-1) and will fail. Even if the script targets non-`semantic_text` fields, the update will fail when the index contains a `semantic_text` field.
 
 ## `copy_to` and multi-fields support [copy-to-support]
 
@@ -311,4 +312,4 @@ PUT test-index
   of [nested fields](/reference/elasticsearch/mapping-reference/nested.md).
 * `semantic_text` fields can’t currently be set as part
   of [Dynamic templates](docs-content://manage-data/data-store/mapping/dynamic-templates.md).
-
+* `semantic_text` fields are not supported with Cross-Cluster Search (CCS) or Cross-Cluster Replication (CCR).

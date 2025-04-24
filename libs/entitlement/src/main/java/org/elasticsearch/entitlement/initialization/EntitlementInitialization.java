@@ -104,7 +104,42 @@ public class EntitlementInitialization {
         return manager;
     }
 
-    // Note: referenced by agent reflectively
+    /**
+     * Initializes the Entitlement system:
+     * <ol>
+     * <li>
+     * Finds the version-specific subclass of {@link EntitlementChecker} to use
+     * </li>
+     * <li>
+     * Builds the set of methods to instrument using {@link InstrumentationService#lookupMethods}
+     * </li>
+     * <li>
+     * Augment this set “dynamically” using {@link InstrumentationService#lookupImplementationMethod}
+     * </li>
+     * <li>
+     * Creates an {@link Instrumenter} via {@link InstrumentationService#newInstrumenter}, and adds a new {@link Transformer} (derived from
+     * {@link java.lang.instrument.ClassFileTransformer}) that uses it. Transformers are invoked when a class is about to load, after its
+     * bytes have been deserialized to memory but before the class is initialized.
+     * </li>
+     * <li>
+     * Re-transforms all already loaded classes: we force the {@link Instrumenter} to run on classes that might have been already loaded
+     * before entitlement initialization by calling the {@link java.lang.instrument.Instrumentation#retransformClasses} method on all
+     * classes that were already loaded.
+     * </li>
+     * </ol>
+     * <p>
+     * The third step is needed as the JDK exposes some API through interfaces that have different (internal) implementations
+     * depending on the JVM host platform. As we cannot instrument an interfaces, we find its concrete implementation.
+     * A prime example is {@link FileSystemProvider}, which has different implementations (e.g. {@code UnixFileSystemProvider} or
+     * {@code WindowsFileSystemProvider}). At runtime, we find the implementation class which is currently used by the JVM, and add
+     * its methods to the set of methods to instrument. See e.g. {@link EntitlementInitialization#fileSystemProviderChecks}.
+     * </p>
+     * <p>
+     * <strong>NOTE:</strong> this method is referenced by the agent reflectively
+     * </p>
+     *
+     * @param inst the JVM instrumentation class instance
+     */
     public static void initialize(Instrumentation inst) throws Exception {
         manager = initChecker();
 
@@ -244,7 +279,10 @@ public class EntitlementInitialization {
                     new FilesEntitlement(List.of(FileData.ofBaseDirPath(CONFIG, READ), FileData.ofBaseDirPath(DATA, READ_WRITE)))
                 )
             ),
-            new Scope("org.apache.lucene.misc", List.of(new FilesEntitlement(List.of(FileData.ofBaseDirPath(DATA, READ_WRITE))))),
+            new Scope(
+                "org.apache.lucene.misc",
+                List.of(new FilesEntitlement(List.of(FileData.ofBaseDirPath(DATA, READ_WRITE))), new ReadStoreAttributesEntitlement())
+            ),
             new Scope(
                 "org.apache.logging.log4j.core",
                 List.of(new ManageThreadsEntitlement(), new FilesEntitlement(List.of(FileData.ofBaseDirPath(LOGS, READ_WRITE))))

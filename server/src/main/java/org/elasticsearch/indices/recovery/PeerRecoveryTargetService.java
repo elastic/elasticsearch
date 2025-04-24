@@ -301,23 +301,21 @@ public class PeerRecoveryTargetService implements IndexEventListener {
         if (indexShard.routingEntry().isPromotableToPrimary() == false) {
             assert preExistingRequest == null;
             assert indexShard.indexSettings().getIndexMetadata().isSearchableSnapshot() == false;
-            try (onCompletion) {
-                client.execute(
-                    StatelessUnpromotableRelocationAction.TYPE,
-                    new StatelessUnpromotableRelocationAction.Request(
-                        recoveryId,
-                        indexShard.shardId(),
-                        indexShard.routingEntry().allocationId().getId(),
-                        recoveryTarget.clusterStateVersion()
-                    ),
-                    cleanupOnly.delegateFailure((l, unused) -> {
-                        ActionListener.completeWith(l, () -> {
-                            onGoingRecoveries.markRecoveryAsDone(recoveryId);
-                            return null;
-                        });
-                    })
-                );
-            }
+            client.execute(
+                StatelessUnpromotableRelocationAction.TYPE,
+                new StatelessUnpromotableRelocationAction.Request(
+                    recoveryId,
+                    indexShard.shardId(),
+                    indexShard.routingEntry().allocationId().getId(),
+                    recoveryTarget.clusterStateVersion()
+                ),
+                cleanupOnly.delegateFailure((l, unused) -> {
+                    ActionListener.completeWith(l, () -> {
+                        onGoingRecoveries.markRecoveryAsDone(recoveryId);
+                        return null;
+                    });
+                })
+            );
             return;
         }
 

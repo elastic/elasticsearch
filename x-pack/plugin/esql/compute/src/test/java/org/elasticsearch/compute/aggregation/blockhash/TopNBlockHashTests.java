@@ -363,7 +363,7 @@ public class TopNBlockHashTests extends BlockHashTestCase {
     private BlockHash buildBlockHash(int emitBatchSize, Block... values) {
         List<BlockHash.GroupSpec> specs = new ArrayList<>(values.length);
         for (int c = 0; c < values.length; c++) {
-            specs.add(new BlockHash.GroupSpec(c, values[c].elementType()));
+            specs.add(new BlockHash.GroupSpec(c, values[c].elementType(), false, topNDef(c)));
         }
         assert forcePackedHash == false : "Packed TopN hash not implemented yet";
         /*return forcePackedHash
@@ -385,5 +385,9 @@ public class TopNBlockHashTests extends BlockHashTestCase {
             + limit
             + ", entries="
             + Math.min(differentValues, limit + unusedInsertedValues);
+    }
+
+    private BlockHash.TopNDef topNDef(int order) {
+        return new BlockHash.TopNDef(order, asc, nullsFirst, limit);
     }
 }

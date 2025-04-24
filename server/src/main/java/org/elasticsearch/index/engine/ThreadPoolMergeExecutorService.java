@@ -34,10 +34,10 @@ import java.util.function.LongUnaryOperator;
 import static org.elasticsearch.index.engine.ThreadPoolMergeScheduler.Schedule.ABORT;
 import static org.elasticsearch.index.engine.ThreadPoolMergeScheduler.Schedule.BACKLOG;
 import static org.elasticsearch.index.engine.ThreadPoolMergeScheduler.Schedule.RUN;
+import static org.elasticsearch.index.engine.ThreadPoolMergeScheduler.USE_THREAD_POOL_MERGE_SCHEDULER_SETTING;
 
 public class ThreadPoolMergeExecutorService {
     // TODO make these settings dynamic
-    // TODO highlight that these settings are effective only if "indices.merge.scheduler.use_thread_pool" is "true"
     public static final Setting<RelativeByteSizeValue> INDICES_MERGE_DISK_HIGH_WATERMARK_SETTING = new Setting<>(
             "indices.merge.disk.watermark.high",
             "96%",
@@ -90,9 +90,14 @@ public class ThreadPoolMergeExecutorService {
         }
 
         @Override
-        public void validate(final RelativeByteSizeValue value, final Map<Setting<?>, Object> settings) {
+        public void validate(final RelativeByteSizeValue value, final Map<Setting<?>, Object> settings, boolean isPresent) {
+            if (isPresent && settings.get(USE_THREAD_POOL_MERGE_SCHEDULER_SETTING).equals(Boolean.FALSE)) {
+                throw new IllegalArgumentException("setting a watermark value for indices merge only works when [" +
+                        USE_THREAD_POOL_MERGE_SCHEDULER_SETTING.getKey() + "] is set to [true]");
+            }
             final RelativeByteSizeValue high = (RelativeByteSizeValue) settings.get(INDICES_MERGE_DISK_HIGH_WATERMARK_SETTING);
             final RelativeByteSizeValue flood = (RelativeByteSizeValue) settings.get(INDICES_MERGE_DISK_FLOOD_STAGE_WATERMARK_SETTING);
+            // both "watermark" limits must either be absolute or relative, and "high" < "flood"
             if (high.isAbsolute() == false && flood.isAbsolute() == false) { // Validate as percentages
                 final double highWatermarkThreshold = high.getRatio().getAsPercent();
                 final double floodThreshold = flood.getRatio().getAsPercent();
@@ -131,37 +136,37 @@ public class ThreadPoolMergeExecutorService {
 
         @Override
         public Iterator<Setting<?>> settings() {
-            List<Setting<?>> res = List.of(INDICES_MERGE_DISK_HIGH_WATERMARK_SETTING, INDICES_MERGE_DISK_FLOOD_STAGE_WATERMARK_SETTING);
+            List<Setting<?>> res = List.of(
+                INDICES_MERGE_DISK_HIGH_WATERMARK_SETTING,
+                INDICES_MERGE_DISK_FLOOD_STAGE_WATERMARK_SETTING,
+                USE_THREAD_POOL_MERGE_SCHEDULER_SETTING
+            );
             return res.iterator();
         }
     }
 
-
-    /**
-     * Validates that high and flood stage max headrooms adhere to the comparison: high &lt; low.
-     * Also validates that if max headrooms are set, the respective watermark values should be ratios/percentages.
-     * Also validates that if the high max headroom is set, then the flood stage max headroom must be set as well.
-     * Else, throws an exception.
-     */
     static class HeadroomValidator implements Setting.Validator<ByteSizeValue> {
 
         @Override
         public void validate(ByteSizeValue value) {
-
         }
 
         @Override
         public void validate(final ByteSizeValue value, final Map<Setting<?>, Object> settings, boolean isPresent) {
-            if (isPresent && value.equals(ByteSizeValue.MINUS_ONE)) {
-                throw new IllegalArgumentException("setting a headroom value to less than 0 is not supported");
+            if (isPresent) {
+                if (value.equals(ByteSizeValue.MINUS_ONE)) {
+                    throw new IllegalArgumentException("setting a headroom value to less than 0 is not supported");
+                }
+                if (settings.get(USE_THREAD_POOL_MERGE_SCHEDULER_SETTING).equals(Boolean.FALSE)) {
+                    throw new IllegalArgumentException("setting a headroom value for indices merge only works when [" +
+                            USE_THREAD_POOL_MERGE_SCHEDULER_SETTING.getKey() + "] is set to [true]");
+                }
             }
-
             final ByteSizeValue highHeadroom = (ByteSizeValue) settings.get(INDICES_MERGE_DISK_HIGH_MAX_HEADROOM_SETTING);
             final ByteSizeValue floodHeadroom = (ByteSizeValue) settings.get(INDICES_MERGE_DISK_FLOOD_STAGE_MAX_HEADROOM_SETTING);
-
-            // Ensure that if max headroom values are set, then watermark values are ratios/percentages.
             final RelativeByteSizeValue high = (RelativeByteSizeValue) settings.get(INDICES_MERGE_DISK_HIGH_WATERMARK_SETTING);
             final RelativeByteSizeValue flood = (RelativeByteSizeValue) settings.get(INDICES_MERGE_DISK_FLOOD_STAGE_WATERMARK_SETTING);
+            // ensure that if max headroom values are set, then watermark values are ratios/percentages
             if ((high.isAbsolute() || flood.isAbsolute())
                 && (highHeadroom.equals(ByteSizeValue.MINUS_ONE) == false || floodHeadroom.equals(ByteSizeValue.MINUS_ONE) == false)) {
                 throw new IllegalArgumentException(
@@ -177,7 +182,7 @@ public class ThreadPoolMergeExecutorService {
                         + "]"
                 );
             }
-
+            // if the "high" headroom is set, "flood" must also be set
             if (highHeadroom.equals(ByteSizeValue.MINUS_ONE) == false && floodHeadroom.equals(ByteSizeValue.MINUS_ONE)) {
                 throw new IllegalArgumentException(
                         "indices merge flood disk max headroom ["
@@ -187,8 +192,7 @@ public class ThreadPoolMergeExecutorService {
                                 + "]"
                 );
             }
-
-            // For the comparisons, we need to mind that headroom values can default to -1.
+            // the "flood" headroom must be above the "high" one
             if (floodHeadroom.compareTo(highHeadroom) > 0 && highHeadroom.equals(ByteSizeValue.MINUS_ONE) == false) {
                 throw new IllegalArgumentException(
                         "indices merge flood disk max headroom ["
@@ -206,7 +210,8 @@ public class ThreadPoolMergeExecutorService {
                 INDICES_MERGE_DISK_HIGH_WATERMARK_SETTING,
                 INDICES_MERGE_DISK_FLOOD_STAGE_WATERMARK_SETTING,
                 INDICES_MERGE_DISK_HIGH_MAX_HEADROOM_SETTING,
-                INDICES_MERGE_DISK_FLOOD_STAGE_MAX_HEADROOM_SETTING
+                INDICES_MERGE_DISK_FLOOD_STAGE_MAX_HEADROOM_SETTING,
+                USE_THREAD_POOL_MERGE_SCHEDULER_SETTING
             );
             return res.iterator();
         }
@@ -259,7 +264,7 @@ public class ThreadPoolMergeExecutorService {
         ThreadPool threadPool,
         Settings settings
     ) {
-        if (ThreadPoolMergeScheduler.USE_THREAD_POOL_MERGE_SCHEDULER_SETTING.get(settings)) {
+        if (USE_THREAD_POOL_MERGE_SCHEDULER_SETTING.get(settings)) {
             return new ThreadPoolMergeExecutorService(threadPool);
         } else {
             return null;

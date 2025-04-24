@@ -146,7 +146,7 @@ public class DataNodeRequestSenderIT extends AbstractEsqlIntegTestCase {
         var blockIsReleased = new AtomicReference<Boolean>(null);
 
         as(internalCluster().getInstance(TransportService.class, slowNode), MockTransportService.class).addRequestHandlingBehavior(
-            ExchangeService.OPEN_EXCHANGE_ACTION_NAME,
+            randomFrom(ExchangeService.OPEN_EXCHANGE_ACTION_NAME, ExchangeService.EXCHANGE_ACTION_NAME),
             (handler, request, channel, task) -> {
                 blockIsReleased.set(queryCompleted.await(10, TimeUnit.SECONDS));
                 handler.messageReceived(request, channel, task);

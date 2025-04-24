@@ -38,7 +38,6 @@ import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
 import org.elasticsearch.cluster.routing.allocation.decider.ThrottlingAllocationDecider;
 import org.elasticsearch.common.UUIDs;
-import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -225,7 +224,7 @@ public class BalancedShardsAllocatorTests extends ESAllocationTestCase {
         var allocationService = new MockAllocationService(
             yesAllocationDeciders(),
             new TestGatewayAllocator(),
-            new BalancedShardsAllocator(ClusterSettings.createBuiltInClusterSettings(), TEST_WRITE_LOAD_FORECASTER),
+            new BalancedShardsAllocator(BalancerSettings.DEFAULT, TEST_WRITE_LOAD_FORECASTER),
             EmptyClusterInfoService.INSTANCE,
             SNAPSHOT_INFO_SERVICE_WITH_NO_SHARD_SIZES
         );
@@ -558,13 +557,13 @@ public class BalancedShardsAllocatorTests extends ESAllocationTestCase {
         final var badValue = (float) randomDoubleBetween(0.0, Math.nextDown(1.0f), true);
         expectThrows(
             IllegalArgumentException.class,
-            () -> new BalancedShardsAllocator(Settings.builder().put(BalancedShardsAllocator.THRESHOLD_SETTING.getKey(), badValue).build())
+            () -> new BalancerSettings(Settings.builder().put(BalancedShardsAllocator.THRESHOLD_SETTING.getKey(), badValue).build())
         );
 
         final var goodValue = (float) randomDoubleBetween(1.0, 10.0, true);
         assertEquals(
             goodValue,
-            new BalancedShardsAllocator(Settings.builder().put(BalancedShardsAllocator.THRESHOLD_SETTING.getKey(), goodValue).build())
+            new BalancerSettings(Settings.builder().put(BalancedShardsAllocator.THRESHOLD_SETTING.getKey(), goodValue).build())
                 .getThreshold(),
             0.0f
         );

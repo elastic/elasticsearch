@@ -377,7 +377,7 @@ class S3BlobContainer extends AbstractBlobContainer {
                     SocketAccess.doPrivilegedVoid(() -> { clientReference.client().copyObject(copyRequest); });
                 }
             }
-        } catch (final Exception e) {
+        } catch (final AmazonClientException e) {
             if (e instanceof AmazonServiceException ase && ase.getStatusCode() == RestStatus.NOT_FOUND.getStatus()) {
                 throw new NoSuchFileException(
                     "Copy source [" + s3SourceBlobContainer.buildKey(sourceBlobName) + "] not found: " + ase.getMessage()
@@ -618,7 +618,7 @@ class S3BlobContainer extends AbstractBlobContainer {
                 SocketAccess.doPrivilegedVoid(() -> clientReference.client().completeMultipartUpload(complRequest));
             }
             success = true;
-        } catch (final Exception e) {
+        } catch (final AmazonClientException e) {
             if (e instanceof AmazonServiceException ase && ase.getStatusCode() == RestStatus.NOT_FOUND.getStatus()) {
                 throw new NoSuchFileException(blobName, null, e.getMessage());
             }
@@ -842,6 +842,11 @@ class S3BlobContainer extends AbstractBlobContainer {
          * @return {@code true} if there are already ongoing uploads, so we should not proceed with the operation
          */
         private boolean hasPreexistingUploads() {
+            final var timeToLiveMillis = blobStore.getCompareAndExchangeTimeToLive().millis();
+            if (timeToLiveMillis < 0) {
+                return false; // proceed always
+            }
+
             final var uploads = listMultipartUploads();
             logUploads("preexisting uploads", uploads);
 
@@ -850,11 +855,7 @@ class S3BlobContainer extends AbstractBlobContainer {
                 return false;
             }
 
-            final var expiryDate = Date.from(
-                Instant.ofEpochMilli(
-                    blobStore.getThreadPool().absoluteTimeInMillis() - blobStore.getCompareAndExchangeTimeToLive().millis()
-                )
-            );
+            final var expiryDate = Date.from(Instant.ofEpochMilli(blobStore.getThreadPool().absoluteTimeInMillis() - timeToLiveMillis));
             if (uploads.stream().anyMatch(upload -> upload.getInitiated().after(expiryDate))) {
                 logger.trace("[{}] fresh preexisting uploads vs {}", blobKey, expiryDate);
                 return true;
@@ -929,7 +930,7 @@ class S3BlobContainer extends AbstractBlobContainer {
                     final var currentTimeMillis = blobStore.getThreadPool().absoluteTimeInMillis();
                     final var ageMillis = currentTimeMillis - multipartUpload.getInitiated().toInstant().toEpochMilli();
                     final var expectedAgeRangeMillis = blobStore.getCompareAndExchangeTimeToLive().millis();
-                    if (ageMillis < -expectedAgeRangeMillis || ageMillis > expectedAgeRangeMillis) {
+                    if (0 <= expectedAgeRangeMillis && (ageMillis < -expectedAgeRangeMillis || ageMillis > expectedAgeRangeMillis)) {
                         logger.warn(
                             """
                                 compare-and-exchange of blob [{}:{}] was initiated at [{}={}] \

@@ -33,9 +33,11 @@ import org.elasticsearch.xpack.esql.optimizer.LocalLogicalOptimizerContext;
 import org.elasticsearch.xpack.esql.optimizer.LocalLogicalPlanOptimizer;
 import org.elasticsearch.xpack.esql.optimizer.LocalPhysicalOptimizerContext;
 import org.elasticsearch.xpack.esql.optimizer.LocalPhysicalPlanOptimizer;
+import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.LucenePushdownPredicates;
 import org.elasticsearch.xpack.esql.plan.QueryPlan;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
+import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.physical.AggregateExec;
 import org.elasticsearch.xpack.esql.plan.physical.EsSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.EstimatesRowSize;
@@ -43,6 +45,7 @@ import org.elasticsearch.xpack.esql.plan.physical.ExchangeExec;
 import org.elasticsearch.xpack.esql.plan.physical.ExchangeSinkExec;
 import org.elasticsearch.xpack.esql.plan.physical.ExchangeSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.FragmentExec;
+import org.elasticsearch.xpack.esql.plan.physical.MergeExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.planner.mapper.LocalMapper;
 import org.elasticsearch.xpack.esql.planner.mapper.Mapper;
@@ -66,6 +69,34 @@ import static org.elasticsearch.xpack.esql.optimizer.rules.physical.local.PushFi
 import static org.elasticsearch.xpack.esql.planner.TranslatorHandler.TRANSLATOR_HANDLER;
 
 public class PlannerUtils {
+
+    /**
+     * When the plan contains children like {@code MergeExec} resulted from the planning of commands such as FORK,
+     * we need to break the plan into sub plans and a main coordinator plan.
+     * The result pages from each sub plan will be funneled to the main coordinator plan.
+     * To achieve this, we wire each sub plan with a {@code ExchangeSinkExec} and add a {@code ExchangeSourceExec}
+     * to the main coordinator plan.
+     * There is an additional split of each sub plan into a data node plan and coordinator plan.
+     * This split is not done here, but as part of {@code PlannerUtils#breakPlanBetweenCoordinatorAndDataNode}.
+     */
+    public static Tuple<List<PhysicalPlan>, PhysicalPlan> breakPlanIntoSubPlansAndMainPlan(PhysicalPlan plan) {
+        var subplans = new Holder<List<PhysicalPlan>>();
+        PhysicalPlan mainPlan = plan.transformUp(MergeExec.class, me -> {
+            subplans.set(me.children().stream().map(child -> {
+                // TODO: we are adding a Project plan to force InsertFieldExtraction - we should remove this transformation
+                child = child.transformUp(FragmentExec.class, f -> {
+                    var logicalFragment = f.fragment();
+                    logicalFragment = new Project(logicalFragment.source(), logicalFragment, logicalFragment.output());
+                    return new FragmentExec(logicalFragment);
+                });
+
+                return (PhysicalPlan) new ExchangeSinkExec(child.source(), child.output(), false, child);
+            }).toList());
+            return new ExchangeSourceExec(me.source(), me.output(), false);
+        });
+
+        return new Tuple<>(subplans.get(), mainPlan);
+    }
 
     public static Tuple<PhysicalPlan, PhysicalPlan> breakPlanBetweenCoordinatorAndDataNode(PhysicalPlan plan, Configuration config) {
         var dataNodePlan = new Holder<PhysicalPlan>();
@@ -220,7 +251,9 @@ public class PlannerUtils {
                     }
                 }
                 if (matches.isEmpty() == false) {
-                    requestFilters.add(TRANSLATOR_HANDLER.asQuery(Predicates.combineAnd(matches)).toQueryBuilder());
+                    requestFilters.add(
+                        TRANSLATOR_HANDLER.asQuery(LucenePushdownPredicates.DEFAULT, Predicates.combineAnd(matches)).toQueryBuilder()
+                    );
                 }
             });
         });

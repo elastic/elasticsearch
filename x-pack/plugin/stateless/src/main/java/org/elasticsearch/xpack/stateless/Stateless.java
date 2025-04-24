@@ -40,9 +40,12 @@ import co.elastic.elasticsearch.stateless.autoscaling.indexing.TransportPublishN
 import co.elastic.elasticsearch.stateless.autoscaling.memory.HeapMemoryUsagePublisher;
 import co.elastic.elasticsearch.stateless.autoscaling.memory.IndexingOperationsMemoryRequirementsSampler;
 import co.elastic.elasticsearch.stateless.autoscaling.memory.MemoryMetricsService;
+import co.elastic.elasticsearch.stateless.autoscaling.memory.MergeMemoryEstimateCollector;
+import co.elastic.elasticsearch.stateless.autoscaling.memory.MergeMemoryEstimatePublisher;
 import co.elastic.elasticsearch.stateless.autoscaling.memory.ShardsMappingSizeCollector;
 import co.elastic.elasticsearch.stateless.autoscaling.memory.TransportPublishHeapMemoryMetrics;
 import co.elastic.elasticsearch.stateless.autoscaling.memory.TransportPublishIndexingOperationsHeapMemoryRequirements;
+import co.elastic.elasticsearch.stateless.autoscaling.memory.TransportPublishMergeMemoryEstimate;
 import co.elastic.elasticsearch.stateless.autoscaling.search.ReplicasUpdaterService;
 import co.elastic.elasticsearch.stateless.autoscaling.search.SearchMetricsService;
 import co.elastic.elasticsearch.stateless.autoscaling.search.SearchShardSizeCollector;
@@ -404,6 +407,7 @@ public class Stateless extends Plugin
                 TransportPublishIndexingOperationsHeapMemoryRequirements.INSTANCE,
                 TransportPublishIndexingOperationsHeapMemoryRequirements.class
             ),
+            new ActionHandler(TransportPublishMergeMemoryEstimate.INSTANCE, TransportPublishMergeMemoryEstimate.class),
 
             new ActionHandler(CLEAR_BLOB_CACHE_ACTION, TransportClearBlobCacheAction.class),
             new ActionHandler(GET_BLOB_STORE_STATS_ACTION, TransportGetBlobStoreStatsAction.class),
@@ -637,6 +641,21 @@ public class Stateless extends Plugin
             );
             indexingPressureMonitor.addListener(indexingMemoryRequirementsSampler);
             components.add(indexingMemoryRequirementsSampler);
+
+            var mergeExecutorService = indicesService.getThreadPoolMergeExecutorService();
+            if (mergeExecutorService != null) {
+                var mergeMemoryEstimatePublisher = new MergeMemoryEstimatePublisher(threadPool, client);
+                var mergeMemoryEstimateCollector = new MergeMemoryEstimateCollector(
+                    clusterService.getClusterSettings(),
+                    () -> clusterService.state().getMinTransportVersion(),
+                    () -> clusterService.localNode().getEphemeralId(),
+                    mergeMemoryEstimatePublisher::publish
+                );
+                mergeExecutorService.registerMergeEventListener(mergeMemoryEstimateCollector);
+                clusterService.addListener(mergeMemoryEstimateCollector);
+                components.add(mergeMemoryEstimateCollector);
+                components.add(mergeMemoryEstimatePublisher);
+            }
         }
         var ingestMetricService = new IngestMetricsService(
             clusterService.getClusterSettings(),
@@ -1003,11 +1022,13 @@ public class Stateless extends Plugin
             ShardsMappingSizeCollector.PUBLISHING_FREQUENCY_SETTING,
             ShardsMappingSizeCollector.CUT_OFF_TIMEOUT_SETTING,
             ShardsMappingSizeCollector.RETRY_INITIAL_DELAY_SETTING,
+            MergeMemoryEstimateCollector.MERGE_MEMORY_ESTIMATE_PUBLICATION_MIN_CHANGE_RATIO,
             MemoryMetricsService.STALE_METRICS_CHECK_DURATION_SETTING,
             MemoryMetricsService.STALE_METRICS_CHECK_INTERVAL_SETTING,
             MemoryMetricsService.FIXED_SHARD_MEMORY_OVERHEAD_SETTING,
             MemoryMetricsService.INDEXING_OPERATIONS_MEMORY_REQUIREMENTS_ENABLED_SETTING,
             MemoryMetricsService.INDEXING_OPERATIONS_MEMORY_REQUIREMENTS_VALIDITY_SETTING,
+            MemoryMetricsService.MERGE_MEMORY_ESTIMATE_ENABLED_SETTING,
             IngestLoadSampler.MAX_TIME_BETWEEN_METRIC_PUBLICATIONS_SETTING,
             IngestLoadSampler.MIN_SENSITIVITY_RATIO_FOR_PUBLICATION_SETTING,
             IngestMetricsService.ACCURATE_LOAD_WINDOW,

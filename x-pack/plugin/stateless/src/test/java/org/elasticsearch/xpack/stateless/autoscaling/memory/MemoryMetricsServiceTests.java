@@ -19,6 +19,8 @@ package co.elastic.elasticsearch.stateless.autoscaling.memory;
 
 import co.elastic.elasticsearch.serverless.constants.ProjectType;
 import co.elastic.elasticsearch.stateless.autoscaling.MetricQuality;
+import co.elastic.elasticsearch.stateless.autoscaling.memory.MemoryMetricsService.ShardMergeMemoryEstimatePublication;
+import co.elastic.elasticsearch.stateless.autoscaling.memory.MergeMemoryEstimateCollector.ShardMergeMemoryEstimate;
 
 import org.apache.logging.log4j.Level;
 import org.elasticsearch.cluster.ClusterChangedEvent;
@@ -68,6 +70,7 @@ import static co.elastic.elasticsearch.stateless.autoscaling.memory.MemoryMetric
 import static co.elastic.elasticsearch.stateless.autoscaling.memory.MemoryMetricsService.ADAPTIVE_FIELD_MEMORY_OVERHEAD;
 import static co.elastic.elasticsearch.stateless.autoscaling.memory.MemoryMetricsService.ADAPTIVE_SEGMENT_MEMORY_OVERHEAD;
 import static co.elastic.elasticsearch.stateless.autoscaling.memory.MemoryMetricsService.ADAPTIVE_SHARD_MEMORY_OVERHEAD;
+import static co.elastic.elasticsearch.stateless.autoscaling.memory.MemoryMetricsService.DEFAULT_REMOVED_NODE_MERGE_MEMORY_ESTIMATION_VALIDITY;
 import static co.elastic.elasticsearch.stateless.autoscaling.memory.MemoryMetricsService.FIXED_SHARD_MEMORY_OVERHEAD_DEFAULT;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
@@ -85,7 +88,8 @@ public class MemoryMetricsServiceTests extends ESTestCase {
             MemoryMetricsService.STALE_METRICS_CHECK_INTERVAL_SETTING,
             MemoryMetricsService.FIXED_SHARD_MEMORY_OVERHEAD_SETTING,
             MemoryMetricsService.INDEXING_OPERATIONS_MEMORY_REQUIREMENTS_VALIDITY_SETTING,
-            MemoryMetricsService.INDEXING_OPERATIONS_MEMORY_REQUIREMENTS_ENABLED_SETTING
+            MemoryMetricsService.INDEXING_OPERATIONS_MEMORY_REQUIREMENTS_ENABLED_SETTING,
+            MemoryMetricsService.MERGE_MEMORY_ESTIMATE_ENABLED_SETTING
         )
     );
 
@@ -652,6 +656,167 @@ public class MemoryMetricsServiceTests extends ESTestCase {
             service.getIndexingTierMemoryMetrics().nodeMemoryInBytes(),
             is(equalTo(indexingTierMemoryMetricsBeforeIndexRequirements.nodeMemoryInBytes() + newExtraMemoryNeededForIndexingOperations))
         );
+    }
+
+    public void testMergeMemoryEstimate() {
+        var fakeClock = new AtomicLong();
+        final var validityNanos = DEFAULT_REMOVED_NODE_MERGE_MEMORY_ESTIMATION_VALIDITY.nanos();
+        var seqNoGenerator = new AtomicLong();
+        var node0 = DiscoveryNodeUtils.create("node0");
+        var node0EphemeralId = node0.getEphemeralId();
+        var node1 = DiscoveryNodeUtils.create("node1");
+        var node1EphemeralId = node1.getEphemeralId();
+        service = new MemoryMetricsService(fakeClock::get, CLUSTER_SETTINGS, randomFrom(ProjectType.values()));
+
+        assertThat(service.mergeMemoryEstimation(), equalTo(0L));
+
+        final var clusterState1 = ClusterState.builder(new ClusterName("test"))
+            .nodes(DiscoveryNodes.builder().add(node0).add(node1).localNodeId("node1").masterNodeId("node1"))
+            .version(randomLongBetween(0, 1000))
+            .build();
+        service.clusterChanged(new ClusterChangedEvent("test", clusterState1, ClusterState.EMPTY_STATE));
+        assertThat(service.mergeMemoryEstimation(), equalTo(0L));
+
+        var pub1 = new ShardMergeMemoryEstimatePublication(
+            seqNoGenerator.getAndIncrement(),
+            node0EphemeralId,
+            new ShardMergeMemoryEstimate("merge1", 1024)
+        );
+        service.updateMergeMemoryEstimate(pub1);
+        assertThat(service.mergeMemoryEstimation(), equalTo(1024L));
+
+        var pub2 = new ShardMergeMemoryEstimatePublication(
+            seqNoGenerator.getAndIncrement(),
+            node1EphemeralId,
+            new ShardMergeMemoryEstimate("merge2", 512)
+        );
+        service.updateMergeMemoryEstimate(pub2);
+        assertThat(service.mergeMemoryEstimation(), equalTo(1024L));
+        // out of order publication
+        service.updateMergeMemoryEstimate(
+            new ShardMergeMemoryEstimatePublication(
+                0,
+                randomBoolean() ? node0EphemeralId : node1EphemeralId,
+                new ShardMergeMemoryEstimate("merge3", 2048)
+            )
+        );
+        assertThat(service.mergeMemoryEstimation(), equalTo(1024L));
+
+        fakeClock.addAndGet(validityNanos + randomLongBetween(0, 1000));
+        assertThat(service.mergeMemoryEstimation(), equalTo(1024L));
+
+        final var clusterState2 = ClusterState.builder(new ClusterName("test"))
+            .nodes(DiscoveryNodes.builder().add(node1).localNodeId("node1").masterNodeId("node1"))
+            .version(clusterState1.version() + 1)
+            .build();
+        service.clusterChanged(new ClusterChangedEvent("test", clusterState2, clusterState1));
+        var randomTicks = randomLongBetween(0, validityNanos);
+        fakeClock.addAndGet(randomTicks);
+        assertThat(service.mergeMemoryEstimation(), equalTo(1024L));
+        assertThat(service.getMaxShardMergeMemoryEstimatePerNode().size(), equalTo(2));
+        var node0Entry = service.getMaxShardMergeMemoryEstimatePerNode().get(node0EphemeralId);
+        assertNotNull(node0Entry);
+        assertTrue(node0Entry.hasNodeLeft());
+        assertThat(node0Entry.estimate().estimateInBytes(), equalTo(1024L));
+        if (randomBoolean()) {
+            // after the node leaves, a late publication with a higher merge arrives
+            var pub3 = new ShardMergeMemoryEstimatePublication(
+                seqNoGenerator.getAndIncrement(),
+                node0EphemeralId,
+                new ShardMergeMemoryEstimate("merge3", 2048)
+            );
+            service.updateMergeMemoryEstimate(pub3);
+            // Estimate is update, but we still keep the timestamp for when the node left
+            node0Entry = service.getMaxShardMergeMemoryEstimatePerNode().get(node0EphemeralId);
+            assertNotNull(node0Entry);
+            assertTrue(node0Entry.hasNodeLeft());
+            assertThat(node0Entry.estimate().estimateInBytes(), equalTo(2048L));
+            assertThat(service.mergeMemoryEstimation(), equalTo(2048L));
+        }
+        // once validity period for the departed node0 is finished, we clean it up.
+        fakeClock.addAndGet(validityNanos - randomTicks + randomLongBetween(0, 1000));
+        assertThat(service.mergeMemoryEstimation(), equalTo(512L));
+        assertThat(service.getMaxShardMergeMemoryEstimatePerNode().size(), equalTo(1));
+
+        service.updateMergeMemoryEstimate(
+            new ShardMergeMemoryEstimatePublication(seqNoGenerator.getAndIncrement(), node1EphemeralId, ShardMergeMemoryEstimate.NO_MERGES)
+        );
+        assertThat(service.mergeMemoryEstimation(), equalTo(0L));
+        assertThat(service.getMaxShardMergeMemoryEstimatePerNode().size(), equalTo(1));
+        assertThat(
+            service.getMaxShardMergeMemoryEstimatePerNode().get(node1EphemeralId).estimate(),
+            equalTo(ShardMergeMemoryEstimate.NO_MERGES)
+        );
+    }
+
+    public void testNodeBrieflyLeavingTheClusterAndRejoining() {
+        var fakeClock = new AtomicLong();
+        final var validityNanos = DEFAULT_REMOVED_NODE_MERGE_MEMORY_ESTIMATION_VALIDITY.nanos();
+        var seqNoGenerator = new AtomicLong();
+        var node0 = DiscoveryNodeUtils.create("node0");
+        var node0EphemeralId = node0.getEphemeralId();
+        var node1 = DiscoveryNodeUtils.create("node1");
+        service = new MemoryMetricsService(fakeClock::get, CLUSTER_SETTINGS, randomFrom(ProjectType.values()));
+        final var clusterState1 = ClusterState.builder(new ClusterName("test"))
+            .nodes(DiscoveryNodes.builder().add(node0).add(node1).localNodeId("node1").masterNodeId("node1"))
+            .version(randomLongBetween(0, 1000))
+            .build();
+        service.clusterChanged(new ClusterChangedEvent("test", clusterState1, ClusterState.EMPTY_STATE));
+        assertThat(service.mergeMemoryEstimation(), equalTo(0L));
+        if (randomBoolean()) {
+            var pub0 = new ShardMergeMemoryEstimatePublication(
+                seqNoGenerator.getAndIncrement(),
+                node0EphemeralId,
+                new ShardMergeMemoryEstimate("merge1", 512)
+            );
+            service.updateMergeMemoryEstimate(pub0);
+        }
+        // publish a new merge estimate and its matching finish but they arrive out of order
+        var pub1 = new ShardMergeMemoryEstimatePublication(
+            seqNoGenerator.getAndIncrement(),
+            node0EphemeralId,
+            new ShardMergeMemoryEstimate("merge2", 1024)
+        );
+        var pub2 = new ShardMergeMemoryEstimatePublication(
+            seqNoGenerator.getAndIncrement(),
+            node0EphemeralId,
+            ShardMergeMemoryEstimate.NO_MERGES
+        );
+        service.updateMergeMemoryEstimate(pub2);
+        assertThat(service.mergeMemoryEstimation(), equalTo(0L));
+        assertThat(service.getMaxShardMergeMemoryEstimatePerNode().size(), equalTo(1));
+        // node0 temporarily leaves and comes back before DEFAULT_REMOVED_NODE_MERGE_MEMORY_ESTIMATION_VALIDITY
+        final var clusterState2 = ClusterState.builder(new ClusterName("test"))
+            .nodes(DiscoveryNodes.builder().add(node1).localNodeId("node1").masterNodeId("node1"))
+            .version(clusterState1.version() + 1)
+            .build();
+        fakeClock.addAndGet(randomIntBetween(1, 1000));
+        service.clusterChanged(new ClusterChangedEvent("test", clusterState2, clusterState1));
+        assertThat(service.mergeMemoryEstimation(), equalTo(0L));
+        assertThat(service.getMaxShardMergeMemoryEstimatePerNode().size(), equalTo(1));
+        assertThat(
+            service.getMaxShardMergeMemoryEstimatePerNode().get(node0EphemeralId).nodeLeftTimestampNanos(),
+            equalTo(fakeClock.get())
+        );
+        // the queued event publication arrives
+        service.updateMergeMemoryEstimate(pub1);
+        assertThat(service.mergeMemoryEstimation(), equalTo(0L));
+        assertThat(service.getMaxShardMergeMemoryEstimatePerNode().size(), equalTo(1));
+        final var clusterState3 = ClusterState.builder(new ClusterName("test"))
+            .nodes(DiscoveryNodes.builder().add(node0).add(node1).localNodeId("node1").masterNodeId("node1"))
+            .version(clusterState1.version() + 1)
+            .build();
+        service.clusterChanged(new ClusterChangedEvent("test", clusterState3, clusterState2));
+        assertThat(service.mergeMemoryEstimation(), equalTo(0L));
+        assertThat(service.getMaxShardMergeMemoryEstimatePerNode().size(), equalTo(1));
+        fakeClock.addAndGet(validityNanos);
+        assertThat(service.mergeMemoryEstimation(), equalTo(0L));
+        assertThat(service.getMaxShardMergeMemoryEstimatePerNode().size(), equalTo(1));
+        assertThat(
+            service.getMaxShardMergeMemoryEstimatePerNode().get(node0EphemeralId).estimate(),
+            equalTo(ShardMergeMemoryEstimate.NO_MERGES)
+        );
+        assertFalse(service.getMaxShardMergeMemoryEstimatePerNode().get(node0EphemeralId).hasNodeLeft());
     }
 
     private void clusterStateApplier(

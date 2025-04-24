@@ -19,6 +19,7 @@ import java.io.IOException;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.nullValue;
 
 public class DataStreamFailureStoreTemplateTests extends AbstractXContentSerializingTestCase<DataStreamFailureStore.Template> {
 
@@ -125,6 +126,12 @@ public class DataStreamFailureStoreTemplateTests extends AbstractXContentSeriali
             .buildTemplate();
         assertThat(result.enabled(), not(equalTo(ResettableValue.undefined())));
         assertThat(result.lifecycle(), equalTo(ResettableValue.undefined()));
+
+        // Test resetting all values
+        result = DataStreamFailureStore.builder(fullyFilledTemplate)
+            .composeTemplate(new DataStreamFailureStore.Template(ResettableValue.reset(), ResettableValue.reset()))
+            .buildTemplate();
+        assertThat(result, nullValue());
     }
 
     private static <T> ResettableValue<T> randomEmptyResettableValue() {

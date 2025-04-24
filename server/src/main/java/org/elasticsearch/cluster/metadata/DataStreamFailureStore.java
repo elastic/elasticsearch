@@ -289,11 +289,27 @@ public record DataStreamFailureStore(@Nullable Boolean enabled, @Nullable DataSt
             return this;
         }
 
+        /**
+         * Builds a valid DataStreamFailureStore configuration.
+         * @return the object or null if all the values were null.
+         */
+        @Nullable
         public DataStreamFailureStore build() {
+            if (enabled == null && lifecycleBuilder == null) {
+                return null;
+            }
             return new DataStreamFailureStore(enabled, lifecycleBuilder == null ? null : lifecycleBuilder.build());
         }
 
+        /**
+         * Builds a valid template for the DataStreamFailureStore configuration.
+         * @return the template or null if all the values were null.
+         */
+        @Nullable
         public DataStreamFailureStore.Template buildTemplate() {
+            if (enabled == null && lifecycleBuilder == null) {
+                return null;
+            }
             return new Template(enabled, lifecycleBuilder == null ? null : lifecycleBuilder.buildTemplate());
         }
     }

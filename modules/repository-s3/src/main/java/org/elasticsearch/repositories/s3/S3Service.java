@@ -291,27 +291,17 @@ class S3Service extends AbstractLifecycleComponent {
             return defaultRegion;
         }
 
-        if (hasEndpoint) {
-            LOGGER.warn(
-                """
-                    found S3 client with no configured region and {}, falling back to [{}]; \
-                    to suppress this warning, configure the [{}] setting on this node""",
-                endpointDescription,
-                Region.US_EAST_1,
-                S3ClientSettings.REGION.getConcreteSettingForNamespace("CLIENT_NAME").getKey()
-            );
-            return Region.US_EAST_1;
-        } else {
-            LOGGER.warn(
-                """
-                    found S3 client with no configured region and {}, falling back to [{}] and enabling cross-region access; \
-                    to suppress this warning, configure the [{}] setting on this node""",
-                endpointDescription,
-                Region.US_EAST_1,
-                S3ClientSettings.REGION.getConcreteSettingForNamespace("CLIENT_NAME").getKey()
-            );
-            return null;
-        }
+        LOGGER.warn(
+            """
+                found S3 client with no configured region and {}, falling back to [{}]{}; \
+                to suppress this warning, configure the [{}] setting on this node""",
+            endpointDescription,
+            Region.US_EAST_1,
+            hasEndpoint ? "" : " and enabling cross-region access",
+            S3ClientSettings.REGION.getConcreteSettingForNamespace("CLIENT_NAME").getKey()
+        );
+
+        return hasEndpoint ? Region.US_EAST_1 : null;
     }
 
     @Nullable // in production, but exposed for tests to override

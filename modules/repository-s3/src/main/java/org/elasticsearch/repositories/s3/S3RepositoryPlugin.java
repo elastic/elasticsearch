@@ -101,7 +101,7 @@ public class S3RepositoryPlugin extends Plugin implements RepositoryPlugin, Relo
             try {
                 return DefaultAwsRegionProviderChain.builder().build().getRegion();
             } catch (Exception e) {
-                logger.debug("failed to obtain region from default provider chain", e);
+                logger.info("failed to obtain region from default provider chain", e);
                 return null;
             }
         });

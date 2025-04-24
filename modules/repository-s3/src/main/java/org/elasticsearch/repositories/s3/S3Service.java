@@ -269,6 +269,14 @@ class S3Service extends AbstractLifecycleComponent {
                     S3ClientSettings.REGION.getConcreteSettingForNamespace("CLIENT_NAME").getKey()
                 );
                 return Region.of(guessedRegion);
+            } else {
+                LOGGER.info(
+                    """
+                        found S3 client with endpoint [{}] which does not map to a known AWS region; \
+                        to suppress this message, configure the [{}] setting on this node""",
+                    clientSettings.endpoint,
+                    S3ClientSettings.REGION.getConcreteSettingForNamespace("CLIENT_NAME").getKey()
+                );
             }
         }
         final var defaultRegion = this.defaultRegion;

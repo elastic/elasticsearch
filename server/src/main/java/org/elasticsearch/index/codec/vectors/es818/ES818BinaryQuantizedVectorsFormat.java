@@ -25,6 +25,7 @@ import org.apache.lucene.codecs.hnsw.FlatVectorsReader;
 import org.apache.lucene.codecs.hnsw.FlatVectorsWriter;
 import org.apache.lucene.index.SegmentReadState;
 import org.apache.lucene.index.SegmentWriteState;
+import org.elasticsearch.index.codec.vectors.OptimizedScalarQuantizer;
 
 import java.io.IOException;
 
@@ -34,7 +35,7 @@ import static org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.MAX_
  * Copied from Lucene, replace with Lucene's implementation sometime after Lucene 10
  * Codec for encoding/decoding binary quantized vectors The binary quantization format used here
  * is a per-vector optimized scalar quantization. Also see {@link
- * org.elasticsearch.index.codec.vectors.es818.OptimizedScalarQuantizer}. Some of key features are:
+ * OptimizedScalarQuantizer}. Some of key features are:
  *
  * <ul>
  *   <li>Estimating the distance between two vectors using their centroid normalized distance. This

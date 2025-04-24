@@ -553,6 +553,7 @@ public class ProjectMetadataTests extends ESTestCase {
                             "replicated": false,
                             "system": false,
                             "allow_custom_routing": false,
+                            "settings" : { },
                             "failure_rollover_on_write": false,
                             "rollover_on_write": false
                           }

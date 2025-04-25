@@ -2157,7 +2157,7 @@ public class FailureStoreSecurityRestIT extends ESRestTestCase {
 
         expectSearch(username, new Search(randomFrom(filteredAliasName + "::data", filteredAliasName)));
         // the alias filter is not applied to the failure store
-        expectSearch(username, new Search(filteredAliasName + "::failures"), failuresDocId, otherDataDocId);
+        expectSearch(username, new Search(filteredAliasName + "::failures"), failuresDocId, otherFailuresDocId);
     }
 
     private void createOrUpdateRoleAndApiKey(String username, String roleName, String roleDescriptor) throws IOException {

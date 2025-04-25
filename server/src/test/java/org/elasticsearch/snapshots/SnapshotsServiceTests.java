@@ -748,7 +748,7 @@ public class SnapshotsServiceTests extends ESTestCase {
                 /* on completion handler */ (shardSnapshotUpdateResult, newlyCompletedEntries, updatedRepositories) -> {}
             );
             final SnapshotsInProgress updated = context.computeUpdatedState();
-            context.completeCallbacksWithUpdatedState(updated);
+            context.setupSuccessfulPublicationCallbacks(updated);
             if (existing == updated) {
                 return batchExecutionContext.initialState();
             }

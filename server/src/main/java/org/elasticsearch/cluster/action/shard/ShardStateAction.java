@@ -33,6 +33,7 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.RerouteService;
 import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.routing.allocation.FailedShard;
 import org.elasticsearch.cluster.routing.allocation.StaleShard;
@@ -920,7 +921,7 @@ public class ShardStateAction {
 
     /**
      * Task that runs on the master node. Handles responding to the request listener with the result of the update request.
-     * Task is created when the master node receives a data node request to mark a shard as STARTED.
+     * Task is created when the master node receives a data node request to mark a shard as {@link ShardRoutingState#STARTED}.
      *
      * @param entry Information about the newly sharted shard.
      * @param listener Channel listener with which to respond to the data node.

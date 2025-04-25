@@ -942,13 +942,13 @@ public abstract class ESIntegTestCase extends ESTestCase {
     }
 
     /**
-     * Waits for the node {@code viaNode} to see {@code masterNodeName} as the master node in the cluster state and asserts that.
+     * Waits for the node {@code viaNode} to see {@code masterNodeName} as the master node in the cluster state.
      * Note that this does not guarantee that all other nodes in the cluster are on the same cluster state version already.
      *
      * @param viaNode the node to check the cluster state one
      * @param masterNodeName the master node name that we wait for
      */
-    public void awaitAndAssertMasterNode(String viaNode, String masterNodeName) {
+    public void awaitMasterNode(String viaNode, String masterNodeName) {
         var listener = ClusterServiceUtils.addTemporaryStateListener(
             internalCluster().clusterService(viaNode),
             state -> Optional.ofNullable(state.nodes().getMasterNode()).map(m -> m.getName().equals(masterNodeName)).orElse(false),
@@ -958,9 +958,10 @@ public abstract class ESIntegTestCase extends ESTestCase {
     }
 
     /**
-     * Waits for a random node in the cluster to not see a master node in the cluster state and asserts that.
+     * Waits for a random node in the cluster to not see a master node in the cluster state.
+     * Note that this does not guarantee that all other nodes in the cluster are on the same cluster state version already.
      */
-    public void awaitAndAssertMasterNotFound() {
+    public void awaitMasterNotFound() {
         var viaNode = internalCluster().getRandomNodeName();
         // We use a temporary state listener instead of `awaitClusterState` here because the `ClusterStateObserver` doesn't run the
         // predicate if the cluster state version didn't change. When a master node leaves the cluster (i.e. what this method is used for),

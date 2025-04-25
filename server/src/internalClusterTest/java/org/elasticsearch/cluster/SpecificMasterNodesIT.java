@@ -30,43 +30,43 @@ public class SpecificMasterNodesIT extends ESIntegTestCase {
         internalCluster().setBootstrapMasterNodeIndex(0);
         logger.info("--> start data node / non master node");
         internalCluster().startNode(Settings.builder().put(dataOnlyNode()).put("discovery.initial_state_timeout", "1s"));
-        awaitAndAssertMasterNotFound();
+        awaitMasterNotFound();
 
         logger.info("--> start master node");
         final String masterNodeName = internalCluster().startMasterOnlyNode();
 
-        awaitAndAssertMasterNode(internalCluster().getNonMasterNodeName(), masterNodeName);
-        awaitAndAssertMasterNode(internalCluster().getMasterName(), masterNodeName);
+        awaitMasterNode(internalCluster().getNonMasterNodeName(), masterNodeName);
+        awaitMasterNode(internalCluster().getMasterName(), masterNodeName);
 
         logger.info("--> stop master node");
         Settings masterDataPathSettings = internalCluster().dataPathSettings(internalCluster().getMasterName());
         internalCluster().stopCurrentMasterNode();
 
-        awaitAndAssertMasterNotFound();
+        awaitMasterNotFound();
 
         logger.info("--> start previous master node again");
         final String nextMasterEligibleNodeName = internalCluster().startNode(
             Settings.builder().put(nonDataNode(masterNode())).put(masterDataPathSettings)
         );
-        awaitAndAssertMasterNode(internalCluster().getNonMasterNodeName(), nextMasterEligibleNodeName);
-        awaitAndAssertMasterNode(internalCluster().getMasterName(), nextMasterEligibleNodeName);
+        awaitMasterNode(internalCluster().getNonMasterNodeName(), nextMasterEligibleNodeName);
+        awaitMasterNode(internalCluster().getMasterName(), nextMasterEligibleNodeName);
     }
 
     public void testElectOnlyBetweenMasterNodes() throws Exception {
         internalCluster().setBootstrapMasterNodeIndex(0);
         logger.info("--> start data node / non master node");
         internalCluster().startNode(Settings.builder().put(dataOnlyNode()).put("discovery.initial_state_timeout", "1s"));
-        awaitAndAssertMasterNotFound();
+        awaitMasterNotFound();
 
         logger.info("--> start master node (1)");
         final String masterNodeName = internalCluster().startMasterOnlyNode();
-        awaitAndAssertMasterNode(internalCluster().getNonMasterNodeName(), masterNodeName);
-        awaitAndAssertMasterNode(internalCluster().getMasterName(), masterNodeName);
+        awaitMasterNode(internalCluster().getNonMasterNodeName(), masterNodeName);
+        awaitMasterNode(internalCluster().getMasterName(), masterNodeName);
 
         logger.info("--> start master node (2)");
         final String nextMasterEligableNodeName = internalCluster().startMasterOnlyNode();
-        awaitAndAssertMasterNode(internalCluster().getNonMasterNodeName(), masterNodeName);
-        awaitAndAssertMasterNode(internalCluster().getMasterName(), masterNodeName);
+        awaitMasterNode(internalCluster().getNonMasterNodeName(), masterNodeName);
+        awaitMasterNode(internalCluster().getMasterName(), masterNodeName);
 
         logger.info("--> closing master node (1)");
         client().execute(
@@ -74,12 +74,12 @@ public class SpecificMasterNodesIT extends ESIntegTestCase {
             new AddVotingConfigExclusionsRequest(TEST_REQUEST_TIMEOUT, masterNodeName)
         ).get();
         // removing the master from the voting configuration immediately triggers the master to step down
-        awaitAndAssertMasterNode(internalCluster().getNonMasterNodeName(), nextMasterEligableNodeName);
-        awaitAndAssertMasterNode(internalCluster().getMasterName(), nextMasterEligableNodeName);
+        awaitMasterNode(internalCluster().getNonMasterNodeName(), nextMasterEligableNodeName);
+        awaitMasterNode(internalCluster().getMasterName(), nextMasterEligableNodeName);
 
         internalCluster().stopNode(masterNodeName);
-        awaitAndAssertMasterNode(internalCluster().getNonMasterNodeName(), nextMasterEligableNodeName);
-        awaitAndAssertMasterNode(internalCluster().getMasterName(), nextMasterEligableNodeName);
+        awaitMasterNode(internalCluster().getNonMasterNodeName(), nextMasterEligableNodeName);
+        awaitMasterNode(internalCluster().getMasterName(), nextMasterEligableNodeName);
     }
 
     public void testAliasFilterValidation() {

@@ -47,6 +47,9 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+import java.util.TreeSet;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import static org.elasticsearch.test.ListMatcher.matchesList;
 import static org.elasticsearch.test.MapMatcher.assertMap;
@@ -55,6 +58,7 @@ import static org.elasticsearch.xpack.esql.qa.rest.RestEsqlTestCase.Mode.SYNC;
 import static org.elasticsearch.xpack.esql.tools.ProfileParser.parseProfile;
 import static org.elasticsearch.xpack.esql.tools.ProfileParser.readProfileFromResponse;
 import static org.hamcrest.Matchers.any;
+import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.either;
@@ -651,6 +655,7 @@ public class RestEsqlIT extends RestEsqlTestCase {
     }
 
     public void testSuggestedCast() throws IOException {
+        // TODO: Figure out how best to make sure we don't leave out new types
         Map<DataType, String> typesAndValues = Map.ofEntries(
             Map.entry(DataType.BOOLEAN, "\"true\""),
             Map.entry(DataType.LONG, "-1234567890234567"),
@@ -676,6 +681,16 @@ public class RestEsqlIT extends RestEsqlTestCase {
                 }
                 """)
         );
+        Set<DataType> shouldBeSupported = Stream.of(DataType.values()).filter(DataType::isRepresentable).collect(Collectors.toSet());
+        shouldBeSupported.remove(DataType.CARTESIAN_POINT);
+        shouldBeSupported.remove(DataType.CARTESIAN_SHAPE);
+        shouldBeSupported.remove(DataType.NULL);
+        shouldBeSupported.remove(DataType.DOC_DATA_TYPE);
+        shouldBeSupported.remove(DataType.TSID_DATA_TYPE);
+        for (DataType type : shouldBeSupported) {
+            assertTrue(typesAndValues.containsKey(type));
+        }
+        assertThat(typesAndValues.size(), equalTo(shouldBeSupported.size()));
 
         for (DataType type : typesAndValues.keySet()) {
             String additionalProperties = "";
@@ -730,7 +745,7 @@ public class RestEsqlIT extends RestEsqlTestCase {
 
                 String castedQuery = """
                     {
-                        "query": "FROM index-%s,index-%s | LIMIT 100 | EVAL my_field = TO_%s(my_field)"
+                        "query": "FROM index-%s,index-%s | LIMIT 100 | EVAL my_field = my_field::%s"
                     }
                     """.formatted(
                     listOfTypes.get(i).esType(),

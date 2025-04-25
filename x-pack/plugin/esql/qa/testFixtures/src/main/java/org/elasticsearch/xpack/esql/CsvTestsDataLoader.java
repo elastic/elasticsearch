@@ -393,11 +393,9 @@ public class CsvTestsDataLoader {
         deleteCompletionInferenceEndpoint(client);
     }
 
-
     /** The semantic_text mapping type require an inference endpoint that needs to be setup before creating the index. */
     public static void createSparseEmbeddingInferenceEndpoint(RestClient client) throws IOException {
-        createInferenceEndpoint(client, TaskType.SPARSE_EMBEDDING, "test_sparse_inference",
-        """
+        createInferenceEndpoint(client, TaskType.SPARSE_EMBEDDING, "test_sparse_inference", """
                   {
                    "service": "test_service",
                    "service_settings": { "model": "my_model", "api_key": "abc64" },
@@ -450,13 +448,12 @@ public class CsvTestsDataLoader {
         return clusterHasInferenceEndpoint(client, TaskType.COMPLETION, "test_completion");
     }
 
-
-    private static void createInferenceEndpoint(RestClient client, TaskType taskType, String inferenceId, String modelSettings) throws IOException {
+    private static void createInferenceEndpoint(RestClient client, TaskType taskType, String inferenceId, String modelSettings)
+        throws IOException {
         Request request = new Request("PUT", "_inference/" + taskType.name() + "/" + inferenceId);
         request.setJsonEntity(modelSettings);
         client.performRequest(request);
     }
-
 
     private static boolean clusterHasInferenceEndpoint(RestClient client, TaskType taskType, String inferenceId) throws IOException {
         Request request = new Request("GET", "_inference/" + taskType.name() + "/" + inferenceId);

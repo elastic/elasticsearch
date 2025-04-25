@@ -162,7 +162,9 @@ public class SparseVectorQueryBuilderTests extends AbstractQueryTestCase<SparseV
     private void addSparseVectorIndexOptionsMapping(MapperService mapperService) throws IOException {
         String addIndexOptionsTemplate = "{\"properties\":{\""
             + SPARSE_VECTOR_FIELD
-            + "\":{\"type\":\"sparse_vector\",\"index_options\":{\"prune\":true,\"pruning_config\":{\"tokens_freq_ratio_threshold\":12,\"tokens_weight_threshold\":0.6}}}}}";
+            + "\":{\"type\":\"sparse_vector\",\"index_options\""
+            + ":{\"prune\":true,\"pruning_config\":{\"tokens_freq_ratio_threshold\""
+            + ":12,\"tokens_weight_threshold\":0.6}}}}}";
         mapperService.merge("_doc", new CompressedXContent(addIndexOptionsTemplate), MapperService.MergeReason.MAPPING_UPDATE);
     }
 

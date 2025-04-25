@@ -196,13 +196,13 @@ public class EsqlDataTypeConverterTests extends ESTestCase {
     public void testSuggestedCast() {
         // date
         {
-            assertEquals(DATETIME, DataType.suggestedCast(Set.of(DATETIME, DATE_NANOS)));
+            assertEquals(DATE_NANOS, DataType.suggestedCast(Set.of(DATETIME, DATE_NANOS)));
             DataType randomType = DataType.values()[random().nextInt(DataType.values().length)];
             DataType suggested = DataType.suggestedCast(Set.of(DATETIME, DATE_NANOS, randomType));
             if (randomType != DATETIME && randomType != DATE_NANOS) {
                 assertEquals(KEYWORD, suggested);
             } else {
-                assertEquals(DATETIME, suggested);
+                assertEquals(DATE_NANOS, suggested);
             }
         }
 

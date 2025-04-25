@@ -713,7 +713,7 @@ public enum DataType {
             return null;
         }
         if (originalTypes.contains(DATE_NANOS) && originalTypes.contains(DATETIME) && originalTypes.size() == 2) {
-            return DATETIME;
+            return DATE_NANOS;
         }
         if (originalTypes.contains(AGGREGATE_METRIC_DOUBLE)) {
             boolean allNumeric = true;

@@ -199,8 +199,7 @@ public class HuggingFaceService extends HuggingFaceBaseService {
             return configuration.getOrCompute();
         }
 
-        private Configuration() {
-        }
+        private Configuration() {}
 
         private static final LazyInitializable<InferenceServiceConfiguration, RuntimeException> configuration = new LazyInitializable<>(
             () -> {

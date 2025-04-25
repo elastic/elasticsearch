@@ -422,7 +422,7 @@ public class GeoShapeWithDocValuesFieldMapperTests extends GeoFieldMapperTests {
 
     @Override
     protected SyntheticSourceSupport syntheticSourceSupport(boolean ignoreMalformed) {
-        return new GeometricShapeSyntheticSourceSupport(FieldType.GEO_SHAPE, ignoreMalformed);
+        return new GeometricShapeSyntheticSourceSupport(GeometricShapeSyntheticSourceSupport.FieldType.GEO_SHAPE, ignoreMalformed);
     }
 
     @Override

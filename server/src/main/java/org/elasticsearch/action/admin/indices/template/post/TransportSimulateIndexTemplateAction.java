@@ -261,8 +261,8 @@ public class TransportSimulateIndexTemplateAction extends TransportMasterNodeRea
                 : indexName;
         List<CompressedXContent> mappings = MetadataCreateIndexService.collectV2Mappings(
             null, // empty request mapping as the user can't specify any explicit mappings via the simulate api
-            simulatedState,
-            matchingTemplate,
+            simulatedState.metadata(),
+            template,
             xContentRegistry,
             simulatedIndexName
         );

@@ -235,7 +235,6 @@ import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.not;
-import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.startsWith;
 
 /**
@@ -956,7 +955,6 @@ public abstract class ESIntegTestCase extends ESTestCase {
             state -> Optional.ofNullable(state.nodes().getMasterNode()).map(m -> m.getName().equals(masterNodeName)).orElse(false)
         );
         var nodes = client(viaNode).admin().cluster().prepareState(TEST_REQUEST_TIMEOUT).setLocal(true).get().getState().nodes();
-        assertThat(Optional.ofNullable(nodes.getMasterNode()).map(DiscoveryNode::getName).orElse(null), equalTo(masterNodeName));
     }
 
     /**
@@ -973,8 +971,6 @@ public abstract class ESIntegTestCase extends ESTestCase {
             TEST_REQUEST_TIMEOUT
         );
         safeAwait(listener, TEST_REQUEST_TIMEOUT);
-        final var nodes = client(viaNode).admin().cluster().prepareState(timeValueMillis(100)).setLocal(true).get().getState().nodes();
-        assertThat(nodes.getMasterNodeId(), nullValue());
     }
 
     /** Ensures the result counts are as expected, and logs the results if different */

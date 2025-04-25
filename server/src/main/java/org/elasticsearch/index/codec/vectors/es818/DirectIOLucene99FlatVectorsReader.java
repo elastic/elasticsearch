@@ -93,7 +93,7 @@ public class DirectIOLucene99FlatVectorsReader extends FlatVectorsReader {
                 versionMeta,
                 DirectIOLucene99FlatVectorsFormat.VECTOR_DATA_EXTENSION,
                 DirectIOLucene99FlatVectorsFormat.VECTOR_DATA_CODEC_NAME,
-                // We use sequential access since this input is only used for merging
+                // We use sequential access here since this input is only used for merging
                 USE_DIRECT_IO ? state.context.withReadAdvice(ReadAdvice.SEQUENTIAL) : state.context,
                 false
             );
@@ -108,9 +108,9 @@ public class DirectIOLucene99FlatVectorsReader extends FlatVectorsReader {
     }
 
     /**
-     * Returns a {@link DirectIOLucene99FlatVectorsReader} that switch the raw vector data to use
-     * the provided {@link IndexInput}.
-     * This is useful for merges since we want to switch from directIO to sequential reads.
+     * Returns a {@link DirectIOLucene99FlatVectorsReader} with the raw vector data
+     * redirected to use the provided {@link IndexInput}.
+     * This is useful during merges, where we need to switch from direct I/O to sequential reads.
      */
     private DirectIOLucene99FlatVectorsReader(DirectIOLucene99FlatVectorsReader clone, IndexInput vectorData) {
         super(clone.vectorScorer);

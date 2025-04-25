@@ -26,6 +26,7 @@ import co.elastic.elasticsearch.stateless.engine.IndexEngine;
 import co.elastic.elasticsearch.stateless.engine.PrimaryTermAndGeneration;
 import co.elastic.elasticsearch.stateless.objectstore.ObjectStoreService;
 import co.elastic.elasticsearch.stateless.objectstore.ObjectStoreTestUtils;
+import co.elastic.elasticsearch.stateless.recovery.TransportRegisterCommitForRecoveryAction;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
@@ -48,13 +49,17 @@ import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.get.MultiGetItemResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.client.internal.Requests;
+import org.elasticsearch.cluster.action.shard.ShardStateAction;
+import org.elasticsearch.cluster.coordination.Coordinator;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.DataStreamFailureStore;
 import org.elasticsearch.cluster.metadata.DataStreamLifecycle;
 import org.elasticsearch.cluster.metadata.DataStreamOptions;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.ResettableValue;
 import org.elasticsearch.cluster.metadata.Template;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
@@ -79,13 +84,18 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.snapshots.mockstore.MockRepository;
 import org.elasticsearch.telemetry.TestTelemetryPlugin;
+import org.elasticsearch.test.disruption.NetworkDisruption;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.TransportChannel;
+import org.elasticsearch.transport.TransportResponse;
+import org.elasticsearch.transport.TransportSettings;
 import org.elasticsearch.xcontent.XContentType;
 
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -111,8 +121,13 @@ import static co.elastic.elasticsearch.stateless.commits.StatelessCommitService.
 import static co.elastic.elasticsearch.stateless.engine.IndexEngineTestUtils.flushHollow;
 import static co.elastic.elasticsearch.stateless.recovery.TransportStatelessPrimaryRelocationAction.PRIMARY_CONTEXT_HANDOFF_ACTION_NAME;
 import static co.elastic.elasticsearch.stateless.recovery.TransportStatelessPrimaryRelocationAction.START_RELOCATION_ACTION_NAME;
+import static org.elasticsearch.cluster.coordination.FollowersChecker.FOLLOWER_CHECK_INTERVAL_SETTING;
+import static org.elasticsearch.cluster.coordination.FollowersChecker.FOLLOWER_CHECK_RETRY_COUNT_SETTING;
+import static org.elasticsearch.cluster.coordination.LeaderChecker.LEADER_CHECK_INTERVAL_SETTING;
+import static org.elasticsearch.cluster.coordination.LeaderChecker.LEADER_CHECK_RETRY_COUNT_SETTING;
 import static org.elasticsearch.cluster.metadata.MetadataIndexTemplateService.DEFAULT_TIMESTAMP_FIELD;
 import static org.elasticsearch.datastreams.lifecycle.DataStreamLifecycleService.DATA_STREAM_LIFECYCLE_POLL_INTERVAL;
+import static org.elasticsearch.discovery.PeerFinder.DISCOVERY_FIND_PEERS_INTERVAL_SETTING;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAllSuccessful;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
@@ -123,6 +138,7 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.emptyString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
@@ -640,7 +656,8 @@ public class StatelessHollowIndexShardsIT extends AbstractStatelessIntegTestCase
         ensureGreen(indexName);
 
         // Make a commit that is not flushed yet, and wait until it is hollowable
-        indexDocs(indexName, between(10, 30));
+        int numDocs = between(10, 30);
+        indexDocs(indexName, numDocs);
         refresh(indexName);
         final var indexShard = findIndexShard(indexName);
         assertNotNull(statelessCommitServiceA.getCurrentVirtualBcc(indexShard.shardId()));
@@ -669,7 +686,7 @@ public class StatelessHollowIndexShardsIT extends AbstractStatelessIntegTestCase
         var moreCommits = randomIntBetween(2, 5);
         logger.info("--> inputting more {} commits", moreCommits);
         for (int i = 0; i < moreCommits; i++) {
-            indexDocs(indexName, between(10, 30));
+            indexDocs(indexName, numDocs);
             client().admin().indices().prepareRefresh(indexName).execute();
             int expectedCommits = i + 1;
             assertBusy(() -> {
@@ -707,6 +724,12 @@ public class StatelessHollowIndexShardsIT extends AbstractStatelessIntegTestCase
         logger.info("--> setting replica count");
         setReplicaCount(1, indexName);
         ensureGreen(indexName);
+        hollowShardsServiceB.ensureHollowShard(indexShardRelocated.shardId(), true);
+        assertThat(findIndexShard(resolveIndex(indexName), 0).docStats().getCount(), equalTo((long) numDocs * (moreCommits + 1)));
+
+        indexDocs(indexName, numDocs);
+        refresh(indexName);
+        assertThat(findIndexShard(resolveIndex(indexName), 0).docStats().getCount(), equalTo((long) numDocs * (moreCommits + 2)));
     }
 
     public void testRelocateHollowableShardWithConnectionFailure() throws Exception {
@@ -1303,6 +1326,166 @@ public class StatelessHollowIndexShardsIT extends AbstractStatelessIntegTestCase
             long generationBeforeRestart = generationsBeforeRestart.get(i);
             assertThat(lastCompoundCommit.generation(), either(is(generationBeforeRestart)).or(is(generationBeforeRestart + 1)));
         }
+    }
+
+    public void testHollowShardFailsIfSearchShardRegistersNewerCommit() throws Exception {
+        var nodeSettings = Settings.builder()
+            .put(disableIndexingDiskAndMemoryControllersNodeSettings())
+            .put(SETTING_HOLLOW_INGESTION_TTL.getKey(), TimeValue.timeValueMillis(1))
+            .put(FOLLOWER_CHECK_INTERVAL_SETTING.getKey(), "100ms")
+            .put(FOLLOWER_CHECK_RETRY_COUNT_SETTING.getKey(), "1")
+            .put(DISCOVERY_FIND_PEERS_INTERVAL_SETTING.getKey(), "100ms")
+            .put(LEADER_CHECK_INTERVAL_SETTING.getKey(), "100ms")
+            .put(LEADER_CHECK_RETRY_COUNT_SETTING.getKey(), "1")
+            .put(Coordinator.PUBLISH_TIMEOUT_SETTING.getKey(), "1s")
+            .put(TransportSettings.CONNECT_TIMEOUT.getKey(), "5s")
+            .build();
+        String masterNode = startMasterOnlyNode(nodeSettings);
+        String searchNode = startSearchNode(nodeSettings);
+        String indexNodeA = startIndexNode(nodeSettings);
+
+        // In the following, create a hollow shard by relocating from node A to node B.
+        var indexName = randomIdentifier();
+        createIndex(indexName, indexSettings(1, 0).build());
+        ensureGreen(indexName);
+
+        int numDocs = randomIntBetween(16, 64);
+        indexDocs(indexName, numDocs);
+        flush(indexName);
+        var hollowShardsServiceA = internalCluster().getInstance(HollowShardsService.class, indexNodeA);
+        var commitServiceA = internalCluster().getInstance(StatelessCommitService.class, indexNodeA);
+        final var indexShardA = findIndexShard(indexName);
+        assertBusy(() -> assertThat(hollowShardsServiceA.isHollowableIndexShard(indexShardA), equalTo(true)));
+
+        String indexNodeB = startIndexNode(nodeSettings);
+        var commitServiceB = internalCluster().getInstance(StatelessCommitService.class, indexNodeB);
+        updateIndexSettings(Settings.builder().put("index.routing.allocation.exclude._name", indexNodeA), indexName);
+        assertBusy(() -> assertThat(internalCluster().nodesInclude(indexName), not(hasItem(indexNodeA))));
+        ensureGreen(indexName);
+
+        var hollowShardsServiceB = internalCluster().getInstance(HollowShardsService.class, indexNodeB);
+        final var indexShardB = findIndexShard(indexName);
+        hollowShardsServiceB.ensureHollowShard(indexShardB.shardId(), true);
+
+        final var termGenHollow = commitServiceB.getLatestUploadedBcc(indexShardB.shardId())
+            .lastCompoundCommit()
+            .primaryTermAndGeneration();
+
+        // Ingest to node B directly so it initiates unhollowing to flush a new unhollow generation to object store.
+        // But do not let the unhollow commit be uploaded until node B is isolated.
+        // The bulk request will not be acknowledged since the translog upload will be stalled as the node is isolated.
+        var repositoryB = ObjectStoreTestUtils.getObjectStoreMockRepository(getObjectStoreService(indexNodeB));
+        repositoryB.setRandomControlIOExceptionRate(1.0);
+        repositoryB.setRandomDataFileIOExceptionRate(1.0);
+        repositoryB.setRandomIOExceptionPattern(".*stateless_commit_" + (termGenHollow.generation() + 1) + ".*");
+        var bulkRequest = client(indexNodeB).prepareBulk().setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
+        for (int i = 0; i < numDocs; i++) {
+            bulkRequest.add(new IndexRequest(indexName).source("field", randomUnicodeOfCodepointLengthBetween(1, 25)));
+        }
+        var bulkFuture = bulkRequest.execute();
+
+        // Isolate node B
+        Set<String> isolatedSide = Collections.singleton(indexNodeB);
+        Set<String> restOfClusterSide = Set.of(masterNode, indexNodeA, searchNode);
+        NetworkDisruption networkDisruption = new NetworkDisruption(
+            new NetworkDisruption.TwoPartitions(isolatedSide, restOfClusterSide),
+            NetworkDisruption.DISCONNECT
+        );
+        internalCluster().setDisruptionScheme(networkDisruption);
+        networkDisruption.startDisrupting();
+
+        // Wait until node B is removed from the cluster
+        ensureStableCluster(3, masterNode);
+
+        // Allow allocation on index node A
+        assertAcked(
+            client(indexNodeA).admin()
+                .indices()
+                .prepareUpdateSettings(indexName)
+                .setSettings(Settings.builder().put("index.routing.allocation.exclude._name", (String) null))
+                .get()
+        );
+
+        // Wait until index shard is allocated on node A
+        ensureGreenViaMasterNode(masterNode, indexName, true);
+
+        // Let the unhollowing complete and wait until the dirty documents are ingested on the isolated node B
+        repositoryB.setRandomControlIOExceptionRate(0.0);
+        repositoryB.setRandomDataFileIOExceptionRate(0.0);
+        assertBusy(() -> { assertThat(indexShardB.docStats().getCount(), equalTo((long) numDocs * 2)); });
+
+        // Flush as well to ensure that the dirty unacknowledged documents are uploaded to the object store
+        client(indexNodeB).admin().indices().prepareFlush(indexName).setForce(true).execute();
+
+        // Wait until the unhollow generation and the generation with the new documents appear on the object store
+        assertBusy(() -> {
+            assertThat(
+                commitServiceB.getLatestUploadedBcc(indexShardB.shardId()).lastCompoundCommit().primaryTermAndGeneration().generation(),
+                greaterThanOrEqualTo(termGenHollow.generation() + 2)
+            );
+        });
+
+        final var termGenUnhollow = commitServiceB.getLatestUploadedBcc(indexShardB.shardId())
+            .lastCompoundCommit()
+            .primaryTermAndGeneration();
+
+        // Create some random delay between the shard failure message and returning the RecoveryCommitTooNewException exception to the
+        // search shard. Just so we cover both cases where one of these happens first.
+        MockTransportService.getInstance(indexNodeA)
+            .addRequestHandlingBehavior(
+                TransportRegisterCommitForRecoveryAction.NAME,
+                (handler, request, channel, task) -> handler.messageReceived(request, new TransportChannel() {
+                    @Override
+                    public void sendResponse(TransportResponse response) {
+                        safeSleep(randomInt(100));
+                        channel.sendResponse(response);
+                    }
+
+                    @Override
+                    public void sendResponse(Exception exception) {
+                        safeSleep(randomInt(100));
+                        channel.sendResponse(exception);
+                    }
+
+                    @Override
+                    public String getProfileName() {
+                        return channel.getProfileName();
+                    }
+                }, task)
+            );
+        MockTransportService.getInstance(indexNodeA).addSendBehavior((connection, requestId, action, request, options) -> {
+            if (action.equals(ShardStateAction.SHARD_FAILED_ACTION_NAME)) {
+                safeSleep(randomInt(100));
+            }
+            connection.sendRequest(requestId, action, request, options);
+        });
+
+        // Start the search shard
+        hollowShardsServiceA.ensureHollowShard(indexShardA.shardId(), true);
+        assertAcked(
+            client(indexNodeA).admin()
+                .indices()
+                .prepareUpdateSettings(indexName)
+                .setSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1))
+                .get()
+        );
+
+        // Wait for the index and search shard to be finally green
+        ensureGreenViaMasterNode(masterNode, indexName, true);
+
+        // The shard on node A should have been failed, since the search shard tried to register a newer commit, and prompted the
+        // shard on node A to reload the latest unhollow commit from the blob store, flushing a new commit in the latest primary term.
+        hollowShardsServiceA.ensureHollowShard(indexShardA.shardId(), false);
+        assertThat(
+            commitServiceA.getLatestUploadedBcc(indexShardA.shardId()).lastCompoundCommit().primaryTermAndGeneration().primaryTerm(),
+            greaterThan(termGenUnhollow.primaryTerm())
+        );
+        assertThat(findIndexShard(indexName).getOperationPrimaryTerm(), greaterThan(termGenUnhollow.primaryTerm()));
+
+        // The new commit should include the dirty reads of the unacknowledged docs
+        assertThat(findIndexShard(indexName).docStats().getCount(), equalTo((long) numDocs * 2));
+        // The bulk request should not have been acknowledged, since node B is isolated
+        assertFalse(bulkFuture.isDone());
     }
 
     // A mix of threads that do indexing, updates, gets, force merges, and one thread moving shards so they can be hollowed.

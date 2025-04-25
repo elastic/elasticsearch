@@ -44,6 +44,7 @@ public final class LongTopNBlockHash extends BlockHash {
      * Helper field to keep track of the last top value, and avoid expensive searches.
      */
     private long lastTopValue;
+    private int valuesInTop;
 
     /**
      * Have we seen any {@code null} values?
@@ -65,6 +66,7 @@ public final class LongTopNBlockHash extends BlockHash {
         this.topValues = new LongBucketedSort(blockFactory.bigArrays(), asc ? SortOrder.ASC : SortOrder.DESC, limit);
         this.seenUniqueValues = new LongHash(1, blockFactory.bigArrays());
         this.lastTopValue = asc ? Long.MAX_VALUE : Long.MIN_VALUE;
+        this.valuesInTop = 0;
 
         assert limit > 0 : "LongTopNBlockHash requires a limit greater than 0";
     }
@@ -102,8 +104,6 @@ public final class LongTopNBlockHash extends BlockHash {
             return true;
         }
 
-        int valuesInTop = nonNullValueCount();
-
         if (nullsFirst) {
             hasNull = true;
             if (valuesInTop == limit) {
@@ -114,6 +114,7 @@ public final class LongTopNBlockHash extends BlockHash {
                     lastTopValue = topValues.getWorstValue(0);
                 }
             }
+            migrateToSmallTop();
             return true;
         }
 
@@ -135,21 +136,18 @@ public final class LongTopNBlockHash extends BlockHash {
         }
 
         // O(1) operation to check if the value is already in the hash, and avoid adding it again
-        if (seenUniqueValues.find(value) >= 0) {
+        if (seenUniqueValues.add(value) < 0) {
             return true;
         }
 
-        // TODO: On multiple passes, this will ingest duplicated values and break the structure!
         topValues.collect(value, 0);
-        seenUniqueValues.add(value);
-
-        int valuesInTop = nonNullValueCount();
 
         if (valuesInTop == limit) {
             lastTopValue = topValues.getWorstValue(0);
         } else if (valuesInTop == 1 || isBetterThan(lastTopValue, value)) {
             lastTopValue = value;
         }
+        valuesInTop = Math.min(valuesInTop + 1, limit - (hasNull && nullsFirst ? 1 : 0));
 
         // Full top and null, there's an extra value/null we must remove
         if (valuesInTop == limit && hasNull) {
@@ -163,6 +161,8 @@ public final class LongTopNBlockHash extends BlockHash {
             } else {
                 hasNull = false;
             }
+        if (valuesInTop == limit && hasNull && nullsFirst == false) {
+            hasNull = false;
         }
 
         return true;
@@ -181,6 +181,7 @@ public final class LongTopNBlockHash extends BlockHash {
             newTopValues.merge(0, topValues, 0);
 
             topValues = newTopValues;
+            valuesInTop = Math.min(valuesInTop, limit - 1);
         } finally {
             if (topValues == oldTopValues) {
                 // If there was an error, close the new sort
@@ -218,14 +219,7 @@ public final class LongTopNBlockHash extends BlockHash {
      * Returns true if there are {@code limit} values in the blockhash; false otherwise.
      */
     private boolean isTopComplete() {
-        return nonNullValueCount() >= limit - (hasNull ? 1 : 0);
-    }
-
-    /**
-     * Returns the number of non-null values in the top.
-     */
-    private int nonNullValueCount() {
-        return topValues.getBucketCount(0);
+        return valuesInTop >= limit - (hasNull ? 1 : 0);
     }
 
     /**
@@ -322,7 +316,6 @@ public final class LongTopNBlockHash extends BlockHash {
 
     @Override
     public LongBlock[] getKeys() {
-        int valuesInTop = nonNullValueCount();
         if (hasNull) {
             final long[] keys = new long[valuesInTop + 1];
             int keysIndex = 1;
@@ -351,7 +344,7 @@ public final class LongTopNBlockHash extends BlockHash {
     @Override
     public IntVector nonEmpty() {
         int nullOffset = hasNull ? 1 : 0;
-        final int[] ids = new int[nonNullValueCount() + nullOffset];
+        final int[] ids = new int[valuesInTop + nullOffset];
         int idsIndex = nullOffset;
         // TODO: Can we instead iterate the top and take the ids from the hash? To avoid checking unused values
         for (int i = 1; i < hash.size() + 1; i++) {

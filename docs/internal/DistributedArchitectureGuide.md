@@ -151,7 +151,8 @@ Some concepts are applicable to both cluster and project scopes, e.g. [persisten
 It is important to understand first the [Basic write model] of documents:
 documents are written to Lucene in-memory buffers, then "refreshed" to searchable segments which may not be persisted on disk, and finally "flushed" to a durable Lucene commit on disk.
 If this was the only way we stored the data, we would have to delay the response to every write request until after the data had been flushed to disk, which could take many seconds or longer. If we didn't, it would mean that we would lose newly ingested data if there was an outage between sending the response and flushing the data to disk.
-For this reason, newly ingested data is also written to a shard's [`Translog`], whose main purpose is to persist uncommitted operations (e.g., document insertions or deletions), so they can be replayed in the event of ephemeral failures such as a crash or power loss.
+For this reason, newly ingested data is also written to a shard's [`Translog`], whose main purpose is to persist uncommitted operations (e.g., document insertions or deletions), so they can be replayed by just reading them sequentially from the translog during [recovery](#recovery) in the event of ephemeral failures such as a crash or power loss.
+The translog can persist operations quicker than a Lucene commit, because it just stores raw operations / documents without the analysis and indexing that Lucene does.
 The translog is always persisted and fsync'ed on disk before acknowledging writes back to the user.
 This can be seen in [`InternalEngine`] which calls the `add()` method of the translog to append operations, e.g., its `index()` method at some point adds a document insertion operation to the translog.
 The translog ultimately truncates operations once they have been flushed to disk by a Lucene commit; indeed, in some sense the point of a "flush" is to clear out the translog.
@@ -203,7 +204,8 @@ This process involes multiple writes to the translog before the next fsync(), an
 Each translog is a sequence of files, each identified by a translog generation ID, each containing a sequence of operations, with the last file open for writes.
 The last file has a part which has been fsync'ed to disk, and a part which has been written but not necessarily fsync'ed yet to disk.
 Each operation is identified by a sequence number (`seqno`), which is monotonically increased by the engine's ingestion functionality.
-A [`Checkpoint`] file is also maintained, that contains, among other information, the current translog generation ID, and its last fsync'ed operation and location, the minimum translog generation ID, and the minimum and maximum sequence number of operations the sequence of translog generations include.
+Typically the entries in the translog are in increasing order of their sequence number, but not necessarily.
+A [`Checkpoint`] file is also maintained, which is written on each fsync operation of the translog, and records important metadata and statistics about the translog, such as the current translog generation ID, its last fsync'ed operation and location, the minimum translog generation ID, and the minimum and maximum sequence number of operations the sequence of translog generations include, all of which are useful to identify the translog operations needed to be replayed upon recovery.
 When the translog rolls over, e.g., upon the translog file exceeding a configurable size, a new file in the sequence is created for writes, and the last one becomes read-only.
 A new commit flushed to the disk will also induce a translog rollover, since the operations in the translog so far will become eligible for truncation.
 

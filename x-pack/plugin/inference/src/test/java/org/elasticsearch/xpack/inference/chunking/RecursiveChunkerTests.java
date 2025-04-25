@@ -129,6 +129,26 @@ public class RecursiveChunkerTests extends ESTestCase {
         );
     }
 
+    public void testChunkWithRegexSeparator() {
+        var separators = List.of("(?<!\\n)\\n(?!\\n)", "(?<!\\n)\\n\\n(?!\\n)");
+        RecursiveChunkingSettings settings = generateChunkingSettings(10, separators);
+        String input = generateTestText(4, List.of("\n", "\n", "\n\n"));
+
+        var expectedFirstChunkOffsetEnd = TEST_SENTENCE.length();
+        var expectedSecondChunkOffsetEnd = TEST_SENTENCE.length() * 2 + "\n".length();
+        var expectedThirdChunkOffsetEnd = TEST_SENTENCE.length() * 3 + "\n".length() * 2;
+        assertExpectedChunksGenerated(
+            input,
+            settings,
+            List.of(
+                new Chunker.ChunkOffset(0, expectedFirstChunkOffsetEnd),
+                new Chunker.ChunkOffset(expectedFirstChunkOffsetEnd, expectedSecondChunkOffsetEnd),
+                new Chunker.ChunkOffset(expectedSecondChunkOffsetEnd, expectedThirdChunkOffsetEnd),
+                new Chunker.ChunkOffset(expectedThirdChunkOffsetEnd, input.length())
+            )
+        );
+    }
+
     private void assertExpectedChunksGenerated(String input, RecursiveChunkingSettings settings, List<Chunker.ChunkOffset> expectedChunks) {
         RecursiveChunker chunker = new RecursiveChunker();
         List<Chunker.ChunkOffset> chunks = chunker.chunk(input, settings);

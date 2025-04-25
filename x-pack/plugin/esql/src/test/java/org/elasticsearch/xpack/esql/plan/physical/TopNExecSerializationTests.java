@@ -13,6 +13,8 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.Order;
 import org.elasticsearch.xpack.esql.expression.OrderSerializationTests;
+import org.elasticsearch.xpack.esql.expression.Partition;
+import org.elasticsearch.xpack.esql.expression.PartitionSerializationTests;
 
 import java.io.IOException;
 import java.util.List;
@@ -21,10 +23,11 @@ public class TopNExecSerializationTests extends AbstractPhysicalPlanSerializatio
     public static TopNExec randomTopNExec(int depth) {
         Source source = randomSource();
         PhysicalPlan child = randomChild(depth);
+        List<Partition> partition = randomList(1, 10, PartitionSerializationTests::randomPartition);
         List<Order> order = randomList(1, 10, OrderSerializationTests::randomOrder);
         Expression limit = new Literal(randomSource(), randomNonNegativeInt(), DataType.INTEGER);
         Integer estimatedRowSize = randomEstimatedRowSize();
-        return new TopNExec(source, child, order, limit, estimatedRowSize);
+        return new TopNExec(source, child, partition, order, limit, estimatedRowSize);
     }
 
     @Override
@@ -35,20 +38,22 @@ public class TopNExecSerializationTests extends AbstractPhysicalPlanSerializatio
     @Override
     protected TopNExec mutateInstance(TopNExec instance) throws IOException {
         PhysicalPlan child = instance.child();
+        List<Partition> partition = instance.partition();
         List<Order> order = instance.order();
         Expression limit = instance.limit();
         Integer estimatedRowSize = instance.estimatedRowSize();
-        switch (between(0, 3)) {
+        switch (between(0, 4)) {
             case 0 -> child = randomValueOtherThan(child, () -> randomChild(0));
-            case 1 -> order = randomValueOtherThan(order, () -> randomList(1, 10, OrderSerializationTests::randomOrder));
-            case 2 -> limit = randomValueOtherThan(limit, () -> new Literal(randomSource(), randomNonNegativeInt(), DataType.INTEGER));
-            case 3 -> estimatedRowSize = randomValueOtherThan(
+            case 1 -> partition = randomValueOtherThan(partition, () -> randomList(1, 10, PartitionSerializationTests::randomPartition));
+            case 2 -> order = randomValueOtherThan(order, () -> randomList(1, 10, OrderSerializationTests::randomOrder));
+            case 3 -> limit = randomValueOtherThan(limit, () -> new Literal(randomSource(), randomNonNegativeInt(), DataType.INTEGER));
+            case 4 -> estimatedRowSize = randomValueOtherThan(
                 estimatedRowSize,
                 AbstractPhysicalPlanSerializationTests::randomEstimatedRowSize
             );
             default -> throw new UnsupportedOperationException();
         }
-        return new TopNExec(instance.source(), child, order, limit, estimatedRowSize);
+        return new TopNExec(instance.source(), child, partition, order, limit, estimatedRowSize);
     }
 
     @Override

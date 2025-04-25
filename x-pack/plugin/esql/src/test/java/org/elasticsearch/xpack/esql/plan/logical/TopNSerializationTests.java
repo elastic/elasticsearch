@@ -12,6 +12,8 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.expression.AbstractExpressionSerializationTests;
 import org.elasticsearch.xpack.esql.expression.Order;
 import org.elasticsearch.xpack.esql.expression.OrderSerializationTests;
+import org.elasticsearch.xpack.esql.expression.Partition;
+import org.elasticsearch.xpack.esql.expression.PartitionSerializationTests;
 
 import java.io.IOException;
 import java.util.List;
@@ -20,9 +22,14 @@ public class TopNSerializationTests extends AbstractLogicalPlanSerializationTest
     public static TopN randomTopN(int depth) {
         Source source = randomSource();
         LogicalPlan child = randomChild(depth);
+        List<Partition> partition = randomPartitions();
         List<Order> order = randomOrders();
         Expression limit = AbstractExpressionSerializationTests.randomChild();
-        return new TopN(source, child, order, limit);
+        return new TopN(source, child, partition, order, limit);
+    }
+
+    private static List<Partition> randomPartitions() {
+        return randomList(1, 10, PartitionSerializationTests::randomPartition);
     }
 
     private static List<Order> randomOrders() {
@@ -38,14 +45,16 @@ public class TopNSerializationTests extends AbstractLogicalPlanSerializationTest
     protected TopN mutateInstance(TopN instance) throws IOException {
         Source source = instance.source();
         LogicalPlan child = instance.child();
+        List<Partition> partition = instance.partition();
         List<Order> order = instance.order();
         Expression limit = instance.limit();
-        switch (between(0, 2)) {
+        switch (between(0, 3)) {
             case 0 -> child = randomValueOtherThan(child, () -> randomChild(0));
-            case 1 -> order = randomValueOtherThan(order, TopNSerializationTests::randomOrders);
-            case 2 -> limit = randomValueOtherThan(limit, AbstractExpressionSerializationTests::randomChild);
+            case 1 -> partition = randomValueOtherThan(partition, TopNSerializationTests::randomPartitions);
+            case 2 -> order = randomValueOtherThan(order, TopNSerializationTests::randomOrders);
+            case 3 -> limit = randomValueOtherThan(limit, AbstractExpressionSerializationTests::randomChild);
         }
-        return new TopN(source, child, order, limit);
+        return new TopN(source, child, partition, order, limit);
     }
 
     @Override

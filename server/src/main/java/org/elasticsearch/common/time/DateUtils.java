@@ -20,6 +20,7 @@ import java.time.Duration;
 import java.time.Instant;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
@@ -481,6 +482,6 @@ public class DateUtils {
     }
 
     public static boolean containsCompatOnlyDateFormat(String format) {
-        return LEGACY_DATE_FORMAT_MATCHER.test(format);
+        return LEGACY_DATE_FORMAT_MATCHER.test(format) && Arrays.stream(FormatNames.values()).noneMatch(f -> f.getName().equals(format));
     }
 }

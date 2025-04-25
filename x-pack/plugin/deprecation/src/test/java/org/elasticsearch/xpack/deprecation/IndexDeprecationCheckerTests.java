@@ -21,6 +21,7 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.MetadataIndexStateService;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.time.FormatNames;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
@@ -224,6 +225,45 @@ public class IndexDeprecationCheckerTests extends ESTestCase {
                 + "Manual reindexing is required. Field [date] with format pattern [qqqq yyyy].",
             false,
             null
+        );
+        Map<String, List<DeprecationIssue>> issuesByIndex = checker.check(
+            clusterState,
+            new DeprecationInfoAction.Request(TimeValue.THIRTY_SECONDS),
+            emptyPrecomputedData
+        );
+        List<DeprecationIssue> issues = issuesByIndex.get("test");
+        assertEquals(singletonList(expected), issues);
+    }
+
+    public void testOldIndicesWithCompatibleDateFormatter() {
+        String pattern = randomFrom(FormatNames.values()).getName();
+
+        IndexMetadata indexMetadata = IndexMetadata.builder("test")
+            .settings(settings(OLD_VERSION))
+            .numberOfShards(1)
+            .numberOfReplicas(0)
+            .state(indexMetdataState)
+            .putMapping("""
+                {
+                  "properties": {
+                    "date": {
+                      "type": "date",
+                      "format": "%s"
+                    }
+                  }
+                }""".formatted(pattern))
+            .build();
+        ClusterState clusterState = ClusterState.builder(ClusterState.EMPTY_STATE)
+            .metadata(Metadata.builder().put(indexMetadata, true))
+            .blocks(clusterBlocksForIndices(indexMetadata))
+            .build();
+        DeprecationIssue expected = new DeprecationIssue(
+            DeprecationIssue.Level.CRITICAL,
+            "Old index with a compatibility version < 8.0",
+            "https://www.elastic.co/guide/en/elastic-stack/9.0/upgrading-elastic-stack.html",
+            "This index has version: " + OLD_VERSION.toReleaseVersion(),
+            false,
+            singletonMap("reindex_required", true)
         );
         Map<String, List<DeprecationIssue>> issuesByIndex = checker.check(
             clusterState,

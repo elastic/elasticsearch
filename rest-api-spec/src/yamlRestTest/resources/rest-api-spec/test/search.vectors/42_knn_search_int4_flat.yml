@@ -505,4 +505,4 @@ setup:
       indices.get_mapping:
         index: int4_flat
 
-  - not_exists: { int4_flat.mappings.properties.vector.index_options.rescore_vector }
+  - not_exists: int4_flat.mappings.properties.vector.index_options.rescore_vector

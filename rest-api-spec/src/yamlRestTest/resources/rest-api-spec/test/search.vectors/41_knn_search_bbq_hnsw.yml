@@ -572,8 +572,8 @@ setup:
 ---
 "default oversample value":
   - requires:
-        cluster_features: ["mapper.dense_vector.default_oversample_value_for_bbq"]
-        reason: "Needs default_oversample_value_for_bbq feature"
+      cluster_features: ["mapper.dense_vector.default_oversample_value_for_bbq"]
+      reason: "Needs default_oversample_value_for_bbq feature"
   - do:
       indices.get_mapping:
         index: bbq_hnsw

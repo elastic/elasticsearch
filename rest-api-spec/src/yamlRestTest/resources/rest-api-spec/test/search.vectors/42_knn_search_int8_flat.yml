@@ -446,4 +446,4 @@ setup:
       indices.get_mapping:
         index: int8_flat
 
-  - not_exists: { int8_flat.mappings.properties.vector.index_options.rescore_vector }
+  - not_exists: int8_flat.mappings.properties.vector.index_options.rescore_vector

@@ -31,14 +31,13 @@ public class TextFieldWithParentBlockLoaderTests extends BlockLoaderTestCase {
                 // We need to force multi field generation
                 return new DataSourceResponse.LeafMappingParametersGenerator(() -> {
                     var defaultSupplier = DefaultMappingParametersHandler.keywordMapping(
-                        request,
-                        DefaultMappingParametersHandler.commonMappingParameters()
+                        request
                     );
                     var mapping = defaultSupplier.get();
                     // we don't need this here
                     mapping.remove("copy_to");
 
-                    var textMultiFieldMappingSupplier = DefaultMappingParametersHandler.textMapping(request, new HashMap<>());
+                    var textMultiFieldMappingSupplier = DefaultMappingParametersHandler.textMapping(request);
                     var textMultiFieldMapping = textMultiFieldMappingSupplier.get();
                     textMultiFieldMapping.put("type", "text");
                     textMultiFieldMapping.remove("fields");

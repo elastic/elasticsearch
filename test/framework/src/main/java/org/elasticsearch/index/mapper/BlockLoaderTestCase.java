@@ -64,42 +64,20 @@ public abstract class BlockLoaderTestCase extends MapperServiceTestCase {
 
     private final String fieldType;
     protected final Params params;
+    private final Collection<DataSourceHandler> customDataSourceHandlers;
 
     private final String fieldName;
-    private final MappingGenerator mappingGenerator;
-    private final DocumentGenerator documentGenerator;
 
     protected BlockLoaderTestCase(String fieldType, Params params) {
         this(fieldType, List.of(), params);
     }
 
-    protected BlockLoaderTestCase(String fieldType, Collection<DataSourceHandler> customHandlers, Params params) {
+    protected BlockLoaderTestCase(String fieldType, Collection<DataSourceHandler> customDataSourceHandlers, Params params) {
         this.fieldType = fieldType;
         this.params = params;
+        this.customDataSourceHandlers = customDataSourceHandlers;
 
         this.fieldName = randomAlphaOfLengthBetween(5, 10);
-
-        var specification = DataGeneratorSpecification.builder()
-            .withFullyDynamicMapping(false)
-            // Disable dynamic mapping and disabled objects
-            .withDataSourceHandlers(List.of(new DataSourceHandler() {
-                @Override
-                public DataSourceResponse.DynamicMappingGenerator handle(DataSourceRequest.DynamicMappingGenerator request) {
-                    return new DataSourceResponse.DynamicMappingGenerator(isObject -> false);
-                }
-
-                @Override
-                public DataSourceResponse.ObjectMappingParametersGenerator handle(
-                    DataSourceRequest.ObjectMappingParametersGenerator request
-                ) {
-                    return new DataSourceResponse.ObjectMappingParametersGenerator(HashMap::new); // just defaults
-                }
-            }))
-            .withDataSourceHandlers(customHandlers)
-            .build();
-
-        this.mappingGenerator = new MappingGenerator(specification);
-        this.documentGenerator = new DocumentGenerator(specification);
     }
 
     @Override
@@ -114,9 +92,10 @@ public abstract class BlockLoaderTestCase extends MapperServiceTestCase {
 
     public void testBlockLoader() throws IOException {
         var template = new Template(Map.of(fieldName, new Template.Leaf(fieldName, fieldType)));
-        var mapping = mappingGenerator.generate(template);
+        var specification = buildSpecification(List.of());
+        var mapping = new MappingGenerator(specification).generate(template);
 
-        runTest(template, mapping, fieldName, new TestContext(false));
+        runTest(template, mapping, new DocumentGenerator(specification), fieldName, fieldName, new TestContext(false));
     }
 
     @SuppressWarnings("unchecked")
@@ -140,7 +119,8 @@ public abstract class BlockLoaderTestCase extends MapperServiceTestCase {
         currentLevel.put(fieldName, new Template.Leaf(fieldName, fieldType));
         var template = new Template(top);
 
-        var mapping = mappingGenerator.generate(template);
+        var specification = buildSpecification(List.of());
+        var mapping = new MappingGenerator(specification).generate(template);
 
         TestContext testContext = new TestContext(false);
 
@@ -153,10 +133,69 @@ public abstract class BlockLoaderTestCase extends MapperServiceTestCase {
             testContext = new TestContext(true);
         }
 
-        runTest(template, mapping, fullFieldName.toString(), testContext);
+        runTest(template, mapping, new DocumentGenerator(specification), fullFieldName.toString(), fullFieldName.toString(), testContext);
     }
 
-    private void runTest(Template template, Mapping mapping, String fieldName, TestContext testContext) throws IOException {
+    public void testBlockLoaderOfMultiField() throws IOException {
+        // We are going to have a parent field and a multi field of the same type in order to be sure we can index data.
+        // Then we'll test block loader of the multi field.
+        var template = new Template(Map.of("parent", new Template.Leaf("parent", fieldType)));
+        var specification = buildSpecification(List.of(new DataSourceHandler() {
+            @Override
+            public DataSourceResponse.LeafMappingParametersGenerator handle(DataSourceRequest.LeafMappingParametersGenerator request) {
+                // This is a bit tricky meta-logic.
+                // We want to customize mapping but to do this we need the mapping for the same field type
+                // so we use name to untangle this.
+                if (request.fieldName().equals("parent") == false) {
+                    return null;
+                }
+
+                return new DataSourceResponse.LeafMappingParametersGenerator(() -> {
+                    var dataSource = request.dataSource();
+
+                    // the name here should be different from "parent"
+                    var actualMappingGenerator = dataSource.get(new DataSourceRequest.LeafMappingParametersGenerator(dataSource, "_field", request.fieldType(), request.eligibleCopyToFields(), request.dynamicMapping())).mappingGenerator();
+
+                    var parentMapping = actualMappingGenerator.get();
+                    var multiFieldMapping = actualMappingGenerator.get();
+
+                    parentMapping.put("type", fieldType);
+                    multiFieldMapping.put("type", fieldType);
+
+                    parentMapping.put("fields", Map.of(fieldName, multiFieldMapping));
+
+                    return parentMapping;
+                });
+            }
+        }));
+        var mapping = new MappingGenerator(specification).generate(template);
+
+        runTest(template, mapping, new DocumentGenerator(specification), "parent", "parent." + fieldName, new TestContext(false));
+    }
+
+    private DataGeneratorSpecification buildSpecification(List<DataSourceHandler> internalCustomHandlers) {
+        return DataGeneratorSpecification.builder()
+            .withFullyDynamicMapping(false)
+            // Disable dynamic mapping and disabled objects
+            .withDataSourceHandlers(List.of(new DataSourceHandler() {
+                @Override
+                public DataSourceResponse.DynamicMappingGenerator handle(DataSourceRequest.DynamicMappingGenerator request) {
+                    return new DataSourceResponse.DynamicMappingGenerator(isObject -> false);
+                }
+
+                @Override
+                public DataSourceResponse.ObjectMappingParametersGenerator handle(
+                    DataSourceRequest.ObjectMappingParametersGenerator request
+                ) {
+                    return new DataSourceResponse.ObjectMappingParametersGenerator(HashMap::new); // just defaults
+                }
+            }))
+            .withDataSourceHandlers(internalCustomHandlers)
+            .withDataSourceHandlers(customDataSourceHandlers)
+            .build();
+    }
+
+    private void runTest(Template template, Mapping mapping, DocumentGenerator documentGenerator, String documentFieldName, String blockLoaderFieldName, TestContext testContext) throws IOException {
         var mappingXContent = XContentBuilder.builder(XContentType.JSON.xContent()).map(mapping.raw());
 
         var mapperService = params.syntheticSource
@@ -166,12 +205,24 @@ public abstract class BlockLoaderTestCase extends MapperServiceTestCase {
         var document = documentGenerator.generate(template, mapping);
         var documentXContent = XContentBuilder.builder(XContentType.JSON.xContent()).map(document);
 
-        Object expected = expected(mapping.lookup().get(fieldName), getFieldValue(document, fieldName), testContext);
-        Object blockLoaderResult = setupAndInvokeBlockLoader(mapperService, documentXContent, blockLoaderFieldName(fieldName));
+        Object expected = expected(mapping.lookup().get(documentFieldName), getFieldValue(document, documentFieldName), testContext);
+        Object blockLoaderResult = setupAndInvokeBlockLoader(mapperService, documentXContent, blockLoaderFieldName);
         assertEquals(expected, blockLoaderResult);
     }
 
     protected abstract Object expected(Map<String, Object> fieldMapping, Object value, TestContext testContext);
+
+    protected static Object maybeFoldList(List<?> list) {
+        if (list.isEmpty()) {
+            return null;
+        }
+
+        if (list.size() == 1) {
+            return list.get(0);
+        }
+
+        return list;
+    }
 
     protected Object getFieldValue(Map<String, Object> document, String fieldName) {
         var rawValues = new ArrayList<>();
@@ -202,18 +253,6 @@ public abstract class BlockLoaderTestCase extends MapperServiceTestCase {
                 processLevel((Map<String, Object>) object, field.substring(field.indexOf('.') + 1), values);
             }
         }
-    }
-
-    protected static Object maybeFoldList(List<?> list) {
-        if (list.isEmpty()) {
-            return null;
-        }
-
-        if (list.size() == 1) {
-            return list.get(0);
-        }
-
-        return list;
     }
 
     /**

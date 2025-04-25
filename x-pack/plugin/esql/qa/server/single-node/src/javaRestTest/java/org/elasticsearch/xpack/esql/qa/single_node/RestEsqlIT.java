@@ -648,7 +648,7 @@ public class RestEsqlIT extends RestEsqlTestCase {
         }
     }
 
-    private MapMatcher commonProfile() {
+    static MapMatcher commonProfile() {
         return matchesMap() //
             .entry("description", any(String.class))
             .entry("cluster_name", any(String.class))
@@ -669,7 +669,7 @@ public class RestEsqlIT extends RestEsqlTestCase {
      * come back as integers and sometimes longs. This just promotes
      * them to long every time.
      */
-    private void fixTypesOnProfile(Map<String, Object> profile) {
+    static void fixTypesOnProfile(Map<String, Object> profile) {
         profile.put("iterations", ((Number) profile.get("iterations")).longValue());
         profile.put("cpu_nanos", ((Number) profile.get("cpu_nanos")).longValue());
         profile.put("took_nanos", ((Number) profile.get("took_nanos")).longValue());

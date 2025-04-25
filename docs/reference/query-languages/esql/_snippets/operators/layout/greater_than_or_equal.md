@@ -1,4 +1,4 @@
-## Greater than or equal to `>=` [esql-greater_than_or_equal]
+### Greater than or equal to `>=` [esql-greater_than_or_equal]
 
 :::{image} ../../../images/operators/greater_than_or_equal.svg
 :alt: Embedded

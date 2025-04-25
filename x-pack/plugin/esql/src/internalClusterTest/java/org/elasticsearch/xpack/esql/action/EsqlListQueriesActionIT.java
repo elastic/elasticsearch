@@ -67,6 +67,8 @@ public class EsqlListQueriesActionIT extends AbstractPausableIntegTestCase {
                 jsonEntityToMap(getQueryResponse.getEntity()),
                 basicMatcher.entry("coordinating_node", isA(String.class))
                     .entry("data_nodes", allOf(isA(List.class), everyItem(isA(String.class))))
+                    .entry("documents_found", IntOrLongMatcher.isIntOrLong())
+                    .entry("values_loaded", IntOrLongMatcher.isIntOrLong())
             );
         } finally {
             if (id != null) {

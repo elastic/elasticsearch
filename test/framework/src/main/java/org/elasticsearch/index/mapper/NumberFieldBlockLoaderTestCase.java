@@ -9,7 +9,7 @@
 
 package org.elasticsearch.index.mapper;
 
-import org.elasticsearch.logsdb.datageneration.FieldType;
+import org.elasticsearch.datageneration.FieldType;
 
 import java.util.List;
 import java.util.Map;

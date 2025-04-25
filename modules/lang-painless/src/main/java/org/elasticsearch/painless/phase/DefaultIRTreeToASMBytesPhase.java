@@ -1465,7 +1465,7 @@ public class DefaultIRTreeToASMBytesPhase implements IRTreeVisitor<WriteScope> {
         PainlessMethod getterPainlessMethod = irDotSubShortcutNode.getDecorationValue(IRDMethod.class);
         methodWriter.invokeMethodCall(getterPainlessMethod);
 
-        if (getterPainlessMethod.returnType().equals(getterPainlessMethod.javaMethod().getReturnType()) == false) {
+        if (getterPainlessMethod.returnType() != getterPainlessMethod.javaMethod().getReturnType()) {
             methodWriter.checkCast(MethodWriter.getType(getterPainlessMethod.returnType()));
         }
     }
@@ -1478,7 +1478,7 @@ public class DefaultIRTreeToASMBytesPhase implements IRTreeVisitor<WriteScope> {
         PainlessMethod getterPainlessMethod = irLoadListShortcutNode.getDecorationValue(IRDMethod.class);
         methodWriter.invokeMethodCall(getterPainlessMethod);
 
-        if (getterPainlessMethod.returnType() == getterPainlessMethod.javaMethod().getReturnType()) {
+        if (getterPainlessMethod.returnType() != getterPainlessMethod.javaMethod().getReturnType()) {
             methodWriter.checkCast(MethodWriter.getType(getterPainlessMethod.returnType()));
         }
     }

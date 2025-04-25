@@ -748,7 +748,7 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
 
         logger.info("--> wait for the index to appear");
         // that would mean that recovery process started and failing
-        safeGet(clusterAdmin().prepareHealth(SAFE_AWAIT_TIMEOUT, "test-idx").execute());
+        awaitIndexExists("test-idx");
 
         logger.info("--> delete index");
         cluster().wipeIndices("test-idx");

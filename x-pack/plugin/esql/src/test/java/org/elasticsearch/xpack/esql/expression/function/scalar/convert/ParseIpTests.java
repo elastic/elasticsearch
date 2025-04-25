@@ -191,6 +191,7 @@ public class ParseIpTests extends ESTestCase {
                 lastWasBreak = true;
                 b.append(current).append('.');
                 current = 0;
+                octalMode = false;
                 continue;
             }
             lastWasBreak = false;

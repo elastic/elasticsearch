@@ -38,7 +38,7 @@ public class InferenceRunner {
     }
 
     public ThreadContext threadContext() {
-        return client.threadPool().getThreadContext();
+        return threadContext;
     }
 
     public void resolveInferenceIds(List<InferencePlan<?>> plans, ActionListener<InferenceResolution> listener) {
@@ -80,20 +80,11 @@ public class InferenceRunner {
         return plan.inferenceId().fold(FoldContext.small()).toString();
     }
 
-    public void doInference(InferenceRequestSupplier request, ActionListener<InferenceAction.Response> listener) {
-        try {
-            if (request == null) {
-                listener.onResponse(null);
-            }
-            executorService.submit(() -> {
-                try {
-                    client.execute(InferenceAction.INSTANCE, request.get(), listener);
-                } catch (Exception e) {
-                    listener.onFailure(e);
-                }
-            });
-        } catch (Exception e) {
-            listener.onFailure(e);
-        }
+    public void doInference(InferenceAction.Request request, ActionListener<InferenceAction.Response> listener) {
+        client.execute(InferenceAction.INSTANCE, request, listener);
+    }
+
+    public InferenceExecutionContext.Builder executionContextBuilder() {
+        return new InferenceExecutionContext.Builder(this, executorService);
     }
 }

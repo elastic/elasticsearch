@@ -5,13 +5,12 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.esql.inference.rerank;
+package org.elasticsearch.xpack.esql.inference;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.logging.LoggerMessageFormat;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BooleanBlock;
@@ -30,15 +29,10 @@ import org.elasticsearch.compute.test.AbstractBlockSourceOperator;
 import org.elasticsearch.compute.test.OperatorTestCase;
 import org.elasticsearch.compute.test.RandomBlock;
 import org.elasticsearch.core.Releasables;
-import org.elasticsearch.threadpool.FixedExecutorBuilder;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
 import org.elasticsearch.xpack.core.inference.results.RankedDocsResults;
-import org.elasticsearch.xpack.esql.inference.InferenceRequestSupplier;
-import org.elasticsearch.xpack.esql.inference.InferenceRunner;
-import org.elasticsearch.xpack.esql.inference.XContentRowEncoder;
-import org.elasticsearch.xpack.esql.inference.rerank.RerankOperator;
 import org.hamcrest.Matcher;
 import org.junit.After;
 import org.junit.Before;
@@ -56,6 +50,7 @@ import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -68,6 +63,7 @@ public class RerankOperatorTests extends OperatorTestCase {
     private List<ElementType> inputChannelElementTypes;
     private XContentRowEncoder.Factory rowEncoderFactory;
     private int scoreChannel;
+    private int encodedRowLength;
 
     @Before
     private void initChannels() {
@@ -75,15 +71,12 @@ public class RerankOperatorTests extends OperatorTestCase {
         scoreChannel = between(0, channelCount - 1);
         inputChannelElementTypes = IntStream.range(0, channelCount).sorted().mapToObj(this::randomElementType).collect(Collectors.toList());
         rowEncoderFactory = mockRowEncoderFactory();
+        encodedRowLength = between(1, 10);
     }
 
     @Before
     public void setThreadPool() {
-        int numThreads = randomBoolean() ? 1 : between(2, 16);
-        threadPool = new TestThreadPool(
-            "test",
-            new FixedExecutorBuilder(Settings.EMPTY, ESQL_TEST_EXECUTOR, numThreads, 1024, "esql", EsExecutors.TaskTrackingConfig.DEFAULT)
-        );
+        threadPool = new TestThreadPool("test");
     }
 
     @After
@@ -98,33 +91,32 @@ public class RerankOperatorTests extends OperatorTestCase {
     }
 
     private InferenceRunner mockedSimpleInferenceRunner() {
-        InferenceRunner inferenceRunner = mock(InferenceRunner.class);
-        when(inferenceRunner.threadContext()).thenReturn(threadPool.getThreadContext());
-        doAnswer(invocation -> {
-            @SuppressWarnings("unchecked")
-            ActionListener<InferenceAction.Response> listener = (ActionListener<InferenceAction.Response>) invocation.getArgument(
-                1,
-                ActionListener.class
-            );
-            InferenceAction.Response inferenceResponse = mock(InferenceAction.Response.class);
-            RankedDocsResults mockedRankedDocResults = mockedRankedDocResults(invocation.getArgument(0, InferenceRequestSupplier.class));
-            when(inferenceResponse.getResults()).thenReturn(mockedRankedDocResults);
-            listener.onResponse(inferenceResponse);
-            return null;
-        }).when(inferenceRunner).doInference(any(InferenceRequestSupplier.class), any());
-
-        return inferenceRunner;
+        return new InferenceRunner(mockedClient());
     }
 
-    private RankedDocsResults mockedRankedDocResults(InferenceRequestSupplier requestSupplier) throws Exception {
+    private Client mockedClient() {
+        Client client = mock(Client.class);
+        when(client.threadPool()).thenReturn(threadPool);
+        doAnswer(i -> {
+            @SuppressWarnings("unchecked")
+            ActionListener<InferenceAction.Response> listener = i.getArgument(2, ActionListener.class);
+            listener.onResponse(mockedInferenceResponse(i.getArgument(1, InferenceAction.Request.class)));
+            return null;
+        }).when(client).execute(eq(InferenceAction.INSTANCE), any(InferenceAction.Request.class), any());
+        return client;
+    }
+
+    private InferenceAction.Response mockedInferenceResponse(InferenceAction.Request request) throws Exception {
+        InferenceAction.Response inferenceResponse = mock(InferenceAction.Response.class);
         List<RankedDocsResults.RankedDoc> rankedDocs = new ArrayList<>();
-        InferenceAction.Request request = requestSupplier.get();
         for (int rank = 0; rank < request.getInput().size(); rank++) {
-            if (rank % 10 != 0) {
-                rankedDocs.add(new RankedDocsResults.RankedDoc(rank, 1f / rank, request.getInput().get(rank)));
-            }
+            String text = request.getInput().get(rank);
+            rankedDocs.add(new RankedDocsResults.RankedDoc(rank, 1f / text.length(), text));
         }
-        return new RankedDocsResults(rankedDocs);
+
+        when(inferenceResponse.getResults()).thenReturn(new RankedDocsResults(rankedDocs));
+
+        return inferenceResponse;
     }
 
     @Override
@@ -234,7 +226,7 @@ public class RerankOperatorTests extends OperatorTestCase {
     }
 
     private ElementType randomElementType(int channel) {
-        return channel == scoreChannel ? ElementType.DOUBLE : randomFrom(ElementType.FLOAT, ElementType.DOUBLE, ElementType.LONG);
+        return channel == scoreChannel ? ElementType.DOUBLE : RandomBlock.randomElementType();
     }
 
     private XContentRowEncoder.Factory mockRowEncoderFactory() {
@@ -244,8 +236,8 @@ public class RerankOperatorTests extends OperatorTestCase {
             XContentRowEncoder rowEncoder = mock(XContentRowEncoder.class);
             doAnswer(encoderInvocation -> {
                 Page inputPage = encoderInvocation.getArgument(0, Page.class);
-                return driverContext.blockFactory()
-                    .newConstantBytesRefBlockWith(new BytesRef(randomRealisticUnicodeOfCodepointLength(4)), inputPage.getPositionCount());
+                BytesRef scratch = new BytesRef(randomRealisticUnicodeOfCodepointLength(encodedRowLength));
+                return driverContext.blockFactory().newConstantBytesRefBlockWith(scratch, inputPage.getPositionCount());
             }).when(rowEncoder).eval(any(Page.class));
 
             return rowEncoder;
@@ -256,12 +248,8 @@ public class RerankOperatorTests extends OperatorTestCase {
 
     private void assertExpectedScore(DoubleBlock scoreBlockResult) {
         assertAllPositions(scoreBlockResult, (pos) -> {
-            if (pos % 10 == 0) {
-                assertThat(scoreBlockResult.isNull(pos), equalTo(true));
-            } else {
-                assertThat(scoreBlockResult.getValueCount(pos), equalTo(1));
-                assertThat(scoreBlockResult.getDouble(scoreBlockResult.getFirstValueIndex(pos)), equalTo((double) (1f / pos)));
-            }
+            assertThat(scoreBlockResult.getValueCount(pos), equalTo(1));
+            assertThat(scoreBlockResult.getDouble(scoreBlockResult.getFirstValueIndex(pos)), equalTo((double) (1f / encodedRowLength)));
         });
     }
 

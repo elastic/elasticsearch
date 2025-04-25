@@ -827,6 +827,30 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
     }
 
     @Override
+    public Alias visitRerankField(EsqlBaseParser.RerankFieldContext ctx) {
+        return visitRerankField(ctx, source(ctx));
+    }
+
+    private Alias visitRerankField(EsqlBaseParser.RerankFieldContext ctx, Source source) {
+        UnresolvedAttribute id = visitQualifiedName(ctx.qualifiedName());
+        // TODO: check for null here like visitQualifiedName above.
+
+        var boolExprCtx = ctx.booleanExpression();
+        Expression value = boolExprCtx == null ? id : expression(boolExprCtx);
+        // Try here.
+        if (id == null && value instanceof UnresolvedFunction) {
+            throw new ParsingException(source, "Expected identifier.");
+        }
+        String name = id == null ? source.text() : id.name();
+        return new Alias(source, name, value);
+    }
+
+    @Override
+    public List<Alias> visitRerankFields(EsqlBaseParser.RerankFieldsContext ctx) {
+        return ctx != null ? visitList(this, ctx.rerankField(), Alias.class) : new ArrayList<>();
+    }
+
+    @Override
     public NamedExpression visitAggField(EsqlBaseParser.AggFieldContext ctx) {
         Source source = source(ctx);
         Alias field = visitField(ctx.field(), source);

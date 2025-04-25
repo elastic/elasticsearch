@@ -3490,6 +3490,30 @@ public class AnalyzerTests extends ESTestCase {
         assertThat(esRelation.output(), equalTo(NO_FIELDS));
     }
 
+    public void testResolveRerankInferenceId1() {
+        assumeTrue("Requires RERANK command", EsqlCapabilities.Cap.RERANK.isEnabled());
+
+        // Substring function is named, should work.
+        LogicalPlan plan = analyze("""
+            FROM movies METADATA _score
+              | WHERE QSTR("star wars")
+              | RERANK "star wars" ON title, str=SUBSTRING(overview, 0, 100), actors WITH rerankerInferenceId""", "mapping-books.json");
+        Rerank rerank = as(as(plan, Limit.class).child(), Rerank.class);
+        assertThat(rerank.inferenceId(), equalTo(string("reranking-inference-id")));
+    }
+
+    public void testResolveRerankInferenceId2() {
+        assumeTrue("Requires RERANK command", EsqlCapabilities.Cap.RERANK.isEnabled());
+
+        // Substring function is unnamed, should fail.
+        LogicalPlan plan = analyze("""
+            FROM movies METADATA _score
+              | WHERE QSTR("star wars")
+              | RERANK "star wars" ON title, SUBSTRING(overview, 0, 100), actors WITH rerankerInferenceId""", "mapping-books.json");
+        Rerank rerank = as(as(plan, Limit.class).child(), Rerank.class);
+        assertThat(rerank.inferenceId(), equalTo(string("reranking-inference-id")));
+    }
+
     public void testResolveRerankInferenceId() {
         assumeTrue("Requires RERANK command", EsqlCapabilities.Cap.RERANK.isEnabled());
 

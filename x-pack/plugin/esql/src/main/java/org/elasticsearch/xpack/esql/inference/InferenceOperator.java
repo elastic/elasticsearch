@@ -11,12 +11,15 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.AsyncOperator;
 import org.elasticsearch.compute.operator.DriverContext;
+import org.elasticsearch.core.CheckedConsumer;
+import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.inference.InferenceServiceResults;
-import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
-import org.elasticsearch.xpack.esql.inference.bulk.BulkInferenceOperation;
-import org.elasticsearch.xpack.esql.inference.bulk.BulkInferenceOutputBuilder;
-import org.elasticsearch.xpack.esql.inference.bulk.BulkInferenceRequestIterator;
+
+import java.util.Iterator;
+
+import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
 
 public abstract class InferenceOperator<InferenceResult extends InferenceServiceResults> extends AsyncOperator<Page> {
 
@@ -47,16 +50,52 @@ public abstract class InferenceOperator<InferenceResult extends InferenceService
 
     @Override
     protected void performAsync(Page input, ActionListener<Page> listener) {
-        new BulkInferenceOperation<>(bulkInferenceRequestIterator(input), bulkOutputBuilder(input)).execute(inferenceRunner, listener);
+        final RequestIterator requests = requests(input);
+        final OutputBuilder<InferenceResult> outputBuilder = outputBuilder(input);
+
+        new BulkInferenceOperation(requests, outputBuilder).execute(
+            inferenceExecutionContext(),
+            listener.delegateFailureIgnoreResponseAndWrap(l -> {
+                l.onResponse(outputBuilder.buildOutput());
+                Releasables.closeExpectNoException(requests, outputBuilder);
+            })
+        );
     }
 
-    protected InferenceAction.Request.Builder inferenceRequestBuilder() {
-        return InferenceAction.Request.builder(inferenceId, taskType());
+    protected InferenceExecutionContext inferenceExecutionContext() {
+        return inferenceRunner.executionContextBuilder().build();
     }
 
-    protected abstract TaskType taskType();
+    protected abstract RequestIterator requests(Page input);
 
-    protected abstract BulkInferenceRequestIterator bulkInferenceRequestIterator(Page input);
+    protected abstract OutputBuilder<InferenceResult> outputBuilder(Page input);
 
-    protected abstract BulkInferenceOutputBuilder<InferenceResult, Page> bulkOutputBuilder(Page input);
+    public abstract static class OutputBuilder<InferenceResults extends InferenceServiceResults>
+        implements
+            CheckedConsumer<InferenceAction.Response, Exception>,
+            Releasable {
+        protected abstract Class<InferenceResults> inferenceResultsClass();
+
+        public abstract Page buildOutput();
+
+        public abstract void onInferenceResults(InferenceResults results);
+
+        @Override
+        public void accept(InferenceAction.Response response) throws Exception {
+            InferenceServiceResults results = response.getResults();
+            if (inferenceResultsClass().isInstance(response.getResults()) == false) {
+                throw new IllegalStateException(
+                    format(
+                        "Inference result has wrong type. Got [{}] while expecting [{}]",
+                        results.getClass().getName(),
+                        inferenceResultsClass().getName()
+                    )
+                );
+            }
+
+            onInferenceResults(inferenceResultsClass().cast(results));
+        }
+    }
+
+    public interface RequestIterator extends Iterator<InferenceAction.Request>, Releasable {}
 }

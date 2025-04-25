@@ -18,7 +18,7 @@ import org.elasticsearch.xpack.inference.external.http.retry.ResponseHandler;
 import org.elasticsearch.xpack.inference.external.http.sender.EmbeddingsInput;
 import org.elasticsearch.xpack.inference.external.http.sender.ExecutableInferenceRequest;
 import org.elasticsearch.xpack.inference.external.http.sender.InferenceInputs;
-import org.elasticsearch.xpack.inference.services.huggingface.request.embeddings.HuggingFaceInferenceRequest;
+import org.elasticsearch.xpack.inference.services.huggingface.request.embeddings.HuggingFaceEmbeddingsRequest;
 
 import java.util.List;
 import java.util.Objects;
@@ -26,9 +26,22 @@ import java.util.function.Supplier;
 
 import static org.elasticsearch.xpack.inference.common.Truncator.truncate;
 
+/**
+ * This class is responsible for managing requests to the Hugging Face API for generating embeddings.
+ * It handles the execution of requests, including truncation of input data and response handling.
+ */
 public class HuggingFaceEmbeddingsRequestManager extends HuggingFaceRequestManager {
     private static final Logger logger = LogManager.getLogger(HuggingFaceEmbeddingsRequestManager.class);
 
+    /**
+     * Creates a new instance of HuggingFaceEmbeddingsRequestManager.
+     *
+     * @param model           The Hugging Face model to be used for generating embeddings.
+     * @param responseHandler  The response handler for processing the API responses.
+     * @param truncator       The truncator for handling input data truncation.
+     * @param threadPool      The thread pool for executing requests.
+     * @return A new instance of HuggingFaceEmbeddingsRequestManager.
+     */
     public static HuggingFaceEmbeddingsRequestManager of(
         HuggingFaceModel model,
         ResponseHandler responseHandler,
@@ -68,7 +81,7 @@ public class HuggingFaceEmbeddingsRequestManager extends HuggingFaceRequestManag
     ) {
         List<String> docsInput = EmbeddingsInput.of(inferenceInputs).getStringInputs();
         var truncatedInput = truncate(docsInput, model.getTokenLimit());
-        var request = new HuggingFaceInferenceRequest(truncator, truncatedInput, model);
+        var request = new HuggingFaceEmbeddingsRequest(truncator, truncatedInput, model);
 
         execute(new ExecutableInferenceRequest(requestSender, logger, request, responseHandler, hasRequestCompletedFunction, listener));
     }

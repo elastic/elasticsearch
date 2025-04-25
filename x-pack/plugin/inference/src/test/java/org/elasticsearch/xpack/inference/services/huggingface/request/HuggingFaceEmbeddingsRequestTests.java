@@ -14,7 +14,7 @@ import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.inference.common.Truncator;
 import org.elasticsearch.xpack.inference.common.TruncatorTests;
 import org.elasticsearch.xpack.inference.services.huggingface.embeddings.HuggingFaceEmbeddingsModelTests;
-import org.elasticsearch.xpack.inference.services.huggingface.request.embeddings.HuggingFaceInferenceRequest;
+import org.elasticsearch.xpack.inference.services.huggingface.request.embeddings.HuggingFaceEmbeddingsRequest;
 
 import java.io.IOException;
 import java.net.URI;
@@ -26,7 +26,7 @@ import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 
-public class HuggingFaceInferenceRequestTests extends ESTestCase {
+public class HuggingFaceEmbeddingsRequestTests extends ESTestCase {
     @SuppressWarnings("unchecked")
     public void testCreateRequest() throws URISyntaxException, IOException {
         var huggingFaceRequest = createRequest("www.google.com", "secret", "abc");
@@ -68,9 +68,9 @@ public class HuggingFaceInferenceRequestTests extends ESTestCase {
         assertTrue(truncatedRequest.getTruncationInfo()[0]);
     }
 
-    public static HuggingFaceInferenceRequest createRequest(String url, String apiKey, String input) throws URISyntaxException {
+    public static HuggingFaceEmbeddingsRequest createRequest(String url, String apiKey, String input) throws URISyntaxException {
 
-        return new HuggingFaceInferenceRequest(
+        return new HuggingFaceEmbeddingsRequest(
             TruncatorTests.createTruncator(),
             new Truncator.TruncationResult(List.of(input), new boolean[] { false }),
             HuggingFaceEmbeddingsModelTests.createModel(url, apiKey)

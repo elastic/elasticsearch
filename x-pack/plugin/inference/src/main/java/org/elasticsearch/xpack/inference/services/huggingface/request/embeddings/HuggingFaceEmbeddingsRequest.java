@@ -24,25 +24,35 @@ import java.util.Objects;
 
 import static org.elasticsearch.xpack.inference.external.request.RequestUtils.createAuthBearerHeader;
 
-public class HuggingFaceInferenceRequest implements Request {
+/**
+ * This class is responsible for creating a request to the Hugging Face API for embeddings.
+ * It handles the truncation of input data and prepares the HTTP request with the necessary headers and body.
+ */
+public class HuggingFaceEmbeddingsRequest implements Request {
 
     private final Truncator truncator;
     private final HuggingFaceAccount account;
     private final Truncator.TruncationResult truncationResult;
     private final HuggingFaceModel model;
 
-    public HuggingFaceInferenceRequest(Truncator truncator, Truncator.TruncationResult input, HuggingFaceModel model) {
+    public HuggingFaceEmbeddingsRequest(Truncator truncator, Truncator.TruncationResult input, HuggingFaceModel model) {
         this.truncator = Objects.requireNonNull(truncator);
         this.account = HuggingFaceAccount.of(model);
         this.truncationResult = Objects.requireNonNull(input);
         this.model = Objects.requireNonNull(model);
     }
 
+    /**
+     * Creates an HTTP request to the Hugging Face API for embeddings.
+     * The request includes the necessary headers and the input data as a JSON entity.
+     *
+     * @return an HttpRequest object containing the HTTP POST request
+     */
     public HttpRequest createHttpRequest() {
         HttpPost httpPost = new HttpPost(account.uri());
 
         ByteArrayEntity byteEntity = new ByteArrayEntity(
-            Strings.toString(new HuggingFaceInferenceRequestEntity(truncationResult.input())).getBytes(StandardCharsets.UTF_8)
+            Strings.toString(new HuggingFaceEmbeddingsRequestEntity(truncationResult.input())).getBytes(StandardCharsets.UTF_8)
         );
         httpPost.setEntity(byteEntity);
         httpPost.setHeader(HttpHeaders.CONTENT_TYPE, XContentType.JSON.mediaTypeWithoutParameters());
@@ -64,7 +74,7 @@ public class HuggingFaceInferenceRequest implements Request {
     public Request truncate() {
         var truncateResult = truncator.truncate(truncationResult.input());
 
-        return new HuggingFaceInferenceRequest(truncator, truncateResult, model);
+        return new HuggingFaceEmbeddingsRequest(truncator, truncateResult, model);
     }
 
     @Override

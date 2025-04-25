@@ -24,6 +24,10 @@ import java.util.Objects;
 
 import static org.elasticsearch.xpack.inference.external.request.RequestUtils.createAuthBearerHeader;
 
+/**
+ * This class is responsible for creating a request to the Hugging Face API for chat completions.
+ * It handles the preparation of the HTTP request with the necessary headers and body.
+ */
 public class HuggingFaceUnifiedChatCompletionRequest implements Request {
 
     private final HuggingFaceAccount account;
@@ -36,6 +40,12 @@ public class HuggingFaceUnifiedChatCompletionRequest implements Request {
         this.unifiedChatInput = Objects.requireNonNull(unifiedChatInput);
     }
 
+    /**
+     * Creates an HTTP request to the Hugging Face API for chat completions.
+     * The request includes the necessary headers and the input data as a JSON entity.
+     *
+     * @return an HttpRequest object containing the HTTP POST request
+     */
     public HttpRequest createHttpRequest() {
         HttpPost httpPost = new HttpPost(getURI());
 
@@ -61,11 +71,18 @@ public class HuggingFaceUnifiedChatCompletionRequest implements Request {
 
     @Override
     public Request truncate() {
+        // Truncation is not applicable for chat completion requests
         return this;
     }
 
     @Override
     public boolean[] getTruncationInfo() {
+        // Truncation is not applicable for chat completion requests
         return null;
+    }
+
+    @Override
+    public boolean isStreaming() {
+        return unifiedChatInput.stream();
     }
 }

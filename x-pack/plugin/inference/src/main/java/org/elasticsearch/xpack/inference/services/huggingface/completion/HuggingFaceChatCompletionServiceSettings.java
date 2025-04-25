@@ -34,6 +34,13 @@ import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOpt
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractRequiredString;
 import static org.elasticsearch.xpack.inference.services.huggingface.HuggingFaceServiceSettings.extractUri;
 
+/**
+ * Settings for the Hugging Face chat completion service.
+ * <p>
+ * This class contains the settings required to configure a Hugging Face chat completion service, including the model ID, URL, maximum input
+ * tokens, and rate limit settings.
+ * </p>
+ */
 public class HuggingFaceChatCompletionServiceSettings extends FilteredXContentObject
     implements
         ServiceSettings,
@@ -44,7 +51,14 @@ public class HuggingFaceChatCompletionServiceSettings extends FilteredXContentOb
     // At the time of writing HuggingFace hasn't posted the default rate limit for inference endpoints so the value his is only a guess
     // 3000 requests per minute
     private static final RateLimitSettings DEFAULT_RATE_LIMIT_SETTINGS = new RateLimitSettings(3000);
+    private static final int DEFAULT_TOKEN_LIMIT = 512;
 
+    /**
+     * Creates a new instance of {@link HuggingFaceChatCompletionServiceSettings} from a map of settings.
+     * @param map the map of settings
+     * @param context the context for parsing the settings
+     * @return a new instance of {@link HuggingFaceChatCompletionServiceSettings}
+     */
     public static HuggingFaceChatCompletionServiceSettings fromMap(Map<String, Object> map, ConfigurationParseContext context) {
         ValidationException validationException = new ValidationException();
 
@@ -80,7 +94,7 @@ public class HuggingFaceChatCompletionServiceSettings extends FilteredXContentOb
 
     public HuggingFaceChatCompletionServiceSettings(
         String modelId,
-        @Nullable String url,
+        String url,
         @Nullable Integer maxInputTokens,
         @Nullable RateLimitSettings rateLimitSettings
     ) {
@@ -89,25 +103,31 @@ public class HuggingFaceChatCompletionServiceSettings extends FilteredXContentOb
 
     public HuggingFaceChatCompletionServiceSettings(
         String modelId,
-        @Nullable URI uri,
+        URI uri,
         @Nullable Integer maxInputTokens,
         @Nullable RateLimitSettings rateLimitSettings
     ) {
         this.modelId = modelId;
         this.uri = uri;
-        this.maxInputTokens = maxInputTokens;
+        this.maxInputTokens = Objects.requireNonNullElse(maxInputTokens, DEFAULT_TOKEN_LIMIT);
         this.rateLimitSettings = Objects.requireNonNullElse(rateLimitSettings, DEFAULT_RATE_LIMIT_SETTINGS);
     }
 
+    /**
+     * Creates a new instance of {@link HuggingFaceChatCompletionServiceSettings} from a stream input.
+     * @param in the stream input
+     * @throws IOException if an I/O error occurs
+     */
     public HuggingFaceChatCompletionServiceSettings(StreamInput in) throws IOException {
         this.modelId = in.readString();
         this.uri = createUri(in.readString());
-        this.maxInputTokens = in.readOptionalVInt();
 
         if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_15_0)) {
             this.rateLimitSettings = new RateLimitSettings(in);
+            this.maxInputTokens = in.readOptionalVInt();
         } else {
             this.rateLimitSettings = DEFAULT_RATE_LIMIT_SETTINGS;
+            this.maxInputTokens = DEFAULT_TOKEN_LIMIT;
         }
     }
 

@@ -11,15 +11,16 @@ import org.elasticsearch.xpack.inference.external.action.ExecutableAction;
 import org.elasticsearch.xpack.inference.external.action.SenderExecutableAction;
 import org.elasticsearch.xpack.inference.external.http.sender.Sender;
 import org.elasticsearch.xpack.inference.services.ServiceComponents;
-import org.elasticsearch.xpack.inference.services.huggingface.HuggingFaceCompletionRequestManager;
+import org.elasticsearch.xpack.inference.services.huggingface.HuggingFaceChatCompletionRequestManager;
 import org.elasticsearch.xpack.inference.services.huggingface.HuggingFaceEmbeddingsRequestManager;
 import org.elasticsearch.xpack.inference.services.huggingface.HuggingFaceResponseHandler;
 import org.elasticsearch.xpack.inference.services.huggingface.completion.HuggingFaceChatCompletionModel;
 import org.elasticsearch.xpack.inference.services.huggingface.elser.HuggingFaceElserModel;
 import org.elasticsearch.xpack.inference.services.huggingface.embeddings.HuggingFaceEmbeddingsModel;
-import org.elasticsearch.xpack.inference.services.huggingface.response.HuggingFaceChatCompletionResponseEntity;
 import org.elasticsearch.xpack.inference.services.huggingface.response.HuggingFaceElserResponseEntity;
 import org.elasticsearch.xpack.inference.services.huggingface.response.HuggingFaceEmbeddingsResponseEntity;
+import org.elasticsearch.xpack.inference.services.openai.OpenAiUnifiedChatCompletionResponseHandler;
+import org.elasticsearch.xpack.inference.services.openai.response.OpenAiChatCompletionResponseEntity;
 
 import java.util.Objects;
 
@@ -71,12 +72,12 @@ public class HuggingFaceActionCreator implements HuggingFaceActionVisitor {
 
     @Override
     public ExecutableAction create(HuggingFaceChatCompletionModel model) {
-        var responseHandler = new HuggingFaceResponseHandler(
+        var responseHandler = new OpenAiUnifiedChatCompletionResponseHandler(
             "hugging face chat completion",
-            HuggingFaceChatCompletionResponseEntity::fromResponse
+            OpenAiChatCompletionResponseEntity::fromResponse
         );
 
-        var requestCreator = HuggingFaceCompletionRequestManager.of(model, responseHandler, serviceComponents.threadPool());
+        var requestCreator = HuggingFaceChatCompletionRequestManager.of(model, responseHandler, serviceComponents.threadPool());
         var errorMessage = format(FAILED_TO_SEND_REQUEST_ERROR_MESSAGE, "CHAT COMPLETION", model.getInferenceEntityId());
         return new SenderExecutableAction(sender, requestCreator, errorMessage);
     }

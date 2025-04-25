@@ -23,15 +23,22 @@ import org.elasticsearch.xpack.inference.services.huggingface.request.completion
 import java.util.Objects;
 import java.util.function.Supplier;
 
-public class HuggingFaceCompletionRequestManager extends HuggingFaceRequestManager {
-    private static final Logger logger = LogManager.getLogger(HuggingFaceCompletionRequestManager.class);
+/**
+ * Manages the execution of chat completion requests for Hugging Face models.
+ * <p>
+ * This class is responsible for creating and executing requests to Hugging Face's chat completion API.
+ * It extends {@link HuggingFaceRequestManager} to provide specific functionality for chat completion models.
+ * </p>
+ */
+public class HuggingFaceChatCompletionRequestManager extends HuggingFaceRequestManager {
+    private static final Logger logger = LogManager.getLogger(HuggingFaceChatCompletionRequestManager.class);
 
-    public static HuggingFaceCompletionRequestManager of(
+    public static HuggingFaceChatCompletionRequestManager of(
         HuggingFaceChatCompletionModel model,
         ResponseHandler responseHandler,
         ThreadPool threadPool
     ) {
-        return new HuggingFaceCompletionRequestManager(
+        return new HuggingFaceChatCompletionRequestManager(
             Objects.requireNonNull(model),
             Objects.requireNonNull(responseHandler),
             Objects.requireNonNull(threadPool)
@@ -41,7 +48,7 @@ public class HuggingFaceCompletionRequestManager extends HuggingFaceRequestManag
     private final HuggingFaceChatCompletionModel model;
     private final ResponseHandler responseHandler;
 
-    private HuggingFaceCompletionRequestManager(
+    private HuggingFaceChatCompletionRequestManager(
         HuggingFaceChatCompletionModel model,
         ResponseHandler responseHandler,
         ThreadPool threadPool

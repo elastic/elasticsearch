@@ -43,11 +43,15 @@ import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import static org.elasticsearch.xpack.inference.services.ServiceFields.URL;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.createInvalidModelException;
-import static org.elasticsearch.xpack.inference.services.ServiceUtils.throwUnsupportedUnifiedCompletionOperation;
 
+/**
+ * This class is responsible for managing the Hugging Face inference service.
+ * It handles the creation of models, chunked inference, and unified completion inference.
+ */
 public class HuggingFaceService extends HuggingFaceBaseService {
     public static final String NAME = "hugging_face";
 
@@ -55,7 +59,8 @@ public class HuggingFaceService extends HuggingFaceBaseService {
     private static final EnumSet<TaskType> SUPPORTED_TASK_TYPES = EnumSet.of(
         TaskType.TEXT_EMBEDDING,
         TaskType.SPARSE_EMBEDDING,
-        TaskType.COMPLETION
+        TaskType.COMPLETION,
+        TaskType.CHAT_COMPLETION
     );
 
     public HuggingFaceService(HttpRequestSender.Factory factory, ServiceComponents serviceComponents) {
@@ -152,7 +157,21 @@ public class HuggingFaceService extends HuggingFaceBaseService {
         TimeValue timeout,
         ActionListener<InferenceServiceResults> listener
     ) {
-        throwUnsupportedUnifiedCompletionOperation(NAME);
+        if (model instanceof HuggingFaceChatCompletionModel == false) {
+            listener.onFailure(createInvalidModelException(model));
+            return;
+        }
+        HuggingFaceChatCompletionModel huggingFaceChatCompletionModel = (HuggingFaceChatCompletionModel) model;
+        var actionCreator = new HuggingFaceActionCreator(getSender(), getServiceComponents());
+        var overriddenModel = HuggingFaceChatCompletionModel.of(huggingFaceChatCompletionModel, inputs.getRequest());
+        var action = overriddenModel.accept(actionCreator);
+
+        action.execute(inputs, timeout, listener);
+    }
+
+    @Override
+    public Set<TaskType> supportedStreamingTasks() {
+        return EnumSet.of(TaskType.COMPLETION, TaskType.CHAT_COMPLETION);
     }
 
     @Override
@@ -178,6 +197,9 @@ public class HuggingFaceService extends HuggingFaceBaseService {
     public static class Configuration {
         public static InferenceServiceConfiguration get() {
             return configuration.getOrCompute();
+        }
+
+        private Configuration() {
         }
 
         private static final LazyInitializable<InferenceServiceConfiguration, RuntimeException> configuration = new LazyInitializable<>(

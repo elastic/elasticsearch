@@ -69,7 +69,10 @@ public class FailureStoreSecurityRestIT extends ESRestTestCase {
     @ClassRule
     public static ElasticsearchCluster cluster = ElasticsearchCluster.local()
         .apply(SecurityOnTrialLicenseRestTestCase.commonTrialSecurityClusterConfig)
+        .nodes(5)
         .feature(FeatureFlag.FAILURE_STORE_ENABLED)
+        .setting("logger.rest.suppressed", "TRACE")
+        .setting("logger.org.elasticsearch.transport.TransportService.tracer", "trace")
         .build();
 
     @Override
@@ -1931,19 +1934,11 @@ public class FailureStoreSecurityRestIT extends ESRestTestCase {
         String failureIndexName = backingIndices.v2();
 
         createUser(MANAGE_ACCESS, PASSWORD, MANAGE_ACCESS);
-        upsertRole(Strings.format("""
+        createOrUpdateRoleAndApiKey(MANAGE_ACCESS, MANAGE_ACCESS, """
             {
               "cluster": ["all"],
               "indices": [{"names": ["test*"], "privileges": ["manage"]}]
-            }"""), MANAGE_ACCESS);
-        createAndStoreApiKey(MANAGE_ACCESS, randomBoolean() ? null : """
-            {
-              "role": {
-                "cluster": ["all"],
-                "indices": [{"names": ["test*"], "privileges": ["manage"]}]
-              }
-            }
-            """);
+            }""");
         assertOK(addFailureStoreBackingIndex(MANAGE_ACCESS, "test1", failureIndexName));
         assertDataStreamHasDataAndFailureIndices("test1", dataIndexName, failureIndexName);
 
@@ -1955,38 +1950,22 @@ public class FailureStoreSecurityRestIT extends ESRestTestCase {
         expectThrows(() -> addFailureStoreBackingIndex(MANAGE_ACCESS, "test1", failureIndexName), 403);
 
         // let's change that
-        upsertRole(Strings.format("""
+        createOrUpdateRoleAndApiKey(MANAGE_ACCESS, MANAGE_ACCESS, """
             {
               "cluster": ["all"],
               "indices": [{"names": ["test*", ".fs*"], "privileges": ["manage"]}]
-            }"""), MANAGE_ACCESS);
-        createOrUpdateApiKey(MANAGE_ACCESS, randomBoolean() ? null : """
-            {
-              "role": {
-                "cluster": ["all"],
-                "indices": [{"names": ["test*", ".fs*"], "privileges": ["manage"]}]
-              }
-            }
-            """);
+            }""");
 
         // adding should succeed now
         assertOK(addFailureStoreBackingIndex(MANAGE_ACCESS, "test1", failureIndexName));
         assertDataStreamHasDataAndFailureIndices("test1", dataIndexName, failureIndexName);
 
         createUser(MANAGE_FAILURE_STORE_ACCESS, PASSWORD, MANAGE_FAILURE_STORE_ACCESS);
-        upsertRole(Strings.format("""
+        createOrUpdateRoleAndApiKey(MANAGE_FAILURE_STORE_ACCESS, MANAGE_FAILURE_STORE_ACCESS, """
             {
               "cluster": ["all"],
               "indices": [{"names": ["test*"], "privileges": ["manage_failure_store"]}]
-            }"""), MANAGE_FAILURE_STORE_ACCESS);
-        createAndStoreApiKey(MANAGE_FAILURE_STORE_ACCESS, randomBoolean() ? null : """
-            {
-              "role": {
-                "cluster": ["all"],
-                "indices": [{"names": ["test*"], "privileges": ["manage_failure_store"]}]
-              }
-            }
-            """);
+            }""");
 
         // manage_failure_store can only remove the failure backing index, but not add it
         assertOK(removeFailureStoreBackingIndex(MANAGE_FAILURE_STORE_ACCESS, "test1", failureIndexName));
@@ -1994,19 +1973,11 @@ public class FailureStoreSecurityRestIT extends ESRestTestCase {
         expectThrows(() -> addFailureStoreBackingIndex(MANAGE_FAILURE_STORE_ACCESS, "test1", failureIndexName), 403);
 
         // not even with access to .fs*
-        upsertRole(Strings.format("""
+        createOrUpdateRoleAndApiKey(MANAGE_FAILURE_STORE_ACCESS, MANAGE_FAILURE_STORE_ACCESS, """
             {
               "cluster": ["all"],
               "indices": [{"names": ["test*", ".fs*"], "privileges": ["manage_failure_store"]}]
-            }"""), MANAGE_FAILURE_STORE_ACCESS);
-        createOrUpdateApiKey(MANAGE_FAILURE_STORE_ACCESS, randomBoolean() ? null : """
-            {
-              "role": {
-                "cluster": ["all"],
-                "indices": [{"names": ["test*", ".fs*"], "privileges": ["manage_failure_store"]}]
-              }
-            }
-            """);
+            }""");
         expectThrows(() -> addFailureStoreBackingIndex(MANAGE_FAILURE_STORE_ACCESS, "test1", failureIndexName), 403);
     }
 
@@ -2055,9 +2026,199 @@ public class FailureStoreSecurityRestIT extends ESRestTestCase {
         // test data stream stats
     }
 
-    public void testAliasBasedAccess() {
-        // test alias based access with failure store
-        // test filtered alias based access with failure store
+    public void testAliasBasedAccess() throws Exception {
+        List<String> docIds = setupDataStream();
+        assertThat(docIds.size(), equalTo(2));
+        assertThat(docIds, hasItem("1"));
+        String dataDocId = "1";
+        String failuresDocId = docIds.stream().filter(id -> false == id.equals(dataDocId)).findFirst().get();
+
+        List<String> otherDocIds = setupOtherDataStream();
+        assertThat(otherDocIds.size(), equalTo(2));
+        assertThat(otherDocIds, hasItem("3"));
+        String otherDataDocId = "3";
+        String otherFailuresDocId = otherDocIds.stream().filter(id -> false == id.equals(otherDataDocId)).findFirst().get();
+
+        final Tuple<String, String> backingIndices = getSingleDataAndFailureIndices("test1");
+        final String dataIndexName = backingIndices.v1();
+        final String failureIndexName = backingIndices.v2();
+
+        final String aliasName = "my-alias";
+        final String username = "user";
+        final String roleName = "role";
+
+        createUser(username, PASSWORD, roleName);
+        // manage is required to add the alias to the data stream
+        createOrUpdateRoleAndApiKey(username, roleName, Strings.format("""
+            {
+              "cluster": ["all"],
+              "indices": [
+                {
+                  "names": ["test1", "%s", "other1"],
+                  "privileges": ["manage"]
+                }
+              ]
+            }
+            """, aliasName));
+
+        addAlias(username, "test1", aliasName, "");
+        addAlias(username, "other1", aliasName, "");
+        assertThat(fetchAliases(username, "test1"), containsInAnyOrder(aliasName));
+        expectSearchThrows(username, new Search(randomFrom(aliasName + "::data", aliasName)), 403);
+        expectSearchThrows(username, new Search(randomFrom(aliasName + "::failures")), 403);
+
+        createOrUpdateRoleAndApiKey(username, roleName, Strings.format("""
+            {
+              "cluster": ["all"],
+              "indices": [
+                {
+                  "names": ["%s"],
+                  "privileges": ["read_failure_store"]
+                }
+              ]
+            }
+            """, aliasName));
+        expectSearch(username, new Search(aliasName + "::failures"), failuresDocId, otherFailuresDocId);
+        expectSearchThrows(
+            username,
+            new Search(randomFrom(aliasName + "::data", "my-alias::failures", dataIndexName, failureIndexName)),
+            403
+        );
+
+        createOrUpdateRoleAndApiKey(username, roleName, Strings.format("""
+            {
+              "cluster": ["all"],
+              "indices": [
+                {
+                  "names": ["%s"],
+                  "privileges": ["read"]
+                }
+              ]
+            }
+            """, aliasName));
+        expectSearch(username, new Search(randomFrom(aliasName + "::data")), dataDocId, otherDataDocId);
+        expectSearchThrows(username, new Search(aliasName + "::failures"), 403);
+
+        expectThrows(() -> removeAlias(username, "test1", aliasName), 403);
+        createOrUpdateRoleAndApiKey(username, roleName, Strings.format("""
+            {
+              "cluster": ["all"],
+              "indices": [
+                {
+                  "names": ["test1", "%s", "other1"],
+                  "privileges": ["manage"]
+                }
+              ]
+            }
+            """, aliasName));
+        removeAlias(username, "test1", aliasName);
+        removeAlias(username, "other1", aliasName);
+
+        final String filteredAliasName = "my-filtered-alias";
+        createOrUpdateRoleAndApiKey(username, roleName, Strings.format("""
+            {
+              "cluster": ["all"],
+              "indices": [
+                {
+                  "names": ["test1", "%s", "other1"],
+                  "privileges": ["manage"]
+                }
+              ]
+            }
+            """, filteredAliasName));
+        addAlias(username, "test1", filteredAliasName, """
+            {
+              "term": {
+                "document.source.name": "jack"
+              }
+            }
+            """);
+        addAlias(username, "other1", filteredAliasName, """
+            {
+              "term": {
+                "document.source.name": "jack"
+              }
+            }
+            """);
+        assertThat(fetchAliases(username, "test1"), containsInAnyOrder(filteredAliasName));
+        assertThat(fetchAliases(username, "other1"), containsInAnyOrder(filteredAliasName));
+
+        createOrUpdateRoleAndApiKey(username, roleName, Strings.format("""
+            {
+              "cluster": ["all"],
+              "indices": [
+                {
+                  "names": ["%s"],
+                  "privileges": ["read", "read_failure_store"]
+                }
+              ]
+            }
+            """, filteredAliasName));
+
+        expectSearch(username, new Search(randomFrom(filteredAliasName + "::data", filteredAliasName)));
+        // the alias filter is not applied to the failure store
+        expectSearch(username, new Search(filteredAliasName + "::failures"), failuresDocId, otherDataDocId);
+    }
+
+    private void createOrUpdateRoleAndApiKey(String username, String roleName, String roleDescriptor) throws IOException {
+        upsertRole(roleDescriptor, roleName);
+        createOrUpdateApiKey(username, randomBoolean() ? null : Strings.format("""
+            {
+              "%s": %s
+            }
+            """, roleName, roleDescriptor));
+    }
+
+    private void addAlias(String user, String dataStream, String alias, String filter) throws IOException {
+        aliasAction(user, "add", dataStream, alias, filter);
+    }
+
+    private void removeAlias(String user, String dataStream, String alias) throws IOException {
+        aliasAction(user, "remove", dataStream, alias, "");
+    }
+
+    private void aliasAction(String user, String action, String dataStream, String alias, String filter) throws IOException {
+        Request request = new Request("POST", "/_aliases");
+        if (filter == null || filter.isEmpty()) {
+            request.setJsonEntity(Strings.format("""
+                {
+                  "actions": [
+                    {
+                      "%s": {
+                        "index": "%s",
+                        "alias": "%s"
+                      }
+                    }
+                  ]
+                }
+                """, action, dataStream, alias));
+        } else {
+            request.setJsonEntity(Strings.format("""
+                {
+                  "actions": [
+                    {
+                      "%s": {
+                        "index": "%s",
+                        "alias": "%s",
+                        "filter": %s
+                      }
+                    }
+                  ]
+                }
+                """, action, dataStream, alias, filter));
+        }
+        Response response = performRequestMaybeUsingApiKey(user, request);
+        var path = assertOKAndCreateObjectPath(response);
+        assertThat(path.evaluate("acknowledged"), is(true));
+        assertThat(path.evaluate("errors"), is(false));
+
+    }
+
+    private Set<String> fetchAliases(String user, String dataStream) throws IOException {
+        Response response = performRequestMaybeUsingApiKey(user, new Request("GET", dataStream + "/_alias"));
+        ObjectPath path = assertOKAndCreateObjectPath(response);
+        Map<String, Object> aliases = path.evaluate(dataStream + ".aliases");
+        return aliases.keySet();
     }
 
     public void testPatternExclusions() throws Exception {
@@ -2917,9 +3078,13 @@ public class FailureStoreSecurityRestIT extends ESRestTestCase {
         final SearchResponse searchResponse = SearchResponseUtils.parseSearchResponse(responseAsParser(response));
         try {
             SearchHit[] hits = searchResponse.getHits().getHits();
-            assertThat(hits.length, equalTo(docIds.length));
-            List<String> actualDocIds = Arrays.stream(hits).map(SearchHit::getId).toList();
-            assertThat(actualDocIds, containsInAnyOrder(docIds));
+            if (docIds != null) {
+                assertThat(Arrays.toString(hits), hits.length, equalTo(docIds.length));
+                List<String> actualDocIds = Arrays.stream(hits).map(SearchHit::getId).toList();
+                assertThat(actualDocIds, containsInAnyOrder(docIds));
+            } else {
+                assertThat(hits.length, equalTo(0));
+            }
         } finally {
             searchResponse.decRef();
         }

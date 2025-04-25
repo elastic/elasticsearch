@@ -192,11 +192,6 @@ public class DirectIOLucene99FlatVectorsReader extends FlatVectorsReader {
         }
     }
 
-    // only for tests
-    IndexInput getRawVectorsInput() {
-        return vectorData;
-    }
-
     private void readFields(ChecksumIndexInput meta, FieldInfos infos) throws IOException {
         for (int fieldNumber = meta.readInt(); fieldNumber != -1; fieldNumber = meta.readInt()) {
             FieldInfo info = infos.fieldInfo(fieldNumber);

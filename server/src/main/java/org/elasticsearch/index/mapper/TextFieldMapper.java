@@ -1020,9 +1020,13 @@ public final class TextFieldMapper extends FieldMapper {
                 return new BlockStoredFieldsReader.BytesFromStringsBlockLoader(name());
             }
 
-            // _ignored_source field will only be present if text field is not stored
-            // and there is no syntheticSourceDelegate
-            if (isSyntheticSource && syntheticSourceDelegate == null) {
+            // _ignored_source field will contain entries for this field if it is not stored
+            // and there is no syntheticSourceDelegate.
+            // See #syntheticSourceSupport().
+            // But if a text field is a multi field it won't have an entry in _ignored_source.
+            // The parent might, but we don't have enough context here to figure this out.
+            // So we bail.
+            if (isSyntheticSource && syntheticSourceDelegate == null && parentField == null) {
                 return fallbackSyntheticSourceBlockLoader();
             }
 

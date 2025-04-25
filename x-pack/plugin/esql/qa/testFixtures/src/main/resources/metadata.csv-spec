@@ -40,7 +40,7 @@ max:integer |_index:keyword
 ;
 
 metaIndexSorted
-required_capability: metadata_fields
+required_capability: index_metadata_field
 from employees metadata _index | sort _index, emp_no desc | keep emp_no, _index | limit 2;
 
 
@@ -50,7 +50,7 @@ emp_no:integer |_index:keyword
 ;
 
 metaIndexWithInPredicate
-required_capability: metadata_fields
+required_capability: index_metadata_field
 from employees metadata _index | where _index in ("employees", "foobar") | sort emp_no desc | keep emp_no, _index | limit 2;
 
 
@@ -60,7 +60,7 @@ emp_no:integer |_index:keyword
 ;
 
 metaIndexAliasedInAggs
-required_capability: metadata_fields
+required_capability: index_metadata_field
 from employees metadata _index | eval _i = _index | stats max = max(emp_no) by _i;
 
 

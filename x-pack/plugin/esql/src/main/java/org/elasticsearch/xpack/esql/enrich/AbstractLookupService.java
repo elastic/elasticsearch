@@ -15,7 +15,6 @@ import org.elasticsearch.action.support.ChannelActionListener;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.cluster.routing.GroupShardsIterator;
 import org.elasticsearch.cluster.routing.ShardIterator;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -60,6 +59,7 @@ import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.AbstractTransportRequest;
 import org.elasticsearch.transport.TransportChannel;
 import org.elasticsearch.transport.TransportRequestHandler;
 import org.elasticsearch.transport.TransportRequestOptions;
@@ -89,33 +89,33 @@ import java.util.stream.IntStream;
  * page against another index that <strong>must</strong> have only a single
  * shard.
  * <p>
- *     This registers a {@link TransportRequestHandler} so we can handle requests
- *     to join data that isn't local to the node, but it is much faster if the
- *     data is already local.
+ * This registers a {@link TransportRequestHandler} so we can handle requests
+ * to join data that isn't local to the node, but it is much faster if the
+ * data is already local.
  * </p>
  * <p>
- *     The join process spawns a {@link Driver} per incoming page which runs in
- *     two or three stages:
+ * The join process spawns a {@link Driver} per incoming page which runs in
+ * two or three stages:
  * </p>
  * <p>
- *     Stage 1: Finding matching document IDs for the input page. This stage is done
- *     by the {@link EnrichQuerySourceOperator}. The output page of this stage is
- *     represented as {@code [DocVector, IntBlock: positions of the input terms]}.
+ * Stage 1: Finding matching document IDs for the input page. This stage is done
+ * by the {@link EnrichQuerySourceOperator}. The output page of this stage is
+ * represented as {@code [DocVector, IntBlock: positions of the input terms]}.
  * </p>
  * <p>
- *     Stage 2: Extracting field values for the matched document IDs. The output page
- *     is represented as
- *     {@code [DocVector, IntBlock: positions, Block: field1, Block: field2,...]}.
+ * Stage 2: Extracting field values for the matched document IDs. The output page
+ * is represented as
+ * {@code [DocVector, IntBlock: positions, Block: field1, Block: field2,...]}.
  * </p>
  * <p>
- *     Stage 3: Optionally this combines the extracted values based on positions and filling
- *     nulls for positions without matches. This is done by {@link MergePositionsOperator}.
- *     The output page is represented as {@code [Block: field1, Block: field2,...]}.
+ * Stage 3: Optionally this combines the extracted values based on positions and filling
+ * nulls for positions without matches. This is done by {@link MergePositionsOperator}.
+ * The output page is represented as {@code [Block: field1, Block: field2,...]}.
  * </p>
  * <p>
- *     The {@link Page#getPositionCount()} of the output {@link Page} is  equal to the
- *     {@link Page#getPositionCount()} of the input page. In other words - it returns
- *     the same number of rows that it was sent no matter how many documents match.
+ * The {@link Page#getPositionCount()} of the output {@link Page} is  equal to the
+ * {@link Page#getPositionCount()} of the input page. In other words - it returns
+ * the same number of rows that it was sent no matter how many documents match.
  * </p>
  */
 public abstract class AbstractLookupService<R extends AbstractLookupService.Request, T extends AbstractLookupService.TransportRequest> {
@@ -177,7 +177,13 @@ public abstract class AbstractLookupService<R extends AbstractLookupService.Requ
     /**
      * Build a list of queries to perform inside the actual lookup.
      */
-    protected abstract QueryList queryList(T request, SearchExecutionContext context, Block inputBlock, DataType inputDataType);
+    protected abstract QueryList queryList(
+        T request,
+        SearchExecutionContext context,
+        Block inputBlock,
+        DataType inputDataType,
+        Warnings warnings
+    );
 
     /**
      * Build the response.
@@ -207,8 +213,8 @@ public abstract class AbstractLookupService<R extends AbstractLookupService.Requ
      */
     public final void lookupAsync(R request, CancellableTask parentTask, ActionListener<List<Page>> outListener) {
         ClusterState clusterState = clusterService.state();
-        GroupShardsIterator<ShardIterator> shardIterators = clusterService.operationRouting()
-            .searchShards(clusterState, new String[] { request.index }, Map.of(), "_local");
+        List<ShardIterator> shardIterators = clusterService.operationRouting()
+            .searchShards(clusterState.projectState(), new String[] { request.index }, Map.of(), "_local");
         if (shardIterators.size() != 1) {
             outListener.onFailure(new EsqlIllegalArgumentException("target index {} has more than one shard", request.index));
             return;
@@ -297,13 +303,13 @@ public abstract class AbstractLookupService<R extends AbstractLookupService.Requ
                 }
             }
             releasables.add(finishPages);
-            QueryList queryList = queryList(request, shardContext.executionContext, inputBlock, request.inputDataType);
             var warnings = Warnings.createWarnings(
                 DriverContext.WarningsMode.COLLECT,
                 request.source.source().getLineNumber(),
                 request.source.source().getColumnNumber(),
                 request.source.text()
             );
+            QueryList queryList = queryList(request, shardContext.executionContext, inputBlock, request.inputDataType, warnings);
             var queryOperator = new EnrichQuerySourceOperator(
                 driverContext.blockFactory(),
                 EnrichQuerySourceOperator.DEFAULT_MAX_PAGE_SIZE,
@@ -327,6 +333,9 @@ public abstract class AbstractLookupService<R extends AbstractLookupService.Requ
             releasables.add(outputOperator);
             Driver driver = new Driver(
                 "enrich-lookup:" + request.sessionId,
+                "enrich",
+                clusterService.getClusterName().value(),
+                clusterService.getNodeName(),
                 System.currentTimeMillis(),
                 System.nanoTime(),
                 driverContext,
@@ -470,7 +479,7 @@ public abstract class AbstractLookupService<R extends AbstractLookupService.Requ
         }
     }
 
-    abstract static class TransportRequest extends org.elasticsearch.transport.TransportRequest implements IndicesRequest {
+    abstract static class TransportRequest extends AbstractTransportRequest implements IndicesRequest {
         final String sessionId;
         final ShardId shardId;
         /**

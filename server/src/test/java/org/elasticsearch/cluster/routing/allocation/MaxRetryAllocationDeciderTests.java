@@ -18,7 +18,9 @@ import org.elasticsearch.cluster.EmptyClusterInfoService;
 import org.elasticsearch.cluster.TestShardRoutingRoleStrategies;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.cluster.routing.GlobalRoutingTable;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.allocator.BalancedShardsAllocator;
@@ -39,6 +41,7 @@ import java.util.function.Consumer;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.INITIALIZING;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.STARTED;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.UNASSIGNED;
+import static org.hamcrest.Matchers.aMapWithSize;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -61,7 +64,7 @@ public class MaxRetryAllocationDeciderTests extends ESAllocationTestCase {
             .put(IndexMetadata.builder("idx").settings(settings(IndexVersion.current())).numberOfShards(1).numberOfReplicas(0))
             .build();
         RoutingTable routingTable = RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY)
-            .addAsNew(metadata.index("idx"))
+            .addAsNew(metadata.getProject().index("idx"))
             .build();
 
         ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
@@ -192,10 +195,10 @@ public class MaxRetryAllocationDeciderTests extends ESAllocationTestCase {
             .metadata(
                 Metadata.builder(clusterState.metadata())
                     .put(
-                        IndexMetadata.builder(clusterState.metadata().index("idx"))
+                        IndexMetadata.builder(clusterState.metadata().getProject().index("idx"))
                             .settings(
                                 Settings.builder()
-                                    .put(clusterState.metadata().index("idx").getSettings())
+                                    .put(clusterState.metadata().getProject().index("idx").getSettings())
                                     .put("index.allocation.max_retries", retries + 1)
                                     .build()
                             )
@@ -249,6 +252,8 @@ public class MaxRetryAllocationDeciderTests extends ESAllocationTestCase {
 
     public void testFailedRelocation() {
         ClusterState clusterState = createInitialClusterState();
+        assertThat(clusterState.metadata().projects().size(), equalTo(1));
+        final ProjectId projectId = clusterState.metadata().projects().keySet().iterator().next();
         clusterState = startInitializingShardsAndReroute(strategy, clusterState);
 
         int retries = MaxRetryAllocationDecider.SETTING_ALLOCATION_MAX_RETRY.get(Settings.EMPTY);
@@ -256,7 +261,7 @@ public class MaxRetryAllocationDeciderTests extends ESAllocationTestCase {
         // shard could be relocated while retries are not exhausted
         for (int i = 0; i < retries; i++) {
             clusterState = withRoutingAllocation(clusterState, allocation -> {
-                var source = allocation.routingTable().index("idx").shard(0).shard(0);
+                var source = allocation.routingTable(projectId).index("idx").shard(0).shard(0);
                 var targetNodeId = Objects.equals(source.currentNodeId(), "node1") ? "node2" : "node1";
                 assertThat(decider.canAllocate(source, allocation).type(), equalTo(Decision.Type.YES));
                 allocation.routingNodes().relocateShard(source, targetNodeId, 0, "test", allocation.changes());
@@ -267,14 +272,22 @@ public class MaxRetryAllocationDeciderTests extends ESAllocationTestCase {
                 "boom" + i
             );
 
-            var relocationFailureInfo = clusterState.getRoutingTable().index("idx").shard(0).shard(0).relocationFailureInfo();
+            var relocationFailureInfo = clusterState.globalRoutingTable()
+                .routingTable(projectId)
+                .index("idx")
+                .shard(0)
+                .shard(0)
+                .relocationFailureInfo();
             assertThat(relocationFailureInfo.failedRelocations(), equalTo(i + 1));
         }
 
         // shard could not be relocated when retries are exhausted
         withRoutingAllocation(clusterState, allocation -> {
             allocation.debugDecision(true);
-            final var decision = decider.canAllocate(allocation.routingTable().index("idx").shard(0).shard(0), allocation);
+            final var decision = decider.canAllocate(
+                allocation.globalRoutingTable().routingTable(projectId).index("idx").shard(0).shard(0),
+                allocation
+            );
             assertThat(decision.type(), equalTo(Decision.Type.NO));
             assertThat(
                 decision.getExplanation(),
@@ -290,7 +303,7 @@ public class MaxRetryAllocationDeciderTests extends ESAllocationTestCase {
 
         // shard could be relocated again
         withRoutingAllocation(clusterState, allocation -> {
-            var source = allocation.routingTable().index("idx").shard(0).shard(0);
+            var source = allocation.globalRoutingTable().routingTable(projectId).index("idx").shard(0).shard(0);
             assertThat(decider.canAllocate(source, allocation).type(), equalTo(Decision.Type.YES));
         });
     }
@@ -321,7 +334,10 @@ public class MaxRetryAllocationDeciderTests extends ESAllocationTestCase {
         if (allocation.routingNodesChanged() == false) {
             return state;
         }
-        final RoutingTable newRoutingTable = RoutingTable.of(allocation.routingNodes());
+
+        assertThat(state.metadata().projects(), aMapWithSize(1));
+
+        final GlobalRoutingTable newRoutingTable = state.globalRoutingTable().rebuild(allocation.routingNodes(), allocation.metadata());
         final Metadata newMetadata = allocation.updateMetadataWithRoutingChanges(newRoutingTable);
         assert newRoutingTable.validate(newMetadata);
 

@@ -14,7 +14,7 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.xcontent.ToXContent;
 
 import java.io.IOException;
-import java.util.List;
+import java.util.Collection;
 
 import static org.elasticsearch.test.BWCVersions.DEFAULT_BWC_VERSIONS;
 
@@ -28,7 +28,7 @@ public abstract class AbstractBWCSerializationTestCase<T extends Writeable & ToX
     /**
      * The bwc versions to test serialization against
      */
-    protected List<TransportVersion> bwcVersions() {
+    protected Collection<TransportVersion> bwcVersions() {
         return DEFAULT_BWC_VERSIONS;
     }
 

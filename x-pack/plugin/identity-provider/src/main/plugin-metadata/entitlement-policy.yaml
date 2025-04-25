@@ -3,3 +3,7 @@ ALL-UNNAMED:
   - write_system_properties:
       properties:
         - org.apache.xml.security.ignoreLineBreaks
+  - files:
+      - relative_path: ""
+        relative_to: config
+        mode: read

@@ -41,6 +41,60 @@ import static org.elasticsearch.xpack.core.security.authc.RealmSettings.RESERVED
 
 public class NodeDeprecationChecks {
 
+    // Visible for testing
+    static final List<
+        NodeDeprecationCheck<Settings, PluginsAndModules, ClusterState, XPackLicenseState, DeprecationIssue>> SINGLE_NODE_CHECKS = List.of(
+            NodeDeprecationChecks::checkMultipleDataPaths,
+            NodeDeprecationChecks::checkDataPathsList,
+            NodeDeprecationChecks::checkSharedDataPathSetting,
+            NodeDeprecationChecks::checkReservedPrefixedRealmNames,
+            NodeDeprecationChecks::checkExporterUseIngestPipelineSettings,
+            NodeDeprecationChecks::checkExporterPipelineMasterTimeoutSetting,
+            NodeDeprecationChecks::checkExporterCreateLegacyTemplateSetting,
+            NodeDeprecationChecks::checkMonitoringSettingHistoryDuration,
+            NodeDeprecationChecks::checkMonitoringSettingHistoryDuration,
+            NodeDeprecationChecks::checkMonitoringSettingCollectIndexRecovery,
+            NodeDeprecationChecks::checkMonitoringSettingCollectIndices,
+            NodeDeprecationChecks::checkMonitoringSettingCollectCcrTimeout,
+            NodeDeprecationChecks::checkMonitoringSettingCollectEnrichStatsTimeout,
+            NodeDeprecationChecks::checkMonitoringSettingCollectIndexRecoveryStatsTimeout,
+            NodeDeprecationChecks::checkMonitoringSettingCollectIndexStatsTimeout,
+            NodeDeprecationChecks::checkMonitoringSettingCollectMlJobStatsTimeout,
+            NodeDeprecationChecks::checkMonitoringSettingCollectNodeStatsTimeout,
+            NodeDeprecationChecks::checkMonitoringSettingCollectClusterStatsTimeout,
+            NodeDeprecationChecks::checkMonitoringSettingExportersHost,
+            NodeDeprecationChecks::checkMonitoringSettingExportersBulkTimeout,
+            NodeDeprecationChecks::checkMonitoringSettingExportersConnectionTimeout,
+            NodeDeprecationChecks::checkMonitoringSettingExportersConnectionReadTimeout,
+            NodeDeprecationChecks::checkMonitoringSettingExportersAuthUsername,
+            NodeDeprecationChecks::checkMonitoringSettingExportersAuthPass,
+            NodeDeprecationChecks::checkMonitoringSettingExportersSSL,
+            NodeDeprecationChecks::checkMonitoringSettingExportersProxyBase,
+            NodeDeprecationChecks::checkMonitoringSettingExportersSniffEnabled,
+            NodeDeprecationChecks::checkMonitoringSettingExportersHeaders,
+            NodeDeprecationChecks::checkMonitoringSettingExportersTemplateTimeout,
+            NodeDeprecationChecks::checkMonitoringSettingExportersMasterTimeout,
+            NodeDeprecationChecks::checkMonitoringSettingExportersEnabled,
+            NodeDeprecationChecks::checkMonitoringSettingExportersType,
+            NodeDeprecationChecks::checkMonitoringSettingExportersAlertsEnabled,
+            NodeDeprecationChecks::checkMonitoringSettingExportersAlertsBlacklist,
+            NodeDeprecationChecks::checkMonitoringSettingExportersIndexNameTimeFormat,
+            NodeDeprecationChecks::checkMonitoringSettingDecommissionAlerts,
+            NodeDeprecationChecks::checkMonitoringSettingEsCollectionEnabled,
+            NodeDeprecationChecks::checkMonitoringSettingCollectionEnabled,
+            NodeDeprecationChecks::checkMonitoringSettingCollectionInterval,
+            NodeDeprecationChecks::checkScriptContextCache,
+            NodeDeprecationChecks::checkScriptContextCompilationsRateLimitSetting,
+            NodeDeprecationChecks::checkScriptContextCacheSizeSetting,
+            NodeDeprecationChecks::checkScriptContextCacheExpirationSetting,
+            NodeDeprecationChecks::checkEnforceDefaultTierPreferenceSetting,
+            NodeDeprecationChecks::checkLifecyleStepMasterTimeoutSetting,
+            NodeDeprecationChecks::checkEqlEnabledSetting,
+            NodeDeprecationChecks::checkNodeAttrData,
+            NodeDeprecationChecks::checkWatcherBulkConcurrentRequestsSetting,
+            NodeDeprecationChecks::checkTracingApmSettings
+        );
+
     static DeprecationIssue checkDeprecatedSetting(
         final Settings clusterSettings,
         final Settings nodeSettings,
@@ -75,15 +129,6 @@ public class NodeDeprecationChecks {
 
     private static Map<String, Object> createMetaMapForRemovableSettings(boolean canAutoRemoveSetting, List<String> removableSettings) {
         return canAutoRemoveSetting ? DeprecationIssue.createMetaMapForRemovableSettings(removableSettings) : null;
-    }
-
-    static DeprecationIssue checkRemovedSetting(
-        final Settings clusterSettings,
-        final Settings nodeSettings,
-        final Setting<?> removedSetting,
-        final String url
-    ) {
-        return checkRemovedSetting(clusterSettings, nodeSettings, removedSetting, url, null, DeprecationIssue.Level.CRITICAL);
     }
 
     static DeprecationIssue checkRemovedSetting(
@@ -206,8 +251,7 @@ public class NodeDeprecationChecks {
                 "setting [%s] is deprecated and will be removed in a future version",
                 Environment.PATH_SHARED_DATA_SETTING.getKey()
             );
-            final String url = "https://www.elastic.co/guide/en/elasticsearch/reference/7.13/"
-                + "breaking-changes-7.13.html#deprecate-shared-data-path-setting";
+            final String url = "https://ela.st/es-deprecation-7-shared-data-path";
             final String details = "Found shared data path configured. Discontinue use of this setting.";
             return new DeprecationIssue(DeprecationIssue.Level.WARNING, message, url, details, false, null);
         }
@@ -236,7 +280,7 @@ public class NodeDeprecationChecks {
             return new DeprecationIssue(
                 DeprecationIssue.Level.CRITICAL,
                 "Realm that start with [" + RESERVED_REALM_AND_DOMAIN_NAME_PREFIX + "] will not be permitted in a future major release.",
-                "https://www.elastic.co/guide/en/elasticsearch/reference/7.14/deprecated-7.14.html#reserved-prefixed-realm-names",
+                "https://ela.st/es-deprecation-7-realm-prefix",
                 String.format(
                     Locale.ROOT,
                     "Found realm "
@@ -927,7 +971,7 @@ public class NodeDeprecationChecks {
             Setting.Property.NodeScope,
             Setting.Property.DeprecatedWarning
         );
-        String url = "https://ela.st/es-deprecation-8-eql-enabled-setting";
+        String url = "https://ela.st/es-deprecation-7-eql-enabled-setting";
         return checkRemovedSetting(
             clusterState.metadata().settings(),
             settings,
@@ -974,7 +1018,7 @@ public class NodeDeprecationChecks {
             Setting.Property.NodeScope,
             Setting.Property.Deprecated
         );
-        String url = "https://ela.st/es-deprecation-8-watcher-bulk-concurrency-setting";
+        String url = "https://ela.st/es-deprecation-8-watcher-settings";
         return checkRemovedSetting(
             clusterState.metadata().settings(),
             settings,
@@ -1011,5 +1055,10 @@ public class NodeDeprecationChecks {
                 + " and should be replaced by [telemetry.*] or [telemetry.tracing.*] settings.",
             DeprecationIssue.Level.CRITICAL
         );
+    }
+
+    @FunctionalInterface
+    public interface NodeDeprecationCheck<A, B, C, D, R> {
+        R apply(A first, B second, C third, D fourth);
     }
 }

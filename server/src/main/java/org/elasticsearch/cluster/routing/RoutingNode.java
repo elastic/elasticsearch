@@ -112,6 +112,9 @@ public class RoutingNode implements Iterable<ShardRouting> {
         return this.nodeId;
     }
 
+    /**
+     * Number of shards assigned to this node. Includes relocating shards. Use {@link #numberOfOwningShards()} to exclude relocating shards.
+     */
     public int size() {
         return shards.size();
     }

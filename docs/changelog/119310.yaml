@@ -1,6 +1,0 @@
-pr: 119310
-summary: Remove ChunkedToXContentBuilder
-area: "Network"
-type: bug
-issues:
- - 118647

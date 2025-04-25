@@ -1031,7 +1031,9 @@ public class ReservedRolesStoreTests extends ESTestCase {
         // Tests for third-party agent indices that `kibana_system` has only `read` access
         Arrays.asList(
             "logs-sentinel_one." + randomAlphaOfLength(randomIntBetween(0, 13)),
-            "logs-crowdstrike." + randomAlphaOfLength(randomIntBetween(0, 13))
+            "logs-crowdstrike." + randomAlphaOfLength(randomIntBetween(0, 13)),
+            "logs-microsoft_defender_endpoint." + randomAlphaOfLength(randomIntBetween(0, 13)),
+            "logs-m365_defender." + randomAlphaOfLength(randomIntBetween(0, 13))
         ).forEach((index) -> {
             final IndexAbstraction indexAbstraction = mockIndexAbstraction(index);
             assertThat(kibanaRole.indices().allowedIndicesMatcher("indices:foo").test(indexAbstraction), is(false));
@@ -1639,8 +1641,10 @@ public class ReservedRolesStoreTests extends ESTestCase {
         Arrays.asList(
             "logs-wiz.vulnerability-" + randomAlphaOfLength(randomIntBetween(0, 13)),
             "logs-wiz.cloud_configuration_finding-" + randomAlphaOfLength(randomIntBetween(0, 13)),
+            "logs-wiz.cloud_configuration_finding_full_posture-" + randomAlphaOfLength(randomIntBetween(0, 13)),
             "logs-google_scc.finding-" + randomAlphaOfLength(randomIntBetween(0, 13)),
             "logs-aws.securityhub_findings-" + randomAlphaOfLength(randomIntBetween(0, 13)),
+            "logs-aws.securityhub_findings_full_posture-" + randomAlphaOfLength(randomIntBetween(0, 13)),
             "logs-aws.inspector-" + randomAlphaOfLength(randomIntBetween(0, 13)),
             "logs-amazon_security_lake.findings-" + randomAlphaOfLength(randomIntBetween(0, 13)),
             "logs-qualys_vmdr.asset_host_detection-" + randomAlphaOfLength(randomIntBetween(0, 13)),
@@ -2633,7 +2637,7 @@ public class ReservedRolesStoreTests extends ESTestCase {
                 .authorize(
                     indexMonitoringActionName,
                     Sets.newHashSet(internalSecurityIndex, TestRestrictedIndices.SECURITY_MAIN_ALIAS, asyncSearchIndex),
-                    metadata,
+                    metadata.getProject(),
                     fieldPermissionsCache
                 );
             assertThat(iac.hasIndexPermissions(internalSecurityIndex), is(true));
@@ -2829,7 +2833,7 @@ public class ReservedRolesStoreTests extends ESTestCase {
             TestRestrictedIndices.INTERNAL_SECURITY_MAIN_INDEX_6,
             TestRestrictedIndices.INTERNAL_SECURITY_MAIN_INDEX_7
         );
-        final Metadata metadata = new Metadata.Builder().put(
+        final var metadata = new Metadata.Builder().put(
             new IndexMetadata.Builder("a1").settings(indexSettings).numberOfShards(1).numberOfReplicas(0).build(),
             true
         )
@@ -2853,7 +2857,8 @@ public class ReservedRolesStoreTests extends ESTestCase {
                     .build(),
                 true
             )
-            .build();
+            .build()
+            .getProject();
 
         FieldPermissionsCache fieldPermissionsCache = new FieldPermissionsCache(Settings.EMPTY);
         IndicesAccessControl iac = superuserRole.indices()
@@ -4140,7 +4145,7 @@ public class ReservedRolesStoreTests extends ESTestCase {
         assertThat(roleDescriptor.getMetadata(), hasEntry("_reserved", true));
 
         Role role = Role.buildFromRoleDescriptor(roleDescriptor, new FieldPermissionsCache(Settings.EMPTY), RESTRICTED_INDICES);
-        assertTrue(role.cluster().check("cluster:monitor/xpack/inference", request, authentication));
+        assertTrue(role.cluster().check("cluster:monitor/xpack/inference/post", request, authentication));
         assertTrue(role.cluster().check("cluster:monitor/xpack/inference/get", request, authentication));
         assertTrue(role.cluster().check("cluster:admin/xpack/inference/put", request, authentication));
         assertTrue(role.cluster().check("cluster:admin/xpack/inference/delete", request, authentication));
@@ -4160,10 +4165,9 @@ public class ReservedRolesStoreTests extends ESTestCase {
         assertThat(roleDescriptor.getMetadata(), hasEntry("_reserved", true));
 
         Role role = Role.buildFromRoleDescriptor(roleDescriptor, new FieldPermissionsCache(Settings.EMPTY), RESTRICTED_INDICES);
-        assertTrue(role.cluster().check("cluster:monitor/xpack/inference", request, authentication));
+        assertTrue(role.cluster().check("cluster:monitor/xpack/inference/post", request, authentication));
         assertTrue(role.cluster().check("cluster:monitor/xpack/inference/get", request, authentication));
         assertFalse(role.cluster().check("cluster:admin/xpack/inference/put", request, authentication));
-        assertTrue(role.cluster().check("cluster:monitor/xpack/inference/unified", request, authentication));
         assertFalse(role.cluster().check("cluster:admin/xpack/inference/delete", request, authentication));
         assertTrue(role.cluster().check("cluster:monitor/xpack/ml/trained_models/deployment/infer", request, authentication));
         assertFalse(role.cluster().check("cluster:admin/xpack/ml/trained_models/deployment/start", request, authentication));

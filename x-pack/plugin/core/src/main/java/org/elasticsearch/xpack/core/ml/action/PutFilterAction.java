@@ -102,7 +102,6 @@ public class PutFilterAction extends ActionType<PutFilterAction.Response> {
         private final MlFilter filter;
 
         Response(StreamInput in) throws IOException {
-            super(in);
             filter = new MlFilter(in);
         }
 

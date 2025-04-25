@@ -13,12 +13,13 @@ import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.ChannelActionListener;
-import org.elasticsearch.action.support.local.TransportLocalClusterStateAction;
-import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.action.support.local.TransportLocalProjectMetadataAction;
+import org.elasticsearch.cluster.ProjectState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.DataStreamLifecycle;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.ClusterSettings;
@@ -32,7 +33,7 @@ import org.elasticsearch.transport.TransportService;
 import java.util.HashMap;
 import java.util.Map;
 
-public class TransportGetComposableIndexTemplateAction extends TransportLocalClusterStateAction<
+public class TransportGetComposableIndexTemplateAction extends TransportLocalProjectMetadataAction<
     GetComposableIndexTemplateAction.Request,
     GetComposableIndexTemplateAction.Response> {
 
@@ -48,14 +49,16 @@ public class TransportGetComposableIndexTemplateAction extends TransportLocalClu
     public TransportGetComposableIndexTemplateAction(
         TransportService transportService,
         ClusterService clusterService,
-        ActionFilters actionFilters
+        ActionFilters actionFilters,
+        ProjectResolver projectResolver
     ) {
         super(
             GetComposableIndexTemplateAction.NAME,
             actionFilters,
             transportService.getTaskManager(),
             clusterService,
-            EsExecutors.DIRECT_EXECUTOR_SERVICE
+            EsExecutors.DIRECT_EXECUTOR_SERVICE,
+            projectResolver
         );
         clusterSettings = clusterService.getClusterSettings();
 
@@ -70,7 +73,7 @@ public class TransportGetComposableIndexTemplateAction extends TransportLocalClu
     }
 
     @Override
-    protected ClusterBlockException checkBlock(GetComposableIndexTemplateAction.Request request, ClusterState state) {
+    protected ClusterBlockException checkBlock(GetComposableIndexTemplateAction.Request request, ProjectState state) {
         return state.blocks().globalBlockedException(ClusterBlockLevel.METADATA_READ);
     }
 
@@ -78,7 +81,7 @@ public class TransportGetComposableIndexTemplateAction extends TransportLocalClu
     protected void localClusterStateOperation(
         Task task,
         GetComposableIndexTemplateAction.Request request,
-        ClusterState state,
+        ProjectState state,
         ActionListener<GetComposableIndexTemplateAction.Response> listener
     ) {
         final var cancellableTask = (CancellableTask) task;

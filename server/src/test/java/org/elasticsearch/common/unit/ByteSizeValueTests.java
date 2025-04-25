@@ -22,6 +22,8 @@ import java.io.IOException;
 import java.util.List;
 import java.util.function.Function;
 
+import static org.elasticsearch.TransportVersions.BYTE_SIZE_VALUE_ALWAYS_USES_BYTES;
+import static org.elasticsearch.TransportVersions.V_8_16_0;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
@@ -520,44 +522,44 @@ public class ByteSizeValueTests extends AbstractWireSerializingTestCase<ByteSize
 
     public void testBWCTransportFormat() throws IOException {
         var tenMegs = ByteSizeValue.ofMb(10);
-        try (BytesStreamOutput expected = new BytesStreamOutput(); BytesStreamOutput actual = new BytesStreamOutput()) {
-            expected.writeZLong(10);
-            ByteSizeUnit.MB.writeTo(expected);
-            actual.setTransportVersion(TransportVersions.V_8_16_0);
-            tenMegs.writeTo(actual);
-            assertArrayEquals(
-                "Size denominated in the desired unit for backward compatibility",
-                expected.bytes().array(),
-                actual.bytes().array()
-            );
+        for (var tv : List.of(V_8_16_0)) {
+            try (BytesStreamOutput expected = new BytesStreamOutput(); BytesStreamOutput actual = new BytesStreamOutput()) {
+                expected.writeZLong(10);
+                ByteSizeUnit.MB.writeTo(expected);
+                actual.setTransportVersion(tv);
+                tenMegs.writeTo(actual);
+                assertArrayEquals(
+                    "Size denominated in the desired unit for backward compatibility",
+                    expected.bytes().array(),
+                    actual.bytes().array()
+                );
+            }
         }
     }
 
-    /**
-     * @see TransportVersions#REVERT_BYTE_SIZE_VALUE_ALWAYS_USES_BYTES_1
-     */
-    @AwaitsFix(bugUrl = "https://elasticco.atlassian.net/browse/ES-10585")
-    public void testTwoDigitTransportRoundTrips() throws IOException {
-        TransportVersion tv = TransportVersion.current();
-        for (var desiredUnit : ByteSizeUnit.values()) {
-            if (desiredUnit == ByteSizeUnit.BYTES) {
-                continue;
-            }
-            checkTransportRoundTrip(ByteSizeValue.parseBytesSizeValue("23" + desiredUnit.getSuffix(), "test"), tv);
-            for (int tenths = 1; tenths <= 9; tenths++) {
-                checkTransportRoundTrip(ByteSizeValue.parseBytesSizeValue("23." + tenths + desiredUnit.getSuffix(), "test"), tv);
-                for (int hundredths = 1; hundredths <= 9; hundredths++) {
-                    checkTransportRoundTrip(
-                        ByteSizeValue.parseBytesSizeValue("23." + tenths + hundredths + desiredUnit.getSuffix(), "test"),
-                        tv
-                    );
+    public void testTransportRoundTripsWithTwoDigitFractions() throws IOException {
+        for (var tv : List.of(TransportVersion.current(), BYTE_SIZE_VALUE_ALWAYS_USES_BYTES, TransportVersions.V_9_0_0)) {
+            for (var desiredUnit : ByteSizeUnit.values()) {
+                if (desiredUnit == ByteSizeUnit.BYTES) {
+                    // Can't have a fraction of a byte!
+                    continue;
+                }
+                checkTransportRoundTrip(ByteSizeValue.parseBytesSizeValue("23" + desiredUnit.getSuffix(), "test"), tv);
+                for (int tenths = 1; tenths <= 9; tenths++) {
+                    checkTransportRoundTrip(ByteSizeValue.parseBytesSizeValue("23." + tenths + desiredUnit.getSuffix(), "test"), tv);
+                    for (int hundredths = 1; hundredths <= 9; hundredths++) {
+                        checkTransportRoundTrip(
+                            ByteSizeValue.parseBytesSizeValue("23." + tenths + hundredths + desiredUnit.getSuffix(), "test"),
+                            tv
+                        );
+                    }
                 }
             }
         }
     }
 
     public void testIntegerTransportRoundTrips() throws IOException {
-        for (var tv : List.of(TransportVersion.current(), TransportVersions.V_8_16_0)) {
+        for (var tv : List.of(TransportVersion.current(), V_8_16_0)) {
             checkTransportRoundTrip(ByteSizeValue.ONE, tv);
             checkTransportRoundTrip(ByteSizeValue.ZERO, tv);
             checkTransportRoundTrip(ByteSizeValue.MINUS_ONE, tv);

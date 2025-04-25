@@ -115,6 +115,12 @@ rootProject {
 }
 ```
 
+If you would like to add tracing add following settings to the above configuration:
+```groovy
+setting 'telemetry.tracing.enabled', 'true'
+setting 'telemetry.agent.transaction_sample_rate', '1.0' //ensure every transaction is sampled
+```
+
 The example use:
 ```
 ./gradlew :run -Dmetrics.enabled=true

@@ -36,9 +36,4 @@ public class ReplaceSerializationTests extends AbstractExpressionSerializationTe
         }
         return new Replace(source, str, regex, newStr);
     }
-
-    @Override
-    protected boolean alwaysEmptySource() {
-        return true;
-    }
 }

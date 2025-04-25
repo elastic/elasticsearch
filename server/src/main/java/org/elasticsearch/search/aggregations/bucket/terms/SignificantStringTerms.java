@@ -48,7 +48,7 @@ public class SignificantStringTerms extends InternalMappedSignificantTerms<Signi
          * Read from a stream.
          */
         public Bucket(StreamInput in, DocValueFormat format) throws IOException {
-            super(in, format);
+            super(format);
             termBytes = in.readBytesRef();
             subsetDf = in.readVLong();
             supersetDf = in.readVLong();

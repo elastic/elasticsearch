@@ -29,6 +29,10 @@ public class FailingPauseFieldPlugin extends AbstractPauseFieldPlugin {
         startEmitting = new CountDownLatch(1);
     }
 
+    public static void release() {
+        allowEmitting.countDown();
+    }
+
     @Override
     public void onStartExecute() {
         startEmitting.countDown();

@@ -18,7 +18,6 @@ import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.sort.IpBucketedSort;
 import org.elasticsearch.compute.operator.DriverContext;
-import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.search.sort.SortOrder;
 
@@ -77,7 +76,7 @@ class TopIpAggregator {
         return state.toBlock(driverContext.blockFactory(), selected);
     }
 
-    public static class GroupingState implements Releasable {
+    public static class GroupingState implements GroupingAggregatorState {
         private final IpBucketedSort sort;
 
         private GroupingState(BigArrays bigArrays, int limit, boolean ascending) {
@@ -92,7 +91,8 @@ class TopIpAggregator {
             sort.merge(groupId, other.sort, otherGroupId);
         }
 
-        void toIntermediate(Block[] blocks, int offset, IntVector selected, DriverContext driverContext) {
+        @Override
+        public void toIntermediate(Block[] blocks, int offset, IntVector selected, DriverContext driverContext) {
             blocks[offset] = toBlock(driverContext.blockFactory(), selected);
         }
 
@@ -100,7 +100,8 @@ class TopIpAggregator {
             return sort.toBlock(blockFactory, selected);
         }
 
-        void enableGroupIdTracking(SeenGroupIds seen) {
+        @Override
+        public void enableGroupIdTracking(SeenGroupIds seen) {
             // we figure out seen values from nulls on the values block
         }
 
@@ -110,7 +111,7 @@ class TopIpAggregator {
         }
     }
 
-    public static class SingleState implements Releasable {
+    public static class SingleState implements AggregatorState {
         private final GroupingState internalState;
 
         private SingleState(BigArrays bigArrays, int limit, boolean ascending) {
@@ -125,7 +126,8 @@ class TopIpAggregator {
             internalState.merge(0, other, 0);
         }
 
-        void toIntermediate(Block[] blocks, int offset, DriverContext driverContext) {
+        @Override
+        public void toIntermediate(Block[] blocks, int offset, DriverContext driverContext) {
             blocks[offset] = toBlock(driverContext.blockFactory());
         }
 

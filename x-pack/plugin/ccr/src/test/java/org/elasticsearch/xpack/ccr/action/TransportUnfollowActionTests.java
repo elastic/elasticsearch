@@ -46,7 +46,7 @@ public class TransportUnfollowActionTests extends ESTestCase {
             .build();
         ClusterState result = TransportUnfollowAction.unfollow("follow_index", current);
 
-        IndexMetadata resultIMD = result.metadata().index("follow_index");
+        IndexMetadata resultIMD = result.metadata().getProject().index("follow_index");
         assertThat(resultIMD.getSettings().get(CcrSettings.CCR_FOLLOWING_INDEX_SETTING.getKey()), nullValue());
         assertThat(resultIMD.getCustomData(Ccr.CCR_CUSTOM_METADATA_KEY), nullValue());
         assertThat(resultIMD.getSettingsVersion(), equalTo(settingsVersion + 1));

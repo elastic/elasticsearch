@@ -1,6 +1,0 @@
-pr: 120717
-summary: Fix LTR rescorer throws 'local model reference is null' on multi-shards index when explained is enabled
-area: Ranking
-type: bug
-issues:
- - 120739

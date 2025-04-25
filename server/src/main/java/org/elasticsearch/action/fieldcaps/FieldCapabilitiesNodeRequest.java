@@ -158,7 +158,7 @@ class FieldCapabilitiesNodeRequest extends ActionRequest implements IndicesReque
     @Override
     public String getDescription() {
         final StringBuilder stringBuilder = new StringBuilder("shards[");
-        Strings.collectionToDelimitedStringWithLimit(shardIds, ",", "", "", 1024, stringBuilder);
+        Strings.collectionToDelimitedStringWithLimit(shardIds, ",", 1024, stringBuilder);
         return completeDescription(stringBuilder, fields, filters, allowedTypes, includeEmptyFields);
     }
 
@@ -170,11 +170,11 @@ class FieldCapabilitiesNodeRequest extends ActionRequest implements IndicesReque
         boolean includeEmptyFields
     ) {
         stringBuilder.append("], fields[");
-        Strings.collectionToDelimitedStringWithLimit(Arrays.asList(fields), ",", "", "", 1024, stringBuilder);
+        Strings.collectionToDelimitedStringWithLimit(Arrays.asList(fields), ",", 1024, stringBuilder);
         stringBuilder.append("], filters[");
-        Strings.collectionToDelimitedString(Arrays.asList(filters), ",", "", "", stringBuilder);
+        Strings.collectionToDelimitedString(Arrays.asList(filters), ",", stringBuilder);
         stringBuilder.append("], types[");
-        Strings.collectionToDelimitedString(Arrays.asList(allowedTypes), ",", "", "", stringBuilder);
+        Strings.collectionToDelimitedString(Arrays.asList(allowedTypes), ",", stringBuilder);
         stringBuilder.append("], includeEmptyFields[");
         stringBuilder.append(includeEmptyFields);
         stringBuilder.append("]");

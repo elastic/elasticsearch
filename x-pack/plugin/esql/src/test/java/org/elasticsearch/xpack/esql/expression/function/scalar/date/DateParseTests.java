@@ -117,13 +117,13 @@ public class DateParseTests extends AbstractScalarFunctionTestCase {
                         "DateParseEvaluator[val=Attribute[channel=1], formatter=Attribute[channel=0]]",
                         DataType.DATETIME,
                         is(nullValue())
-                    ).withWarning("Line -1:-1: evaluation of [] failed, treating result as null. Only first 20 failures recorded.")
+                    ).withWarning("Line 1:1: evaluation of [source] failed, treating result as null. Only first 20 failures recorded.")
                         .withWarning(
-                            "Line -1:-1: java.lang.IllegalArgumentException: Invalid format: " + "[not a format]: Unknown pattern letter: o"
+                            "Line 1:1: java.lang.IllegalArgumentException: Invalid format: [not a format]: Unknown pattern letter: o"
                         )
                         .withFoldingException(
                             InvalidArgumentException.class,
-                            "invalid date pattern for []: Invalid format: [not a format]: Unknown pattern letter: o"
+                            "invalid date pattern for [source]: Invalid format: [not a format]: Unknown pattern letter: o"
                         )
                 ),
                 new TestCaseSupplier(
@@ -137,9 +137,9 @@ public class DateParseTests extends AbstractScalarFunctionTestCase {
                         "DateParseEvaluator[val=Attribute[channel=1], formatter=Attribute[channel=0]]",
                         DataType.DATETIME,
                         is(nullValue())
-                    ).withWarning("Line -1:-1: evaluation of [] failed, treating result as null. Only first 20 failures recorded.")
+                    ).withWarning("Line 1:1: evaluation of [source] failed, treating result as null. Only first 20 failures recorded.")
                         .withWarning(
-                            "Line -1:-1: java.lang.IllegalArgumentException: "
+                            "Line 1:1: java.lang.IllegalArgumentException: "
                                 + "failed to parse date field [not a date] with format [yyyy-MM-dd]"
                         )
                 )

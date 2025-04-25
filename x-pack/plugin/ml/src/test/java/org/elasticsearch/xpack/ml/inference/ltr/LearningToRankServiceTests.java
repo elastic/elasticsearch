@@ -42,12 +42,14 @@ import static org.elasticsearch.script.Script.DEFAULT_TEMPLATE_LANG;
 import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.hasSize;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.isA;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 public class LearningToRankServiceTests extends ESTestCase {
     public static final String GOOD_MODEL = "inference-entity-id";
@@ -185,7 +187,10 @@ public class LearningToRankServiceTests extends ESTestCase {
     }
 
     private ModelLoadingService mockModelLoadingService() {
-        return mock(ModelLoadingService.class);
+        ModelLoadingService modelLoadingService = mock(ModelLoadingService.class);
+        when(modelLoadingService.getModelId(anyString())).thenAnswer(i -> i.getArgument(0));
+
+        return modelLoadingService;
     }
 
     @SuppressWarnings("unchecked")

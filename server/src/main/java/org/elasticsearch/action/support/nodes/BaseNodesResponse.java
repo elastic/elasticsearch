@@ -30,7 +30,6 @@ public abstract class BaseNodesResponse<TNodeResponse extends BaseNodeResponse> 
 
     @SuppressWarnings("this-escape")
     protected BaseNodesResponse(StreamInput in) throws IOException {
-        super(in);
         clusterName = new ClusterName(in);
         nodes = readNodesFrom(in);
         failures = in.readCollectionAsList(FailedNodeException::new);

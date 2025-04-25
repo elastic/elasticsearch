@@ -1,6 +1,0 @@
-pr: 118697
-summary: Esql implicit casting for date nanos
-area: ES|QL
-type: enhancement
-issues:
- - 118476

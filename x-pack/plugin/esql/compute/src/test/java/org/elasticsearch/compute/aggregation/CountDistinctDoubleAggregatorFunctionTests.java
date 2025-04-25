@@ -28,8 +28,8 @@ public class CountDistinctDoubleAggregatorFunctionTests extends AggregatorFuncti
     }
 
     @Override
-    protected AggregatorFunctionSupplier aggregatorFunction(List<Integer> inputChannels) {
-        return new CountDistinctDoubleAggregatorFunctionSupplier(inputChannels, 40000);
+    protected AggregatorFunctionSupplier aggregatorFunction() {
+        return new CountDistinctDoubleAggregatorFunctionSupplier(40000);
     }
 
     @Override

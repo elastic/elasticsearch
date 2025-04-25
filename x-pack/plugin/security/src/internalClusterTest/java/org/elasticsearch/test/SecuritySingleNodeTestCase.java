@@ -7,9 +7,16 @@
 package org.elasticsearch.test;
 
 import org.apache.http.HttpHost;
+import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
 import org.elasticsearch.action.admin.cluster.node.info.PluginsAndModules;
+import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
+import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
+import org.elasticsearch.action.admin.indices.get.GetIndexRequest;
+import org.elasticsearch.action.admin.indices.get.GetIndexResponse;
+import org.elasticsearch.action.support.ActiveShardCount;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.client.RestClientBuilder;
@@ -27,6 +34,7 @@ import org.elasticsearch.http.HttpInfo;
 import org.elasticsearch.license.LicenseSettings;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.xpack.core.security.authc.support.Hasher;
+import org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken;
 import org.elasticsearch.xpack.core.security.test.TestRestrictedIndices;
 import org.elasticsearch.xpack.security.LocalStateSecurity;
 import org.elasticsearch.xpack.security.support.SecurityMigrations;
@@ -45,9 +53,12 @@ import java.util.concurrent.CountDownLatch;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.test.SecuritySettingsSourceField.TEST_PASSWORD_SECURE_STRING;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
 import static org.elasticsearch.xpack.security.support.SecurityIndexManager.getMigrationVersionFromIndexMetadata;
+import static org.elasticsearch.xpack.security.support.SecuritySystemIndices.SECURITY_MAIN_ALIAS;
 import static org.hamcrest.Matchers.hasItem;
+import static org.hamcrest.Matchers.is;
 
 /**
  * A test that starts a single node with security enabled. This test case allows for customization
@@ -83,6 +94,13 @@ public abstract class SecuritySingleNodeTestCase extends ESSingleNodeTestCase {
     }
 
     @Override
+    public void setUp() throws Exception {
+        super.setUp();
+        deleteSecurityIndexIfExists();
+        createSecurityIndexWithWaitForActiveShards();
+    }
+
+    @Override
     public void tearDown() throws Exception {
         awaitSecurityMigration();
         super.tearDown();
@@ -92,7 +110,7 @@ public abstract class SecuritySingleNodeTestCase extends ESSingleNodeTestCase {
     }
 
     private boolean isMigrationComplete(ClusterState state) {
-        IndexMetadata indexMetadata = state.metadata().index(TestRestrictedIndices.INTERNAL_SECURITY_MAIN_INDEX_7);
+        IndexMetadata indexMetadata = state.metadata().getProject().index(TestRestrictedIndices.INTERNAL_SECURITY_MAIN_INDEX_7);
         if (indexMetadata == null) {
             // If index doesn't exist, no migration needed
             return true;
@@ -100,7 +118,7 @@ public abstract class SecuritySingleNodeTestCase extends ESSingleNodeTestCase {
         return getMigrationVersionFromIndexMetadata(indexMetadata) == SecurityMigrations.MIGRATIONS_BY_VERSION.lastKey();
     }
 
-    private void awaitSecurityMigration() {
+    protected void awaitSecurityMigration() {
         final var latch = new CountDownLatch(1);
         ClusterService clusterService = getInstanceFromNode(ClusterService.class);
         clusterService.addListener((event) -> {
@@ -361,5 +379,41 @@ public abstract class SecuritySingleNodeTestCase extends ESSingleNodeTestCase {
             builder.setHttpClientConfigCallback(httpClientConfigCallback);
         }
         return builder.build();
+    }
+
+    protected void deleteSecurityIndexIfExists() {
+        // delete the security index, if it exist
+        GetIndexRequest getIndexRequest = new GetIndexRequest(TEST_REQUEST_TIMEOUT);
+        getIndexRequest.indices(SECURITY_MAIN_ALIAS);
+        getIndexRequest.indicesOptions(IndicesOptions.lenientExpandOpen());
+        GetIndexResponse getIndexResponse = client().admin().indices().getIndex(getIndexRequest).actionGet();
+        if (getIndexResponse.getIndices().length > 0) {
+            assertThat(getIndexResponse.getIndices().length, is(1));
+            assertThat(getIndexResponse.getIndices()[0], is(TestRestrictedIndices.INTERNAL_SECURITY_MAIN_INDEX_7));
+
+            // Security migration needs to finish before deleting the index
+            awaitSecurityMigration();
+            DeleteIndexRequest deleteIndexRequest = new DeleteIndexRequest(getIndexResponse.getIndices());
+            assertAcked(client().admin().indices().delete(deleteIndexRequest).actionGet());
+        }
+    }
+
+    protected void createSecurityIndexWithWaitForActiveShards() {
+        final Client client = client().filterWithHeader(
+            Collections.singletonMap(
+                "Authorization",
+                UsernamePasswordToken.basicAuthHeaderValue(
+                    SecuritySettingsSource.ES_TEST_ROOT_USER,
+                    SecuritySettingsSourceField.TEST_PASSWORD_SECURE_STRING
+                )
+            )
+        );
+        CreateIndexRequest createIndexRequest = new CreateIndexRequest(SECURITY_MAIN_ALIAS).waitForActiveShards(ActiveShardCount.ALL)
+            .masterNodeTimeout(TEST_REQUEST_TIMEOUT);
+        try {
+            client.admin().indices().create(createIndexRequest).actionGet();
+        } catch (ResourceAlreadyExistsException e) {
+            logger.info("Security index already exists, ignoring.", e);
+        }
     }
 }

@@ -642,7 +642,8 @@ public class NodeTests extends ESTestCase {
                         nodeEnvironment,
                         namedXContentRegistry,
                         clusterSettings,
-                        threadPool.relativeTimeInMillisSupplier()
+                        threadPool.relativeTimeInMillisSupplier(),
+                        ESTestCase::randomBoolean
                     )
             );
         }

@@ -23,49 +23,96 @@ import org.objectweb.asm.Type;
 import java.io.IOException;
 import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
+import java.util.ArrayDeque;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 public class InstrumentationServiceImpl implements InstrumentationService {
+
+    private static final String OBJECT_INTERNAL_NAME = Type.getInternalName(Object.class);
 
     @Override
     public Instrumenter newInstrumenter(Class<?> clazz, Map<MethodKey, CheckMethod> methods) {
         return InstrumenterImpl.create(clazz, methods);
     }
 
-    @Override
-    public Map<MethodKey, CheckMethod> lookupMethods(Class<?> checkerClass) throws IOException {
-        var methodsToInstrument = new HashMap<MethodKey, CheckMethod>();
-        var classFileInfo = InstrumenterImpl.getClassFileInfo(checkerClass);
-        ClassReader reader = new ClassReader(classFileInfo.bytecodes());
-        ClassVisitor visitor = new ClassVisitor(Opcodes.ASM9) {
-            @Override
-            public MethodVisitor visitMethod(
-                int access,
-                String checkerMethodName,
-                String checkerMethodDescriptor,
-                String signature,
-                String[] exceptions
-            ) {
-                var mv = super.visitMethod(access, checkerMethodName, checkerMethodDescriptor, signature, exceptions);
-                if (checkerMethodName.startsWith(InstrumentationService.CHECK_METHOD_PREFIX)) {
-                    var checkerMethodArgumentTypes = Type.getArgumentTypes(checkerMethodDescriptor);
-                    var methodToInstrument = parseCheckerMethodSignature(checkerMethodName, checkerMethodArgumentTypes);
+    private interface CheckerMethodVisitor {
+        void visit(Class<?> currentClass, int access, String checkerMethodName, String checkerMethodDescriptor);
+    }
 
-                    var checkerParameterDescriptors = Arrays.stream(checkerMethodArgumentTypes).map(Type::getDescriptor).toList();
-                    var checkMethod = new CheckMethod(Type.getInternalName(checkerClass), checkerMethodName, checkerParameterDescriptors);
-
-                    methodsToInstrument.put(methodToInstrument, checkMethod);
-                }
-                return mv;
+    private void visitClassAndSupers(Class<?> checkerClass, CheckerMethodVisitor checkerMethodVisitor) throws ClassNotFoundException {
+        Set<Class<?>> visitedClasses = new HashSet<>();
+        ArrayDeque<Class<?>> classesToVisit = new ArrayDeque<>(Collections.singleton(checkerClass));
+        while (classesToVisit.isEmpty() == false) {
+            var currentClass = classesToVisit.remove();
+            if (visitedClasses.contains(currentClass)) {
+                continue;
             }
-        };
-        reader.accept(visitor, 0);
+            visitedClasses.add(currentClass);
+
+            try {
+                var classFileInfo = InstrumenterImpl.getClassFileInfo(currentClass);
+                ClassReader reader = new ClassReader(classFileInfo.bytecodes());
+                ClassVisitor visitor = new ClassVisitor(Opcodes.ASM9) {
+
+                    @Override
+                    public void visit(int version, int access, String name, String signature, String superName, String[] interfaces) {
+                        super.visit(version, access, name, signature, superName, interfaces);
+                        try {
+                            if (OBJECT_INTERNAL_NAME.equals(superName) == false) {
+                                classesToVisit.add(Class.forName(Type.getObjectType(superName).getClassName()));
+                            }
+                            for (var interfaceName : interfaces) {
+                                classesToVisit.add(Class.forName(Type.getObjectType(interfaceName).getClassName()));
+                            }
+                        } catch (ClassNotFoundException e) {
+                            throw new IllegalArgumentException("Cannot inspect checker class " + currentClass.getName(), e);
+                        }
+                    }
+
+                    @Override
+                    public MethodVisitor visitMethod(
+                        int access,
+                        String checkerMethodName,
+                        String checkerMethodDescriptor,
+                        String signature,
+                        String[] exceptions
+                    ) {
+                        var mv = super.visitMethod(access, checkerMethodName, checkerMethodDescriptor, signature, exceptions);
+                        checkerMethodVisitor.visit(currentClass, access, checkerMethodName, checkerMethodDescriptor);
+                        return mv;
+                    }
+                };
+                reader.accept(visitor, 0);
+            } catch (IOException e) {
+                throw new ClassNotFoundException("Cannot find a definition for class [" + checkerClass.getName() + "]", e);
+            }
+        }
+    }
+
+    @Override
+    public Map<MethodKey, CheckMethod> lookupMethods(Class<?> checkerClass) throws ClassNotFoundException {
+        Map<MethodKey, CheckMethod> methodsToInstrument = new HashMap<>();
+
+        visitClassAndSupers(checkerClass, (currentClass, access, checkerMethodName, checkerMethodDescriptor) -> {
+            if (checkerMethodName.startsWith(InstrumentationService.CHECK_METHOD_PREFIX)) {
+                var checkerMethodArgumentTypes = Type.getArgumentTypes(checkerMethodDescriptor);
+                var methodToInstrument = parseCheckerMethodSignature(checkerMethodName, checkerMethodArgumentTypes);
+
+                var checkerParameterDescriptors = Arrays.stream(checkerMethodArgumentTypes).map(Type::getDescriptor).toList();
+                var checkMethod = new CheckMethod(Type.getInternalName(currentClass), checkerMethodName, checkerParameterDescriptors);
+                methodsToInstrument.putIfAbsent(methodToInstrument, checkMethod);
+            }
+        });
+
         return methodsToInstrument;
     }
 
@@ -73,15 +120,16 @@ public class InstrumentationServiceImpl implements InstrumentationService {
     @Override
     public InstrumentationInfo lookupImplementationMethod(
         Class<?> targetSuperclass,
-        String methodName,
+        String targetMethodName,
         Class<?> implementationClass,
         Class<?> checkerClass,
         String checkMethodName,
         Class<?>... parameterTypes
     ) throws NoSuchMethodException, ClassNotFoundException {
 
-        var targetMethod = targetSuperclass.getDeclaredMethod(methodName, parameterTypes);
-        validateTargetMethod(implementationClass, targetMethod);
+        var targetMethod = targetSuperclass.getDeclaredMethod(targetMethodName, parameterTypes);
+        var implementationMethod = implementationClass.getMethod(targetMethod.getName(), targetMethod.getParameterTypes());
+        validateTargetMethod(implementationClass, targetMethod, implementationMethod);
 
         var checkerAdditionalArguments = Stream.of(Class.class, targetSuperclass);
         var checkMethodArgumentTypes = Stream.concat(checkerAdditionalArguments, Arrays.stream(parameterTypes))
@@ -90,33 +138,15 @@ public class InstrumentationServiceImpl implements InstrumentationService {
 
         CheckMethod[] checkMethod = new CheckMethod[1];
 
-        try {
-            InstrumenterImpl.ClassFileInfo classFileInfo = InstrumenterImpl.getClassFileInfo(checkerClass);
-            ClassReader reader = new ClassReader(classFileInfo.bytecodes());
-            ClassVisitor visitor = new ClassVisitor(Opcodes.ASM9) {
-                @Override
-                public MethodVisitor visitMethod(
-                    int access,
-                    String methodName,
-                    String methodDescriptor,
-                    String signature,
-                    String[] exceptions
-                ) {
-                    var mv = super.visitMethod(access, methodName, methodDescriptor, signature, exceptions);
-                    if (methodName.equals(checkMethodName)) {
-                        var methodArgumentTypes = Type.getArgumentTypes(methodDescriptor);
-                        if (Arrays.equals(methodArgumentTypes, checkMethodArgumentTypes)) {
-                            var checkerParameterDescriptors = Arrays.stream(methodArgumentTypes).map(Type::getDescriptor).toList();
-                            checkMethod[0] = new CheckMethod(Type.getInternalName(checkerClass), methodName, checkerParameterDescriptors);
-                        }
-                    }
-                    return mv;
+        visitClassAndSupers(checkerClass, (currentClass, access, methodName, methodDescriptor) -> {
+            if (methodName.equals(checkMethodName)) {
+                var methodArgumentTypes = Type.getArgumentTypes(methodDescriptor);
+                if (Arrays.equals(methodArgumentTypes, checkMethodArgumentTypes)) {
+                    var checkerParameterDescriptors = Arrays.stream(methodArgumentTypes).map(Type::getDescriptor).toList();
+                    checkMethod[0] = new CheckMethod(Type.getInternalName(currentClass), methodName, checkerParameterDescriptors);
                 }
-            };
-            reader.accept(visitor, 0);
-        } catch (IOException e) {
-            throw new ClassNotFoundException("Cannot find a definition for class [" + checkerClass.getName() + "]", e);
-        }
+            }
+        });
 
         if (checkMethod[0] == null) {
             throw new NoSuchMethodException(
@@ -132,15 +162,15 @@ public class InstrumentationServiceImpl implements InstrumentationService {
 
         return new InstrumentationInfo(
             new MethodKey(
-                Type.getInternalName(implementationClass),
-                targetMethod.getName(),
+                Type.getInternalName(implementationMethod.getDeclaringClass()),
+                implementationMethod.getName(),
                 Arrays.stream(parameterTypes).map(c -> Type.getType(c).getInternalName()).toList()
             ),
             checkMethod[0]
         );
     }
 
-    private static void validateTargetMethod(Class<?> implementationClass, Method targetMethod) {
+    private static void validateTargetMethod(Class<?> implementationClass, Method targetMethod, Method implementationMethod) {
         if (targetMethod.getDeclaringClass().isAssignableFrom(implementationClass) == false) {
             throw new IllegalArgumentException(
                 String.format(
@@ -172,37 +202,26 @@ public class InstrumentationServiceImpl implements InstrumentationService {
                 )
             );
         }
-        try {
-            var implementationMethod = implementationClass.getMethod(targetMethod.getName(), targetMethod.getParameterTypes());
-            var methodModifiers = implementationMethod.getModifiers();
-            if (Modifier.isAbstract(methodModifiers)) {
-                throw new IllegalArgumentException(
-                    String.format(
-                        Locale.ROOT,
-                        "Not a valid instrumentation method: %s is abstract in %s",
-                        targetMethod.getName(),
-                        implementationClass.getName()
-                    )
-                );
-            }
-            if (Modifier.isPublic(methodModifiers) == false) {
-                throw new IllegalArgumentException(
-                    String.format(
-                        Locale.ROOT,
-                        "Not a valid instrumentation method: %s is not public in %s",
-                        targetMethod.getName(),
-                        implementationClass.getName()
-                    )
-                );
-            }
-        } catch (NoSuchMethodException e) {
-            assert false
-                : String.format(
+        var methodModifiers = implementationMethod.getModifiers();
+        if (Modifier.isAbstract(methodModifiers)) {
+            throw new IllegalArgumentException(
+                String.format(
                     Locale.ROOT,
-                    "Not a valid instrumentation method: %s cannot be found in %s",
+                    "Not a valid instrumentation method: %s is abstract in %s",
                     targetMethod.getName(),
                     implementationClass.getName()
-                );
+                )
+            );
+        }
+        if (Modifier.isPublic(methodModifiers) == false) {
+            throw new IllegalArgumentException(
+                String.format(
+                    Locale.ROOT,
+                    "Not a valid instrumentation method: %s is not public in %s",
+                    targetMethod.getName(),
+                    implementationClass.getName()
+                )
+            );
         }
     }
 

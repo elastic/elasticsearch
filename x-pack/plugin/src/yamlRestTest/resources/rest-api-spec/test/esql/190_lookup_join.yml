@@ -1,16 +1,26 @@
 ---
 setup:
   - requires:
-      test_runner_features: [capabilities, contains]
+      test_runner_features: [capabilities, contains, allowed_warnings]
       capabilities:
         - method: POST
           path: /_query
           parameters: []
-          capabilities: [join_lookup_v12]
+          capabilities: [join_lookup_v12, join_lookup_skip_mv_warnings]
       reason: "uses LOOKUP JOIN"
   - do:
       indices.create:
         index: test
+        body:
+          mappings:
+            properties:
+              key:
+                type: long
+              color:
+                type: keyword
+  - do:
+      indices.create:
+        index: test-mv
         body:
           mappings:
             properties:
@@ -34,6 +44,19 @@ setup:
   - do:
       indices.create:
         index: test-lookup-2
+        body:
+          settings:
+            index:
+              mode: lookup
+          mappings:
+            properties:
+              key:
+                type: long
+              color:
+                type: keyword
+  - do:
+      indices.create:
+        index: test-lookup-mv
         body:
           settings:
             index:
@@ -75,6 +98,28 @@ setup:
           - { "key": 1, "color": "cyan" }
           - { "index": { } }
           - { "key": 2, "color": "yellow" }
+  - do:
+      bulk:
+        index: "test-mv"
+        refresh: true
+        body:
+          - { "index": { } }
+          - { "key": 1, "color": "red" }
+          - { "index": { } }
+          - { "key": 2, "color": "blue" }
+          - { "index": { } }
+          - { "key": [0, 1, 2], "color": null }
+  - do:
+      bulk:
+        index: "test-lookup-mv"
+        refresh: true
+        body:
+          - { "index": { } }
+          - { "key": 1, "color": "cyan" }
+          - { "index": { } }
+          - { "key": 2, "color": "yellow" }
+          - { "index": { } }
+          - { "key": [0, 1, 2], "color": "green" }
 
 ---
 basic:
@@ -200,3 +245,39 @@ pattern-single:
 
   - match: { error.type: "parsing_exception" }
   - contains: { error.reason: "line 1:36: invalid index pattern [test-lookup-1*], * is not allowed in LOOKUP JOIN" }
+
+---
+mv-on-lookup:
+  - do:
+      esql.query:
+        body:
+          query: 'FROM test | SORT key | LOOKUP JOIN test-lookup-mv ON key'
+      allowed_warnings:
+        - "No limit defined, adding default limit of [1000]"
+        - "Line 1:24: evaluation of [LOOKUP JOIN test-lookup-mv ON key] failed, treating result as null. Only first 20 failures recorded."
+        - "Line 1:24: java.lang.IllegalArgumentException: LOOKUP JOIN encountered multi-value"
+
+  - match: {columns.0.name: "key"}
+  - match: {columns.0.type: "long"}
+  - match: {columns.1.name: "color"}
+  - match: {columns.1.type: "keyword"}
+  - match: {values.0: [1, "cyan"]}
+  - match: {values.1: [2, "yellow"]}
+
+---
+mv-on-query:
+  - do:
+      esql.query:
+        body:
+          query: 'FROM test-mv | SORT key | LOOKUP JOIN test-lookup-1 ON key | LIMIT 4'
+      allowed_warnings:
+        - "Line 1:27: evaluation of [LOOKUP JOIN test-lookup-1 ON key] failed, treating result as null. Only first 20 failures recorded."
+        - "Line 1:27: java.lang.IllegalArgumentException: LOOKUP JOIN encountered multi-value"
+
+  - match: {columns.0.name: "key"}
+  - match: {columns.0.type: "long"}
+  - match: {columns.1.name: "color"}
+  - match: {columns.1.type: "keyword"}
+  - match: {values.0: [[0, 1, 2], null]}
+  - match: {values.1: [1, "cyan"]}
+  - match: {values.2: [2, "yellow"]}

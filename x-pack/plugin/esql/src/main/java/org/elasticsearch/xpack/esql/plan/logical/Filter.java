@@ -29,7 +29,7 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.NULL;
  * {@code SELECT x FROM y WHERE z ..} the "WHERE" clause is a Filter. A
  * {@code Filter} has a "condition" Expression that does the filtering.
  */
-public class Filter extends UnaryPlan implements PostAnalysisVerificationAware, TelemetryAware {
+public class Filter extends UnaryPlan implements PostAnalysisVerificationAware, TelemetryAware, SortAgnostic {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(LogicalPlan.class, "Filter", Filter::new);
 
     private final Expression condition;

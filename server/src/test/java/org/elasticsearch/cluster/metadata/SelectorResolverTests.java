@@ -11,18 +11,19 @@ package org.elasticsearch.cluster.metadata;
 
 import org.elasticsearch.action.support.IndexComponentSelector;
 import org.elasticsearch.action.support.IndicesOptions;
-import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver.SelectorResolver;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.indices.InvalidIndexNameException;
 import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.test.ESTestCase;
 
-import static org.elasticsearch.action.support.IndexComponentSelector.ALL_APPLICABLE;
+import java.util.Set;
+
 import static org.elasticsearch.action.support.IndexComponentSelector.DATA;
 import static org.elasticsearch.action.support.IndexComponentSelector.FAILURES;
 import static org.elasticsearch.cluster.metadata.IndexNameExpressionResolver.Context;
 import static org.elasticsearch.cluster.metadata.IndexNameExpressionResolver.ResolvedExpression;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
@@ -38,7 +39,6 @@ public class SelectorResolverTests extends ESTestCase {
         assertThat(resolve(selectorsAllowed, "testXXX"), equalTo(new ResolvedExpression("testXXX", DATA)));
         assertThat(resolve(selectorsAllowed, "testXXX::data"), equalTo(new ResolvedExpression("testXXX", DATA)));
         assertThat(resolve(selectorsAllowed, "testXXX::failures"), equalTo(new ResolvedExpression("testXXX", FAILURES)));
-        assertThat(resolve(selectorsAllowed, "testXXX::*"), equalTo(new ResolvedExpression("testXXX", ALL_APPLICABLE)));
 
         // Disallow selectors (example: creating, modifying, or deleting indices/data streams/aliases).
         // Accepts standard expressions but throws when selectors are specified.
@@ -47,7 +47,6 @@ public class SelectorResolverTests extends ESTestCase {
         assertThat(resolve(noSelectors, "testXXX"), equalTo(new ResolvedExpression("testXXX")));
         expectThrows(IllegalArgumentException.class, () -> resolve(noSelectors, "testXXX::data"));
         expectThrows(IllegalArgumentException.class, () -> resolve(noSelectors, "testXXX::failures"));
-        expectThrows(IllegalArgumentException.class, () -> resolve(noSelectors, "testXXX::*"));
 
         // === Errors
         // Only recognized components can be selected
@@ -76,16 +75,49 @@ public class SelectorResolverTests extends ESTestCase {
         // === Corner Cases
         // Empty index name is not necessarily disallowed, but will be filtered out in the next steps of resolution
         assertThat(resolve(selectorsAllowed, "::data"), equalTo(new ResolvedExpression("", DATA)));
-        // Remote cluster syntax is respected, even if code higher up the call stack is likely to already have handled it already
-        assertThat(resolve(selectorsAllowed, "cluster:index::data"), equalTo(new ResolvedExpression("cluster:index", DATA)));
-        // CCS with an empty index name is not necessarily disallowed, though other code in the resolution logic will likely throw
-        assertThat(resolve(selectorsAllowed, "cluster:::data"), equalTo(new ResolvedExpression("cluster:", DATA)));
-        // Same for empty cluster and index names
+        assertThat(resolve(selectorsAllowed, "::failures"), equalTo(new ResolvedExpression("", FAILURES)));
+        // CCS with an empty index and cluster name is not necessarily disallowed, though other code in the resolution logic will likely
+        // throw
         assertThat(resolve(selectorsAllowed, ":::data"), equalTo(new ResolvedExpression(":", DATA)));
+        assertThat(resolve(selectorsAllowed, ":::failures"), equalTo(new ResolvedExpression(":", FAILURES)));
         // Any more prefix colon characters will trigger the multiple separators error logic
         expectThrows(InvalidIndexNameException.class, () -> resolve(selectorsAllowed, "::::data"));
+        expectThrows(InvalidIndexNameException.class, () -> resolve(selectorsAllowed, "::::failures"));
+        expectThrows(InvalidIndexNameException.class, () -> resolve(selectorsAllowed, ":::::failures"));
         // Suffix case is not supported because there is no component named with the empty string
         expectThrows(InvalidIndexNameException.class, () -> resolve(selectorsAllowed, "index::"));
+
+        // remote cluster syntax is not allowed with :: selectors
+        final Set<String> remoteClusterExpressionsWithSelectors = Set.of(
+            "cluster:index::failures",
+            "cluster-*:index::failures",
+            "cluster-*:index-*::failures",
+            "cluster-*:*::failures",
+            "*:index-*::failures",
+            "*:*::failures",
+            "*:-test*,*::failures",
+            "cluster:::failures",
+            "failures:index::failures",
+            "data:index::failures",
+            "failures:failures::failures",
+            "data:data::failures",
+            "cluster:index::data",
+            "cluster-*:index::data",
+            "cluster-*:index-*::data",
+            "cluster-*:*::data",
+            "*:index-*::data",
+            "*:*::data",
+            "cluster:::data",
+            "failures:index::data",
+            "data:index::data",
+            "failures:failures::data",
+            "data:data::data",
+            "*:-test*,*::data"
+        );
+        for (String expression : remoteClusterExpressionsWithSelectors) {
+            var e = expectThrows(InvalidIndexNameException.class, () -> resolve(selectorsAllowed, expression));
+            assertThat(e.getMessage(), containsString("Selectors are not yet supported on remote cluster patterns"));
+        }
     }
 
     public void testResolveMatchAllToSelectors() {
@@ -116,9 +148,7 @@ public class SelectorResolverTests extends ESTestCase {
         assertThat(IndexNameExpressionResolver.combineSelectorExpression("a", null), is(equalTo("a")));
         assertThat(IndexNameExpressionResolver.combineSelectorExpression("a", ""), is(equalTo("a::")));
         assertThat(IndexNameExpressionResolver.combineSelectorExpression("a", "b"), is(equalTo("a::b")));
-        assertThat(IndexNameExpressionResolver.combineSelectorExpression("a", "*"), is(equalTo("a::*")));
         assertThat(IndexNameExpressionResolver.combineSelectorExpression("*", "b"), is(equalTo("*::b")));
-        assertThat(IndexNameExpressionResolver.combineSelectorExpression("*", "*"), is(equalTo("*::*")));
     }
 
     public void testHasSelectorSuffix() {
@@ -151,14 +181,14 @@ public class SelectorResolverTests extends ESTestCase {
 
         assertThat(IndexNameExpressionResolver.splitSelectorExpression("a::data"), is(equalTo(new Tuple<>("a", "data"))));
         assertThat(IndexNameExpressionResolver.splitSelectorExpression("a::failures"), is(equalTo(new Tuple<>("a", "failures"))));
-        assertThat(IndexNameExpressionResolver.splitSelectorExpression("a::*"), is(equalTo(new Tuple<>("a", "*"))));
+        expectThrows(InvalidIndexNameException.class, () -> IndexNameExpressionResolver.splitSelectorExpression("a::*"));
         expectThrows(InvalidIndexNameException.class, () -> IndexNameExpressionResolver.splitSelectorExpression("a::random"));
         expectThrows(InvalidIndexNameException.class, () -> IndexNameExpressionResolver.splitSelectorExpression("a::d*ta"));
         expectThrows(InvalidIndexNameException.class, () -> IndexNameExpressionResolver.splitSelectorExpression("a::*ailures"));
         expectThrows(InvalidIndexNameException.class, () -> IndexNameExpressionResolver.splitSelectorExpression("a::"));
         expectThrows(InvalidIndexNameException.class, () -> IndexNameExpressionResolver.splitSelectorExpression("a::**"));
         expectThrows(InvalidIndexNameException.class, () -> IndexNameExpressionResolver.splitSelectorExpression("index::data::*"));
-        assertThat(IndexNameExpressionResolver.splitSelectorExpression("::*"), is(equalTo(new Tuple<>("", "*"))));
+        expectThrows(InvalidIndexNameException.class, () -> IndexNameExpressionResolver.splitSelectorExpression("::*"));
     }
 
     private static IndicesOptions getOptionsForSelectors() {
@@ -170,7 +200,7 @@ public class SelectorResolverTests extends ESTestCase {
     }
 
     private static Context getContext(IndicesOptions indicesOptions) {
-        return new Context(mock(ClusterState.class), indicesOptions, SystemIndices.SystemIndexAccessLevel.NONE);
+        return new Context(mock(ProjectMetadata.class), indicesOptions, SystemIndices.SystemIndexAccessLevel.NONE);
     }
 
     private static ResolvedExpression resolve(Context context, String expression) {

@@ -34,8 +34,10 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.indices.TestIndexNameExpressionResolver;
 import org.elasticsearch.test.ESTestCase;
@@ -233,6 +235,40 @@ public class AbstractAuditorTests extends ESTestCase {
         verify(client, times(1)).execute(eq(TransportIndexAction.TYPE), any(), any());
     }
 
+    public void testRecreateTemplateWhenDeleted() throws Exception {
+        CountDownLatch writeSomeDocsBeforeTemplateLatch = new CountDownLatch(1);
+        AbstractAuditor<AbstractAuditMessageTests.TestAuditMessage> auditor = createTestAuditorWithoutTemplate(
+            writeSomeDocsBeforeTemplateLatch
+        );
+
+        auditor.info("foobar", "Here is my info to queue");
+
+        verify(client, never()).execute(eq(TransportIndexAction.TYPE), any(), any());
+        // fire the put template response
+        writeSomeDocsBeforeTemplateLatch.countDown();
+
+        assertBusy(() -> verify(client, times(1)).execute(eq(TransportPutComposableIndexTemplateAction.TYPE), any(), any()));
+        assertBusy(() -> verify(client, times(1)).execute(eq(TransportCreateIndexAction.TYPE), any(), any()));
+
+        // the back log will be written some point later
+        assertBusy(() -> verify(client, times(1)).execute(eq(TransportBulkAction.TYPE), any(), any()));
+
+        // "delete" the index
+        doAnswer(ans -> {
+            ActionListener<?> listener = ans.getArgument(2);
+            listener.onFailure(new IndexNotFoundException("some index"));
+            return null;
+        }).when(client).execute(eq(TransportIndexAction.TYPE), any(), any());
+
+        // audit more data
+        auditor.info("foobar", "Here is another message");
+
+        // verify the template is recreated and the audit message is processed
+        assertBusy(() -> verify(client, times(2)).execute(eq(TransportPutComposableIndexTemplateAction.TYPE), any(), any()));
+        assertBusy(() -> verify(client, times(2)).execute(eq(TransportCreateIndexAction.TYPE), any(), any()));
+        assertBusy(() -> verify(client, times(2)).execute(eq(TransportBulkAction.TYPE), any(), any()));
+    }
+
     public void testMaxBufferSize() throws Exception {
         CountDownLatch writeSomeDocsBeforeTemplateLatch = new CountDownLatch(1);
         AbstractAuditor<AbstractAuditMessageTests.TestAuditMessage> auditor = createTestAuditorWithoutTemplate(
@@ -358,7 +394,8 @@ public class AbstractAuditorTests extends ESTestCase {
                 nodeName,
                 AbstractAuditMessageTests.TestAuditMessage::new,
                 clusterService,
-                TestIndexNameExpressionResolver.newInstance()
+                TestIndexNameExpressionResolver.newInstance(),
+                EsExecutors.DIRECT_EXECUTOR_SERVICE
             );
         }
 

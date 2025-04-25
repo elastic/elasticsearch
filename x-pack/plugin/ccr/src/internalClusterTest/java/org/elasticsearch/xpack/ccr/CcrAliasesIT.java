@@ -142,7 +142,7 @@ public class CcrAliasesIT extends CcrIntegTestCase {
             add.filter(termQuery(randomAlphaOfLength(16), randomAlphaOfLength(16)));
         }
 
-        assertAcked(leaderClient().admin().indices().prepareAliases().addAliasAction(add));
+        assertAcked(leaderClient().admin().indices().prepareAliases(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT).addAliasAction(add));
     }
 
     public void testAddMultipleAliasesAtOnce() throws Exception {
@@ -157,7 +157,9 @@ public class CcrAliasesIT extends CcrIntegTestCase {
         assertBusy(() -> assertShardFollowTask(1));
 
         final int numberOfAliases = randomIntBetween(2, 8);
-        final IndicesAliasesRequestBuilder builder = leaderClient().admin().indices().prepareAliases();
+        final IndicesAliasesRequestBuilder builder = leaderClient().admin()
+            .indices()
+            .prepareAliases(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT);
         for (int i = 0; i < numberOfAliases; i++) {
             builder.addAlias("leader", "alias_" + i);
         }
@@ -183,7 +185,9 @@ public class CcrAliasesIT extends CcrIntegTestCase {
 
         final int numberOfAliases = randomIntBetween(2, 8);
         for (int i = 0; i < numberOfAliases; i++) {
-            assertAcked(leaderClient().admin().indices().prepareAliases().addAlias("leader", "alias_" + i));
+            assertAcked(
+                leaderClient().admin().indices().prepareAliases(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT).addAlias("leader", "alias_" + i)
+            );
 
             final String[] aliases = new String[i + 1];
             for (int j = 0; j < i + 1; j++) {
@@ -204,7 +208,7 @@ public class CcrAliasesIT extends CcrIntegTestCase {
                 assertAcked(
                     leaderClient().admin()
                         .indices()
-                        .prepareAliases()
+                        .prepareAliases(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT)
                         .addAlias("leader", aliasName, termQuery(randomAlphaOfLength(16), randomAlphaOfLength(16)))
                 );
                 assertAliasesExist("leader", "follower", aliasName);
@@ -220,7 +224,9 @@ public class CcrAliasesIT extends CcrIntegTestCase {
     }
 
     private void removeAlias(final String aliasName) {
-        assertAcked(leaderClient().admin().indices().prepareAliases().removeAlias("leader", aliasName));
+        assertAcked(
+            leaderClient().admin().indices().prepareAliases(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT).removeAlias("leader", aliasName)
+        );
     }
 
     public void testStress() throws Exception {
@@ -400,7 +406,9 @@ public class CcrAliasesIT extends CcrIntegTestCase {
     private CheckedRunnable<Exception> assertShardFollowTask(final int numberOfPrimaryShards) {
         return () -> {
             final ClusterState clusterState = followerClient().admin().cluster().prepareState(TEST_REQUEST_TIMEOUT).get().getState();
-            final PersistentTasksCustomMetadata taskMetadata = clusterState.getMetadata().custom(PersistentTasksCustomMetadata.TYPE);
+            final PersistentTasksCustomMetadata taskMetadata = clusterState.getMetadata()
+                .getProject()
+                .custom(PersistentTasksCustomMetadata.TYPE);
             assertNotNull("task metadata for follower should exist", taskMetadata);
 
             final ListTasksRequest listTasksRequest = new ListTasksRequest();

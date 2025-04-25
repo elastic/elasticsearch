@@ -45,7 +45,7 @@ public class InvalidMappedField extends EsField {
      * Constructor supporting union types, used in ES|QL.
      */
     public InvalidMappedField(String name, Map<String, Set<String>> typesToIndices) {
-        this(name, makeErrorMessage(typesToIndices), new TreeMap<>(), typesToIndices);
+        this(name, makeErrorMessage(typesToIndices, false), new TreeMap<>(), typesToIndices);
     }
 
     private InvalidMappedField(String name, String errorMessage, Map<String, EsField> properties, Map<String, Set<String>> typesToIndices) {
@@ -107,12 +107,21 @@ public class InvalidMappedField extends EsField {
         return typesToIndices;
     }
 
-    private static String makeErrorMessage(Map<String, Set<String>> typesToIndices) {
+    public static String makeErrorsMessageIncludingInsistKeyword(Map<String, Set<String>> typesToIndices) {
+        return makeErrorMessage(typesToIndices, true);
+    }
+
+    private static String makeErrorMessage(Map<String, Set<String>> typesToIndices, boolean includeInsistKeyword) {
         StringBuilder errorMessage = new StringBuilder();
+        var isInsistKeywordOnlyKeyword = includeInsistKeyword && typesToIndices.containsKey(DataType.KEYWORD.typeName()) == false;
         errorMessage.append("mapped as [");
-        errorMessage.append(typesToIndices.size());
+        errorMessage.append(typesToIndices.size() + (isInsistKeywordOnlyKeyword ? 1 : 0));
         errorMessage.append("] incompatible types: ");
         boolean first = true;
+        if (isInsistKeywordOnlyKeyword) {
+            first = false;
+            errorMessage.append("[keyword] enforced by INSIST command");
+        }
         for (Map.Entry<String, Set<String>> e : typesToIndices.entrySet()) {
             if (first) {
                 first = false;
@@ -121,7 +130,12 @@ public class InvalidMappedField extends EsField {
             }
             errorMessage.append("[");
             errorMessage.append(e.getKey());
-            errorMessage.append("] in ");
+            errorMessage.append("] ");
+            if (e.getKey().equals(DataType.KEYWORD.typeName()) && includeInsistKeyword) {
+                errorMessage.append("enforced by INSIST command and in ");
+            } else {
+                errorMessage.append("in ");
+            }
             if (e.getValue().size() <= 3) {
                 errorMessage.append(e.getValue());
             } else {

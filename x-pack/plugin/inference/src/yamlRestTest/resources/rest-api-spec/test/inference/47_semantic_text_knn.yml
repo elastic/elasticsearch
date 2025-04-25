@@ -43,6 +43,8 @@ setup:
         body:
           mappings:
             properties:
+              keyword_field:
+                type: keyword
               inference_field:
                 type: semantic_text
                 inference_id: dense-inference-id
@@ -53,6 +55,8 @@ setup:
         body:
           mappings:
             properties:
+              keyword_field:
+                type: keyword
               inference_field:
                 type: semantic_text
                 inference_id: dense-inference-id-2
@@ -63,6 +67,8 @@ setup:
         body:
           mappings:
             properties:
+              keyword_field:
+                type: keyword
               inference_field:
                 type: dense_vector
                 dims: 10
@@ -74,6 +80,8 @@ setup:
         body:
           mappings:
             properties:
+              keyword_field:
+                type: keyword
               inference_field:
                 type: dense_vector
                 dims: 3
@@ -84,6 +92,7 @@ setup:
         index: test-semantic-text-index
         id: doc_1
         body:
+          keyword_field: "foo"
           inference_field: [ "inference test", "another inference test" ]
         refresh: true
 
@@ -92,6 +101,7 @@ setup:
         index: test-semantic-text-index-2
         id: doc_2
         body:
+          keyword_field: "bar"
           inference_field: [ "inference test", "another inference test" ]
         refresh: true
 
@@ -100,6 +110,7 @@ setup:
         index: test-dense-vector-index
         id: doc_3
         body:
+          keyword_field: "baz"
           inference_field: [ 1, 2, 3, 4, 5, 6, 7, 8, 9, 10 ]
         refresh: true
 
@@ -108,6 +119,7 @@ setup:
         index: test-incompatible-dense-vector-index
         id: doc_4
         body:
+          keyword_field: "qux"
           inference_field: [ 1, 2, 3 ]
         refresh: true
 
@@ -310,6 +322,34 @@ setup:
                   model_text: test
 
   - match: { hits.total.value: 2 }
+
+---
+"knn query respects filters":
+  - requires:
+      cluster_features: "search.semantic_knn_filter_fix"
+      reason: filters fixed in 8.18.0
+
+  - do:
+      search:
+        index:
+          - test-semantic-text-index
+          - test-semantic-text-index-2
+        body:
+          query:
+            knn:
+              field: inference_field
+              k: 10
+              num_candidates: 100
+              query_vector_builder:
+                text_embedding:
+                  model_text: test
+              filter:
+                term:
+                  keyword_field: "foo"
+
+  - match: { hits.total.value: 1 }
+  - match: { hits.hits.0._id: "doc_1" }
+
 
 
 ---

@@ -32,7 +32,7 @@ import java.util.Objects;
  * Looks up values from the associated {@code tables}.
  * The class is supposed to be substituted by a {@link Join}.
  */
-public class Lookup extends UnaryPlan implements SurrogateLogicalPlan, TelemetryAware {
+public class Lookup extends UnaryPlan implements SurrogateLogicalPlan, TelemetryAware, SortAgnostic {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(LogicalPlan.class, "Lookup", Lookup::new);
 
     private final Expression tableName;

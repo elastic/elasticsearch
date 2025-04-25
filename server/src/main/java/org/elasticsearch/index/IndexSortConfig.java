@@ -302,6 +302,15 @@ public final class IndexSortConfig {
         }
     }
 
+    public boolean hasSortOnField(final String fieldName) {
+        for (FieldSortSpec sortSpec : sortSpecs) {
+            if (sortSpec.field.equals(fieldName)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     public static class FieldSortSpec {
         final String field;
         SortOrder order;

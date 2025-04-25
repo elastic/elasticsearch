@@ -37,18 +37,10 @@ import java.lang.annotation.Target;
  *     are ever collected.
  * </p>
  * <p>
- *     The generation code will also look for a method called {@code combineValueCount}
- *     which is called once per received block with a count of values. NOTE: We may
- *     not need this after we convert AVG into a composite operation.
- * </p>
- * <p>
  *     The generation code also looks for the optional methods {@code combineIntermediate}
  *     and {@code evaluateFinal} which are used to combine intermediate states and
- *     produce the final output. If the first is missing then the generated code will
- *     call the {@code combine} method to combine intermediate states. If the second
- *     is missing the generated code will make a block containing the primitive from
- *     the state. If either of those don't have sensible interpretations then the code
- *     generation code will throw an error, aborting the compilation.
+ *     produce the final output. Please note, those are auto-generated when aggregating
+ *     primitive types such as boolean, int, long, float, double.
  * </p>
  */
 @Target(ElementType.TYPE)
@@ -63,4 +55,8 @@ public @interface Aggregator {
      */
     Class<? extends Exception>[] warnExceptions() default {};
 
+    /**
+     * If {@code true} then the @timestamp LongVector will be appended to the input blocks of the aggregation function.
+     */
+    boolean includeTimestamps() default false;
 }

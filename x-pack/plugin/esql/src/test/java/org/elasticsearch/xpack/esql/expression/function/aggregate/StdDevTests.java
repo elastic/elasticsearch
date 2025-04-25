@@ -41,7 +41,7 @@ public class StdDevTests extends AbstractAggregationTestCase {
             MultiRowTestCaseSupplier.doubleCases(1, 1000, -Double.MAX_VALUE, Double.MAX_VALUE, true)
         ).flatMap(List::stream).map(StdDevTests::makeSupplier).collect(Collectors.toCollection(() -> suppliers));
 
-        return parameterSuppliersFromTypedDataWithDefaultChecks(suppliers);
+        return parameterSuppliersFromTypedDataWithDefaultChecksNoErrors(suppliers, true);
     }
 
     @Override

@@ -94,7 +94,7 @@ public class DiskUsageIntegTestCase extends ESIntegTestCase {
     }
 
     public TestFileStore getTestFileStore(String nodeName) {
-        return fileSystemProvider.getTestFileStore(internalCluster().getInstance(Environment.class, nodeName).dataFiles()[0]);
+        return fileSystemProvider.getTestFileStore(internalCluster().getInstance(Environment.class, nodeName).dataDirs()[0]);
     }
 
     protected static class TestFileStore extends FilterFileStore {
@@ -218,7 +218,12 @@ public class DiskUsageIntegTestCase extends ESIntegTestCase {
         }
 
         TestFileStore getTestFileStore(Path path) {
-            final TestFileStore fileStore = trackedPaths.get(path);
+            final TestFileStore fileStore = trackedPaths.entrySet()
+                .stream()
+                .filter(e -> path.startsWith(e.getKey()))
+                .map(Map.Entry::getValue)
+                .findAny()
+                .orElse(null);
             if (fileStore != null) {
                 return fileStore;
             }

@@ -10,6 +10,9 @@
 package org.elasticsearch.cluster.routing.allocation.command;
 
 import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.TransportVersions;
+import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
@@ -19,6 +22,7 @@ import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.core.FixForMultiProject;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
@@ -40,12 +44,20 @@ public class MoveAllocationCommand implements AllocationCommand {
     private final int shardId;
     private final String fromNode;
     private final String toNode;
+    private final ProjectId projectId;
 
-    public MoveAllocationCommand(String index, int shardId, String fromNode, String toNode) {
+    public MoveAllocationCommand(String index, int shardId, String fromNode, String toNode, ProjectId projectId) {
         this.index = index;
         this.shardId = shardId;
         this.fromNode = fromNode;
         this.toNode = toNode;
+        this.projectId = projectId;
+    }
+
+    @FixForMultiProject(description = "Should be removed since a ProjectId must always be available")
+    @Deprecated(forRemoval = true)
+    public MoveAllocationCommand(String index, int shardId, String fromNode, String toNode) {
+        this(index, shardId, fromNode, toNode, Metadata.DEFAULT_PROJECT_ID);
     }
 
     /**
@@ -56,6 +68,11 @@ public class MoveAllocationCommand implements AllocationCommand {
         shardId = in.readVInt();
         fromNode = in.readString();
         toNode = in.readString();
+        if (in.getTransportVersion().onOrAfter(TransportVersions.MULTI_PROJECT)) {
+            projectId = ProjectId.readFrom(in);
+        } else {
+            projectId = Metadata.DEFAULT_PROJECT_ID;
+        }
     }
 
     @Override
@@ -64,11 +81,24 @@ public class MoveAllocationCommand implements AllocationCommand {
         out.writeVInt(shardId);
         out.writeString(fromNode);
         out.writeString(toNode);
+        if (out.getTransportVersion().onOrAfter(TransportVersions.MULTI_PROJECT)) {
+            projectId.writeTo(out);
+        } else {
+            assert Metadata.DEFAULT_PROJECT_ID.equals(projectId) : projectId;
+            if (Metadata.DEFAULT_PROJECT_ID.equals(projectId) == false) {
+                throw new IllegalArgumentException("expected default project, but got " + projectId);
+            }
+        }
     }
 
     @Override
     public String name() {
         return NAME;
+    }
+
+    @Override
+    public ProjectId projectId() {
+        return projectId;
     }
 
     public String index() {
@@ -132,6 +162,9 @@ public class MoveAllocationCommand implements AllocationCommand {
                 continue;
             }
             if (shardRouting.shardId().id() != shardId) {
+                continue;
+            }
+            if (projectId.equals(allocation.metadata().projectFor(shardRouting.index()).id()) == false) {
                 continue;
             }
             found = true;
@@ -214,7 +247,10 @@ public class MoveAllocationCommand implements AllocationCommand {
         return builder.endObject();
     }
 
-    public static MoveAllocationCommand fromXContent(XContentParser parser) throws IOException {
+    @FixForMultiProject(description = "projectId should not be null once multi-project is fully in place")
+    public static MoveAllocationCommand fromXContent(XContentParser parser, Object projectId) throws IOException {
+        assert projectId == null || projectId instanceof ProjectId : projectId;
+
         String index = null;
         int shardId = -1;
         String fromNode = null;
@@ -253,7 +289,13 @@ public class MoveAllocationCommand implements AllocationCommand {
         if (toNode == null) {
             throw new ElasticsearchParseException("[{}] command missing the to_node parameter", NAME);
         }
-        return new MoveAllocationCommand(index, shardId, fromNode, toNode);
+        return new MoveAllocationCommand(
+            index,
+            shardId,
+            fromNode,
+            toNode,
+            projectId == null ? Metadata.DEFAULT_PROJECT_ID : (ProjectId) projectId
+        );
     }
 
     @Override
@@ -266,12 +308,13 @@ public class MoveAllocationCommand implements AllocationCommand {
         return Objects.equals(index, other.index)
             && Objects.equals(shardId, other.shardId)
             && Objects.equals(fromNode, other.fromNode)
-            && Objects.equals(toNode, other.toNode);
+            && Objects.equals(toNode, other.toNode)
+            && Objects.equals(projectId, other.projectId);
     }
 
     @Override
     public int hashCode() {
         // Override equals and hashCode for testing
-        return Objects.hash(index, shardId, fromNode, toNode);
+        return Objects.hash(index, shardId, fromNode, toNode, projectId);
     }
 }

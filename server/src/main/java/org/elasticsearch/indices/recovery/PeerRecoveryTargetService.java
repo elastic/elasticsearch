@@ -25,6 +25,7 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateObserver;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.component.Lifecycle;
@@ -564,7 +565,7 @@ public class PeerRecoveryTargetService implements IndexEventListener {
                     .handoffPrimaryContext(
                         request.primaryContext(),
                         ActionListener.runBefore(
-                            new ChannelActionListener<>(channel).map(v -> TransportResponse.Empty.INSTANCE),
+                            new ChannelActionListener<>(channel).map(v -> ActionResponse.Empty.INSTANCE),
                             recoveryRef::close
                         )
                     );
@@ -644,7 +645,9 @@ public class PeerRecoveryTargetService implements IndexEventListener {
                     }
                 });
             };
-            final IndexMetadata indexMetadata = clusterService.state().metadata().index(request.shardId().getIndex());
+            ClusterState state = clusterService.state();
+            final ProjectMetadata project = state.metadata().projectFor(request.shardId().getIndex());
+            final IndexMetadata indexMetadata = project.index(request.shardId().getIndex());
             final long mappingVersionOnTarget = indexMetadata != null ? indexMetadata.getMappingVersion() : 0L;
             recoveryTarget.indexTranslogOperations(
                 request.operations(),
@@ -685,7 +688,7 @@ public class PeerRecoveryTargetService implements IndexEventListener {
         }
 
         protected CheckedFunction<Void, TransportResponse, Exception> responseMapping(RecoveryTarget recoveryTarget) {
-            return v -> TransportResponse.Empty.INSTANCE;
+            return v -> ActionResponse.Empty.INSTANCE;
         }
 
         protected abstract void handleRequest(T request, RecoveryTarget target, ActionListener<Void> listener) throws IOException;

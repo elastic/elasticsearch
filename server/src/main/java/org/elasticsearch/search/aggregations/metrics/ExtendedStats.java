@@ -69,11 +69,6 @@ public interface ExtendedStats extends Stats {
     String getStdDeviationSamplingAsString();
 
     /**
-     * The upper or lower bounds of stdDev of the collected values as a String.
-     */
-    String getStdDeviationBoundAsString(Bounds bound);
-
-    /**
      * The sum of the squares of the collected values as a String.
      */
     String getSumOfSquaresAsString();

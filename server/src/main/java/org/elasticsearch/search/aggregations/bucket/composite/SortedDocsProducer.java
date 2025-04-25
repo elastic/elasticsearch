@@ -12,7 +12,6 @@ package org.elasticsearch.search.aggregations.bucket.composite;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.DocIdSet;
 import org.apache.lucene.search.DocIdSetIterator;
-import org.apache.lucene.search.Query;
 import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.DocIdSetBuilder;
 import org.elasticsearch.core.Nullable;
@@ -99,6 +98,5 @@ abstract class SortedDocsProducer {
      * Returns the {@link DocIdSet} of the documents that contain a top composite bucket in this leaf or
      * {@link DocIdSet#EMPTY} if <code>fillDocIdSet</code> is false.
      */
-    abstract DocIdSet processLeaf(Query query, CompositeValuesCollectorQueue queue, LeafReaderContext context, boolean fillDocIdSet)
-        throws IOException;
+    abstract DocIdSet processLeaf(CompositeValuesCollectorQueue queue, LeafReaderContext context, boolean fillDocIdSet) throws IOException;
 }

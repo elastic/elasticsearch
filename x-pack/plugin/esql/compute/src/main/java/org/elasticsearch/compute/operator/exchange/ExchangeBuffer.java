@@ -47,7 +47,17 @@ final class ExchangeBuffer {
             notifyNotEmpty();
         }
         if (noMoreInputs) {
-            discardPages();
+            // O(N) but acceptable because it only occurs with the stop API, and the queue size should be very small.
+            if (queue.removeIf(p -> p == page)) {
+                page.releaseBlocks();
+                final int size = queueSize.decrementAndGet();
+                if (size == maxSize - 1) {
+                    notifyNotFull();
+                }
+                if (size == 0) {
+                    completionFuture.onResponse(null);
+                }
+            }
         }
     }
 

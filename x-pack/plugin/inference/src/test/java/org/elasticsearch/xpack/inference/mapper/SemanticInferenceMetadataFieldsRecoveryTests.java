@@ -21,13 +21,14 @@ import org.elasticsearch.index.engine.EngineTestCase;
 import org.elasticsearch.index.engine.LuceneChangesSnapshot;
 import org.elasticsearch.index.engine.LuceneSyntheticSourceChangesSnapshot;
 import org.elasticsearch.index.engine.SearchBasedChangesSnapshot;
+import org.elasticsearch.index.engine.TranslogOperationAsserter;
 import org.elasticsearch.index.mapper.InferenceMetadataFieldsMapper;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.index.mapper.SourceToParse;
-import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.inference.ChunkedInference;
+import org.elasticsearch.inference.ChunkingSettings;
 import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.inference.TaskType;
@@ -42,8 +43,9 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertToXContentEquivalent;
+import static org.elasticsearch.xpack.inference.mapper.SemanticTextFieldTests.generateRandomChunkingSettings;
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextFieldTests.randomChunkedInferenceEmbeddingByte;
+import static org.elasticsearch.xpack.inference.mapper.SemanticTextFieldTests.randomChunkedInferenceEmbeddingFloat;
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextFieldTests.randomChunkedInferenceEmbeddingSparse;
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextFieldTests.semanticTextFieldFromChunkedInferenceResults;
 import static org.hamcrest.Matchers.equalTo;
@@ -51,12 +53,14 @@ import static org.hamcrest.Matchers.equalTo;
 public class SemanticInferenceMetadataFieldsRecoveryTests extends EngineTestCase {
     private final Model model1;
     private final Model model2;
+    private final ChunkingSettings chunkingSettings;
     private final boolean useSynthetic;
     private final boolean useIncludesExcludes;
 
     public SemanticInferenceMetadataFieldsRecoveryTests(boolean useSynthetic, boolean useIncludesExcludes) {
-        this.model1 = randomModel(TaskType.TEXT_EMBEDDING);
-        this.model2 = randomModel(TaskType.SPARSE_EMBEDDING);
+        this.model1 = TestModel.createRandomInstance(TaskType.TEXT_EMBEDDING, List.of(SimilarityMeasure.DOT_PRODUCT));
+        this.model2 = TestModel.createRandomInstance(TaskType.SPARSE_EMBEDDING);
+        this.chunkingSettings = generateRandomChunkingSettings();
         this.useSynthetic = useSynthetic;
         this.useIncludesExcludes = useIncludesExcludes;
     }
@@ -73,9 +77,7 @@ public class SemanticInferenceMetadataFieldsRecoveryTests extends EngineTestCase
 
     @Override
     protected Settings indexSettings() {
-        var builder = Settings.builder()
-            .put(super.indexSettings())
-            .put(InferenceMetadataFieldsMapper.USE_LEGACY_SEMANTIC_TEXT_FORMAT.getKey(), false);
+        var builder = Settings.builder().put(super.indexSettings());
         if (useSynthetic) {
             builder.put(IndexSettings.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey(), SourceFieldMapper.Mode.SYNTHETIC.name());
             builder.put(IndexSettings.RECOVERY_USE_SYNTHETIC_SOURCE_SETTING.getKey(), true);
@@ -85,9 +87,8 @@ public class SemanticInferenceMetadataFieldsRecoveryTests extends EngineTestCase
 
     @Override
     protected String defaultMapping() {
-        XContentBuilder builder = null;
         try {
-            builder = JsonXContent.contentBuilder().startObject();
+            XContentBuilder builder = JsonXContent.contentBuilder().startObject();
             if (useIncludesExcludes) {
                 builder.startObject(SourceFieldMapper.NAME).array("excludes", "field").endObject();
             }
@@ -106,7 +107,12 @@ public class SemanticInferenceMetadataFieldsRecoveryTests extends EngineTestCase
             builder.field("dimensions", model1.getServiceSettings().dimensions());
             builder.field("similarity", model1.getServiceSettings().similarity().name());
             builder.field("element_type", model1.getServiceSettings().elementType().name());
+            builder.field("service", model1.getConfigurations().getService());
             builder.endObject();
+            if (chunkingSettings != null) {
+                builder.field("chunking_settings");
+                chunkingSettings.toXContent(builder, null);
+            }
             builder.endObject();
 
             builder.startObject("semantic_2");
@@ -114,7 +120,12 @@ public class SemanticInferenceMetadataFieldsRecoveryTests extends EngineTestCase
             builder.field("inference_id", model2.getInferenceEntityId());
             builder.startObject("model_settings");
             builder.field("task_type", model2.getTaskType().name());
+            builder.field("service", model2.getConfigurations().getService());
             builder.endObject();
+            if (chunkingSettings != null) {
+                builder.field("chunking_settings");
+                chunkingSettings.toXContent(builder, null);
+            }
             builder.endObject();
 
             builder.endObject();
@@ -126,7 +137,7 @@ public class SemanticInferenceMetadataFieldsRecoveryTests extends EngineTestCase
     }
 
     public void testSnapshotRecovery() throws IOException {
-        List<Engine.Index> expectedOperations = new ArrayList<>();
+        List<Translog.Index> expectedOperations = new ArrayList<>();
         int size = randomIntBetween(10, 50);
         for (int i = 0; i < size; i++) {
             var source = randomSource();
@@ -148,8 +159,19 @@ public class SemanticInferenceMetadataFieldsRecoveryTests extends EngineTestCase
                 }
             }
             var op = indexForDoc(doc);
-            expectedOperations.add(op);
-            engine.index(op);
+            var result = engine.index(op);
+            expectedOperations.add(
+                new Translog.Index(
+                    result.getId(),
+                    result.getSeqNo(),
+                    result.getTerm(),
+                    result.getVersion(),
+                    op.source(),
+                    op.routing(),
+                    op.getAutoGeneratedIdTimestamp()
+                )
+            );
+
             if (frequently()) {
                 engine.flush();
             }
@@ -170,13 +192,12 @@ public class SemanticInferenceMetadataFieldsRecoveryTests extends EngineTestCase
                 IndexVersion.current()
             )
         ) {
+            var asserter = TranslogOperationAsserter.withEngineConfig(engine.config());
             for (int i = 0; i < size; i++) {
                 var op = snapshot.next();
                 assertThat(op.opType(), equalTo(Translog.Operation.Type.INDEX));
                 Translog.Index indexOp = (Translog.Index) op;
-                assertThat(indexOp.id(), equalTo(expectedOperations.get(i).id()));
-                assertThat(indexOp.routing(), equalTo(expectedOperations.get(i).routing()));
-                assertToXContentEquivalent(indexOp.source(), expectedOperations.get(i).source(), XContentType.JSON);
+                asserter.assertSameIndexOperation(indexOp, expectedOperations.get(i));
             }
             assertNull(snapshot.next());
         }
@@ -220,20 +241,6 @@ public class SemanticInferenceMetadataFieldsRecoveryTests extends EngineTestCase
         }
     }
 
-    private static Model randomModel(TaskType taskType) {
-        var dimensions = taskType == TaskType.TEXT_EMBEDDING ? randomIntBetween(2, 64) : null;
-        var similarity = taskType == TaskType.TEXT_EMBEDDING ? randomFrom(SimilarityMeasure.values()) : null;
-        var elementType = taskType == TaskType.TEXT_EMBEDDING ? DenseVectorFieldMapper.ElementType.BYTE : null;
-        return new TestModel(
-            randomAlphaOfLength(4),
-            taskType,
-            randomAlphaOfLength(10),
-            new TestModel.TestServiceSettings(randomAlphaOfLength(4), dimensions, similarity, elementType),
-            new TestModel.TestTaskSettings(randomInt(3)),
-            new TestModel.TestSecretSettings(randomAlphaOfLength(4))
-        );
-    }
-
     private BytesReference randomSource() throws IOException {
         var builder = JsonXContent.contentBuilder().startObject();
         builder.field("field", randomAlphaOfLengthBetween(10, 30));
@@ -244,8 +251,8 @@ public class SemanticInferenceMetadataFieldsRecoveryTests extends EngineTestCase
             false,
             builder,
             List.of(
-                randomSemanticText(false, "semantic_2", model2, randomInputs(), XContentType.JSON),
-                randomSemanticText(false, "semantic_1", model1, randomInputs(), XContentType.JSON)
+                randomSemanticText(false, "semantic_2", model2, chunkingSettings, randomInputs(), XContentType.JSON),
+                randomSemanticText(false, "semantic_1", model1, chunkingSettings, randomInputs(), XContentType.JSON)
             )
         );
         builder.endObject();
@@ -256,18 +263,27 @@ public class SemanticInferenceMetadataFieldsRecoveryTests extends EngineTestCase
         boolean useLegacyFormat,
         String fieldName,
         Model model,
+        ChunkingSettings chunkingSettings,
         List<String> inputs,
         XContentType contentType
     ) throws IOException {
         ChunkedInference results = switch (model.getTaskType()) {
             case TEXT_EMBEDDING -> switch (model.getServiceSettings().elementType()) {
-                case BYTE -> randomChunkedInferenceEmbeddingByte(model, inputs);
-                default -> throw new AssertionError("invalid element type: " + model.getServiceSettings().elementType().name());
+                case FLOAT -> randomChunkedInferenceEmbeddingFloat(model, inputs);
+                case BYTE, BIT -> randomChunkedInferenceEmbeddingByte(model, inputs);
             };
             case SPARSE_EMBEDDING -> randomChunkedInferenceEmbeddingSparse(inputs, false);
             default -> throw new AssertionError("invalid task type: " + model.getTaskType().name());
         };
-        return semanticTextFieldFromChunkedInferenceResults(useLegacyFormat, fieldName, model, inputs, results, contentType);
+        return semanticTextFieldFromChunkedInferenceResults(
+            useLegacyFormat,
+            fieldName,
+            model,
+            chunkingSettings,
+            inputs,
+            results,
+            contentType
+        );
     }
 
     private static List<String> randomInputs() {

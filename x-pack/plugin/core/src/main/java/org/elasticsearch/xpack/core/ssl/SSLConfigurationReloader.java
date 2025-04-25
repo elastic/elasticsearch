@@ -19,7 +19,6 @@ import org.elasticsearch.watcher.ResourceWatcherService.Frequency;
 
 import java.io.IOException;
 import java.nio.file.Path;
-import java.security.AccessControlException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
@@ -109,7 +108,7 @@ public final class SSLConfigurationReloader {
             fileWatcher.addListener(changeListener);
             try {
                 resourceWatcherService.add(fileWatcher, Frequency.HIGH);
-            } catch (IOException | AccessControlException e) {
+            } catch (IOException | SecurityException e) {
                 logger.error("failed to start watching directory [{}] for ssl configurations [{}] - {}", path, configurations, e);
             }
         });

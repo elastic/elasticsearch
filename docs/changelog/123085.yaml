@@ -1,0 +1,5 @@
+pr: 123085
+summary: Remove duplicated nested commands
+area: ES|QL
+type: bug
+issues: []

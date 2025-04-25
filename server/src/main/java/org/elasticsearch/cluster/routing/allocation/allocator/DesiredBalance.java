@@ -24,8 +24,7 @@ import java.util.Objects;
  *                           strictly increasing sequence number. A new master term restarts the index values from zero. The balancer,
  *                           which runs async to reroute, uses the latest request's data to compute the desired balance.
  * @param assignments a set of the (persistent) node IDs to which each {@link ShardId} should be allocated
- * @param weightsPerNode The node weights calculated based on
- * {@link org.elasticsearch.cluster.routing.allocation.allocator.WeightFunction#calculateNodeWeight}
+ * @param weightsPerNode The node weights calculated based on {@link WeightFunction#calculateNodeWeight}
  */
 public record DesiredBalance(
     long lastConvergedIndex,

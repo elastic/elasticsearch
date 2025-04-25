@@ -60,6 +60,9 @@ import java.util.concurrent.TimeUnit;
 import java.util.stream.LongStream;
 import java.util.stream.Stream;
 
+/**
+ * Benchmark for many different kinds of aggregator and groupings.
+ */
 @Warmup(iterations = 5)
 @Measurement(iterations = 7)
 @BenchmarkMode(Mode.AverageTime)
@@ -110,6 +113,12 @@ public class AggregatorBenchmark {
 
     static {
         // Smoke test all the expected values and force loading subclasses more like prod
+        if (false == "true".equals(System.getProperty("skipSelfTest"))) {
+            selfTest();
+        }
+    }
+
+    static void selfTest() {
         try {
             for (String grouping : AggregatorBenchmark.class.getField("grouping").getAnnotationsByType(Param.class)[0].value()) {
                 for (String op : AggregatorBenchmark.class.getField("op").getAnnotationsByType(Param.class)[0].value()) {
@@ -155,7 +164,7 @@ public class AggregatorBenchmark {
 
         if (grouping.equals("none")) {
             return new AggregationOperator(
-                List.of(supplier(op, dataType, filter, 0).aggregatorFactory(AggregatorMode.SINGLE).apply(driverContext)),
+                List.of(supplier(op, dataType, filter).aggregatorFactory(AggregatorMode.SINGLE, List.of(0)).apply(driverContext)),
                 driverContext
             );
         }
@@ -182,33 +191,33 @@ public class AggregatorBenchmark {
             default -> throw new IllegalArgumentException("unsupported grouping [" + grouping + "]");
         };
         return new HashAggregationOperator(
-            List.of(supplier(op, dataType, filter, groups.size()).groupingAggregatorFactory(AggregatorMode.SINGLE)),
+            List.of(supplier(op, dataType, filter).groupingAggregatorFactory(AggregatorMode.SINGLE, List.of(groups.size()))),
             () -> BlockHash.build(groups, driverContext.blockFactory(), 16 * 1024, false),
             driverContext
         );
     }
 
-    private static AggregatorFunctionSupplier supplier(String op, String dataType, String filter, int dataChannel) {
+    private static AggregatorFunctionSupplier supplier(String op, String dataType, String filter) {
         return filtered(switch (op) {
-            case COUNT -> CountAggregatorFunction.supplier(List.of(dataChannel));
+            case COUNT -> CountAggregatorFunction.supplier();
             case COUNT_DISTINCT -> switch (dataType) {
-                case LONGS -> new CountDistinctLongAggregatorFunctionSupplier(List.of(dataChannel), 3000);
-                case DOUBLES -> new CountDistinctDoubleAggregatorFunctionSupplier(List.of(dataChannel), 3000);
+                case LONGS -> new CountDistinctLongAggregatorFunctionSupplier(3000);
+                case DOUBLES -> new CountDistinctDoubleAggregatorFunctionSupplier(3000);
                 default -> throw new IllegalArgumentException("unsupported data type [" + dataType + "]");
             };
             case MAX -> switch (dataType) {
-                case LONGS -> new MaxLongAggregatorFunctionSupplier(List.of(dataChannel));
-                case DOUBLES -> new MaxDoubleAggregatorFunctionSupplier(List.of(dataChannel));
+                case LONGS -> new MaxLongAggregatorFunctionSupplier();
+                case DOUBLES -> new MaxDoubleAggregatorFunctionSupplier();
                 default -> throw new IllegalArgumentException("unsupported data type [" + dataType + "]");
             };
             case MIN -> switch (dataType) {
-                case LONGS -> new MinLongAggregatorFunctionSupplier(List.of(dataChannel));
-                case DOUBLES -> new MinDoubleAggregatorFunctionSupplier(List.of(dataChannel));
+                case LONGS -> new MinLongAggregatorFunctionSupplier();
+                case DOUBLES -> new MinDoubleAggregatorFunctionSupplier();
                 default -> throw new IllegalArgumentException("unsupported data type [" + dataType + "]");
             };
             case SUM -> switch (dataType) {
-                case LONGS -> new SumLongAggregatorFunctionSupplier(List.of(dataChannel));
-                case DOUBLES -> new SumDoubleAggregatorFunctionSupplier(List.of(dataChannel));
+                case LONGS -> new SumLongAggregatorFunctionSupplier();
+                case DOUBLES -> new SumDoubleAggregatorFunctionSupplier();
                 default -> throw new IllegalArgumentException("unsupported data type [" + dataType + "]");
             };
             default -> throw new IllegalArgumentException("unsupported op [" + op + "]");

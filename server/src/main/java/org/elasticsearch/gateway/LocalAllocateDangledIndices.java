@@ -36,8 +36,8 @@ import org.elasticsearch.discovery.MasterNotDiscoveredException;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.tasks.Task;
+import org.elasticsearch.transport.AbstractTransportRequest;
 import org.elasticsearch.transport.TransportChannel;
-import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportRequestHandler;
 import org.elasticsearch.transport.TransportResponse;
 import org.elasticsearch.transport.TransportService;
@@ -152,10 +152,10 @@ public class LocalAllocateDangledIndices {
                             );
                             continue;
                         }
-                        if (currentState.metadata().hasIndex(indexMetadata.getIndex().getName())) {
+                        if (currentState.metadata().getProject().hasIndex(indexMetadata.getIndex().getName())) {
                             continue;
                         }
-                        if (currentState.metadata().hasAlias(indexMetadata.getIndex().getName())) {
+                        if (currentState.metadata().getProject().hasAlias(indexMetadata.getIndex().getName())) {
                             logger.warn(
                                 "ignoring dangled index [{}] on node [{}] due to an existing alias with the same name",
                                 indexMetadata.getIndex(),
@@ -163,7 +163,7 @@ public class LocalAllocateDangledIndices {
                             );
                             continue;
                         }
-                        if (currentState.metadata().indexGraveyard().containsIndex(indexMetadata.getIndex())) {
+                        if (currentState.metadata().getProject().indexGraveyard().containsIndex(indexMetadata.getIndex())) {
                             logger.warn(
                                 "ignoring dangled index [{}] on node [{}] since it was recently deleted",
                                 indexMetadata.getIndex(),
@@ -251,7 +251,7 @@ public class LocalAllocateDangledIndices {
         clusterService.submitUnbatchedStateUpdateTask(source, task);
     }
 
-    public static class AllocateDangledRequest extends TransportRequest {
+    public static class AllocateDangledRequest extends AbstractTransportRequest {
 
         DiscoveryNode fromNode;
         IndexMetadata[] indices;

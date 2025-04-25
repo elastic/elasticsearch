@@ -29,7 +29,7 @@ import org.elasticsearch.search.internal.ShardSearchContextId;
 import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
-import org.elasticsearch.transport.TransportRequest;
+import org.elasticsearch.transport.AbstractTransportRequest;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -41,7 +41,7 @@ import java.util.Map;
 /**
  * Node-level request used during can-match phase
  */
-public class CanMatchNodeRequest extends TransportRequest implements IndicesRequest {
+public class CanMatchNodeRequest extends AbstractTransportRequest implements IndicesRequest {
 
     private final SearchSourceBuilder source;
     private final List<Shard> shards;
@@ -136,7 +136,7 @@ public class CanMatchNodeRequest extends TransportRequest implements IndicesRequ
     ) {
         this.source = getCanMatchSource(searchRequest);
         this.indicesOptions = indicesOptions;
-        this.shards = new ArrayList<>(shards);
+        this.shards = shards;
         this.searchType = searchRequest.searchType();
         this.requestCache = searchRequest.requestCache();
         // If allowPartialSearchResults is unset (ie null), the cluster-level default should have been substituted

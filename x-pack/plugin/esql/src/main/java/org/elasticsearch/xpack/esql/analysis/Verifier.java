@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.esql.analysis;
 
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.xpack.esql.LicenseAware;
-import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.capabilities.PostAnalysisPlanVerificationAware;
 import org.elasticsearch.xpack.esql.capabilities.PostAnalysisVerificationAware;
 import org.elasticsearch.xpack.esql.common.Failure;
@@ -29,6 +28,8 @@ import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equ
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.EsqlBinaryComparison;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.NotEquals;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
+import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
+import org.elasticsearch.xpack.esql.plan.logical.Insist;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Lookup;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
@@ -95,6 +96,7 @@ public class Verifier {
 
             checkOperationsOnUnsignedLong(p, failures);
             checkBinaryComparison(p, failures);
+            checkInsist(p, failures);
         });
 
         if (failures.hasFailures() == false) {
@@ -132,7 +134,7 @@ public class Verifier {
 
                 e.forEachUp(ae -> {
                     // Special handling for Project and unsupported/union types: disallow renaming them but pass them through otherwise.
-                    if (p instanceof Project) {
+                    if (p instanceof Project || p instanceof Insist) {
                         if (ae instanceof Alias as && as.child() instanceof UnsupportedAttribute ua) {
                             failures.add(fail(ae, ua.unresolvedMessage()));
                         }
@@ -231,6 +233,15 @@ public class Verifier {
         });
     }
 
+    private static void checkInsist(LogicalPlan p, Failures failures) {
+        if (p instanceof Insist i) {
+            LogicalPlan child = i.child();
+            if ((child instanceof EsRelation || child instanceof Insist) == false) {
+                failures.add(fail(i, "[insist] can only be used after [from] or [insist] commands, but was [{}]", child.sourceText()));
+            }
+        }
+    }
+
     private void licenseCheck(LogicalPlan plan, Failures failures) {
         Consumer<Node<?>> licenseCheck = n -> {
             if (n instanceof LicenseAware la && la.licenseCheck(licenseState) == false) {
@@ -280,9 +291,6 @@ public class Verifier {
         List<DataType> allowed = new ArrayList<>();
         allowed.add(DataType.KEYWORD);
         allowed.add(DataType.TEXT);
-        if (EsqlCapabilities.Cap.SEMANTIC_TEXT_TYPE.isEnabled()) {
-            allowed.add(DataType.SEMANTIC_TEXT);
-        }
         allowed.add(DataType.IP);
         allowed.add(DataType.DATETIME);
         allowed.add(DataType.DATE_NANOS);

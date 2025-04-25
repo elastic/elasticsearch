@@ -91,6 +91,31 @@ public abstract class DocumentParserContext {
         protected void addDoc(LuceneDocument doc) {
             in.addDoc(doc);
         }
+
+        @Override
+        public void processArrayOffsets(DocumentParserContext context) throws IOException {
+            in.processArrayOffsets(context);
+        }
+
+        @Override
+        public FieldArrayContext getOffSetContext() {
+            return in.getOffSetContext();
+        }
+
+        @Override
+        public void setImmediateXContentParent(XContentParser.Token token) {
+            in.setImmediateXContentParent(token);
+        }
+
+        @Override
+        public XContentParser.Token getImmediateXContentParent() {
+            return in.getImmediateXContentParent();
+        }
+
+        @Override
+        public boolean isImmediateParentAnArray() {
+            return in.isImmediateParentAnArray();
+        }
     }
 
     /**
@@ -140,6 +165,8 @@ public abstract class DocumentParserContext {
     private Field version;
     private final SeqNoFieldMapper.SequenceIDFields seqID;
     private final Set<String> fieldsAppliedFromTemplates;
+
+    private FieldArrayContext fieldArrayContext;
 
     /**
      * Fields that are copied from values of other fields via copy_to.
@@ -460,6 +487,33 @@ public abstract class DocumentParserContext {
         return copyToFields.contains(name);
     }
 
+    public void processArrayOffsets(DocumentParserContext context) throws IOException {
+        if (fieldArrayContext != null) {
+            fieldArrayContext.addToLuceneDocument(context);
+        }
+    }
+
+    public FieldArrayContext getOffSetContext() {
+        if (fieldArrayContext == null) {
+            fieldArrayContext = new FieldArrayContext();
+        }
+        return fieldArrayContext;
+    }
+
+    private XContentParser.Token lastSetToken;
+
+    public void setImmediateXContentParent(XContentParser.Token token) {
+        this.lastSetToken = token;
+    }
+
+    public XContentParser.Token getImmediateXContentParent() {
+        return lastSetToken;
+    }
+
+    public boolean isImmediateParentAnArray() {
+        return lastSetToken == XContentParser.Token.START_ARRAY;
+    }
+
     /**
      * Add a new mapper dynamically created while parsing.
      *
@@ -665,8 +719,14 @@ public abstract class DocumentParserContext {
         if (idField != null) {
             // We just need to store the id as indexed field, so that IndexWriter#deleteDocuments(term) can then
             // delete it when the root document is deleted too.
-            // NOTE: we don't support nested fields in tsdb so it's safe to assume the standard id mapper.
             doc.add(new StringField(IdFieldMapper.NAME, idField.binaryValue(), Field.Store.NO));
+        } else if (indexSettings().getMode() == IndexMode.TIME_SERIES) {
+            // For time series indices, the _id is generated from the _tsid, which in turn is generated from the values of the configured
+            // routing fields. At this point in document parsing, we can't guarantee that we've parsed all the routing fields yet, so the
+            // parent document's _id is not yet available.
+            // So we just add the child document without the parent _id, then in TimeSeriesIdFieldMapper#postParse we set the _id on all
+            // child documents once we've calculated it.
+            assert getRoutingFields().equals(RoutingFields.Noop.INSTANCE) == false;
         } else {
             throw new IllegalStateException("The root document of a nested document should have an _id field");
         }

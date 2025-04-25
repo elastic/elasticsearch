@@ -267,14 +267,14 @@ public class SourceFieldMapperTests extends MetadataMapperTestCase {
         });
         DocumentMapper mapper = createTimeSeriesModeDocumentMapper(mapping);
         assertTrue(mapper.sourceMapper().isSynthetic());
-        assertEquals("{\"_source\":{}}", mapper.sourceMapper().toString());
+        assertEquals("{}", mapper.sourceMapper().toString());
     }
 
     public void testSyntheticSourceWithLogsIndexMode() throws IOException {
         XContentBuilder mapping = fieldMapping(b -> { b.field("type", "keyword"); });
         DocumentMapper mapper = createLogsModeDocumentMapper(mapping);
         assertTrue(mapper.sourceMapper().isSynthetic());
-        assertEquals("{\"_source\":{}}", mapper.sourceMapper().toString());
+        assertEquals("{}", mapper.sourceMapper().toString());
     }
 
     public void testSupportsNonDefaultParameterValues() throws IOException {
@@ -489,8 +489,7 @@ public class SourceFieldMapperTests extends MetadataMapperTestCase {
             MapperService mapperService = createMapperService(settings, topMapping(b -> {}));
             DocumentMapper docMapper = mapperService.documentMapper();
             ParsedDocument doc = docMapper.parse(source(b -> b.field("field1", "value1")));
-            assertNotNull(doc.rootDoc().getField("_recovery_source"));
-            assertThat(doc.rootDoc().getField("_recovery_source").binaryValue(), equalTo(new BytesRef("{\"field1\":\"value1\"}")));
+            assertNull(doc.rootDoc().getField("_recovery_source"));
         }
         {
             Settings settings = Settings.builder()
@@ -521,8 +520,8 @@ public class SourceFieldMapperTests extends MetadataMapperTestCase {
             MapperService mapperService = createMapperService(settings, mapping(b -> {}));
             DocumentMapper docMapper = mapperService.documentMapper();
             ParsedDocument doc = docMapper.parse(source(b -> { b.field("@timestamp", "2012-02-13"); }));
-            assertNotNull(doc.rootDoc().getField("_recovery_source"));
-            assertThat(doc.rootDoc().getField("_recovery_source").binaryValue(), equalTo(new BytesRef("{\"@timestamp\":\"2012-02-13\"}")));
+            assertNotNull(doc.rootDoc().getField("_recovery_source_size"));
+            assertThat(doc.rootDoc().getField("_recovery_source_size").numericValue(), equalTo(27L));
         }
         {
             Settings settings = Settings.builder()
@@ -715,8 +714,7 @@ public class SourceFieldMapperTests extends MetadataMapperTestCase {
             MapperService mapperService = createMapperService(settings, mappings);
             DocumentMapper docMapper = mapperService.documentMapper();
             ParsedDocument doc = docMapper.parse(source(b -> { b.field("@timestamp", "2012-02-13"); }));
-            assertNotNull(doc.rootDoc().getField("_recovery_source"));
-            assertThat(doc.rootDoc().getField("_recovery_source").binaryValue(), equalTo(new BytesRef("{\"@timestamp\":\"2012-02-13\"}")));
+            assertNull(doc.rootDoc().getField("_recovery_source"));
         }
         {
             Settings settings = Settings.builder()
@@ -742,11 +740,7 @@ public class SourceFieldMapperTests extends MetadataMapperTestCase {
             }));
             DocumentMapper docMapper = mapperService.documentMapper();
             ParsedDocument doc = docMapper.parse(source("123", b -> b.field("@timestamp", "2012-02-13").field("field", "value1"), null));
-            assertNotNull(doc.rootDoc().getField("_recovery_source"));
-            assertThat(
-                doc.rootDoc().getField("_recovery_source").binaryValue(),
-                equalTo(new BytesRef("{\"@timestamp\":\"2012-02-13\",\"field\":\"value1\"}"))
-            );
+            assertNull(doc.rootDoc().getField("_recovery_source"));
         }
         {
             Settings settings = Settings.builder()
@@ -790,11 +784,7 @@ public class SourceFieldMapperTests extends MetadataMapperTestCase {
             MapperService mapperService = createMapperService(settings, mappings);
             DocumentMapper docMapper = mapperService.documentMapper();
             ParsedDocument doc = docMapper.parse(source("123", b -> b.field("@timestamp", "2012-02-13").field("field", "value1"), null));
-            assertNotNull(doc.rootDoc().getField("_recovery_source"));
-            assertThat(
-                doc.rootDoc().getField("_recovery_source").binaryValue(),
-                equalTo(new BytesRef("{\"@timestamp\":\"2012-02-13\",\"field\":\"value1\"}"))
-            );
+            assertNull(doc.rootDoc().getField("_recovery_source"));
         }
         {
             Settings settings = Settings.builder()

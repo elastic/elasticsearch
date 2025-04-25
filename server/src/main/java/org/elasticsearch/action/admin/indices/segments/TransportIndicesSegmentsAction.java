@@ -16,6 +16,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardsIterator;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -37,12 +38,14 @@ public class TransportIndicesSegmentsAction extends TransportBroadcastByNodeActi
     ShardSegments> {
 
     private final IndicesService indicesService;
+    private final ProjectResolver projectResolver;
 
     @Inject
     public TransportIndicesSegmentsAction(
         ClusterService clusterService,
         TransportService transportService,
         IndicesService indicesService,
+        ProjectResolver projectResolver,
         ActionFilters actionFilters,
         IndexNameExpressionResolver indexNameExpressionResolver
     ) {
@@ -56,6 +59,7 @@ public class TransportIndicesSegmentsAction extends TransportBroadcastByNodeActi
             transportService.getThreadPool().executor(ThreadPool.Names.MANAGEMENT)
         );
         this.indicesService = indicesService;
+        this.projectResolver = projectResolver;
     }
 
     /**
@@ -63,7 +67,7 @@ public class TransportIndicesSegmentsAction extends TransportBroadcastByNodeActi
      */
     @Override
     protected ShardsIterator shards(ClusterState clusterState, IndicesSegmentsRequest request, String[] concreteIndices) {
-        return clusterState.routingTable().allShards(concreteIndices);
+        return clusterState.routingTable(projectResolver.getProjectId()).allShards(concreteIndices);
     }
 
     @Override
@@ -73,7 +77,7 @@ public class TransportIndicesSegmentsAction extends TransportBroadcastByNodeActi
 
     @Override
     protected ClusterBlockException checkRequestBlock(ClusterState state, IndicesSegmentsRequest countRequest, String[] concreteIndices) {
-        return state.blocks().indicesBlockedException(ClusterBlockLevel.METADATA_READ, concreteIndices);
+        return state.blocks().indicesBlockedException(projectResolver.getProjectId(), ClusterBlockLevel.METADATA_READ, concreteIndices);
     }
 
     @Override

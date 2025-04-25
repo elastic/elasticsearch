@@ -7,8 +7,6 @@
 package org.elasticsearch.xpack.ml.packageloader;
 
 import org.elasticsearch.Build;
-import org.elasticsearch.action.ActionRequest;
-import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.bootstrap.BootstrapCheck;
 import org.elasticsearch.bootstrap.BootstrapContext;
 import org.elasticsearch.common.ReferenceDocs;
@@ -66,11 +64,11 @@ public class MachineLearningPackageLoader extends Plugin implements ActionPlugin
     }
 
     @Override
-    public List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {
+    public List<ActionHandler> getActions() {
         // all internal, no rest endpoint
         return Arrays.asList(
-            new ActionHandler<>(GetTrainedModelPackageConfigAction.INSTANCE, TransportGetTrainedModelPackageConfigAction.class),
-            new ActionHandler<>(LoadTrainedModelPackageAction.INSTANCE, TransportLoadTrainedModelPackage.class)
+            new ActionHandler(GetTrainedModelPackageConfigAction.INSTANCE, TransportGetTrainedModelPackageConfigAction.class),
+            new ActionHandler(LoadTrainedModelPackageAction.INSTANCE, TransportLoadTrainedModelPackage.class)
         );
     }
 
@@ -109,7 +107,7 @@ public class MachineLearningPackageLoader extends Plugin implements ActionPlugin
             @Override
             public BootstrapCheckResult check(BootstrapContext context) {
                 try {
-                    validateModelRepository(MODEL_REPOSITORY.get(context.settings()), context.environment().configFile());
+                    validateModelRepository(MODEL_REPOSITORY.get(context.settings()), context.environment().configDir());
                 } catch (Exception e) {
                     return BootstrapCheckResult.failure(
                         "Found an invalid configuration for xpack.ml.model_repository. "

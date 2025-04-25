@@ -33,8 +33,8 @@ public class PercentileDoubleGroupingAggregatorFunctionTests extends GroupingAgg
     }
 
     @Override
-    protected AggregatorFunctionSupplier aggregatorFunction(List<Integer> inputChannels) {
-        return new PercentileDoubleAggregatorFunctionSupplier(inputChannels, percentile);
+    protected AggregatorFunctionSupplier aggregatorFunction() {
+        return new PercentileDoubleAggregatorFunctionSupplier(percentile);
     }
 
     @Override

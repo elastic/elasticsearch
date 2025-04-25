@@ -44,10 +44,10 @@ import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
 import static java.util.Map.entry;
-import static org.elasticsearch.TransportVersions.ROLE_MONITOR_STATS;
 import static org.elasticsearch.xpack.core.security.authc.Authentication.VERSION_API_KEY_ROLES_AS_BYTES;
 import static org.elasticsearch.xpack.core.security.authc.AuthenticationTestHelper.randomCrossClusterAccessSubjectInfo;
 import static org.elasticsearch.xpack.core.security.authc.CrossClusterAccessSubjectInfoTests.randomRoleDescriptorsIntersection;
+import static org.elasticsearch.xpack.core.security.authz.permission.RemoteClusterPermissions.ROLE_MONITOR_STATS;
 import static org.elasticsearch.xpack.core.security.authz.permission.RemoteClusterPermissions.ROLE_REMOTE_CLUSTER_PRIVS;
 import static org.hamcrest.Matchers.anEmptyMap;
 import static org.hamcrest.Matchers.containsString;
@@ -853,7 +853,7 @@ public class AuthenticationTests extends ESTestCase {
         );
         final TransportVersion version = TransportVersionUtils.randomVersionBetween(
             random(),
-            TransportVersions.V_7_17_0,  // the minimum compatible version of 8.x
+            TransportVersions.V_8_0_0,
             versionBeforeCrossClusterAccessRealm
         );
 
@@ -958,7 +958,7 @@ public class AuthenticationTests extends ESTestCase {
     public void testMaybeRewriteForOlderVersionErasesDomainForVersionsBeforeDomains() {
         final TransportVersion olderVersion = TransportVersionUtils.randomVersionBetween(
             random(),
-            TransportVersions.V_7_17_0,
+            TransportVersions.V_8_0_0,
             TransportVersionUtils.getPreviousVersion(Authentication.VERSION_REALM_DOMAINS)
         );
         final Authentication authentication = AuthenticationTestHelper.builder()

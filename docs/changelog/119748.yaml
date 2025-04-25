@@ -1,6 +1,0 @@
-pr: 119748
-summary: Issue S3 web identity token refresh call with sufficient permissions
-area: Snapshot/Restore
-type: bug
-issues:
- - 119747

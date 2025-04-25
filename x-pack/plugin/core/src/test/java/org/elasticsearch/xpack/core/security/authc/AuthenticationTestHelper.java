@@ -25,7 +25,7 @@ import org.elasticsearch.xpack.core.security.authc.kerberos.KerberosRealmSetting
 import org.elasticsearch.xpack.core.security.authc.ldap.LdapRealmSettings;
 import org.elasticsearch.xpack.core.security.authc.oidc.OpenIdConnectRealmSettings;
 import org.elasticsearch.xpack.core.security.authc.pki.PkiRealmSettings;
-import org.elasticsearch.xpack.core.security.authc.saml.SamlRealmSettings;
+import org.elasticsearch.xpack.core.security.authc.saml.SingleSpSamlRealmSettings;
 import org.elasticsearch.xpack.core.security.authc.service.ServiceAccountSettings;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptorsIntersection;
@@ -193,7 +193,7 @@ public class AuthenticationTestHelper {
             LdapRealmSettings.LDAP_TYPE,
             JwtRealmSettings.TYPE,
             OpenIdConnectRealmSettings.TYPE,
-            SamlRealmSettings.TYPE,
+            SingleSpSamlRealmSettings.TYPE,
             KerberosRealmSettings.TYPE,
             PkiRealmSettings.TYPE,
             ESTestCase.randomAlphaOfLengthBetween(3, 8)

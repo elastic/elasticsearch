@@ -62,11 +62,19 @@ public class ReferenceDocsTests extends ESTestCase {
         return new BytesArray(stringBuilder.toString()).streamInput();
     }
 
-    public void testSuccess() throws IOException {
+    public void testSuccessNoFragments() throws IOException {
         final var linksMap = ReferenceDocs.readLinksBySymbol(getResourceStream((i, l) -> l));
         assertEquals(ReferenceDocs.values().length, linksMap.size());
         for (ReferenceDocs link : ReferenceDocs.values()) {
-            assertEquals(TEST_LINK_PLACEHOLDER, linksMap.get(link.name()));
+            assertEquals(new ReferenceDocs.LinkComponents(TEST_LINK_PLACEHOLDER, ""), linksMap.get(link.name()));
+        }
+    }
+
+    public void testSuccessWithFragments() throws IOException {
+        final var linksMap = ReferenceDocs.readLinksBySymbol(getResourceStream((i, l) -> l + "#test-fragment"));
+        assertEquals(ReferenceDocs.values().length, linksMap.size());
+        for (ReferenceDocs link : ReferenceDocs.values()) {
+            assertEquals(new ReferenceDocs.LinkComponents(TEST_LINK_PLACEHOLDER, "#test-fragment"), linksMap.get(link.name()));
         }
     }
 
@@ -174,6 +182,42 @@ public class ReferenceDocsTests extends ESTestCase {
                     + "] at line "
                     + (targetLine + 1)
             )
+        );
+    }
+
+    public void testRejectsQueryPart() {
+        final var targetLine = between(0, ReferenceDocs.values().length - 1);
+        assertThat(
+            expectThrows(
+                IllegalStateException.class,
+                () -> ReferenceDocs.readLinksBySymbol(
+                    getResourceStream((i, l) -> i == targetLine ? l.replace(TEST_LINK_PLACEHOLDER, "foo/bar?baz=quux") : l)
+                )
+            ).getMessage(),
+            equalTo("ReferenceDocs does not support links containing pre-existing query parameters: foo/bar?baz=quux")
+        );
+    }
+
+    // for manual verification
+    public void testShowAllLinks() {
+        for (final var link : ReferenceDocs.values()) {
+            logger.info("--> {}", link);
+        }
+    }
+
+    // for manual verification that the rendered links appear to be reasonable
+    public void testToStringLooksOk() {
+        // test one without a fragment ID
+        assertEquals(
+            "https://www.elastic.co/docs/troubleshoot/elasticsearch/discovery-troubleshooting?version=" + ReferenceDocs.VERSION_COMPONENT,
+            ReferenceDocs.DISCOVERY_TROUBLESHOOTING.toString()
+        );
+        // test another that has a fragment ID
+        assertEquals(
+            "https://www.elastic.co/docs/deploy-manage/deploy/self-managed/important-settings-configuration?version="
+                + ReferenceDocs.VERSION_COMPONENT
+                + "#initial_master_nodes",
+            ReferenceDocs.INITIAL_MASTER_NODES.toString()
         );
     }
 }

@@ -9,12 +9,9 @@
 
 package org.elasticsearch.jdk;
 
-import org.elasticsearch.core.UpdateForV9;
-
 public class RuntimeVersionFeature {
     private RuntimeVersionFeature() {}
 
-    @UpdateForV9(owner = UpdateForV9.Owner.CORE_INFRA) // Remove once we removed all references to SecurityManager in code
     public static boolean isSecurityManagerAvailable() {
         return Runtime.version().feature() < 24;
     }

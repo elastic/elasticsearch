@@ -11,6 +11,7 @@ package org.elasticsearch.reindex;
 
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.index.reindex.BulkByScrollResponse;
 import org.elasticsearch.index.reindex.ReindexRequest;
 import org.elasticsearch.index.reindex.ScrollableHitSource.Hit;
@@ -78,7 +79,7 @@ public class ReindexMetadataTests extends AbstractAsyncBulkByScrollActionMetadat
                 null,
                 ReindexMetadataTests.this.threadPool,
                 null,
-                ClusterState.EMPTY_STATE,
+                ClusterState.EMPTY_STATE.projectState(Metadata.DEFAULT_PROJECT_ID),
                 null,
                 request(),
                 listener()

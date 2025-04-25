@@ -23,9 +23,12 @@ import org.elasticsearch.xpack.esql.core.util.StringUtils;
 import org.elasticsearch.xpack.esql.expression.SurrogateExpression;
 import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
+import org.elasticsearch.xpack.esql.expression.function.FunctionType;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.FromAggregateMetricDouble;
+import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToLong;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvSum;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Div;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Mul;
 
 import java.io.IOException;
@@ -42,18 +45,20 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.UNSIGNED_LONG;
 /**
  * Sum all values of a field in matching documents.
  */
-public class Sum extends NumericAggregate implements SurrogateExpression {
+public class Sum extends NumericAggregate implements SurrogateExpression, HasSampleCorrection {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Sum", Sum::new);
+
+    private final boolean isSampleCorrected;
 
     @FunctionInfo(
         returnType = { "long", "double" },
         description = "The sum of a numeric expression.",
-        isAggregation = true,
+        type = FunctionType.AGGREGATE,
         examples = {
             @Example(file = "stats", tag = "sum"),
             @Example(
                 description = "The expression can use inline functions. For example, to calculate "
-                    + "the sum of each employee's maximum salary changes, apply the "
+                    + "the sum of each employee’s maximum salary changes, apply the "
                     + "`MV_MAX` function to each row and then sum the results",
                 file = "stats",
                 tag = "docsStatsSumNestedExpression"
@@ -64,11 +69,20 @@ public class Sum extends NumericAggregate implements SurrogateExpression {
     }
 
     public Sum(Source source, Expression field, Expression filter) {
+        this(source, field, filter, false);
+    }
+
+    private Sum(Source source, Expression field, Expression filter, boolean isSampleCorrected) {
         super(source, field, filter, emptyList());
+        this.isSampleCorrected = isSampleCorrected;
     }
 
     private Sum(StreamInput in) throws IOException {
         super(in);
+        // isSampleCorrected is only used during query optimization to mark
+        // whether this function has been processed. Hence there's no need to
+        // serialize it.
+        this.isSampleCorrected = false;
     }
 
     @Override
@@ -98,18 +112,18 @@ public class Sum extends NumericAggregate implements SurrogateExpression {
     }
 
     @Override
-    protected AggregatorFunctionSupplier longSupplier(List<Integer> inputChannels) {
-        return new SumLongAggregatorFunctionSupplier(inputChannels);
+    protected AggregatorFunctionSupplier longSupplier() {
+        return new SumLongAggregatorFunctionSupplier();
     }
 
     @Override
-    protected AggregatorFunctionSupplier intSupplier(List<Integer> inputChannels) {
-        return new SumIntAggregatorFunctionSupplier(inputChannels);
+    protected AggregatorFunctionSupplier intSupplier() {
+        return new SumIntAggregatorFunctionSupplier();
     }
 
     @Override
-    protected AggregatorFunctionSupplier doubleSupplier(List<Integer> inputChannels) {
-        return new SumDoubleAggregatorFunctionSupplier(inputChannels);
+    protected AggregatorFunctionSupplier doubleSupplier() {
+        return new SumDoubleAggregatorFunctionSupplier();
     }
 
     @Override
@@ -145,5 +159,20 @@ public class Sum extends NumericAggregate implements SurrogateExpression {
         return field.foldable()
             ? new Mul(s, new MvSum(s, field), new Count(s, new Literal(s, StringUtils.WILDCARD, DataType.KEYWORD)))
             : null;
+    }
+
+    @Override
+    public boolean isSampleCorrected() {
+        return isSampleCorrected;
+    }
+
+    @Override
+    public Expression sampleCorrection(Expression sampleProbability) {
+        Expression correctedSum = new Div(source(), new Sum(source(), field(), filter(), true), sampleProbability);
+        return switch (dataType()) {
+            case DOUBLE -> correctedSum;
+            case LONG -> new ToLong(source(), correctedSum);
+            default -> throw new IllegalStateException("unexpected data type [" + dataType() + "]");
+        };
     }
 }

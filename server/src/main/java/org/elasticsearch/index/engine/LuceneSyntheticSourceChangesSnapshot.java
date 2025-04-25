@@ -9,6 +9,8 @@
 
 package org.elasticsearch.index.engine;
 
+import com.carrotsearch.hppc.IntArrayList;
+
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.FieldDoc;
 import org.apache.lucene.search.ScoreDoc;
@@ -191,8 +193,28 @@ public class LuceneSyntheticSourceChangesSnapshot extends SearchBasedChangesSnap
                     maxDoc = leafReaderContext.reader().maxDoc();
                 } while (docRecord.docID() >= docBase + maxDoc);
 
-                leafFieldLoader = storedFieldLoader.getLoader(leafReaderContext, null);
-                leafSourceLoader = sourceLoader.leaf(leafReaderContext.reader(), null);
+                // TODO: instead of building an array, consider just checking whether doc ids are dense.
+                // Note, field loaders then would lose the ability to optionally eagerly loading values.
+                IntArrayList nextDocIds = new IntArrayList();
+                for (int j = i; j < documentRecords.size(); j++) {
+                    var record = documentRecords.get(j);
+                    if (record.isTombstone()) {
+                        continue;
+                    }
+                    int docID = record.docID();
+                    if (docID >= docBase + maxDoc) {
+                        break;
+                    }
+                    int segmentDocID = docID - docBase;
+                    nextDocIds.add(segmentDocID);
+                }
+
+                // This computed doc ids arrays us used by stored field loader as a heuristic to determine whether to use a sequential
+                // stored field reader (which bulk loads stored fields and avoids decompressing the same blocks multiple times). For
+                // source loader, it is also used as a heuristic for bulk reading doc values (E.g. SingletonDocValuesLoader).
+                int[] nextDocIdArray = nextDocIds.toArray();
+                leafFieldLoader = storedFieldLoader.getLoader(leafReaderContext, nextDocIdArray);
+                leafSourceLoader = sourceLoader.leaf(leafReaderContext.reader(), nextDocIdArray);
                 setNextSourceMetadataReader(leafReaderContext);
             }
             int segmentDocID = docRecord.docID() - docBase;

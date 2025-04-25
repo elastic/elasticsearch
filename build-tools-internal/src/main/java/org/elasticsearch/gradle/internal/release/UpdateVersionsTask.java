@@ -15,6 +15,7 @@ import com.github.javaparser.ast.NodeList;
 import com.github.javaparser.ast.body.ClassOrInterfaceDeclaration;
 import com.github.javaparser.ast.body.FieldDeclaration;
 import com.github.javaparser.ast.body.VariableDeclarator;
+import com.github.javaparser.ast.expr.Expression;
 import com.github.javaparser.ast.expr.NameExpr;
 import com.github.javaparser.printer.lexicalpreservation.LexicalPreservingPrinter;
 import com.google.common.annotations.VisibleForTesting;
@@ -33,6 +34,7 @@ import java.util.NavigableMap;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.TreeMap;
+import java.util.function.Function;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
@@ -51,6 +53,8 @@ public class UpdateVersionsTask extends AbstractVersionsTask {
     private boolean setCurrent;
     @Nullable
     private Version removeVersion;
+    @Nullable
+    private String addTransportVersion;
 
     @Inject
     public UpdateVersionsTask(BuildLayout layout) {
@@ -60,6 +64,11 @@ public class UpdateVersionsTask extends AbstractVersionsTask {
     @Option(option = "add-version", description = "Specifies the version to add")
     public void addVersion(String version) {
         this.addVersion = Version.fromString(version);
+    }
+
+    @Option(option = "add-transport-version", description = "Specifies transport version to add")
+    public void addTransportVersion(String transportVersion) {
+        this.addTransportVersion = transportVersion;
     }
 
     @Option(option = "set-current", description = "Set the 'current' constant to the new version")
@@ -87,14 +96,17 @@ public class UpdateVersionsTask extends AbstractVersionsTask {
 
     @TaskAction
     public void executeTask() throws IOException {
-        if (addVersion == null && removeVersion == null) {
+        if (addVersion == null && removeVersion == null && addTransportVersion == null) {
             throw new IllegalArgumentException("No versions to add or remove specified");
         }
         if (setCurrent && addVersion == null) {
             throw new IllegalArgumentException("No new version added to set as the current version");
         }
-        if (Objects.equals(addVersion, removeVersion)) {
+        if (addVersion != null && removeVersion != null && Objects.equals(addVersion, removeVersion)) {
             throw new IllegalArgumentException("Same version specified to add and remove");
+        }
+        if (addTransportVersion != null && addTransportVersion.split(":").length != 2) {
+            throw new IllegalArgumentException("Transport version specified must be in the format '<constant>:<version-id>'");
         }
 
         Path versionJava = rootDir.resolve(VERSION_FILE_PATH);
@@ -113,6 +125,18 @@ public class UpdateVersionsTask extends AbstractVersionsTask {
             var removed = removeVersionConstant(modifiedFile.orElse(file), removeVersion);
             if (removed.isPresent()) {
                 modifiedFile = removed;
+            }
+        }
+        if (addTransportVersion != null) {
+            var constant = addTransportVersion.split(":")[0];
+            var versionId = Integer.parseInt(addTransportVersion.split(":")[1]);
+            LOGGER.lifecycle("Adding transport version constant [{}] with id [{}]", constant, versionId);
+
+            var transportVersionsFile = rootDir.resolve(TRANSPORT_VERSIONS_FILE_PATH);
+            var transportVersions = LexicalPreservingPrinter.setup(StaticJavaParser.parse(transportVersionsFile));
+            var modified = addTransportVersionConstant(transportVersions, constant, versionId);
+            if (modified.isPresent()) {
+                writeOutNewContents(transportVersionsFile, modified.get());
             }
         }
 
@@ -161,6 +185,51 @@ public class UpdateVersionsTask extends AbstractVersionsTask {
         return Optional.of(versionJava);
     }
 
+    @VisibleForTesting
+    static Optional<CompilationUnit> addTransportVersionConstant(CompilationUnit transportVersions, String constant, int versionId) {
+        ClassOrInterfaceDeclaration transportVersionsClass = transportVersions.getClassByName("TransportVersions").get();
+        if (transportVersionsClass.getFieldByName(constant).isPresent()) {
+            LOGGER.lifecycle("New transport version constant [{}] already present, skipping", constant);
+            return Optional.empty();
+        }
+
+        TreeMap<Integer, FieldDeclaration> versions = transportVersionsClass.getFields()
+            .stream()
+            .filter(f -> f.getElementType().asString().equals("TransportVersion"))
+            .filter(
+                f -> f.getVariables().stream().limit(1).allMatch(v -> v.getInitializer().filter(Expression::isMethodCallExpr).isPresent())
+            )
+            .filter(f -> f.getVariable(0).getInitializer().get().asMethodCallExpr().getNameAsString().endsWith("def"))
+            .collect(
+                Collectors.toMap(
+                    f -> f.getVariable(0)
+                        .getInitializer()
+                        .get()
+                        .asMethodCallExpr()
+                        .getArgument(0)
+                        .asIntegerLiteralExpr()
+                        .asNumber()
+                        .intValue(),
+                    Function.identity(),
+                    (f1, f2) -> {
+                        throw new IllegalStateException("Duplicate version constant " + f1);
+                    },
+                    TreeMap::new
+                )
+            );
+
+        // find the version this should be inserted after
+        Map.Entry<Integer, FieldDeclaration> previousVersion = versions.lowerEntry(versionId);
+        if (previousVersion == null) {
+            throw new IllegalStateException(String.format("Could not find previous version to [%s]", versionId));
+        }
+
+        FieldDeclaration newTransportVersion = createNewTransportVersionConstant(previousVersion.getValue(), constant, versionId);
+        transportVersionsClass.getMembers().addAfter(newTransportVersion, previousVersion.getValue());
+
+        return Optional.of(transportVersions);
+    }
+
     private static FieldDeclaration createNewVersionConstant(FieldDeclaration lastVersion, String newName, String newExpr) {
         return new FieldDeclaration(
             new NodeList<>(lastVersion.getModifiers()),
@@ -170,6 +239,29 @@ public class UpdateVersionsTask extends AbstractVersionsTask {
                 StaticJavaParser.parseExpression(String.format("new Version(%s)", newExpr))
             )
         );
+    }
+
+    private static FieldDeclaration createNewTransportVersionConstant(FieldDeclaration lastVersion, String newName, int newId) {
+        return new FieldDeclaration(
+            new NodeList<>(lastVersion.getModifiers()),
+            new VariableDeclarator(
+                lastVersion.getCommonType(),
+                newName,
+                StaticJavaParser.parseExpression(String.format("def(%s)", formatTransportVersionId(newId)))
+            )
+        );
+    }
+
+    private static String formatTransportVersionId(int id) {
+        String idString = Integer.toString(id);
+
+        return new StringBuilder(idString.substring(idString.length() - 2, idString.length())).insert(0, "_")
+            .insert(0, idString.substring(idString.length() - 3, idString.length() - 2))
+            .insert(0, "_")
+            .insert(0, idString.substring(idString.length() - 6, idString.length() - 3))
+            .insert(0, "_")
+            .insert(0, idString.substring(0, idString.length() - 6))
+            .toString();
     }
 
     @VisibleForTesting

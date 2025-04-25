@@ -42,7 +42,7 @@ tasks.named('checkstyleMain').configure {
   excludes = ["**/*.java.st"]
 }
 
-tasks.named("spotlessJava") { dependsOn stringTemplates }
+tasks.named("spotlessJava") { dependsOn "stringTemplates" }
 
 spotless {
   java {
@@ -860,6 +860,29 @@ tasks.named('stringTemplates').configure {
     it.properties = booleanProperties
     it.inputFile = enrichResultBuilderInput
     it.outputFile = "org/elasticsearch/xpack/compute/operator/lookup/EnrichResultBuilderForBoolean.java"
+  }
+
+  // TODO: add last_over_time for other types: boolean, bytes_refs
+  File lastOverTimeAggregatorInputFile = file("src/main/java/org/elasticsearch/compute/aggregation/X-LastOverTimeAggregator.java.st")
+  template {
+    it.properties = intProperties
+    it.inputFile = lastOverTimeAggregatorInputFile
+    it.outputFile = "org/elasticsearch/compute/aggregation/LastOverTimeIntAggregator.java"
+  }
+  template {
+    it.properties = longProperties
+    it.inputFile = lastOverTimeAggregatorInputFile
+    it.outputFile = "org/elasticsearch/compute/aggregation/LastOverTimeLongAggregator.java"
+  }
+  template {
+    it.properties = floatProperties
+    it.inputFile = lastOverTimeAggregatorInputFile
+    it.outputFile = "org/elasticsearch/compute/aggregation/LastOverTimeFloatAggregator.java"
+  }
+  template {
+    it.properties = doubleProperties
+    it.inputFile = lastOverTimeAggregatorInputFile
+    it.outputFile = "org/elasticsearch/compute/aggregation/LastOverTimeDoubleAggregator.java"
   }
 
 }

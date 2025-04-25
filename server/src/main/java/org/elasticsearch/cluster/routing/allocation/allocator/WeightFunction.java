@@ -12,8 +12,10 @@ package org.elasticsearch.cluster.routing.allocation.allocator;
 import org.elasticsearch.cluster.ClusterInfo;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.routing.RoutingNodes;
 import org.elasticsearch.cluster.routing.allocation.WriteLoadForecaster;
+import org.elasticsearch.cluster.routing.allocation.allocator.BalancedShardsAllocator.ProjectIndex;
 import org.elasticsearch.index.shard.ShardId;
 
 /**
@@ -58,7 +60,11 @@ public class WeightFunction {
         theta3 = diskUsageBalance / sum;
     }
 
-    float calculateNodeWeightWithIndex(BalancedShardsAllocator.Balancer balancer, BalancedShardsAllocator.ModelNode node, String index) {
+    float calculateNodeWeightWithIndex(
+        BalancedShardsAllocator.Balancer balancer,
+        BalancedShardsAllocator.ModelNode node,
+        ProjectIndex index
+    ) {
         final float weightIndex = node.numShards(index) - balancer.avgShardsPerNode(index);
         final float nodeWeight = calculateNodeWeight(
             node.numShards(),
@@ -103,8 +109,10 @@ public class WeightFunction {
 
     private static double getTotalWriteLoad(WriteLoadForecaster writeLoadForecaster, Metadata metadata) {
         double writeLoad = 0.0;
-        for (IndexMetadata indexMetadata : metadata.indices().values()) {
-            writeLoad += getIndexWriteLoad(writeLoadForecaster, indexMetadata);
+        for (ProjectMetadata project : metadata.projects().values()) {
+            for (IndexMetadata indexMetadata : project.indices().values()) {
+                writeLoad += getIndexWriteLoad(writeLoadForecaster, indexMetadata);
+            }
         }
         return writeLoad;
     }
@@ -120,8 +128,10 @@ public class WeightFunction {
 
     private static long getTotalDiskUsageInBytes(ClusterInfo clusterInfo, Metadata metadata) {
         long totalDiskUsageInBytes = 0;
-        for (IndexMetadata indexMetadata : metadata.indices().values()) {
-            totalDiskUsageInBytes += getIndexDiskUsageInBytes(clusterInfo, indexMetadata);
+        for (ProjectMetadata project : metadata.projects().values()) {
+            for (IndexMetadata indexMetadata : project.indices().values()) {
+                totalDiskUsageInBytes += getIndexDiskUsageInBytes(clusterInfo, indexMetadata);
+            }
         }
         return totalDiskUsageInBytes;
     }

@@ -14,8 +14,10 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionTestUtils;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.junit.After;
 import org.junit.Before;
 import org.mockito.ArgumentCaptor;
 
@@ -53,7 +55,7 @@ public class StreamingHttpResultPublisherTests extends ESTestCase {
     private static final long maxBytes = message.length;
     private ThreadPool threadPool;
     private HttpSettings settings;
-    private ActionListener<Flow.Publisher<HttpResult>> listener;
+    private final AtomicReference<Tuple<StreamingHttpResult, Exception>> result = new AtomicReference<>(null);
     private StreamingHttpResultPublisher publisher;
 
     @Before
@@ -61,12 +63,21 @@ public class StreamingHttpResultPublisherTests extends ESTestCase {
         super.setUp();
         threadPool = mock(ThreadPool.class);
         settings = mock(HttpSettings.class);
-        listener = spy(ActionListener.noop());
 
         when(threadPool.executor(UTILITY_THREAD_POOL_NAME)).thenReturn(EsExecutors.DIRECT_EXECUTOR_SERVICE);
         when(settings.getMaxResponseSize()).thenReturn(ByteSizeValue.ofBytes(maxBytes));
 
-        publisher = new StreamingHttpResultPublisher(threadPool, settings, listener);
+        publisher = new StreamingHttpResultPublisher(threadPool, settings, listener());
+    }
+
+    private ActionListener<StreamingHttpResult> listener() {
+        return ActionListener.wrap(r -> result.set(Tuple.tuple(r, null)), e -> result.set(Tuple.tuple(null, e)));
+    }
+
+    @After
+    public void tearDown() throws Exception {
+        super.tearDown();
+        result.set(null);
     }
 
     /**
@@ -76,7 +87,7 @@ public class StreamingHttpResultPublisherTests extends ESTestCase {
      */
     public void testFirstResponseCallsListener() throws IOException {
         var latch = new CountDownLatch(1);
-        var listener = ActionTestUtils.<Flow.Publisher<HttpResult>>assertNoFailureListener(r -> latch.countDown());
+        var listener = ActionTestUtils.<StreamingHttpResult>assertNoFailureListener(r -> latch.countDown());
         publisher = new StreamingHttpResultPublisher(threadPool, settings, listener);
 
         publisher.responseReceived(mock(HttpResponse.class));
@@ -92,7 +103,7 @@ public class StreamingHttpResultPublisherTests extends ESTestCase {
      */
     public void testNonEmptyFirstResponseCallsListener() throws IOException {
         var latch = new CountDownLatch(1);
-        var listener = ActionTestUtils.<Flow.Publisher<HttpResult>>assertNoFailureListener(r -> latch.countDown());
+        var listener = ActionTestUtils.<StreamingHttpResult>assertNoFailureListener(r -> latch.countDown());
         publisher = new StreamingHttpResultPublisher(threadPool, settings, listener);
 
         when(settings.getMaxResponseSize()).thenReturn(ByteSizeValue.ofBytes(9000));
@@ -127,7 +138,7 @@ public class StreamingHttpResultPublisherTests extends ESTestCase {
         publisher.consumeContent(contentDecoder(message), mock(IOControl.class));
 
         // subscribe
-        publisher.subscribe(subscriber);
+        testPublisher().subscribe(subscriber);
         assertThat("subscribe must call onSubscribe", subscriber.subscription, notNullValue());
         assertThat("onNext should only be called once we have requested data", subscriber.httpResult, nullValue());
 
@@ -142,7 +153,7 @@ public class StreamingHttpResultPublisherTests extends ESTestCase {
 
         // publisher sends data
         publisher.consumeContent(contentDecoder(message), mock(IOControl.class));
-        assertThat("onNext was called with " + new String(message, StandardCharsets.UTF_8), subscriber.httpResult.body(), equalTo(message));
+        assertThat("onNext was called with " + new String(message, StandardCharsets.UTF_8), subscriber.httpResult, equalTo(message));
     }
 
     /**
@@ -157,7 +168,7 @@ public class StreamingHttpResultPublisherTests extends ESTestCase {
         publisher.close();
 
         // subscriber requests data
-        publisher.subscribe(subscriber);
+        testPublisher().subscribe(subscriber);
         assertThat("subscribe must call onSubscribe", subscriber.subscription, notNullValue());
         subscriber.requestData();
         assertThat("onNext was called with the initial HttpResponse", subscriber.httpResult, notNullValue());
@@ -187,7 +198,7 @@ public class StreamingHttpResultPublisherTests extends ESTestCase {
     public void testResumeApache() throws IOException {
         var subscriber = new TestSubscriber();
         publisher.responseReceived(mock(HttpResponse.class));
-        publisher.subscribe(subscriber);
+        testPublisher().subscribe(subscriber);
         subscriber.requestData();
         subscriber.httpResult = null;
 
@@ -212,7 +223,7 @@ public class StreamingHttpResultPublisherTests extends ESTestCase {
         var subscriber = new TestSubscriber();
         publisher.responseReceived(mock(HttpResponse.class));
         publisher.consumeContent(contentDecoder(message), mock(IOControl.class));
-        publisher.subscribe(subscriber);
+        testPublisher().subscribe(subscriber);
         subscriber.requestData();
         subscriber.httpResult = null;
 
@@ -243,7 +254,7 @@ public class StreamingHttpResultPublisherTests extends ESTestCase {
     public void testErrorBeforeRequest() {
         var exception = new NullPointerException("test");
         publisher.failed(exception);
-        verify(listener).onFailure(exception);
+        assertThat(result.get().v2(), equalTo(exception));
     }
 
     /**
@@ -361,21 +372,17 @@ public class StreamingHttpResultPublisherTests extends ESTestCase {
      * When cancel is called
      * Then we only send onComplete once
      */
-    public void testCancelIsIdempotent() throws IOException {
-        Flow.Subscriber<HttpResult> subscriber = mock();
-
-        var subscription = ArgumentCaptor.forClass(Flow.Subscription.class);
-        publisher.subscribe(subscriber);
-        verify(subscriber).onSubscribe(subscription.capture());
+    public void testCancelIsIdempotent() {
+        Flow.Subscriber<byte[]> subscriber = mock();
 
         publisher.responseReceived(mock());
-        publisher.consumeContent(contentDecoder(message), mock(IOControl.class));
-        subscription.getValue().request(1);
 
-        subscription.getValue().request(1);
+        var subscription = ArgumentCaptor.forClass(Flow.Subscription.class);
+        testPublisher().subscribe(subscriber);
+        verify(subscriber).onSubscribe(subscription.capture());
+
+        subscription.getValue().request(2);
         publisher.cancel();
-        verify(subscriber, times(1)).onComplete();
-        subscription.getValue().request(1);
         publisher.cancel();
         verify(subscriber, times(1)).onComplete();
     }
@@ -384,21 +391,17 @@ public class StreamingHttpResultPublisherTests extends ESTestCase {
      * When close is called
      * Then we only send onComplete once
      */
-    public void testCloseIsIdempotent() throws IOException {
-        Flow.Subscriber<HttpResult> subscriber = mock();
-
-        var subscription = ArgumentCaptor.forClass(Flow.Subscription.class);
-        publisher.subscribe(subscriber);
-        verify(subscriber).onSubscribe(subscription.capture());
+    public void testCloseIsIdempotent() {
+        Flow.Subscriber<byte[]> subscriber = mock();
 
         publisher.responseReceived(mock());
-        publisher.consumeContent(contentDecoder(message), mock(IOControl.class));
-        subscription.getValue().request(1);
 
-        subscription.getValue().request(1);
+        var subscription = ArgumentCaptor.forClass(Flow.Subscription.class);
+        testPublisher().subscribe(subscriber);
+        verify(subscriber).onSubscribe(subscription.capture());
+
+        subscription.getValue().request(2);
         publisher.close();
-        verify(subscriber, times(1)).onComplete();
-        subscription.getValue().request(1);
         publisher.close();
         verify(subscriber, times(1)).onComplete();
     }
@@ -409,20 +412,16 @@ public class StreamingHttpResultPublisherTests extends ESTestCase {
      */
     public void testFailedIsIdempotent() throws IOException {
         var expectedException = new IllegalStateException("wow");
-        Flow.Subscriber<HttpResult> subscriber = mock();
-
-        var subscription = ArgumentCaptor.forClass(Flow.Subscription.class);
-        publisher.subscribe(subscriber);
-        verify(subscriber).onSubscribe(subscription.capture());
+        Flow.Subscriber<byte[]> subscriber = mock();
 
         publisher.responseReceived(mock());
-        publisher.consumeContent(contentDecoder(message), mock(IOControl.class));
-        subscription.getValue().request(1);
 
-        subscription.getValue().request(1);
+        var subscription = ArgumentCaptor.forClass(Flow.Subscription.class);
+        testPublisher().subscribe(subscriber);
+        verify(subscriber).onSubscribe(subscription.capture());
+
+        subscription.getValue().request(2);
         publisher.failed(expectedException);
-        verify(subscriber, times(1)).onError(eq(expectedException));
-        subscription.getValue().request(1);
         publisher.failed(expectedException);
         verify(subscriber, times(1)).onError(eq(expectedException));
     }
@@ -492,10 +491,11 @@ public class StreamingHttpResultPublisherTests extends ESTestCase {
      * Then that subscriber should receive an IllegalStateException
      */
     public void testDoubleSubscribeFails() {
-        publisher.subscribe(mock());
+        publisher.responseReceived(mock());
+        testPublisher().subscribe(mock());
 
         var subscriber = new TestSubscriber();
-        publisher.subscribe(subscriber);
+        testPublisher().subscribe(subscriber);
         assertThat(subscriber.throwable, notNullValue());
         assertThat(subscriber.throwable, instanceOf(IllegalStateException.class));
     }
@@ -508,10 +508,10 @@ public class StreamingHttpResultPublisherTests extends ESTestCase {
     public void testReuseMlThread() throws ExecutionException, InterruptedException, TimeoutException {
         try {
             threadPool = spy(createThreadPool(inferenceUtilityPool()));
-            publisher = new StreamingHttpResultPublisher(threadPool, settings, listener);
+            publisher = new StreamingHttpResultPublisher(threadPool, settings, listener());
             var subscriber = new TestSubscriber();
             publisher.responseReceived(mock(HttpResponse.class));
-            publisher.subscribe(subscriber);
+            testPublisher().subscribe(subscriber);
 
             CompletableFuture.runAsync(() -> {
                 try {
@@ -523,7 +523,7 @@ public class StreamingHttpResultPublisherTests extends ESTestCase {
             }, threadPool.executor(UTILITY_THREAD_POOL_NAME)).get(5, TimeUnit.SECONDS);
             verify(threadPool, times(1)).executor(UTILITY_THREAD_POOL_NAME);
             assertThat("onNext was called with the initial HttpResponse", subscriber.httpResult, notNullValue());
-            assertFalse("Expected HttpResult to have data", subscriber.httpResult.isBodyEmpty());
+            assertNotEquals("Expected HttpResult to have data", 0, subscriber.httpResult.length);
         } finally {
             terminate(threadPool);
         }
@@ -548,11 +548,11 @@ public class StreamingHttpResultPublisherTests extends ESTestCase {
                 return executorServiceSpy;
             }).when(threadPool).executor(UTILITY_THREAD_POOL_NAME);
 
-            publisher = new StreamingHttpResultPublisher(threadPool, settings, listener);
+            publisher = new StreamingHttpResultPublisher(threadPool, settings, listener());
             publisher.responseReceived(mock(HttpResponse.class));
             publisher.consumeContent(contentDecoder(message), mock(IOControl.class));
             // create an infinitely running Subscriber
-            var subscriber = new Flow.Subscriber<HttpResult>() {
+            var subscriber = new Flow.Subscriber<byte[]>() {
                 Flow.Subscription subscription;
                 boolean completed = false;
 
@@ -563,7 +563,7 @@ public class StreamingHttpResultPublisherTests extends ESTestCase {
                 }
 
                 @Override
-                public void onNext(HttpResult item) {
+                public void onNext(byte[] item) {
                     try {
                         publisher.consumeContent(contentDecoder(message), mock(IOControl.class));
                     } catch (IOException e) {
@@ -582,7 +582,7 @@ public class StreamingHttpResultPublisherTests extends ESTestCase {
                     completed = true;
                 }
             };
-            publisher.subscribe(subscriber);
+            testPublisher().subscribe(subscriber);
 
             // verify the thread has started
             assertThat("Thread should have started on subscribe", futureHolder.get(), notNullValue());
@@ -604,7 +604,7 @@ public class StreamingHttpResultPublisherTests extends ESTestCase {
         // start with a message published
         publisher.responseReceived(mock(HttpResponse.class));
         TestSubscriber subscriber = new TestSubscriber() {
-            public void onNext(HttpResult item) {
+            public void onNext(byte[] item) {
                 try {
                     // publish a second message
                     publisher.consumeContent(contentDecoder(message), mock(IOControl.class));
@@ -617,7 +617,7 @@ public class StreamingHttpResultPublisherTests extends ESTestCase {
                 super.onNext(item);
             }
         };
-        publisher.subscribe(subscriber);
+        testPublisher().subscribe(subscriber);
 
         verify(threadPool, times(0)).executor(UTILITY_THREAD_POOL_NAME);
         subscriber.requestData();
@@ -646,8 +646,9 @@ public class StreamingHttpResultPublisherTests extends ESTestCase {
     }
 
     private TestSubscriber subscribe() {
+        publisher.responseReceived(mock());
         var subscriber = new TestSubscriber();
-        publisher.subscribe(subscriber);
+        testPublisher().subscribe(subscriber);
         return subscriber;
     }
 
@@ -655,12 +656,12 @@ public class StreamingHttpResultPublisherTests extends ESTestCase {
         publisher.responseReceived(mock(HttpResponse.class));
         publisher.consumeContent(contentDecoder(message), mock(IOControl.class));
         TestSubscriber subscriber = new TestSubscriber() {
-            public void onNext(HttpResult item) {
+            public void onNext(byte[] item) {
                 runDuringOnNext.run();
                 super.onNext(item);
             }
         };
-        publisher.subscribe(subscriber);
+        testPublisher().subscribe(subscriber);
         return subscriber;
     }
 
@@ -668,19 +669,23 @@ public class StreamingHttpResultPublisherTests extends ESTestCase {
         publisher.responseReceived(mock(HttpResponse.class));
         publisher.consumeContent(contentDecoder(message), mock(IOControl.class));
         TestSubscriber subscriber = new TestSubscriber() {
-            public void onNext(HttpResult item) {
+            public void onNext(byte[] item) {
                 runDuringOnNext.run();
                 super.requestData();
                 super.onNext(item);
             }
         };
-        publisher.subscribe(subscriber);
+        testPublisher().subscribe(subscriber);
         return subscriber;
     }
 
-    private static class TestSubscriber implements Flow.Subscriber<HttpResult> {
+    private Flow.Publisher<byte[]> testPublisher() {
+        return result.get().v1().body();
+    }
+
+    private static class TestSubscriber implements Flow.Subscriber<byte[]> {
         private Flow.Subscription subscription;
-        private HttpResult httpResult;
+        private byte[] httpResult;
         private Throwable throwable;
         private boolean completed;
 
@@ -690,7 +695,7 @@ public class StreamingHttpResultPublisherTests extends ESTestCase {
         }
 
         @Override
-        public void onNext(HttpResult item) {
+        public void onNext(byte[] item) {
             this.httpResult = item;
         }
 

@@ -35,7 +35,7 @@ import java.util.Map;
 /**
  * Holds the ingest pipelines that are available in the cluster
  */
-public final class IngestMetadata implements Metadata.Custom {
+public final class IngestMetadata implements Metadata.ProjectCustom {
 
     public static final String TYPE = "ingest";
     private static final ParseField PIPELINES_FIELD = new ParseField("pipeline");
@@ -108,15 +108,15 @@ public final class IngestMetadata implements Metadata.Custom {
     }
 
     @Override
-    public Diff<Metadata.Custom> diff(Metadata.Custom before) {
+    public Diff<Metadata.ProjectCustom> diff(Metadata.ProjectCustom before) {
         return new IngestMetadataDiff((IngestMetadata) before, this);
     }
 
-    public static NamedDiff<Metadata.Custom> readDiffFrom(StreamInput in) throws IOException {
+    public static NamedDiff<Metadata.ProjectCustom> readDiffFrom(StreamInput in) throws IOException {
         return new IngestMetadataDiff(in);
     }
 
-    static class IngestMetadataDiff implements NamedDiff<Metadata.Custom> {
+    static class IngestMetadataDiff implements NamedDiff<Metadata.ProjectCustom> {
 
         final Diff<Map<String, PipelineConfiguration>> pipelines;
 
@@ -134,7 +134,7 @@ public final class IngestMetadata implements Metadata.Custom {
         }
 
         @Override
-        public Metadata.Custom apply(Metadata.Custom part) {
+        public Metadata.ProjectCustom apply(Metadata.ProjectCustom part) {
             return new IngestMetadata(pipelines.apply(((IngestMetadata) part).pipelines));
         }
 

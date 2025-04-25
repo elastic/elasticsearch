@@ -71,7 +71,7 @@ public class LuceneMinFloatOperatorTests extends LuceneMinOperatorTestCase {
 
             @Override
             public AggregatorFunction newAggregatorFunction(DriverContext context) {
-                return new MinFloatAggregatorFunctionSupplier(List.of(0, 1)).aggregator(context);
+                return new MinFloatAggregatorFunctionSupplier().aggregator(context, List.of(0, 1));
             }
 
             @Override

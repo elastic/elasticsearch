@@ -137,8 +137,9 @@ public class SystemIndexMappingUpdateServiceIT extends ESIntegTestCase {
 
         assertThat(sourceAsMap, equalTo(XContentHelper.convertToMap(XContentType.JSON.xContent(), expectedMappings, false)));
 
-        final GetSettingsResponse getSettingsResponse = indicesAdmin().getSettings(new GetSettingsRequest().indices(INDEX_NAME))
-            .actionGet();
+        final GetSettingsResponse getSettingsResponse = indicesAdmin().getSettings(
+            new GetSettingsRequest(TEST_REQUEST_TIMEOUT).indices(INDEX_NAME)
+        ).actionGet();
 
         final Settings actual = getSettingsResponse.getIndexToSettings().get(PRIMARY_INDEX_NAME);
 

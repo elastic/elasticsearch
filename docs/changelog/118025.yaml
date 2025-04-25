@@ -1,5 +1,0 @@
-pr: 118025
-summary: Update sparse text embeddings API route for Inference Service
-area: Inference
-type: enhancement
-issues: []

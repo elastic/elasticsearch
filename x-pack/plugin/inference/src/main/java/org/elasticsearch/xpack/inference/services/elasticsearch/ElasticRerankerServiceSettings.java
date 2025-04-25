@@ -14,21 +14,27 @@ import org.elasticsearch.xpack.core.ml.inference.assignment.AdaptiveAllocationsS
 import java.io.IOException;
 import java.util.Map;
 
+import static org.elasticsearch.xpack.inference.services.elasticsearch.ElasticsearchInternalService.RERANKER_ID;
+
 public class ElasticRerankerServiceSettings extends ElasticsearchInternalServiceSettings {
 
     public static final String NAME = "elastic_reranker_service_settings";
+
+    public static ElasticRerankerServiceSettings defaultEndpointSettings() {
+        return new ElasticRerankerServiceSettings(null, 1, RERANKER_ID, new AdaptiveAllocationsSettings(Boolean.TRUE, 0, 32));
+    }
 
     public ElasticRerankerServiceSettings(ElasticsearchInternalServiceSettings other) {
         super(other);
     }
 
-    public ElasticRerankerServiceSettings(
+    private ElasticRerankerServiceSettings(
         Integer numAllocations,
         int numThreads,
         String modelId,
         AdaptiveAllocationsSettings adaptiveAllocationsSettings
     ) {
-        super(numAllocations, numThreads, modelId, adaptiveAllocationsSettings);
+        super(numAllocations, numThreads, modelId, adaptiveAllocationsSettings, null);
     }
 
     public ElasticRerankerServiceSettings(StreamInput in) throws IOException {

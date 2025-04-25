@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.security.authz.interceptor;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.shrink.ResizeRequest;
+import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.rest.RestStatus;
@@ -49,11 +50,10 @@ public final class ResizeRequestInterceptor implements RequestInterceptor {
     }
 
     @Override
-    public void intercept(
+    public SubscribableListener<Void> intercept(
         RequestInfo requestInfo,
         AuthorizationEngine authorizationEngine,
-        AuthorizationInfo authorizationInfo,
-        ActionListener<Void> listener
+        AuthorizationInfo authorizationInfo
     ) {
         if (requestInfo.getRequest() instanceof ResizeRequest request) {
             final AuditTrail auditTrail = auditTrailService.get();
@@ -67,17 +67,17 @@ public final class ResizeRequestInterceptor implements RequestInterceptor {
                 if (indexAccessControl != null
                     && (indexAccessControl.getFieldPermissions().hasFieldLevelSecurity()
                         || indexAccessControl.getDocumentPermissions().hasDocumentLevelPermissions())) {
-                    listener.onFailure(
+                    return SubscribableListener.newFailed(
                         new ElasticsearchSecurityException(
                             "Resize requests are not allowed for users when "
                                 + "field or document level security is enabled on the source index",
                             RestStatus.BAD_REQUEST
                         )
                     );
-                    return;
                 }
             }
 
+            final SubscribableListener<Void> listener = new SubscribableListener<>();
             authorizationEngine.validateIndexPermissionsAreSubset(
                 requestInfo,
                 authorizationInfo,
@@ -101,8 +101,9 @@ public final class ResizeRequestInterceptor implements RequestInterceptor {
                     }
                 }, listener::onFailure), threadContext)
             );
+            return listener;
         } else {
-            listener.onResponse(null);
+            return SubscribableListener.nullSuccess();
         }
     }
 }

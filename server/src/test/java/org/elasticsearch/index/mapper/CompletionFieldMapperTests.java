@@ -152,7 +152,7 @@ public class CompletionFieldMapperTests extends MapperTestCase {
         MapperService mapperService = createMapperService(fieldMapping(this::minimalMapping));
         CodecService codecService = new CodecService(mapperService, BigArrays.NON_RECYCLING_INSTANCE);
         Codec codec = codecService.codec("default");
-        if (CodecService.ZSTD_STORED_FIELDS_FEATURE_FLAG.isEnabled()) {
+        if (CodecService.ZSTD_STORED_FIELDS_FEATURE_FLAG) {
             assertThat(codec, instanceOf(PerFieldMapperCodec.class));
             assertThat(((PerFieldMapperCodec) codec).getPostingsFormatForField("field"), instanceOf(latestLuceneCPClass));
         } else {
@@ -301,6 +301,55 @@ public class CompletionFieldMapperTests extends MapperTestCase {
             indexableFields.getFields("field.subsuggest"),
             containsInAnyOrder(contextSuggestField("key1"), contextSuggestField("key2"), contextSuggestField("key3"))
         );
+    }
+
+    public void testDuplicateSuggestionsWithContexts() throws IOException {
+        DocumentMapper defaultMapper = createDocumentMapper(fieldMapping(b -> {
+            b.field("type", "completion");
+            b.startArray("contexts");
+            {
+                b.startObject();
+                b.field("name", "place");
+                b.field("type", "category");
+                b.endObject();
+            }
+            b.endArray();
+        }));
+
+        ParsedDocument parsedDocument = defaultMapper.parse(source(b -> {
+            b.startArray("field");
+            {
+                b.startObject();
+                {
+                    b.array("input", "timmy", "starbucks");
+                    b.startObject("contexts").array("place", "cafe", "food").endObject();
+                    b.field("weight", 10);
+                }
+                b.endObject();
+                b.startObject();
+                {
+                    b.array("input", "timmy", "starbucks");
+                    b.startObject("contexts").array("place", "restaurant").endObject();
+                    b.field("weight", 1);
+                }
+                b.endObject();
+            }
+            b.endArray();
+        }));
+
+        List<IndexableField> indexedFields = parsedDocument.rootDoc().getFields("field");
+        assertThat(indexedFields, hasSize(4));
+
+        assertThat(
+            indexedFields,
+            containsInAnyOrder(
+                contextSuggestField("timmy"),
+                contextSuggestField("timmy"),
+                contextSuggestField("starbucks"),
+                contextSuggestField("starbucks")
+            )
+        );
+
     }
 
     public void testCompletionWithContextAndSubCompletion() throws Exception {

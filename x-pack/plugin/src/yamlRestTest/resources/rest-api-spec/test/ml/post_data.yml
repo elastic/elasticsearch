@@ -77,6 +77,8 @@ setup:
   - match: { latest_record_timestamp: 1403481700000}
 
   - do:
+      warnings:
+        - 'Forcing any buffered data to be processed is deprecated, in a future major version it will be compulsory to use a datafeed'
       ml.flush_job:
         job_id: post-data-job
   - match: { flushed: true }
@@ -110,7 +112,12 @@ setup:
 
 ---
 "Test flush and close job WITHOUT sending any data":
+  - skip:
+      features:
+        - "warnings"
   - do:
+      warnings:
+        - 'Forcing any buffered data to be processed is deprecated, in a future major version it will be compulsory to use a datafeed'
       ml.flush_job:
         job_id: post-data-job
   - match: { flushed: true }
@@ -150,6 +157,8 @@ setup:
 
   # Skip a bucket
   - do:
+      warnings:
+        - 'Forcing any buffered data to be processed is deprecated, in a future major version it will be compulsory to use a datafeed'
       ml.flush_job:
         job_id: post-data-job
         skip_time: 1403488700
@@ -266,26 +275,36 @@ setup:
   - skip:
       reason: "https://github.com/elastic/elasticsearch/issues/34747"
       cluster_features: ["gte_v6.5.0"]
+      features:
+        - "warnings"
 
   - do:
       catch: missing
+      warnings:
+        - 'Forcing any buffered data to be processed is deprecated, in a future major version it will be compulsory to use a datafeed'
       ml.flush_job:
         job_id: not_a_job
 
   - do:
       catch: /parse_exception/
+      warnings:
+        - 'Forcing any buffered data to be processed is deprecated, in a future major version it will be compulsory to use a datafeed'
       ml.flush_job:
         job_id: post-data-job
         start: not_a_date
 
   - do:
       catch: /parse_exception/
+      warnings:
+        - 'Forcing any buffered data to be processed is deprecated, in a future major version it will be compulsory to use a datafeed'
       ml.flush_job:
         job_id: post-data-job
         end: end_not_a_date
 
   - do:
       catch: /parse_exception/
+      warnings:
+        - 'Forcing any buffered data to be processed is deprecated, in a future major version it will be compulsory to use a datafeed'
       ml.flush_job:
         job_id: post-data-job
         advance_time: advance_time_not_a_date
@@ -311,6 +330,8 @@ setup:
 
   - do:
       catch: /status_exception/
+      warnings:
+        - 'Forcing any buffered data to be processed is deprecated, in a future major version it will be compulsory to use a datafeed'
       ml.flush_job:
         job_id: post-data-closed-job
 

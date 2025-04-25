@@ -38,7 +38,10 @@ import java.util.stream.Stream;
 
 import static org.elasticsearch.test.MapMatcher.assertMap;
 import static org.elasticsearch.xpack.esql.ccq.Clusters.REMOTE_CLUSTER_NAME;
-import static org.hamcrest.Matchers.*;
+import static org.hamcrest.Matchers.any;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.hasKey;
 
 @ThreadLeakFilters(filters = TestClustersThreadFilter.class)
 public class MultiClustersIT extends ESRestTestCase {
@@ -156,7 +159,11 @@ public class MultiClustersIT extends ESRestTestCase {
     }
 
     private <C, V> void assertResultMap(boolean includeCCSMetadata, Map<String, Object> result, C columns, V values, boolean remoteOnly) {
-        MapMatcher mapMatcher = getResultMatcher(ccsMetadataAvailable(), result.containsKey("is_partial"));
+        MapMatcher mapMatcher = getResultMatcher(
+            ccsMetadataAvailable(),
+            result.containsKey("is_partial"),
+            result.containsKey("documents_found")
+        );
         if (includeCCSMetadata) {
             mapMatcher = mapMatcher.entry("_clusters", any(Map.class));
         }

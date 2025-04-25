@@ -121,14 +121,16 @@ public class QueryableReservedRolesIT extends ESRestTestCase {
         waitForMigrationCompletion(adminClient(), SecurityMigrations.ROLE_METADATA_FLATTENED_MIGRATION_VERSION);
 
         final String[] allReservedRoles = ReservedRolesStore.names().toArray(new String[0]);
-        assertQuery(client(), """
-            { "query": { "bool": { "must": { "term": { "metadata._reserved": true } } } }, "size": 100 }
-            """, allReservedRoles.length, roles -> {
-            assertThat(roles, iterableWithSize(allReservedRoles.length));
-            for (var role : roles) {
-                assertThat((String) role.get("name"), is(oneOf(allReservedRoles)));
-            }
-        });
+        assertBusy(() -> {
+            assertQuery(client(), """
+                { "query": { "bool": { "must": { "term": { "metadata._reserved": true } } } }, "size": 100 }
+                """, allReservedRoles.length, roles -> {
+                assertThat(roles, iterableWithSize(allReservedRoles.length));
+                for (var role : roles) {
+                    assertThat((String) role.get("name"), is(oneOf(allReservedRoles)));
+                }
+            });
+        }, 30, TimeUnit.SECONDS);
 
         final String roleName = randomFrom(allReservedRoles);
         assertQuery(client(), String.format("""

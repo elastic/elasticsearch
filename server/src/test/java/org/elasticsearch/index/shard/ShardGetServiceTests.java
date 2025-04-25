@@ -34,6 +34,10 @@ import static org.hamcrest.Matchers.equalTo;
 
 public class ShardGetServiceTests extends IndexShardTestCase {
 
+    private GetResult getForUpdate(IndexShard indexShard, String id, long ifSeqNo, long ifPrimaryTerm) throws IOException {
+        return indexShard.getService().getForUpdate(id, ifSeqNo, ifPrimaryTerm, new String[] { RoutingFieldMapper.NAME });
+    }
+
     public void testGetForUpdate() throws IOException {
         Settings settings = indexSettings(IndexVersion.current(), 1, 1).build();
         IndexMetadata metadata = IndexMetadata.builder("test").putMapping("""
@@ -44,7 +48,7 @@ public class ShardGetServiceTests extends IndexShardTestCase {
         long translogInMemorySegmentCountExpected = 0;
         Engine.IndexResult test = indexDoc(primary, "test", "0", "{\"foo\" : \"bar\"}");
         assertTrue(primary.getEngine().refreshNeeded());
-        GetResult testGet = primary.getService().getForUpdate("0", UNASSIGNED_SEQ_NO, UNASSIGNED_PRIMARY_TERM);
+        GetResult testGet = getForUpdate(primary, "0", UNASSIGNED_SEQ_NO, UNASSIGNED_PRIMARY_TERM);
         assertFalse(testGet.getFields().containsKey(RoutingFieldMapper.NAME));
         assertEquals(testGet.sourceRef().utf8ToString(), "{\"foo\" : \"bar\"}");
         assertEquals(translogInMemorySegmentCountExpected, translogInMemorySegmentCount.getAsLong());
@@ -54,7 +58,7 @@ public class ShardGetServiceTests extends IndexShardTestCase {
 
         Engine.IndexResult test1 = indexDoc(primary, "1", "{\"foo\" : \"baz\"}", XContentType.JSON, "foobar");
         assertTrue(primary.getEngine().refreshNeeded());
-        GetResult testGet1 = primary.getService().getForUpdate("1", UNASSIGNED_SEQ_NO, UNASSIGNED_PRIMARY_TERM);
+        GetResult testGet1 = getForUpdate(primary, "1", UNASSIGNED_SEQ_NO, UNASSIGNED_PRIMARY_TERM);
         assertEquals(testGet1.sourceRef().utf8ToString(), "{\"foo\" : \"baz\"}");
         assertTrue(testGet1.getFields().containsKey(RoutingFieldMapper.NAME));
         assertEquals("foobar", testGet1.getFields().get(RoutingFieldMapper.NAME).getValue());
@@ -70,19 +74,19 @@ public class ShardGetServiceTests extends IndexShardTestCase {
         // now again from the reader
         Engine.IndexResult test2 = indexDoc(primary, "1", "{\"foo\" : \"baz\"}", XContentType.JSON, "foobar");
         assertTrue(primary.getEngine().refreshNeeded());
-        testGet1 = primary.getService().getForUpdate("1", UNASSIGNED_SEQ_NO, UNASSIGNED_PRIMARY_TERM);
+        testGet1 = getForUpdate(primary, "1", UNASSIGNED_SEQ_NO, UNASSIGNED_PRIMARY_TERM);
         assertEquals(testGet1.sourceRef().utf8ToString(), "{\"foo\" : \"baz\"}");
         assertTrue(testGet1.getFields().containsKey(RoutingFieldMapper.NAME));
         assertEquals("foobar", testGet1.getFields().get(RoutingFieldMapper.NAME).getValue());
         assertEquals(translogInMemorySegmentCountExpected, translogInMemorySegmentCount.getAsLong());
 
         final long primaryTerm = primary.getOperationPrimaryTerm();
-        testGet1 = primary.getService().getForUpdate("1", test2.getSeqNo(), primaryTerm);
+        testGet1 = getForUpdate(primary, "1", test2.getSeqNo(), primaryTerm);
         assertEquals(testGet1.sourceRef().utf8ToString(), "{\"foo\" : \"baz\"}");
         assertEquals(translogInMemorySegmentCountExpected, translogInMemorySegmentCount.getAsLong());
 
-        expectThrows(VersionConflictEngineException.class, () -> primary.getService().getForUpdate("1", test2.getSeqNo() + 1, primaryTerm));
-        expectThrows(VersionConflictEngineException.class, () -> primary.getService().getForUpdate("1", test2.getSeqNo(), primaryTerm + 1));
+        expectThrows(VersionConflictEngineException.class, () -> getForUpdate(primary, "1", test2.getSeqNo() + 1, primaryTerm));
+        expectThrows(VersionConflictEngineException.class, () -> getForUpdate(primary, "1", test2.getSeqNo(), primaryTerm + 1));
         closeShards(primary);
     }
 
@@ -183,7 +187,7 @@ public class ShardGetServiceTests extends IndexShardTestCase {
         Engine.IndexResult res = indexDoc(primary, "test", "0", docToIndex);
         assertTrue(res.isCreated());
         assertTrue(primary.getEngine().refreshNeeded());
-        GetResult testGet = primary.getService().getForUpdate("0", UNASSIGNED_SEQ_NO, UNASSIGNED_PRIMARY_TERM);
+        GetResult testGet = getForUpdate(primary, "0", UNASSIGNED_SEQ_NO, UNASSIGNED_PRIMARY_TERM);
         assertFalse(testGet.getFields().containsKey(RoutingFieldMapper.NAME));
         assertFalse(testGet.getFields().containsKey("foo"));
         assertFalse(testGet.getFields().containsKey("bar"));
@@ -194,7 +198,7 @@ public class ShardGetServiceTests extends IndexShardTestCase {
 
         indexDoc(primary, "1", docToIndex, XContentType.JSON, "foobar");
         assertTrue(primary.getEngine().refreshNeeded());
-        GetResult testGet1 = primary.getService().getForUpdate("1", UNASSIGNED_SEQ_NO, UNASSIGNED_PRIMARY_TERM);
+        GetResult testGet1 = getForUpdate(primary, "1", UNASSIGNED_SEQ_NO, UNASSIGNED_PRIMARY_TERM);
         assertEquals(testGet1.sourceRef() == null ? "" : testGet1.sourceRef().utf8ToString(), expectedResult);
         assertTrue(testGet1.getFields().containsKey(RoutingFieldMapper.NAME));
         assertFalse(testGet.getFields().containsKey("foo"));
@@ -252,7 +256,7 @@ public class ShardGetServiceTests extends IndexShardTestCase {
         Engine.IndexResult indexResult = indexDoc(shard, "some_type", "0", "{\"foo\" : \"bar\"}");
         assertTrue(indexResult.isCreated());
 
-        GetResult getResult = shard.getService().getForUpdate("0", UNASSIGNED_SEQ_NO, UNASSIGNED_PRIMARY_TERM);
+        GetResult getResult = getForUpdate(shard, "0", UNASSIGNED_SEQ_NO, UNASSIGNED_PRIMARY_TERM);
         assertTrue(getResult.isExists());
 
         closeShards(shard);

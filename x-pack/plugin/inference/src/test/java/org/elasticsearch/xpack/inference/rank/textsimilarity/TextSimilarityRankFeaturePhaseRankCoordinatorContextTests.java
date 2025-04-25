@@ -7,13 +7,13 @@
 
 package org.elasticsearch.xpack.inference.rank.textsimilarity;
 
-import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.search.rank.feature.RankFeatureDoc;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.inference.action.GetInferenceModelAction;
 
+import static org.elasticsearch.action.support.ActionTestUtils.assertNoFailureListener;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.eq;
@@ -31,7 +31,8 @@ public class TextSimilarityRankFeaturePhaseRankCoordinatorContextTests extends E
         mockClient,
         "my-inference-id",
         "some query",
-        0.0f
+        0.0f,
+        false
     );
 
     public void testComputeScores() {
@@ -43,17 +44,7 @@ public class TextSimilarityRankFeaturePhaseRankCoordinatorContextTests extends E
         featureDoc3.featureData("text 3");
         RankFeatureDoc[] featureDocs = new RankFeatureDoc[] { featureDoc1, featureDoc2, featureDoc3 };
 
-        subject.computeScores(featureDocs, new ActionListener<>() {
-            @Override
-            public void onResponse(float[] floats) {
-                assertArrayEquals(new float[] { 1.0f, 3.0f, 2.0f }, floats, 0.0f);
-            }
-
-            @Override
-            public void onFailure(Exception e) {
-                fail();
-            }
-        });
+        subject.computeScores(featureDocs, assertNoFailureListener(f -> assertArrayEquals(new float[] { 1.0f, 3.0f, 2.0f }, f, 0.0f)));
         verify(mockClient).execute(
             eq(GetInferenceModelAction.INSTANCE),
             argThat(actionRequest -> ((GetInferenceModelAction.Request) actionRequest).getTaskType().equals(TaskType.RERANK)),
@@ -62,17 +53,7 @@ public class TextSimilarityRankFeaturePhaseRankCoordinatorContextTests extends E
     }
 
     public void testComputeScoresForEmpty() {
-        subject.computeScores(new RankFeatureDoc[0], new ActionListener<>() {
-            @Override
-            public void onResponse(float[] floats) {
-                assertArrayEquals(new float[0], floats, 0.0f);
-            }
-
-            @Override
-            public void onFailure(Exception e) {
-                fail();
-            }
-        });
+        subject.computeScores(new RankFeatureDoc[0], assertNoFailureListener(f -> assertArrayEquals(new float[0], f, 0.0f)));
         verify(mockClient).execute(
             eq(GetInferenceModelAction.INSTANCE),
             argThat(actionRequest -> ((GetInferenceModelAction.Request) actionRequest).getTaskType().equals(TaskType.RERANK)),

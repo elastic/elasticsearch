@@ -368,7 +368,7 @@ public class PointFieldMapperTests extends CartesianFieldMapperTests {
             b.startObject("keyword").field("type", "keyword").endObject();
             b.endObject();
         }));
-        assertWarnings("Adding multifields to [point] mappers has no effect and will be forbidden in future");
+        assertWarnings("Adding multifields to [point] mappers has no effect");
     }
 
     @Override

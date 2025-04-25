@@ -46,6 +46,7 @@ import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import java.nio.file.StandardOpenOption;
 import java.time.Duration;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -53,6 +54,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Properties;
 import java.util.Set;
 import java.util.UUID;
@@ -145,7 +147,7 @@ public abstract class AbstractLocalClusterFactory<S extends LocalClusterSpec, H 
             this.repoDir = baseWorkingDir.resolve("repo");
             this.dataDir = workingDir.resolve("data");
             this.logsDir = workingDir.resolve("logs");
-            this.configDir = workingDir.resolve("config");
+            this.configDir = Optional.ofNullable(spec.getConfigDir()).orElse(workingDir.resolve("config"));
             this.tempDir = workingDir.resolve("tmp"); // elasticsearch temporary directory
             this.debugPort = DefaultLocalClusterHandle.NEXT_DEBUG_PORT.getAndIncrement();
         }
@@ -293,6 +295,10 @@ public abstract class AbstractLocalClusterFactory<S extends LocalClusterSpec, H 
             return workingDir;
         }
 
+        Path getConfigDir() {
+            return configDir;
+        }
+
         public void waitUntilReady() {
             try {
                 Retry.retryUntilTrue(NODE_UP_TIMEOUT, Duration.ofMillis(500), () -> {
@@ -425,7 +431,7 @@ public abstract class AbstractLocalClusterFactory<S extends LocalClusterSpec, H 
                 try (Stream<Path> configFiles = Files.walk(distributionDir.resolve("config"))) {
                     for (Path file : configFiles.toList()) {
                         Path relativePath = distributionDir.resolve("config").relativize(file);
-                        Path dest = configDir.resolve(relativePath);
+                        Path dest = configDir.resolve(relativePath.toFile().getPath());
                         if (Files.exists(dest) == false) {
                             Files.createDirectories(dest.getParent());
                             Files.copy(file, dest);
@@ -435,12 +441,17 @@ public abstract class AbstractLocalClusterFactory<S extends LocalClusterSpec, H 
 
                 // Patch jvm.options file to update paths
                 String content = Files.readString(jvmOptionsFile);
-                Map<String, String> expansions = getJvmOptionsReplacements();
-                for (String key : expansions.keySet()) {
+                Map<ReplacementKey, String> expansions = getJvmOptionsReplacements();
+                for (var entry : expansions.entrySet()) {
+                    ReplacementKey replacement = entry.getKey();
+                    String key = replacement.key();
                     if (content.contains(key) == false) {
-                        throw new IOException("Template property '" + key + "' not found in template.");
+                        key = replacement.fallback();
+                        if (content.contains(key) == false) {
+                            throw new IOException("Template property '" + replacement + "' not found in template.");
+                        }
                     }
-                    content = content.replace(key, expansions.get(key));
+                    content = content.replace(key, entry.getValue());
                 }
                 Files.writeString(jvmOptionsFile, content);
             } catch (IOException e) {
@@ -567,6 +578,37 @@ public abstract class AbstractLocalClusterFactory<S extends LocalClusterSpec, H 
             }
         }
 
+        private void updateRolesFileAtomically() throws IOException {
+            final Path targetRolesFile = workingDir.resolve("config").resolve("roles.yml");
+            final Path tempFile = Files.createTempFile(workingDir.resolve("config"), null, null);
+
+            // collect all roles.yml files that should be combined into a single roles file
+            final List<Resource> rolesFiles = new ArrayList<>(spec.getRolesFiles().size() + 1);
+            rolesFiles.add(Resource.fromFile(distributionDir.resolve("config").resolve("roles.yml")));
+            rolesFiles.addAll(spec.getRolesFiles());
+
+            // append all roles files to the temp file
+            rolesFiles.forEach(rolesFile -> {
+                try (
+                    Writer writer = Files.newBufferedWriter(tempFile, StandardOpenOption.APPEND);
+                    Reader reader = new BufferedReader(new InputStreamReader(rolesFile.asStream()))
+                ) {
+                    reader.transferTo(writer);
+                } catch (IOException e) {
+                    throw new UncheckedIOException("Failed to append roles file " + rolesFile + " to " + tempFile, e);
+                }
+            });
+
+            // move the temp file to the target roles file atomically
+            try {
+                Files.move(tempFile, targetRolesFile, StandardCopyOption.ATOMIC_MOVE);
+            } catch (IOException e) {
+                throw new UncheckedIOException("Failed to move tmp roles file [" + tempFile + "] to [" + targetRolesFile + "]", e);
+            } finally {
+                Files.deleteIfExists(tempFile);
+            }
+        }
+
         private void configureSecurity() {
             if (spec.isSecurityEnabled()) {
                 if (spec.getUsers().isEmpty() == false) {
@@ -576,13 +618,11 @@ public abstract class AbstractLocalClusterFactory<S extends LocalClusterSpec, H 
                         if (resource instanceof MutableResource && roleFileListeners.add(resource)) {
                             ((MutableResource) resource).addUpdateListener(updated -> {
                                 LOGGER.info("Updating roles.yml for node '{}'", name);
-                                Path rolesFile = workingDir.resolve("config").resolve("roles.yml");
                                 try {
-                                    Files.delete(rolesFile);
-                                    Files.copy(distributionDir.resolve("config").resolve("roles.yml"), rolesFile);
-                                    writeRolesFile();
+                                    updateRolesFileAtomically();
+                                    LOGGER.info("Successfully updated roles.yml for node '{}'", name);
                                 } catch (IOException e) {
-                                    throw new UncheckedIOException(e);
+                                    throw new UncheckedIOException("Failed to update roles.yml file for node [" + name + "]", e);
                                 }
                             });
                         }
@@ -610,7 +650,7 @@ public abstract class AbstractLocalClusterFactory<S extends LocalClusterSpec, H 
                 if (operators.isEmpty() == false) {
                     // TODO: Support service accounts here
                     final String operatorUsersFileName = "operator_users.yml";
-                    final Path destination = workingDir.resolve("config").resolve(operatorUsersFileName);
+                    final Path destination = configDir.resolve(operatorUsersFileName);
                     if (Files.exists(destination)) {
                         throw new IllegalStateException(
                             "Operator users file ["
@@ -637,7 +677,7 @@ public abstract class AbstractLocalClusterFactory<S extends LocalClusterSpec, H 
         }
 
         private void writeRolesFile() {
-            Path destination = workingDir.resolve("config").resolve("roles.yml");
+            Path destination = configDir.resolve("roles.yml");
             spec.getRolesFiles().forEach(rolesFile -> {
                 try (
                     Writer writer = Files.newBufferedWriter(destination, StandardOpenOption.APPEND);
@@ -654,7 +694,7 @@ public abstract class AbstractLocalClusterFactory<S extends LocalClusterSpec, H 
             if (spec.getPlugins().isEmpty() == false) {
                 Pattern pattern = Pattern.compile("(.+)(?:-\\d+\\.\\d+\\.\\d+(-SNAPSHOT)?\\.zip)");
 
-                LOGGER.info("Installing plugins {} into node '{}", spec.getPlugins(), name);
+                LOGGER.info("Installing plugins {} into node '{}", spec.getPlugins().keySet(), name);
                 List<Path> pluginPaths = Arrays.stream(System.getProperty(TESTS_CLUSTER_PLUGINS_PATH_SYSPROP).split(File.pathSeparator))
                     .map(Path::of)
                     .toList();
@@ -732,7 +772,7 @@ public abstract class AbstractLocalClusterFactory<S extends LocalClusterSpec, H 
 
         private void installModules() {
             if (spec.getModules().isEmpty() == false) {
-                LOGGER.info("Installing modules {} into node '{}", spec.getModules(), name);
+                LOGGER.info("Installing modules {} into node '{}", spec.getModules().keySet(), name);
                 List<Path> modulePaths = Arrays.stream(System.getProperty(TESTS_CLUSTER_MODULES_PATH_SYSPROP).split(File.pathSeparator))
                     .map(Path::of)
                     .toList();
@@ -765,7 +805,12 @@ public abstract class AbstractLocalClusterFactory<S extends LocalClusterSpec, H 
 
                 });
 
-                IOUtils.syncMaybeWithLinks(modulePath, destination);
+                // If we aren't overriding anything we can use links here, otherwise do a full copy
+                if (installSpec.entitlementsOverride == null && installSpec.propertiesOverride == null) {
+                    IOUtils.syncMaybeWithLinks(modulePath, destination);
+                } else {
+                    IOUtils.syncWithCopy(modulePath, destination);
+                }
 
                 try {
                     if (installSpec.entitlementsOverride != null) {
@@ -794,7 +839,9 @@ public abstract class AbstractLocalClusterFactory<S extends LocalClusterSpec, H 
                     if (extendedProperty != null) {
                         String[] extendedModules = extendedProperty.split(",");
                         for (String module : extendedModules) {
-                            installModule(module, new DefaultPluginInstallSpec(), modulePaths);
+                            if (spec.getModules().containsKey(module) == false) {
+                                installModule(module, new DefaultPluginInstallSpec(), modulePaths);
+                            }
                         }
                     }
                 } catch (IOException e) {
@@ -820,7 +867,7 @@ public abstract class AbstractLocalClusterFactory<S extends LocalClusterSpec, H 
 
         private Map<String, String> getEnvironmentVariables() {
             Map<String, String> environment = new HashMap<>(spec.resolveEnvironment());
-            environment.put("ES_PATH_CONF", workingDir.resolve("config").toString());
+            environment.put("ES_PATH_CONF", configDir.toString());
             environment.put("ES_TMPDIR", workingDir.resolve("tmp").toString());
             // Windows requires this as it defaults to `c:\windows` despite ES_TMPDIR
             environment.put("TMP", workingDir.resolve("tmp").toString());
@@ -870,15 +917,43 @@ public abstract class AbstractLocalClusterFactory<S extends LocalClusterSpec, H 
             return environment;
         }
 
-        private Map<String, String> getJvmOptionsReplacements() {
-            return Map.of(
-                "-XX:HeapDumpPath=data",
-                "-XX:HeapDumpPath=" + logsDir,
-                "logs/gc.log",
-                logsDir.resolve("gc.log").toString(),
-                "-XX:ErrorFile=logs/hs_err_pid%p.log",
-                "-XX:ErrorFile=" + logsDir.resolve("hs_err_pid%p.log")
-            );
+        private record ReplacementKey(String key, String fallback) {
+            ReplacementKey {
+                assert fallback == null || fallback.isEmpty() == false; // no empty fallback, which would match anything
+            }
+        }
+
+        private Map<ReplacementKey, String> getJvmOptionsReplacements() {
+            var expansions = new HashMap<ReplacementKey, String>();
+            var version = spec.getVersion();
+
+            ReplacementKey heapDumpPathSub;
+            if (version.before("8.19.0") && version.onOrAfter("6.3.0")) {
+                heapDumpPathSub = new ReplacementKey("-XX:HeapDumpPath=data", null);
+            } else {
+                // temporarily fall back to the old substitution so both old and new work during backport
+                heapDumpPathSub = new ReplacementKey("# -XX:HeapDumpPath=/heap/dump/path", "-XX:HeapDumpPath=data");
+            }
+            expansions.put(heapDumpPathSub, "-XX:HeapDumpPath=" + logsDir);
+
+            ReplacementKey gcLogSub;
+            if (version.before("8.19.0") && version.onOrAfter("6.2.0")) {
+                gcLogSub = new ReplacementKey("logs/gc.log", null);
+            } else {
+                // temporarily check the old substitution first so both old and new work during backport
+                gcLogSub = new ReplacementKey("logs/gc.log", "gc.log");
+            }
+            expansions.put(gcLogSub, logsDir.resolve("gc.log").toString());
+
+            ReplacementKey errorFileSub;
+            if (version.before("8.19.0") && version.getMajor() >= 7) {
+                errorFileSub = new ReplacementKey("-XX:ErrorFile=logs/hs_err_pid%p.log", null);
+            } else {
+                // temporarily check the old substitution first so both old and new work during backport
+                errorFileSub = new ReplacementKey("-XX:ErrorFile=logs/hs_err_pid%p.log", "-XX:ErrorFile=hs_err_pid%p.log");
+            }
+            expansions.put(errorFileSub, "-XX:ErrorFile=" + logsDir.resolve("hs_err_pid%p.log"));
+            return expansions;
         }
 
         private void runToolScript(String tool, String input, String... args) {

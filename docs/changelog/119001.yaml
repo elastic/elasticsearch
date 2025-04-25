@@ -1,5 +1,0 @@
-pr: 119001
-summary: Add support for specifying reindexing script for system index migration
-area: Infra/Core
-type: enhancement
-issues: []

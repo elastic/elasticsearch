@@ -13,7 +13,7 @@ import org.elasticsearch.common.xcontent.ChunkedToXContent;
 import org.elasticsearch.test.AbstractChunkedSerializingTestCase;
 
 import java.io.IOException;
-import java.util.List;
+import java.util.Collection;
 
 import static org.elasticsearch.test.BWCVersions.DEFAULT_BWC_VERSIONS;
 
@@ -28,7 +28,7 @@ public abstract class AbstractChunkedBWCSerializationTestCase<T extends ChunkedT
     /**
      * The bwc versions to test serialization against
      */
-    protected List<TransportVersion> bwcVersions() {
+    protected Collection<TransportVersion> bwcVersions() {
         return DEFAULT_BWC_VERSIONS;
     }
 

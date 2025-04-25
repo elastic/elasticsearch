@@ -11,6 +11,8 @@ package org.elasticsearch.common.text;
 
 import org.elasticsearch.test.ESTestCase;
 
+import static org.hamcrest.Matchers.equalTo;
+
 public class SizeLimitingStringWriterTests extends ESTestCase {
     public void testSizeIsLimited() {
         SizeLimitingStringWriter writer = new SizeLimitingStringWriter(10);
@@ -25,5 +27,12 @@ public class SizeLimitingStringWriterTests extends ESTestCase {
         expectThrows(SizeLimitingStringWriter.SizeLimitExceededException.class, () -> writer.append('a'));
         expectThrows(SizeLimitingStringWriter.SizeLimitExceededException.class, () -> writer.append("a"));
         expectThrows(SizeLimitingStringWriter.SizeLimitExceededException.class, () -> writer.append("a", 0, 1));
+    }
+
+    public void testLimitMessage() {
+        SizeLimitingStringWriter writer = new SizeLimitingStringWriter(3);
+
+        var e = expectThrows(SizeLimitingStringWriter.SizeLimitExceededException.class, () -> writer.write("abcdefgh"));
+        assertThat(e.getMessage(), equalTo("String [abc...] has size [8] which exceeds the size limit [3]"));
     }
 }

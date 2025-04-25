@@ -1,7 +1,0 @@
-{es} 8.0+ requires Java 17 or later. {es} 8.13+ has been tested with https://www.bouncycastle.org/java.html[Bouncy Castle]'s Java 17
-https://csrc.nist.gov/projects/cryptographic-module-validation-program/certificate/4616[certified] FIPS implementation and is the
-recommended Java security provider when running {es} in FIPS 140-2 mode.
-Note - {es} does not ship with a FIPS certified security provider and requires explicit installation and configuration.
-
-Alternatively, consider using {ess} in the
-https://www.elastic.co/industries/public-sector/fedramp[FedRAMP-certified GovCloud region].

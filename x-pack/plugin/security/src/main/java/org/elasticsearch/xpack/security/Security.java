@@ -20,7 +20,6 @@ import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.support.ActionFilter;
 import org.elasticsearch.action.support.DestructiveOperations;
@@ -31,8 +30,11 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
+import org.elasticsearch.cluster.metadata.ProjectId;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.Strings;
@@ -60,12 +62,12 @@ import org.elasticsearch.common.util.concurrent.ListenableFuture;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.util.concurrent.ThrottledTaskRunner;
 import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.core.FixForMultiProject;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.env.Environment;
-import org.elasticsearch.env.NodeMetadata;
 import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.http.HttpPreRequest;
@@ -313,9 +315,9 @@ import org.elasticsearch.xpack.security.authc.service.IndexServiceAccountTokenSt
 import org.elasticsearch.xpack.security.authc.service.ServiceAccountService;
 import org.elasticsearch.xpack.security.authc.support.SecondaryAuthActions;
 import org.elasticsearch.xpack.security.authc.support.SecondaryAuthenticator;
-import org.elasticsearch.xpack.security.authc.support.mapper.ClusterStateRoleMapper;
 import org.elasticsearch.xpack.security.authc.support.mapper.CompositeRoleMapper;
 import org.elasticsearch.xpack.security.authc.support.mapper.NativeRoleMappingStore;
+import org.elasticsearch.xpack.security.authc.support.mapper.ProjectStateRoleMapper;
 import org.elasticsearch.xpack.security.authz.AuthorizationDenialMessages;
 import org.elasticsearch.xpack.security.authz.AuthorizationService;
 import org.elasticsearch.xpack.security.authz.DlsFlsRequestCacheDifferentiator;
@@ -726,9 +728,9 @@ public class Security extends Plugin
      * ES has already checked the file is actually in the config directory
      */
     public static Path resolveSecuredConfigFile(Environment env, String file) {
-        Path config = env.configFile().resolve(file);
+        Path config = env.configDir().resolve(file);
         if (doPrivileged((PrivilegedAction<Boolean>) () -> Files.exists(config)) == false) {
-            Path legacyConfig = env.configFile().resolve("x-pack").resolve(file);
+            Path legacyConfig = env.configDir().resolve("x-pack").resolve(file);
             if (doPrivileged((PrivilegedAction<Boolean>) () -> Files.exists(legacyConfig))) {
                 DeprecationLogger.getLogger(XPackPlugin.class)
                     .warn(
@@ -754,10 +756,10 @@ public class Security extends Plugin
                 services.scriptService(),
                 services.xContentRegistry(),
                 services.environment(),
-                services.nodeEnvironment().nodeMetadata(),
                 services.indexNameExpressionResolver(),
                 services.telemetryProvider(),
-                new PersistentTasksService(services.clusterService(), services.threadPool(), services.client())
+                new PersistentTasksService(services.clusterService(), services.threadPool(), services.client()),
+                services.projectResolver()
             );
         } catch (final Exception e) {
             throw new IllegalStateException("security initialization failed", e);
@@ -774,10 +776,10 @@ public class Security extends Plugin
         ScriptService scriptService,
         NamedXContentRegistry xContentRegistry,
         Environment environment,
-        NodeMetadata nodeMetadata,
         IndexNameExpressionResolver expressionResolver,
         TelemetryProvider telemetryProvider,
-        PersistentTasksService persistentTasksService
+        PersistentTasksService persistentTasksService,
+        ProjectResolver projectResolver
     ) throws Exception {
         logger.info("Security is {}", enabled ? "enabled" : "disabled");
         if (enabled == false) {
@@ -790,7 +792,7 @@ public class Security extends Plugin
         // See Plugin#additionalSettings()
         this.settings = environment.settings();
 
-        systemIndices.init(client, featureService, clusterService);
+        systemIndices.init(client, featureService, clusterService, projectResolver);
 
         this.securityMigrationExecutor.set(
             new SecurityMigrationExecutor(
@@ -803,10 +805,10 @@ public class Security extends Plugin
         );
         this.persistentTasksService.set(persistentTasksService);
 
-        systemIndices.getMainIndexManager().addStateListener((oldState, newState) -> {
+        systemIndices.getMainIndexManager().addStateListener((projectId, oldState, newState) -> {
             // Only consider applying migrations if it's the master node and the security index exists
             if (clusterService.state().nodes().isLocalNodeElectedMaster() && newState.indexExists()) {
-                applyPendingSecurityMigrations(newState);
+                applyPendingSecurityMigrations(projectId, newState);
             }
         });
 
@@ -859,8 +861,13 @@ public class Security extends Plugin
             systemIndices.getMainIndexManager(),
             scriptService
         );
-        final ClusterStateRoleMapper clusterStateRoleMapper = new ClusterStateRoleMapper(settings, scriptService, clusterService);
-        final UserRoleMapper userRoleMapper = new CompositeRoleMapper(nativeRoleMappingStore, clusterStateRoleMapper);
+        final ProjectStateRoleMapper projectStateRoleMapper = new ProjectStateRoleMapper(
+            settings,
+            scriptService,
+            clusterService,
+            projectResolver
+        );
+        final UserRoleMapper userRoleMapper = new CompositeRoleMapper(nativeRoleMappingStore, projectStateRoleMapper);
         final AnonymousUser anonymousUser = new AnonymousUser(settings);
         components.add(anonymousUser);
         final ReservedRealm reservedRealm = new ReservedRealm(environment, settings, nativeUsersStore, anonymousUser, threadPool);
@@ -869,7 +876,8 @@ public class Security extends Plugin
             client,
             clusterService,
             resourceWatcherService,
-            userRoleMapper
+            userRoleMapper,
+            projectResolver
         );
         Map<String, Realm.Factory> realmFactories = new HashMap<>(
             InternalRealms.getFactories(
@@ -901,7 +909,7 @@ public class Security extends Plugin
         components.add(nativeUsersStore);
         components.add(new PluginComponentBinding<>(NativeRoleMappingStore.class, nativeRoleMappingStore));
         components.add(new PluginComponentBinding<>(UserRoleMapper.class, userRoleMapper));
-        components.add(clusterStateRoleMapper);
+        components.add(projectStateRoleMapper);
         components.add(reservedRealm);
         components.add(realms);
         this.realms.set(realms);
@@ -980,7 +988,6 @@ public class Security extends Plugin
             getLicenseState(),
             systemIndices.getMainIndexManager(),
             clusterService,
-            featureService,
             reservedRoleNameChecker,
             xContentRegistry
         );
@@ -1040,10 +1047,11 @@ public class Security extends Plugin
             fieldPermissionsCache,
             apiKeyService,
             serviceAccountService,
+            projectResolver,
             dlsBitsetCache.get(),
             restrictedIndices,
             buildRoleBuildingExecutor(threadPool, settings),
-            new DeprecationRoleDescriptorConsumer(clusterService, threadPool)
+            new DeprecationRoleDescriptorConsumer(clusterService, projectResolver, threadPool)
         );
         systemIndices.getMainIndexManager().addStateListener(allRolesStore::onSecurityIndexStateChange);
 
@@ -1151,7 +1159,8 @@ public class Security extends Plugin
             expressionResolver,
             operatorPrivilegesService.get(),
             restrictedIndices,
-            authorizationDenialMessages.get()
+            authorizationDenialMessages.get(),
+            projectResolver
         );
 
         components.add(nativeRolesStore); // used by roles actions
@@ -1241,7 +1250,9 @@ public class Security extends Plugin
         return components;
     }
 
-    private void applyPendingSecurityMigrations(SecurityIndexManager.State newState) {
+    @FixForMultiProject
+    // TODO : The migration task needs to be project aware
+    private void applyPendingSecurityMigrations(ProjectId projectId, SecurityIndexManager.IndexState newState) {
         // If no migrations have been applied and the security index is on the latest version (new index), all migrations can be skipped
         if (newState.migrationsVersion == 0 && newState.createdOnLatestVersion) {
             submitPersistentMigrationTask(SecurityMigrations.MIGRATIONS_BY_VERSION.lastKey(), false);
@@ -1253,12 +1264,13 @@ public class Security extends Plugin
         );
 
         // Check if next migration that has not been applied is eligible to run on the current cluster
-        if (nextMigration == null || systemIndices.getMainIndexManager().isEligibleSecurityMigration(nextMigration.getValue()) == false) {
+        if (nextMigration == null
+            || systemIndices.getMainIndexManager().getProject(projectId).isEligibleSecurityMigration(nextMigration.getValue()) == false) {
             // Reset retry counter if all eligible migrations have been applied successfully
             nodeLocalMigrationRetryCount.set(0);
         } else if (nodeLocalMigrationRetryCount.get() > MAX_SECURITY_MIGRATION_RETRY_COUNT) {
             logger.warn("Security migration failed [" + nodeLocalMigrationRetryCount.get() + "] times, restart node to retry again.");
-        } else if (systemIndices.getMainIndexManager().isReadyForSecurityMigration(nextMigration.getValue())) {
+        } else if (systemIndices.getMainIndexManager().getProject(projectId).isReadyForSecurityMigration(nextMigration.getValue())) {
             submitPersistentMigrationTask(newState.migrationsVersion);
         }
     }
@@ -1569,80 +1581,80 @@ public class Security extends Plugin
     }
 
     @Override
-    public List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {
-        var usageAction = new ActionHandler<>(XPackUsageFeatureAction.SECURITY, SecurityUsageTransportAction.class);
-        var infoAction = new ActionHandler<>(XPackInfoFeatureAction.SECURITY, SecurityInfoTransportAction.class);
+    public List<ActionHandler> getActions() {
+        var usageAction = new ActionHandler(XPackUsageFeatureAction.SECURITY, SecurityUsageTransportAction.class);
+        var infoAction = new ActionHandler(XPackInfoFeatureAction.SECURITY, SecurityInfoTransportAction.class);
         if (enabled == false) {
             return Arrays.asList(usageAction, infoAction);
         }
 
         return Stream.of(
-            new ActionHandler<>(ClearRealmCacheAction.INSTANCE, TransportClearRealmCacheAction.class),
-            new ActionHandler<>(ClearRolesCacheAction.INSTANCE, TransportClearRolesCacheAction.class),
-            new ActionHandler<>(ClearPrivilegesCacheAction.INSTANCE, TransportClearPrivilegesCacheAction.class),
-            new ActionHandler<>(ClearSecurityCacheAction.INSTANCE, TransportClearSecurityCacheAction.class),
-            new ActionHandler<>(GetUsersAction.INSTANCE, TransportGetUsersAction.class),
-            new ActionHandler<>(ActionTypes.QUERY_USER_ACTION, TransportQueryUserAction.class),
-            new ActionHandler<>(PutUserAction.INSTANCE, TransportPutUserAction.class),
-            new ActionHandler<>(DeleteUserAction.INSTANCE, TransportDeleteUserAction.class),
-            new ActionHandler<>(GetRolesAction.INSTANCE, TransportGetRolesAction.class),
-            new ActionHandler<>(ActionTypes.QUERY_ROLE_ACTION, TransportQueryRoleAction.class),
-            new ActionHandler<>(PutRoleAction.INSTANCE, TransportPutRoleAction.class),
-            new ActionHandler<>(ActionTypes.BULK_PUT_ROLES, TransportBulkPutRolesAction.class),
-            new ActionHandler<>(ActionTypes.BULK_DELETE_ROLES, TransportBulkDeleteRolesAction.class),
-            new ActionHandler<>(DeleteRoleAction.INSTANCE, TransportDeleteRoleAction.class),
-            new ActionHandler<>(TransportChangePasswordAction.TYPE, TransportChangePasswordAction.class),
-            new ActionHandler<>(AuthenticateAction.INSTANCE, TransportAuthenticateAction.class),
-            new ActionHandler<>(TransportSetEnabledAction.TYPE, TransportSetEnabledAction.class),
-            new ActionHandler<>(HasPrivilegesAction.INSTANCE, TransportHasPrivilegesAction.class),
-            new ActionHandler<>(GetUserPrivilegesAction.INSTANCE, TransportGetUserPrivilegesAction.class),
-            new ActionHandler<>(GetRoleMappingsAction.INSTANCE, TransportGetRoleMappingsAction.class),
-            new ActionHandler<>(PutRoleMappingAction.INSTANCE, TransportPutRoleMappingAction.class),
-            new ActionHandler<>(DeleteRoleMappingAction.INSTANCE, TransportDeleteRoleMappingAction.class),
-            new ActionHandler<>(CreateTokenAction.INSTANCE, TransportCreateTokenAction.class),
-            new ActionHandler<>(InvalidateTokenAction.INSTANCE, TransportInvalidateTokenAction.class),
-            new ActionHandler<>(GetCertificateInfoAction.INSTANCE, TransportGetCertificateInfoAction.class),
-            new ActionHandler<>(RefreshTokenAction.INSTANCE, TransportRefreshTokenAction.class),
-            new ActionHandler<>(SamlPrepareAuthenticationAction.INSTANCE, TransportSamlPrepareAuthenticationAction.class),
-            new ActionHandler<>(SamlAuthenticateAction.INSTANCE, TransportSamlAuthenticateAction.class),
-            new ActionHandler<>(SamlLogoutAction.INSTANCE, TransportSamlLogoutAction.class),
-            new ActionHandler<>(SamlInvalidateSessionAction.INSTANCE, TransportSamlInvalidateSessionAction.class),
-            new ActionHandler<>(TransportSamlCompleteLogoutAction.TYPE, TransportSamlCompleteLogoutAction.class),
-            new ActionHandler<>(SamlSpMetadataAction.INSTANCE, TransportSamlSpMetadataAction.class),
-            new ActionHandler<>(OpenIdConnectPrepareAuthenticationAction.INSTANCE, TransportOpenIdConnectPrepareAuthenticationAction.class),
-            new ActionHandler<>(OpenIdConnectAuthenticateAction.INSTANCE, TransportOpenIdConnectAuthenticateAction.class),
-            new ActionHandler<>(OpenIdConnectLogoutAction.INSTANCE, TransportOpenIdConnectLogoutAction.class),
-            new ActionHandler<>(GetBuiltinPrivilegesAction.INSTANCE, TransportGetBuiltinPrivilegesAction.class),
-            new ActionHandler<>(GetPrivilegesAction.INSTANCE, TransportGetPrivilegesAction.class),
-            new ActionHandler<>(PutPrivilegesAction.INSTANCE, TransportPutPrivilegesAction.class),
-            new ActionHandler<>(DeletePrivilegesAction.INSTANCE, TransportDeletePrivilegesAction.class),
-            new ActionHandler<>(CreateApiKeyAction.INSTANCE, TransportCreateApiKeyAction.class),
-            new ActionHandler<>(CreateCrossClusterApiKeyAction.INSTANCE, TransportCreateCrossClusterApiKeyAction.class),
-            new ActionHandler<>(GrantApiKeyAction.INSTANCE, TransportGrantApiKeyAction.class),
-            new ActionHandler<>(InvalidateApiKeyAction.INSTANCE, TransportInvalidateApiKeyAction.class),
-            new ActionHandler<>(GetApiKeyAction.INSTANCE, TransportGetApiKeyAction.class),
-            new ActionHandler<>(QueryApiKeyAction.INSTANCE, TransportQueryApiKeyAction.class),
-            new ActionHandler<>(UpdateApiKeyAction.INSTANCE, TransportUpdateApiKeyAction.class),
-            new ActionHandler<>(BulkUpdateApiKeyAction.INSTANCE, TransportBulkUpdateApiKeyAction.class),
-            new ActionHandler<>(UpdateCrossClusterApiKeyAction.INSTANCE, TransportUpdateCrossClusterApiKeyAction.class),
-            new ActionHandler<>(DelegatePkiAuthenticationAction.INSTANCE, TransportDelegatePkiAuthenticationAction.class),
-            new ActionHandler<>(CreateServiceAccountTokenAction.INSTANCE, TransportCreateServiceAccountTokenAction.class),
-            new ActionHandler<>(DeleteServiceAccountTokenAction.INSTANCE, TransportDeleteServiceAccountTokenAction.class),
-            new ActionHandler<>(GetServiceAccountCredentialsAction.INSTANCE, TransportGetServiceAccountCredentialsAction.class),
-            new ActionHandler<>(GetServiceAccountNodesCredentialsAction.INSTANCE, TransportGetServiceAccountNodesCredentialsAction.class),
-            new ActionHandler<>(GetServiceAccountAction.INSTANCE, TransportGetServiceAccountAction.class),
-            new ActionHandler<>(KibanaEnrollmentAction.INSTANCE, TransportKibanaEnrollmentAction.class),
-            new ActionHandler<>(NodeEnrollmentAction.INSTANCE, TransportNodeEnrollmentAction.class),
-            new ActionHandler<>(ProfileHasPrivilegesAction.INSTANCE, TransportProfileHasPrivilegesAction.class),
-            new ActionHandler<>(GetProfilesAction.INSTANCE, TransportGetProfilesAction.class),
-            new ActionHandler<>(ActivateProfileAction.INSTANCE, TransportActivateProfileAction.class),
-            new ActionHandler<>(UpdateProfileDataAction.INSTANCE, TransportUpdateProfileDataAction.class),
-            new ActionHandler<>(SuggestProfilesAction.INSTANCE, TransportSuggestProfilesAction.class),
-            new ActionHandler<>(SetProfileEnabledAction.INSTANCE, TransportSetProfileEnabledAction.class),
-            new ActionHandler<>(GetSecuritySettingsAction.INSTANCE, TransportGetSecuritySettingsAction.class),
-            new ActionHandler<>(UpdateSecuritySettingsAction.INSTANCE, TransportUpdateSecuritySettingsAction.class),
-            new ActionHandler<>(ActionTypes.RELOAD_REMOTE_CLUSTER_CREDENTIALS_ACTION, TransportReloadRemoteClusterCredentialsAction.class),
-            new ActionHandler<>(UpdateIndexMigrationVersionAction.INSTANCE, UpdateIndexMigrationVersionAction.TransportAction.class),
+            new ActionHandler(ClearRealmCacheAction.INSTANCE, TransportClearRealmCacheAction.class),
+            new ActionHandler(ClearRolesCacheAction.INSTANCE, TransportClearRolesCacheAction.class),
+            new ActionHandler(ClearPrivilegesCacheAction.INSTANCE, TransportClearPrivilegesCacheAction.class),
+            new ActionHandler(ClearSecurityCacheAction.INSTANCE, TransportClearSecurityCacheAction.class),
+            new ActionHandler(GetUsersAction.INSTANCE, TransportGetUsersAction.class),
+            new ActionHandler(ActionTypes.QUERY_USER_ACTION, TransportQueryUserAction.class),
+            new ActionHandler(PutUserAction.INSTANCE, TransportPutUserAction.class),
+            new ActionHandler(DeleteUserAction.INSTANCE, TransportDeleteUserAction.class),
+            new ActionHandler(GetRolesAction.INSTANCE, TransportGetRolesAction.class),
+            new ActionHandler(ActionTypes.QUERY_ROLE_ACTION, TransportQueryRoleAction.class),
+            new ActionHandler(PutRoleAction.INSTANCE, TransportPutRoleAction.class),
+            new ActionHandler(ActionTypes.BULK_PUT_ROLES, TransportBulkPutRolesAction.class),
+            new ActionHandler(ActionTypes.BULK_DELETE_ROLES, TransportBulkDeleteRolesAction.class),
+            new ActionHandler(DeleteRoleAction.INSTANCE, TransportDeleteRoleAction.class),
+            new ActionHandler(TransportChangePasswordAction.TYPE, TransportChangePasswordAction.class),
+            new ActionHandler(AuthenticateAction.INSTANCE, TransportAuthenticateAction.class),
+            new ActionHandler(TransportSetEnabledAction.TYPE, TransportSetEnabledAction.class),
+            new ActionHandler(HasPrivilegesAction.INSTANCE, TransportHasPrivilegesAction.class),
+            new ActionHandler(GetUserPrivilegesAction.INSTANCE, TransportGetUserPrivilegesAction.class),
+            new ActionHandler(GetRoleMappingsAction.INSTANCE, TransportGetRoleMappingsAction.class),
+            new ActionHandler(PutRoleMappingAction.INSTANCE, TransportPutRoleMappingAction.class),
+            new ActionHandler(DeleteRoleMappingAction.INSTANCE, TransportDeleteRoleMappingAction.class),
+            new ActionHandler(CreateTokenAction.INSTANCE, TransportCreateTokenAction.class),
+            new ActionHandler(InvalidateTokenAction.INSTANCE, TransportInvalidateTokenAction.class),
+            new ActionHandler(GetCertificateInfoAction.INSTANCE, TransportGetCertificateInfoAction.class),
+            new ActionHandler(RefreshTokenAction.INSTANCE, TransportRefreshTokenAction.class),
+            new ActionHandler(SamlPrepareAuthenticationAction.INSTANCE, TransportSamlPrepareAuthenticationAction.class),
+            new ActionHandler(SamlAuthenticateAction.INSTANCE, TransportSamlAuthenticateAction.class),
+            new ActionHandler(SamlLogoutAction.INSTANCE, TransportSamlLogoutAction.class),
+            new ActionHandler(SamlInvalidateSessionAction.INSTANCE, TransportSamlInvalidateSessionAction.class),
+            new ActionHandler(TransportSamlCompleteLogoutAction.TYPE, TransportSamlCompleteLogoutAction.class),
+            new ActionHandler(SamlSpMetadataAction.INSTANCE, TransportSamlSpMetadataAction.class),
+            new ActionHandler(OpenIdConnectPrepareAuthenticationAction.INSTANCE, TransportOpenIdConnectPrepareAuthenticationAction.class),
+            new ActionHandler(OpenIdConnectAuthenticateAction.INSTANCE, TransportOpenIdConnectAuthenticateAction.class),
+            new ActionHandler(OpenIdConnectLogoutAction.INSTANCE, TransportOpenIdConnectLogoutAction.class),
+            new ActionHandler(GetBuiltinPrivilegesAction.INSTANCE, TransportGetBuiltinPrivilegesAction.class),
+            new ActionHandler(GetPrivilegesAction.INSTANCE, TransportGetPrivilegesAction.class),
+            new ActionHandler(PutPrivilegesAction.INSTANCE, TransportPutPrivilegesAction.class),
+            new ActionHandler(DeletePrivilegesAction.INSTANCE, TransportDeletePrivilegesAction.class),
+            new ActionHandler(CreateApiKeyAction.INSTANCE, TransportCreateApiKeyAction.class),
+            new ActionHandler(CreateCrossClusterApiKeyAction.INSTANCE, TransportCreateCrossClusterApiKeyAction.class),
+            new ActionHandler(GrantApiKeyAction.INSTANCE, TransportGrantApiKeyAction.class),
+            new ActionHandler(InvalidateApiKeyAction.INSTANCE, TransportInvalidateApiKeyAction.class),
+            new ActionHandler(GetApiKeyAction.INSTANCE, TransportGetApiKeyAction.class),
+            new ActionHandler(QueryApiKeyAction.INSTANCE, TransportQueryApiKeyAction.class),
+            new ActionHandler(UpdateApiKeyAction.INSTANCE, TransportUpdateApiKeyAction.class),
+            new ActionHandler(BulkUpdateApiKeyAction.INSTANCE, TransportBulkUpdateApiKeyAction.class),
+            new ActionHandler(UpdateCrossClusterApiKeyAction.INSTANCE, TransportUpdateCrossClusterApiKeyAction.class),
+            new ActionHandler(DelegatePkiAuthenticationAction.INSTANCE, TransportDelegatePkiAuthenticationAction.class),
+            new ActionHandler(CreateServiceAccountTokenAction.INSTANCE, TransportCreateServiceAccountTokenAction.class),
+            new ActionHandler(DeleteServiceAccountTokenAction.INSTANCE, TransportDeleteServiceAccountTokenAction.class),
+            new ActionHandler(GetServiceAccountCredentialsAction.INSTANCE, TransportGetServiceAccountCredentialsAction.class),
+            new ActionHandler(GetServiceAccountNodesCredentialsAction.INSTANCE, TransportGetServiceAccountNodesCredentialsAction.class),
+            new ActionHandler(GetServiceAccountAction.INSTANCE, TransportGetServiceAccountAction.class),
+            new ActionHandler(KibanaEnrollmentAction.INSTANCE, TransportKibanaEnrollmentAction.class),
+            new ActionHandler(NodeEnrollmentAction.INSTANCE, TransportNodeEnrollmentAction.class),
+            new ActionHandler(ProfileHasPrivilegesAction.INSTANCE, TransportProfileHasPrivilegesAction.class),
+            new ActionHandler(GetProfilesAction.INSTANCE, TransportGetProfilesAction.class),
+            new ActionHandler(ActivateProfileAction.INSTANCE, TransportActivateProfileAction.class),
+            new ActionHandler(UpdateProfileDataAction.INSTANCE, TransportUpdateProfileDataAction.class),
+            new ActionHandler(SuggestProfilesAction.INSTANCE, TransportSuggestProfilesAction.class),
+            new ActionHandler(SetProfileEnabledAction.INSTANCE, TransportSetProfileEnabledAction.class),
+            new ActionHandler(GetSecuritySettingsAction.INSTANCE, TransportGetSecuritySettingsAction.class),
+            new ActionHandler(UpdateSecuritySettingsAction.INSTANCE, TransportUpdateSecuritySettingsAction.class),
+            new ActionHandler(ActionTypes.RELOAD_REMOTE_CLUSTER_CREDENTIALS_ACTION, TransportReloadRemoteClusterCredentialsAction.class),
+            new ActionHandler(UpdateIndexMigrationVersionAction.INSTANCE, UpdateIndexMigrationVersionAction.TransportAction.class),
             usageAction,
             infoAction
         ).filter(Objects::nonNull).toList();
@@ -2198,6 +2210,7 @@ public class Security extends Plugin
                     return FieldPredicate.ACCEPT_ALL;
                 }
                 assert indicesAccessControl.isGranted();
+                IndexNameExpressionResolver.assertExpressionHasNullOrDataSelector(index);
                 IndicesAccessControl.IndexAccessControl indexPermissions = indicesAccessControl.getIndexPermissions(index);
                 if (indexPermissions == null) {
                     return FieldPredicate.ACCEPT_ALL;
@@ -2411,7 +2424,7 @@ public class Security extends Plugin
         return this.securityMigrationExecutor.get() != null ? List.of(this.securityMigrationExecutor.get()) : List.of();
     }
 
-    List<ReservedClusterStateHandler<?>> reservedClusterStateHandlers() {
+    List<ReservedClusterStateHandler<ProjectMetadata, ?>> reservedProjectStateHandlers() {
         // If security is disabled we never call the plugin createComponents
         if (enabled == false) {
             return Collections.emptyList();

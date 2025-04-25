@@ -138,7 +138,8 @@ public final class BytesRefArrayState implements GroupingAggregatorState, Releas
      *     stores a flag to know if optimizations can be made.
      * </p>
      */
-    void enableGroupIdTracking(SeenGroupIds seenGroupIds) {
+    @Override
+    public void enableGroupIdTracking(SeenGroupIds seenGroupIds) {
         this.groupIdTrackingEnabled = true;
     }
 

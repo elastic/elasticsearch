@@ -46,7 +46,7 @@ public class SpatialRelatesQuery extends Query {
     }
 
     @Override
-    public QueryBuilder asBuilder() {
+    protected QueryBuilder asBuilder() {
         return DataType.isSpatialGeo(dataType) ? new GeoShapeQueryBuilder() : new CartesianShapeQueryBuilder();
     }
 
@@ -94,6 +94,8 @@ public class SpatialRelatesQuery extends Query {
      */
     public abstract class ShapeQueryBuilder implements QueryBuilder {
 
+        private float boost = 0.0f;
+
         protected void doToXContent(String queryName, XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
             builder.startObject(queryName);
@@ -139,12 +141,13 @@ public class SpatialRelatesQuery extends Query {
 
         @Override
         public float boost() {
-            return 0;
+            return boost;
         }
 
         @Override
         public QueryBuilder boost(float boost) {
-            throw new UnsupportedOperationException("Unimplemented: float");
+            this.boost = boost;
+            return this;
         }
 
         @Override

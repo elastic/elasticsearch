@@ -89,8 +89,7 @@ class SignificanceLookup {
                 this.backgroundFilter = null;
             }
         } else {
-            Query contextFiltered = context.filterQuery(backgroundQuery);
-            this.backgroundFilter = contextFiltered;
+            this.backgroundFilter = context.filterQuery(backgroundQuery);
         }
         /*
          * We need to use a superset size that includes deleted docs or we

@@ -99,13 +99,12 @@ public class EnrichQuerySourceOperatorTests extends ESTestCase {
             // 3 -> [] -> []
             // 4 -> [a3] -> [3]
             // 5 -> [] -> []
-            var warnings = Warnings.createWarnings(DriverContext.WarningsMode.IGNORE, 0, 0, "test enrich");
             EnrichQuerySourceOperator queryOperator = new EnrichQuerySourceOperator(
                 blockFactory,
                 128,
                 queryList,
                 directoryData.reader,
-                warnings
+                warnings()
             );
             Page page = queryOperator.getOutput();
             assertNotNull(page);
@@ -156,13 +155,12 @@ public class EnrichQuerySourceOperatorTests extends ESTestCase {
         try (var directoryData = makeDirectoryWith(directoryTermsList); var inputTerms = makeTermsBlock(inputTermsList)) {
             var queryList = QueryList.rawTermQueryList(directoryData.field, directoryData.searchExecutionContext, inputTerms);
             int maxPageSize = between(1, 256);
-            var warnings = Warnings.createWarnings(DriverContext.WarningsMode.IGNORE, 0, 0, "test enrich");
             EnrichQuerySourceOperator queryOperator = new EnrichQuerySourceOperator(
                 blockFactory,
                 maxPageSize,
                 queryList,
                 directoryData.reader,
-                warnings
+                warnings()
             );
             Map<Integer, Set<Integer>> actualPositions = new HashMap<>();
             while (queryOperator.isFinished() == false) {
@@ -193,7 +191,7 @@ public class EnrichQuerySourceOperatorTests extends ESTestCase {
             )
         ) {
             QueryList queryList = QueryList.rawTermQueryList(directoryData.field, directoryData.searchExecutionContext, inputTerms)
-                .onlySingleValues();
+                .onlySingleValues(warnings(), "multi-value found");
             // pos -> terms -> docs
             // -----------------------------
             // 0 -> [b2] -> []
@@ -202,13 +200,12 @@ public class EnrichQuerySourceOperatorTests extends ESTestCase {
             // 3 -> [] -> []
             // 4 -> [a3] -> [3]
             // 5 -> [a3, a2, z2, xx] -> []
-            var warnings = Warnings.createWarnings(DriverContext.WarningsMode.IGNORE, 0, 0, "test lookup");
             EnrichQuerySourceOperator queryOperator = new EnrichQuerySourceOperator(
                 blockFactory,
                 128,
                 queryList,
                 directoryData.reader,
-                warnings
+                warnings()
             );
             Page page = queryOperator.getOutput();
             assertNotNull(page);
@@ -220,12 +217,20 @@ public class EnrichQuerySourceOperatorTests extends ESTestCase {
             assertThat(BlockUtils.toJavaObject(positions, 0), equalTo(4));
             page.releaseBlocks();
             assertTrue(queryOperator.isFinished());
+            assertWarnings(
+                "Line -1:-1: evaluation of [test] failed, treating result as null. Only first 20 failures recorded.",
+                "Line -1:-1: java.lang.IllegalArgumentException: multi-value found"
+            );
         }
     }
 
     private static IntVector getDocVector(Page page, int blockIndex) {
         DocBlock doc = page.getBlock(blockIndex);
         return doc.asVector().docs();
+    }
+
+    private static Warnings warnings() {
+        return Warnings.createWarnings(DriverContext.WarningsMode.COLLECT, -1, -1, "test");
     }
 
     private record DirectoryData(

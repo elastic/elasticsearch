@@ -144,9 +144,9 @@ public class DataFrameAnalyticsManager {
             memoryLimitById.put(config.getId(), config.getModelMemoryLimit());
             // Check if existing destination index is incompatible.
             // If it is, we delete it and start from reindexing.
-            IndexMetadata destIndex = clusterState.getMetadata().index(config.getDest().getIndex());
+            IndexMetadata destIndex = clusterState.getMetadata().getProject().index(config.getDest().getIndex());
             if (destIndex != null) {
-                MappingMetadata destIndexMapping = clusterState.getMetadata().index(config.getDest().getIndex()).mapping();
+                MappingMetadata destIndexMapping = clusterState.getMetadata().getProject().index(config.getDest().getIndex()).mapping();
                 DestinationIndex.Metadata metadata = DestinationIndex.readMetadata(config.getId(), destIndexMapping);
                 if (metadata.hasMetadata() && (metadata.isCompatible() == false)) {
                     LOGGER.info(

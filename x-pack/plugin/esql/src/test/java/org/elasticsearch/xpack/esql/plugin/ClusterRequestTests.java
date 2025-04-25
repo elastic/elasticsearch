@@ -39,6 +39,7 @@ import java.util.Map;
 import static org.elasticsearch.xpack.esql.ConfigurationTestUtils.randomConfiguration;
 import static org.elasticsearch.xpack.esql.ConfigurationTestUtils.randomTables;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_VERIFIER;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.emptyInferenceResolution;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.emptyPolicyResolution;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.loadMapping;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.unboundLogicalOptimizerContext;
@@ -155,11 +156,14 @@ public class ClusterRequestTests extends AbstractWireSerializingTestCase<Cluster
 
     public void testFallbackIndicesOptions() throws Exception {
         ClusterComputeRequest request = createTestInstance();
-        var version = TransportVersionUtils.randomVersionBetween(random(), TransportVersions.V_8_14_0, TransportVersions.V_8_16_0);
-        ClusterComputeRequest cloned = copyInstance(request, version);
+        var oldVersion = TransportVersionUtils.randomVersionBetween(
+            random(),
+            TransportVersions.V_8_14_0,
+            TransportVersionUtils.getPreviousVersion(TransportVersions.V_8_16_0)
+        );
+        ClusterComputeRequest cloned = copyInstance(request, oldVersion);
         assertThat(cloned.clusterAlias(), equalTo(request.clusterAlias()));
         assertThat(cloned.sessionId(), equalTo(request.sessionId()));
-        assertThat(cloned.configuration(), equalTo(request.configuration()));
         RemoteClusterPlan plan = cloned.remoteClusterPlan();
         assertThat(plan.plan(), equalTo(request.remoteClusterPlan().plan()));
         assertThat(plan.targetIndices(), equalTo(request.remoteClusterPlan().targetIndices()));
@@ -188,7 +192,13 @@ public class ClusterRequestTests extends AbstractWireSerializingTestCase<Cluster
         IndexResolution getIndexResult = IndexResolution.valid(test);
         var logicalOptimizer = new LogicalPlanOptimizer(unboundLogicalOptimizerContext());
         var analyzer = new Analyzer(
-            new AnalyzerContext(EsqlTestUtils.TEST_CFG, new EsqlFunctionRegistry(), getIndexResult, emptyPolicyResolution()),
+            new AnalyzerContext(
+                EsqlTestUtils.TEST_CFG,
+                new EsqlFunctionRegistry(),
+                getIndexResult,
+                emptyPolicyResolution(),
+                emptyInferenceResolution()
+            ),
             TEST_VERIFIER
         );
         return logicalOptimizer.optimize(analyzer.analyze(new EsqlParser().createStatement(query)));

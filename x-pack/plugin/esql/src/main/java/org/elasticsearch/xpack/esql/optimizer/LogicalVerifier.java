@@ -27,6 +27,9 @@ public final class LogicalVerifier {
             PlanConsistencyChecker.checkPlan(p, dependencyFailures);
 
             if (failures.hasFailures() == false) {
+                if (p instanceof PostOptimizationVerificationAware pova) {
+                    pova.postOptimizationVerification(failures);
+                }
                 p.forEachExpression(ex -> {
                     if (ex instanceof PostOptimizationVerificationAware va) {
                         va.postOptimizationVerification(failures);

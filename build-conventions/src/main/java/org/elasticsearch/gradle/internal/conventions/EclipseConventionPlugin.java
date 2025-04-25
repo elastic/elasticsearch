@@ -15,6 +15,7 @@ import org.gradle.api.GradleException;
 import org.gradle.api.Plugin;
 import org.gradle.api.Project;
 import org.gradle.api.Transformer;
+import org.gradle.api.invocation.Gradle;
 import org.gradle.api.plugins.JavaBasePlugin;
 import org.gradle.api.plugins.JavaPluginExtension;
 import org.gradle.api.tasks.Copy;
@@ -38,6 +39,15 @@ public class EclipseConventionPlugin implements Plugin<Project> {
     @Override
     public void apply(Project project) {
         project.getPlugins().apply(EclipsePlugin.class);
+        Gradle gradle = project.getGradle();
+
+        boolean isEclipse = project.getProviders().systemProperty("eclipse.launcher").isPresent() ||   // Gradle launched from Eclipse
+            project.getProviders().systemProperty("eclipse.application").isPresent() || // Gradle launched from the Eclipse compiler server
+            gradle.getStartParameter().getTaskNames().contains("eclipse") ||  // Gradle launched from the command line to do eclipse stuff
+            gradle.getStartParameter().getTaskNames().contains("cleanEclipse");
+        // for eclipse ide specific hacks...
+        project.getExtensions().add("isEclipse", isEclipse);
+
         EclipseModel eclipseModel = project.getExtensions().getByType(EclipseModel.class);
         EclipseProject eclipseProject = eclipseModel.getProject();
 

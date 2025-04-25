@@ -193,8 +193,8 @@ public final class CountDistinctIntGroupingAggregatorFunction implements Groupin
 
   @Override
   public void evaluateFinal(Block[] blocks, int offset, IntVector selected,
-      DriverContext driverContext) {
-    blocks[offset] = CountDistinctIntAggregator.evaluateFinal(state, selected, driverContext);
+      GroupingAggregatorEvaluationContext evaluatorContext) {
+    blocks[offset] = CountDistinctIntAggregator.evaluateFinal(state, selected, evaluatorContext.driverContext());
   }
 
   @Override

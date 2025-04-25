@@ -9,6 +9,7 @@
 
 package org.elasticsearch.datastreams;
 
+import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.features.FeatureSpecification;
 import org.elasticsearch.features.NodeFeature;
 
@@ -21,13 +22,17 @@ public class DataStreamFeatures implements FeatureSpecification {
 
     public static final NodeFeature DATA_STREAM_FAILURE_STORE_TSDB_FIX = new NodeFeature("data_stream.failure_store.tsdb_fix");
 
+    public static final NodeFeature DOWNSAMPLE_AGGREGATE_DEFAULT_METRIC_FIX = new NodeFeature(
+        "data_stream.downsample.default_aggregate_metric_fix"
+    );
+
     @Override
     public Set<NodeFeature> getFeatures() {
-        return Set.of();
+        return Set.of(DataStream.DATA_STREAM_FAILURE_STORE_FEATURE);
     }
 
     @Override
     public Set<NodeFeature> getTestFeatures() {
-        return Set.of(DATA_STREAM_FAILURE_STORE_TSDB_FIX);
+        return Set.of(DATA_STREAM_FAILURE_STORE_TSDB_FIX, DOWNSAMPLE_AGGREGATE_DEFAULT_METRIC_FIX);
     }
 }

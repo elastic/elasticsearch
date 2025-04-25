@@ -71,6 +71,9 @@ public class Verifier {
 
         // start bottom-up
         plan.forEachUp(p -> {
+            if (p.getClass().equals(Join.class)) {
+                failures.add(fail(p, "JOIN command is not supported"));
+            }
             if (p.analyzed()) {
                 return;
             }

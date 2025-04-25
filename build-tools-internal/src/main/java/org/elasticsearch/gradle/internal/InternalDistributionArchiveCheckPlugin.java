@@ -19,6 +19,8 @@ import org.gradle.api.Project;
 import org.gradle.api.Task;
 import org.gradle.api.file.ArchiveOperations;
 import org.gradle.api.plugins.BasePlugin;
+import org.gradle.api.provider.ListProperty;
+import org.gradle.api.provider.Provider;
 import org.gradle.api.tasks.Copy;
 import org.gradle.api.tasks.TaskProvider;
 
@@ -103,22 +105,26 @@ public class InternalDistributionArchiveCheckPlugin implements Plugin<Project> {
     ) {
         TaskProvider<Task> checkMlCppNoticeTask = project.getTasks().register("checkMlCppNotice", task -> {
             task.dependsOn(checkExtraction);
+            final Provider<Path> noticePath = checkExtraction.map(
+                c -> c.getDestinationDir()
+                    .toPath()
+                    .resolve("elasticsearch-" + VersionProperties.getElasticsearch() + "/modules/x-pack-ml/NOTICE.txt")
+            );
+            ListProperty<String> expectedMlLicenses = extension.expectedMlLicenses;
             task.doLast(new Action<Task>() {
                 @Override
                 public void execute(Task task) {
                     // this is just a small sample from the C++ notices,
                     // the idea being that if we've added these lines we've probably added all the required lines
-                    final List<String> expectedLines = extension.expectedMlLicenses.get();
-                    final Path noticePath = checkExtraction.get()
-                        .getDestinationDir()
-                        .toPath()
-                        .resolve("elasticsearch-" + VersionProperties.getElasticsearch() + "/modules/x-pack-ml/NOTICE.txt");
+                    final List<String> expectedLines = expectedMlLicenses.get();
                     final List<String> actualLines;
                     try {
-                        actualLines = Files.readAllLines(noticePath);
+                        actualLines = Files.readAllLines(noticePath.get());
                         for (final String expectedLine : expectedLines) {
                             if (actualLines.contains(expectedLine) == false) {
-                                throw new GradleException("expected [" + noticePath + " to contain [" + expectedLine + "] but it did not");
+                                throw new GradleException(
+                                    "expected [" + noticePath.get() + " to contain [" + expectedLine + "] but it did not"
+                                );
                             }
                         }
                     } catch (IOException ioException) {
@@ -133,16 +139,12 @@ public class InternalDistributionArchiveCheckPlugin implements Plugin<Project> {
     private TaskProvider<Task> registerCheckNoticeTask(Project project, TaskProvider<Copy> checkExtraction) {
         return project.getTasks().register("checkNotice", task -> {
             task.dependsOn(checkExtraction);
-            task.doLast(new Action<Task>() {
-                @Override
-                public void execute(Task task) {
-                    final List<String> noticeLines = Arrays.asList("Elasticsearch", "Copyright 2009-2024 Elasticsearch");
-                    final Path noticePath = checkExtraction.get()
-                        .getDestinationDir()
-                        .toPath()
-                        .resolve("elasticsearch-" + VersionProperties.getElasticsearch() + "/NOTICE.txt");
-                    assertLinesInFile(noticePath, noticeLines);
-                }
+            var noticePath = checkExtraction.map(
+                copy -> copy.getDestinationDir().toPath().resolve("elasticsearch-" + VersionProperties.getElasticsearch() + "/NOTICE.txt")
+            );
+            task.doLast(t -> {
+                final List<String> noticeLines = Arrays.asList("Elasticsearch", "Copyright 2009-2024 Elasticsearch");
+                assertLinesInFile(noticePath.get(), noticeLines);
             });
         });
     }
@@ -150,26 +152,24 @@ public class InternalDistributionArchiveCheckPlugin implements Plugin<Project> {
     private TaskProvider<Task> registerCheckLicenseTask(Project project, TaskProvider<Copy> checkExtraction) {
         TaskProvider<Task> checkLicense = project.getTasks().register("checkLicense", task -> {
             task.dependsOn(checkExtraction);
-            task.doLast(new Action<Task>() {
-                @Override
-                public void execute(Task task) {
-                    String licenseFilename = null;
-                    if (project.getName().contains("oss-") || project.getName().equals("integ-test-zip")) {
-                        licenseFilename = "AGPL-3.0+SSPL-1.0+ELASTIC-LICENSE-2.0.txt";
-                    } else {
-                        licenseFilename = "ELASTIC-LICENSE-2.0.txt";
-                    }
-                    final List<String> licenseLines;
-                    try {
-                        licenseLines = Files.readAllLines(project.getRootDir().toPath().resolve("licenses/" + licenseFilename));
-                        final Path licensePath = checkExtraction.get()
-                            .getDestinationDir()
-                            .toPath()
-                            .resolve("elasticsearch-" + VersionProperties.getElasticsearch() + "/LICENSE.txt");
-                        assertLinesInFile(licensePath, licenseLines);
-                    } catch (IOException ioException) {
-                        ioException.printStackTrace();
-                    }
+            String projectName = project.getName();
+            Provider<Path> licensePathProvider = checkExtraction.map(
+                copy -> copy.getDestinationDir().toPath().resolve("elasticsearch-" + VersionProperties.getElasticsearch() + "/LICENSE.txt")
+            );
+            File rootDir = project.getLayout().getSettingsDirectory().getAsFile();
+            task.doLast(t -> {
+                String licenseFilename = null;
+                if (projectName.contains("oss-") || projectName.equals("integ-test-zip")) {
+                    licenseFilename = "AGPL-3.0+SSPL-1.0+ELASTIC-LICENSE-2.0.txt";
+                } else {
+                    licenseFilename = "ELASTIC-LICENSE-2.0.txt";
+                }
+                final List<String> licenseLines;
+                try {
+                    licenseLines = Files.readAllLines(rootDir.toPath().resolve("licenses/" + licenseFilename));
+                    assertLinesInFile(licensePathProvider.get(), licenseLines);
+                } catch (IOException ioException) {
+                    ioException.printStackTrace();
                 }
             });
         });

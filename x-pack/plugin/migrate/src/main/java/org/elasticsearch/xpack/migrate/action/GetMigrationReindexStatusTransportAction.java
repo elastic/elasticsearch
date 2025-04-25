@@ -66,10 +66,10 @@ public class GetMigrationReindexStatusTransportAction extends HandledTransportAc
     protected void doExecute(Task task, Request request, ActionListener<Response> listener) {
         String index = request.getIndex();
         String persistentTaskId = ReindexDataStreamAction.TASK_ID_PREFIX + index;
-        PersistentTasksCustomMetadata persistentTasksCustomMetadata = clusterService.state()
-            .getMetadata()
-            .custom(PersistentTasksCustomMetadata.TYPE);
-        PersistentTasksCustomMetadata.PersistentTask<?> persistentTask = persistentTasksCustomMetadata.getTask(persistentTaskId);
+        PersistentTasksCustomMetadata.PersistentTask<?> persistentTask = PersistentTasksCustomMetadata.getTaskWithId(
+            clusterService.state(),
+            persistentTaskId
+        );
         if (persistentTask == null) {
             listener.onFailure(new ResourceNotFoundException("No migration reindex status found for [{}]", index));
         } else if (persistentTask.isAssigned()) {
@@ -145,7 +145,7 @@ public class GetMigrationReindexStatusTransportAction extends HandledTransportAc
     }
 
     /*
-     * This method feches doc counts for all indices in inProgressIndices (and the indices they are being reindexed into). After
+     * This method fetches doc counts for all indices in inProgressIndices (and the indices they are being reindexed into). After
      * successfully fetching those, reportStatus is called.
      */
     private void fetchInProgressStatsAndReportStatus(
@@ -173,7 +173,7 @@ public class GetMigrationReindexStatusTransportAction extends HandledTransportAc
                     if (sourceIndexStats == null) {
                         totalDocsInIndex = 0;
                     } else {
-                        DocsStats totalDocsStats = sourceIndexStats.getTotal().getDocs();
+                        DocsStats totalDocsStats = sourceIndexStats.getPrimaries().getDocs();
                         totalDocsInIndex = totalDocsStats == null ? 0 : totalDocsStats.getCount();
                     }
                     IndexStats migratedIndexStats = indicesStatsResponse.getIndex(
@@ -183,7 +183,7 @@ public class GetMigrationReindexStatusTransportAction extends HandledTransportAc
                     if (migratedIndexStats == null) {
                         reindexedDocsInIndex = 0;
                     } else {
-                        DocsStats reindexedDocsStats = migratedIndexStats.getTotal().getDocs();
+                        DocsStats reindexedDocsStats = migratedIndexStats.getPrimaries().getDocs();
                         reindexedDocsInIndex = reindexedDocsStats == null ? 0 : reindexedDocsStats.getCount();
                     }
                     inProgressMap.put(index, Tuple.tuple(totalDocsInIndex, reindexedDocsInIndex));

@@ -111,6 +111,28 @@ public final class XContentDataHelper {
     }
 
     /**
+     * Decode the value in the passed {@link BytesRef} in place and return it.
+     * Returns {@link Optional#empty()} for complex values (objects and arrays).
+     */
+    static Optional<Object> decode(BytesRef r) {
+        return switch ((char) r.bytes[r.offset]) {
+            case BINARY_ENCODING -> Optional.of(TypeUtils.EMBEDDED_OBJECT.decode(r));
+            case CBOR_OBJECT_ENCODING, JSON_OBJECT_ENCODING, YAML_OBJECT_ENCODING, SMILE_OBJECT_ENCODING -> Optional.empty();
+            case BIG_DECIMAL_ENCODING -> Optional.of(TypeUtils.BIG_DECIMAL.decode(r));
+            case FALSE_ENCODING, TRUE_ENCODING -> Optional.of(TypeUtils.BOOLEAN.decode(r));
+            case BIG_INTEGER_ENCODING -> Optional.of(TypeUtils.BIG_INTEGER.decode(r));
+            case STRING_ENCODING -> Optional.of(TypeUtils.STRING.decode(r));
+            case INTEGER_ENCODING -> Optional.of(TypeUtils.INTEGER.decode(r));
+            case LONG_ENCODING -> Optional.of(TypeUtils.LONG.decode(r));
+            case DOUBLE_ENCODING -> Optional.of(TypeUtils.DOUBLE.decode(r));
+            case FLOAT_ENCODING -> Optional.of(TypeUtils.FLOAT.decode(r));
+            case NULL_ENCODING -> Optional.ofNullable(TypeUtils.NULL.decode(r));
+            case VOID_ENCODING -> Optional.of(TypeUtils.VOID.decode(r));
+            default -> throw new IllegalArgumentException("Can't decode " + r);
+        };
+    }
+
+    /**
      * Determines if the given {@link BytesRef}, encoded with {@link XContentDataHelper#encodeToken(XContentParser)},
      * is an encoded object.
      */
@@ -340,6 +362,11 @@ public final class XContentDataHelper {
             }
 
             @Override
+            Object decode(BytesRef r) {
+                return new BytesRef(r.bytes, r.offset + 1, r.length - 1);
+            }
+
+            @Override
             void decodeAndWrite(XContentBuilder b, BytesRef r) throws IOException {
                 b.value(new BytesRef(r.bytes, r.offset + 1, r.length - 1).utf8ToString());
             }
@@ -357,6 +384,11 @@ public final class XContentDataHelper {
                 ByteUtils.writeIntLE(parser.intValue(), bytes, 1);
                 assertValidEncoding(bytes);
                 return bytes;
+            }
+
+            @Override
+            Object decode(BytesRef r) {
+                return ByteUtils.readIntLE(r.bytes, 1 + r.offset);
             }
 
             @Override
@@ -380,6 +412,11 @@ public final class XContentDataHelper {
             }
 
             @Override
+            Object decode(BytesRef r) {
+                return ByteUtils.readLongLE(r.bytes, 1 + r.offset);
+            }
+
+            @Override
             void decodeAndWrite(XContentBuilder b, BytesRef r) throws IOException {
                 b.value(ByteUtils.readLongLE(r.bytes, 1 + r.offset));
             }
@@ -397,6 +434,11 @@ public final class XContentDataHelper {
                 ByteUtils.writeDoubleLE(parser.doubleValue(), bytes, 1);
                 assertValidEncoding(bytes);
                 return bytes;
+            }
+
+            @Override
+            Object decode(BytesRef r) {
+                return ByteUtils.readDoubleLE(r.bytes, 1 + r.offset);
             }
 
             @Override
@@ -420,6 +462,11 @@ public final class XContentDataHelper {
             }
 
             @Override
+            Object decode(BytesRef r) {
+                return ByteUtils.readFloatLE(r.bytes, 1 + r.offset);
+            }
+
+            @Override
             void decodeAndWrite(XContentBuilder b, BytesRef r) throws IOException {
                 b.value(ByteUtils.readFloatLE(r.bytes, 1 + r.offset));
             }
@@ -438,6 +485,11 @@ public final class XContentDataHelper {
             }
 
             @Override
+            Object decode(BytesRef r) {
+                return new BigInteger(r.bytes, r.offset + 1, r.length - 1);
+            }
+
+            @Override
             void decodeAndWrite(XContentBuilder b, BytesRef r) throws IOException {
                 b.value(new BigInteger(r.bytes, r.offset + 1, r.length - 1));
             }
@@ -453,6 +505,15 @@ public final class XContentDataHelper {
                 byte[] bytes = encode((BigDecimal) parser.numberValue(), getEncoding());
                 assertValidEncoding(bytes);
                 return bytes;
+            }
+
+            @Override
+            Object decode(BytesRef r) {
+                if (r.length < 5) {
+                    throw new IllegalArgumentException("Can't decode " + r);
+                }
+                int scale = ByteUtils.readIntLE(r.bytes, r.offset + 1);
+                return new BigDecimal(new BigInteger(r.bytes, r.offset + 5, r.length - 5), scale);
             }
 
             @Override
@@ -478,6 +539,15 @@ public final class XContentDataHelper {
             }
 
             @Override
+            Object decode(BytesRef r) {
+                if (r.length != 1) {
+                    throw new IllegalArgumentException("Can't decode " + r);
+                }
+                assert r.bytes[r.offset] == 't' || r.bytes[r.offset] == 'f' : r.bytes[r.offset];
+                return r.bytes[r.offset] == 't';
+            }
+
+            @Override
             void decodeAndWrite(XContentBuilder b, BytesRef r) throws IOException {
                 if (r.length != 1) {
                     throw new IllegalArgumentException("Can't decode " + r);
@@ -500,6 +570,11 @@ public final class XContentDataHelper {
             }
 
             @Override
+            Object decode(BytesRef r) {
+                return null;
+            }
+
+            @Override
             void decodeAndWrite(XContentBuilder b, BytesRef r) throws IOException {
                 b.nullValue();
             }
@@ -515,6 +590,11 @@ public final class XContentDataHelper {
                 byte[] bytes = encode(parser.binaryValue());
                 assertValidEncoding(bytes);
                 return bytes;
+            }
+
+            @Override
+            Object decode(BytesRef r) {
+                return new BytesRef(r.bytes, r.offset + 1, r.length - 1);
             }
 
             @Override
@@ -539,6 +619,11 @@ public final class XContentDataHelper {
             }
 
             @Override
+            Object decode(BytesRef r) {
+                throw new UnsupportedOperationException();
+            }
+
+            @Override
             void decodeAndWrite(XContentBuilder b, BytesRef r) throws IOException {
                 switch ((char) r.bytes[r.offset]) {
                     case CBOR_OBJECT_ENCODING -> decodeAndWriteXContent(XContentParserConfiguration.EMPTY, b, XContentType.CBOR, r);
@@ -560,6 +645,11 @@ public final class XContentDataHelper {
                 byte[] bytes = new byte[] { getEncoding() };
                 assertValidEncoding(bytes);
                 return bytes;
+            }
+
+            @Override
+            Object decode(BytesRef r) {
+                throw new UnsupportedOperationException();
             }
 
             @Override
@@ -590,6 +680,8 @@ public final class XContentDataHelper {
         abstract StoredField buildStoredField(String name, XContentParser parser) throws IOException;
 
         abstract byte[] encode(XContentParser parser) throws IOException;
+
+        abstract Object decode(BytesRef r);
 
         abstract void decodeAndWrite(XContentBuilder b, BytesRef r) throws IOException;
 

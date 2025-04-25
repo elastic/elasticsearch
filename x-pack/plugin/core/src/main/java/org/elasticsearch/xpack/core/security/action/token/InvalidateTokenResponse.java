@@ -27,7 +27,6 @@ public final class InvalidateTokenResponse extends ActionResponse implements ToX
     public InvalidateTokenResponse() {}
 
     public InvalidateTokenResponse(StreamInput in) throws IOException {
-        super(in);
         result = new TokensInvalidationResult(in);
     }
 

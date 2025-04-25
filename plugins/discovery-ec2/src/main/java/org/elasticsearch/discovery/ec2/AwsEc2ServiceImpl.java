@@ -9,24 +9,36 @@
 
 package org.elasticsearch.discovery.ec2;
 
-import com.amazonaws.ClientConfiguration;
-import com.amazonaws.auth.AWSCredentials;
-import com.amazonaws.auth.AWSCredentialsProvider;
-import com.amazonaws.auth.AWSStaticCredentialsProvider;
-import com.amazonaws.auth.DefaultAWSCredentialsProviderChain;
-import com.amazonaws.client.builder.AwsClientBuilder;
-import com.amazonaws.http.IdleConnectionReaper;
-import com.amazonaws.services.ec2.AmazonEC2;
-import com.amazonaws.services.ec2.AmazonEC2ClientBuilder;
+import software.amazon.awssdk.auth.credentials.AwsCredentials;
+import software.amazon.awssdk.auth.credentials.AwsCredentialsProvider;
+import software.amazon.awssdk.auth.credentials.DefaultCredentialsProvider;
+import software.amazon.awssdk.auth.credentials.StaticCredentialsProvider;
+import software.amazon.awssdk.endpoints.Endpoint;
+import software.amazon.awssdk.http.apache.ApacheHttpClient;
+import software.amazon.awssdk.http.apache.ProxyConfiguration;
+import software.amazon.awssdk.services.ec2.Ec2Client;
+import software.amazon.awssdk.services.ec2.Ec2ClientBuilder;
 
+import org.apache.http.client.utils.URIBuilder;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.util.LazyInitializable;
+import org.elasticsearch.core.AbstractRefCounted;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 
+import java.net.URI;
+import java.net.URISyntaxException;
+import java.time.Duration;
+import java.time.temporal.ChronoUnit;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicReference;
 
+/**
+ * Concrete representation of a connection to the EC2 API service: exposes an {@link AmazonEc2Reference} via {@link #client()} and allows
+ * to refresh the client settings via {@link #refreshAndClearCache}.
+ */
+// This is kinda pointless extra indirection; TODO fold it into Ec2DiscoveryPlugin
 class AwsEc2ServiceImpl implements AwsEc2Service {
 
     private static final Logger LOGGER = LogManager.getLogger(AwsEc2ServiceImpl.class);
@@ -34,55 +46,72 @@ class AwsEc2ServiceImpl implements AwsEc2Service {
     private final AtomicReference<LazyInitializable<AmazonEc2Reference, ElasticsearchException>> lazyClientReference =
         new AtomicReference<>();
 
-    private AmazonEC2 buildClient(Ec2ClientSettings clientSettings) {
-        final AWSCredentialsProvider credentials = buildCredentials(LOGGER, clientSettings);
-        final ClientConfiguration configuration = buildConfiguration(clientSettings);
-        return buildClient(credentials, configuration, clientSettings.endpoint);
-    }
+    private Ec2Client buildClient(Ec2ClientSettings clientSettings) {
+        final var httpClientBuilder = getHttpClientBuilder();
+        httpClientBuilder.socketTimeout(Duration.of(clientSettings.readTimeoutMillis, ChronoUnit.MILLIS));
 
-    // proxy for testing
-    AmazonEC2 buildClient(AWSCredentialsProvider credentials, ClientConfiguration configuration, String endpoint) {
-        final AmazonEC2ClientBuilder builder = AmazonEC2ClientBuilder.standard()
-            .withCredentials(credentials)
-            .withClientConfiguration(configuration);
-        if (Strings.hasText(endpoint)) {
-            LOGGER.debug("using explicit ec2 endpoint [{}]", endpoint);
-            builder.withEndpointConfiguration(new AwsClientBuilder.EndpointConfiguration(endpoint, null));
-        }
-        return SocketAccess.doPrivileged(builder::build);
-    }
-
-    // pkg private for tests
-    static ClientConfiguration buildConfiguration(Ec2ClientSettings clientSettings) {
-        final ClientConfiguration clientConfiguration = new ClientConfiguration();
-        // the response metadata cache is only there for diagnostics purposes,
-        // but can force objects from every response to the old generation.
-        clientConfiguration.setResponseMetadataCacheSize(0);
-        clientConfiguration.setProtocol(clientSettings.protocol);
         if (Strings.hasText(clientSettings.proxyHost)) {
-            // TODO: remove this leniency, these settings should exist together and be validated
-            clientConfiguration.setProxyHost(clientSettings.proxyHost);
-            clientConfiguration.setProxyPort(clientSettings.proxyPort);
-            clientConfiguration.setProxyProtocol(clientSettings.proxyScheme);
-            clientConfiguration.setProxyUsername(clientSettings.proxyUsername);
-            clientConfiguration.setProxyPassword(clientSettings.proxyPassword);
+            applyProxyConfiguration(clientSettings, httpClientBuilder);
         }
+
+        final var ec2ClientBuilder = getEc2ClientBuilder();
+        ec2ClientBuilder.credentialsProvider(getAwsCredentialsProvider(clientSettings));
+        ec2ClientBuilder.httpClientBuilder(httpClientBuilder);
+
         // Increase the number of retries in case of 5xx API responses
-        clientConfiguration.setMaxErrorRetry(10);
-        clientConfiguration.setSocketTimeout(clientSettings.readTimeoutMillis);
-        return clientConfiguration;
+        ec2ClientBuilder.overrideConfiguration(b -> b.retryStrategy(c -> c.maxAttempts(10)));
+
+        if (Strings.hasText(clientSettings.endpoint)) {
+            LOGGER.debug("using explicit ec2 endpoint [{}]", clientSettings.endpoint);
+            final var endpoint = Endpoint.builder().url(URI.create(clientSettings.endpoint)).build();
+            ec2ClientBuilder.endpointProvider(endpointParams -> CompletableFuture.completedFuture(endpoint));
+        }
+        return SocketAccess.doPrivileged(ec2ClientBuilder::build);
     }
 
-    // pkg private for tests
-    static AWSCredentialsProvider buildCredentials(Logger logger, Ec2ClientSettings clientSettings) {
-        final AWSCredentials credentials = clientSettings.credentials;
-        if (credentials == null) {
-            logger.debug("Using default provider chain");
-            return DefaultAWSCredentialsProviderChain.getInstance();
-        } else {
-            logger.debug("Using basic key/secret credentials");
-            return new AWSStaticCredentialsProvider(credentials);
+    private static void applyProxyConfiguration(Ec2ClientSettings clientSettings, ApacheHttpClient.Builder httpClientBuilder) {
+        final var uriBuilder = new URIBuilder();
+        uriBuilder.setScheme(clientSettings.proxyScheme.getSchemeString())
+            .setHost(clientSettings.proxyHost)
+            .setPort(clientSettings.proxyPort);
+        final URI proxyUri;
+        try {
+            proxyUri = uriBuilder.build();
+        } catch (URISyntaxException e) {
+            throw new IllegalArgumentException(e);
         }
+
+        httpClientBuilder.proxyConfiguration(
+            ProxyConfiguration.builder()
+                .endpoint(proxyUri)
+                .scheme(clientSettings.proxyScheme.getSchemeString())
+                .username(clientSettings.proxyUsername)
+                .password(clientSettings.proxyPassword)
+                .build()
+        );
+    }
+
+    // exposed for tests
+    Ec2ClientBuilder getEc2ClientBuilder() {
+        return Ec2Client.builder();
+    }
+
+    // exposed for tests
+    ApacheHttpClient.Builder getHttpClientBuilder() {
+        return ApacheHttpClient.builder();
+    }
+
+    private static AwsCredentialsProvider getAwsCredentialsProvider(Ec2ClientSettings clientSettings) {
+        final AwsCredentialsProvider credentialsProvider;
+        final AwsCredentials credentials = clientSettings.credentials;
+        if (credentials == null) {
+            LOGGER.debug("Using default provider chain");
+            credentialsProvider = DefaultCredentialsProvider.create();
+        } else {
+            LOGGER.debug("Using basic key/secret credentials");
+            credentialsProvider = StaticCredentialsProvider.create(credentials);
+        }
+        return credentialsProvider;
     }
 
     @Override
@@ -95,16 +124,15 @@ class AwsEc2ServiceImpl implements AwsEc2Service {
     }
 
     /**
-     * Refreshes the settings for the AmazonEC2 client. The new client will be build
-     * using these new settings. The old client is usable until released. On release it
-     * will be destroyed instead of being returned to the cache.
+     * Refreshes the settings for the {@link Ec2Client} client. The new client will be built using these new settings. The old client is
+     * usable until released. On release it will be destroyed instead of being returned to the cache.
      */
     @Override
     public void refreshAndClearCache(Ec2ClientSettings clientSettings) {
         final LazyInitializable<AmazonEc2Reference, ElasticsearchException> newClient = new LazyInitializable<>(
             () -> new AmazonEc2Reference(buildClient(clientSettings)),
-            clientReference -> clientReference.incRef(),
-            clientReference -> clientReference.decRef()
+            AbstractRefCounted::incRef,
+            AbstractRefCounted::decRef
         );
         final LazyInitializable<AmazonEc2Reference, ElasticsearchException> oldClient = this.lazyClientReference.getAndSet(newClient);
         if (oldClient != null) {
@@ -118,9 +146,6 @@ class AwsEc2ServiceImpl implements AwsEc2Service {
         if (clientReference != null) {
             clientReference.reset();
         }
-        // shutdown IdleConnectionReaper background thread
-        // it will be restarted on new client usage
-        IdleConnectionReaper.shutdown();
     }
 
 }

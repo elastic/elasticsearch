@@ -9,6 +9,7 @@
 
 package org.elasticsearch.ingest.common;
 
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.ingest.AbstractProcessor;
@@ -235,8 +236,13 @@ public final class ForEachProcessor extends AbstractProcessor implements Wrappin
         }
 
         @Override
-        public ForEachProcessor create(Map<String, Processor.Factory> factories, String tag, String description, Map<String, Object> config)
-            throws Exception {
+        public ForEachProcessor create(
+            Map<String, Processor.Factory> factories,
+            String tag,
+            String description,
+            Map<String, Object> config,
+            ProjectId projectId
+        ) throws Exception {
             String field = readStringProperty(TYPE, tag, config, "field");
             boolean ignoreMissing = readBooleanProperty(TYPE, tag, config, "ignore_missing", false);
             Map<String, Map<String, Object>> processorConfig = readMap(TYPE, tag, config, "processor");
@@ -245,7 +251,7 @@ public final class ForEachProcessor extends AbstractProcessor implements Wrappin
                 throw newConfigurationException(TYPE, tag, "processor", "Must specify exactly one processor type");
             }
             Map.Entry<String, Map<String, Object>> entry = entries.iterator().next();
-            Processor processor = ConfigurationUtils.readProcessor(factories, scriptService, entry.getKey(), entry.getValue());
+            Processor processor = ConfigurationUtils.readProcessor(factories, scriptService, entry.getKey(), entry.getValue(), projectId);
             return new ForEachProcessor(tag, description, field, processor, ignoreMissing);
         }
     }

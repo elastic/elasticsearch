@@ -367,7 +367,9 @@ public class KnnSearchSingleNodeTests extends ESSingleNodeTestCase {
             .endObject()
             .endObject();
         createIndex("index", indexSettings, builder);
-        indicesAdmin().prepareAliases().addAlias("index", "test-alias", QueryBuilders.termQuery("field", "hit")).get();
+        indicesAdmin().prepareAliases(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT)
+            .addAlias("index", "test-alias", QueryBuilders.termQuery("field", "hit"))
+            .get();
 
         int expectedHits = 0;
         for (int doc = 0; doc < 10; doc++) {

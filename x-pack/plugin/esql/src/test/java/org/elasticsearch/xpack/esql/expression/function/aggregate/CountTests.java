@@ -48,8 +48,7 @@ public class CountTests extends AbstractAggregationTestCase {
             MultiRowTestCaseSupplier.geoPointCases(1, 1000, IncludingAltitude.YES),
             MultiRowTestCaseSupplier.cartesianPointCases(1, 1000, IncludingAltitude.YES),
             MultiRowTestCaseSupplier.stringCases(1, 1000, DataType.KEYWORD),
-            MultiRowTestCaseSupplier.stringCases(1, 1000, DataType.TEXT),
-            MultiRowTestCaseSupplier.stringCases(1, 1000, DataType.SEMANTIC_TEXT)
+            MultiRowTestCaseSupplier.stringCases(1, 1000, DataType.TEXT)
         ).flatMap(List::stream).map(CountTests::makeSupplier).collect(Collectors.toCollection(() -> suppliers));
 
         // No rows
@@ -82,7 +81,6 @@ public class CountTests extends AbstractAggregationTestCase {
         }
 
         // "No rows" expects 0 here instead of null
-        // return parameterSuppliersFromTypedDataWithDefaultChecks(suppliers);
         return parameterSuppliersFromTypedData(randomizeBytesRefsOffset(suppliers));
     }
 

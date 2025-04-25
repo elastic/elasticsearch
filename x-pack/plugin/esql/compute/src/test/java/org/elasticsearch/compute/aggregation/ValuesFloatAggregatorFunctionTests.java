@@ -28,8 +28,8 @@ public class ValuesFloatAggregatorFunctionTests extends AggregatorFunctionTestCa
     }
 
     @Override
-    protected AggregatorFunctionSupplier aggregatorFunction(List<Integer> inputChannels) {
-        return new ValuesFloatAggregatorFunctionSupplier(inputChannels);
+    protected AggregatorFunctionSupplier aggregatorFunction() {
+        return new ValuesFloatAggregatorFunctionSupplier();
     }
 
     @Override

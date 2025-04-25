@@ -42,7 +42,7 @@ public class LocalDistributionResolver implements DistributionResolver {
                             + "tasks.named('"
                             + taskName
                             + "') {\n"
-                            + "  usesDefaultDistribution()\n"
+                            + "  usesDefaultDistribution(\"Reason why default distribution is required\")\n"
                             + "}"
                     );
                 } else {

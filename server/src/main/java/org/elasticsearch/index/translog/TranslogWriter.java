@@ -29,6 +29,7 @@ import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.engine.TranslogOperationAsserter;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.search.lookup.Source;
 
 import java.io.Closeable;
 import java.io.IOException;
@@ -298,8 +299,10 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
                             + "], with different data. "
                             + "prvOp ["
                             + prvOp
+                            + (prvOp instanceof Translog.Index index ? " source: " + Source.fromBytes(index.source()).source() : "")
                             + "], newOp ["
                             + newOp
+                            + (newOp instanceof Translog.Index index ? " source: " + Source.fromBytes(index.source()).source() : "")
                             + "]",
                         previous.v2()
                     );

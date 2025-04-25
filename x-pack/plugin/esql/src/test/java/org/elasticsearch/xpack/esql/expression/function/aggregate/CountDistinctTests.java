@@ -57,8 +57,7 @@ public class CountDistinctTests extends AbstractAggregationTestCase {
             MultiRowTestCaseSupplier.ipCases(1, 1000),
             MultiRowTestCaseSupplier.versionCases(1, 1000),
             MultiRowTestCaseSupplier.stringCases(1, 1000, DataType.KEYWORD),
-            MultiRowTestCaseSupplier.stringCases(1, 1000, DataType.TEXT),
-            MultiRowTestCaseSupplier.stringCases(1, 1000, DataType.SEMANTIC_TEXT)
+            MultiRowTestCaseSupplier.stringCases(1, 1000, DataType.TEXT)
         ).flatMap(List::stream).forEach(fieldCaseSupplier -> {
             // With precision
             for (var precisionCaseSupplier : precisionSuppliers) {
@@ -93,7 +92,6 @@ public class CountDistinctTests extends AbstractAggregationTestCase {
         }
 
         // "No rows" expects 0 here instead of null
-        // return parameterSuppliersFromTypedDataWithDefaultChecks(suppliers);
         return parameterSuppliersFromTypedData(randomizeBytesRefsOffset(suppliers));
     }
 

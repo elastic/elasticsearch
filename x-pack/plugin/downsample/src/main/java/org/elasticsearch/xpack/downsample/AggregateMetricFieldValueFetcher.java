@@ -10,18 +10,18 @@ package org.elasticsearch.xpack.downsample;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
-import org.elasticsearch.xpack.aggregatemetric.mapper.AggregateDoubleMetricFieldMapper;
-import org.elasticsearch.xpack.aggregatemetric.mapper.AggregateDoubleMetricFieldMapper.AggregateDoubleMetricFieldType;
+import org.elasticsearch.xpack.aggregatemetric.mapper.AggregateMetricDoubleFieldMapper;
+import org.elasticsearch.xpack.aggregatemetric.mapper.AggregateMetricDoubleFieldMapper.AggregateMetricDoubleFieldType;
 
 public final class AggregateMetricFieldValueFetcher extends FieldValueFetcher {
 
-    private final AggregateDoubleMetricFieldType aggMetricFieldType;
+    private final AggregateMetricDoubleFieldType aggMetricFieldType;
 
     private final AbstractDownsampleFieldProducer fieldProducer;
 
     AggregateMetricFieldValueFetcher(
         MappedFieldType fieldType,
-        AggregateDoubleMetricFieldType aggMetricFieldType,
+        AggregateMetricDoubleFieldType aggMetricFieldType,
         IndexFieldData<?> fieldData
     ) {
         super(fieldType.name(), fieldType, fieldData);
@@ -34,7 +34,7 @@ public final class AggregateMetricFieldValueFetcher extends FieldValueFetcher {
     }
 
     private AbstractDownsampleFieldProducer createFieldProducer() {
-        AggregateDoubleMetricFieldMapper.Metric metric = null;
+        AggregateMetricDoubleFieldMapper.Metric metric = null;
         for (var e : aggMetricFieldType.getMetricFields().entrySet()) {
             NumberFieldMapper.NumberFieldType metricSubField = e.getValue();
             if (metricSubField.name().equals(name())) {
@@ -47,14 +47,7 @@ public final class AggregateMetricFieldValueFetcher extends FieldValueFetcher {
         if (aggMetricFieldType.getMetricType() != null) {
             // If the field is an aggregate_metric_double field, we should use the correct subfields
             // for each aggregation. This is a downsample-of-downsample case
-            MetricFieldProducer.Metric metricOperation = switch (metric) {
-                case max -> new MetricFieldProducer.Max();
-                case min -> new MetricFieldProducer.Min();
-                case sum -> new MetricFieldProducer.Sum();
-                // To compute value_count summary, we must sum all field values
-                case value_count -> new MetricFieldProducer.Sum(AggregateDoubleMetricFieldMapper.Metric.value_count.name());
-            };
-            return new MetricFieldProducer.GaugeMetricFieldProducer(aggMetricFieldType.name(), metricOperation);
+            return new MetricFieldProducer.AggregatedGaugeMetricFieldProducer(aggMetricFieldType.name(), metric);
         } else {
             // If field is not a metric, we downsample it as a label
             return new LabelFieldProducer.AggregateMetricFieldProducer.AggregateMetricFieldProducer(aggMetricFieldType.name(), metric);

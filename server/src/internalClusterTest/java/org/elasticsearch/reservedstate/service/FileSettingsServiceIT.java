@@ -514,6 +514,7 @@ public class FileSettingsServiceIT extends ESIntegTestCase {
         );
         FileSettingsService masterFileSettingsService = internalCluster().getInstance(FileSettingsService.class, masterNode);
         assertBusy(() -> assertTrue(masterFileSettingsService.watching()));
+        ensureStableCluster(2);
 
         // Initially, all is well
         assertBusy(() -> assertEquals(0, actualHealthInfoCache.getHealthInfo().fileSettingsHealthInfo().failureStreak()));

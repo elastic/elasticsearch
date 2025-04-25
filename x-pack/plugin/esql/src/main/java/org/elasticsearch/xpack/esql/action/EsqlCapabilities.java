@@ -1049,7 +1049,12 @@ public class EsqlCapabilities {
         /**
          * The {@code _query} API now gives a cast recommendation if multiple types are found in certain instances.
          */
-        SUGGESTED_CAST;
+        SUGGESTED_CAST,
+
+        /**
+         * Support min_over_time aggregation that gets evaluated per time-series
+         */
+        MIN_OVER_TIME(Build.current().isSnapshot());
 
         private final boolean enabled;
 

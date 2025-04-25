@@ -211,7 +211,8 @@ final class InternalIndexingStats implements IndexingOperationListener {
             final long totalIndexingTimeSinceShardStartedInNanos = totalIndexingTimeInNanos - indexingTimeBeforeShardStartedInNanos;
             // This is different from indexing time as it also includes the
             final long totalIndexingExecutionTimeInNanos = totalIndexingTimeInNanos + writeIndexingBufferTime.sum();
-            final long totalIndexingExecutionTimeSinceShardStartedInNanos = totalIndexingExecutionTimeInNanos - indexingLoadBeforeShardStartedInNanos;
+            final long totalIndexingExecutionTimeSinceShardStartedInNanos = totalIndexingExecutionTimeInNanos
+                - indexingLoadBeforeShardStartedInNanos;
             final double recentIndexingLoadSinceShardStarted = recentIndexMetric.calculateRateSince(
                 currentTimeInNanos,
                 recentIndexMetric.getRate(currentTimeInNanos),

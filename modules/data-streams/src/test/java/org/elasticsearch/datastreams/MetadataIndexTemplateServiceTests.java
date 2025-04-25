@@ -144,7 +144,11 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
         }
         // One lifecycle results to this lifecycle as the final
         {
-            DataStreamLifecycle.Template lifecycle = new DataStreamLifecycle.Template(true, randomRetention(), randomDownsampling());
+            DataStreamLifecycle.Template lifecycle = DataStreamLifecycle.createDataLifecycleTemplate(
+                true,
+                randomRetention(),
+                randomDownsampling()
+            );
             List<DataStreamLifecycle.Template> lifecycles = List.of(lifecycle);
             DataStreamLifecycle result = composeDataLifecycles(lifecycles).build();
             // Defaults to true
@@ -155,7 +159,11 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
         // If the last lifecycle is missing a property (apart from enabled) we keep the latest from the previous ones
         // Enabled is always true unless it's explicitly set to false
         {
-            DataStreamLifecycle.Template lifecycle = new DataStreamLifecycle.Template(false, randomPositiveTimeValue(), randomRounds());
+            DataStreamLifecycle.Template lifecycle = DataStreamLifecycle.createDataLifecycleTemplate(
+                false,
+                randomPositiveTimeValue(),
+                randomRounds()
+            );
             List<DataStreamLifecycle.Template> lifecycles = List.of(lifecycle, DataStreamLifecycle.Template.DATA_DEFAULT);
             DataStreamLifecycle result = composeDataLifecycles(lifecycles).build();
             assertThat(result.enabled(), equalTo(true));
@@ -164,8 +172,16 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
         }
         // If both lifecycle have all properties, then the latest one overwrites all the others
         {
-            DataStreamLifecycle.Template lifecycle1 = new DataStreamLifecycle.Template(false, randomPositiveTimeValue(), randomRounds());
-            DataStreamLifecycle.Template lifecycle2 = new DataStreamLifecycle.Template(true, randomPositiveTimeValue(), randomRounds());
+            DataStreamLifecycle.Template lifecycle1 = DataStreamLifecycle.createDataLifecycleTemplate(
+                false,
+                randomPositiveTimeValue(),
+                randomRounds()
+            );
+            DataStreamLifecycle.Template lifecycle2 = DataStreamLifecycle.createDataLifecycleTemplate(
+                true,
+                randomPositiveTimeValue(),
+                randomRounds()
+            );
             List<DataStreamLifecycle.Template> lifecycles = List.of(lifecycle1, lifecycle2);
             DataStreamLifecycle result = composeDataLifecycles(lifecycles).build();
             assertThat(result.enabled(), equalTo(lifecycle2.enabled()));

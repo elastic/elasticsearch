@@ -28,6 +28,7 @@ import static org.elasticsearch.reservedstate.service.FileSettingsService.FileSe
 import static org.elasticsearch.reservedstate.service.FileSettingsService.FileSettingsHealthIndicatorService.NO_CHANGES_SYMPTOM;
 import static org.elasticsearch.reservedstate.service.FileSettingsService.FileSettingsHealthIndicatorService.STALE_SETTINGS_IMPACT;
 import static org.elasticsearch.reservedstate.service.FileSettingsService.FileSettingsHealthIndicatorService.SUCCESS_SYMPTOM;
+import static org.elasticsearch.reservedstate.service.FileSettingsServiceTests.NOOP_PUBLISHER;
 
 /**
  * Here, we test {@link FileSettingsHealthIndicatorService} in isolation;
@@ -39,7 +40,7 @@ public class FileSettingsHealthIndicatorServiceTests extends ESTestCase {
 
     @Before
     public void initialize() {
-        healthIndicatorService = new FileSettingsHealthIndicatorService(Settings.EMPTY);
+        healthIndicatorService = new FileSettingsHealthIndicatorService(Settings.EMPTY, NOOP_PUBLISHER);
     }
 
     public void testInitiallyGreen() {}
@@ -111,7 +112,10 @@ public class FileSettingsHealthIndicatorServiceTests extends ESTestCase {
     }
 
     private void checkTruncatedDescription(int lengthLimit, String description, String expectedTruncatedDescription) {
-        var service = new FileSettingsHealthIndicatorService(Settings.builder().put(DESCRIPTION_LENGTH_LIMIT_KEY, lengthLimit).build());
+        var service = new FileSettingsHealthIndicatorService(
+            Settings.builder().put(DESCRIPTION_LENGTH_LIMIT_KEY, lengthLimit).build(),
+            NOOP_PUBLISHER
+        );
         service.startOccurred();
         service.changeOccurred();
         service.failureOccurred(description);

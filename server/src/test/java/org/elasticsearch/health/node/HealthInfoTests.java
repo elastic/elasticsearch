@@ -11,6 +11,7 @@ package org.elasticsearch.health.node;
 
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.health.HealthStatus;
+import org.elasticsearch.reservedstate.service.FileSettingsService.FileSettingsHealthInfo;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 
 import java.util.HashMap;
@@ -29,7 +30,12 @@ public class HealthInfoTests extends AbstractWireSerializingTestCase<HealthInfo>
     protected HealthInfo createTestInstance() {
         var diskInfoByNode = randomMap(0, 10, () -> tuple(randomAlphaOfLength(10), randomDiskHealthInfo()));
         var repositoriesInfoByNode = randomMap(0, 10, () -> tuple(randomAlphaOfLength(10), randomRepoHealthInfo()));
-        return new HealthInfo(diskInfoByNode, randomBoolean() ? randomDslHealthInfo() : null, repositoriesInfoByNode);
+        return new HealthInfo(
+            diskInfoByNode,
+            randomBoolean() ? randomDslHealthInfo() : null,
+            repositoriesInfoByNode,
+            FileSettingsHealthInfo.INDETERMINATE
+        );
     }
 
     @Override
@@ -54,7 +60,7 @@ public class HealthInfoTests extends AbstractWireSerializingTestCase<HealthInfo>
                 HealthInfoTests::randomRepoHealthInfo
             );
         }
-        return new HealthInfo(diskHealth, dslHealth, repoHealth);
+        return new HealthInfo(diskHealth, dslHealth, repoHealth, FileSettingsHealthInfo.INDETERMINATE);
     }
 
     public static DiskHealthInfo randomDiskHealthInfo() {

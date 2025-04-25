@@ -205,16 +205,14 @@ public class IndexingMemoryController implements IndexingOperationListener, Clos
      */
     private boolean writePendingIndexingBuffers() {
         boolean wrotePendingIndexingBuffer = false;
-        long startTime;
-        long took;
         for (IndexShard shard = pendingWriteIndexingBufferQueue.pollFirst(); shard != null; shard = pendingWriteIndexingBufferQueue
             .pollFirst()) {
             // Remove the shard from the set first, so that multiple threads can run writeIndexingBuffer concurrently on the same shard.
             pendingWriteIndexingBufferSet.remove(shard);
             // Calculate the time taken to write the indexing buffers so it can be accounted for in the index write load
-            startTime = System.nanoTime();
+            long startTime = System.nanoTime();
             shard.writeIndexingBuffer();
-            took = System.nanoTime() - startTime;
+            long took = System.nanoTime() - startTime;
             shard.writeIndexBuffersOnIndexThreads(took);
             wrotePendingIndexingBuffer = true;
         }

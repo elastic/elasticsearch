@@ -2034,9 +2034,8 @@ public final class InternalTestCluster extends TestCluster {
      */
     public String getMasterName(@Nullable String viaNode) {
         viaNode = viaNode != null ? viaNode : getRandomNodeName();
-        // If there is no node in the cluster, there is no master in the cluster either.
         if (viaNode == null) {
-            return null;
+            throw new AssertionError("Unable to get master name, no node found");
         }
         try {
             ClusterServiceUtils.awaitClusterState(logger, state -> state.nodes().getMasterNode() != null, clusterService(viaNode));

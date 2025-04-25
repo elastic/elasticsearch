@@ -57,9 +57,9 @@ public class PinnedRetrieverBuilderTests extends AbstractXContentTestCase<Pinned
 
         List<String> ids = useIds
             ? IntStream.range(0, numItems).mapToObj(i -> randomAlphaOfLengthBetween(5, 10)).collect(Collectors.toList())
-            : new ArrayList<>();
+            : null;
         List<SpecifiedDocument> docs = useIds
-            ? new ArrayList<>()
+            ? null
             : IntStream.range(0, numItems)
                 .mapToObj(i -> new SpecifiedDocument(randomAlphaOfLengthBetween(5, 10), randomAlphaOfLengthBetween(5, 10)))
                 .collect(Collectors.toList());
@@ -167,14 +167,14 @@ public class PinnedRetrieverBuilderTests extends AbstractXContentTestCase<Pinned
         e = expectThrows(IllegalArgumentException.class, () -> {
             new PinnedRetrieverBuilder(List.of(), List.of(), new TestRetrieverBuilder("test"), DEFAULT_RANK_WINDOW_SIZE);
         });
-        assertThat(e.getMessage(), equalTo("Either 'ids' or 'docs' must be provided and non-empty for pinned retriever"));
+        assertThat(e.getMessage(), equalTo("Both 'ids' and 'docs' cannot be specified at the same time"));
     }
 
     public void testValidateSort() {
 
         PinnedRetrieverBuilder builder = new PinnedRetrieverBuilder(
             List.of("id1"),
-            List.of(),
+            null,
             new TestRetrieverBuilder("test"),
             DEFAULT_RANK_WINDOW_SIZE
         );

@@ -345,8 +345,9 @@ setup:
                     match: { text: "document" }
 
 ---
-"pinned retriever with ids and empty docs array":
+"pinned retriever with ids and empty docs array should fail":
   - do:
+      catch: /Both 'ids' and 'docs' cannot be specified at the same time/
       search:
         index: test-index1
         body:
@@ -358,10 +359,6 @@ setup:
                 standard:
                   query:
                     match: { text: "document" }
-  - match: { hits.total.value: 5 }
-  - match: { hits.hits.0._id: doc1 }
-  - match: { hits.hits.1._id: doc2 }
-  - match: { hits.hits.2._id: doc3 }
 
 ---
 "pinned retriever errors if sorting by anything other than score":

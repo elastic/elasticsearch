@@ -33,6 +33,15 @@ import java.util.stream.Stream;
  */
 class WebProxyServer extends MockHttpProxyServer {
 
+    private static final Set<String> ALLOWED_HOSTS = Set.of(
+        "example.com", // Add allowed hosts here
+        "api.example.com"
+    );
+
+    private boolean isAllowedHost(String host) {
+        return ALLOWED_HOSTS.contains(host);
+    }
+
     private static final Set<String> BLOCKED_HEADERS = Stream.of(
         "Host",
         "Proxy-Connection",
@@ -51,7 +60,14 @@ class WebProxyServer extends MockHttpProxyServer {
                 return request.getRequestLine().getMethod();
             }
         };
-        upstreamRequest.setURI(URI.create(request.getRequestLine().getUri()));
+        String requestUri = request.getRequestLine().getUri();
+        URI uri = URI.create(requestUri);
+        // Validate the URI against a whitelist of allowed hosts
+        if (!isAllowedHost(uri.getHost())) {
+            response.setStatusLine(request.getProtocolVersion(), 403, "Forbidden");
+            return;
+        }
+        upstreamRequest.setURI(uri);
         upstreamRequest.setHeader("X-Via", "test-web-proxy-server");
         for (Header requestHeader : request.getAllHeaders()) {
             String headerName = requestHeader.getName();

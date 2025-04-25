@@ -10,17 +10,19 @@ package org.elasticsearch.xpack.searchbusinessrules;
 import org.elasticsearch.features.FeatureSpecification;
 import org.elasticsearch.features.NodeFeature;
 
+import static org.elasticsearch.xpack.searchbusinessrules.retriever.PinnedRetrieverBuilder.PINNED_RETRIEVER_FEATURE;
+
 import java.util.Set;
 
 public class SearchBusinessRulesFeatures implements FeatureSpecification {
 
     @Override
     public Set<NodeFeature> getFeatures() {
-        return Set.of(new NodeFeature("pinned_retriever_supported"));
+        return Set.of();
     }
 
     @Override
     public Set<NodeFeature> getTestFeatures() {
-        return Set.of(new NodeFeature("pinned_retriever_supported"));
+        return Set.of(PINNED_RETRIEVER_FEATURE);
     }
 }

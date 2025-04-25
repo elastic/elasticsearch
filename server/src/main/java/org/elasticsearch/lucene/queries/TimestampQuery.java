@@ -91,21 +91,12 @@ public final class TimestampQuery extends Query {
                     var iterator = getIteratorIfTimestampIfPrimarySort(maxDoc, timestamps, timestampSkipper, minTimestamp, maxTimestamp);
                     return ConstantScoreScorerSupplier.fromIterator(iterator, score(), scoreMode, maxDoc);
                 }
-                TwoPhaseIterator iterator = new TwoPhaseIterator(timestamps) {
-                    @Override
-                    public boolean matches() throws IOException {
-                        final long value = timestamps.longValue();
-                        return value >= minTimestamp && value <= maxTimestamp;
-                    }
-
-                    @Override
-                    public float matchCost() {
-                        return 2; // 2 comparisons
-                    }
-                };
                 var primaryFieldSkipper = reader.getDocValuesSkipper(primarySortField);
-                iterator = new TimestampIterator(iterator, timestampSkipper, primaryFieldSkipper, minTimestamp, maxTimestamp);
+                var iterator = new TimestampIterator(timestamps, timestampSkipper, primaryFieldSkipper, minTimestamp, maxTimestamp);
                 return ConstantScoreScorerSupplier.fromIterator(TwoPhaseIterator.asDocIdSetIterator(iterator), score(), scoreMode, maxDoc);
+//                var primaryFieldSkipper = reader.getDocValuesSkipper(primarySortField);
+//                var iterator = new TimestampIterator2(timestamps, timestampSkipper, primaryFieldSkipper, minTimestamp, maxTimestamp);
+//                return ConstantScoreScorerSupplier.fromIterator(iterator, score(), scoreMode, maxDoc);
             }
 
             @Override

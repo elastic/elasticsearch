@@ -9,6 +9,7 @@
 package org.elasticsearch.lucene.queries;
 
 import org.apache.lucene.index.DocValuesSkipper;
+import org.apache.lucene.index.NumericDocValues;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.TwoPhaseIterator;
 
@@ -20,18 +21,23 @@ import java.io.IOException;
 final class TimestampIterator extends TwoPhaseIterator {
 
     private final RangeNoGapsApproximation approximation;
-    private final TwoPhaseIterator innerTwoPhase;
+    private final NumericDocValues timestamps;
+
+    private final long minTimestamp;
+    private final long maxTimestamp;
 
     TimestampIterator(
-        TwoPhaseIterator twoPhase,
+        NumericDocValues timestamps,
         DocValuesSkipper timestampSkipper,
         DocValuesSkipper primaryFieldSkipper,
         long minTimestamp,
         long maxTimestamp
     ) {
-        super(new RangeNoGapsApproximation(twoPhase.approximation(), timestampSkipper, primaryFieldSkipper, minTimestamp, maxTimestamp));
+        super(new RangeNoGapsApproximation(timestamps, timestampSkipper, primaryFieldSkipper, minTimestamp, maxTimestamp));
         this.approximation = (RangeNoGapsApproximation) approximation();
-        this.innerTwoPhase = twoPhase;
+        this.timestamps = timestamps;
+        this.minTimestamp = minTimestamp;
+        this.maxTimestamp = maxTimestamp;
     }
 
     static final class RangeNoGapsApproximation extends DocIdSetIterator {
@@ -48,6 +54,7 @@ final class TimestampIterator extends TwoPhaseIterator {
         // Track a decision for all doc IDs between the current doc ID and upTo inclusive.
         Match match = Match.MAYBE;
         int upTo = -1;
+        int primaryFieldUpTo = -1;
 
         RangeNoGapsApproximation(
             DocIdSetIterator innerApproximation,
@@ -78,13 +85,10 @@ final class TimestampIterator extends TwoPhaseIterator {
             while (true) {
                 if (target > upTo) {
                     timestampSkipper.advance(target);
-                    // If target doesn't have a value and is between two blocks, it is possible that advance()
-                    // moved to a block that doesn't contain `target`.
-                    target = Math.max(target, timestampSkipper.minDocID(0));
-                    if (target == NO_MORE_DOCS) {
-                        return doc = NO_MORE_DOCS;
-                    }
                     upTo = timestampSkipper.maxDocID(0);
+                    if (upTo == DocIdSetIterator.NO_MORE_DOCS) {
+                        return doc = DocIdSetIterator.NO_MORE_DOCS;
+                    }
                     match = match(0);
 
                     // If we have a YES or NO decision, see if we still have the same decision on a higher
@@ -107,18 +111,17 @@ final class TimestampIterator extends TwoPhaseIterator {
                         }
                         break;
                     case NO:
-                        if (match == Match.NO) {
+                        if (target > primaryFieldUpTo) {
                             primaryFieldSkipper.advance(target);
-                            int betterUptTo = -1;
                             for (int level = 0; level < primaryFieldSkipper.numLevels(); level++) {
                                 if (primaryFieldSkipper.minValue(level) == primaryFieldSkipper.maxValue(level)) {
-                                    betterUptTo = primaryFieldSkipper.maxDocID(level);
+                                    primaryFieldUpTo = primaryFieldSkipper.maxDocID(level);
                                 } else {
                                     break;
                                 }
                             }
-                            if (betterUptTo > upTo) {
-                                upTo = betterUptTo;
+                            if (primaryFieldUpTo > upTo) {
+                                upTo = primaryFieldUpTo;
                             }
                         }
 
@@ -156,7 +159,10 @@ final class TimestampIterator extends TwoPhaseIterator {
     public boolean matches() throws IOException {
         return switch (approximation.match) {
             case YES -> true;
-            case MAYBE -> innerTwoPhase.matches();
+            case MAYBE -> {
+                final long value = timestamps.longValue();
+                yield value >= minTimestamp && value <= maxTimestamp;
+            }
             case NO -> throw new IllegalStateException("Unpositioned approximation");
         };
     }
@@ -171,7 +177,7 @@ final class TimestampIterator extends TwoPhaseIterator {
 
     @Override
     public float matchCost() {
-        return innerTwoPhase.matchCost();
+        return 2; // 2 comparisons
     }
 
     enum Match {

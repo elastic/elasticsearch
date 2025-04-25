@@ -45,7 +45,6 @@ import org.apache.lucene.util.SuppressForbidden;
 import org.apache.lucene.util.hnsw.RandomVectorScorer;
 
 import java.io.IOException;
-import java.io.UncheckedIOException;
 
 import static org.apache.lucene.codecs.lucene99.Lucene99HnswVectorsReader.readSimilarityFunction;
 import static org.apache.lucene.codecs.lucene99.Lucene99HnswVectorsReader.readVectorEncoding;
@@ -58,24 +57,27 @@ public class DirectIOLucene99FlatVectorsReader extends FlatVectorsReader {
 
     private static final long SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(DirectIOLucene99FlatVectorsReader.class);
 
-    private final IntObjectHashMap<FieldEntry> fields = new IntObjectHashMap<>();
+    private final IntObjectHashMap<FieldEntry> fields;
     private final IndexInput vectorData;
+    private final IndexInput vectorDataDirect;
+    private final IndexInput vectorDataMerge;
     private final FieldInfos fieldInfos;
+    private final boolean isClone;
 
     public DirectIOLucene99FlatVectorsReader(SegmentReadState state, FlatVectorsScorer scorer) throws IOException {
         super(scorer);
+        this.fields = new IntObjectHashMap<>();
         int versionMeta = readMetadata(state);
         this.fieldInfos = state.fieldInfos;
         boolean success = false;
         try {
-            vectorData = openDataInput(
+            vectorDataDirect = openDataInput(
                 state,
                 versionMeta,
                 DirectIOLucene99FlatVectorsFormat.VECTOR_DATA_EXTENSION,
                 DirectIOLucene99FlatVectorsFormat.VECTOR_DATA_CODEC_NAME,
-                // Flat formats are used to randomly access vectors from their node ID that is stored
-                // in the HNSW graph.
-                state.context.withReadAdvice(ReadAdvice.RANDOM)
+                state.context,
+                true
             );
             success = true;
         } finally {
@@ -83,6 +85,41 @@ public class DirectIOLucene99FlatVectorsReader extends FlatVectorsReader {
                 IOUtils.closeWhileHandlingException(this);
             }
         }
+
+        success = false;
+        try {
+            vectorDataMerge = openDataInput(
+                state,
+                versionMeta,
+                DirectIOLucene99FlatVectorsFormat.VECTOR_DATA_EXTENSION,
+                DirectIOLucene99FlatVectorsFormat.VECTOR_DATA_CODEC_NAME,
+                // We use sequential access since this input is only used for merging
+                USE_DIRECT_IO ? state.context.withReadAdvice(ReadAdvice.SEQUENTIAL) : state.context,
+                false
+            );
+            success = true;
+        } finally {
+            if (success == false) {
+                IOUtils.closeWhileHandlingException(this);
+            }
+        }
+        this.vectorData = vectorDataDirect;
+        this.isClone = false;
+    }
+
+    /**
+     * Returns a {@link DirectIOLucene99FlatVectorsReader} that switch the raw vector data to use
+     * the provided {@link IndexInput}.
+     * This is useful for merges since we want to switch from directIO to sequential reads.
+     */
+    private DirectIOLucene99FlatVectorsReader(DirectIOLucene99FlatVectorsReader clone, IndexInput vectorData) {
+        super(clone.vectorScorer);
+        this.fields = clone.fields;
+        this.vectorData = vectorData;
+        this.vectorDataDirect = clone.vectorDataDirect;
+        this.vectorDataMerge = clone.vectorDataMerge;
+        this.fieldInfos = clone.fieldInfos;
+        this.isClone = true;
     }
 
     private int readMetadata(SegmentReadState state) throws IOException {
@@ -118,11 +155,13 @@ public class DirectIOLucene99FlatVectorsReader extends FlatVectorsReader {
         int versionMeta,
         String fileExtension,
         String codecName,
-        IOContext context
+        IOContext context,
+        boolean useDirectIO
     ) throws IOException {
         String fileName = IndexFileNames.segmentFileName(state.segmentInfo.name, state.segmentSuffix, fileExtension);
         // use direct IO for accessing raw vector data for searches
-        IndexInput in = USE_DIRECT_IO
+        IndexInput in = useDirectIO
+            && USE_DIRECT_IO
             && context.context() == IOContext.Context.DEFAULT
             && state.directory instanceof DirectIOIndexInputSupplier did
                 ? did.openInputDirect(fileName, context)
@@ -153,6 +192,11 @@ public class DirectIOLucene99FlatVectorsReader extends FlatVectorsReader {
         }
     }
 
+    // only for tests
+    IndexInput getRawVectorsInput() {
+        return vectorData;
+    }
+
     private void readFields(ChecksumIndexInput meta, FieldInfos infos) throws IOException {
         for (int fieldNumber = meta.readInt(); fieldNumber != -1; fieldNumber = meta.readInt()) {
             FieldInfo info = infos.fieldInfo(fieldNumber);
@@ -176,13 +220,8 @@ public class DirectIOLucene99FlatVectorsReader extends FlatVectorsReader {
 
     @Override
     public FlatVectorsReader getMergeInstance() {
-        try {
-            // Update the read advice since vectors are guaranteed to be accessed sequentially for merge
-            this.vectorData.updateReadAdvice(ReadAdvice.SEQUENTIAL);
-            return this;
-        } catch (IOException exception) {
-            throw new UncheckedIOException(exception);
-        }
+        // for merges we use sequential access instead of direct IO
+        return new DirectIOLucene99FlatVectorsReader(this, vectorDataMerge);
     }
 
     private FieldEntry getFieldEntry(String field, VectorEncoding expectedEncoding) {
@@ -268,15 +307,10 @@ public class DirectIOLucene99FlatVectorsReader extends FlatVectorsReader {
     }
 
     @Override
-    public void finishMerge() throws IOException {
-        // This makes sure that the access pattern hint is reverted back since HNSW implementation
-        // needs it
-        this.vectorData.updateReadAdvice(ReadAdvice.RANDOM);
-    }
-
-    @Override
     public void close() throws IOException {
-        IOUtils.close(vectorData);
+        if (isClone == false) {
+            IOUtils.close(vectorDataMerge, vectorDataDirect);
+        }
     }
 
     private record FieldEntry(

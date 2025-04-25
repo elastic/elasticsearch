@@ -26,7 +26,6 @@ import java.util.function.BooleanSupplier;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.common.Strings.format;
-import static org.elasticsearch.test.ESIntegTestCase.getNodeId;
 import static org.elasticsearch.test.ESIntegTestCase.internalCluster;
 import static org.elasticsearch.test.ESTestCase.asInstanceOf;
 

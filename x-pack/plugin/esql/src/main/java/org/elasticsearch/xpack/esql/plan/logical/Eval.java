@@ -13,6 +13,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xpack.esql.capabilities.PostAnalysisVerificationAware;
 import org.elasticsearch.xpack.esql.capabilities.TelemetryAware;
 import org.elasticsearch.xpack.esql.common.Failures;
+import org.elasticsearch.xpack.esql.core.capabilities.Resolvables;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.AttributeMap;
@@ -131,12 +132,7 @@ public class Eval extends UnaryPlan implements GeneratingPlan<Eval>, PostAnalysi
 
     @Override
     public boolean expressionsResolved() {
-        for (Alias a : fields) {
-            if (a.resolved() == false || a.dataType() == DataType.UNSUPPORTED) {
-                return false;
-            }
-        }
-        return true;
+        return Resolvables.resolved(fields);
     }
 
     @Override

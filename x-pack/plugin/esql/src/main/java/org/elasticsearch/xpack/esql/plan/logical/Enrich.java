@@ -32,7 +32,6 @@ import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
-import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.index.EsIndex;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.plan.GeneratingPlan;
@@ -209,7 +208,6 @@ public class Enrich extends UnaryPlan implements GeneratingPlan<Enrich>, PostAna
         return policyName.resolved()
             && matchField instanceof EmptyAttribute == false // matchField not defined in the query, needs to be resolved from the policy
             && matchField.resolved()
-            && matchField.dataType() != DataType.UNSUPPORTED
             && Resolvables.resolved(enrichFields());
     }
 

@@ -15,6 +15,7 @@ import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.querydsl.query.Query;
+import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.LucenePushdownPredicates;
 import org.elasticsearch.xpack.esql.querydsl.query.SingleValueQuery;
 
 /**
@@ -41,7 +42,10 @@ public final class TranslatorHandler {
     private static Query wrapFunctionQuery(Expression field, Query query) {
         if (field instanceof FieldAttribute fa) {
             fa = fa.getExactInfo().hasExact() ? fa.exactAttribute() : fa;
-            return new SingleValueQuery(query, fa.name());
+            // Extract the real field name from MultiTypeEsField, and use it in the push down query if it is found
+            String fieldNameFromMultiTypeEsField = LucenePushdownPredicates.extractFieldNameFromMultiTypeEsField(fa);
+            String fieldName = fieldNameFromMultiTypeEsField != null ? fieldNameFromMultiTypeEsField : fa.name();
+            return new SingleValueQuery(query, fieldName);
         }
         if (field instanceof MetadataAttribute) {
             return query; // MetadataAttributes are always single valued

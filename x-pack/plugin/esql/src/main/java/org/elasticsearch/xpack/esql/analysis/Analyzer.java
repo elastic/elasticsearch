@@ -18,6 +18,7 @@ import org.elasticsearch.xpack.core.enrich.EnrichPolicy;
 import org.elasticsearch.xpack.esql.Column;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.VerificationException;
+import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.analysis.AnalyzerRules.ParameterizedAnalyzerRule;
 import org.elasticsearch.xpack.esql.common.Failure;
 import org.elasticsearch.xpack.esql.core.capabilities.Resolvables;
@@ -1797,11 +1798,15 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
     private static class ImplicitCastingForUnionTypedFields extends ParameterizedRule<LogicalPlan, LogicalPlan, AnalyzerContext> {
         @Override
         public LogicalPlan apply(LogicalPlan plan, AnalyzerContext context) {
+            if (EsqlCapabilities.Cap.IMPLICIT_CASTING_DATE_AND_DATE_NANOS.isEnabled() == false) {
+                return plan;
+            }
             // This rule should be applied after ResolveUnionTypes, so that the InvalidMappedFields with explicit casting are converted into
-            // MultiTypeEsField, and don't be double cast here.
+            // MultiTypeEsField, and don't get double cast here.
             Map<FieldAttribute, Alias> invalidMappedFieldCasted = new HashMap<>();
             LogicalPlan transformedPlan = plan.transformUp(LogicalPlan.class, p -> {
-                if (p instanceof UnaryPlan == false && p instanceof LookupJoin == false) {
+                // exclude LookupJoin for now, as it doesn't support date_nanos as join key yet
+                if (p instanceof UnaryPlan == false) {
                     return p;
                 }
                 Set<FieldAttribute> invalidMappedFields = invalidMappedFieldsInLogicalPlan(p);
@@ -1829,11 +1834,10 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                     // If there are new aliases created, create a new eval child with new aliases for the current plan。
                     // How many children does a LogicalPlan have? Only deal with UnaryPlan and LookupJoin for now.
                     if (newAliases.isEmpty() == false) { // create a new eval child plan
-                        if (p instanceof UnaryPlan u) { // unary plan
-                            Eval eval = new Eval(u.source(), u.child(), newAliases.values().stream().toList());
-                            p = u.replaceChild(eval);
-                        }
-                        // TODO Lookup join does not work on date_nanos field today, joining on a date_nanos field does not find a match.
+                        UnaryPlan u = (UnaryPlan) p; // this must be a unary plan, as it is checked at the beginning of plan loop
+                        Eval eval = new Eval(u.source(), u.child(), newAliases.values().stream().toList());
+                        p = u.replaceChild(eval);
+                        // TODO Lookup join does not work on date_nanos field yet, joining on a date_nanos field does not find a match.
                         // And lookup up join is a special case as a lookup join has two children, after date_nanos is supported as a join
                         // key, the transformation needs to take it into account.
                     }
@@ -1899,7 +1903,10 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
          */
         private static Set<FieldAttribute> invalidMappedFieldsInLogicalPlan(LogicalPlan plan) {
             Set<FieldAttribute> fas = new HashSet<>();
-            if (plan instanceof EsRelation == false) { // not all the union typed fields from indices need to be cast implicitly
+            // Invalid mapped fields are legal at EsRelation level, as long as they are not used elsewhere. In the final output, if they
+            // have not been dropped, implicit cast will be added for them, so that we can return not null values, the implicit casting is
+            // deferred to when the fields are used or returned.
+            if (plan instanceof EsRelation == false) {
                 plan.forEachExpression(FieldAttribute.class, fa -> {
                     if (fa.field() instanceof InvalidMappedField) {
                         fas.add(fa);
@@ -1939,7 +1946,8 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                         logicalPlan = unary.replaceChild(eval);
                     }
                     // TODO LookupJoin is a binary plan, it does not create a new field, ideally adding an Eval on top of it should be fine,
-                    // however because the output of a LookupJoin does not include InvalidMappedFields, it is a bug need to be addressed
+                    // however because the output of a LookupJoin does not include InvalidMappedFields even the LHS output has
+                    // InvalidMappedFields, it is a bug need to be addressed
                 }
             }
             return logicalPlan;

@@ -38,18 +38,23 @@ import org.elasticsearch.xpack.esql.analysis.AnalyzerContext;
 import org.elasticsearch.xpack.esql.analysis.EnrichResolution;
 import org.elasticsearch.xpack.esql.analysis.Verifier;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
+import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
+import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
+import org.elasticsearch.xpack.esql.core.type.MultiTypeEsField;
 import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.enrich.ResolvedEnrichPolicy;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
+import org.elasticsearch.xpack.esql.expression.function.UnsupportedAttribute;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.Match;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.Or;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThan;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThanOrEqual;
 import org.elasticsearch.xpack.esql.index.EsIndex;
 import org.elasticsearch.xpack.esql.index.IndexResolution;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.ExtractAggregateCommonFilter;
@@ -106,7 +111,9 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.emptyInferenceResolutio
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.loadMapping;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.unboundLogicalOptimizerContext;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.withDefaultLimitWarning;
+import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.indexWithDateDateNanosUnionType;
 import static org.elasticsearch.xpack.esql.core.querydsl.query.Query.unscore;
+import static org.elasticsearch.xpack.esql.core.type.DataType.DATE_NANOS;
 import static org.elasticsearch.xpack.esql.plan.physical.EsStatsQueryExec.StatsType;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.equalTo;
@@ -136,6 +143,7 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
     public static final String MATCH_FUNCTION_QUERY = "from test | where match(%s, %s)";
 
     private TestPlannerOptimizer plannerOptimizer;
+    private TestPlannerOptimizer plannerOptimizerDateDateNanosUnionTypes;
     private final Configuration config;
     private final SearchStats IS_SV_STATS = new TestSearchStats() {
         @Override
@@ -193,6 +201,13 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
 
     private Analyzer makeAnalyzer(String mappingFileName) {
         return makeAnalyzer(mappingFileName, new EnrichResolution());
+    }
+
+    private Analyzer makeAnalyzer(IndexResolution indexResolution) {
+        return new Analyzer(
+            new AnalyzerContext(config, new EsqlFunctionRegistry(), indexResolution, new EnrichResolution(), emptyInferenceResolution()),
+            new Verifier(new Metrics(new EsqlFunctionRegistry()), new XPackLicenseState(() -> 0L))
+        );
     }
 
     /**
@@ -1816,6 +1831,56 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
         BoolQueryBuilder expected = new BoolQueryBuilder().should(new MatchQueryBuilder("last_name", "Smith").lenient(true))
             .should(wrapWithSingleQuery(query, unscore(rangeQuery("emp_no").gt(10)), "emp_no", source));
         assertThat(esQuery.query().toString(), equalTo(expected.toString()));
+    }
+
+    public void testToDateNanosPushDown() {
+        assumeTrue("requires snapshot", EsqlCapabilities.Cap.IMPLICIT_CASTING_DATE_AND_DATE_NANOS.isEnabled());
+        IndexResolution indexWithUnionTypedFields = indexWithDateDateNanosUnionType();
+        plannerOptimizerDateDateNanosUnionTypes = new TestPlannerOptimizer(EsqlTestUtils.TEST_CFG, makeAnalyzer(indexWithUnionTypedFields));
+        var stats = EsqlTestUtils.statsForExistingField("date_and_date_nanos", "date_and_date_nanos_and_long");
+        String query = """
+            from test*
+            | where date_and_date_nanos < "2025-01-01" and date_and_date_nanos_and_long::date_nanos >= "2024-01-01\"""";
+        var plan = plannerOptimizerDateDateNanosUnionTypes.plan(query, stats);
+
+        // date_and_date_nanos should be pushed down to EsQueryExec, date_and_date_nanos_and_long should not be pushed down
+        var project = as(plan, ProjectExec.class);
+        List<? extends NamedExpression> projections = project.projections();
+        assertEquals(2, projections.size());
+        UnsupportedAttribute ua = as(projections.get(0), UnsupportedAttribute.class); // mixed date, date_nanos and long are not auto-casted
+        assertEquals("date_and_date_nanos_and_long", ua.fieldName());
+        Alias alias = as(projections.get(1), Alias.class);
+        assertEquals(DATE_NANOS, alias.dataType());
+        FieldAttribute ra = as(alias.child(), FieldAttribute.class);
+        assertEquals("date_and_date_nanos", ra.fieldName());
+        assertTrue(isMultiTypeEsField(ra)); // mixed date and date_nanos are auto-casted
+        var limit = as(project.child(), LimitExec.class);
+        var exchange = as(limit.child(), ExchangeExec.class);
+        project = as(exchange.child(), ProjectExec.class);
+        var fieldExtract = as(project.child(), FieldExtractExec.class);
+        limit = as(fieldExtract.child(), LimitExec.class);
+        // date_and_date_nanos_and_long::date_nanos >= "2024-01-01" is not pushed down
+        var filter = as(limit.child(), FilterExec.class);
+        GreaterThanOrEqual gt = as(filter.condition(), GreaterThanOrEqual.class);
+        FieldAttribute fa = as(gt.left(), FieldAttribute.class);
+        assertTrue(isMultiTypeEsField(fa));
+        assertEquals("date_and_date_nanos_and_long", fa.fieldName());
+        fieldExtract = as(filter.child(), FieldExtractExec.class); // extract date_and_date_nanos_and_long
+        var esQuery = as(fieldExtract.child(), EsQueryExec.class);
+        var source = ((SingleValueQuery.Builder) esQuery.query()).source();
+        var expected = wrapWithSingleQuery(
+            query,
+            unscore(
+                rangeQuery("date_and_date_nanos").lt("2025-01-01T00:00:00.000Z").timeZone("Z").format("strict_date_optional_time_nanos")
+            ),
+            "date_and_date_nanos",
+            source
+        ); // date_and_date_nanos is pushed down
+        assertThat(expected.toString(), is(esQuery.query().toString()));
+    }
+
+    private boolean isMultiTypeEsField(Expression e) {
+        return e instanceof FieldAttribute fa && fa.field() instanceof MultiTypeEsField;
     }
 
     private QueryBuilder wrapWithSingleQuery(String query, QueryBuilder inner, String fieldName, Source source) {

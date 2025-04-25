@@ -315,7 +315,7 @@ public class HollowShardsService extends AbstractLifecycleComponent {
     }
 
     public void ensureHollowShard(ShardId shardId, boolean hollow) {
-        ensureHollowShard(shardId, hollow, "shard should be " + (hollow ? "hollow" : "unhollow"));
+        ensureHollowShard(shardId, hollow, "shard " + shardId + " should be " + (hollow ? "hollow" : "unhollow"));
     }
 
     public void ensureHollowShard(ShardId shardId, boolean hollow, String message) {

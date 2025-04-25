@@ -22,6 +22,7 @@ package co.elastic.elasticsearch.stateless.commits;
 import co.elastic.elasticsearch.stateless.action.GetVirtualBatchedCompoundCommitChunkRequest;
 import co.elastic.elasticsearch.stateless.cache.SharedBlobCacheWarmingService;
 import co.elastic.elasticsearch.stateless.cache.StatelessSharedBlobCacheService;
+import co.elastic.elasticsearch.stateless.engine.HollowIndexEngine;
 import co.elastic.elasticsearch.stateless.engine.PrimaryTermAndGeneration;
 import co.elastic.elasticsearch.stateless.lucene.StatelessCommitRef;
 import co.elastic.elasticsearch.stateless.objectstore.ObjectStoreService;
@@ -2332,7 +2333,7 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
                 .orElse(latestUploaded);
             var availableCommit = availableBcc.lastCompoundCommit();
             if (compoundCommitGeneration.after(availableCommit.primaryTermAndGeneration())) {
-                throw new RecoveryCommitTooNewException(
+                final var error = new RecoveryCommitTooNewException(
                     shardId,
                     "Compound commit "
                         + compoundCommitGeneration
@@ -2344,6 +2345,18 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
                         + (latestUploading.isEmpty() ? "latest" : "pending")
                         + " uploaded commit"
                 );
+                final var indexService = indicesService.indexService(shardId.getIndex());
+                if (indexService != null) {
+                    IndexShard shard = indexService.getShard(shardId.id());
+                    final var engine = shard.getEngineOrNull();
+                    if (engine instanceof HollowIndexEngine) {
+                        // Hollow shards do not flush upon recovery. So it is possible for a search node to have picked up a newer commit
+                        // from an isolated primary. In such a case, fail the shard so we reload the latest uploaded commit, which may
+                        // contain dirty reads of unacknowledged ingestion operations.
+                        shard.failShard(format("%s failing stale hollow indexing shard", shardId), error);
+                    }
+                }
+                throw error;
             }
 
             registerVirtualBccForUnpromotableRecovery(Set.of(nodeId), availableBcc, listener);

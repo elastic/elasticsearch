@@ -1,10 +1,10 @@
 ---
-navigation_title: "Correlate data with LOOKUP JOIN"
+navigation_title: "Join data with LOOKUP JOIN"
 mapped_pages:
  - https://www.elastic.co/guide/en/elasticsearch/reference/8.18/_lookup_join.html
 ---
 
-# LOOKUP JOIN [esql-lookup-join-reference]
+# Join data from multiple indices with `LOOKUP JOIN` [esql-lookup-join-reference]
 
 The {{esql}} [`LOOKUP JOIN`](/reference/query-languages/esql/commands/processing-commands.md#esql-lookup-join) processing command combines data from your {{esql}} query results table with matching records from a specified lookup index. It adds fields from the lookup index as new columns to your results table based on matching values in the join field.
 

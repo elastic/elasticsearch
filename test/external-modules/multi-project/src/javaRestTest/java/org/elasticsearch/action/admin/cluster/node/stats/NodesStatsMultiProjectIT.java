@@ -22,10 +22,12 @@ import org.elasticsearch.test.rest.ObjectPath;
 import org.junit.ClassRule;
 
 import java.io.IOException;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 
@@ -41,6 +43,7 @@ public class NodesStatsMultiProjectIT extends MultiProjectRestTestCase {
         .setting("test.multi_project.enabled", "true")
         .setting("xpack.security.enabled", "true")
         .user("admin", PASSWORD)
+        .module("ingest-common")
         .build();
 
     @Override
@@ -162,6 +165,35 @@ public class NodesStatsMultiProjectIT extends MultiProjectRestTestCase {
         assertThat(ObjectPath.<Integer>evaluate(index1ShardStats.getFirst(), "0.docs.count"), equalTo(numDocs1));
     }
 
+    public void testIngestStats_omitsProjectIdPrefixForDefaultProject() throws IOException {
+        int numDocs1 = createAndUsePipeline(Metadata.DEFAULT_PROJECT_ID.id(), "my-pipeline-1");
+        int numDocs2 = createAndUsePipeline(Metadata.DEFAULT_PROJECT_ID.id(), "my-pipeline-2");
+        int numDocs3 = createAndUsePipeline(Metadata.DEFAULT_PROJECT_ID.id(), "my-pipeline-3");
+
+        String nodeId = ObjectPath.<Map<String, Object>>evaluate(getAsMap("/_nodes"), "nodes").keySet().stream().findAny().orElseThrow();
+        // Get ingest stats...
+        Map<String, Object> ingestStats = ObjectPath.evaluate(getAsMap("/_nodes/stats/ingest"), "nodes." + nodeId + ".ingest");
+        // ...assert that the total count is correct...
+        assertThat(ObjectPath.evaluate(ingestStats, "total.count"), equalTo(numDocs1 + numDocs2 + numDocs3));
+        // ...and that the pipelines are correct with the correct counts...
+        Map<String, Object> pipelineStats = ObjectPath.evaluate(ingestStats, "pipelines");
+        assertThat(pipelineStats.keySet(), containsInAnyOrder("my-pipeline-1", "my-pipeline-2", "my-pipeline-3"));
+        assertThat(ObjectPath.evaluate(pipelineStats, "my-pipeline-1.count"), equalTo(numDocs1));
+        assertThat(ObjectPath.evaluate(pipelineStats, "my-pipeline-2.count"), equalTo(numDocs2));
+        assertThat(ObjectPath.evaluate(pipelineStats, "my-pipeline-3.count"), equalTo(numDocs3));
+        // ...and that the processors are correct with the correct counts:
+        // (the counts for the lowercase processors should be halved because it has an if condition which triggers half the time)
+        Map<String, Object> processorStatsPipeline1 = mergeMaps(ObjectPath.evaluate(pipelineStats, "my-pipeline-1.processors"));
+        assertThat(ObjectPath.evaluate(processorStatsPipeline1, "set.stats.count"), equalTo(numDocs1));
+        assertThat(ObjectPath.evaluate(processorStatsPipeline1, "lowercase.stats.count"), equalTo(numDocs1 / 2));
+        Map<String, Object> processorStatsPipeline2 = mergeMaps(ObjectPath.evaluate(pipelineStats, "my-pipeline-2.processors"));
+        assertThat(ObjectPath.evaluate(processorStatsPipeline2, "set.stats.count"), equalTo(numDocs2));
+        assertThat(ObjectPath.evaluate(processorStatsPipeline2, "lowercase.stats.count"), equalTo(numDocs2 / 2));
+        Map<String, Object> processorStatsPipeline3 = mergeMaps(ObjectPath.evaluate(pipelineStats, "my-pipeline-3.processors"));
+        assertThat(ObjectPath.evaluate(processorStatsPipeline3, "set.stats.count"), equalTo(numDocs3));
+        assertThat(ObjectPath.evaluate(processorStatsPipeline3, "lowercase.stats.count"), equalTo(numDocs3 / 2));
+    }
+
     private int createPopulatedIndex(String projectId, String indexName) throws IOException {
         createIndex(req -> {
             setRequestProjectId(req, projectId);
@@ -176,5 +208,54 @@ public class NodesStatsMultiProjectIT extends MultiProjectRestTestCase {
         }
         client().performRequest(setRequestProjectId(new Request("POST", "/" + indexName + "/_refresh"), projectId));
         return numDocs;
+    }
+
+    private int createAndUsePipeline(String projectId, String pipelineId) throws IOException {
+        Request createPipelineRequest = new Request("PUT", "/_ingest/pipeline/" + pipelineId);
+        setRequestProjectId(createPipelineRequest, projectId);
+        createPipelineRequest.setJsonEntity("""
+            {
+              "processors": [
+                {
+                  "set": {
+                    "field": "foo",
+                    "value": "bar"
+                  }
+                },
+                {
+                  "lowercase": {
+                    "field": "str",
+                    "if": "ctx.needs_lower"
+                  }
+                }
+              ]
+            }
+            """);
+        client().performRequest(createPipelineRequest);
+
+        int numDocs = randomIntBetween(2, 6) * 2;
+        for (int i = 0; i < numDocs; i++) {
+            Request request = new Request("POST", "/my-index/_doc?pipeline=" + pipelineId);
+            boolean needsLower = (i % 2) == 0; // run the lowercase processor for every other doc
+            request.setJsonEntity(
+                Strings.format(
+                    "{ \"num\": %d, \"str\": \"%s\", \"needs_lower\": %s }",
+                    randomInt(),
+                    randomAlphaOfLengthBetween(5, 10),
+                    needsLower
+                )
+            );
+            setRequestProjectId(request, projectId);
+            client().performRequest(request);
+        }
+        client().performRequest(setRequestProjectId(new Request("POST", "/my-index/_refresh"), projectId));
+
+        return numDocs;
+    }
+
+    private static Map<String, Object> mergeMaps(List<Map<String, Object>> maps) {
+        Map<String, Object> merged = new HashMap<>();
+        maps.forEach(merged::putAll);
+        return merged;
     }
 }

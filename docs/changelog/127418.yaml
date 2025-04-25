@@ -1,0 +1,5 @@
+pr: 127418
+summary: Don't issue deprecation issue for compatible date format patterns
+area: Infra/Core
+type: bug
+issues: []

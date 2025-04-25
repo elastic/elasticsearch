@@ -37,6 +37,7 @@ import org.elasticsearch.xpack.core.transform.transforms.TransformConfig;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 
 import static java.util.Collections.singletonList;
@@ -243,7 +244,7 @@ public class IndexDeprecationCheckerTests extends ESTestCase {
             .numberOfShards(1)
             .numberOfReplicas(0)
             .state(indexMetdataState)
-            .putMapping("""
+            .putMapping(String.format(Locale.ROOT, """
                 {
                   "properties": {
                     "date": {
@@ -251,7 +252,7 @@ public class IndexDeprecationCheckerTests extends ESTestCase {
                       "format": "%s"
                     }
                   }
-                }""".formatted(pattern))
+                }""", pattern))
             .build();
         ClusterState clusterState = ClusterState.builder(ClusterState.EMPTY_STATE)
             .metadata(Metadata.builder().put(indexMetadata, true))

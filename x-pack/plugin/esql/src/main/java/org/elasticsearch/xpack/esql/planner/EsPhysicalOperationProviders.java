@@ -61,6 +61,7 @@ import org.elasticsearch.xpack.esql.plan.physical.AggregateExec;
 import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec;
 import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec.Sort;
 import org.elasticsearch.xpack.esql.plan.physical.FieldExtractExec;
+import org.elasticsearch.xpack.esql.plan.physical.TimeSeriesSourceExec;
 import org.elasticsearch.xpack.esql.planner.LocalExecutionPlanner.DriverParallelism;
 import org.elasticsearch.xpack.esql.planner.LocalExecutionPlanner.LocalExecutionPlannerContext;
 import org.elasticsearch.xpack.esql.planner.LocalExecutionPlanner.PhysicalOperation;
@@ -191,6 +192,10 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
 
     @Override
     public final PhysicalOperation sourcePhysicalOperation(EsQueryExec esQueryExec, LocalExecutionPlannerContext context) {
+        if (esQueryExec.indexMode() == IndexMode.TIME_SERIES) {
+            assert false : "Time series source should be translated to TimeSeriesSourceExec";
+            throw new IllegalStateException("Time series source should be translated to TimeSeriesSourceExec");
+        }
         final LuceneOperator.Factory luceneFactory;
         logger.trace("Query Exec is {}", esQueryExec);
 
@@ -215,28 +220,35 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
                 scoring
             );
         } else {
-            if (esQueryExec.indexMode() == IndexMode.TIME_SERIES) {
-                luceneFactory = TimeSeriesSortedSourceOperatorFactory.create(
-                    limit,
-                    context.pageSize(rowEstimatedSize),
-                    context.queryPragmas().taskConcurrency(),
-                    shardContexts,
-                    querySupplier(esQueryExec.query())
-                );
-            } else {
-                luceneFactory = new LuceneSourceOperator.Factory(
-                    shardContexts,
-                    querySupplier(esQueryExec.query()),
-                    context.queryPragmas().dataPartitioning(defaultDataPartitioning),
-                    context.queryPragmas().taskConcurrency(),
-                    context.pageSize(rowEstimatedSize),
-                    limit,
-                    scoring
-                );
-            }
+            luceneFactory = new LuceneSourceOperator.Factory(
+                shardContexts,
+                querySupplier(esQueryExec.query()),
+                context.queryPragmas().dataPartitioning(defaultDataPartitioning),
+                context.queryPragmas().taskConcurrency(),
+                context.pageSize(rowEstimatedSize),
+                limit,
+                scoring
+            );
         }
         Layout.Builder layout = new Layout.Builder();
         layout.append(esQueryExec.output());
+        int instanceCount = Math.max(1, luceneFactory.taskConcurrency());
+        context.driverParallelism(new DriverParallelism(DriverParallelism.Type.DATA_PARALLELISM, instanceCount));
+        return PhysicalOperation.fromSource(luceneFactory, layout.build());
+    }
+
+    @Override
+    public PhysicalOperation timeSeriesSourceOperation(TimeSeriesSourceExec ts, LocalExecutionPlannerContext context) {
+        final int limit = ts.limit() != null ? (Integer) ts.limit().fold(context.foldCtx()) : NO_LIMIT;
+        LuceneOperator.Factory luceneFactory = TimeSeriesSortedSourceOperatorFactory.create(
+            limit,
+            context.pageSize(ts.estimatedRowSize()),
+            context.queryPragmas().taskConcurrency(),
+            shardContexts,
+            querySupplier(ts.query())
+        );
+        Layout.Builder layout = new Layout.Builder();
+        layout.append(ts.output());
         int instanceCount = Math.max(1, luceneFactory.taskConcurrency());
         context.driverParallelism(new DriverParallelism(DriverParallelism.Type.DATA_PARALLELISM, instanceCount));
         return PhysicalOperation.fromSource(luceneFactory, layout.build());

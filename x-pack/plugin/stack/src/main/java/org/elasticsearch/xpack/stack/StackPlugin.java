@@ -33,7 +33,8 @@ public class StackPlugin extends Plugin implements ActionPlugin {
             services.clusterService(),
             services.threadPool(),
             services.client(),
-            services.xContentRegistry()
+            services.xContentRegistry(),
+            services.projectResolver()
         );
         legacyStackTemplateRegistry.initialize();
         StackTemplateRegistry stackTemplateRegistry = new StackTemplateRegistry(
@@ -41,7 +42,8 @@ public class StackPlugin extends Plugin implements ActionPlugin {
             services.clusterService(),
             services.threadPool(),
             services.client(),
-            services.xContentRegistry()
+            services.xContentRegistry(),
+            services.projectResolver()
         );
         stackTemplateRegistry.initialize();
         return List.of(legacyStackTemplateRegistry, stackTemplateRegistry);

@@ -94,7 +94,7 @@ public class SearchRestCancellationIT extends HttpSmokeTestCase {
     }
 
     void verifyCancellationDuringQueryPhase(String searchAction, Request searchRequest) throws Exception {
-        Map<String, String> nodeIdToName = readNodesInfo();
+        Map<String, String> nodeIdToName = nodeIdsToNames();
 
         List<ScriptedBlockPlugin> plugins = initBlockFactory();
         indexTestData();
@@ -137,7 +137,7 @@ public class SearchRestCancellationIT extends HttpSmokeTestCase {
     }
 
     void verifyCancellationDuringFetchPhase(String searchAction, Request searchRequest) throws Exception {
-        Map<String, String> nodeIdToName = readNodesInfo();
+        Map<String, String> nodeIdToName = nodeIdsToNames();
 
         List<ScriptedBlockPlugin> plugins = initBlockFactory();
         indexTestData();
@@ -151,16 +151,6 @@ public class SearchRestCancellationIT extends HttpSmokeTestCase {
 
         disableBlocks(plugins);
         expectThrows(CancellationException.class, future::actionGet);
-    }
-
-    private static Map<String, String> readNodesInfo() {
-        Map<String, String> nodeIdToName = new HashMap<>();
-        NodesInfoResponse nodesInfoResponse = clusterAdmin().prepareNodesInfo().get();
-        assertFalse(nodesInfoResponse.hasFailures());
-        for (NodeInfo node : nodesInfoResponse.getNodes()) {
-            nodeIdToName.put(node.getNode().getId(), node.getNode().getName());
-        }
-        return nodeIdToName;
     }
 
     private static void ensureSearchTaskIsCancelled(String transportAction, Function<String, String> nodeIdToName) throws Exception {

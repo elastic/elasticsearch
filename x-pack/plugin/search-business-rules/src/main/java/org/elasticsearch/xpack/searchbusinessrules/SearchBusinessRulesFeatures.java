@@ -10,9 +10,9 @@ package org.elasticsearch.xpack.searchbusinessrules;
 import org.elasticsearch.features.FeatureSpecification;
 import org.elasticsearch.features.NodeFeature;
 
-import static org.elasticsearch.xpack.searchbusinessrules.retriever.PinnedRetrieverBuilder.PINNED_RETRIEVER_FEATURE;
-
 import java.util.Set;
+
+import static org.elasticsearch.xpack.searchbusinessrules.retriever.PinnedRetrieverBuilder.PINNED_RETRIEVER_FEATURE;
 
 public class SearchBusinessRulesFeatures implements FeatureSpecification {
 

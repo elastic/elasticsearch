@@ -42,15 +42,13 @@ PUT my-index
 `time_series_metric`
 :   (Optional, string) Marks the field as a [time series metric](docs-content://manage-data/data-store/data-streams/time-series-data-stream-tsds.md#time-series-metric). The value is the metric type. You can’t update this parameter for existing fields.
 
-    ::::{dropdown} Valid `time_series_metric` values for `aggregate_metric_double` fields
+    **Valid `time_series_metric` values for `aggregate_metric_double` fields**:
+
     `gauge`
     :   A metric that represents a single numeric that can arbitrarily increase or decrease. For example, a temperature or available disk space.
 
     `null` (Default)
     :   Not a time series metric.
-
-    ::::
-
 
 
 ## Uses [aggregate-metric-double-uses]

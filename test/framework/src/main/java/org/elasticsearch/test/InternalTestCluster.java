@@ -831,14 +831,11 @@ public final class InternalTestCluster extends TestCluster {
     public Client client() {
         /* Randomly return a client to one of the nodes in the cluster */
         NodeAndClient c = getRandomNodeAndClient();
-        ensureOpen();
         if (c == null) {
-            synchronized (this) {
-                return getOrBuildRandomNode().client();
-            }
-        } else {
-            return c.client();
+            throw new AssertionError("Unable to get client, no node found");
         }
+        ensureOpen();
+        return c.client();
     }
 
     /**

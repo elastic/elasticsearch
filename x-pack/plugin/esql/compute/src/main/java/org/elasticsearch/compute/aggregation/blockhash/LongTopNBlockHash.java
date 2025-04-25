@@ -38,6 +38,13 @@ public final class LongTopNBlockHash extends BlockHash {
     private final int limit;
     private final LongHash hash;
     private final TreeSet<Long> topValues;
+    /**
+     * Helper field to keep track of the last top value.
+     * <p>
+     *     Used temporarily as TreeSet#last() is O(log(n)) and would slow every insertion.
+     * </p>
+     */
+    private long lastTopValue;
 
     /**
      * Have we seen any {@code null} values?
@@ -57,6 +64,7 @@ public final class LongTopNBlockHash extends BlockHash {
         this.limit = limit;
         this.hash = new LongHash(1, blockFactory.bigArrays());
         this.topValues = new TreeSet<>(asc ? Comparator.<Long>naturalOrder() : Comparator.<Long>reverseOrder());
+        this.lastTopValue = asc ? Long.MAX_VALUE : Long.MIN_VALUE;
 
         assert limit > 0 : "LongTopNBlockHash requires a limit greater than 0";
     }
@@ -98,6 +106,11 @@ public final class LongTopNBlockHash extends BlockHash {
             hasNull = true;
             if (topValues.size() == limit) {
                 topValues.remove(topValues.last());
+                if (topValues.isEmpty()) {
+                    lastTopValue = asc ? Long.MAX_VALUE : Long.MIN_VALUE;
+                } else {
+                    lastTopValue = topValues.last();
+                }
             }
             return true;
         }
@@ -118,17 +131,35 @@ public final class LongTopNBlockHash extends BlockHash {
             return false;
         }
 
-        topValues.add(value);
+        if (hash.find(value) >= 0) {
+            // Already in the hash, no need to add it again
+            return true;
+        }
 
-        if (topValues.size() > limit - (hasNull ? 1 : 0)) {
-            if (hasNull && nullsFirst == false) {
-                hasNull = false;
-            } else {
-                topValues.remove(topValues.last());
+        if (topValues.add(value)) {
+            if (isBetterThan(lastTopValue, value) || topValues.size() == 1) {
+                lastTopValue = value;
+            }
+
+            if (topValues.size() > limit - (hasNull ? 1 : 0)) {
+                if (hasNull && nullsFirst == false) {
+                    hasNull = false;
+                } else {
+                    topValues.remove(topValues.last());
+                    if (topValues.isEmpty()) {
+                        lastTopValue = asc ? Long.MAX_VALUE : Long.MIN_VALUE;
+                    } else {
+                        lastTopValue = topValues.last();
+                    }
+                }
             }
         }
 
         return true;
+    }
+
+    private boolean isBetterThan(long value, long other) {
+        return asc ? value < other : value > other;
     }
 
     /**
@@ -145,7 +176,7 @@ public final class LongTopNBlockHash extends BlockHash {
      * </p>
      */
     private boolean isInTop(long value) {
-        return asc ? value <= topValues.last() : value >= topValues.last();
+        return asc ? value <= lastTopValue : value >= lastTopValue;
     }
 
     /**

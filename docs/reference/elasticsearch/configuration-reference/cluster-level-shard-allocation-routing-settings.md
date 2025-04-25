@@ -89,8 +89,10 @@ Rebalancing is important to ensure the cluster returns to a healthy and fully re
 `cluster.routing.allocation.type`
 :   Selects the algorithm used for computing the cluster balance. Defaults to `desired_balance` which selects the *desired balance allocator*. This allocator runs a background task which computes the desired balance of shards in the cluster. Once this background task completes, {{es}} moves shards to their desired locations.
 
-[8.8] May also be set to `balanced` to select the legacy *balanced allocator*. This allocator was the default allocator in versions of {{es}} before 8.6.0. It runs in the foreground, preventing the master from doing other work in parallel. It works by selecting a small number of shard movements which immediately improve the balance of the cluster, and when those shard movements complete it runs again and selects another few shards to move. Since this allocator makes its decisions based only on the current state of the cluster, it will sometimes move a shard several times while balancing the cluster.
 
+:::{admonition} Deprecated in 8.8
+May also be set to `balanced` to select the legacy *balanced allocator*. This allocator was the default allocator in versions of {{es}} before 8.6.0. It runs in the foreground, preventing the master from doing other work in parallel. It works by selecting a small number of shard movements which immediately improve the balance of the cluster, and when those shard movements complete it runs again and selects another few shards to move. Since this allocator makes its decisions based only on the current state of the cluster, it will sometimes move a shard several times while balancing the cluster.
+:::
 
 
 ## Shard balancing heuristics settings [shards-rebalancing-heuristics]

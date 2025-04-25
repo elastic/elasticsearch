@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.plugin;
 
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.search.SearchRequest;
@@ -30,6 +31,7 @@ import org.elasticsearch.compute.operator.exchange.ExchangeSourceHandler;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
@@ -242,21 +244,24 @@ public class ComputeService {
                 )
             ) {
                 runCompute(rootTask, computeContext, finalMainPlan, localListener.acquireCompute());
-            }
 
-            for (PhysicalPlan subplan : subplans) {
-                var childSessionId = newChildSession(sessionId);
-                ExchangeSinkHandler exchangeSink = exchangeService.createSinkHandler(childSessionId, queryPragmas.exchangeBufferSize());
-                // funnel sub plan pages into the main plan exchange source
-                mainExchangeSource.addRemoteSink(exchangeSink::fetchPageAsync, true, () -> {}, 1, ActionListener.noop());
-                executePlan(childSessionId, rootTask, subplan, configuration, foldContext, execInfo, ActionListener.wrap(result -> {
-                    exchangeSink.addCompletionListener(
-                        ActionListener.running(() -> { exchangeService.finishSinkHandler(childSessionId, null); })
-                    );
-                }, e -> {
-                    exchangeService.finishSinkHandler(childSessionId, e);
-                    finalListener.onFailure(e);
-                }), () -> exchangeSink.createExchangeSink(() -> {}));
+                for (PhysicalPlan subplan : subplans) {
+                    var childSessionId = newChildSession(sessionId);
+                    ExchangeSinkHandler exchangeSink = exchangeService.createSinkHandler(childSessionId, queryPragmas.exchangeBufferSize());
+                    // funnel sub plan pages into the main plan exchange source
+                    mainExchangeSource.addRemoteSink(exchangeSink::fetchPageAsync, true, () -> {}, 1, ActionListener.noop());
+                    var subPlanListener = localListener.acquireCompute();
+
+                    executePlan(childSessionId, rootTask, subplan, configuration, foldContext, execInfo, ActionListener.wrap(result -> {
+                        exchangeSink.addCompletionListener(
+                            ActionListener.running(() -> { exchangeService.finishSinkHandler(childSessionId, null); })
+                        );
+                        subPlanListener.onResponse(result.completionInfo());
+                    }, e -> {
+                        exchangeService.finishSinkHandler(childSessionId, e);
+                        subPlanListener.onFailure(e);
+                    }), () -> exchangeSink.createExchangeSink(() -> {}));
+                }
             }
         }
     }
@@ -428,7 +433,8 @@ public class ComputeService {
                                 );
                                 dataNodesListener.onResponse(r.getCompletionInfo());
                             }, e -> {
-                                if (configuration.allowPartialResults()) {
+                                if (configuration.allowPartialResults()
+                                    && (ExceptionsHelper.unwrapCause(e) instanceof IndexNotFoundException) == false) {
                                     execInfo.swapCluster(
                                         LOCAL_CLUSTER,
                                         (k, v) -> new EsqlExecutionInfo.Cluster.Builder(v).setStatus(

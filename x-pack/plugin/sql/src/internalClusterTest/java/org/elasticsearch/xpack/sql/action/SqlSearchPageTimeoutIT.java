@@ -14,6 +14,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.search.SearchContextMissingException;
 import org.elasticsearch.search.SearchService;
+import org.elasticsearch.test.ESIntegTestCase;
 
 import java.util.Arrays;
 
@@ -21,6 +22,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcke
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.instanceOf;
 
+@ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.SUITE, numDataNodes = 0)
 public class SqlSearchPageTimeoutIT extends AbstractSqlIntegTestCase {
 
     @Override
@@ -40,6 +42,7 @@ public class SqlSearchPageTimeoutIT extends AbstractSqlIntegTestCase {
     }
 
     public void testSearchContextIsCleanedUpAfterPageTimeout(String query) throws Exception {
+        internalCluster().startNode();
         setupTestIndex();
 
         SqlQueryResponse response = new SqlQueryRequestBuilder(client()).query(query)

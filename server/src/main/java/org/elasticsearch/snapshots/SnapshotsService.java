@@ -3261,7 +3261,6 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
                         newlyCompletedEntries.add(newEntry);
                     }
                 }
-                assert updates.getValue().isEmpty();
                 updated = updated.createCopyWithUpdatedEntriesForRepo(repoName, newEntries);
             }
 

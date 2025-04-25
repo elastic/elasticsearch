@@ -11,6 +11,8 @@ import org.apache.lucene.search.Explanation;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.search.rank.RankDoc;
+import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -70,5 +72,10 @@ public class PinnedRankDoc extends RankDoc {
     @Override
     protected int doHashCode() {
         return Objects.hash(super.doHashCode(), isPinned);
+    }
+
+    @Override
+    public TransportVersion getMinimalSupportedVersion() {
+        return TransportVersions.PINNED_RETRIEVER;
     }
 }

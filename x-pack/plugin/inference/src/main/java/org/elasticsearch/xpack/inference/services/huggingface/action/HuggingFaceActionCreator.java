@@ -9,14 +9,19 @@ package org.elasticsearch.xpack.inference.services.huggingface.action;
 
 import org.elasticsearch.xpack.inference.external.action.ExecutableAction;
 import org.elasticsearch.xpack.inference.external.action.SenderExecutableAction;
+import org.elasticsearch.xpack.inference.external.action.SingleInputSenderExecutableAction;
+import org.elasticsearch.xpack.inference.external.http.retry.ResponseHandler;
+import org.elasticsearch.xpack.inference.external.http.sender.ChatCompletionInput;
+import org.elasticsearch.xpack.inference.external.http.sender.GenericRequestManager;
 import org.elasticsearch.xpack.inference.external.http.sender.Sender;
+import org.elasticsearch.xpack.inference.external.http.sender.UnifiedChatInput;
 import org.elasticsearch.xpack.inference.services.ServiceComponents;
-import org.elasticsearch.xpack.inference.services.huggingface.HuggingFaceChatCompletionRequestManager;
 import org.elasticsearch.xpack.inference.services.huggingface.HuggingFaceEmbeddingsRequestManager;
 import org.elasticsearch.xpack.inference.services.huggingface.HuggingFaceResponseHandler;
 import org.elasticsearch.xpack.inference.services.huggingface.completion.HuggingFaceChatCompletionModel;
 import org.elasticsearch.xpack.inference.services.huggingface.elser.HuggingFaceElserModel;
 import org.elasticsearch.xpack.inference.services.huggingface.embeddings.HuggingFaceEmbeddingsModel;
+import org.elasticsearch.xpack.inference.services.huggingface.request.completion.HuggingFaceUnifiedChatCompletionRequest;
 import org.elasticsearch.xpack.inference.services.huggingface.response.HuggingFaceElserResponseEntity;
 import org.elasticsearch.xpack.inference.services.huggingface.response.HuggingFaceEmbeddingsResponseEntity;
 import org.elasticsearch.xpack.inference.services.openai.OpenAiUnifiedChatCompletionResponseHandler;
@@ -31,8 +36,14 @@ import static org.elasticsearch.core.Strings.format;
  */
 public class HuggingFaceActionCreator implements HuggingFaceActionVisitor {
 
+    public static final String COMPLETION_ERROR_PREFIX = "Hugging Face completions";
+    private static final String USER_ROLE = "user";
     private static final String FAILED_TO_SEND_REQUEST_ERROR_MESSAGE =
         "Failed to send Hugging Face %s request from inference entity id [%s]";
+    static final ResponseHandler COMPLETION_HANDLER = new OpenAiUnifiedChatCompletionResponseHandler(
+        "hugging face completion",
+        OpenAiChatCompletionResponseEntity::fromResponse
+    );
     private final Sender sender;
     private final ServiceComponents serviceComponents;
 
@@ -72,13 +83,15 @@ public class HuggingFaceActionCreator implements HuggingFaceActionVisitor {
 
     @Override
     public ExecutableAction create(HuggingFaceChatCompletionModel model) {
-        var responseHandler = new OpenAiUnifiedChatCompletionResponseHandler(
-            "hugging face chat completion",
-            OpenAiChatCompletionResponseEntity::fromResponse
+        var manager = new GenericRequestManager<>(
+            serviceComponents.threadPool(),
+            model,
+            COMPLETION_HANDLER,
+            inputs -> new HuggingFaceUnifiedChatCompletionRequest(new UnifiedChatInput(inputs, USER_ROLE), model),
+            ChatCompletionInput.class
         );
 
-        var requestCreator = HuggingFaceChatCompletionRequestManager.of(model, responseHandler, serviceComponents.threadPool());
-        var errorMessage = format(FAILED_TO_SEND_REQUEST_ERROR_MESSAGE, "CHAT COMPLETION", model.getInferenceEntityId());
-        return new SenderExecutableAction(sender, requestCreator, errorMessage);
+        var errorMessage = format(FAILED_TO_SEND_REQUEST_ERROR_MESSAGE, "COMPLETION", model.getInferenceEntityId());
+        return new SingleInputSenderExecutableAction(sender, manager, errorMessage, COMPLETION_ERROR_PREFIX);
     }
 }

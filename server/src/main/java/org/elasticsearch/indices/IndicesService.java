@@ -1023,6 +1023,12 @@ public class IndicesService extends AbstractLifecycleComponent
         return indicesQueryCache;
     }
 
+    private QueryBuilder parseFilter(BytesReference bytes) throws IOException {
+        try (XContentParser parser = XContentHelper.createParser(parserConfig, bytes)) {
+            return parseTopLevelQuery(parser);
+        }
+    }
+
     static class OldShardsStats implements IndexEventListener {
 
         final SearchStats searchStats = new SearchStats();
@@ -1743,13 +1749,6 @@ public class IndicesService extends AbstractLifecycleComponent
     public AliasFilter buildAliasFilter(ProjectState project, String index, Set<ResolvedExpression> resolvedExpressions) {
         /* Being static, parseAliasFilter doesn't have access to whatever guts it needs to parse a query. Instead of passing in a bunch
          * of dependencies we pass in a function that can perform the parsing. */
-        CheckedFunction<BytesReference, QueryBuilder, IOException> filterParser = bytes -> {
-            try (
-                XContentParser parser = XContentHelper.createParserNotCompressed(parserConfig, bytes, XContentHelper.xContentType(bytes))
-            ) {
-                return parseTopLevelQuery(parser);
-            }
-        };
 
         final ProjectMetadata metadata = project.metadata();
         String[] aliases = indexNameExpressionResolver.filteringAliases(metadata, index, resolvedExpressions);
@@ -1759,43 +1758,36 @@ public class IndicesService extends AbstractLifecycleComponent
 
         IndexAbstraction ia = metadata.getIndicesLookup().get(index);
         DataStream dataStream = ia.getParentDataStream();
+        final QueryBuilder filter;
         if (dataStream != null) {
+            var dsAliases = metadata.dataStreamAliases();
             String dataStreamName = dataStream.getName();
-            List<QueryBuilder> filters = Arrays.stream(aliases)
-                .map(name -> metadata.dataStreamAliases().get(name))
-                .filter(dataStreamAlias -> dataStreamAlias.getFilter(dataStreamName) != null)
-                .map(dataStreamAlias -> {
-                    try {
-                        return filterParser.apply(dataStreamAlias.getFilter(dataStreamName).uncompressed());
-                    } catch (IOException e) {
-                        throw new UncheckedIOException(e);
-                    }
-                })
-                .toList();
-            if (filters.isEmpty()) {
-                return AliasFilter.of(null, aliases);
-            } else {
-                if (filters.size() == 1) {
-                    return AliasFilter.of(filters.get(0), aliases);
-                } else {
-                    BoolQueryBuilder bool = new BoolQueryBuilder();
-                    for (QueryBuilder filter : filters) {
-                        bool.should(filter);
-                    }
-                    return AliasFilter.of(bool, aliases);
+            List<QueryBuilder> filters = Arrays.stream(aliases).map(key -> {
+                var f = dsAliases.get(key).getFilter(dataStreamName);
+                if (f == null) {
+                    return null;
                 }
+                try {
+                    return parseFilter(f.compressedReference());
+                } catch (IOException e) {
+                    throw new UncheckedIOException(e);
+                }
+            }).filter(Objects::nonNull).toList();
+            if (filters.isEmpty()) {
+                filter = null;
+            } else if (filters.size() == 1) {
+                filter = filters.getFirst();
+            } else {
+                BoolQueryBuilder bool = new BoolQueryBuilder();
+                for (QueryBuilder f : filters) {
+                    bool.should(f);
+                }
+                filter = bool;
             }
         } else {
-            IndexMetadata indexMetadata = metadata.index(index);
-            return AliasFilter.of(ShardSearchRequest.parseAliasFilter(filterParser, indexMetadata, aliases), aliases);
+            filter = ShardSearchRequest.parseAliasFilter(this::parseFilter, metadata.index(index), aliases);
         }
-    }
-
-    /**
-     * Returns a new {@link QueryRewriteContext} with the given {@code now} provider
-     */
-    public QueryRewriteContext getRewriteContext(LongSupplier nowInMillis, ResolvedIndices resolvedIndices, PointInTimeBuilder pit) {
-        return getRewriteContext(nowInMillis, resolvedIndices, pit, false);
+        return AliasFilter.of(filter, aliases);
     }
 
     /**

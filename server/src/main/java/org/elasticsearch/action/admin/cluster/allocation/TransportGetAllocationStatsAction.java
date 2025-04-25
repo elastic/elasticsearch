@@ -15,9 +15,9 @@ import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.ActionType;
-import org.elasticsearch.action.SingleResultDeduplicator;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsRequestParameters.Metric;
 import org.elasticsearch.action.support.ActionFilters;
+import org.elasticsearch.action.support.ContextPreservingActionListener;
 import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.action.support.master.MasterNodeReadRequest;
 import org.elasticsearch.action.support.master.TransportMasterNodeReadAction;
@@ -35,15 +35,20 @@ import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.injection.guice.Inject;
+import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
+import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.EnumSet;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Consumer;
 
 public class TransportGetAllocationStatsAction extends TransportMasterNodeReadAction<
     TransportGetAllocationStatsAction.Request,
@@ -62,8 +67,10 @@ public class TransportGetAllocationStatsAction extends TransportMasterNodeReadAc
     );
 
     private final AllocationStatsCache allocationStatsCache;
-    private final SingleResultDeduplicator<Map<String, NodeAllocationStats>> allocationStatsSupplier;
+    private final Consumer<ActionListener<Map<String, NodeAllocationStats>>> allocationStatsSupplier;
     private final DiskThresholdSettings diskThresholdSettings;
+    private SubscribableListener<Response> waitingListeners;
+    private List<TaskListenerPair> tasksList;
 
     @Inject
     public TransportGetAllocationStatsAction(
@@ -87,7 +94,7 @@ public class TransportGetAllocationStatsAction extends TransportMasterNodeReadAc
         );
         final var managementExecutor = threadPool.executor(ThreadPool.Names.MANAGEMENT);
         this.allocationStatsCache = new AllocationStatsCache(threadPool, DEFAULT_CACHE_TTL);
-        this.allocationStatsSupplier = new SingleResultDeduplicator<>(threadPool.getThreadContext(), l -> {
+        this.allocationStatsSupplier = l -> {
             final var cachedStats = allocationStatsCache.get();
             if (cachedStats != null) {
                 l.onResponse(cachedStats);
@@ -95,11 +102,11 @@ public class TransportGetAllocationStatsAction extends TransportMasterNodeReadAc
             }
 
             managementExecutor.execute(ActionRunnable.supply(l, () -> {
-                final var stats = allocationStatsService.stats();
+                final var stats = allocationStatsService.stats(this::ensureNotCancelled);
                 allocationStatsCache.put(stats);
                 return stats;
             }));
-        });
+        };
         this.diskThresholdSettings = new DiskThresholdSettings(clusterService.getSettings(), clusterService.getClusterSettings());
         clusterService.getClusterSettings().initializeAndWatch(CACHE_TTL_SETTING, this.allocationStatsCache::setTTL);
     }
@@ -118,13 +125,65 @@ public class TransportGetAllocationStatsAction extends TransportMasterNodeReadAc
     protected void masterOperation(Task task, Request request, ClusterState state, ActionListener<Response> listener) throws Exception {
         // NB we are still on a transport thread here - if adding more functionality here make sure to fork to a different pool
 
-        final SubscribableListener<Map<String, NodeAllocationStats>> allocationStatsStep = request.metrics().contains(Metric.ALLOCATIONS)
-            ? SubscribableListener.newForked(allocationStatsSupplier::execute)
-            : SubscribableListener.newSucceeded(Map.of());
+        if (request.metrics().contains(Metric.ALLOCATIONS) == false) {
+            listener.onResponse(statsToResponse(Map.of(), request));
+            return;
+        }
+        // Perform a cheap check for the cached stats up front.
+        final var cachedStats = allocationStatsCache.get();
+        if (cachedStats != null) {
+            listener.onResponse(statsToResponse(cachedStats, request));
+            return;
+        }
 
-        allocationStatsStep.andThenApply(
-            allocationStats -> new Response(allocationStats, request.metrics().contains(Metric.FS) ? diskThresholdSettings : null)
-        ).addListener(listener);
+        assert task instanceof CancellableTask;
+        final var wrappedListener = ContextPreservingActionListener.wrapPreservingContext(listener, threadPool.getThreadContext());
+        final var taskListenerPair = new TaskListenerPair((CancellableTask) task, wrappedListener);
+
+        synchronized (this) {
+            if (waitingListeners != null) {
+                tasksList.add(taskListenerPair);
+                waitingListeners.addListener(wrappedListener);
+                return;
+            }
+
+            tasksList = new ArrayList<>();
+            waitingListeners = new SubscribableListener<>();
+            tasksList.add(taskListenerPair);
+            waitingListeners.addListener(ActionListener.runBefore(wrappedListener, () -> {
+                synchronized (this) {
+                    waitingListeners = null;
+                    tasksList = null;
+                }
+            }));
+        }
+
+        SubscribableListener.newForked(allocationStatsSupplier::accept)
+            .andThenApply(stats -> statsToResponse(stats, request))
+            .addListener(waitingListeners);
+    }
+
+    private Response statsToResponse(Map<String, NodeAllocationStats> stats, Request request) {
+        return new Response(stats, request.metrics().contains(Metric.FS) ? diskThresholdSettings : null);
+    }
+
+    private void ensureNotCancelled() {
+        final int count;
+        synchronized (this) {
+            count = tasksList.size();
+        }
+        boolean allTasksCancelled = true;
+        // Check each task to give each task a chance to invoke their listener (once) when cancelled.
+        for (int i = 0; i < count; ++i) {
+            final TaskListenerPair taskPair;
+            synchronized (this) {
+                taskPair = tasksList.get(i);
+            }
+            allTasksCancelled &= taskPair.isCancelled();
+        }
+        if (allTasksCancelled) {
+            throw new TaskCancelledException("task cancelled");
+        }
     }
 
     @Override
@@ -166,6 +225,11 @@ public class TransportGetAllocationStatsAction extends TransportMasterNodeReadAc
         @Override
         public ActionRequestValidationException validate() {
             return null;
+        }
+
+        @Override
+        public Task createTask(long id, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
+            return new CancellableTask(id, type, action, "", parentTaskId, headers);
         }
     }
 
@@ -243,6 +307,26 @@ public class TransportGetAllocationStatsAction extends TransportMasterNodeReadAc
             if (ttlMillis > 0L) {
                 cachedStats.set(new CachedAllocationStats(stats, threadPool.relativeTimeInMillis()));
             }
+        }
+    }
+
+    private static class TaskListenerPair {
+        private final CancellableTask task;
+        private final ActionListener<Response> listener;
+        private boolean detectedCancellation;
+
+        TaskListenerPair(CancellableTask task, ActionListener<Response> listener) {
+            this.task = task;
+            this.listener = listener;
+            this.detectedCancellation = false;
+        }
+
+        boolean isCancelled() {
+            if (detectedCancellation == false && task.isCancelled()) {
+                detectedCancellation = true;
+                listener.onFailure(new TaskCancelledException("task cancelled"));
+            }
+            return task.isCancelled();
         }
     }
 }

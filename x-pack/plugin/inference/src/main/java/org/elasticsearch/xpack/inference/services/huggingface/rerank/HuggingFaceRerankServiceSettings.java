@@ -17,6 +17,7 @@ import org.elasticsearch.inference.ServiceSettings;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.huggingface.HuggingFaceRateLimitServiceSettings;
+import org.elasticsearch.xpack.inference.services.huggingface.HuggingFaceService;
 import org.elasticsearch.xpack.inference.services.settings.FilteredXContentObject;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 
@@ -34,7 +35,7 @@ public class HuggingFaceRerankServiceSettings extends FilteredXContentObject
     ServiceSettings,
     HuggingFaceRateLimitServiceSettings {
 
-    public static final String NAME = "hugging_face_elser_service_settings";
+    public static final String NAME = "hugging_face_rerank_service_settings";
     public static final String URL = "url";
     private static final int RERANK_TOKEN_LIMIT = 512;
     // At the time of writing HuggingFace hasn't posted the default rate limit for inference endpoints so the value his is only a guess
@@ -48,7 +49,7 @@ public class HuggingFaceRerankServiceSettings extends FilteredXContentObject
             map,
             DEFAULT_RATE_LIMIT_SETTINGS,
             validationException,
-            HuggingFaceRerankService.NAME,
+            HuggingFaceService.NAME,
             context
         );
 

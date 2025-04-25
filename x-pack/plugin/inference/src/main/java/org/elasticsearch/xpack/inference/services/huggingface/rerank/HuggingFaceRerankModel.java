@@ -10,12 +10,11 @@ package org.elasticsearch.xpack.inference.services.huggingface.rerank;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ModelSecrets;
-import org.elasticsearch.inference.TaskSettings;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.xpack.inference.external.action.ExecutableAction;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
-import org.elasticsearch.xpack.inference.services.elasticsearch.RerankTaskSettings;
 import org.elasticsearch.xpack.inference.services.huggingface.HuggingFaceModel;
+import org.elasticsearch.xpack.inference.services.huggingface.HuggingFaceRerankTaskSettings;
 import org.elasticsearch.xpack.inference.services.huggingface.action.HuggingFaceActionVisitor;
 import org.elasticsearch.xpack.inference.services.settings.DefaultSecretSettings;
 
@@ -36,17 +35,17 @@ public class HuggingFaceRerankModel extends HuggingFaceModel {
             taskType,
             service,
             HuggingFaceRerankServiceSettings.fromMap(serviceSettings, context),
-            RerankTaskSettings.fromMap(taskSettings),
+            HuggingFaceRerankTaskSettings.fromMap(taskSettings),
             DefaultSecretSettings.fromMap(secrets)
         );
     }
 
-    HuggingFaceRerankModel(
+    public HuggingFaceRerankModel(
         String inferenceEntityId,
         TaskType taskType,
         String service,
         HuggingFaceRerankServiceSettings serviceSettings,
-        TaskSettings taskSettings,
+        HuggingFaceRerankTaskSettings taskSettings,
         @Nullable DefaultSecretSettings secrets
     ) {
         super(
@@ -60,6 +59,11 @@ public class HuggingFaceRerankModel extends HuggingFaceModel {
     @Override
     public HuggingFaceRerankServiceSettings getServiceSettings() {
         return (HuggingFaceRerankServiceSettings) super.getServiceSettings();
+    }
+
+    @Override
+    public HuggingFaceRerankTaskSettings getTaskSettings() {
+        return (HuggingFaceRerankTaskSettings) super.getTaskSettings();
     }
 
     @Override

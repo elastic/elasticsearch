@@ -35,6 +35,7 @@ import org.elasticsearch.xpack.inference.services.ServiceUtils;
 import org.elasticsearch.xpack.inference.services.huggingface.action.HuggingFaceActionCreator;
 import org.elasticsearch.xpack.inference.services.huggingface.elser.HuggingFaceElserModel;
 import org.elasticsearch.xpack.inference.services.huggingface.embeddings.HuggingFaceEmbeddingsModel;
+import org.elasticsearch.xpack.inference.services.huggingface.rerank.HuggingFaceRerankModel;
 import org.elasticsearch.xpack.inference.services.settings.DefaultSecretSettings;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 
@@ -51,7 +52,11 @@ public class HuggingFaceService extends HuggingFaceBaseService {
     public static final String NAME = "hugging_face";
 
     private static final String SERVICE_NAME = "Hugging Face";
-    private static final EnumSet<TaskType> supportedTaskTypes = EnumSet.of(TaskType.TEXT_EMBEDDING, TaskType.SPARSE_EMBEDDING);
+    private static final EnumSet<TaskType> SUPPORTED_TASK_TYPES = EnumSet.of(
+        TaskType.RERANK,
+        TaskType.TEXT_EMBEDDING,
+        TaskType.SPARSE_EMBEDDING
+    );
 
     public HuggingFaceService(HttpRequestSender.Factory factory, ServiceComponents serviceComponents) {
         super(factory, serviceComponents);
@@ -68,6 +73,15 @@ public class HuggingFaceService extends HuggingFaceBaseService {
         ConfigurationParseContext context
     ) {
         return switch (taskType) {
+            case RERANK -> new HuggingFaceRerankModel(
+                inferenceEntityId,
+                taskType,
+                NAME,
+                serviceSettings,
+                null,
+                secretSettings,
+                context
+            );
             case TEXT_EMBEDDING -> new HuggingFaceEmbeddingsModel(
                 inferenceEntityId,
                 taskType,
@@ -78,6 +92,29 @@ public class HuggingFaceService extends HuggingFaceBaseService {
                 context
             );
             case SPARSE_EMBEDDING -> new HuggingFaceElserModel(inferenceEntityId, taskType, NAME, serviceSettings, secretSettings, context);
+            default -> throw new ElasticsearchStatusException(failureMessage, RestStatus.BAD_REQUEST);
+        };
+    }
+
+    protected HuggingFaceModel createModel(
+        String inferenceEntityId,
+        TaskType taskType,
+        Map<String, Object> serviceSettings,
+        Map<String, Object> taskSettings,
+        @Nullable Map<String, Object> secretSettings,
+        String failureMessage,
+        ConfigurationParseContext context
+    ) {
+        return switch (taskType) {
+            case RERANK -> new HuggingFaceRerankModel(
+                inferenceEntityId,
+                taskType,
+                NAME,
+                serviceSettings,
+                taskSettings,
+                secretSettings,
+                context
+            );
             default -> throw new ElasticsearchStatusException(failureMessage, RestStatus.BAD_REQUEST);
         };
     }
@@ -149,7 +186,7 @@ public class HuggingFaceService extends HuggingFaceBaseService {
 
     @Override
     public EnumSet<TaskType> supportedTaskTypes() {
-        return supportedTaskTypes;
+        return SUPPORTED_TASK_TYPES;
     }
 
     @Override
@@ -173,7 +210,7 @@ public class HuggingFaceService extends HuggingFaceBaseService {
 
                 configurationMap.put(
                     URL,
-                    new SettingsConfiguration.Builder(supportedTaskTypes).setDefaultValue("https://api.openai.com/v1/embeddings")
+                    new SettingsConfiguration.Builder(SUPPORTED_TASK_TYPES).setDefaultValue("https://api.openai.com/v1/embeddings")
                         .setDescription("The URL endpoint to use for the requests.")
                         .setLabel("URL")
                         .setRequired(true)
@@ -183,12 +220,12 @@ public class HuggingFaceService extends HuggingFaceBaseService {
                         .build()
                 );
 
-                configurationMap.putAll(DefaultSecretSettings.toSettingsConfiguration(supportedTaskTypes));
-                configurationMap.putAll(RateLimitSettings.toSettingsConfiguration(supportedTaskTypes));
+                configurationMap.putAll(DefaultSecretSettings.toSettingsConfiguration(SUPPORTED_TASK_TYPES));
+                configurationMap.putAll(RateLimitSettings.toSettingsConfiguration(SUPPORTED_TASK_TYPES));
 
                 return new InferenceServiceConfiguration.Builder().setService(NAME)
                     .setName(SERVICE_NAME)
-                    .setTaskTypes(supportedTaskTypes)
+                    .setTaskTypes(SUPPORTED_TASK_TYPES)
                     .setConfigurations(configurationMap)
                     .build();
             }

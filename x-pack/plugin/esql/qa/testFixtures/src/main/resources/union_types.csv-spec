@@ -393,6 +393,30 @@ count:long | @timestamp:date
          0 | 2023-10-23T13:50:00.000Z
 ;
 
+multiIndexIpStatsPushableCount
+required_capability: union_types
+required_capability: fix_count_pushdown_for_union_types
+
+FROM sample_data, sample_data_str
+| STATS count=count(client_ip::ip)
+;
+
+count:long
+14
+;
+
+multiIndexIpStatsPushableCountEval
+required_capability: union_types
+required_capability: fix_count_pushdown_for_union_types
+
+FROM sample_data, sample_data_str
+| EVAL client_ip = client_ip::ip
+| STATS count=count(client_ip)
+;
+
+count:long
+14
+;
 
 multiIndexIpStringStatsInline2
 required_capability: union_types

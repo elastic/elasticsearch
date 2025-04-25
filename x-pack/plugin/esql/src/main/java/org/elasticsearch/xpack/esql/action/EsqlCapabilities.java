@@ -1038,7 +1038,13 @@ public class EsqlCapabilities {
         /**
          * Support for the SAMPLE command
          */
-        SAMPLE(Build.current().isSnapshot());
+        SAMPLE(Build.current().isSnapshot()),
+
+        /**
+         * When pushing down {@code STATS count(field::type)} for a union type field, we wrongly used a synthetic attribute name in the
+         * query instead of the actual field name.
+         */
+        FIX_COUNT_PUSHDOWN_FOR_UNION_TYPES;
 
         private final boolean enabled;
 

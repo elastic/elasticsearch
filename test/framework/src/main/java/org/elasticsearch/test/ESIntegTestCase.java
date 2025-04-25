@@ -948,12 +948,13 @@ public abstract class ESIntegTestCase extends ESTestCase {
      * @param viaNode the node to check the cluster state one
      * @param masterNodeName the master node name that we wait for
      */
-    public void awaitAndAssertMasterNode(String viaNode, String masterNodeName) throws Exception {
-        awaitClusterState(
-            logger,
-            viaNode,
-            state -> Optional.ofNullable(state.nodes().getMasterNode()).map(m -> m.getName().equals(masterNodeName)).orElse(false)
+    public void awaitAndAssertMasterNode(String viaNode, String masterNodeName) {
+        var listener = ClusterServiceUtils.addTemporaryStateListener(
+            internalCluster().clusterService(viaNode),
+            state -> Optional.ofNullable(state.nodes().getMasterNode()).map(m -> m.getName().equals(masterNodeName)).orElse(false),
+            TEST_REQUEST_TIMEOUT
         );
+        safeAwait(listener, TEST_REQUEST_TIMEOUT);
     }
 
     /**

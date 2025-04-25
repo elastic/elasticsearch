@@ -421,7 +421,7 @@ FROM airports
 | LIMIT 3
 ;
 
-abbrev:keyword |city:keyword      |"COUNT(*)":long|type:keyword   | region:keyword
+abbrev:keyword |city:keyword      |"COUNT(*)":long|type:keyword   | region:text
 ABJ            |Abidjan           |499            |mid            |Abidjan               
 ABV            |Abuja             |385            |major          |Municipal Area Council
 ACA            |Acapulco de Juárez|385            |major          |Acapulco de Juárez

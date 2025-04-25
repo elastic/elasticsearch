@@ -1,0 +1,5 @@
+pr: 127351
+summary: Allow partial results by default in ES|QL - Take 2
+area: ES|QL
+type: enhancement
+issues: []

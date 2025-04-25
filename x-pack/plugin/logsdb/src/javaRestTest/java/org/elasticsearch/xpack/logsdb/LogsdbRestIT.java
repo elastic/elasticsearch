@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.logsdb;
 
 import org.elasticsearch.client.Request;
-import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateFormatter;

@@ -975,7 +975,7 @@ public class HeapAttackIT extends ESRestTestCase {
         if (indexExists(name) == false) {
             // not strictly required, but this can help isolate failure from bulk indexing.
             createIndex(name);
-            var settings = getIndexSettings(name);
+            var settings = (Map<?, ?>) ((Map<?, ?>) getIndexSettings(name).get(name)).get("settings");
             if (settings.containsKey(ExistingShardsAllocator.EXISTING_SHARDS_ALLOCATOR_SETTING.getKey()) == false) {
                 updateIndexSettings(name, Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0));
             }

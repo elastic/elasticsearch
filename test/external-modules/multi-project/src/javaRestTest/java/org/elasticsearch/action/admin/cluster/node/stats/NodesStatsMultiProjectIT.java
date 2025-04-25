@@ -74,7 +74,7 @@ public class NodesStatsMultiProjectIT extends MultiProjectRestTestCase {
         int numDocs2all = createPopulatedIndex("project-2", "my-index-all-projects");
         int numDocs3all = createPopulatedIndex("project-3", "my-index-all-projects");
 
-        String nodeId = ObjectPath.<Map<String, Object>>evaluate(getAsMap("/_nodes"), "nodes").keySet().stream().findAny().orElseThrow();
+        String nodeId = findNodeId();
 
         // Get indices stats at node level, and assert that the total docs count is correct:
         int totalCount = ObjectPath.evaluate(getAsMap("/_nodes/stats/indices?level=node"), "nodes." + nodeId + ".indices.docs.count");
@@ -136,7 +136,7 @@ public class NodesStatsMultiProjectIT extends MultiProjectRestTestCase {
         int numDocs2 = createPopulatedIndex(Metadata.DEFAULT_PROJECT_ID.id(), "my-index-2");
         int numDocs3 = createPopulatedIndex(Metadata.DEFAULT_PROJECT_ID.id(), "my-index-3");
 
-        String nodeId = ObjectPath.<Map<String, Object>>evaluate(getAsMap("/_nodes"), "nodes").keySet().stream().findAny().orElseThrow();
+        String nodeId = findNodeId();
 
         // Get indices stats at index level...
         Map<String, Object> indexStats = ObjectPath.evaluate(
@@ -165,14 +165,59 @@ public class NodesStatsMultiProjectIT extends MultiProjectRestTestCase {
         assertThat(ObjectPath.<Integer>evaluate(index1ShardStats.getFirst(), "0.docs.count"), equalTo(numDocs1));
     }
 
+    public void testIngestStats_returnsStatsFromAllProjectsWithProjectIdPrefix() throws IOException {
+        createProject("project-1");
+        createProject("project-2");
+        createProject("project-3");
+        // Create and run data through a number of indices.
+        // Some of the pipeline names are used only in one project, some in two projects, some in all three.
+        int numDocs1only = createAndUsePipeline("project-1", "my-pipeline-project-1-only");
+        int numDocs2only = createAndUsePipeline("project-2", "my-pipeline-project-2-only");
+        int numDocs3only = createAndUsePipeline("project-3", "my-pipeline-project-3-only");
+        int numDocs1Of1And2 = createAndUsePipeline("project-1", "my-pipeline-projects-1-and-2");
+        int numDocs2Of1And2 = createAndUsePipeline("project-2", "my-pipeline-projects-1-and-2");
+        int numDocs2Of2And3 = createAndUsePipeline("project-2", "my-pipeline-projects-2-and-3");
+        int numDocs3Of2And3 = createAndUsePipeline("project-3", "my-pipeline-projects-2-and-3");
+        int numDocs1all = createAndUsePipeline("project-1", "my-pipeline-all-projects");
+        int numDocs2all = createAndUsePipeline("project-2", "my-pipeline-all-projects");
+        int numDocs3all = createAndUsePipeline("project-3", "my-pipeline-all-projects");
+
+        // Get ingest stats...
+        Map<String, Object> ingestStats = ObjectPath.evaluate(getAsMap("/_nodes/stats/ingest"), "nodes." + findNodeId() + ".ingest");
+        // ...assert that the total count is correct...
+        assertThat(
+            ObjectPath.evaluate(ingestStats, "total.count"),
+            equalTo(
+                numDocs1only + numDocs2only + numDocs3only + numDocs1Of1And2 + numDocs2Of1And2 + numDocs2Of2And3 + numDocs3Of2And3
+                    + numDocs1all + numDocs2all + numDocs3all
+            )
+        );
+        // ...assert that all the pipelines are present, prefixed by their project IDs... TODO also counts
+        Map<String, Object> pipelineStats = ObjectPath.evaluate(ingestStats, "pipelines");
+        assertThat(
+            pipelineStats.keySet(),
+            containsInAnyOrder(
+                "project-1/my-pipeline-project-1-only",
+                "project-2/my-pipeline-project-2-only",
+                "project-3/my-pipeline-project-3-only",
+                "project-1/my-pipeline-projects-1-and-2",
+                "project-2/my-pipeline-projects-1-and-2",
+                "project-2/my-pipeline-projects-2-and-3",
+                "project-3/my-pipeline-projects-2-and-3",
+                "project-1/my-pipeline-all-projects",
+                "project-2/my-pipeline-all-projects",
+                "project-3/my-pipeline-all-projects"
+            )
+        );
+    }
+
     public void testIngestStats_omitsProjectIdPrefixForDefaultProject() throws IOException {
         int numDocs1 = createAndUsePipeline(Metadata.DEFAULT_PROJECT_ID.id(), "my-pipeline-1");
         int numDocs2 = createAndUsePipeline(Metadata.DEFAULT_PROJECT_ID.id(), "my-pipeline-2");
         int numDocs3 = createAndUsePipeline(Metadata.DEFAULT_PROJECT_ID.id(), "my-pipeline-3");
 
-        String nodeId = ObjectPath.<Map<String, Object>>evaluate(getAsMap("/_nodes"), "nodes").keySet().stream().findAny().orElseThrow();
         // Get ingest stats...
-        Map<String, Object> ingestStats = ObjectPath.evaluate(getAsMap("/_nodes/stats/ingest"), "nodes." + nodeId + ".ingest");
+        Map<String, Object> ingestStats = ObjectPath.evaluate(getAsMap("/_nodes/stats/ingest"), "nodes." + findNodeId() + ".ingest");
         // ...assert that the total count is correct...
         assertThat(ObjectPath.evaluate(ingestStats, "total.count"), equalTo(numDocs1 + numDocs2 + numDocs3));
         // ...and that the pipelines are correct with the correct counts...
@@ -251,6 +296,10 @@ public class NodesStatsMultiProjectIT extends MultiProjectRestTestCase {
         client().performRequest(setRequestProjectId(new Request("POST", "/my-index/_refresh"), projectId));
 
         return numDocs;
+    }
+
+    private static String findNodeId() throws IOException {
+        return ObjectPath.<Map<String, Object>>evaluate(getAsMap("/_nodes"), "nodes").keySet().stream().findAny().orElseThrow();
     }
 
     private static Map<String, Object> mergeMaps(List<Map<String, Object>> maps) {

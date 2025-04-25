@@ -441,6 +441,9 @@ tests:
 - class: org.elasticsearch.http.netty4.Netty4IncrementalRequestHandlingIT
   method: testHttpClientStats
   issue: https://github.com/elastic/elasticsearch/issues/127391
+- class: org.elasticsearch.http.netty4.Netty4IncrementalRequestHandlingIT
+  method: testBulkIndexingRequestSplitting
+  issue: https://github.com/elastic/elasticsearch/issues/127392
 
 # Examples:
 #

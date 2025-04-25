@@ -409,6 +409,8 @@ emp_no:integer | languages:integer | max_salary:integer
 
 beforeEnrich
 required_capability: join_planning_v1
+required_capability: inlinestats_v6
+required_capability: enrich_load
 
 FROM airports
 | KEEP abbrev, type, city

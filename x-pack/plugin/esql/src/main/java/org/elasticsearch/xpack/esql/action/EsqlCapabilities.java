@@ -1042,7 +1042,7 @@ public class EsqlCapabilities {
 
         /**
          * When pushing down {@code STATS count(field::type)} for a union type field, we wrongly used a synthetic attribute name in the
-         * query instead of the actual field name.
+         * query instead of the actual field name. This led to 0 counts instead of the correct result.
          */
         FIX_COUNT_PUSHDOWN_FOR_UNION_TYPES;
 

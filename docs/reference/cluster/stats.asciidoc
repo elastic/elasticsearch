@@ -1423,7 +1423,7 @@ as a human-readable string.
 (integer) The maximum time taken to execute a {ccs} request, in milliseconds.
 
 `avg`:::
-(integer) The median time taken to execute a {ccs} request, in milliseconds.
+(integer) The average time taken to execute a {ccs} request, in milliseconds.
 
 `p90`:::
 (integer) The 90th percentile of the time taken to execute {ccs} requests, in milliseconds.
@@ -1441,7 +1441,7 @@ as a human-readable string.
 (integer) The maximum time taken to execute a {ccs} request, in milliseconds.
 
 `avg`:::
-(integer) The median time taken to execute a {ccs} request, in milliseconds.
+(integer) The average time taken to execute a {ccs} request, in milliseconds.
 
 `p90`:::
 (integer) The 90th percentile of the time taken to execute {ccs} requests, in milliseconds.
@@ -1459,7 +1459,7 @@ as a human-readable string.
 (integer) The maximum time taken to execute a {ccs} request, in milliseconds.
 
 `avg`:::
-(integer) The median time taken to execute a {ccs} request, in milliseconds.
+(integer) The average time taken to execute a {ccs} request, in milliseconds.
 
 `p90`:::
 (integer) The 90th percentile of the time taken to execute {ccs} requests, in milliseconds.
@@ -1519,7 +1519,7 @@ This may include requests where partial results were returned, but not requests 
 (integer) The maximum time taken to execute a {ccs} request, in milliseconds.
 
 `avg`:::
-(integer) The median time taken to execute a {ccs} request, in milliseconds.
+(integer) The average time taken to execute a {ccs} request, in milliseconds.
 
 `p90`:::
 (integer) The 90th percentile of the time taken to execute {ccs} requests, in milliseconds.

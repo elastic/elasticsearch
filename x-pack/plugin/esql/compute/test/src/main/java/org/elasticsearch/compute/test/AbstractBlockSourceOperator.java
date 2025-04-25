@@ -47,7 +47,7 @@ public abstract class AbstractBlockSourceOperator extends SourceOperator {
             finish();
             return null;
         }
-        int length = Math.min(ESTestCase.randomInt(maxPagePositions), remaining());
+        int length = Math.min(maxPagePositions, remaining());  // ESTestCase.randomInt(maxPagePositions)
         return createPage(currentPosition, length);
     }
 

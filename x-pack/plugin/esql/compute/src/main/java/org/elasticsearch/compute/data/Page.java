@@ -16,6 +16,7 @@ import org.elasticsearch.core.Releasables;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Objects;
+import java.util.stream.IntStream;
 
 /**
  * A page is a column-oriented data abstraction that allows data to be passed between operators in
@@ -310,5 +311,10 @@ public final class Page implements Writeable {
             }
         }
         return new Page(filteredBlocks);
+    }
+
+    public Page subPage(int fromIndex, int toIndex) {
+        // TODO: optimize!
+        return filter(IntStream.range(fromIndex, toIndex).toArray());
     }
 }

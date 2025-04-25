@@ -30,9 +30,9 @@ public final class TranslatorHandler {
 
     private TranslatorHandler() {}
 
-    public Query asQuery(Expression e) {
+    public Query asQuery(LucenePushdownPredicates predicates, Expression e) {
         if (e instanceof TranslationAware ta) {
-            Query query = ta.asQuery(this);
+            Query query = ta.asQuery(predicates, this);
             return ta instanceof TranslationAware.SingleValueTranslationAware sv ? wrapFunctionQuery(sv.singleValueField(), query) : query;
         }
 
@@ -40,12 +40,16 @@ public final class TranslatorHandler {
     }
 
     private static Query wrapFunctionQuery(Expression field, Query query) {
+        if (query instanceof SingleValueQuery) {
+            // Already wrapped
+            return query;
+        }
         if (field instanceof FieldAttribute fa) {
             fa = fa.getExactInfo().hasExact() ? fa.exactAttribute() : fa;
             // Extract the real field name from MultiTypeEsField, and use it in the push down query if it is found
             String fieldNameFromMultiTypeEsField = LucenePushdownPredicates.extractFieldNameFromMultiTypeEsField(fa);
             String fieldName = fieldNameFromMultiTypeEsField != null ? fieldNameFromMultiTypeEsField : fa.name();
-            return new SingleValueQuery(query, fieldName);
+            return new SingleValueQuery(query, fieldName, false);
         }
         if (field instanceof MetadataAttribute) {
             return query; // MetadataAttributes are always single valued

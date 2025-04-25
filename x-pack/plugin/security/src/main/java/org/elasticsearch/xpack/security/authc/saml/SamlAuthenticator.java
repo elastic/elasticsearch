@@ -93,7 +93,7 @@ class SamlAuthenticator extends SamlResponseHandler {
         }
         final boolean requireSignedAssertions;
         if (response.isSigned()) {
-            validateSignature(response.getSignature());
+            validateSignature(response.getSignature(), response.getIssuer());
             requireSignedAssertions = false;
         } else {
             requireSignedAssertions = true;
@@ -199,7 +199,7 @@ class SamlAuthenticator extends SamlResponseHandler {
         }
         // Do not further process unsigned Assertions
         if (assertion.isSigned()) {
-            validateSignature(assertion.getSignature());
+            validateSignature(assertion.getSignature(), assertion.getIssuer());
         } else if (requireSignature) {
             throw samlException("Assertion [{}] is not signed, but a signature is required", assertion.getElementQName());
         }

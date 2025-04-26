@@ -10,7 +10,6 @@
 package org.elasticsearch.transport;
 
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.common.bytes.ReleasableBytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Releasable;
@@ -23,7 +22,7 @@ import java.util.Objects;
 public class InboundMessage implements Releasable {
 
     private final Header header;
-    private final ReleasableBytesReference content;
+    private final int contentLength;
     private final Exception exception;
     private final boolean isPing;
     private Releasable breakerRelease;
@@ -42,17 +41,19 @@ public class InboundMessage implements Releasable {
         }
     }
 
-    public InboundMessage(Header header, ReleasableBytesReference content, Releasable breakerRelease) {
+    public InboundMessage(Header header, StreamInput streamInput, int contentLength, Releasable breakerRelease) {
         this.header = header;
-        this.content = content;
+        this.streamInput = streamInput;
+        streamInput.setTransportVersion(header.getVersion());
         this.breakerRelease = breakerRelease;
         this.exception = null;
         this.isPing = false;
+        this.contentLength = contentLength;
     }
 
     public InboundMessage(Header header, Exception exception) {
         this.header = header;
-        this.content = null;
+        this.contentLength = 0;
         this.breakerRelease = null;
         this.exception = exception;
         this.isPing = false;
@@ -60,7 +61,7 @@ public class InboundMessage implements Releasable {
 
     public InboundMessage(Header header, boolean isPing) {
         this.header = header;
-        this.content = null;
+        this.contentLength = 0;
         this.breakerRelease = null;
         this.exception = null;
         this.isPing = isPing;
@@ -71,11 +72,7 @@ public class InboundMessage implements Releasable {
     }
 
     public int getContentLength() {
-        if (content == null) {
-            return 0;
-        } else {
-            return content.length();
-        }
+        return contentLength;
     }
 
     public Exception getException() {
@@ -97,12 +94,6 @@ public class InboundMessage implements Releasable {
     }
 
     public StreamInput openOrGetStreamInput() throws IOException {
-        assert isPing == false && content != null;
-        assert (boolean) CLOSED.getAcquire(this) == false;
-        if (streamInput == null) {
-            streamInput = content.streamInput();
-            streamInput.setTransportVersion(header.getVersion());
-        }
         return streamInput;
     }
 
@@ -117,7 +108,7 @@ public class InboundMessage implements Releasable {
             return;
         }
         try {
-            IOUtils.close(streamInput, content, breakerRelease);
+            IOUtils.close(streamInput, breakerRelease);
         } catch (Exception e) {
             assert false : e;
             throw new ElasticsearchException(e);

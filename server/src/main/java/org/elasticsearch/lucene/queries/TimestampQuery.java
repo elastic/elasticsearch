@@ -94,7 +94,6 @@ public final class TimestampQuery extends Query {
                 var primaryFieldSkipper = reader.getDocValuesSkipper(primarySortField);
                 var iterator = new TimestampIterator(timestamps, timestampSkipper, primaryFieldSkipper, minTimestamp, maxTimestamp);
                 return ConstantScoreScorerSupplier.fromIterator(TwoPhaseIterator.asDocIdSetIterator(iterator), score(), scoreMode, maxDoc);
-//                var primaryFieldSkipper = reader.getDocValuesSkipper(primarySortField);
 //                var iterator = new TimestampIterator2(timestamps, timestampSkipper, primaryFieldSkipper, minTimestamp, maxTimestamp);
 //                return ConstantScoreScorerSupplier.fromIterator(iterator, score(), scoreMode, maxDoc);
             }

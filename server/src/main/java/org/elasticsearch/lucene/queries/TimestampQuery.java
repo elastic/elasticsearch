@@ -24,7 +24,6 @@ import org.apache.lucene.search.QueryVisitor;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.ScorerSupplier;
 import org.apache.lucene.search.Sort;
-import org.apache.lucene.search.TwoPhaseIterator;
 import org.apache.lucene.search.Weight;
 import org.elasticsearch.cluster.metadata.DataStream;
 
@@ -92,10 +91,11 @@ public final class TimestampQuery extends Query {
                     return ConstantScoreScorerSupplier.fromIterator(iterator, score(), scoreMode, maxDoc);
                 }
                 var primaryFieldSkipper = reader.getDocValuesSkipper(primarySortField);
-                var iterator = new TimestampIterator(timestamps, timestampSkipper, primaryFieldSkipper, minTimestamp, maxTimestamp);
-                return ConstantScoreScorerSupplier.fromIterator(TwoPhaseIterator.asDocIdSetIterator(iterator), score(), scoreMode, maxDoc);
-//                var iterator = new TimestampIterator2(timestamps, timestampSkipper, primaryFieldSkipper, minTimestamp, maxTimestamp);
-//                return ConstantScoreScorerSupplier.fromIterator(iterator, score(), scoreMode, maxDoc);
+                // var iterator = new TimestampIterator(timestamps, timestampSkipper, primaryFieldSkipper, minTimestamp, maxTimestamp);
+                // return ConstantScoreScorerSupplier.fromIterator(TwoPhaseIterator.asDocIdSetIterator(iterator), score(), scoreMode,
+                // maxDoc);
+                var iterator = new TimestampIterator2(timestamps, timestampSkipper, primaryFieldSkipper, minTimestamp, maxTimestamp);
+                return ConstantScoreScorerSupplier.fromIterator(iterator, score(), scoreMode, maxDoc);
             }
 
             @Override

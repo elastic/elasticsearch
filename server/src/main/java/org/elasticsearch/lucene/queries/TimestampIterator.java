@@ -17,6 +17,13 @@ import java.io.IOException;
 
 /**
  * Based on {@link org.apache.lucene.search.DocValuesRangeIterator} but modified for time series and logsdb use cases.
+ * <p>
+ * The @timestamp field always has exactly one value and all documents always have a @timestamp value.
+ * Additionally, the @timestamp field is always the secondary index sort field and sort order is always descending.
+ * <p>
+ * This makes the doc value skipper on @timestamp field less effective, and so the doc value skipper for the first index sort field is
+ * also used to skip to the next primary sort value if for the current skipper represents one value (min and max value are the same) and
+ * the current value is lower than minTimestamp.
  */
 final class TimestampIterator extends TwoPhaseIterator {
 
@@ -110,7 +117,7 @@ final class TimestampIterator extends TwoPhaseIterator {
                             return doc = target;
                         }
                         break;
-                    case NO:
+                    case NO_AND_SKIP:
                         if (target > primaryFieldUpTo) {
                             primaryFieldSkipper.advance(target);
                             for (int level = 0; level < primaryFieldSkipper.numLevels(); level++) {
@@ -124,7 +131,12 @@ final class TimestampIterator extends TwoPhaseIterator {
                                 upTo = primaryFieldUpTo;
                             }
                         }
-
+                        if (upTo == DocIdSetIterator.NO_MORE_DOCS) {
+                            return doc = NO_MORE_DOCS;
+                        }
+                        target = upTo + 1;
+                        break;
+                    case NO:
                         if (upTo == DocIdSetIterator.NO_MORE_DOCS) {
                             return doc = NO_MORE_DOCS;
                         }
@@ -144,8 +156,10 @@ final class TimestampIterator extends TwoPhaseIterator {
         Match match(int level) {
             long minValue = timestampSkipper.minValue(level);
             long maxValue = timestampSkipper.maxValue(level);
-            if (minValue > maxTimestamp || maxValue < minTimestamp) {
+            if (minValue > maxTimestamp) {
                 return Match.NO;
+            } else if (maxValue < minTimestamp) {
+                return Match.NO_AND_SKIP;
             } else if (minValue >= minTimestamp && maxValue <= maxTimestamp) {
                 return Match.YES;
             } else {
@@ -163,7 +177,7 @@ final class TimestampIterator extends TwoPhaseIterator {
                 final long value = timestamps.longValue();
                 yield value >= minTimestamp && value <= maxTimestamp;
             }
-            case NO -> throw new IllegalStateException("Unpositioned approximation");
+            case NO_AND_SKIP, NO -> throw new IllegalStateException("Unpositioned approximation");
         };
     }
 
@@ -183,6 +197,8 @@ final class TimestampIterator extends TwoPhaseIterator {
     enum Match {
         /** None of the documents in the range match */
         NO,
+        /** Same as NO, but can maybe also skip to next primary sort value */
+        NO_AND_SKIP,
         /** Document values need to be checked to verify matches */
         MAYBE,
         /** All docs in the range match */

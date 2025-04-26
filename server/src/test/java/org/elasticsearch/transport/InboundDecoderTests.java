@@ -21,7 +21,6 @@ import org.elasticsearch.common.util.MockPageCacheRecycler;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.TransportVersionUtils;
-import org.elasticsearch.transport.InboundDecoder.ChannelType;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -160,56 +159,6 @@ public class InboundDecoderTests extends ESTestCase {
         }
     }
 
-    public void testClientChannelTypeFailsDecodingRequests() throws Exception {
-        String action = "test-request";
-        long requestId = randomNonNegativeLong();
-        if (randomBoolean()) {
-            final String headerKey = randomAlphaOfLength(10);
-            final String headerValue = randomAlphaOfLength(20);
-            if (randomBoolean()) {
-                threadContext.putHeader(headerKey, headerValue);
-            } else {
-                threadContext.addResponseHeader(headerKey, headerValue);
-            }
-        }
-        // a request
-        final var isHandshake = randomBoolean();
-        final var version = isHandshake
-            ? randomFrom(TransportHandshaker.ALLOWED_HANDSHAKE_VERSIONS)
-            : TransportVersionUtils.randomCompatibleVersion(random());
-        logger.info("--> version = {}", version);
-
-        try (RecyclerBytesStreamOutput os = new RecyclerBytesStreamOutput(recycler)) {
-            final BytesReference bytes = OutboundHandler.serialize(
-                OutboundHandler.MessageDirection.REQUEST,
-                action,
-                requestId,
-                isHandshake,
-                version,
-                randomFrom(Compression.Scheme.DEFLATE, Compression.Scheme.LZ4, null),
-                new TestRequest(randomAlphaOfLength(100)),
-                threadContext,
-                os
-            );
-            try (InboundDecoder clientDecoder = new InboundDecoder(recycler, ChannelType.CLIENT)) {
-                IllegalArgumentException e = expectThrows(
-                    IllegalArgumentException.class,
-                    () -> clientDecoder.decode(wrapAsReleasable(bytes), ignored -> {})
-                );
-                assertThat(e.getMessage(), containsString("client channels do not accept inbound requests, only responses"));
-            }
-            // the same message will be decoded by a server or mixed decoder
-            try (InboundDecoder decoder = new InboundDecoder(recycler, randomFrom(ChannelType.SERVER, ChannelType.MIX))) {
-                final ArrayList<Object> fragments = new ArrayList<>();
-                int bytesConsumed = decoder.decode(wrapAsReleasable(bytes), fragments::add);
-                int totalHeaderSize = TcpHeader.HEADER_SIZE + bytes.getInt(TcpHeader.VARIABLE_HEADER_SIZE_POSITION);
-                assertEquals(totalHeaderSize, bytesConsumed);
-                final Header header = (Header) fragments.get(0);
-                assertEquals(requestId, header.getRequestId());
-            }
-        }
-    }
-
     public void testServerChannelTypeFailsDecodingResponses() throws Exception {
         long requestId = randomNonNegativeLong();
         if (randomBoolean()) {
@@ -239,13 +188,13 @@ public class InboundDecoderTests extends ESTestCase {
                 threadContext,
                 os
             );
-            try (InboundDecoder decoder = new InboundDecoder(recycler, ChannelType.SERVER)) {
+            try (InboundDecoder decoder = new InboundDecoder(recycler, Integer.MAX_VALUE, true)) {
                 final ReleasableBytesReference releasable1 = wrapAsReleasable(bytes);
                 IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> decoder.decode(releasable1, ignored -> {}));
                 assertThat(e.getMessage(), containsString("server channels do not accept inbound responses, only requests"));
             }
             // the same message will be decoded by a client or mixed decoder
-            try (InboundDecoder decoder = new InboundDecoder(recycler, randomFrom(ChannelType.CLIENT, ChannelType.MIX))) {
+            try (InboundDecoder decoder = new InboundDecoder(recycler)) {
                 final ArrayList<Object> fragments = new ArrayList<>();
                 int bytesConsumed = decoder.decode(wrapAsReleasable(bytes), fragments::add);
                 int totalHeaderSize = TcpHeader.HEADER_SIZE + bytes.getInt(TcpHeader.VARIABLE_HEADER_SIZE_POSITION);

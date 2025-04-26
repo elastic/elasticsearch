@@ -261,7 +261,7 @@ subprojects { proj ->
   repositories {
     // TODO: Temporary for Lucene RC builds. REMOVE
     maven {
-      url = uri("https://dist.apache.org/repos/dist/dev/lucene/lucene-10.2.1-RC1-rev-02cf96b8f7c87fdf5eab864bfc242d36aa2086e7/lucene/maven")
+      url = uri("https://dist.apache.org/repos/dist/dev/lucene/lucene-10.2.1-RC2-rev-1b2451b5f435ad2c41a8b6b0f0d6a59b24ff9ad2/lucene/maven")
     }
   }
 }

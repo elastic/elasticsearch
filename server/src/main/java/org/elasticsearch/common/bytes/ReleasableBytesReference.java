@@ -259,30 +259,14 @@ public final class ReleasableBytesReference implements RefCounted, Releasable, B
                 }
             }
 
-            @Override
-            public int read(byte[] b, int bOffset, int len) throws IOException {
-                int res = super.read(b, bOffset, len);
+            public void tryDiscard() {
                 if (markEnd == 0) {
-                    tryDiscard();
+                    if (bytesReference instanceof CompositeBytesReference c) {
+                        maybeDiscardReadBytes(c.components());
+                    } else if (available() == 0) {
+                        close();
+                    }
                 }
-                return res;
-            }
-
-            private void tryDiscard() {
-                if (bytesReference instanceof CompositeBytesReference c) {
-                    maybeDiscardReadBytes(c.components());
-                } else if (available() == 0) {
-                    close();
-                }
-            }
-
-            @Override
-            public int read() throws IOException {
-                int res = super.read();
-                if (res == -1 && markEnd == 0) {
-                    close();
-                }
-                return res;
             }
 
             private int markEnd = 0;

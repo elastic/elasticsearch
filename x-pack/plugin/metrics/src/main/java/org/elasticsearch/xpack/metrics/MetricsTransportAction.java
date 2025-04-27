@@ -7,6 +7,11 @@
 
 package org.elasticsearch.xpack.metrics;
 
+import com.dynatrace.hash4j.hashing.HashStream128;
+import com.dynatrace.hash4j.hashing.HashValue128;
+import com.dynatrace.hash4j.hashing.Hasher128;
+import com.dynatrace.hash4j.hashing.Hashing;
+import com.dynatrace.hash4j.internal.ByteArrayUtil;
 import com.google.protobuf.MessageLite;
 
 import io.opentelemetry.proto.collector.metrics.v1.ExportMetricsServiceRequest;
@@ -68,7 +73,6 @@ import java.util.Map;
 import java.util.OptionalInt;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.stream.Collectors;
 
 public class MetricsTransportAction extends HandledTransportAction<
     MetricsTransportAction.MetricsRequest,
@@ -79,11 +83,12 @@ public class MetricsTransportAction extends HandledTransportAction<
 
     private static final Logger logger = LogManager.getLogger(MetricsTransportAction.class);
     private static final int MAX_TSID_CACHE_SIZE = 1_000_000;
+    private static final Hasher128 HASHER = Hashing.murmur3_128();
     /**
      * Caches tsids for which we've already ingested a time series document.
      * Only relevant if normalized is true.
      */
-    private final Set<String> tsidCache = Collections.newSetFromMap(new ConcurrentHashMap<>());
+    private final Set<Tsid> tsidCache = Collections.newSetFromMap(new ConcurrentHashMap<>());
 
     private final ClusterService clusterService;
     private final ProjectResolver projectResolver;
@@ -122,7 +127,7 @@ public class MetricsTransportAction extends HandledTransportAction<
             // TODO proper routing ???
             var shard = indexService.getShard(0);
             var engine = shard.getEngineOrNull();
-            Map<String, TimeSeries> timeSeries = new HashMap<>();
+            Map<Tsid, TimeSeries> timeSeries = new HashMap<>();
 
             // We receive a batch so there will be multiple documents as a result of processing it.
             List<LuceneDocument> dataPointDocuments;
@@ -152,7 +157,9 @@ public class MetricsTransportAction extends HandledTransportAction<
                         tsidCache.clear();
                     }
                     tsidCache.add(ts.tsid());
-                    Engine.IndexResult result = engine.index(getIndexRequest(Collections.singletonList(ts.toLuceneDocument()), ts.tsid()));
+                    Engine.IndexResult result = engine.index(
+                        getIndexRequest(Collections.singletonList(ts.toLuceneDocument()), ts.tsid().toString())
+                    );
                     if (result.getFailure() != null) {
                         errors.add(result.getFailure().getMessage());
                     } else {
@@ -221,22 +228,31 @@ public class MetricsTransportAction extends HandledTransportAction<
     private List<LuceneDocument> createDataPointDocuments(
         ExportMetricsServiceRequest exportMetricsServiceRequest,
         boolean normalized,
-        Map<String, TimeSeries> timeSeries
+        Map<Tsid, TimeSeries> timeSeries
     ) {
         List<LuceneDocument> documents = new ArrayList<>();
-        for (ResourceMetrics resourceMetrics : exportMetricsServiceRequest.getResourceMetricsList()) {
-            String resourceAttributesHash = getSimilarityHash(resourceMetrics.getResource().getAttributesList());
+        List<ResourceMetrics> resourceMetricsList = exportMetricsServiceRequest.getResourceMetricsList();
+        for (int i = 0; i < resourceMetricsList.size(); i++) {
+            ResourceMetrics resourceMetrics = resourceMetricsList.get(i);
+            HashValue128 resourceAttributesHash = HASHER.hashTo128Bits(
+                resourceMetrics.getResource().getAttributesList(),
+                AttributeListHashFunnel.get()
+            );
             List<IndexableField> resourceAttributes = getAttributeFields(
                 "resource.attributes.",
                 resourceMetrics.getResource().getAttributesList()
             );
-            for (ScopeMetrics scopeMetrics : resourceMetrics.getScopeMetricsList()) {
-                String scopeAttributesHash = getSimilarityHash(scopeMetrics.getScope().getAttributesList());
-                List<IndexableField> scopeAttributes = getAttributeFields(
-                    "scope.attributes.",
-                    scopeMetrics.getScope().getAttributesList()
+            List<ScopeMetrics> scopeMetricsList = resourceMetrics.getScopeMetricsList();
+            for (int j = 0; j < scopeMetricsList.size(); j++) {
+                ScopeMetrics scopeMetrics = scopeMetricsList.get(j);
+                HashValue128 scopeAttributesHash = HASHER.hashTo128Bits(
+                    scopeMetrics.getScope().getAttributesList(),
+                    AttributeListHashFunnel.get()
                 );
-                for (var metric : scopeMetrics.getMetricsList()) {
+                List<IndexableField> scopeAttributes = getAttributeFields("scope.attributes.", scopeMetrics.getScope().getAttributesList());
+                List<Metric> metricsList = scopeMetrics.getMetricsList();
+                for (int k = 0; k < metricsList.size(); k++) {
+                    var metric = metricsList.get(k);
                     switch (metric.getDataCase()) {
                         case SUM -> documents.addAll(
                             createNumberDataPointDocs(
@@ -272,41 +288,20 @@ public class MetricsTransportAction extends HandledTransportAction<
         return documents;
     }
 
-    private static String getSimilarityHash(List<KeyValue> attributesList) {
-        StringBuilder hash = new StringBuilder();
-        // hash of all keys
-        int keysHash = 1;
-        for (KeyValue keyValue : attributesList) {
-            keysHash = 31 * keysHash + keyValue.getKey().hashCode();
-        }
-        hash.append(Integer.toHexString(keysHash));
-
-        // hash of individual values
-        for (KeyValue keyValue : attributesList) {
-            hash.append(Integer.toHexString(keyValue.getValue().hashCode()));
-        }
-
-        // hash of all values
-        int valuesHash = 1;
-        for (KeyValue keyValue : attributesList) {
-            valuesHash = 31 * valuesHash + keyValue.getValue().hashCode();
-        }
-        hash.append(Integer.toHexString(valuesHash));
-        return hash.toString();
-    }
-
     private static List<LuceneDocument> createNumberDataPointDocs(
         List<IndexableField> resourceAttributes,
-        String resourceAttributesHash,
+        HashValue128 resourceAttributesHash,
         List<IndexableField> scopeAttributes,
-        String scopeAttributesHash,
+        HashValue128 scopeAttributesHash,
         Metric metric,
         List<NumberDataPoint> dataPoints,
-        Map<String, TimeSeries> timeSeries,
+        Map<Tsid, TimeSeries> timeSeries,
         @Nullable AggregationTemporality temporality,
         boolean normalized) {
         List<LuceneDocument> documents = new ArrayList<>(dataPoints.size());
-        for (NumberDataPoint dp : dataPoints) {
+        HashStream128 hashStream = HASHER.hashStream();
+        for (int i = 0; i < dataPoints.size(); i++) {
+            NumberDataPoint dp = dataPoints.get(i);
             var doc = new LuceneDocument();
             documents.add(doc);
             doc.add(SortedNumericDocValuesField.indexedField("@timestamp", dp.getTimeUnixNano() / 1_000_000));
@@ -316,6 +311,7 @@ public class MetricsTransportAction extends HandledTransportAction<
                 case AS_INT -> doc.add(new NumericDocValuesField("value_long", dp.getAsInt()));
             }
             TimeSeries ts = getOrCreateTimeSeries(
+                hashStream,
                 timeSeries,
                 metric,
                 temporality,
@@ -325,10 +321,10 @@ public class MetricsTransportAction extends HandledTransportAction<
                 scopeAttributesHash,
                 dp
             );
-            if (normalized == false) {
-                ts.addFields(doc);
-            } else {
+            if (normalized) {
                 doc.add(ts.tsidField());
+            } else {
+                ts.addFields(doc);
             }
         }
         return documents;
@@ -336,7 +332,8 @@ public class MetricsTransportAction extends HandledTransportAction<
 
     private static List<IndexableField> getAttributeFields(String prefix, List<KeyValue> attributes) {
         List<IndexableField> fields = new ArrayList<>(attributes.size());
-        for (KeyValue attribute : attributes) {
+        for (int i = 0; i < attributes.size(); i++) {
+            KeyValue attribute = attributes.get(i);
             String name = attribute.getKey();
             if (name.isEmpty()) {
                 continue;
@@ -358,83 +355,90 @@ public class MetricsTransportAction extends HandledTransportAction<
                 SortedNumericDocValuesField.indexedField(fieldName, NumericUtils.doubleToSortableLong(value.getDoubleValue()))
             );
             case ARRAY_VALUE -> {
-                String csv = value.getArrayValue().getValuesList().stream().map(v -> {
-                    if (v.hasStringValue()) {
-                        return v.getStringValue();
-                    } else {
-                        return v.toString();
-                    }
-                }).collect(Collectors.joining(", "));
-                fields.add(SortedSetDocValuesField.indexedField(fieldName, new BytesRef(csv)));
-//                for (AnyValue arrayValue : value.getArrayValue().getValuesList()) {
-//                    addField(fields, fieldName, arrayValue);
-//                }
+                List<AnyValue> valuesList = value.getArrayValue().getValuesList();
+                for (int i = 0; i < valuesList.size(); i++) {
+                    addField(fields, fieldName, valuesList.get(i));
+                }
             }
             default -> throw new IllegalArgumentException("Unsupported attribute type: " + value.getValueCase());
         }
     }
 
     private static TimeSeries getOrCreateTimeSeries(
-        Map<String, TimeSeries> ts,
+        HashStream128 hashStream,
+        Map<Tsid, TimeSeries> ts,
         Metric metric,
         @Nullable AggregationTemporality temporality,
         List<IndexableField> resourceAttributes,
-        String resourceAttributesHash,
+        HashValue128 resourceAttributesHash,
         List<IndexableField> scopeAttributes,
-        String scopeAttributesHash,
+        HashValue128 scopeAttributesHash,
         NumberDataPoint dp
     ) {
-        String metricDescriptor = metric.getName() + metric.getDataCase() + metric.getUnit();
-        String dpAttributesHash = getSimilarityHash(dp.getAttributesList());
-        String tsid = metricDescriptor + dpAttributesHash + scopeAttributesHash + resourceAttributesHash;
-        if (temporality != null) {
-            tsid += temporality.getNumber();
-        }
-        if (ts.containsKey(tsid)) {
-            return ts.get(tsid);
-        } else {
-            SortedDocValuesField tsidField = SortedDocValuesField.indexedField("_tsid", new BytesRef(tsid));
-            SortedDocValuesField metricNameField = SortedDocValuesField.indexedField("metric_name", new BytesRef(metric.getName()));
-            SortedDocValuesField unitField = SortedDocValuesField.indexedField("unit", new BytesRef(metric.getUnit()));
-            SortedDocValuesField temporalityField = null;
-            if (temporality != null) {
-                temporalityField = SortedDocValuesField.indexedField("temporality", new BytesRef(temporality.toString()));
-            }
-            List<IndexableField> dpAttributes = getAttributeFields("attributes.", dp.getAttributesList());
-            TimeSeries timeSeries = new TimeSeries(
-                tsid,
+        hashStream.reset();
+        int metricNameHash = hashStream.putString(metric.getName()).getAsInt();
+        HashValue128 hashOfAll = hashStream
+            .put(dp.getAttributesList(), AttributeListHashFunnel.get())
+            .putInt(metric.getDataCase().getNumber())
+            .putInt(metric.getUnit().hashCode())
+            .putInt(temporality != null ? temporality.getNumber() : -1)
+            .putLong(resourceAttributesHash.getLeastSignificantBits())
+            .putLong(resourceAttributesHash.getMostSignificantBits())
+            .putLong(scopeAttributesHash.getLeastSignificantBits())
+            .putLong(scopeAttributesHash.getMostSignificantBits())
+            .get();
+        hashStream.reset();
+        Tsid tsid = new Tsid(metricNameHash, hashOfAll.getLeastSignificantBits(), hashOfAll.getMostSignificantBits());
+        return ts.computeIfAbsent(tsid, id -> {
+            SortedDocValuesField tsidField = SortedDocValuesField.indexedField("_tsid", new BytesRef(id.toByteArray()));
+            return new TimeSeries(
+                id,
                 tsidField,
-                metricNameField,
-                unitField,
-                temporalityField,
+                metric,
+                temporality,
                 resourceAttributes,
                 scopeAttributes,
-                dpAttributes
+                dp
             );
-            ts.put(tsid, timeSeries);
-            return timeSeries;
+        });
+    }
+
+    record Tsid(int metricNameHash, long leastSignificantBits, long mostSignificantBits) {
+
+        @Override
+        @SuppressWarnings("checkstyle:EqualsHashCode")
+        public int hashCode() {
+            return (int) leastSignificantBits;
+        }
+
+        public byte[] toByteArray() {
+            byte[] bytes = new byte[20];
+            ByteArrayUtil.setInt(bytes, 0, metricNameHash);
+            ByteArrayUtil.setLong(bytes, 4, leastSignificantBits);
+            ByteArrayUtil.setLong(bytes, 12, mostSignificantBits);
+            return bytes;
         }
     }
 
     record TimeSeries(
-        String tsid,
+        Tsid tsid,
         IndexableField tsidField,
-        IndexableField metricName,
-        IndexableField unit,
-        @Nullable IndexableField temporality,
+        Metric metric,
+        @Nullable AggregationTemporality temporality,
         List<IndexableField> resourceAttributes,
         List<IndexableField> scopeAttributes,
-        List<IndexableField> dpAttributes
+        NumberDataPoint dp
     ) {
         public void addFields(LuceneDocument doc) {
             doc.add(tsidField);
-            doc.add(metricName);
+            doc.add(SortedDocValuesField.indexedField("metric_name", new BytesRef(metric.getName())));
+            doc.add(SortedDocValuesField.indexedField("unit", new BytesRef(metric.getUnit())));
             if (temporality != null) {
-                doc.add(temporality);
+                doc.add(SortedDocValuesField.indexedField("temporality", new BytesRef(temporality.toString())));
             }
             doc.addAll(resourceAttributes);
             doc.addAll(scopeAttributes);
-            doc.addAll(dpAttributes);
+            doc.addAll(getAttributeFields("attributes.", dp.getAttributesList()));
         }
 
         public LuceneDocument toLuceneDocument() {

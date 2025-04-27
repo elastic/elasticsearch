@@ -28,6 +28,7 @@ dependencies {
   implementation "io.opentelemetry.proto:opentelemetry-proto:1.5.0-alpha"
 
   implementation "com.google.protobuf:protobuf-java:4.30.2"
+  implementation 'com.dynatrace.hash4j:hash4j:0.22.0'
 }
 
 tasks.named("dependencyLicenses").configure {

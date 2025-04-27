@@ -53,7 +53,7 @@ public class DataStreamLifecycleTests extends AbstractXContentSerializingTestCas
 
     @Override
     protected DataStreamLifecycle createTestInstance() {
-        return randomLifecycle();
+        return randomDataLifecycle();
     }
 
     @Override
@@ -135,7 +135,7 @@ public class DataStreamLifecycleTests extends AbstractXContentSerializingTestCas
             var parsed = DataStreamLifecycle.fromXContent(parser);
             assertEquals(XContentParser.Token.END_OBJECT, parser.currentToken());
             assertNull(parser.nextToken());
-            assertThat(parsed, equalTo(DataStreamLifecycle.DEFAULT));
+            assertThat(parsed, equalTo(DataStreamLifecycle.DEFAULT_DATA_LIFECYCLE));
         }
     }
 
@@ -172,7 +172,7 @@ public class DataStreamLifecycleTests extends AbstractXContentSerializingTestCas
         {
             IllegalArgumentException exception = expectThrows(
                 IllegalArgumentException.class,
-                () -> DataStreamLifecycle.builder()
+                () -> DataStreamLifecycle.dataLifecycleBuilder()
                     .downsampling(
                         List.of(
                             new DataStreamLifecycle.DownsamplingRound(
@@ -195,7 +195,7 @@ public class DataStreamLifecycleTests extends AbstractXContentSerializingTestCas
         {
             IllegalArgumentException exception = expectThrows(
                 IllegalArgumentException.class,
-                () -> DataStreamLifecycle.builder()
+                () -> DataStreamLifecycle.dataLifecycleBuilder()
                     .downsampling(
                         List.of(
                             new DataStreamLifecycle.DownsamplingRound(
@@ -215,7 +215,7 @@ public class DataStreamLifecycleTests extends AbstractXContentSerializingTestCas
         {
             IllegalArgumentException exception = expectThrows(
                 IllegalArgumentException.class,
-                () -> DataStreamLifecycle.builder()
+                () -> DataStreamLifecycle.dataLifecycleBuilder()
                     .downsampling(
                         List.of(
                             new DataStreamLifecycle.DownsamplingRound(
@@ -235,14 +235,14 @@ public class DataStreamLifecycleTests extends AbstractXContentSerializingTestCas
         {
             IllegalArgumentException exception = expectThrows(
                 IllegalArgumentException.class,
-                () -> DataStreamLifecycle.builder().downsampling((List.of())).build()
+                () -> DataStreamLifecycle.dataLifecycleBuilder().downsampling((List.of())).build()
             );
             assertThat(exception.getMessage(), equalTo("Downsampling configuration should have at least one round configured."));
         }
         {
             IllegalArgumentException exception = expectThrows(
                 IllegalArgumentException.class,
-                () -> DataStreamLifecycle.builder()
+                () -> DataStreamLifecycle.dataLifecycleBuilder()
                     .downsampling(
                         Stream.iterate(1, i -> i * 2)
                             .limit(12)
@@ -262,7 +262,7 @@ public class DataStreamLifecycleTests extends AbstractXContentSerializingTestCas
         {
             IllegalArgumentException exception = expectThrows(
                 IllegalArgumentException.class,
-                () -> DataStreamLifecycle.builder()
+                () -> DataStreamLifecycle.dataLifecycleBuilder()
                     .downsampling(
                         List.of(
                             new DataStreamLifecycle.DownsamplingRound(
@@ -283,7 +283,9 @@ public class DataStreamLifecycleTests extends AbstractXContentSerializingTestCas
     public void testEffectiveRetention() {
         // No retention in the data stream lifecycle
         {
-            DataStreamLifecycle noRetentionLifecycle = DataStreamLifecycle.builder().downsampling(randomDownsampling()).build();
+            DataStreamLifecycle noRetentionLifecycle = DataStreamLifecycle.dataLifecycleBuilder()
+                .downsampling(randomDownsampling())
+                .build();
             TimeValue maxRetention = TimeValue.timeValueDays(randomIntBetween(50, 100));
             TimeValue defaultRetention = TimeValue.timeValueDays(randomIntBetween(1, 50));
             Tuple<TimeValue, DataStreamLifecycle.RetentionSource> effectiveDataRetentionWithSource = noRetentionLifecycle
@@ -316,7 +318,7 @@ public class DataStreamLifecycleTests extends AbstractXContentSerializingTestCas
         // With retention in the data stream lifecycle
         {
             TimeValue dataStreamRetention = TimeValue.timeValueDays(randomIntBetween(5, 100));
-            DataStreamLifecycle lifecycleRetention = DataStreamLifecycle.builder()
+            DataStreamLifecycle lifecycleRetention = DataStreamLifecycle.dataLifecycleBuilder()
                 .dataRetention(dataStreamRetention)
                 .downsampling(randomDownsampling())
                 .build();
@@ -365,7 +367,7 @@ public class DataStreamLifecycleTests extends AbstractXContentSerializingTestCas
                 TimeValue.timeValueDays(7),
                 TimeValue.timeValueDays(90)
             );
-            DataStreamLifecycle lifecycle = DataStreamLifecycle.builder().dataRetention(dataStreamRetention).build();
+            DataStreamLifecycle lifecycle = DataStreamLifecycle.dataLifecycleBuilder().dataRetention(dataStreamRetention).build();
 
             // Verify that global retention should have kicked in
             var effectiveDataRetentionWithSource = lifecycle.getEffectiveDataRetentionWithSource(globalRetention, false);
@@ -398,8 +400,8 @@ public class DataStreamLifecycleTests extends AbstractXContentSerializingTestCas
         }
     }
 
-    public static DataStreamLifecycle randomLifecycle() {
-        return DataStreamLifecycle.builder()
+    public static DataStreamLifecycle randomDataLifecycle() {
+        return DataStreamLifecycle.dataLifecycleBuilder()
             .dataRetention(randomBoolean() ? null : randomTimeValue(1, 365, TimeUnit.DAYS))
             .downsampling(randomBoolean() ? null : randomDownsampling())
             .enabled(randomBoolean())

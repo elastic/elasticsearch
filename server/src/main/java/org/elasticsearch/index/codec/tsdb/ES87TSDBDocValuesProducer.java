@@ -44,7 +44,7 @@ import java.io.IOException;
 
 import static org.elasticsearch.index.codec.tsdb.ES87TSDBDocValuesFormat.TERMS_DICT_BLOCK_LZ4_SHIFT;
 
-public class ES87TSDBDocValuesProducer extends DocValuesProducer {
+final class ES87TSDBDocValuesProducer extends DocValuesProducer {
     private final IntObjectHashMap<NumericEntry> numerics;
     private final IntObjectHashMap<BinaryEntry> binaries;
     private final IntObjectHashMap<SortedEntry> sorted;

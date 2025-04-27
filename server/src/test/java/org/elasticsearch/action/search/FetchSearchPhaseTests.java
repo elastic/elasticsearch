@@ -134,13 +134,7 @@ public class FetchSearchPhaseTests extends ESTestCase {
                 numHits = 0;
             }
             SearchPhaseController.ReducedQueryPhase reducedQueryPhase = results.reduce();
-            FetchSearchPhase phase = new FetchSearchPhase(
-                results,
-                null,
-                mockSearchPhaseContext,
-                reducedQueryPhase,
-                searchPhaseFactory(mockSearchPhaseContext)
-            );
+            FetchSearchPhase phase = getFetchSearchPhase(results, mockSearchPhaseContext, reducedQueryPhase);
             assertEquals("fetch", phase.getName());
             phase.run();
             mockSearchPhaseContext.assertNoFailure();
@@ -263,13 +257,7 @@ public class FetchSearchPhaseTests extends ESTestCase {
                 }
             };
             SearchPhaseController.ReducedQueryPhase reducedQueryPhase = results.reduce();
-            FetchSearchPhase phase = new FetchSearchPhase(
-                results,
-                null,
-                mockSearchPhaseContext,
-                reducedQueryPhase,
-                searchPhaseFactory(mockSearchPhaseContext)
-            );
+            FetchSearchPhase phase = getFetchSearchPhase(results, mockSearchPhaseContext, reducedQueryPhase);
             assertEquals("fetch", phase.getName());
             phase.run();
             mockSearchPhaseContext.assertNoFailure();
@@ -373,13 +361,7 @@ public class FetchSearchPhaseTests extends ESTestCase {
                 }
             };
             SearchPhaseController.ReducedQueryPhase reducedQueryPhase = results.reduce();
-            FetchSearchPhase phase = new FetchSearchPhase(
-                results,
-                null,
-                mockSearchPhaseContext,
-                reducedQueryPhase,
-                searchPhaseFactory(mockSearchPhaseContext)
-            );
+            FetchSearchPhase phase = getFetchSearchPhase(results, mockSearchPhaseContext, reducedQueryPhase);
             assertEquals("fetch", phase.getName());
             phase.run();
             mockSearchPhaseContext.assertNoFailure();
@@ -481,19 +463,21 @@ public class FetchSearchPhaseTests extends ESTestCase {
             };
             CountDownLatch latch = new CountDownLatch(1);
             SearchPhaseController.ReducedQueryPhase reducedQueryPhase = results.reduce();
-            FetchSearchPhase phase = new FetchSearchPhase(
-                results,
-                null,
-                mockSearchPhaseContext,
-                reducedQueryPhase,
-                (searchResponse, scrollId) -> new SearchPhase("test") {
-                    @Override
-                    public void run() {
-                        mockSearchPhaseContext.sendSearchResponse(searchResponse, null);
-                        latch.countDown();
-                    }
+            FetchSearchPhase phase = new FetchSearchPhase(results, null, mockSearchPhaseContext, reducedQueryPhase) {
+                @Override
+                protected SearchPhase nextPhase(
+                    SearchResponseSections searchResponseSections,
+                    AtomicArray<SearchPhaseResult> queryPhaseResults
+                ) {
+                    return new SearchPhase("test") {
+                        @Override
+                        public void run() {
+                            mockSearchPhaseContext.sendSearchResponse(searchResponseSections, null);
+                            latch.countDown();
+                        }
+                    };
                 }
-            );
+            };
             assertEquals("fetch", phase.getName());
             phase.run();
             latch.await();
@@ -621,13 +605,7 @@ public class FetchSearchPhaseTests extends ESTestCase {
                 }
             };
             SearchPhaseController.ReducedQueryPhase reducedQueryPhase = results.reduce();
-            FetchSearchPhase phase = new FetchSearchPhase(
-                results,
-                null,
-                mockSearchPhaseContext,
-                reducedQueryPhase,
-                searchPhaseFactory(mockSearchPhaseContext)
-            );
+            FetchSearchPhase phase = getFetchSearchPhase(results, mockSearchPhaseContext, reducedQueryPhase);
             assertEquals("fetch", phase.getName());
             phase.run();
             assertNotNull(mockSearchPhaseContext.searchResponse.get());
@@ -639,6 +617,22 @@ public class FetchSearchPhaseTests extends ESTestCase {
                 resp.decRef();
             }
         }
+    }
+
+    private static FetchSearchPhase getFetchSearchPhase(
+        SearchPhaseResults<SearchPhaseResult> results,
+        MockSearchPhaseContext mockSearchPhaseContext,
+        SearchPhaseController.ReducedQueryPhase reducedQueryPhase
+    ) {
+        return new FetchSearchPhase(results, null, mockSearchPhaseContext, reducedQueryPhase) {
+            @Override
+            protected SearchPhase nextPhase(
+                SearchResponseSections searchResponseSections,
+                AtomicArray<SearchPhaseResult> queryPhaseResults
+            ) {
+                return searchPhaseFactory(mockSearchPhaseContext).apply(searchResponseSections, queryPhaseResults);
+            }
+        };
     }
 
     public void testCleanupIrrelevantContexts() throws Exception { // contexts that are not fetched should be cleaned up
@@ -723,13 +717,7 @@ public class FetchSearchPhaseTests extends ESTestCase {
                 }
             };
             SearchPhaseController.ReducedQueryPhase reducedQueryPhase = results.reduce();
-            FetchSearchPhase phase = new FetchSearchPhase(
-                results,
-                null,
-                mockSearchPhaseContext,
-                reducedQueryPhase,
-                searchPhaseFactory(mockSearchPhaseContext)
-            );
+            FetchSearchPhase phase = getFetchSearchPhase(results, mockSearchPhaseContext, reducedQueryPhase);
             assertEquals("fetch", phase.getName());
             phase.run();
             mockSearchPhaseContext.assertNoFailure();
@@ -764,7 +752,7 @@ public class FetchSearchPhaseTests extends ESTestCase {
     ) {
         return (searchResponse, scrollId) -> new SearchPhase("test") {
             @Override
-            public void run() {
+            protected void run() {
                 mockSearchPhaseContext.sendSearchResponse(searchResponse, null);
             }
         };

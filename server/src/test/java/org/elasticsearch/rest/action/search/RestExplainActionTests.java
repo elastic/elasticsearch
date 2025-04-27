@@ -22,6 +22,8 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
+import static org.elasticsearch.rest.RestResponseUtils.setUpXContentMock;
+
 public final class RestExplainActionTests extends RestActionTestCase {
     final List<String> contentTypeHeader = Collections.singletonList(compatibleMediaType(XContentType.VND_JSON, RestApiVersion.V_7));
 
@@ -29,8 +31,8 @@ public final class RestExplainActionTests extends RestActionTestCase {
     public void setUpAction() {
         RestExplainAction action = new RestExplainAction();
         controller().registerHandler(action);
-        verifyingClient.setExecuteVerifier((actionType, request) -> Mockito.mock(ExplainResponse.class));
-        verifyingClient.setExecuteLocallyVerifier((actionType, request) -> Mockito.mock(ExplainResponse.class));
+        verifyingClient.setExecuteVerifier((actionType, request) -> setUpXContentMock(Mockito.mock(ExplainResponse.class)));
+        verifyingClient.setExecuteLocallyVerifier((actionType, request) -> setUpXContentMock(Mockito.mock(ExplainResponse.class)));
     }
 
     public void testTypeInPath() {

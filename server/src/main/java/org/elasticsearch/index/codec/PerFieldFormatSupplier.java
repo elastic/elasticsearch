@@ -19,7 +19,7 @@ import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.codec.bloomfilter.ES87BloomFilterPostingsFormat;
 import org.elasticsearch.index.codec.postings.ES812PostingsFormat;
-import org.elasticsearch.index.codec.tsdb.ES87TSDBDocValuesFormat;
+import org.elasticsearch.index.codec.tsdb.es819.ES819TSDBDocValuesFormat;
 import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperService;
@@ -31,18 +31,17 @@ import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
  */
 public class PerFieldFormatSupplier {
 
+    private static final ES819TSDBDocValuesFormat tsdbDocValuesFormat = new ES819TSDBDocValuesFormat();
     private final MapperService mapperService;
     private final DocValuesFormat docValuesFormat = new Lucene90DocValuesFormat();
     private final KnnVectorsFormat knnVectorsFormat = new Lucene99HnswVectorsFormat();
     private final ES87BloomFilterPostingsFormat bloomFilterPostingsFormat;
-    private final ES87TSDBDocValuesFormat tsdbDocValuesFormat;
 
     private final ES812PostingsFormat es812PostingsFormat;
 
     public PerFieldFormatSupplier(MapperService mapperService, BigArrays bigArrays) {
         this.mapperService = mapperService;
         this.bloomFilterPostingsFormat = new ES87BloomFilterPostingsFormat(bigArrays, this::internalGetPostingsFormatForField);
-        this.tsdbDocValuesFormat = new ES87TSDBDocValuesFormat();
         this.es812PostingsFormat = new ES812PostingsFormat();
     }
 

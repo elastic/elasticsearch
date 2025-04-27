@@ -23,8 +23,6 @@ import org.elasticsearch.search.aggregations.pipeline.BucketHelpers.GapPolicy;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
-import java.util.stream.Collectors;
-import java.util.stream.StreamSupport;
 
 import static org.elasticsearch.search.aggregations.pipeline.BucketHelpers.resolveBucketValue;
 
@@ -84,11 +82,11 @@ public class SerialDiffPipelineAggregator extends PipelineAggregator {
             // Both have values, calculate diff and replace the "empty" bucket
             if (Double.isNaN(thisBucketValue) == false && Double.isNaN(lagValue) == false) {
                 double diff = thisBucketValue - lagValue;
-
-                List<InternalAggregation> aggs = StreamSupport.stream(bucket.getAggregations().spliterator(), false)
-                    .collect(Collectors.toCollection(ArrayList::new));
-                aggs.add(new InternalSimpleValue(name(), diff, formatter, metadata()));
-                newBucket = factory.createBucket(factory.getKey(bucket), bucket.getDocCount(), InternalAggregations.from(aggs));
+                newBucket = factory.createBucket(
+                    factory.getKey(bucket),
+                    bucket.getDocCount(),
+                    InternalAggregations.append(bucket.getAggregations(), new InternalSimpleValue(name(), diff, formatter, metadata()))
+                );
             }
 
             newBuckets.add(newBucket);

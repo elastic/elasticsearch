@@ -557,7 +557,6 @@ public enum DataType {
             && t != SOURCE
             && t != HALF_FLOAT
             && t != PARTIAL_AGG
-            && t != AGGREGATE_METRIC_DOUBLE
             && t.isCounter() == false;
     }
 
@@ -578,7 +577,7 @@ public enum DataType {
     }
 
     public static boolean isSortable(DataType t) {
-        return false == (t == SOURCE || isCounter(t) || isSpatial(t));
+        return false == (t == SOURCE || isCounter(t) || isSpatial(t) || t == AGGREGATE_METRIC_DOUBLE);
     }
 
     public String nameUpper() {

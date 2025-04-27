@@ -47,7 +47,7 @@ public class ToUnsignedLong extends AbstractConvertFunction {
     );
 
     private static final Map<DataType, BuildFactory> EVALUATORS = Map.ofEntries(
-        Map.entry(UNSIGNED_LONG, (fieldEval, source) -> fieldEval),
+        Map.entry(UNSIGNED_LONG, (source, fieldEval) -> fieldEval),
         Map.entry(DATETIME, ToUnsignedLongFromLongEvaluator.Factory::new),
         Map.entry(BOOLEAN, ToUnsignedLongFromBooleanEvaluator.Factory::new),
         Map.entry(KEYWORD, ToUnsignedLongFromStringEvaluator.Factory::new),

@@ -13,6 +13,7 @@ import org.elasticsearch.compute.data.BytesRefVector;
 import org.elasticsearch.compute.data.Vector;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 
 /**
@@ -20,14 +21,17 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
  * This class is generated. Edit {@code ConvertEvaluatorImplementer} instead.
  */
 public final class ToStringFromIPEvaluator extends AbstractConvertFunction.AbstractEvaluator {
-  public ToStringFromIPEvaluator(EvalOperator.ExpressionEvaluator field, Source source,
+  private final EvalOperator.ExpressionEvaluator ip;
+
+  public ToStringFromIPEvaluator(Source source, EvalOperator.ExpressionEvaluator ip,
       DriverContext driverContext) {
-    super(driverContext, field, source);
+    super(driverContext, source);
+    this.ip = ip;
   }
 
   @Override
-  public String name() {
-    return "ToStringFromIP";
+  public EvalOperator.ExpressionEvaluator next() {
+    return ip;
   }
 
   @Override
@@ -46,7 +50,7 @@ public final class ToStringFromIPEvaluator extends AbstractConvertFunction.Abstr
     }
   }
 
-  private static BytesRef evalValue(BytesRefVector container, int index, BytesRef scratchPad) {
+  private BytesRef evalValue(BytesRefVector container, int index, BytesRef scratchPad) {
     BytesRef value = container.getBytesRef(index, scratchPad);
     return ToString.fromIP(value);
   }
@@ -82,29 +86,39 @@ public final class ToStringFromIPEvaluator extends AbstractConvertFunction.Abstr
     }
   }
 
-  private static BytesRef evalValue(BytesRefBlock container, int index, BytesRef scratchPad) {
+  private BytesRef evalValue(BytesRefBlock container, int index, BytesRef scratchPad) {
     BytesRef value = container.getBytesRef(index, scratchPad);
     return ToString.fromIP(value);
+  }
+
+  @Override
+  public String toString() {
+    return "ToStringFromIPEvaluator[" + "ip=" + ip + "]";
+  }
+
+  @Override
+  public void close() {
+    Releasables.closeExpectNoException(ip);
   }
 
   public static class Factory implements EvalOperator.ExpressionEvaluator.Factory {
     private final Source source;
 
-    private final EvalOperator.ExpressionEvaluator.Factory field;
+    private final EvalOperator.ExpressionEvaluator.Factory ip;
 
-    public Factory(EvalOperator.ExpressionEvaluator.Factory field, Source source) {
-      this.field = field;
+    public Factory(Source source, EvalOperator.ExpressionEvaluator.Factory ip) {
       this.source = source;
+      this.ip = ip;
     }
 
     @Override
     public ToStringFromIPEvaluator get(DriverContext context) {
-      return new ToStringFromIPEvaluator(field.get(context), source, context);
+      return new ToStringFromIPEvaluator(source, ip.get(context), context);
     }
 
     @Override
     public String toString() {
-      return "ToStringFromIPEvaluator[field=" + field + "]";
+      return "ToStringFromIPEvaluator[" + "ip=" + ip + "]";
     }
   }
 }

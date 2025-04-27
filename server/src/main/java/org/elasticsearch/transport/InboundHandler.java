@@ -32,8 +32,8 @@ import java.net.InetSocketAddress;
 import java.nio.ByteBuffer;
 
 /**
- * Handles inbound messages by first deserializing a {@link TransportMessage} from an {@link InboundMessage} and then passing
- * it to the appropriate handler.
+ * Handles inbound messages by first deserializing a {@link TransportRequest} or {@link TransportResponse} from an {@link InboundMessage}
+ * and then passing it to the appropriate handler.
  */
 public class InboundHandler {
 

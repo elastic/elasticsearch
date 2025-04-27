@@ -63,7 +63,7 @@ public class ExplainDataStreamLifecycleResponseTests extends AbstractWireSeriali
     @SuppressWarnings("unchecked")
     public void testToXContent() throws IOException {
         long now = System.currentTimeMillis();
-        DataStreamLifecycle lifecycle = new DataStreamLifecycle();
+        DataStreamLifecycle lifecycle = DataStreamLifecycle.DEFAULT_DATA_LIFECYCLE;
         ExplainIndexDataStreamLifecycle explainIndex = createRandomIndexDataStreamLifecycleExplanation(now, lifecycle);
         explainIndex.setNowSupplier(() -> now);
         {
@@ -241,7 +241,7 @@ public class ExplainDataStreamLifecycleResponseTests extends AbstractWireSeriali
 
     public void testChunkCount() {
         long now = System.currentTimeMillis();
-        DataStreamLifecycle lifecycle = new DataStreamLifecycle();
+        DataStreamLifecycle lifecycle = DataStreamLifecycle.DEFAULT_DATA_LIFECYCLE;
         Response response = new Response(
             List.of(
                 createRandomIndexDataStreamLifecycleExplanation(now, lifecycle),
@@ -298,7 +298,12 @@ public class ExplainDataStreamLifecycleResponseTests extends AbstractWireSeriali
 
     private Response randomResponse() {
         return new Response(
-            List.of(createRandomIndexDataStreamLifecycleExplanation(System.nanoTime(), randomBoolean() ? new DataStreamLifecycle() : null)),
+            List.of(
+                createRandomIndexDataStreamLifecycleExplanation(
+                    System.nanoTime(),
+                    randomBoolean() ? DataStreamLifecycle.DEFAULT_DATA_LIFECYCLE : null
+                )
+            ),
             randomBoolean()
                 ? new RolloverConfiguration(
                     new RolloverConditions(

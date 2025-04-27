@@ -1,7 +1,0 @@
-pr: 118585
-summary: Add a generic `rescorer` retriever based on the search request's rescore
-  functionality
-area: Ranking
-type: feature
-issues:
- - 118327

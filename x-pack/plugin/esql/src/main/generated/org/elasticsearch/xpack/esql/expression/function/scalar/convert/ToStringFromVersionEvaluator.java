@@ -13,6 +13,7 @@ import org.elasticsearch.compute.data.BytesRefVector;
 import org.elasticsearch.compute.data.Vector;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 
 /**
@@ -20,14 +21,17 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
  * This class is generated. Edit {@code ConvertEvaluatorImplementer} instead.
  */
 public final class ToStringFromVersionEvaluator extends AbstractConvertFunction.AbstractEvaluator {
-  public ToStringFromVersionEvaluator(EvalOperator.ExpressionEvaluator field, Source source,
+  private final EvalOperator.ExpressionEvaluator version;
+
+  public ToStringFromVersionEvaluator(Source source, EvalOperator.ExpressionEvaluator version,
       DriverContext driverContext) {
-    super(driverContext, field, source);
+    super(driverContext, source);
+    this.version = version;
   }
 
   @Override
-  public String name() {
-    return "ToStringFromVersion";
+  public EvalOperator.ExpressionEvaluator next() {
+    return version;
   }
 
   @Override
@@ -46,7 +50,7 @@ public final class ToStringFromVersionEvaluator extends AbstractConvertFunction.
     }
   }
 
-  private static BytesRef evalValue(BytesRefVector container, int index, BytesRef scratchPad) {
+  private BytesRef evalValue(BytesRefVector container, int index, BytesRef scratchPad) {
     BytesRef value = container.getBytesRef(index, scratchPad);
     return ToString.fromVersion(value);
   }
@@ -82,29 +86,39 @@ public final class ToStringFromVersionEvaluator extends AbstractConvertFunction.
     }
   }
 
-  private static BytesRef evalValue(BytesRefBlock container, int index, BytesRef scratchPad) {
+  private BytesRef evalValue(BytesRefBlock container, int index, BytesRef scratchPad) {
     BytesRef value = container.getBytesRef(index, scratchPad);
     return ToString.fromVersion(value);
+  }
+
+  @Override
+  public String toString() {
+    return "ToStringFromVersionEvaluator[" + "version=" + version + "]";
+  }
+
+  @Override
+  public void close() {
+    Releasables.closeExpectNoException(version);
   }
 
   public static class Factory implements EvalOperator.ExpressionEvaluator.Factory {
     private final Source source;
 
-    private final EvalOperator.ExpressionEvaluator.Factory field;
+    private final EvalOperator.ExpressionEvaluator.Factory version;
 
-    public Factory(EvalOperator.ExpressionEvaluator.Factory field, Source source) {
-      this.field = field;
+    public Factory(Source source, EvalOperator.ExpressionEvaluator.Factory version) {
       this.source = source;
+      this.version = version;
     }
 
     @Override
     public ToStringFromVersionEvaluator get(DriverContext context) {
-      return new ToStringFromVersionEvaluator(field.get(context), source, context);
+      return new ToStringFromVersionEvaluator(source, version.get(context), context);
     }
 
     @Override
     public String toString() {
-      return "ToStringFromVersionEvaluator[field=" + field + "]";
+      return "ToStringFromVersionEvaluator[" + "version=" + version + "]";
     }
   }
 }

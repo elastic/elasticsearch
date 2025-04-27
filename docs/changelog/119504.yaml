@@ -1,5 +1,0 @@
-pr: 119504
-summary: Optimized index sorting for OTel logs
-area: Data streams
-type: enhancement
-issues: []

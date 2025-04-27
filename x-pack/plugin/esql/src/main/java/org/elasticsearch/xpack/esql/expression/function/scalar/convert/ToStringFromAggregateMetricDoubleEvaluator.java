@@ -19,13 +19,21 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.aggregateMetricDoubleBlockToString;
 
 public class ToStringFromAggregateMetricDoubleEvaluator extends AbstractConvertFunction.AbstractEvaluator {
-    public ToStringFromAggregateMetricDoubleEvaluator(EvalOperator.ExpressionEvaluator field, Source source, DriverContext driverContext) {
-        super(driverContext, field, source);
+    private final EvalOperator.ExpressionEvaluator field;
+
+    public ToStringFromAggregateMetricDoubleEvaluator(Source source, EvalOperator.ExpressionEvaluator field, DriverContext driverContext) {
+        super(driverContext, source);
+        this.field = field;
     }
 
     @Override
-    protected String name() {
-        return "ToStringFromAggregateMetricDouble";
+    protected EvalOperator.ExpressionEvaluator next() {
+        return field;
+    }
+
+    @Override
+    public String toString() {
+        return "ToStringFromAggregateMetricDouble[field=" + field + "]";
     }
 
     @Override
@@ -53,18 +61,23 @@ public class ToStringFromAggregateMetricDoubleEvaluator extends AbstractConvertF
         }
     }
 
+    @Override
+    public void close() {
+        field.close();
+    }
+
     public static class Factory implements EvalOperator.ExpressionEvaluator.Factory {
         private final Source source;
         private final EvalOperator.ExpressionEvaluator.Factory field;
 
-        public Factory(EvalOperator.ExpressionEvaluator.Factory field, Source source) {
-            this.field = field;
+        public Factory(Source source, EvalOperator.ExpressionEvaluator.Factory field) {
             this.source = source;
+            this.field = field;
         }
 
         @Override
         public EvalOperator.ExpressionEvaluator get(DriverContext context) {
-            return new ToStringFromAggregateMetricDoubleEvaluator(field.get(context), source, context);
+            return new ToStringFromAggregateMetricDoubleEvaluator(source, field.get(context), context);
         }
     }
 }

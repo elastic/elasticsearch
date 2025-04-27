@@ -7,7 +7,7 @@ FROM employees
 salary:integer
 ;
 
-Invalid boundaries date 
+Invalid boundaries date#[skip:-8.13.99, reason: default date formatter is changed in 8.14]
 
 FROM employees
 | WHERE hire_date > TO_DATETIME("2025-01-01") AND hire_date < TO_DATETIME("2020-01-01")
@@ -30,7 +30,7 @@ required_capability: date_nanos_type
 required_capability: to_date_nanos
 required_capability: date_nanos_binary_comparison
 required_capability: fix_date_nanos_lucene_pushdown_bug
-required_capability:  fix_date_nanos_mixed_range_pushdown_bug
+required_capability: fix_date_nanos_mixed_range_pushdown_bug
 
 FROM date_nanos
 | WHERE nanos > TO_DATE_NANOS("2025-01-01") and nanos < TO_DATE_NANOS("2020-01-01")
@@ -48,7 +48,7 @@ required_capability: date_nanos_type
 required_capability: date_nanos_binary_comparison
 required_capability: date_nanos_implicit_casting
 required_capability: fix_date_nanos_lucene_pushdown_bug
-required_capability:  fix_date_nanos_mixed_range_pushdown_bug
+required_capability: fix_date_nanos_mixed_range_pushdown_bug
 
 FROM date_nanos
 | WHERE nanos > "2025-01-01" and nanos < "2020-01-01"

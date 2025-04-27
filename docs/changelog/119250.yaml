@@ -1,5 +1,0 @@
-pr: 119250
-summary: Add rest endpoint for `create_from_source_index`
-area: Data streams
-type: enhancement
-issues: []

@@ -159,7 +159,7 @@ public class TransportActionProxyTests extends ESTestCase {
         TransportActionProxy.registerProxyAction(serviceC, "internal:test", cancellable, SimpleTestResponse::new);
         // Node A -> Node B -> Node C: different versions - serialize the response
         {
-            final List<TransportMessage> responses = Collections.synchronizedList(new ArrayList<>());
+            final List<TransportResponse> responses = Collections.synchronizedList(new ArrayList<>());
             final CountDownLatch latch = new CountDownLatch(1);
             serviceB.addRequestHandlingBehavior(
                 TransportActionProxy.getProxyAction("internal:test"),
@@ -212,7 +212,7 @@ public class TransportActionProxyTests extends ESTestCase {
         {
             AbstractSimpleTransportTestCase.connectToNode(serviceD, nodeB);
             final CountDownLatch latch = new CountDownLatch(1);
-            final List<TransportMessage> responses = Collections.synchronizedList(new ArrayList<>());
+            final List<TransportResponse> responses = Collections.synchronizedList(new ArrayList<>());
             serviceB.addRequestHandlingBehavior(
                 TransportActionProxy.getProxyAction("internal:test"),
                 (handler, request, channel, task) -> handler.messageReceived(

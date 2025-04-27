@@ -3,6 +3,11 @@ setup:
   - requires:
       cluster_features: ["gte_v8.13.0"]
       reason: "API added in in 8.1.0 but modified in 8.13 (node_version field removed)"
+      test_runner_features: [ capabilities ]
+      capabilities:
+        - method: DELETE
+          path: /_internal/desired_nodes
+          capabilities: [ plain_text_empty_response ]
 ---
 teardown:
   - do:

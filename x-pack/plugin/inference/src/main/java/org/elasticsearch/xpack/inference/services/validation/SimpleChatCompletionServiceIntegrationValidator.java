@@ -10,11 +10,11 @@ package org.elasticsearch.xpack.inference.services.validation;
 
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.InferenceService;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.inference.Model;
 import org.elasticsearch.rest.RestStatus;
-import org.elasticsearch.xpack.core.inference.action.InferenceAction;
 import org.elasticsearch.xpack.inference.external.http.sender.UnifiedChatInput;
 
 import java.util.List;
@@ -28,32 +28,27 @@ public class SimpleChatCompletionServiceIntegrationValidator implements ServiceI
     private static final List<String> TEST_INPUT = List.of("how big");
 
     @Override
-    public void validate(InferenceService service, Model model, ActionListener<InferenceServiceResults> listener) {
+    public void validate(InferenceService service, Model model, TimeValue timeout, ActionListener<InferenceServiceResults> listener) {
         var chatCompletionInput = new UnifiedChatInput(TEST_INPUT, USER_ROLE, false);
-        service.unifiedCompletionInfer(
-            model,
-            chatCompletionInput.getRequest(),
-            InferenceAction.Request.DEFAULT_TIMEOUT,
-            ActionListener.wrap(r -> {
-                if (r != null) {
-                    listener.onResponse(r);
-                } else {
-                    listener.onFailure(
-                        new ElasticsearchStatusException(
-                            "Could not complete inference endpoint creation as validation call to service returned null response.",
-                            RestStatus.BAD_REQUEST
-                        )
-                    );
-                }
-            }, e -> {
+        service.unifiedCompletionInfer(model, chatCompletionInput.getRequest(), timeout, ActionListener.wrap(r -> {
+            if (r != null) {
+                listener.onResponse(r);
+            } else {
                 listener.onFailure(
                     new ElasticsearchStatusException(
-                        "Could not complete inference endpoint creation as validation call to service threw an exception.",
-                        RestStatus.BAD_REQUEST,
-                        e
+                        "Could not complete inference endpoint creation as validation call to service returned null response.",
+                        RestStatus.BAD_REQUEST
                     )
                 );
-            })
-        );
+            }
+        }, e -> {
+            listener.onFailure(
+                new ElasticsearchStatusException(
+                    "Could not complete inference endpoint creation as validation call to service threw an exception.",
+                    RestStatus.BAD_REQUEST,
+                    e
+                )
+            );
+        }));
     }
 }

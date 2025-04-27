@@ -121,6 +121,7 @@ public class EvaluatorProcessor implements Processor {
                             "evaluator",
                             new ConvertEvaluatorImplementer(
                                 env.getElementUtils(),
+                                env.getTypeUtils(),
                                 (ExecutableElement) evaluatorMethod,
                                 convertEvaluatorAnn.extraName(),
                                 warnExceptionsTypes

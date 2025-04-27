@@ -76,9 +76,9 @@ public class StYMax extends UnaryScalarFunction {
     @Override
     public EvalOperator.ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
         if (field().dataType() == GEO_POINT || field().dataType() == DataType.GEO_SHAPE) {
-            return new StYMaxFromWKBGeoEvaluator.Factory(toEvaluator.apply(field()), source());
+            return new StYMaxFromWKBGeoEvaluator.Factory(source(), toEvaluator.apply(field()));
         }
-        return new StYMaxFromWKBEvaluator.Factory(toEvaluator.apply(field()), source());
+        return new StYMaxFromWKBEvaluator.Factory(source(), toEvaluator.apply(field()));
     }
 
     @Override

@@ -14,6 +14,7 @@ import org.elasticsearch.compute.data.BytesRefVector;
 import org.elasticsearch.compute.data.Vector;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.AbstractConvertFunction;
 
@@ -22,14 +23,17 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.convert.AbstractC
  * This class is generated. Edit {@code ConvertEvaluatorImplementer} instead.
  */
 public final class StEnvelopeFromWKBEvaluator extends AbstractConvertFunction.AbstractEvaluator {
-  public StEnvelopeFromWKBEvaluator(EvalOperator.ExpressionEvaluator field, Source source,
+  private final EvalOperator.ExpressionEvaluator wkb;
+
+  public StEnvelopeFromWKBEvaluator(Source source, EvalOperator.ExpressionEvaluator wkb,
       DriverContext driverContext) {
-    super(driverContext, field, source);
+    super(driverContext, source);
+    this.wkb = wkb;
   }
 
   @Override
-  public String name() {
-    return "StEnvelopeFromWKB";
+  public EvalOperator.ExpressionEvaluator next() {
+    return wkb;
   }
 
   @Override
@@ -58,7 +62,7 @@ public final class StEnvelopeFromWKBEvaluator extends AbstractConvertFunction.Ab
     }
   }
 
-  private static BytesRef evalValue(BytesRefVector container, int index, BytesRef scratchPad) {
+  private BytesRef evalValue(BytesRefVector container, int index, BytesRef scratchPad) {
     BytesRef value = container.getBytesRef(index, scratchPad);
     return StEnvelope.fromWellKnownBinary(value);
   }
@@ -98,29 +102,39 @@ public final class StEnvelopeFromWKBEvaluator extends AbstractConvertFunction.Ab
     }
   }
 
-  private static BytesRef evalValue(BytesRefBlock container, int index, BytesRef scratchPad) {
+  private BytesRef evalValue(BytesRefBlock container, int index, BytesRef scratchPad) {
     BytesRef value = container.getBytesRef(index, scratchPad);
     return StEnvelope.fromWellKnownBinary(value);
+  }
+
+  @Override
+  public String toString() {
+    return "StEnvelopeFromWKBEvaluator[" + "wkb=" + wkb + "]";
+  }
+
+  @Override
+  public void close() {
+    Releasables.closeExpectNoException(wkb);
   }
 
   public static class Factory implements EvalOperator.ExpressionEvaluator.Factory {
     private final Source source;
 
-    private final EvalOperator.ExpressionEvaluator.Factory field;
+    private final EvalOperator.ExpressionEvaluator.Factory wkb;
 
-    public Factory(EvalOperator.ExpressionEvaluator.Factory field, Source source) {
-      this.field = field;
+    public Factory(Source source, EvalOperator.ExpressionEvaluator.Factory wkb) {
       this.source = source;
+      this.wkb = wkb;
     }
 
     @Override
     public StEnvelopeFromWKBEvaluator get(DriverContext context) {
-      return new StEnvelopeFromWKBEvaluator(field.get(context), source, context);
+      return new StEnvelopeFromWKBEvaluator(source, wkb.get(context), context);
     }
 
     @Override
     public String toString() {
-      return "StEnvelopeFromWKBEvaluator[field=" + field + "]";
+      return "StEnvelopeFromWKBEvaluator[" + "wkb=" + wkb + "]";
     }
   }
 }

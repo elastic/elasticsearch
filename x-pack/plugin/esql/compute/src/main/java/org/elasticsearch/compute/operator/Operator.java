@@ -92,7 +92,7 @@ public interface Operator extends Releasable {
         return NOT_BLOCKED;
     }
 
-    IsBlockedResult NOT_BLOCKED = new IsBlockedResult(SubscribableListener.newSucceeded(null), "not blocked");
+    IsBlockedResult NOT_BLOCKED = new IsBlockedResult(SubscribableListener.nullSuccess(), "not blocked");
 
     /**
      * A factory for creating intermediate operators.

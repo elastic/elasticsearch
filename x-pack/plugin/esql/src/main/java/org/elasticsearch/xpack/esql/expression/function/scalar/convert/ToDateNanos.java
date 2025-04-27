@@ -46,7 +46,7 @@ public class ToDateNanos extends AbstractConvertFunction {
 
     private static final Map<DataType, BuildFactory> EVALUATORS = Map.ofEntries(
         Map.entry(DATETIME, ToDateNanosFromDatetimeEvaluator.Factory::new),
-        Map.entry(DATE_NANOS, (field, source) -> field),
+        Map.entry(DATE_NANOS, (source, field) -> field),
         Map.entry(LONG, ToDateNanosFromLongEvaluator.Factory::new),
         Map.entry(KEYWORD, ToDateNanosFromStringEvaluator.Factory::new),
         Map.entry(TEXT, ToDateNanosFromStringEvaluator.Factory::new),

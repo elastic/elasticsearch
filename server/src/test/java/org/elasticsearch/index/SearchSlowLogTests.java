@@ -26,6 +26,7 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.internal.ShardSearchRequest;
+import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.test.TestSearchContext;
@@ -93,7 +94,7 @@ public class SearchSlowLogTests extends ESSingleNodeTestCase {
             }
 
             @Override
-            public SearchShardTask getTask() {
+            public CancellableTask getTask() {
                 return super.getTask();
             }
         };

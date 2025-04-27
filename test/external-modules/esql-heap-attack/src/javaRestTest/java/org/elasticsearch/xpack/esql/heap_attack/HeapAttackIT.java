@@ -19,6 +19,8 @@ import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.client.WarningsHandler;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.routing.allocation.ExistingShardsAllocator;
 import org.elasticsearch.common.CheckedSupplier;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
@@ -973,6 +975,10 @@ public class HeapAttackIT extends ESRestTestCase {
         if (indexExists(name) == false) {
             // not strictly required, but this can help isolate failure from bulk indexing.
             createIndex(name);
+            var settings = (Map<?, ?>) ((Map<?, ?>) getIndexSettings(name).get(name)).get("settings");
+            if (settings.containsKey(ExistingShardsAllocator.EXISTING_SHARDS_ALLOCATOR_SETTING.getKey()) == false) {
+                updateIndexSettings(name, Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0));
+            }
         }
         if (hasText(bulk)) {
             bulk(name, bulk);

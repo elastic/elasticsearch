@@ -163,7 +163,7 @@ Enable SSL
 SSL Certificate
 :   Content of SSL certificate. If SSL is disabled, the SSL certificate value will be ignored.
 
-    ::::{dropdown} **Expand** to see an example certificate
+    ::::{dropdown} Expand to see an example certificate
     ```
     -----BEGIN CERTIFICATE-----
     MIID+jCCAuKgAwIBAgIGAJJMzlxLMA0GCSqGSIb3DQEBCwUAMHoxCzAJBgNVBAYT

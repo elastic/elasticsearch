@@ -227,8 +227,8 @@ public class TransportVersions {
     public static final TransportVersion DOC_FIELDS_AS_LIST = def(9_061_0_00);
     public static final TransportVersion DENSE_VECTOR_OFF_HEAP_STATS = def(9_062_00_0);
     public static final TransportVersion RANDOM_SAMPLER_QUERY_BUILDER = def(9_063_0_00);
-    public static final TransportVersion SETTINGS_IN_DATA_STREAMS = def(9_064_00_0);
-    public static final TransportVersion INTRODUCE_FAILURES_LIFECYCLE = def(9_065_00_0);
+    public static final TransportVersion SETTINGS_IN_DATA_STREAMS = def(9_064_0_00);
+    public static final TransportVersion INTRODUCE_FAILURES_LIFECYCLE = def(9_065_0_00);
 
     /*
      * STOP! READ THIS FIRST! No, really,

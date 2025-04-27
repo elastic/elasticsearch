@@ -53,14 +53,14 @@ To perform a rolling upgrade to {version}:
 include::disable-shard-alloc.asciidoc[]
 --
 
-. *Stop non-essential indexing and perform a synced flush.* (Optional)
+. *Stop non-essential indexing and perform a flush.* (Optional)
 +
 --
 While you can continue indexing during the upgrade, shard recovery
 is much faster if you temporarily stop non-essential indexing and perform a
-<<indices-synced-flush-api, synced-flush>>.
+<<indices-flush, flush>>.
 
-include::synced-flush.asciidoc[]
+include::flush.asciidoc[]
 
 --
 
@@ -166,7 +166,7 @@ As soon as another node is upgraded, the replicas can be assigned and the
 status will change to `green`.
 ====================================================
 
-Shards that were not <<indices-synced-flush-api,sync-flushed>> might take longer to
+Shards that were not <<indices-flush,flushed>> might take longer to
 recover. You can monitor the recovery status of individual shards by
 submitting a <<cat-recovery,`_cat/recovery`>> request:
 

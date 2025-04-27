@@ -831,14 +831,11 @@ public final class InternalTestCluster extends TestCluster {
     public Client client() {
         /* Randomly return a client to one of the nodes in the cluster */
         NodeAndClient c = getRandomNodeAndClient();
-        ensureOpen();
         if (c == null) {
-            synchronized (this) {
-                return getOrBuildRandomNode().client();
-            }
-        } else {
-            return c.client();
+            throw new AssertionError("Unable to get client, no node found");
         }
+        ensureOpen();
+        return c.client();
     }
 
     /**
@@ -2036,13 +2033,26 @@ public final class InternalTestCluster extends TestCluster {
      * in the viaNode parameter. If viaNode isn't specified a random node will be picked to the send the request to.
      */
     public String getMasterName(@Nullable String viaNode) {
+        viaNode = viaNode != null ? viaNode : getRandomNodeName();
+        if (viaNode == null) {
+            throw new AssertionError("Unable to get master name, no node found");
+        }
         try {
-            Client client = viaNode != null ? client(viaNode) : client();
-            return client.admin().cluster().prepareState(TEST_REQUEST_TIMEOUT).get().getState().nodes().getMasterNode().getName();
+            ClusterServiceUtils.awaitClusterState(logger, state -> state.nodes().getMasterNode() != null, clusterService(viaNode));
+            final ClusterState state = client(viaNode).admin().cluster().prepareState(TEST_REQUEST_TIMEOUT).setLocal(true).get().getState();
+            return state.nodes().getMasterNode().getName();
         } catch (Exception e) {
             logger.warn("Can't fetch cluster state", e);
             throw new RuntimeException("Can't get master node " + e.getMessage(), e);
         }
+    }
+
+    public String getNonMasterNodeName() {
+        NodeAndClient randomNodeAndClient = getRandomNodeAndClient(new NodeNamePredicate(getMasterName()).negate());
+        if (randomNodeAndClient != null) {
+            return randomNodeAndClient.getName();
+        }
+        throw new AssertionError("No non-master node found");
     }
 
     /**

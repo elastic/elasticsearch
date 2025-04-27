@@ -123,6 +123,8 @@ public class TransportCoordinatedInferenceAction extends HandledTransportAction<
                 TaskType.ANY,
                 request.getModelId(),
                 null,
+                null,
+                null,
                 request.getInputs(),
                 request.getTaskSettings(),
                 inputType,

@@ -57,18 +57,22 @@ GET /_search
     Boost values are relative to the default value of `1.0`. A boost value between `0` and `1.0` decreases the relevance score. A value greater than `1.0` increases the relevance score.
 
 
-`case_insensitive` [7.10.0]
-:   (Optional, Boolean) Allows ASCII case insensitive matching of the value with the indexed field values when set to true. Default is false which means the case sensitivity of matching depends on the underlying field’s mapping.
+`case_insensitive`
+:   :::{admonition} Added in 7.10.0
+    This parameter was added in 7.10.0.
+    :::
+
+    (Optional, Boolean) Allows ASCII case insensitive matching of the value with the indexed field values when set to true. Default is false which means the case sensitivity of matching depends on the underlying field’s mapping.
 
 
 ## Notes [term-query-notes]
 
 ### Avoid using the `term` query for `text` fields [avoid-term-query-text-fields]
 
-By default, {{es}} changes the values of `text` fields during analysis. For example, the default [standard analyzer](/reference/data-analysis/text-analysis/analysis-standard-analyzer.md) changes `text` field values as follows:
+By default, {{es}} changes the values of `text` fields during analysis. For example, the default [standard analyzer](/reference/text-analysis/analysis-standard-analyzer.md) changes `text` field values as follows:
 
 * Removes most punctuation
-* Divides the remaining content into individual words, called [tokens](/reference/data-analysis/text-analysis/tokenizer-reference.md)
+* Divides the remaining content into individual words, called [tokens](/reference/text-analysis/tokenizer-reference.md)
 * Lowercases the tokens
 
 To better search `text` fields, the `match` query also analyzes your provided search term before performing a search. This means the `match` query can search `text` fields for analyzed tokens rather than an exact term.

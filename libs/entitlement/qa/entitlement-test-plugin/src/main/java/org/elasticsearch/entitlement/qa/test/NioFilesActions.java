@@ -426,7 +426,7 @@ class NioFilesActions {
     @EntitlementTest(expectedAccess = PLUGINS)
     static void checkFilesWrite() throws IOException {
         var directory = EntitledActions.createTempDirectoryForWrite();
-        Files.write(directory.resolve("file"), "foo".getBytes(StandardCharsets.UTF_8));
+        Files.writeString(directory.resolve("file"), "foo");
     }
 
     @EntitlementTest(expectedAccess = PLUGINS)

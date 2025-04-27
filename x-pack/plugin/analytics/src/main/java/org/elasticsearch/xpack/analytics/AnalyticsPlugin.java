@@ -6,8 +6,6 @@
  */
 package org.elasticsearch.xpack.analytics;
 
-import org.elasticsearch.action.ActionRequest;
-import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.index.mapper.Mapper;
@@ -127,11 +125,11 @@ public class AnalyticsPlugin extends Plugin implements SearchPlugin, ActionPlugi
     }
 
     @Override
-    public List<ActionPlugin.ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {
+    public List<ActionPlugin.ActionHandler> getActions() {
         return List.of(
-            new ActionHandler<>(XPackUsageFeatureAction.ANALYTICS, AnalyticsUsageTransportAction.class),
-            new ActionHandler<>(XPackInfoFeatureAction.ANALYTICS, AnalyticsInfoTransportAction.class),
-            new ActionHandler<>(AnalyticsStatsAction.INSTANCE, TransportAnalyticsStatsAction.class)
+            new ActionHandler(XPackUsageFeatureAction.ANALYTICS, AnalyticsUsageTransportAction.class),
+            new ActionHandler(XPackInfoFeatureAction.ANALYTICS, AnalyticsInfoTransportAction.class),
+            new ActionHandler(AnalyticsStatsAction.INSTANCE, TransportAnalyticsStatsAction.class)
         );
     }
 

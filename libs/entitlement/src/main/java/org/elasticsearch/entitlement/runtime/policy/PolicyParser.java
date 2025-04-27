@@ -49,7 +49,7 @@ import java.util.stream.Stream;
  */
 public class PolicyParser {
 
-    private static final Map<String, Class<? extends Entitlement>> EXTERNAL_ENTITLEMENTS = Stream.of(
+    private static final Map<String, Class<? extends Entitlement>> EXTERNAL_ENTITLEMENT_CLASSES_BY_NAME = Stream.of(
         CreateClassLoaderEntitlement.class,
         FilesEntitlement.class,
         InboundNetworkEntitlement.class,
@@ -59,14 +59,19 @@ public class PolicyParser {
         SetHttpsConnectionPropertiesEntitlement.class,
         WriteAllSystemPropertiesEntitlement.class,
         WriteSystemPropertiesEntitlement.class
-    ).collect(Collectors.toUnmodifiableMap(PolicyParser::getEntitlementTypeName, Function.identity()));
+    ).collect(Collectors.toUnmodifiableMap(PolicyParser::buildEntitlementNameFromClass, Function.identity()));
+
+    private static final Map<Class<? extends Entitlement>, String> EXTERNAL_ENTITLEMENT_NAMES_BY_CLASS =
+        EXTERNAL_ENTITLEMENT_CLASSES_BY_NAME.entrySet()
+            .stream()
+            .collect(Collectors.toUnmodifiableMap(Map.Entry::getValue, Map.Entry::getKey));
 
     protected final XContentParser policyParser;
     protected final String policyName;
     private final boolean isExternalPlugin;
     private final Map<String, Class<? extends Entitlement>> externalEntitlements;
 
-    static String getEntitlementTypeName(Class<? extends Entitlement> entitlementClass) {
+    static String buildEntitlementNameFromClass(Class<? extends Entitlement> entitlementClass) {
         var entitlementClassName = entitlementClass.getSimpleName();
 
         if (entitlementClassName.endsWith("Entitlement") == false) {
@@ -82,8 +87,12 @@ public class PolicyParser {
             .collect(Collectors.joining("_"));
     }
 
+    public static String getEntitlementName(Class<? extends Entitlement> entitlementClass) {
+        return EXTERNAL_ENTITLEMENT_NAMES_BY_CLASS.get(entitlementClass);
+    }
+
     public PolicyParser(InputStream inputStream, String policyName, boolean isExternalPlugin) throws IOException {
-        this(inputStream, policyName, isExternalPlugin, EXTERNAL_ENTITLEMENTS);
+        this(inputStream, policyName, isExternalPlugin, EXTERNAL_ENTITLEMENT_CLASSES_BY_NAME);
     }
 
     // package private for tests

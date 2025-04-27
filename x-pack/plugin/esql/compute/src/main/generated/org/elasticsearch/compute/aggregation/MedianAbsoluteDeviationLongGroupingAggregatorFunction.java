@@ -192,8 +192,8 @@ public final class MedianAbsoluteDeviationLongGroupingAggregatorFunction impleme
 
   @Override
   public void evaluateFinal(Block[] blocks, int offset, IntVector selected,
-      DriverContext driverContext) {
-    blocks[offset] = MedianAbsoluteDeviationLongAggregator.evaluateFinal(state, selected, driverContext);
+      GroupingAggregatorEvaluationContext evaluatorContext) {
+    blocks[offset] = MedianAbsoluteDeviationLongAggregator.evaluateFinal(state, selected, evaluatorContext.driverContext());
   }
 
   @Override

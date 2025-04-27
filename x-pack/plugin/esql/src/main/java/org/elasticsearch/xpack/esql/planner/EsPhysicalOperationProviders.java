@@ -17,6 +17,7 @@ import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.compute.aggregation.GroupingAggregator;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.ElementType;
+import org.elasticsearch.compute.lucene.DataPartitioning;
 import org.elasticsearch.compute.lucene.LuceneCountOperator;
 import org.elasticsearch.compute.lucene.LuceneOperator;
 import org.elasticsearch.compute.lucene.LuceneSourceOperator;
@@ -40,6 +41,8 @@ import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.search.NestedHelper;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.search.fetch.StoredFieldsSpec;
 import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.search.lookup.SearchLookup;
@@ -58,6 +61,7 @@ import org.elasticsearch.xpack.esql.plan.physical.AggregateExec;
 import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec;
 import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec.Sort;
 import org.elasticsearch.xpack.esql.plan.physical.FieldExtractExec;
+import org.elasticsearch.xpack.esql.plan.physical.TimeSeriesSourceExec;
 import org.elasticsearch.xpack.esql.planner.LocalExecutionPlanner.DriverParallelism;
 import org.elasticsearch.xpack.esql.planner.LocalExecutionPlanner.LocalExecutionPlannerContext;
 import org.elasticsearch.xpack.esql.planner.LocalExecutionPlanner.PhysicalOperation;
@@ -76,6 +80,8 @@ import static org.elasticsearch.compute.lucene.LuceneSourceOperator.NO_LIMIT;
 import static org.elasticsearch.index.mapper.MappedFieldType.FieldExtractPreference.NONE;
 
 public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProviders {
+    private static final Logger logger = LogManager.getLogger(EsPhysicalOperationProviders.class);
+
     /**
      * Context of each shard we're operating against.
      */
@@ -97,10 +103,17 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
     }
 
     private final List<ShardContext> shardContexts;
+    private final DataPartitioning defaultDataPartitioning;
 
-    public EsPhysicalOperationProviders(FoldContext foldContext, List<ShardContext> shardContexts, AnalysisRegistry analysisRegistry) {
+    public EsPhysicalOperationProviders(
+        FoldContext foldContext,
+        List<ShardContext> shardContexts,
+        AnalysisRegistry analysisRegistry,
+        DataPartitioning defaultDataPartitioning
+    ) {
         super(foldContext, analysisRegistry);
         this.shardContexts = shardContexts;
+        this.defaultDataPartitioning = defaultDataPartitioning;
     }
 
     @Override
@@ -179,7 +192,12 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
 
     @Override
     public final PhysicalOperation sourcePhysicalOperation(EsQueryExec esQueryExec, LocalExecutionPlannerContext context) {
+        if (esQueryExec.indexMode() == IndexMode.TIME_SERIES) {
+            assert false : "Time series source should be translated to TimeSeriesSourceExec";
+            throw new IllegalStateException("Time series source should be translated to TimeSeriesSourceExec");
+        }
         final LuceneOperator.Factory luceneFactory;
+        logger.trace("Query Exec is {}", esQueryExec);
 
         List<Sort> sorts = esQueryExec.sorts();
         assert esQueryExec.estimatedRowSize() != null : "estimated row size not initialized";
@@ -194,7 +212,7 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
             luceneFactory = new LuceneTopNSourceOperator.Factory(
                 shardContexts,
                 querySupplier(esQueryExec.query()),
-                context.queryPragmas().dataPartitioning(),
+                context.queryPragmas().dataPartitioning(defaultDataPartitioning),
                 context.queryPragmas().taskConcurrency(),
                 context.pageSize(rowEstimatedSize),
                 limit,
@@ -202,28 +220,35 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
                 scoring
             );
         } else {
-            if (esQueryExec.indexMode() == IndexMode.TIME_SERIES) {
-                luceneFactory = TimeSeriesSortedSourceOperatorFactory.create(
-                    limit,
-                    context.pageSize(rowEstimatedSize),
-                    context.queryPragmas().taskConcurrency(),
-                    shardContexts,
-                    querySupplier(esQueryExec.query())
-                );
-            } else {
-                luceneFactory = new LuceneSourceOperator.Factory(
-                    shardContexts,
-                    querySupplier(esQueryExec.query()),
-                    context.queryPragmas().dataPartitioning(),
-                    context.queryPragmas().taskConcurrency(),
-                    context.pageSize(rowEstimatedSize),
-                    limit,
-                    scoring
-                );
-            }
+            luceneFactory = new LuceneSourceOperator.Factory(
+                shardContexts,
+                querySupplier(esQueryExec.query()),
+                context.queryPragmas().dataPartitioning(defaultDataPartitioning),
+                context.queryPragmas().taskConcurrency(),
+                context.pageSize(rowEstimatedSize),
+                limit,
+                scoring
+            );
         }
         Layout.Builder layout = new Layout.Builder();
         layout.append(esQueryExec.output());
+        int instanceCount = Math.max(1, luceneFactory.taskConcurrency());
+        context.driverParallelism(new DriverParallelism(DriverParallelism.Type.DATA_PARALLELISM, instanceCount));
+        return PhysicalOperation.fromSource(luceneFactory, layout.build());
+    }
+
+    @Override
+    public PhysicalOperation timeSeriesSourceOperation(TimeSeriesSourceExec ts, LocalExecutionPlannerContext context) {
+        final int limit = ts.limit() != null ? (Integer) ts.limit().fold(context.foldCtx()) : NO_LIMIT;
+        LuceneOperator.Factory luceneFactory = TimeSeriesSortedSourceOperatorFactory.create(
+            limit,
+            context.pageSize(ts.estimatedRowSize()),
+            context.queryPragmas().taskConcurrency(),
+            shardContexts,
+            querySupplier(ts.query())
+        );
+        Layout.Builder layout = new Layout.Builder();
+        layout.append(ts.output());
         int instanceCount = Math.max(1, luceneFactory.taskConcurrency());
         context.driverParallelism(new DriverParallelism(DriverParallelism.Type.DATA_PARALLELISM, instanceCount));
         return PhysicalOperation.fromSource(luceneFactory, layout.build());
@@ -236,7 +261,7 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
         return new LuceneCountOperator.Factory(
             shardContexts,
             querySupplier(queryBuilder),
-            context.queryPragmas().dataPartitioning(),
+            context.queryPragmas().dataPartitioning(defaultDataPartitioning),
             context.queryPragmas().taskConcurrency(),
             limit == null ? NO_LIMIT : (Integer) limit.fold(context.foldCtx())
         );
@@ -273,11 +298,14 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
         private final int index;
         private final SearchExecutionContext ctx;
         private final AliasFilter aliasFilter;
+        private final String shardIdentifier;
 
         public DefaultShardContext(int index, SearchExecutionContext ctx, AliasFilter aliasFilter) {
             this.index = index;
             this.ctx = ctx;
             this.aliasFilter = aliasFilter;
+            // Build the shardIdentifier once up front so we can reuse references to it in many places.
+            this.shardIdentifier = ctx.getFullyQualifiedIndex().getName() + ":" + ctx.getShardId();
         }
 
         @Override
@@ -297,7 +325,7 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
 
         @Override
         public String shardIdentifier() {
-            return ctx.getFullyQualifiedIndex().getName() + ":" + ctx.getShardId();
+            return shardIdentifier;
         }
 
         @Override

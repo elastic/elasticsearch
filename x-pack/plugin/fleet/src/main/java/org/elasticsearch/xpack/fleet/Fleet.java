@@ -11,8 +11,6 @@ import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.ActionRequest;
-import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.features.ResetFeatureStateResponse.ResetFeatureStateStatus;
 import org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateRequest;
 import org.elasticsearch.action.datastreams.DeleteDataStreamAction;
@@ -82,7 +80,7 @@ public class Fleet extends Plugin implements SystemIndexPlugin {
     private static final List<String> ALLOWED_PRODUCTS = List.of("kibana", "fleet");
     private static final int FLEET_ACTIONS_MAPPINGS_VERSION = 2;
     private static final int FLEET_AGENTS_MAPPINGS_VERSION = 2;
-    private static final int FLEET_ENROLLMENT_API_KEYS_MAPPINGS_VERSION = 2;
+    private static final int FLEET_ENROLLMENT_API_KEYS_MAPPINGS_VERSION = 3;
     private static final int FLEET_SECRETS_MAPPINGS_VERSION = 1;
     private static final int FLEET_POLICIES_MAPPINGS_VERSION = 2;
     private static final int FLEET_POLICIES_LEADER_MAPPINGS_VERSION = 1;
@@ -97,7 +95,8 @@ public class Fleet extends Plugin implements SystemIndexPlugin {
             services.clusterService(),
             services.threadPool(),
             services.client(),
-            services.xContentRegistry()
+            services.xContentRegistry(),
+            services.projectResolver()
         );
         registry.initialize();
         return List.of();
@@ -280,6 +279,7 @@ public class Fleet extends Plugin implements SystemIndexPlugin {
                 composableIndexTemplate,
                 Map.of(),
                 ALLOWED_PRODUCTS,
+                FLEET_ORIGIN,
                 ExecutorNames.DEFAULT_SYSTEM_DATA_STREAM_THREAD_POOLS
             );
         } catch (IOException e) {
@@ -345,13 +345,13 @@ public class Fleet extends Plugin implements SystemIndexPlugin {
     }
 
     @Override
-    public List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {
+    public List<ActionHandler> getActions() {
         return List.of(
-            new ActionHandler<>(GetGlobalCheckpointsAction.INSTANCE, GetGlobalCheckpointsAction.LocalAction.class),
-            new ActionHandler<>(GetGlobalCheckpointsShardAction.INSTANCE, GetGlobalCheckpointsShardAction.TransportAction.class),
-            new ActionHandler<>(GetSecretAction.INSTANCE, TransportGetSecretAction.class),
-            new ActionHandler<>(PostSecretAction.INSTANCE, TransportPostSecretAction.class),
-            new ActionHandler<>(DeleteSecretAction.INSTANCE, TransportDeleteSecretAction.class)
+            new ActionHandler(GetGlobalCheckpointsAction.INSTANCE, GetGlobalCheckpointsAction.LocalAction.class),
+            new ActionHandler(GetGlobalCheckpointsShardAction.INSTANCE, GetGlobalCheckpointsShardAction.TransportAction.class),
+            new ActionHandler(GetSecretAction.INSTANCE, TransportGetSecretAction.class),
+            new ActionHandler(PostSecretAction.INSTANCE, TransportPostSecretAction.class),
+            new ActionHandler(DeleteSecretAction.INSTANCE, TransportDeleteSecretAction.class)
         );
     }
 

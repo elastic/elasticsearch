@@ -467,7 +467,7 @@ expensive messages that will usually be discarded:
 
 Logging is an important behaviour of the system and sometimes deserves its own
 unit tests, especially if there is complex logic for computing what is logged
-and when to log it. You can use a `org.elasticsearch.test.MockLogAppender` to
+and when to log it. You can use a `org.elasticsearch.test.MockLog` to
 make assertions about the logs that are being emitted.
 
 Logging is a powerful diagnostic technique, but it is not the only possibility.

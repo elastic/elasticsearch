@@ -2,9 +2,13 @@
 "Test operator privileges will work in the mixed cluster":
 
   - requires:
-      test_runner_features: headers
+      test_runner_features: [headers, capabilities]
       cluster_features: ["gte_v7.11.0"]
       reason: "operator privileges are available since 7.11"
+      capabilities:
+        - method: DELETE
+          path: /_cluster/voting_config_exclusions
+          capabilities: [ plain_text_empty_response ]
 
   # The default user ("test_user") is an operator, so this works
   - do:

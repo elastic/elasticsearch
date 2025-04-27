@@ -1,4 +1,4 @@
-## Modulus `%` [esql-mod]
+### Modulus `%` [esql-mod]
 
 :::{image} ../../../images/operators/mod.svg
 :alt: Embedded

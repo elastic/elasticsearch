@@ -517,14 +517,27 @@ public class RepositoryAnalyzeAction extends HandledTransportAction<RepositoryAn
             final List<Long> blobSizes = getBlobSizes(request);
             Collections.shuffle(blobSizes, random);
 
-            for (int i = 0; i < request.getBlobCount(); i++) {
+            int blobCount = request.getBlobCount();
+            for (int i = 0; i < blobCount; i++) {
                 final long targetLength = blobSizes.get(i);
                 final boolean smallBlob = targetLength <= MAX_ATOMIC_WRITE_SIZE; // avoid the atomic API for larger blobs
                 final boolean abortWrite = smallBlob && request.isAbortWritePermitted() && rarely(random);
+                final boolean doCopy = minClusterTransportVersion.onOrAfter(TransportVersions.REPO_ANALYSIS_COPY_BLOB)
+                    && rarely(random)
+                    && i > 0;
+                final String blobName = "test-blob-" + i + "-" + UUIDs.randomBase64UUID(random);
+                String copyBlobName = null;
+                if (doCopy) {
+                    copyBlobName = blobName + "-copy";
+                    blobCount--;
+                    if (i >= blobCount) {
+                        break;
+                    }
+                }
                 final BlobAnalyzeAction.Request blobAnalyzeRequest = new BlobAnalyzeAction.Request(
                     request.getRepositoryName(),
                     blobPath,
-                    "test-blob-" + i + "-" + UUIDs.randomBase64UUID(random),
+                    blobName,
                     targetLength,
                     random.nextLong(),
                     nodes,
@@ -532,7 +545,8 @@ public class RepositoryAnalyzeAction extends HandledTransportAction<RepositoryAn
                     request.getEarlyReadNodeCount(),
                     smallBlob && rarely(random),
                     repository.supportURLRepo() && repository.hasAtomicOverwrites() && smallBlob && rarely(random) && abortWrite == false,
-                    abortWrite
+                    abortWrite,
+                    copyBlobName
                 );
                 final DiscoveryNode node = nodes.get(random.nextInt(nodes.size()));
                 queue.add(ref -> runBlobAnalysis(ref, blobAnalyzeRequest, node));

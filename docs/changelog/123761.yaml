@@ -1,5 +1,0 @@
-pr: 123761
-summary: Have create index return a bad request on poor formatting
-area: Infra/Core
-type: bug
-issues: []

@@ -18,3 +18,6 @@
 
 :::{include} ../types/to_date_nanos.md
 :::
+
+:::{include} ../examples/to_date_nanos.md
+:::

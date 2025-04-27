@@ -11,6 +11,7 @@ package org.elasticsearch.cluster.metadata;
 
 import org.elasticsearch.action.support.IndexComponentSelector;
 import org.elasticsearch.action.support.IndicesOptions;
+import org.elasticsearch.action.support.UnsupportedSelectorException;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Tuple;
@@ -57,11 +58,7 @@ public class IndexAbstractionResolver {
             Tuple<String, String> expressionAndSelector = IndexNameExpressionResolver.splitSelectorExpression(indexAbstraction);
             String selectorString = expressionAndSelector.v2();
             if (indicesOptions.allowSelectors() == false && selectorString != null) {
-                throw new IllegalArgumentException(
-                    "Index component selectors are not supported in this context but found selector in expression ["
-                        + indexAbstraction
-                        + "]"
-                );
+                throw new UnsupportedSelectorException(indexAbstraction);
             }
             indexAbstraction = expressionAndSelector.v1();
             IndexComponentSelector selector = IndexComponentSelector.getByKeyOrThrow(selectorString);

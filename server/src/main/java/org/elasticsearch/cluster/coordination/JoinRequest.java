@@ -12,14 +12,14 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.version.CompatibilityVersions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.transport.TransportRequest;
+import org.elasticsearch.transport.AbstractTransportRequest;
 
 import java.io.IOException;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 
-public class JoinRequest extends TransportRequest {
+public class JoinRequest extends AbstractTransportRequest {
 
     /**
      * The sending (i.e. joining) node.

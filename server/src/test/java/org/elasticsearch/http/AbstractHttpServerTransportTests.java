@@ -1184,7 +1184,7 @@ public class AbstractHttpServerTransportTests extends ESTestCase {
             List.of(),
             RestExtension.allowAll(),
             new IncrementalBulkService(null, null),
-            TestProjectResolvers.singleProjectOnly()
+            TestProjectResolvers.alwaysThrow()
         );
     }
 

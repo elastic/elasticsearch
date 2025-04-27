@@ -47,8 +47,12 @@ GET /_search
     Boost values are relative to the default value of `1.0`. A boost value between `0` and `1.0` decreases the relevance score. A value greater than `1.0` increases the relevance score.
 
 
-`case_insensitive` [7.10.0]
-:   (Optional, Boolean) Allows case insensitive matching of the pattern with the indexed field values when set to true. Default is false which means the case sensitivity of matching depends on the underlying field’s mapping.
+`case_insensitive`
+:   :::{admonition} Added in 7.10.0
+    This parameter was added in 7.10.0.
+    :::
+
+    (Optional, Boolean) Allows case insensitive matching of the pattern with the indexed field values when set to true. Default is false which means the case sensitivity of matching depends on the underlying field’s mapping.
 
 `rewrite`
 :   (Optional, string) Method used to rewrite the query. For valid values and more information, see the [`rewrite` parameter](/reference/query-languages/query-dsl/query-dsl-multi-term-rewrite.md).
@@ -72,7 +76,7 @@ GET /_search
 
 ## Notes [wildcard-query-notes]
 
-Wildcard queries using `*` can be resource-intensive, particularly with leading wildcards. To improve performance, minimize their use and consider alternatives like the [n-gram tokenizer](/reference/data-analysis/text-analysis/analysis-ngram-tokenizer.md). While this allows for more efficient searching, it may increase index size. For better performance and accuracy, combine wildcard queries with other query types like [`match`](/reference/query-languages/query-dsl/query-dsl-match-query.md) or [`bool`](/reference/query-languages/query-dsl/query-dsl-bool-query.md) to first narrow down results.
+Wildcard queries using `*` can be resource-intensive, particularly with leading wildcards. To improve performance, minimize their use and consider alternatives like the [n-gram tokenizer](/reference/text-analysis/analysis-ngram-tokenizer.md). While this allows for more efficient searching, it may increase index size. For better performance and accuracy, combine wildcard queries with other query types like [`match`](/reference/query-languages/query-dsl/query-dsl-match-query.md) or [`bool`](/reference/query-languages/query-dsl/query-dsl-bool-query.md) to first narrow down results.
 
 ### Allow expensive queries [_allow_expensive_queries_7]
 

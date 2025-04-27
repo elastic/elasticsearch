@@ -8,10 +8,10 @@ required_capability: match_function
 // tag::match-with-field[]
 FROM books
 | WHERE MATCH(author, "Faulkner")
+// end::match-with-field[]
 | KEEP book_no, author
 | SORT book_no
 | LIMIT 5
-// end::match-with-field[]
 ;
 
 // tag::match-with-field-result[]
@@ -601,7 +601,6 @@ emp_no_bool:boolean
 
 testMatchWithSemanticText
 required_capability: match_function
-required_capability: semantic_text_type
 required_capability: semantic_text_field_caps
 
 from semantic_text
@@ -618,7 +617,6 @@ live long and prosper
 
 testMatchWithSemanticTextAndKeyword
 required_capability: match_function
-required_capability: semantic_text_type
 required_capability: semantic_text_field_caps
 
 from semantic_text
@@ -632,7 +630,6 @@ live long and prosper    | host1
 
 testMatchWithSemanticTextMultiValueField
 required_capability: match_function
-required_capability: semantic_text_type
 required_capability: semantic_text_field_caps
 
 from semantic_text metadata _id
@@ -646,7 +643,6 @@ _id: keyword | st_multi_value:text
 
 testMatchWithSemanticTextWithEvalsAndOtherFunctionsAndStats
 required_capability: match_function
-required_capability: semantic_text_type
 required_capability: semantic_text_field_caps
 
 from semantic_text
@@ -662,7 +658,6 @@ result:long
 
 testMatchWithSemanticTextAndKql
 required_capability: match_function
-required_capability: semantic_text_type
 required_capability: kql_function
 required_capability: semantic_text_field_caps
 

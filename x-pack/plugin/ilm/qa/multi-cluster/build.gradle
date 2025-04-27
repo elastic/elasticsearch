@@ -12,7 +12,6 @@ apply plugin: 'elasticsearch.internal-testclusters'
 apply plugin: 'elasticsearch.standalone-rest-test'
 
 dependencies {
-  testImplementation project(':x-pack:plugin:ccr:qa')
   testImplementation project(':x-pack:plugin:core')
   testImplementation project(':x-pack:plugin:ilm')
 }

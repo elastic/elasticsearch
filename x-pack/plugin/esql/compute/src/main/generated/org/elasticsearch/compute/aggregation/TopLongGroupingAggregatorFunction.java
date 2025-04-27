@@ -195,8 +195,8 @@ public final class TopLongGroupingAggregatorFunction implements GroupingAggregat
 
   @Override
   public void evaluateFinal(Block[] blocks, int offset, IntVector selected,
-      DriverContext driverContext) {
-    blocks[offset] = TopLongAggregator.evaluateFinal(state, selected, driverContext);
+      GroupingAggregatorEvaluationContext evaluatorContext) {
+    blocks[offset] = TopLongAggregator.evaluateFinal(state, selected, evaluatorContext.driverContext());
   }
 
   @Override

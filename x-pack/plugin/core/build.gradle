@@ -12,9 +12,9 @@ import java.nio.file.Paths
 apply plugin: 'elasticsearch.internal-es-plugin'
 apply plugin: 'elasticsearch.publish'
 apply plugin: 'elasticsearch.internal-cluster-test'
-apply plugin: 'elasticsearch.legacy-yaml-rest-test'
-apply plugin: 'elasticsearch.legacy-java-rest-test'
-apply plugin: 'elasticsearch.legacy-yaml-rest-compat-test'
+apply plugin: 'elasticsearch.internal-yaml-rest-test'
+apply plugin: 'elasticsearch.internal-java-rest-test'
+apply plugin: 'elasticsearch.yaml-rest-compat-test'
 apply plugin: 'elasticsearch.internal-test-artifact'
 
 base {
@@ -149,22 +149,8 @@ restResources {
   }
 }
 
-testClusters.configureEach {
-  testDistribution = 'default'
-  setting 'xpack.security.enabled', 'true'
-  setting 'xpack.license.self_generated.type', 'trial'
-  //disabling ILM history as it disturbs testDSXpackUsage test
-  setting 'indices.lifecycle.history_index_enabled', 'false'
-  keystore 'bootstrap.password', 'x-pack-test-password'
-  user username: "x_pack_rest_user", password: "x-pack-test-password"
-  requiresFeature 'es.failure_store_feature_flag_enabled', Version.fromString("8.15.0")
-  systemProperty 'es.queryable_built_in_roles_enabled', 'false'
-}
-
-if (buildParams.snapshotBuild == false) {
-  tasks.withType(Test).configureEach {
-    systemProperty 'es.failure_store_feature_flag_enabled', 'true'
-  }
+tasks.named("javaRestTest") {
+  usesDefaultDistribution("uses the _xpack api")
 }
 
 if (buildParams.inFipsJvm) {

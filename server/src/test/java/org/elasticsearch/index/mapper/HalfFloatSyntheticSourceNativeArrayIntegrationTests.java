@@ -13,7 +13,31 @@ import com.carrotsearch.randomizedtesting.generators.RandomStrings;
 
 import org.apache.lucene.sandbox.document.HalfFloatPoint;
 
+import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
+
 public class HalfFloatSyntheticSourceNativeArrayIntegrationTests extends NativeArrayIntegrationTestCase {
+
+    public void testSynthesizeArray() throws Exception {
+        var inputArrayValues = new Float[][] { new Float[] { 0.78151345F, 0.6886488F, 0.6882413F } };
+        var expectedArrayValues = new Float[inputArrayValues.length][inputArrayValues[0].length];
+        for (int i = 0; i < inputArrayValues.length; i++) {
+            for (int j = 0; j < inputArrayValues[i].length; j++) {
+                expectedArrayValues[i][j] = HalfFloatPoint.sortableShortToHalfFloat(
+                    HalfFloatPoint.halfFloatToSortableShort(inputArrayValues[i][j])
+                );
+            }
+        }
+
+        var mapping = jsonBuilder().startObject()
+            .startObject("properties")
+            .startObject("field")
+            .field("type", getFieldTypeName())
+            .endObject()
+            .endObject()
+            .endObject();
+
+        verifySyntheticArray(inputArrayValues, expectedArrayValues, mapping, "_id");
+    }
 
     @Override
     protected String getFieldTypeName() {

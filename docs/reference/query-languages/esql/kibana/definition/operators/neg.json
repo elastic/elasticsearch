@@ -3,6 +3,7 @@
   "type" : "operator",
   "operator" : "-",
   "name" : "neg",
+  "titleName" : "negate",
   "description" : "Returns the negation of the argument.",
   "signatures" : [
     {

@@ -28,6 +28,7 @@ public final class RateLongGroupingAggregatorFunction implements GroupingAggrega
   private static final List<IntermediateStateDesc> INTERMEDIATE_STATE_DESC = List.of(
       new IntermediateStateDesc("timestamps", ElementType.LONG),
       new IntermediateStateDesc("values", ElementType.LONG),
+      new IntermediateStateDesc("sampleCounts", ElementType.INT),
       new IntermediateStateDesc("resets", ElementType.DOUBLE)  );
 
   private final RateLongAggregator.LongRateGroupingState state;
@@ -36,20 +37,16 @@ public final class RateLongGroupingAggregatorFunction implements GroupingAggrega
 
   private final DriverContext driverContext;
 
-  private final long unitInMillis;
-
   public RateLongGroupingAggregatorFunction(List<Integer> channels,
-      RateLongAggregator.LongRateGroupingState state, DriverContext driverContext,
-      long unitInMillis) {
+      RateLongAggregator.LongRateGroupingState state, DriverContext driverContext) {
     this.channels = channels;
     this.state = state;
     this.driverContext = driverContext;
-    this.unitInMillis = unitInMillis;
   }
 
   public static RateLongGroupingAggregatorFunction create(List<Integer> channels,
-      DriverContext driverContext, long unitInMillis) {
-    return new RateLongGroupingAggregatorFunction(channels, RateLongAggregator.initGrouping(driverContext, unitInMillis), driverContext, unitInMillis);
+      DriverContext driverContext) {
+    return new RateLongGroupingAggregatorFunction(channels, RateLongAggregator.initGrouping(driverContext), driverContext);
   }
 
   public static List<IntermediateStateDesc> intermediateStateDesc() {
@@ -189,15 +186,20 @@ public final class RateLongGroupingAggregatorFunction implements GroupingAggrega
       return;
     }
     LongBlock values = (LongBlock) valuesUncast;
-    Block resetsUncast = page.getBlock(channels.get(2));
+    Block sampleCountsUncast = page.getBlock(channels.get(2));
+    if (sampleCountsUncast.areAllValuesNull()) {
+      return;
+    }
+    IntVector sampleCounts = ((IntBlock) sampleCountsUncast).asVector();
+    Block resetsUncast = page.getBlock(channels.get(3));
     if (resetsUncast.areAllValuesNull()) {
       return;
     }
     DoubleVector resets = ((DoubleBlock) resetsUncast).asVector();
-    assert timestamps.getPositionCount() == values.getPositionCount() && timestamps.getPositionCount() == resets.getPositionCount();
+    assert timestamps.getPositionCount() == values.getPositionCount() && timestamps.getPositionCount() == sampleCounts.getPositionCount() && timestamps.getPositionCount() == resets.getPositionCount();
     for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
       int groupId = groups.getInt(groupPosition);
-      RateLongAggregator.combineIntermediate(state, groupId, timestamps, values, resets.getDouble(groupPosition + positionOffset), groupPosition + positionOffset);
+      RateLongAggregator.combineIntermediate(state, groupId, timestamps, values, sampleCounts.getInt(groupPosition + positionOffset), resets.getDouble(groupPosition + positionOffset), groupPosition + positionOffset);
     }
   }
 
@@ -218,8 +220,8 @@ public final class RateLongGroupingAggregatorFunction implements GroupingAggrega
 
   @Override
   public void evaluateFinal(Block[] blocks, int offset, IntVector selected,
-      DriverContext driverContext) {
-    blocks[offset] = RateLongAggregator.evaluateFinal(state, selected, driverContext);
+      GroupingAggregatorEvaluationContext evaluatorContext) {
+    blocks[offset] = RateLongAggregator.evaluateFinal(state, selected, evaluatorContext);
   }
 
   @Override

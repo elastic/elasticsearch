@@ -29,6 +29,7 @@ import org.apache.lucene.index.SortedDocValues;
 import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.index.TermsEnum;
+import org.apache.lucene.internal.hppc.IntObjectHashMap;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.store.ByteArrayDataInput;
 import org.apache.lucene.store.ChecksumIndexInput;
@@ -43,20 +44,18 @@ import org.apache.lucene.util.packed.PackedInts;
 import org.elasticsearch.core.IOUtils;
 
 import java.io.IOException;
-import java.util.HashMap;
-import java.util.Map;
 
 import static org.elasticsearch.index.codec.tsdb.ES87TSDBDocValuesFormat.SKIP_INDEX_JUMP_LENGTH_PER_LEVEL;
 import static org.elasticsearch.index.codec.tsdb.ES87TSDBDocValuesFormat.SKIP_INDEX_MAX_LEVEL;
 import static org.elasticsearch.index.codec.tsdb.ES87TSDBDocValuesFormat.TERMS_DICT_BLOCK_LZ4_SHIFT;
 
-public class ES87TSDBDocValuesProducer extends DocValuesProducer {
-    private final Map<String, NumericEntry> numerics;
-    private final Map<String, BinaryEntry> binaries;
-    private final Map<String, SortedEntry> sorted;
-    private final Map<String, SortedSetEntry> sortedSets;
-    private final Map<String, SortedNumericEntry> sortedNumerics;
-    private final Map<String, DocValuesSkipperEntry> skippers;
+final class ES87TSDBDocValuesProducer extends DocValuesProducer {
+    private final IntObjectHashMap<NumericEntry> numerics;
+    private final IntObjectHashMap<BinaryEntry> binaries;
+    private final IntObjectHashMap<SortedEntry> sorted;
+    private final IntObjectHashMap<SortedSetEntry> sortedSets;
+    private final IntObjectHashMap<SortedNumericEntry> sortedNumerics;
+    private final IntObjectHashMap<DocValuesSkipperEntry> skippers;
     private final IndexInput data;
     private final int maxDoc;
     private final int version;
@@ -64,12 +63,12 @@ public class ES87TSDBDocValuesProducer extends DocValuesProducer {
 
     ES87TSDBDocValuesProducer(SegmentReadState state, String dataCodec, String dataExtension, String metaCodec, String metaExtension)
         throws IOException {
-        this.numerics = new HashMap<>();
-        this.binaries = new HashMap<>();
-        this.sorted = new HashMap<>();
-        this.sortedSets = new HashMap<>();
-        this.sortedNumerics = new HashMap<>();
-        this.skippers = new HashMap<>();
+        this.numerics = new IntObjectHashMap<>();
+        this.binaries = new IntObjectHashMap<>();
+        this.sorted = new IntObjectHashMap<>();
+        this.sortedSets = new IntObjectHashMap<>();
+        this.sortedNumerics = new IntObjectHashMap<>();
+        this.skippers = new IntObjectHashMap<>();
         this.maxDoc = state.segmentInfo.maxDoc();
         this.merging = false;
 
@@ -130,12 +129,12 @@ public class ES87TSDBDocValuesProducer extends DocValuesProducer {
     }
 
     private ES87TSDBDocValuesProducer(
-        Map<String, NumericEntry> numerics,
-        Map<String, BinaryEntry> binaries,
-        Map<String, SortedEntry> sorted,
-        Map<String, SortedSetEntry> sortedSets,
-        Map<String, SortedNumericEntry> sortedNumerics,
-        Map<String, DocValuesSkipperEntry> skippers,
+        IntObjectHashMap<NumericEntry> numerics,
+        IntObjectHashMap<BinaryEntry> binaries,
+        IntObjectHashMap<SortedEntry> sorted,
+        IntObjectHashMap<SortedSetEntry> sortedSets,
+        IntObjectHashMap<SortedNumericEntry> sortedNumerics,
+        IntObjectHashMap<DocValuesSkipperEntry> skippers,
         IndexInput data,
         int maxDoc,
         int version,
@@ -160,13 +159,13 @@ public class ES87TSDBDocValuesProducer extends DocValuesProducer {
 
     @Override
     public NumericDocValues getNumeric(FieldInfo field) throws IOException {
-        NumericEntry entry = numerics.get(field.name);
+        NumericEntry entry = numerics.get(field.number);
         return getNumeric(entry, -1);
     }
 
     @Override
     public BinaryDocValues getBinary(FieldInfo field) throws IOException {
-        BinaryEntry entry = binaries.get(field.name);
+        BinaryEntry entry = binaries.get(field.number);
         if (entry.docsWithFieldOffset == -2) {
             return DocValues.emptyBinary();
         }
@@ -320,7 +319,7 @@ public class ES87TSDBDocValuesProducer extends DocValuesProducer {
 
     @Override
     public SortedDocValues getSorted(FieldInfo field) throws IOException {
-        SortedEntry entry = sorted.get(field.name);
+        SortedEntry entry = sorted.get(field.number);
         return getSorted(entry);
     }
 
@@ -675,13 +674,13 @@ public class ES87TSDBDocValuesProducer extends DocValuesProducer {
 
     @Override
     public SortedNumericDocValues getSortedNumeric(FieldInfo field) throws IOException {
-        SortedNumericEntry entry = sortedNumerics.get(field.name);
+        SortedNumericEntry entry = sortedNumerics.get(field.number);
         return getSortedNumeric(entry, -1);
     }
 
     @Override
     public SortedSetDocValues getSortedSet(FieldInfo field) throws IOException {
-        SortedSetEntry entry = sortedSets.get(field.name);
+        SortedSetEntry entry = sortedSets.get(field.number);
         if (entry.singleValueEntry != null) {
             return DocValues.singleton(getSorted(entry.singleValueEntry));
         }
@@ -743,7 +742,7 @@ public class ES87TSDBDocValuesProducer extends DocValuesProducer {
 
     @Override
     public DocValuesSkipper getSkipper(FieldInfo field) throws IOException {
-        final DocValuesSkipperEntry entry = skippers.get(field.name);
+        final DocValuesSkipperEntry entry = skippers.get(field.number);
 
         final IndexInput input = data.slice("doc value skipper", entry.offset, entry.length);
         // Prefetch the first page of data. Following pages are expected to get prefetched through
@@ -869,18 +868,18 @@ public class ES87TSDBDocValuesProducer extends DocValuesProducer {
             }
             byte type = meta.readByte();
             if (info.docValuesSkipIndexType() != DocValuesSkipIndexType.NONE) {
-                skippers.put(info.name, readDocValueSkipperMeta(meta));
+                skippers.put(info.number, readDocValueSkipperMeta(meta));
             }
             if (type == ES87TSDBDocValuesFormat.NUMERIC) {
-                numerics.put(info.name, readNumeric(meta));
+                numerics.put(info.number, readNumeric(meta));
             } else if (type == ES87TSDBDocValuesFormat.BINARY) {
-                binaries.put(info.name, readBinary(meta));
+                binaries.put(info.number, readBinary(meta));
             } else if (type == ES87TSDBDocValuesFormat.SORTED) {
-                sorted.put(info.name, readSorted(meta));
+                sorted.put(info.number, readSorted(meta));
             } else if (type == ES87TSDBDocValuesFormat.SORTED_SET) {
-                sortedSets.put(info.name, readSortedSet(meta));
+                sortedSets.put(info.number, readSortedSet(meta));
             } else if (type == ES87TSDBDocValuesFormat.SORTED_NUMERIC) {
-                sortedNumerics.put(info.name, readSortedNumeric(meta));
+                sortedNumerics.put(info.number, readSortedNumeric(meta));
             } else {
                 throw new CorruptIndexException("invalid type: " + type, meta);
             }

@@ -404,7 +404,7 @@ public class ReservedClusterStateServiceTests extends ESTestCase {
         AtomicReference<Exception> exceptionRef = new AtomicReference<>();
         List<ReservedStateChunk> chunks = new ArrayList<>();
 
-        String[] randomStateKeys = generateRandomStringArray(randomIntBetween(5, 10), randomIntBetween(10, 15), false);
+        String[] randomStateKeys = generateRandomStringArray(randomIntBetween(5, 10), randomIntBetween(10, 15), false, false);
 
         List<ReservedClusterStateHandler<ProjectMetadata, ?>> projectHandlers = new ArrayList<>();
         for (var key : randomStateKeys) {

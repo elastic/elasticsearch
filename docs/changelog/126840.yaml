@@ -1,0 +1,6 @@
+pr: 126840
+summary: Fix `PolicyStepsRegistry` cache concurrency issue
+area: ILM+SLM
+type: bug
+issues:
+ - 118406

@@ -79,8 +79,7 @@ public class RestValidateQueryActionTests extends AbstractSearchTestCase {
             protected void doExecute(Task task, ActionRequest request, ActionListener<ActionResponse> listener) {}
         };
 
-        final Map<ActionType<? extends ActionResponse>, TransportAction<? extends ActionRequest, ? extends ActionResponse>> actions =
-            new HashMap<>();
+        final Map<ActionType<?>, TransportAction<?, ?>> actions = new HashMap<>();
         actions.put(ValidateQueryAction.INSTANCE, transportAction);
 
         client.initialize(actions, taskManager, () -> "local", mock(Transport.Connection.class), null);

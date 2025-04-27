@@ -203,8 +203,8 @@ public final class SumDoubleGroupingAggregatorFunction implements GroupingAggreg
 
   @Override
   public void evaluateFinal(Block[] blocks, int offset, IntVector selected,
-      DriverContext driverContext) {
-    blocks[offset] = SumDoubleAggregator.evaluateFinal(state, selected, driverContext);
+      GroupingAggregatorEvaluationContext evaluatorContext) {
+    blocks[offset] = SumDoubleAggregator.evaluateFinal(state, selected, evaluatorContext.driverContext());
   }
 
   @Override

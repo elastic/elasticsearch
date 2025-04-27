@@ -198,6 +198,7 @@ import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Random;
 import java.util.Set;
 import java.util.concurrent.Callable;
@@ -226,11 +227,14 @@ import static org.elasticsearch.test.XContentTestUtils.differenceBetweenMapsIgno
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoTimeout;
+import static org.hamcrest.Matchers.allOf;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
+import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.startsWith;
 
 /**
@@ -577,7 +581,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
                 internalCluster().clearDisruptionScheme();
             }
             try {
-                if (cluster() != null) {
+                if (cluster() != null && cluster().size() > 0) {
                     if (currentClusterScope != Scope.TEST) {
                         Metadata metadata = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get().getState().getMetadata();
 
@@ -855,9 +859,51 @@ public abstract class ESIntegTestCase extends ESTestCase {
     }
 
     /**
+     * Waits for the specified data stream to have the expected number of backing indices.
+     */
+    public static List<String> waitForDataStreamBackingIndices(String dataStreamName, int expectedSize) {
+        return waitForDataStreamIndices(dataStreamName, expectedSize, false);
+    }
+
+    /**
+     * Waits for the specified data stream to have the expected number of backing or failure indices.
+     */
+    public static List<String> waitForDataStreamIndices(String dataStreamName, int expectedSize, boolean failureStore) {
+        // We listen to the cluster state on the master node to ensure all other nodes have already acked the new cluster state.
+        // This avoids inconsistencies in subsequent API calls which might hit a non-master node.
+        final var listener = ClusterServiceUtils.addMasterTemporaryStateListener(clusterState -> {
+            final var dataStream = clusterState.metadata().getProject().dataStreams().get(dataStreamName);
+            if (dataStream == null) {
+                return false;
+            }
+            return dataStream.getDataStreamIndices(failureStore).getIndices().size() == expectedSize;
+        });
+        safeAwait(listener);
+        final var backingIndexNames = getDataStreamBackingIndexNames(dataStreamName, failureStore);
+        assertEquals(
+            Strings.format(
+                "Retrieved number of data stream indices doesn't match expectation for data stream [%s]. Expected %d but got %s",
+                dataStreamName,
+                expectedSize,
+                backingIndexNames
+            ),
+            expectedSize,
+            backingIndexNames.size()
+        );
+        return backingIndexNames;
+    }
+
+    /**
      * Returns a list of the data stream's backing index names.
      */
-    public List<String> getDataStreamBackingIndexNames(String dataStreamName) {
+    public static List<String> getDataStreamBackingIndexNames(String dataStreamName) {
+        return getDataStreamBackingIndexNames(dataStreamName, false);
+    }
+
+    /**
+     * Returns a list of the data stream's backing or failure index names.
+     */
+    public static List<String> getDataStreamBackingIndexNames(String dataStreamName, boolean failureStore) {
         GetDataStreamAction.Response response = safeGet(
             client().execute(
                 GetDataStreamAction.INSTANCE,
@@ -867,7 +913,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
         assertThat(response.getDataStreams().size(), equalTo(1));
         DataStream dataStream = response.getDataStreams().getFirst().getDataStream();
         assertThat(dataStream.getName(), equalTo(dataStreamName));
-        return dataStream.getIndices().stream().map(Index::getName).toList();
+        return dataStream.getDataStreamIndices(failureStore).getIndices().stream().map(Index::getName).toList();
     }
 
     /**
@@ -893,6 +939,39 @@ public abstract class ESIntegTestCase extends ESTestCase {
             }
         });
         assertNoTimeout(clusterAdmin().prepareHealth(TEST_REQUEST_TIMEOUT).setWaitForEvents(Priority.LANGUID).get());
+    }
+
+    /**
+     * Waits for the node {@code viaNode} to see {@code masterNodeName} as the master node in the cluster state.
+     * Note that this does not guarantee that all other nodes in the cluster are on the same cluster state version already.
+     *
+     * @param viaNode the node to check the cluster state one
+     * @param masterNodeName the master node name that we wait for
+     */
+    public void awaitMasterNode(String viaNode, String masterNodeName) {
+        var listener = ClusterServiceUtils.addTemporaryStateListener(
+            internalCluster().clusterService(viaNode),
+            state -> Optional.ofNullable(state.nodes().getMasterNode()).map(m -> m.getName().equals(masterNodeName)).orElse(false),
+            TEST_REQUEST_TIMEOUT
+        );
+        safeAwait(listener, TEST_REQUEST_TIMEOUT);
+    }
+
+    /**
+     * Waits for a random node in the cluster to not see a master node in the cluster state.
+     * Note that this does not guarantee that all other nodes in the cluster are on the same cluster state version already.
+     */
+    public void awaitMasterNotFound() {
+        var viaNode = internalCluster().getRandomNodeName();
+        // We use a temporary state listener instead of `awaitClusterState` here because the `ClusterStateObserver` doesn't run the
+        // predicate if the cluster state version didn't change. When a master node leaves the cluster (i.e. what this method is used for),
+        // the cluster state version is not incremented.
+        var listener = ClusterServiceUtils.addTemporaryStateListener(
+            internalCluster().clusterService(viaNode),
+            state -> state.nodes().getMasterNode() == null,
+            TEST_REQUEST_TIMEOUT
+        );
+        safeAwait(listener, TEST_REQUEST_TIMEOUT);
     }
 
     /** Ensures the result counts are as expected, and logs the results if different */
@@ -1687,6 +1766,29 @@ public abstract class ESIntegTestCase extends ESTestCase {
             .setIndicesOptions(IndicesOptions.LENIENT_EXPAND_OPEN_CLOSED)
             .get();
         return getIndexResponse.getIndices().length > 0;
+    }
+
+    public static void awaitIndexExists(String index) {
+        awaitIndexExists(index, client(), SAFE_AWAIT_TIMEOUT);
+    }
+
+    public static void awaitIndexExists(String index, TimeValue timeout) {
+        awaitIndexExists(index, client(), timeout);
+    }
+
+    public static void awaitIndexExists(String index, Client client) {
+        awaitIndexExists(index, client, SAFE_AWAIT_TIMEOUT);
+    }
+
+    public static void awaitIndexExists(String index, Client client, TimeValue timeout) {
+        assertThat("wildcards not supported", index, allOf(not(Metadata.ALL), not(containsString("*"))));
+        assertNoTimeout(
+            client.admin()
+                .cluster()
+                .prepareHealth(timeout, index)
+                .setTimeout(timeout)
+                .setIndicesOptions(IndicesOptions.LENIENT_EXPAND_OPEN_CLOSED)
+        );
     }
 
     /**

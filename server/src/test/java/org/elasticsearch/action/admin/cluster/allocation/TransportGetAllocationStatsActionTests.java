@@ -13,7 +13,6 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsRequestParameters.Metric;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.PlainActionFuture;
-import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.routing.allocation.AllocationStatsService;
 import org.elasticsearch.cluster.routing.allocation.NodeAllocationStats;
@@ -39,7 +38,6 @@ import org.junit.After;
 import org.junit.Before;
 import org.mockito.ArgumentCaptor;
 
-import java.util.Arrays;
 import java.util.EnumSet;
 import java.util.List;
 import java.util.Map;
@@ -196,70 +194,24 @@ public class TransportGetAllocationStatsActionTests extends ESTestCase {
         }
     }
 
-    public void testAllTasksCancelledStopsComputationSingleThread() throws InterruptedException {
-        runAllTasksCancelledStopsComputationTestForNumThreads(1, false);
+    public void testAllTasksCancelledCacheEnabled() throws InterruptedException {
+        runTestWithCancelledTasks(between(2, 10), false, true);
     }
 
-    public void testAllTasksCancelledStopsComputationMultipleThreads() throws InterruptedException {
-        runAllTasksCancelledStopsComputationTestForNumThreads(between(2, 10), false);
+    public void testAllTasksCancelledCacheDisabled() throws InterruptedException {
+        runTestWithCancelledTasks(between(2, 10), true, true);
     }
 
-    public void testAllTasksCancelledStopsComputationSingleThreadCacheDisabled() throws InterruptedException {
-        runAllTasksCancelledStopsComputationTestForNumThreads(1, true);
+    public void testSomeTasksCancelledCacheEnabled() throws InterruptedException {
+        runTestWithCancelledTasks(between(2, 10), false, false);
     }
 
-    public void testAllTasksCancelledStopsComputationMultipleThreadsCacheDisabled() throws InterruptedException {
-        runAllTasksCancelledStopsComputationTestForNumThreads(between(2, 10), true);
+    public void testSomeTasksCancelledCacheDisabled() throws InterruptedException {
+        runTestWithCancelledTasks(between(2, 10), true, false);
     }
 
-    private void runAllTasksCancelledStopsComputationTestForNumThreads(final int numThreads, final boolean cacheDisabled)
+    private void runTestWithCancelledTasks(final int numThreads, final boolean cacheDisabled, final boolean cancelAllTasks)
         throws InterruptedException {
-        if (cacheDisabled) {
-            disableAllocationStatsCache();
-        }
-        final var isExecuting = new AtomicBoolean();
-        final var ensureNotCancelledCaptor = ArgumentCaptor.forClass(Runnable.class);
-        final var tasks = new CancellableTask[numThreads];
-
-        when(allocationStatsService.stats(ensureNotCancelledCaptor.capture())).thenAnswer(invocation -> {
-            try {
-                assertTrue(isExecuting.compareAndSet(false, true));
-                Arrays.stream(tasks).forEach(task -> TaskCancelHelper.cancel(task, "cancelled"));
-                ensureNotCancelledCaptor.getValue().run();
-                fail("expected computation to stop when all tasks are cancelled");
-                return null;
-            } finally {
-                Thread.yield();
-                assertTrue(isExecuting.compareAndSet(true, false));
-            }
-        });
-
-        ESTestCase.startInParallel(numThreads, threadNumber -> {
-            tasks[threadNumber] = getTask();
-            final SubscribableListener<TransportGetAllocationStatsAction.Response> listener = SubscribableListener.newForked(
-                l -> action.masterOperation(tasks[threadNumber], getRequest(), ClusterState.EMPTY_STATE, l)
-            );
-            safeAwaitFailure(listener);
-        });
-    }
-
-    public void testRunSomeTasksCancelledForSingleThread() throws InterruptedException {
-        runSomeTasksCancelledForNumThreads(1, false);
-    }
-
-    public void testRunSomeTasksCancelledForMultipleThreads() throws InterruptedException {
-        runSomeTasksCancelledForNumThreads(between(2, 10), false);
-    }
-
-    public void testRunSomeTasksCancelledForSingleThreadCacheDisabled() throws InterruptedException {
-        runSomeTasksCancelledForNumThreads(1, true);
-    }
-
-    public void testRunSomeTasksCancelledForMultipleThreadsCacheDisabled() throws InterruptedException {
-        runSomeTasksCancelledForNumThreads(between(2, 10), true);
-    }
-
-    private void runSomeTasksCancelledForNumThreads(final int numThreads, final boolean cacheDisabled) throws InterruptedException {
         if (cacheDisabled) {
             disableAllocationStatsCache();
         }
@@ -287,17 +239,17 @@ public class TransportGetAllocationStatsActionTests extends ESTestCase {
 
         ESTestCase.startInParallel(numThreads, threadNumber -> {
             tasks[threadNumber] = getTask();
-            cancellations[threadNumber] = threadNumber > 0;
-            final SubscribableListener<TransportGetAllocationStatsAction.Response> listener = SubscribableListener.newForked(
-                l -> action.masterOperation(tasks[threadNumber], getRequest(), ClusterState.EMPTY_STATE, l)
-            );
-            listener.addListener(ActionListener.wrap(response -> { assertSame(stats, response.getNodeAllocationStats()); }, e -> {
+            cancellations[threadNumber] = cancelAllTasks || randomBoolean();
+            final ActionListener<TransportGetAllocationStatsAction.Response> listener = ActionListener.wrap(response -> {
+                assertSame(stats, response.getNodeAllocationStats());
+            }, e -> {
                 if (e instanceof TaskCancelledException) {
                     assertTrue("got an unexpected cancellation exception for thread " + threadNumber, cancellations[threadNumber]);
                 } else {
                     fail(e);
                 }
-            }));
+            });
+            ActionListener.run(listener, l -> action.masterOperation(tasks[threadNumber], getRequest(), ClusterState.EMPTY_STATE, l));
         });
     }
 
@@ -345,7 +297,9 @@ public class TransportGetAllocationStatsActionTests extends ESTestCase {
         verifyAllocationStatsServiceNumCallsEqualTo(numExpectedAllocationStatsServiceCalls);
 
         // Re-enable the cache, only one thread should call the stats service.
-        setAllocationStatsCacheTTL(TimeValue.timeValueMinutes(5));
+        final var newTTL = TimeValue.timeValueMinutes(5);
+        setAllocationStatsCacheTTL(newTTL);
+        threadPool.setCurrentTimeInMillis(threadPool.relativeTimeInMillis() + newTTL.getMillis() + 1);
         resetExpectedAllocationStats.run();
         ESTestCase.startInParallel(between(1, 5), threadNumber -> safeAwait(threadTask));
         verifyAllocationStatsServiceNumCallsEqualTo(++numExpectedAllocationStatsServiceCalls);

@@ -17,7 +17,6 @@ import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsRequestParameters.Metric;
 import org.elasticsearch.action.support.ActionFilters;
-import org.elasticsearch.action.support.ContextPreservingActionListener;
 import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.action.support.master.MasterNodeReadRequest;
 import org.elasticsearch.action.support.master.TransportMasterNodeReadAction;
@@ -31,24 +30,22 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.common.util.CancellableSingleObjectCache;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
-import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.EnumSet;
-import java.util.List;
 import java.util.Map;
-import java.util.concurrent.atomic.AtomicReference;
-import java.util.function.Consumer;
+import java.util.concurrent.ExecutorService;
+import java.util.function.BooleanSupplier;
 
 public class TransportGetAllocationStatsAction extends TransportMasterNodeReadAction<
     TransportGetAllocationStatsAction.Request,
@@ -67,10 +64,7 @@ public class TransportGetAllocationStatsAction extends TransportMasterNodeReadAc
     );
 
     private final AllocationStatsCache allocationStatsCache;
-    private final Consumer<ActionListener<Map<String, NodeAllocationStats>>> allocationStatsSupplier;
     private final DiskThresholdSettings diskThresholdSettings;
-    private SubscribableListener<Response> waitingListeners;
-    private List<TaskListenerPair> tasksList;
 
     @Inject
     public TransportGetAllocationStatsAction(
@@ -92,21 +86,7 @@ public class TransportGetAllocationStatsAction extends TransportMasterNodeReadAc
             // very cheaply.
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
-        final var managementExecutor = threadPool.executor(ThreadPool.Names.MANAGEMENT);
-        this.allocationStatsCache = new AllocationStatsCache(threadPool, DEFAULT_CACHE_TTL);
-        this.allocationStatsSupplier = l -> {
-            final var cachedStats = allocationStatsCache.get();
-            if (cachedStats != null) {
-                l.onResponse(cachedStats);
-                return;
-            }
-
-            managementExecutor.execute(ActionRunnable.supply(l, () -> {
-                final var stats = allocationStatsService.stats(this::ensureNotCancelled);
-                allocationStatsCache.put(stats);
-                return stats;
-            }));
-        };
+        this.allocationStatsCache = new AllocationStatsCache(threadPool, allocationStatsService, DEFAULT_CACHE_TTL);
         this.diskThresholdSettings = new DiskThresholdSettings(clusterService.getSettings(), clusterService.getClusterSettings());
         clusterService.getClusterSettings().initializeAndWatch(CACHE_TTL_SETTING, this.allocationStatsCache::setTTL);
     }
@@ -125,65 +105,16 @@ public class TransportGetAllocationStatsAction extends TransportMasterNodeReadAc
     protected void masterOperation(Task task, Request request, ClusterState state, ActionListener<Response> listener) throws Exception {
         // NB we are still on a transport thread here - if adding more functionality here make sure to fork to a different pool
 
-        if (request.metrics().contains(Metric.ALLOCATIONS) == false) {
-            listener.onResponse(statsToResponse(Map.of(), request));
-            return;
-        }
-        // Perform a cheap check for the cached stats up front.
-        final var cachedStats = allocationStatsCache.get();
-        if (cachedStats != null) {
-            listener.onResponse(statsToResponse(cachedStats, request));
-            return;
-        }
-
         assert task instanceof CancellableTask;
-        final var wrappedListener = ContextPreservingActionListener.wrapPreservingContext(listener, threadPool.getThreadContext());
-        final var taskListenerPair = new TaskListenerPair((CancellableTask) task, wrappedListener);
+        final var cancellableTask = (CancellableTask) task;
 
-        synchronized (this) {
-            if (waitingListeners != null) {
-                tasksList.add(taskListenerPair);
-                waitingListeners.addListener(wrappedListener);
-                return;
-            }
+        final SubscribableListener<Map<String, NodeAllocationStats>> allocationStatsStep = request.metrics().contains(Metric.ALLOCATIONS)
+            ? SubscribableListener.newForked(l -> allocationStatsCache.get(cancellableTask::isCancelled, l))
+            : SubscribableListener.newSucceeded(Map.of());
 
-            tasksList = new ArrayList<>();
-            waitingListeners = new SubscribableListener<>();
-            tasksList.add(taskListenerPair);
-            waitingListeners.addListener(ActionListener.runBefore(wrappedListener, () -> {
-                synchronized (this) {
-                    waitingListeners = null;
-                    tasksList = null;
-                }
-            }));
-        }
-
-        SubscribableListener.newForked(allocationStatsSupplier::accept)
-            .andThenApply(stats -> statsToResponse(stats, request))
-            .addListener(waitingListeners);
-    }
-
-    private Response statsToResponse(Map<String, NodeAllocationStats> stats, Request request) {
-        return new Response(stats, request.metrics().contains(Metric.FS) ? diskThresholdSettings : null);
-    }
-
-    private void ensureNotCancelled() {
-        final int count;
-        synchronized (this) {
-            count = tasksList.size();
-        }
-        boolean allTasksCancelled = true;
-        // Check each task to give each task a chance to invoke their listener (once) when cancelled.
-        for (int i = 0; i < count; ++i) {
-            final TaskListenerPair taskPair;
-            synchronized (this) {
-                taskPair = tasksList.get(i);
-            }
-            allTasksCancelled &= taskPair.isCancelled();
-        }
-        if (allTasksCancelled) {
-            throw new TaskCancelledException("task cancelled");
-        }
+        allocationStatsStep.andThenApply(
+            allocationStats -> new Response(allocationStats, request.metrics().contains(Metric.FS) ? diskThresholdSettings : null)
+        ).addListener(listener);
     }
 
     @Override
@@ -273,60 +204,61 @@ public class TransportGetAllocationStatsAction extends TransportMasterNodeReadAc
         }
     }
 
-    private record CachedAllocationStats(Map<String, NodeAllocationStats> stats, long timestampMillis) {}
-
-    private static class AllocationStatsCache {
+    private static class AllocationStatsCache extends CancellableSingleObjectCache<Long, Long, Map<String, NodeAllocationStats>> {
         private volatile long ttlMillis;
         private final ThreadPool threadPool;
-        private final AtomicReference<CachedAllocationStats> cachedStats;
+        private final ExecutorService executorService;
+        private final AllocationStatsService allocationStatsService;
 
-        AllocationStatsCache(ThreadPool threadPool, TimeValue ttl) {
+        AllocationStatsCache(ThreadPool threadPool, AllocationStatsService allocationStatsService, TimeValue ttl) {
+            super(threadPool.getThreadContext());
             this.threadPool = threadPool;
-            this.cachedStats = new AtomicReference<>();
+            this.executorService = threadPool.executor(ThreadPool.Names.MANAGEMENT);
+            this.allocationStatsService = allocationStatsService;
             setTTL(ttl);
         }
 
         void setTTL(TimeValue ttl) {
             ttlMillis = ttl.millis();
-            if (ttlMillis == 0L) {
-                cachedStats.set(null);
+            clearCacheIfDisabled();
+        }
+
+        void get(BooleanSupplier isCancelled, ActionListener<Map<String, NodeAllocationStats>> listener) {
+            get(threadPool.relativeTimeInMillis(), isCancelled, listener);
+        }
+
+        @Override
+        protected void refresh(
+            Long aLong,
+            Runnable ensureNotCancelled,
+            BooleanSupplier supersedeIfStale,
+            ActionListener<Map<String, NodeAllocationStats>> listener
+        ) {
+            if (supersedeIfStale.getAsBoolean() == false) {
+                executorService.execute(
+                    ActionRunnable.supply(
+                        // If caching is disabled the item is only cached long enough to prevent duplicate concurrent requests.
+                        ActionListener.runBefore(listener, this::clearCacheIfDisabled),
+                        () -> allocationStatsService.stats(ensureNotCancelled)
+                    )
+                );
             }
         }
 
-        Map<String, NodeAllocationStats> get() {
-            if (ttlMillis == 0L) {
-                return null;
-            }
-
-            // We don't set the atomic ref to null here upon expiration since we know it is about to be replaced with a fresh instance.
-            final var stats = cachedStats.get();
-            return stats == null || threadPool.relativeTimeInMillis() - stats.timestampMillis > ttlMillis ? null : stats.stats;
+        @Override
+        protected Long getKey(Long timestampMillis) {
+            return timestampMillis;
         }
 
-        void put(Map<String, NodeAllocationStats> stats) {
-            if (ttlMillis > 0L) {
-                cachedStats.set(new CachedAllocationStats(stats, threadPool.relativeTimeInMillis()));
-            }
-        }
-    }
-
-    private static class TaskListenerPair {
-        private final CancellableTask task;
-        private final ActionListener<Response> listener;
-        private boolean detectedCancellation;
-
-        TaskListenerPair(CancellableTask task, ActionListener<Response> listener) {
-            this.task = task;
-            this.listener = listener;
-            this.detectedCancellation = false;
+        @Override
+        protected boolean isFresh(Long currentKey, Long newKey) {
+            return ttlMillis == 0 || newKey - currentKey <= ttlMillis;
         }
 
-        boolean isCancelled() {
-            if (detectedCancellation == false && task.isCancelled()) {
-                detectedCancellation = true;
-                listener.onFailure(new TaskCancelledException("task cancelled"));
+        private void clearCacheIfDisabled() {
+            if (ttlMillis == 0) {
+                clearCurrentCachedItem();
             }
-            return task.isCancelled();
         }
     }
 }

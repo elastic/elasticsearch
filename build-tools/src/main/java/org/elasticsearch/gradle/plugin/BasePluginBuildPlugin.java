@@ -94,6 +94,11 @@ public class BasePluginBuildPlugin implements Plugin<Project> {
             r.useCluster(runCluster);
             r.dependsOn(project.getTasks().named(BUNDLE_PLUGIN_TASK_NAME));
         });
+
+        project.getTasks()
+            .register("generatePluginTestDependencies", GeneratePluginTestDependenciesTask.class, generatePluginTestDependenciesTask -> {
+
+            });
     }
 
     @SuppressWarnings("unchecked")

@@ -128,7 +128,7 @@ public class TimeSeriesSortedSourceOperatorFactory extends LuceneOperator.Factor
         private LongVector.Builder timestampsBuilder;
         private TsidBuilder tsHashesBuilder;
         private SegmentsIterator iterator;
-        private final List<ValuesSourceReaderOperator.FieldInfo> fieldsToExact;
+        private final List<ValuesSourceReaderOperator.FieldInfo> fieldsToExtracts;
         private ShardLevelFieldsReader fieldsReader;
         private DocIdCollector docCollector;
 
@@ -142,7 +142,7 @@ public class TimeSeriesSortedSourceOperatorFactory extends LuceneOperator.Factor
         ) {
             this.maxPageSize = maxPageSize;
             this.blockFactory = blockFactory;
-            this.fieldsToExact = fieldsToExtract;
+            this.fieldsToExtracts = fieldsToExtract;
             this.emitDocIds = emitDocIds;
             this.remainingDocs = limit;
             this.timestampsBuilder = blockFactory.newLongVectorBuilder(Math.min(limit, maxPageSize));
@@ -172,7 +172,7 @@ public class TimeSeriesSortedSourceOperatorFactory extends LuceneOperator.Factor
             }
 
             Page page = null;
-            Block[] blocks = new Block[(emitDocIds ? 3 : 2) + fieldsToExact.size()];
+            Block[] blocks = new Block[(emitDocIds ? 3 : 2) + fieldsToExtracts.size()];
             try {
                 if (iterator == null) {
                     var slice = sliceQueue.nextSlice();
@@ -181,7 +181,7 @@ public class TimeSeriesSortedSourceOperatorFactory extends LuceneOperator.Factor
                         return null;
                     }
                     Releasables.close(fieldsReader);
-                    fieldsReader = new ShardLevelFieldsReader(blockFactory, slice.shardContext(), fieldsToExact);
+                    fieldsReader = new ShardLevelFieldsReader(blockFactory, slice.shardContext(), fieldsToExtracts);
                     iterator = new SegmentsIterator(slice);
                     if (emitDocIds) {
                         docCollector = new DocIdCollector(blockFactory, slice.shardContext());
@@ -201,7 +201,7 @@ public class TimeSeriesSortedSourceOperatorFactory extends LuceneOperator.Factor
                     tsHashesBuilder = new TsidBuilder(blockFactory, Math.min(remainingDocs, maxPageSize));
                     blocks[blockIndex++] = timestampsBuilder.build().asBlock();
                     timestampsBuilder = blockFactory.newLongVectorBuilder(Math.min(remainingDocs, maxPageSize));
-                    System.arraycopy(fieldsReader.buildBlocks(), 0, blocks, blockIndex, fieldsToExact.size());
+                    System.arraycopy(fieldsReader.buildBlocks(), 0, blocks, blockIndex, fieldsToExtracts.size());
                     page = new Page(currentPagePos, blocks);
                     currentPagePos = 0;
                 }

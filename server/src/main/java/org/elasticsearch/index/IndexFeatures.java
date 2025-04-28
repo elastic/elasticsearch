@@ -29,12 +29,17 @@ public class IndexFeatures implements FeatureSpecification {
         "index.throw_exception_for_unknown_token_in_rest_index_put_alias_action"
     );
 
+    private static final NodeFeature THROW_EXCEPTION_ON_INDEX_CREATION_IF_UNSUPPORTED_VALUE_TYPE_IN_ALIAS = new NodeFeature(
+        "index.throw_exception_on_index_creation_if_unsupported_value_type_in_alias"
+    );
+
     @Override
     public Set<NodeFeature> getTestFeatures() {
         return Set.of(
             LOGSDB_NO_HOST_NAME_FIELD,
             SYNONYMS_SET_LENIENT_ON_NON_EXISTING,
-            THROW_EXCEPTION_FOR_UNKNOWN_TOKEN_IN_REST_INDEX_PUT_ALIAS_ACTION
+            THROW_EXCEPTION_FOR_UNKNOWN_TOKEN_IN_REST_INDEX_PUT_ALIAS_ACTION,
+            THROW_EXCEPTION_ON_INDEX_CREATION_IF_UNSUPPORTED_VALUE_TYPE_IN_ALIAS
         );
     }
 }

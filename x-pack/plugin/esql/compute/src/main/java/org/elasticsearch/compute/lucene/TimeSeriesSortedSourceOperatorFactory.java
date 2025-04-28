@@ -441,7 +441,6 @@ public class TimeSeriesSortedSourceOperatorFactory extends LuceneOperator.Factor
                 sourceLoader = null;
             }
             this.storedFieldsSpec = storedFieldsSpec;
-            ;
         }
 
         void readValues(int segment, int docID) throws IOException {

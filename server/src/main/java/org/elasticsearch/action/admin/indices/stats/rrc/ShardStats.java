@@ -17,6 +17,10 @@ import org.elasticsearch.transport.Transports;
 import java.io.IOException;
 import java.util.Objects;
 
+/**
+ * ShardStats class represents the statistics of a shard in an index.
+ * It contains information such as the index name, shard ID, allocation ID, and EWMA rate.
+ */
 public class ShardStats implements Writeable {
 
     private final String indexName;
@@ -27,6 +31,12 @@ public class ShardStats implements Writeable {
 
     private final Double emwRate;
 
+    /**
+     * Constructor to create a ShardStats object from a StreamInput.
+     *
+     * @param in the StreamInput to read from
+     * @throws IOException if an I/O error occurs
+     */
     public ShardStats(StreamInput in) throws IOException {
         assert Transports.assertNotTransportThread("O(#shards) work must always fork to an appropriate executor");
         this.indexName = in.readString();
@@ -35,6 +45,14 @@ public class ShardStats implements Writeable {
         this.emwRate = in.readDouble();
     }
 
+    /**
+     * Constructor to create a ShardStats object with the given parameters.
+     *
+     * @param indexName   the name of the index
+     * @param shardId     the ID of the shard
+     * @param allocationId the allocation ID of the shard
+     * @param ewma        the EWMA rate of the shard
+     */
     public ShardStats(String indexName, Integer shardId, String allocationId, Double ewma) {
         this.indexName = indexName;
         this.shardId = shardId;
@@ -63,18 +81,38 @@ public class ShardStats implements Writeable {
         );
     }
 
+    /**
+     * Returns the index name of the shard.
+     *
+     * @return the index name
+     */
     public String getIndexName() {
         return this.indexName;
     }
 
+    /**
+     * Returns the shard ID of the shard.
+     *
+     * @return the shard ID
+     */
     public Integer getShardId() {
         return this.shardId;
     }
 
+    /**
+     * Returns the allocation ID of the shard.
+     *
+     * @return the allocation ID
+     */
     public String getAllocationId() {
         return this.allocationId;
     }
 
+    /**
+     * Returns the EWMA rate of the shard.
+     *
+     * @return the EWMA rate
+     */
     public Double getEwmRate() {
         return this.emwRate;
     }

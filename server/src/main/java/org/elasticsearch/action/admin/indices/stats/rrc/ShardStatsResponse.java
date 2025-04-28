@@ -27,11 +27,26 @@ public class ShardStatsResponse extends ChunkedBroadcastResponse {
 
     private final ShardStats[] shards;
 
+    /**
+     * Constructor to create a ShardStatsResponse object from a StreamInput.
+     *
+     * @param in the StreamInput to read from
+     * @throws IOException if an I/O error occurs
+     */
     ShardStatsResponse(StreamInput in) throws IOException {
         super(in);
         shards = in.readArray(ShardStats::new, ShardStats[]::new);
     }
 
+    /**
+     * Constructor to create a ShardStatsResponse object with the given parameters.
+     *
+     * @param shards          the array of shard stats
+     * @param totalShards     the total number of shards
+     * @param successfulShards the number of successful shards
+     * @param failedShards    the number of failed shards
+     * @param shardFailures   the list of shard failures
+     */
     ShardStatsResponse(
         ShardStats[] shards,
         int totalShards,
@@ -44,6 +59,11 @@ public class ShardStatsResponse extends ChunkedBroadcastResponse {
         Objects.requireNonNull(shards);
     }
 
+    /**
+     * Returns the array of shard stats.
+     *
+     * @return the array of shard stats
+     */
     public ShardStats[] getShards() {
         return shards;
     }

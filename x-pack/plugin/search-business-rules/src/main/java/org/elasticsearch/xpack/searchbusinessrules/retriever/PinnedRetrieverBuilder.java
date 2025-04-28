@@ -96,7 +96,7 @@ public final class PinnedRetrieverBuilder extends CompoundRetrieverBuilder<Pinne
         boolean validIds = ids != null && ids.isEmpty() == false;
         boolean validDocs = docs != null && docs.isEmpty() == false;
 
-        if (!validIds && !validDocs) {
+        if (validIds == false && validDocs == false) {
             throw new IllegalArgumentException("Either 'ids' or 'docs' must be provided and non-empty for pinned retriever");
         }
     }

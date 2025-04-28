@@ -436,10 +436,12 @@ public class TimeSeriesSortedSourceOperatorFactory extends LuceneOperator.Factor
             }
             if (storedFieldsSpec.requiresSource()) {
                 sourceLoader = shardContext.newSourceLoader();
+                storedFieldsSpec = storedFieldsSpec.merge(new StoredFieldsSpec(false, false, sourceLoader.requiredStoredFields()));
             } else {
                 sourceLoader = null;
             }
             this.storedFieldsSpec = storedFieldsSpec;
+            ;
         }
 
         void readValues(int segment, int docID) throws IOException {

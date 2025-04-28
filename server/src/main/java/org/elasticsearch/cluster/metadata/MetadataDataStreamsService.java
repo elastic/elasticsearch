@@ -146,7 +146,7 @@ public class MetadataDataStreamsService {
                 ClusterState clusterState
             ) throws Exception {
 
-                ProjectMetadata projectMetadata = clusterState.projectState(updateSettingsTask.projectId).metadata();
+                ProjectMetadata projectMetadata = clusterState.metadata().getProject(updateSettingsTask.projectId);
                 ProjectMetadata.Builder projectMetadataBuilder = ProjectMetadata.builder(projectMetadata);
                 Map<String, DataStream> dataStreamMap = projectMetadata.dataStreams();
                 DataStream dataStream = dataStreamMap.get(updateSettingsTask.dataStreamName);
@@ -408,7 +408,7 @@ public class MetadataDataStreamsService {
     }
 
     public void updateSettings(
-        ProjectResolver projectResolver,
+        ProjectId projectId,
         TimeValue masterNodeTimeout,
         TimeValue ackTimeout,
         String dataStreamName,
@@ -417,7 +417,7 @@ public class MetadataDataStreamsService {
     ) {
         updateSettingsTaskQueue.submitTask(
             "updating settings on data stream",
-            new UpdateSettingsTask(projectResolver.getProjectId(), dataStreamName, settingsOverrides, ackTimeout, listener),
+            new UpdateSettingsTask(projectId, dataStreamName, settingsOverrides, ackTimeout, listener),
             masterNodeTimeout
         );
     }

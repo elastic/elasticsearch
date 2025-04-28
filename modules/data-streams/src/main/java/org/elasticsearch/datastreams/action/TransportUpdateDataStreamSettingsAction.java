@@ -193,7 +193,7 @@ public class TransportUpdateDataStreamSettingsAction extends TransportMasterNode
             return;
         }
         metadataDataStreamsService.updateSettings(
-            projectResolver,
+            projectResolver.getProjectId(),
             masterNodeTimeout,
             ackTimeout,
             dataStreamName,

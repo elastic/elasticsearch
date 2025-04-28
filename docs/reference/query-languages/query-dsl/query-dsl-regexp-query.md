@@ -55,8 +55,12 @@ GET /_search
 `flags`
 :   (Optional, string) Enables optional operators for the regular expression. For valid values and more information, see [Regular expression syntax](/reference/query-languages/query-dsl/regexp-syntax.md#regexp-optional-operators).
 
-`case_insensitive` [7.10.0]
-:   (Optional, Boolean) Allows case insensitive matching of the regular expression value with the indexed field values when set to true. Default is false which means the case sensitivity of matching depends on the underlying field’s mapping.
+`case_insensitive`
+:   :::{admonition} Added in 7.10.0
+    This parameter was added in 7.10.0.
+    :::
+
+    (Optional, Boolean) Allows case insensitive matching of the regular expression value with the indexed field values when set to true. Default is false which means the case sensitivity of matching depends on the underlying field’s mapping.
 
 `max_determinized_states`
 :   (Optional, integer) Maximum number of [automaton states](https://en.wikipedia.org/wiki/Deterministic_finite_automaton) required for the query. Default is `10000`.

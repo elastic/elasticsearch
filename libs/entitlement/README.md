@@ -170,7 +170,7 @@ java.lang.IllegalStateException: Invalid module name in policy: layer [server] d
 
 IMPORTANT: this patching mechanism is intended to be used **only** for emergencies; once a missing entitlement is identified, the fix needs to be applied to the codebase, by raising a PR or submitting a bug via Github so that the bundled policies can be fixed.
 
-### How to migrate a from a Java Security Manager Policy to an entitlement policy
+### How to migrate from a Java Security Manager Policy to an entitlement policy
 
 Translating Java Security Permissions to Entitlements is usually not too difficult;
 - many permissions are not used anymore. The Entitlement system is targeting sensitive actions we identified as crucial to our code; any other permission is not checked anymore. Also, we do not have  any entitlement related to reflection or access checks: Elasticsearch runs modularized, and we leverage and trust the Java module mechanism to enforce access and visibility.

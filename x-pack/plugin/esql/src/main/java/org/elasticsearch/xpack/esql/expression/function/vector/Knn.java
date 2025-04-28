@@ -52,7 +52,7 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.FLOAT;
 import static org.elasticsearch.xpack.esql.core.type.DataType.INTEGER;
 import static org.elasticsearch.xpack.esql.expression.function.fulltext.Match.getNameFromFieldAttribute;
 
-public class Knn extends FullTextFunction implements OptionalArgument {
+public class Knn extends FullTextFunction implements OptionalArgument, VectorFunction {
 
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Knn", Knn::readFrom);
 
@@ -110,7 +110,7 @@ public class Knn extends FullTextFunction implements OptionalArgument {
         }
 
         return isNotNull(field(), sourceText(), FIRST).and(isType(field(), dt -> dt == DENSE_VECTOR, sourceText(), FIRST, "dense_vector"))
-            .and(TypeResolutions.isNumeric(query(), sourceText(), TypeResolutions.ParamOrdinal.SECOND));
+            .and(isType(query(), dt -> dt == DENSE_VECTOR, sourceText(), TypeResolutions.ParamOrdinal.SECOND));
     }
 
     @Override

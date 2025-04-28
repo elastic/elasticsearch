@@ -248,9 +248,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.expression.function.scalar.convert.ParseIpTests
   method: testLeadingZerosAreOctal {TestCase[str=v4, validLeadingZerosRejected=true, validLeadingZerosAreDecimal=true, validLeadingZerosAreOctal=true]}
   issue: https://github.com/elastic/elasticsearch/issues/126496
-- class: org.elasticsearch.upgrades.LogsIndexModeFullClusterRestartIT
-  method: testLogsIndexing {cluster=UPGRADED}
-  issue: https://github.com/elastic/elasticsearch/issues/126967
 - class: org.elasticsearch.smoketest.MlWithSecurityIT
   method: test {yaml=ml/data_frame_analytics_crud/Test get stats on newly created config}
   issue: https://github.com/elastic/elasticsearch/issues/121726

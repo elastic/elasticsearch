@@ -82,7 +82,7 @@ public class TimeSeriesSortedSourceOperatorTests extends AnyOperatorTestCase {
         int numSamplesPerTS = 10;
         long timestampStart = DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parseMillis("2024-01-01T00:00:00Z");
         int maxPageSize = between(1, 1024);
-        List<Page> results = runDriver(1024, maxPageSize, true, numTimeSeries, numSamplesPerTS, timestampStart);
+        List<Page> results = runDriver(1024, maxPageSize, randomBoolean(), numTimeSeries, numSamplesPerTS, timestampStart);
         // for now we emit at most one time series each page
         int offset = 0;
         for (Page page : results) {

@@ -17,7 +17,7 @@ public class ShardSearchRRCStats {
 
     private ExponentiallyWeightedMovingAverage ewma;
 
-    private static final double ALPHA = 0.3;
+    private static final double ALPHA = 0.6;
 
     public ShardSearchRRCStats() {
         this.lastTrackedTime = 0L;
@@ -37,7 +37,6 @@ public class ShardSearchRRCStats {
         } else {
             ewma.addValue(delta);
         }
-
         return new ShardStats(lastTrackedTime, delta, ewma.getAverage());
     }
 

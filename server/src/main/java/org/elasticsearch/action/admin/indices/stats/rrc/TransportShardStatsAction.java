@@ -13,6 +13,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
+import org.elasticsearch.action.support.broadcast.BroadcastRequest;
 import org.elasticsearch.action.support.broadcast.node.TransportBroadcastByNodeAction;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
@@ -30,21 +31,23 @@ import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
+import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
+import java.util.Map;
 
-public class TransportShardStatsRRCAction extends
-    TransportBroadcastByNodeAction<ShardStatsRRCRequest, ShardStatsRRCResponse, ShardStatsRRC> {
+public class TransportShardStatsAction extends
+    TransportBroadcastByNodeAction<TransportShardStatsAction.Request, ShardStatsResponse, ShardStats> {
 
-    private static final Logger logger = LogManager.getLogger(TransportShardStatsRRCAction.class);
+    private static final Logger logger = LogManager.getLogger(TransportShardStatsAction.class);
 
     private final IndicesService indicesService;
     private final ProjectResolver projectResolver;
 
     @Inject
-    public TransportShardStatsRRCAction(
+    public TransportShardStatsAction(
         ClusterService clusterService,
         TransportService transportService,
         IndicesService indicesService,
@@ -53,12 +56,12 @@ public class TransportShardStatsRRCAction extends
         IndexNameExpressionResolver indexNameExpressionResolver
     ) {
         super(
-            ShardStatsRRCAction.NAME,
+            ShardStatsAction.NAME,
             clusterService,
             transportService,
             actionFilters,
             indexNameExpressionResolver,
-            ShardStatsRRCRequest::new,
+            Request::new,
             transportService.getThreadPool().executor(ThreadPool.Names.MANAGEMENT)
         );
         this.indicesService = indicesService;
@@ -66,30 +69,29 @@ public class TransportShardStatsRRCAction extends
     }
 
     @Override
-    protected ShardsIterator shards(ClusterState clusterState, ShardStatsRRCRequest request, String[] concreteIndices) {
+    protected ShardsIterator shards(ClusterState clusterState, Request request, String[] concreteIndices) {
         return clusterState.routingTable(projectResolver.getProjectId()).allReplicaShards(concreteIndices);
     }
 
     @Override
-    protected ClusterBlockException checkGlobalBlock(ClusterState state, ShardStatsRRCRequest request) {
+    protected ClusterBlockException checkGlobalBlock(ClusterState state, Request request) {
         return state.blocks().globalBlockedException(ClusterBlockLevel.METADATA_READ);
     }
 
     @Override
-    protected ClusterBlockException checkRequestBlock(ClusterState state, ShardStatsRRCRequest request, String[] concreteIndices) {
+    protected ClusterBlockException checkRequestBlock(ClusterState state, Request request, String[] concreteIndices) {
         return state.blocks().indicesBlockedException(projectResolver.getProjectId(), ClusterBlockLevel.METADATA_READ, concreteIndices);
     }
 
     @Override
-    protected ShardStatsRRC readShardResult(StreamInput in) throws IOException {
-        return new ShardStatsRRC(in);
+    protected ShardStats readShardResult(StreamInput in) throws IOException {
+        return new ShardStats(in);
     }
 
     @Override
-    protected ResponseFactory<ShardStatsRRCResponse, ShardStatsRRC> getResponseFactory(ShardStatsRRCRequest request,
-                                                                                       ClusterState clusterState) {
-        return (totalShards, successfulShards, failedShards, responses, shardFailures) -> new ShardStatsRRCResponse(
-            responses.toArray(new ShardStatsRRC[0]),
+    protected ResponseFactory<ShardStatsResponse, ShardStats> getResponseFactory(Request request, ClusterState clusterState) {
+        return (totalShards, successfulShards, failedShards, responses, shardFailures) -> new ShardStatsResponse(
+            responses.toArray(new ShardStats[0]),
             totalShards,
             successfulShards,
             failedShards,
@@ -98,15 +100,15 @@ public class TransportShardStatsRRCAction extends
     }
 
     @Override
-    protected ShardStatsRRCRequest readRequestFrom(StreamInput in) throws IOException {
-        return new ShardStatsRRCRequest(in);
+    protected Request readRequestFrom(StreamInput in) throws IOException {
+        return new Request(in);
     }
 
     @Override
-    protected void shardOperation(ShardStatsRRCRequest request,
+    protected void shardOperation(Request request,
                                   ShardRouting shardRouting,
                                   Task task,
-                                  ActionListener<ShardStatsRRC> listener) {
+                                  ActionListener<ShardStats> listener) {
         ActionListener.completeWith(listener, () -> {
             assert task instanceof CancellableTask;
 
@@ -116,16 +118,26 @@ public class TransportShardStatsRRCAction extends
 
             String shardName = shardId.getIndex().getName() + "_" + shardId.getId() + "_" + shardRouting.allocationId().getId();
             logger.info(
-                "Multi - Shard: [{}], response time [{}], delta [{}] ewma [{}]",
-                shardName, shardStats.lastTrackedTime(), shardStats.delta(), shardStats.ewma());
+                "Multi - Shard: [{}], tracked-time [{}], delta [{}] ewma [{}]",
+                shardName, shardStats.lastTrackedTime(),    shardStats.delta(), shardStats.ewma());
 
-
-            try {
-                Thread.sleep(100);
-            } catch (InterruptedException e) {
-            }
-
-            return new ShardStatsRRC(shardId.getIndex().getName(), shardId.getId(), shardRouting.allocationId().getId(), shardStats.ewma());
+            return new ShardStats(shardId.getIndex().getName(), shardId.getId(), shardRouting.allocationId().getId(), shardStats.ewma());
         });
+    }
+
+    public static class Request extends BroadcastRequest<Request> {
+
+        public Request() {
+            super((String[]) null);
+        }
+
+        public Request(StreamInput in) throws IOException {
+            super(in);
+        }
+
+        @Override
+        public Task createTask(long id, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
+            return new CancellableTask(id, type, action, "", parentTaskId, headers);
+        }
     }
 }

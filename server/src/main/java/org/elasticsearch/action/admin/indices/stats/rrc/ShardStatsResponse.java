@@ -20,17 +20,17 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Objects;
 
-public class ShardStatsRRCResponse extends ChunkedBroadcastResponse {
+public class ShardStatsResponse extends ChunkedBroadcastResponse {
 
-    private final ShardStatsRRC[] shards;
+    private final ShardStats[] shards;
 
-    ShardStatsRRCResponse(StreamInput in) throws IOException {
+    ShardStatsResponse(StreamInput in) throws IOException {
         super(in);
-        shards = in.readArray(ShardStatsRRC::new, ShardStatsRRC[]::new);
+        shards = in.readArray(ShardStats::new, ShardStats[]::new);
     }
 
-    ShardStatsRRCResponse(
-        ShardStatsRRC[] shards,
+    ShardStatsResponse(
+        ShardStats[] shards,
         int totalShards,
         int successfulShards,
         int failedShards,
@@ -41,7 +41,7 @@ public class ShardStatsRRCResponse extends ChunkedBroadcastResponse {
         Objects.requireNonNull(shards);
     }
 
-    public ShardStatsRRC[] getShards() {
+    public ShardStats[] getShards() {
         return shards;
     }
 

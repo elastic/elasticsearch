@@ -12,16 +12,16 @@ package org.elasticsearch.action.admin.indices.stats.rrc;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.RemoteClusterActionType;
 
-public class ShardStatsRRCAction extends ActionType<ShardStatsRRCResponse> {
+public class ShardStatsAction extends ActionType<ShardStatsResponse> {
 
-    public static final ShardStatsRRCAction INSTANCE = new ShardStatsRRCAction();
-    public static final String NAME = "indices:monitor/stats/rrc";
-    public static final RemoteClusterActionType<ShardStatsRRCResponse> REMOTE_TYPE = new RemoteClusterActionType<>(
+    public static final ShardStatsAction INSTANCE = new ShardStatsAction();
+    public static final String NAME = "shards:monitor/stats";
+    public static final RemoteClusterActionType<ShardStatsResponse> REMOTE_TYPE = new RemoteClusterActionType<>(
         NAME,
-        ShardStatsRRCResponse::new
+        ShardStatsResponse::new
     );
 
-    private ShardStatsRRCAction() {
+    private ShardStatsAction() {
         super(NAME);
     }
 }

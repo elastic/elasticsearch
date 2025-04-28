@@ -13,13 +13,11 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.transport.Transports;
-import org.elasticsearch.xcontent.ToXContentFragment;
-import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.Objects;
 
-public class ShardStatsRRC implements Writeable, ToXContentFragment {
+public class ShardStats implements Writeable {
 
     private final String indexName;
 
@@ -27,32 +25,32 @@ public class ShardStatsRRC implements Writeable, ToXContentFragment {
 
     private final String allocationId;
 
-    private final Double ewma;
+    private final Double movingAverage;
 
-    public ShardStatsRRC(StreamInput in) throws IOException {
+    public ShardStats(StreamInput in) throws IOException {
         assert Transports.assertNotTransportThread("O(#shards) work must always fork to an appropriate executor");
         this.indexName = in.readString();
         this.shardId = in.readVInt();
         this.allocationId = in.readString();
-        this.ewma = in.readDouble();
+        this.movingAverage = in.readDouble();
     }
 
-    public ShardStatsRRC(String indexName, Integer shardId, String allocationId, Double ewma) {
+    public ShardStats(String indexName, Integer shardId, String allocationId, Double ewma) {
         this.indexName = indexName;
         this.shardId = shardId;
         this.allocationId = allocationId;
-        this.ewma = ewma;
+        this.movingAverage = ewma;
     }
 
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
-        ShardStatsRRC that = (ShardStatsRRC) o;
+        ShardStats that = (ShardStats) o;
         return Objects.equals(indexName, that.indexName)
             && Objects.equals(shardId, that.shardId)
             && Objects.equals(allocationId, that.allocationId)
-            && Objects.equals(ewma, that.ewma);
+            && Objects.equals(movingAverage, that.movingAverage);
     }
 
     @Override
@@ -61,10 +59,9 @@ public class ShardStatsRRC implements Writeable, ToXContentFragment {
             indexName,
             shardId,
             allocationId,
-            ewma
+            movingAverage
         );
     }
-
 
     public String getIndexName() {
         return this.indexName;
@@ -78,12 +75,8 @@ public class ShardStatsRRC implements Writeable, ToXContentFragment {
         return this.allocationId;
     }
 
-    public String getShardName() {
-        return this.indexName + "_" + this.shardId + "_" + this.allocationId;
-    }
-
-    public Double getEWMA() {
-        return this.ewma;
+    public Double getMovingAverage() {
+        return this.movingAverage;
     }
 
     @Override
@@ -91,25 +84,6 @@ public class ShardStatsRRC implements Writeable, ToXContentFragment {
          out.writeString(indexName);
          out.writeVInt(shardId);
          out.writeString(allocationId);
-         out.writeDouble(ewma);
-    }
-
-    @Override
-    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject(Fields.ROUTING)
-            .field(Fields.INDEX_NAME, indexName)
-            .field(Fields.SHARD_ID, shardId)
-            .field(Fields.ALLOCATION_ID, allocationId)
-            .field(Fields.EWMA, ewma)
-            .endObject();
-        return builder;
-    }
-
-    static final class Fields {
-        static final String ROUTING = "routing";
-        static final String INDEX_NAME = "index_name";
-        static final String SHARD_ID = "shard_id";
-        static final String ALLOCATION_ID = "allocation_id";
-        static final String EWMA = "ewma";
+         out.writeDouble(movingAverage);
     }
 }

@@ -14,6 +14,7 @@ module org.elasticsearch.base {
     requires org.elasticsearch.logging;
 
     exports org.elasticsearch.core;
+    exports org.elasticsearch.core.bytes;
     exports org.elasticsearch.jdk;
     exports org.elasticsearch.core.internal.provider
         to

@@ -15,6 +15,7 @@ import org.apache.lucene.util.BytesRefIterator;
 import org.elasticsearch.common.io.stream.BytesStream;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.util.ByteArray;
+import org.elasticsearch.core.bytes.BaseBytesReference;
 import org.elasticsearch.xcontent.ToXContentFragment;
 import org.elasticsearch.xcontent.XContentBuilder;
 
@@ -27,7 +28,7 @@ import java.util.ArrayList;
 /**
  * A reference to bytes.
  */
-public interface BytesReference extends Comparable<BytesReference>, ToXContentFragment {
+public interface BytesReference extends BaseBytesReference, Comparable<BytesReference>, ToXContentFragment {
 
     /**
      * Convert an {@link XContentBuilder} into a BytesReference. This method closes the builder,
@@ -116,11 +117,6 @@ public interface BytesReference extends Comparable<BytesReference>, ToXContentFr
     }
 
     /**
-     * Returns the byte at the specified index. Need to be between 0 and length.
-     */
-    byte get(int index);
-
-    /**
      * Returns the integer read from the 4 bytes (BE) starting at the given index.
      */
     int getInt(int index);
@@ -191,25 +187,4 @@ public interface BytesReference extends Comparable<BytesReference>, ToXContentFr
      * @see BytesRefIterator
      */
     BytesRefIterator iterator();
-
-    /**
-     * @return {@code true} if this instance is backed by a byte array
-     */
-    default boolean hasArray() {
-        return false;
-    }
-
-    /**
-     * @return backing byte array for this instance
-     */
-    default byte[] array() {
-        throw new UnsupportedOperationException();
-    }
-
-    /**
-     * @return offset of the first byte of this instance in the backing byte array
-     */
-    default int arrayOffset() {
-        throw new UnsupportedOperationException();
-    }
 }

@@ -7,7 +7,7 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-package org.elasticsearch.ingest.ecs;
+package org.elasticsearch.ingest.otel;
 
 import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.test.ESTestCase;
@@ -19,14 +19,14 @@ import java.util.Map;
 import static java.util.Map.entry;
 import static org.hamcrest.Matchers.sameInstance;
 
-public class EcsNamespaceProcessorTests extends ESTestCase {
+public class NormalizeToOTelProcessorTests extends ESTestCase {
 
-    private final EcsNamespaceProcessor processor = new EcsNamespaceProcessor("test", "test processor");
+    private final NormalizeToOTelProcessor processor = new NormalizeToOTelProcessor("test", "test processor");
 
     public void testIsOTelDocument_validMinimalOTelDocument() {
         Map<String, Object> source = new HashMap<>();
         source.put("resource", new HashMap<>());
-        assertTrue(EcsNamespaceProcessor.isOTelDocument(source));
+        assertTrue(NormalizeToOTelProcessor.isOTelDocument(source));
     }
 
     public void testIsOTelDocument_validOTelDocumentWithScopeAndAttributes() {
@@ -34,20 +34,20 @@ public class EcsNamespaceProcessorTests extends ESTestCase {
         source.put("attributes", new HashMap<>());
         source.put("resource", new HashMap<>());
         source.put("scope", new HashMap<>());
-        assertTrue(EcsNamespaceProcessor.isOTelDocument(source));
+        assertTrue(NormalizeToOTelProcessor.isOTelDocument(source));
     }
 
     public void testIsOTelDocument_missingResource() {
         Map<String, Object> source = new HashMap<>();
         source.put("scope", new HashMap<>());
-        assertFalse(EcsNamespaceProcessor.isOTelDocument(source));
+        assertFalse(NormalizeToOTelProcessor.isOTelDocument(source));
     }
 
     public void testIsOTelDocument_resourceNotMap() {
         Map<String, Object> source = new HashMap<>();
         source.put("resource", "not a map");
         source.put("scope", new HashMap<>());
-        assertFalse(EcsNamespaceProcessor.isOTelDocument(source));
+        assertFalse(NormalizeToOTelProcessor.isOTelDocument(source));
     }
 
     public void testIsOTelDocument_invalidResourceAttributes() {
@@ -56,14 +56,14 @@ public class EcsNamespaceProcessorTests extends ESTestCase {
         Map<String, Object> source = new HashMap<>();
         source.put("resource", resource);
         source.put("scope", new HashMap<>());
-        assertFalse(EcsNamespaceProcessor.isOTelDocument(source));
+        assertFalse(NormalizeToOTelProcessor.isOTelDocument(source));
     }
 
     public void testIsOTelDocument_scopeNotMap() {
         Map<String, Object> source = new HashMap<>();
         source.put("resource", new HashMap<>());
         source.put("scope", "not a map");
-        assertFalse(EcsNamespaceProcessor.isOTelDocument(source));
+        assertFalse(NormalizeToOTelProcessor.isOTelDocument(source));
     }
 
     public void testIsOTelDocument_invalidAttributes() {
@@ -71,7 +71,7 @@ public class EcsNamespaceProcessorTests extends ESTestCase {
         source.put("resource", new HashMap<>());
         source.put("scope", new HashMap<>());
         source.put("attributes", "not a map");
-        assertFalse(EcsNamespaceProcessor.isOTelDocument(source));
+        assertFalse(NormalizeToOTelProcessor.isOTelDocument(source));
     }
 
     public void testIsOTelDocument_invalidBody() {
@@ -79,7 +79,7 @@ public class EcsNamespaceProcessorTests extends ESTestCase {
         source.put("resource", new HashMap<>());
         source.put("scope", new HashMap<>());
         source.put("body", "not a map");
-        assertFalse(EcsNamespaceProcessor.isOTelDocument(source));
+        assertFalse(NormalizeToOTelProcessor.isOTelDocument(source));
     }
 
     public void testIsOTelDocument_invalidBodyText() {
@@ -89,7 +89,7 @@ public class EcsNamespaceProcessorTests extends ESTestCase {
         source.put("resource", new HashMap<>());
         source.put("scope", new HashMap<>());
         source.put("body", body);
-        assertFalse(EcsNamespaceProcessor.isOTelDocument(source));
+        assertFalse(NormalizeToOTelProcessor.isOTelDocument(source));
     }
 
     public void testIsOTelDocument_invalidBodyStructured() {
@@ -99,7 +99,7 @@ public class EcsNamespaceProcessorTests extends ESTestCase {
         source.put("resource", new HashMap<>());
         source.put("scope", new HashMap<>());
         source.put("body", body);
-        assertFalse(EcsNamespaceProcessor.isOTelDocument(source));
+        assertFalse(NormalizeToOTelProcessor.isOTelDocument(source));
     }
 
     public void testIsOTelDocument_validBody() {
@@ -110,7 +110,7 @@ public class EcsNamespaceProcessorTests extends ESTestCase {
         source.put("resource", new HashMap<>());
         source.put("scope", new HashMap<>());
         source.put("body", body);
-        assertTrue(EcsNamespaceProcessor.isOTelDocument(source));
+        assertTrue(NormalizeToOTelProcessor.isOTelDocument(source));
     }
 
     public void testExecute_validOTelDocument() {
@@ -212,7 +212,7 @@ public class EcsNamespaceProcessorTests extends ESTestCase {
         source.put("trace", trace);
         IngestDocument document = new IngestDocument("index", "id", 1, null, null, source);
 
-        EcsNamespaceProcessor.renameSpecialKeys(document);
+        NormalizeToOTelProcessor.renameSpecialKeys(document);
 
         Map<String, Object> result = document.getSource();
         assertEquals("spanIdValue", result.get("span_id"));
@@ -231,7 +231,7 @@ public class EcsNamespaceProcessorTests extends ESTestCase {
         source.put("message", "this is a message");
         IngestDocument document = new IngestDocument("index", "id", 1, null, null, source);
 
-        EcsNamespaceProcessor.renameSpecialKeys(document);
+        NormalizeToOTelProcessor.renameSpecialKeys(document);
 
         Map<String, Object> result = document.getSource();
         assertEquals("spanIdValue", result.get("span_id"));
@@ -254,7 +254,7 @@ public class EcsNamespaceProcessorTests extends ESTestCase {
         source.put("span.id", "topLevelSpanIdValue");
         IngestDocument document = new IngestDocument("index", "id", 1, null, null, source);
 
-        EcsNamespaceProcessor.renameSpecialKeys(document);
+        NormalizeToOTelProcessor.renameSpecialKeys(document);
 
         Map<String, Object> result = document.getSource();
         // nested form should take precedence

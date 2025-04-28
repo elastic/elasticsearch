@@ -7,15 +7,7 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-apply plugin: 'elasticsearch.internal-yaml-rest-test'
-
-esplugin {
-  description = 'Ingest processor that applies ECS namespacing'
-  classname ='org.elasticsearch.ingest.ecs.EcsNamespacePlugin'
-}
-
-restResources {
-  restApi {
-    include '_common', 'indices', 'index', 'cluster', 'nodes', 'get', 'ingest'
-  }
+module org.elasticsearch.ingest.otel {
+    requires org.elasticsearch.base;
+    requires org.elasticsearch.server;
 }

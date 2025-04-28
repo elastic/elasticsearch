@@ -7,7 +7,7 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-package org.elasticsearch.ingest.ecs;
+package org.elasticsearch.ingest.otel;
 
 import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
@@ -17,14 +17,14 @@ import org.elasticsearch.test.rest.yaml.ClientYamlTestCandidate;
 import org.elasticsearch.test.rest.yaml.ESClientYamlSuiteTestCase;
 import org.junit.ClassRule;
 
-public class IngestEcsClientYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
+public class IngestOtelClientYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
 
-    public IngestEcsClientYamlTestSuiteIT(@Name("yaml") ClientYamlTestCandidate testCandidate) {
+    public IngestOtelClientYamlTestSuiteIT(@Name("yaml") ClientYamlTestCandidate testCandidate) {
         super(testCandidate);
     }
 
     @ClassRule
-    public static ElasticsearchCluster cluster = ElasticsearchCluster.local().module("ingest-ecs").build();
+    public static ElasticsearchCluster cluster = ElasticsearchCluster.local().module("ingest-otel").build();
 
     @Override
     protected String getTestRestCluster() {

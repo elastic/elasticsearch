@@ -1,5 +1,5 @@
 pr: 125699
-summary: Adding `EcsNamespaceProcessor`
+summary: Adding `NormalizeToOTelProcessor`
 area: Ingest Node
 type: feature
 issues: []

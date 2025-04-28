@@ -7,7 +7,7 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-package org.elasticsearch.ingest.ecs;
+package org.elasticsearch.ingest.otel;
 
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.common.util.Maps;
@@ -37,9 +37,9 @@ import static java.util.Map.entry;
  * <p>If a document is identified as OpenTelemetry-compatible, no transformation is performed.
  * @see org.elasticsearch.ingest.AbstractProcessor
  */
-public class EcsNamespaceProcessor extends AbstractProcessor {
+public class NormalizeToOTelProcessor extends AbstractProcessor {
 
-    public static final String TYPE = "ecs_namespace";
+    public static final String TYPE = "normalize_to_otel";
 
     /**
      * Mapping of ECS field names to their corresponding OpenTelemetry-compatible counterparts.
@@ -85,7 +85,7 @@ public class EcsNamespaceProcessor extends AbstractProcessor {
     private static final String TEXT_KEY = "text";
     private static final String STRUCTURED_KEY = "structured";
 
-    EcsNamespaceProcessor(String tag, String description) {
+    NormalizeToOTelProcessor(String tag, String description) {
         super(tag, description);
     }
 
@@ -269,7 +269,7 @@ public class EcsNamespaceProcessor extends AbstractProcessor {
             Map<String, Object> config,
             ProjectId projectId
         ) {
-            return new EcsNamespaceProcessor(tag, description);
+            return new NormalizeToOTelProcessor(tag, description);
         }
     }
 }

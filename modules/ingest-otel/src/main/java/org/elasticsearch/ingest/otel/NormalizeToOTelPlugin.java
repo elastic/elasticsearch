@@ -7,7 +7,7 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-package org.elasticsearch.ingest.ecs;
+package org.elasticsearch.ingest.otel;
 
 import org.elasticsearch.ingest.Processor;
 import org.elasticsearch.plugins.IngestPlugin;
@@ -15,10 +15,10 @@ import org.elasticsearch.plugins.Plugin;
 
 import java.util.Map;
 
-public class EcsNamespacePlugin extends Plugin implements IngestPlugin {
+public class NormalizeToOTelPlugin extends Plugin implements IngestPlugin {
 
     @Override
     public Map<String, Processor.Factory> getProcessors(Processor.Parameters parameters) {
-        return Map.of(EcsNamespaceProcessor.TYPE, new EcsNamespaceProcessor.Factory());
+        return Map.of(NormalizeToOTelProcessor.TYPE, new NormalizeToOTelProcessor.Factory());
     }
 }

@@ -2,25 +2,25 @@
 setup:
   - do:
       ingest.put_pipeline:
-        id: "ecs_namespace_pipeline"
+        id: "normalize_to_otel_pipeline"
         body:
           processors:
-            - ecs_namespace: {}
+            - normalize_to_otel: {}
 
 ---
 teardown:
   - do:
       ingest.delete_pipeline:
-        id: "ecs_namespace_pipeline"
+        id: "normalize_to_otel_pipeline"
         ignore: 404
 
 ---
 "Test attributes namespacing":
   - do:
       index:
-        index: ecs_namespacing_test
+        index: normalize_to_otel_test
         id: "nested_and_flat_attributes"
-        pipeline: "ecs_namespace_pipeline"
+        pipeline: "normalize_to_otel_pipeline"
         body: {
           "agent.name": "agentNameValue",
           "agent": {
@@ -76,7 +76,7 @@ teardown:
 
   - do:
       get:
-        index: ecs_namespacing_test
+        index: normalize_to_otel_test
         id: "nested_and_flat_attributes"
   - match: { _source.resource.attributes.agent\.name: "agentNameValue" }
   - match: { _source.resource.attributes.agent\.type: "agentTypeValue" }
@@ -109,9 +109,9 @@ teardown:
 "Test rename special keys":
   - do:
       index:
-        index: ecs_namespacing_test
+        index: normalize_to_otel_test
         id: "rename_special_keys"
-        pipeline: "ecs_namespace_pipeline"
+        pipeline: "normalize_to_otel_pipeline"
         body: {
           "span": {
             "id": "nestedSpanIdValue"
@@ -127,7 +127,7 @@ teardown:
 
   - do:
       get:
-        index: ecs_namespacing_test
+        index: normalize_to_otel_test
         id: "rename_special_keys"
   - match: { _source.span_id: "nestedSpanIdValue" }
   - match: { _source.severity_text: "topLevelLogLevelValue" }
@@ -144,9 +144,9 @@ teardown:
 "Test valid OTel document":
   - do:
       index:
-        index: ecs_namespacing_test
+        index: normalize_to_otel_test
         id: "valid_otel_document"
-        pipeline: "ecs_namespace_pipeline"
+        pipeline: "normalize_to_otel_pipeline"
         body: {
           "resource": {
             "attributes": {
@@ -171,7 +171,7 @@ teardown:
 
   - do:
       get:
-        index: ecs_namespacing_test
+        index: normalize_to_otel_test
         id: "valid_otel_document"
   - match: { _source.resource.attributes.foo: "bar" }
   - match: { _source.scope.foo: "bar" }
@@ -187,9 +187,9 @@ teardown:
 "Test invalid body field":
   - do:
       index:
-        index: ecs_namespacing_test
+        index: normalize_to_otel_test
         id: "invalid_body_field"
-        pipeline: "ecs_namespace_pipeline"
+        pipeline: "normalize_to_otel_pipeline"
         body: {
           "resource": {},
           "scope": {
@@ -209,7 +209,7 @@ teardown:
 
   - do:
       get:
-        index: ecs_namespacing_test
+        index: normalize_to_otel_test
         id: "invalid_body_field"
   - match: { _source.attributes.body\.text: 123 }
   - match: { _source.attributes.body\.structured\.foo: "bar" }

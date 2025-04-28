@@ -43,7 +43,7 @@ public class CrossClusterCancellationIT extends AbstractCrossClusterTestCase {
     private static final String REMOTE_CLUSTER = "cluster-a";
 
     @Override
-    protected Collection<String> remoteClusterAlias() {
+    protected List<String> remoteClusterAlias() {
         return List.of(REMOTE_CLUSTER);
     }
 

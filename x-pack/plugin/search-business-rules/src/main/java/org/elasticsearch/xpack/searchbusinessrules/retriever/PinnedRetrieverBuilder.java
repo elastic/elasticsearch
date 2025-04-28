@@ -175,7 +175,11 @@ public final class PinnedRetrieverBuilder extends CompoundRetrieverBuilder<Pinne
     @Override
     protected SearchSourceBuilder finalizeSourceBuilder(SearchSourceBuilder source) {
         validateSort(source);
-        source.query(createPinnedQuery(source.query()));
+        QueryBuilder underlyingQuery = source.query();
+        if (underlyingQuery == null) {
+            throw new IllegalArgumentException("[underlying query] must not be null for pinned retriever");
+        }
+        source.query(createPinnedQuery(underlyingQuery));
         return source;
     }
 

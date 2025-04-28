@@ -25,9 +25,13 @@ public class TextFieldBlockLoaderTests extends BlockLoaderTestCase {
         super(FieldType.TEXT.toString(), params);
     }
 
-    @SuppressWarnings("unchecked")
     @Override
     protected Object expected(Map<String, Object> fieldMapping, Object value, TestContext testContext) {
+        return expectedValue(fieldMapping, value, params, testContext);
+    }
+
+    @SuppressWarnings("unchecked")
+    public static Object expectedValue(Map<String, Object> fieldMapping, Object value, Params params, TestContext testContext) {
         if (fieldMapping.getOrDefault("store", false).equals(true)) {
             return valuesInSourceOrder(value);
         }
@@ -116,7 +120,7 @@ public class TextFieldBlockLoaderTests extends BlockLoaderTestCase {
     }
 
     @SuppressWarnings("unchecked")
-    private Object valuesInSourceOrder(Object value) {
+    private static Object valuesInSourceOrder(Object value) {
         if (value == null) {
             return null;
         }

@@ -58,6 +58,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.convert.AbstractC
 import org.elasticsearch.xpack.esql.plan.physical.AggregateExec;
 import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec;
 import org.elasticsearch.xpack.esql.plan.physical.FieldExtractExec;
+import org.elasticsearch.xpack.esql.plan.physical.TimeSeriesSourceExec;
 import org.elasticsearch.xpack.esql.planner.LocalExecutionPlanner.LocalExecutionPlannerContext;
 import org.elasticsearch.xpack.esql.planner.LocalExecutionPlanner.PhysicalOperation;
 import org.elasticsearch.xpack.ml.MachineLearning;
@@ -126,6 +127,11 @@ public class TestPhysicalOperationProviders extends AbstractPhysicalOperationPro
         Layout.Builder layout = new Layout.Builder();
         layout.append(esQueryExec.output());
         return PhysicalOperation.fromSource(new TestSourceOperatorFactory(), layout.build());
+    }
+
+    @Override
+    public PhysicalOperation timeSeriesSourceOperation(TimeSeriesSourceExec ts, LocalExecutionPlannerContext context) {
+        throw new UnsupportedOperationException("time-series source is not supported in CSV tests");
     }
 
     @Override

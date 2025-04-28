@@ -144,15 +144,101 @@ Some concepts are applicable to both cluster and project scopes, e.g. [persisten
 
 ### Translog
 
-(Explain checkpointing and generations, when happens on Lucene flush / fsync)
+[Basic write model]:https://www.elastic.co/guide/en/elasticsearch/reference/current/docs-replication.html
+[`Translog`]:https://github.com/elastic/elasticsearch/blob/main/server/src/main/java/org/elasticsearch/index/translog/Translog.java
+[`InternalEngine`]:https://github.com/elastic/elasticsearch/blob/main/server/src/main/java/org/elasticsearch/index/engine/InternalEngine.java
 
-(Concurrency control for flushing)
+It is important to understand first the [Basic write model] of documents:
+documents are written to Lucene in-memory buffers, then "refreshed" to searchable segments which may not be persisted on disk, and finally "flushed" to a durable Lucene commit on disk.
+If this was the only way we stored the data, we would have to delay the response to every write request until after the data had been flushed to disk, which could take many seconds or longer. If we didn't, it would mean that we would lose newly ingested data if there was an outage between sending the response and flushing the data to disk.
+For this reason, newly ingested data is also written to a shard's [`Translog`], whose main purpose is to persist uncommitted operations (e.g., document insertions or deletions), so they can be replayed by just reading them sequentially from the translog during [recovery](#recovery) in the event of ephemeral failures such as a crash or power loss.
+The translog can persist operations quicker than a Lucene commit, because it just stores raw operations / documents without the analysis and indexing that Lucene does.
+The translog is always persisted and fsync'ed on disk before acknowledging writes back to the user.
+This can be seen in [`InternalEngine`] which calls the `add()` method of the translog to append operations, e.g., its `index()` method at some point adds a document insertion operation to the translog.
+The translog ultimately truncates operations once they have been flushed to disk by a Lucene commit; indeed, in some sense the point of a "flush" is to clear out the translog.
 
-(VersionMap)
+Main usages of the translog are:
+
+* During recovery, an index shard can be recovered up to at least the last acknowledged operation by replaying the translog onto the last flushed commit of the shard.
+* Facilitate real-time (m)GETs of documents without refreshing.
 
 #### Translog Truncation
 
-#### Direct Translog Read
+[Flush API]:https://www.elastic.co/guide/en/elasticsearch/reference/current/indices-flush.html
+[`INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING`]:https://github.com/elastic/elasticsearch/blob/dd1db5031ee7fdac284753c0c3b096b0e981d71a/server/src/main/java/org/elasticsearch/index/IndexSettings.java#L352
+[`INDEX_TRANSLOG_FLUSH_THRESHOLD_AGE_SETTING`]:https://github.com/elastic/elasticsearch/blob/dd1db5031ee7fdac284753c0c3b096b0e981d71a/server/src/main/java/org/elasticsearch/index/IndexSettings.java#L370
+
+Translog files are automatically truncated when they are no longer needed, specifically after all their operations have been persisted by Lucene commits on disk.
+Lucene commits are initiated by flushes (e.g., with the index [Flush API]).
+
+Flushes may also be automatically initiated by Elasticsearch, e.g., if the translog exceeds a configurable size [`INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING`] or age [`INDEX_TRANSLOG_FLUSH_THRESHOLD_AGE_SETTING`], which ultimately truncates the translog as well.
+
+#### Acknowledging writes
+
+[`index()` or `delete()`]:https://github.com/elastic/elasticsearch/blob/591fa87e43a509d3eadfdbbb296cdf08453ea91a/server/src/main/java/org/elasticsearch/index/engine/Engine.java#L546-L564
+[`TransportWriteAction`]:https://github.com/elastic/elasticsearch/blob/main/server/src/main/java/org/elasticsearch/action/support/replication/TransportWriteAction.java
+[`indexShard.syncAfterWrite()`]:https://github.com/elastic/elasticsearch/blob/387eef070c25ed57e4139158e7e7e0ed097c8c98/server/src/main/java/org/elasticsearch/action/support/replication/TransportWriteAction.java#L548
+[`Location`]:https://github.com/elastic/elasticsearch/blob/693f3bfe30271d77a6b3147e4519b4915cbb395d/server/src/main/java/org/elasticsearch/index/translog/Translog.java#L977
+[`AsyncIOProcessor`]:https://github.com/elastic/elasticsearch/blob/main/server/src/main/java/org/elasticsearch/common/util/concurrent/AsyncIOProcessor.java
+
+A bulk request will repeateadly call ultimately the Engine methods such as [`index()` or `delete()`] which adds operations to the Translog.
+Finally, the AfterWrite action of the [`TransportWriteAction`] will call [`indexShard.syncAfterWrite()`] which will put the last written translog [`Location`] of the bulk request into a [`AsyncIOProcessor`] that is responsible for gradually fsync'ing the Translog and notifying any waiters.
+Ultimately the bulk request is notified that the translog has fsync'ed past the requested location, and can continue to acknowledge the bulk request.
+This process involes multiple writes to the translog before the next fsync(), and this is done so that we amortize the cost of the translog's fsync() operations across all writes.
+
+#### Translog internals
+
+[`Checkpoint`]:https://github.com/elastic/elasticsearch/blob/main/server/src/main/java/org/elasticsearch/index/translog/Checkpoint.java
+[`Location`]:https://github.com/elastic/elasticsearch/blob/693f3bfe30271d77a6b3147e4519b4915cbb395d/server/src/main/java/org/elasticsearch/index/translog/Translog.java#L977
+[`Operation`]:https://github.com/elastic/elasticsearch/blob/693f3bfe30271d77a6b3147e4519b4915cbb395d/server/src/main/java/org/elasticsearch/index/translog/Translog.java#L1087
+[`Snapshot`]:https://github.com/elastic/elasticsearch/blob/693f3bfe30271d77a6b3147e4519b4915cbb395d/server/src/main/java/org/elasticsearch/index/translog/Translog.java#L711
+[`sync()`]:https://github.com/elastic/elasticsearch/blob/693f3bfe30271d77a6b3147e4519b4915cbb395d/server/src/main/java/org/elasticsearch/index/translog/Translog.java#L813
+[`rollGeneration()`]:https://github.com/elastic/elasticsearch/blob/693f3bfe30271d77a6b3147e4519b4915cbb395d/server/src/main/java/org/elasticsearch/index/translog/Translog.java#L1656
+[`createEmptyTranslog()`]:https://github.com/elastic/elasticsearch/blob/693f3bfe30271d77a6b3147e4519b4915cbb395d/server/src/main/java/org/elasticsearch/index/translog/Translog.java#L1929
+[`TranslogHeader`]:https://github.com/elastic/elasticsearch/blob/main/server/src/main/java/org/elasticsearch/index/translog/TranslogHeader.java
+[`TranslogReader`]:https://github.com/elastic/elasticsearch/blob/main/server/src/main/java/org/elasticsearch/index/translog/TranslogReader.java
+[`TranslogSnapshot`]:https://github.com/elastic/elasticsearch/blob/main/server/src/main/java/org/elasticsearch/index/translog/TranslogSnapshot.java
+[`MultiSnapshot`]:https://github.com/elastic/elasticsearch/blob/main/server/src/main/java/org/elasticsearch/index/translog/MultiSnapshot.java
+[`TranslogWriter`]:https://github.com/elastic/elasticsearch/blob/main/server/src/main/java/org/elasticsearch/index/translog/TranslogWriter.java
+
+Each translog is a sequence of files, each identified by a translog generation ID, each containing a sequence of operations, with the last file open for writes.
+The last file has a part which has been fsync'ed to disk, and a part which has been written but not necessarily fsync'ed yet to disk.
+Each operation is identified by a sequence number (`seqno`), which is monotonically increased by the engine's ingestion functionality.
+Typically the entries in the translog are in increasing order of their sequence number, but not necessarily.
+A [`Checkpoint`] file is also maintained, which is written on each fsync operation of the translog, and is necessary because it records important metadata and statistics about the translog, such as the current translog generation ID, its last fsync'ed operation and location (i.e., we should read only up to this location during recovery), the minimum translog generation ID, and the minimum and maximum sequence number of operations the sequence of translog generations include, all of which are used to identify the translog operations needed to be replayed upon recovery.
+When the translog rolls over, e.g., upon the translog file exceeding a configurable size, a new file in the sequence is created for writes, and the last one becomes read-only.
+A new commit flushed to the disk will also induce a translog rollover, since the operations in the translog so far will become eligible for truncation.
+
+A few more words on terminology and classes used around the translog Java package.
+A [`Location`] of an operation is defined by the translog generation file it is contained in, the offset of the operation in that file, and the number of bytes that encode that operation.
+An [`Operation`] can be a document indexed, a document deletion, or a no-op operation.
+A [`Snapshot`] iterator can be created to iterate over a range of requested operation sequence numbers read from the translog files.
+The [`sync()`] method is the one that fsync's the current translog generation file to disk, and updates the checkpoint file with the last fsync'ed operation and location.
+The [`rollGeneration()`] method is the one that rolls the translog, creating a new translog generation, e.g., called during an index flush.
+The [`createEmptyTranslog()`] method creates a new translog, e.g., for a new empty index shard.
+Each translog file starts with a [`TranslogHeader`] that is followed by translog operations.
+
+Some internal classes used for reading and writing from the translog are the following.
+A [`TranslogReader`] can be used to read operation bytes from a translog file.
+A [`TranslogSnapshot`] can be used to iterate operations from a translog reader.
+A [`MultiSnapshot`] can be used to iterate operations over multiple [`TranslogSnapshot`]s.
+A [`TranslogWriter`] can be used to write operations to the translog.
+
+#### Real-time GETs from the translog
+
+[Get API]:https://www.elastic.co/guide/en/elasticsearch/reference/current/docs-get.html
+[`LiveVersionMap`]:https://github.com/elastic/elasticsearch/blob/main/server/src/main/java/org/elasticsearch/index/engine/LiveVersionMap.java
+
+The [Get API] (and by extension, the multi-get API) supports a real-time mode, which can query documents by ID, even recently ingested documents that have not yet been refreshed and not searchable.
+This capability is facilitated by another data structure, the [`LiveVersionMap`], which maps recently ingested documents by their ID to the translog location that encodes their indexing operation.
+That way, we can return the document by reading the translog operation.
+
+The tracking in the version map is not enabled by default.
+The first real-time GET induces a refresh of the index shard, and a search to get the document, but also enables the tracking in the version map for newly ingested documents.
+Thus, next real-time GETs are serviced by going first through the version map, to query the translog, and if not found there, then search (refreshed data) without requiring to refresh the index shard.
+
+On a refresh, the code safely swaps the old map with a new empty map.
+That is because after a refresh, any documents in the old map are now searchable in Lucene, and thus we do not need them in the version map anymore.
 
 ### Index Version
 

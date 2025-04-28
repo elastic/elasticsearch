@@ -11,7 +11,6 @@ import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.IndexableFieldType;
-import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.core.Tuple;
@@ -32,7 +31,6 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
-import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import static org.hamcrest.Matchers.equalTo;
@@ -165,11 +163,6 @@ public class VersionStringFieldMapperTests extends MapperTestCase {
     protected SyntheticSourceSupport syntheticSourceSupport(boolean ignoreMalformed) {
         assertFalse("version string fields don't support ignore_malformed", ignoreMalformed);
         return new VersionStringSyntheticSourceSupport();
-    }
-
-    @Override
-    protected Function<Object, Object> loadBlockExpected() {
-        return v -> new Version((BytesRef) v).toString();
     }
 
     static class VersionStringSyntheticSourceSupport implements SyntheticSourceSupport {

@@ -9,14 +9,20 @@ package org.elasticsearch.xpack.inference.services.huggingface.action;
 
 import org.elasticsearch.xpack.inference.external.action.ExecutableAction;
 import org.elasticsearch.xpack.inference.external.action.SenderExecutableAction;
+import org.elasticsearch.xpack.inference.external.http.retry.ResponseHandler;
+import org.elasticsearch.xpack.inference.external.http.sender.GenericRequestManager;
+import org.elasticsearch.xpack.inference.external.http.sender.QueryAndDocsInputs;
 import org.elasticsearch.xpack.inference.external.http.sender.Sender;
 import org.elasticsearch.xpack.inference.services.ServiceComponents;
 import org.elasticsearch.xpack.inference.services.huggingface.HuggingFaceRequestManager;
 import org.elasticsearch.xpack.inference.services.huggingface.HuggingFaceResponseHandler;
 import org.elasticsearch.xpack.inference.services.huggingface.elser.HuggingFaceElserModel;
 import org.elasticsearch.xpack.inference.services.huggingface.embeddings.HuggingFaceEmbeddingsModel;
+import org.elasticsearch.xpack.inference.services.huggingface.request.rerank.HuggingFaceRerankRequest;
+import org.elasticsearch.xpack.inference.services.huggingface.rerank.HuggingFaceRerankModel;
 import org.elasticsearch.xpack.inference.services.huggingface.response.HuggingFaceElserResponseEntity;
 import org.elasticsearch.xpack.inference.services.huggingface.response.HuggingFaceEmbeddingsResponseEntity;
+import org.elasticsearch.xpack.inference.services.huggingface.response.HuggingFaceRerankResponseEntity;
 
 import java.util.Objects;
 
@@ -29,9 +35,36 @@ public class HuggingFaceActionCreator implements HuggingFaceActionVisitor {
     private final Sender sender;
     private final ServiceComponents serviceComponents;
 
+    private static final String FAILED_TO_SEND_REQUEST_ERROR_MESSAGE =
+        "Failed to send Hugging Face %s request from inference entity id [%s]";
+    static final ResponseHandler RERANK_HANDLER = new HuggingFaceResponseHandler(
+        "hugging face rerank",
+        (request, response) -> HuggingFaceRerankResponseEntity.fromResponse((HuggingFaceRerankRequest) request, response)
+    );
+
     public HuggingFaceActionCreator(Sender sender, ServiceComponents serviceComponents) {
         this.sender = Objects.requireNonNull(sender);
         this.serviceComponents = Objects.requireNonNull(serviceComponents);
+    }
+
+    @Override
+    public ExecutableAction create(HuggingFaceRerankModel model) {
+        var overriddenModel = HuggingFaceRerankModel.of(model, model.getTaskSettings());
+        var manager = new GenericRequestManager<>(
+            serviceComponents.threadPool(),
+            overriddenModel,
+            RERANK_HANDLER,
+            inputs -> new HuggingFaceRerankRequest(
+                inputs.getQuery(),
+                inputs.getChunks(),
+                inputs.getReturnDocuments(),
+                inputs.getTopN(),
+                model
+            ),
+            QueryAndDocsInputs.class
+        );
+        var errorMessage = format(FAILED_TO_SEND_REQUEST_ERROR_MESSAGE, "RERANK", model.getInferenceEntityId());
+        return new SenderExecutableAction(sender, manager, errorMessage);
     }
 
     @Override

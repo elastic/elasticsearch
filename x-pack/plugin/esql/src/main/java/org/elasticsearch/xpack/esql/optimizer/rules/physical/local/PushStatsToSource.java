@@ -103,6 +103,10 @@ public class PushStatsToSource extends PhysicalOptimizerRules.ParameterizedOptim
                             }
                             if (fieldName != null) {
                                 if (count.hasFilter()) {
+                                    // Note: currently, it seems like we never actually perform stats pushdown if we reach here.
+                                    // That's because stats pushdown only works for 1 agg function (without BY); but in that case, filters
+                                    // are extracted into a separate filter node upstream from the aggregation (and hopefully pushed into
+                                    // the EsQueryExec separately).
                                     if (canPushToSource(count.filter()) == false) {
                                         return null; // can't push down
                                     }

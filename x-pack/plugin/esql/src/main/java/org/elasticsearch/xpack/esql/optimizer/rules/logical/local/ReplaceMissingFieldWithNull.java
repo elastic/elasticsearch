@@ -65,12 +65,12 @@ public class ReplaceMissingFieldWithNull extends ParameterizedRule<LogicalPlan, 
 
     private LogicalPlan missingToNull(LogicalPlan plan, Predicate<FieldAttribute> shouldBeRetained) {
         if (plan instanceof EsRelation relation) {
-            // Remove missing fields from the EsRelation because this is not where we will obtain them from; replace them by an Eval right
-            // after, instead. This allows us to safely re-use the attribute ids of the corresponding FieldAttributes.
+            // For any missing field, place an Eval right after the EsRelation to assign null values to that attribute (using the same name
+            // id!), thus avoiding that InsertFieldExtrations inserts a field extraction later.
             // This means that an EsRelation[field1, field2, field3] where field1 and field 3 are missing will be replaced by
             // Project[field1, field2, field3] <- keeps the ordering intact
             // \_Eval[field1 = null, field3 = null]
-            // \_EsRelation[field2]
+            // \_EsRelation[field1, field2, field3]
             List<Attribute> relationOutput = relation.output();
             Map<DataType, Alias> nullLiterals = Maps.newLinkedHashMapWithExpectedSize(DataType.types().size());
             List<NamedExpression> newProjections = new ArrayList<>(relationOutput.size());

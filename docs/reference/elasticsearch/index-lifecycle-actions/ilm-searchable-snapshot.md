@@ -27,7 +27,7 @@ Mounting and relocating the shards of {{search-snap}} indices involves copying t
 ::::
 
 
-By default, this snapshot is deleted by the [delete action](/reference/elasticsearch/index-lifecycle-actions/ilm-delete.md) in the delete phase. To keep the snapshot, set `delete_searchable_snapshot` to `false` in the delete action. This snapshot retention runs off the index lifecycle management (ILM) policies and is not effected by snapshot lifecycle management (SLM) policies.
+By default, this snapshot is deleted by the [delete action](/reference/elasticsearch/index-lifecycle-actions/ilm-delete.md) in the delete phase. To keep the snapshot, set `delete_searchable_snapshot` to `false` in the delete action. This snapshot retention runs off the index lifecycle management (ILM) policies and is not affected by snapshot lifecycle management (SLM) policies.
 
 ## Options [ilm-searchable-snapshot-options]
 

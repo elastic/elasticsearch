@@ -15,8 +15,10 @@ import org.elasticsearch.action.admin.cluster.health.TransportClusterHealthActio
 import org.elasticsearch.action.admin.cluster.settings.ClusterGetSettingsAction;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateAction;
 import org.elasticsearch.action.admin.indices.alias.get.GetAliasesAction;
+import org.elasticsearch.action.admin.indices.get.GetIndexAction;
 import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsAction;
 import org.elasticsearch.action.admin.indices.recovery.RecoveryAction;
+import org.elasticsearch.action.admin.indices.settings.get.GetSettingsAction;
 import org.elasticsearch.action.admin.indices.template.get.GetComponentTemplateAction;
 import org.elasticsearch.action.admin.indices.template.get.GetComposableIndexTemplateAction;
 import org.elasticsearch.action.admin.indices.template.get.GetIndexTemplatesAction;
@@ -112,6 +114,16 @@ public class RestActionCancellationIT extends HttpSmokeTestCase {
     public void testGetMappingsCancellation() {
         createIndex("test");
         runRestActionCancellationTest(new Request(HttpGet.METHOD_NAME, "/test/_mappings"), GetMappingsAction.NAME);
+    }
+
+    public void testGetIndicesCancellation() {
+        createIndex("test");
+        runRestActionCancellationTest(new Request(HttpGet.METHOD_NAME, "/test"), GetIndexAction.NAME);
+    }
+
+    public void testGetIndexSettingsCancellation() {
+        createIndex("test");
+        runRestActionCancellationTest(new Request(HttpGet.METHOD_NAME, "/test/_settings"), GetSettingsAction.NAME);
     }
 
     private void runRestActionCancellationTest(Request request, String actionName) {

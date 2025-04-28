@@ -38,10 +38,53 @@ public class MockGcsBlobStore {
 
     record BlobVersion(String path, long generation, BytesReference contents) {}
 
-    record ResumableUpload(String uploadId, String path, Long ifGenerationMatch, BytesReference contents, boolean completed) {
+    record ResumableUpload(
+        String uploadId,
+        String path,
+        Long ifGenerationMatch,
+        BytesReference contents,
+        Integer finalLength,
+        boolean completed
+    ) {
 
-        public ResumableUpload update(BytesReference contents, boolean completed) {
-            return new ResumableUpload(uploadId, path, ifGenerationMatch, contents, completed);
+        ResumableUpload(String uploadId, String path, Long ifGenerationMatch) {
+            this(uploadId, path, ifGenerationMatch, BytesArray.EMPTY, null, false);
+        }
+
+        public ResumableUpload update(BytesReference contents) {
+            if (completed) {
+                throw new IllegalStateException("Blob already completed");
+            }
+            return new ResumableUpload(uploadId, path, ifGenerationMatch, contents, null, false);
+        }
+
+        /**
+         * When we complete, we nullify our reference to the contents to allow it to be collected if it gets overwritten
+         */
+        public ResumableUpload complete() {
+            if (completed) {
+                throw new IllegalStateException("Blob already completed");
+            }
+            return new ResumableUpload(uploadId, path, ifGenerationMatch, null, contents.length(), true);
+        }
+
+        public HttpHeaderParser.Range getRange() {
+            int length = length();
+            if (length > 0) {
+                return new HttpHeaderParser.Range(0, length - 1);
+            } else {
+                return null;
+            }
+        }
+
+        public int length() {
+            if (finalLength != null) {
+                return finalLength;
+            }
+            if (contents != null) {
+                return contents.length();
+            }
+            return 0;
         }
     }
 
@@ -93,7 +136,7 @@ public class MockGcsBlobStore {
 
     ResumableUpload createResumableUpload(String path, Long ifGenerationMatch) {
         final String uploadId = UUIDs.randomBase64UUID();
-        final ResumableUpload value = new ResumableUpload(uploadId, path, ifGenerationMatch, BytesArray.EMPTY, false);
+        final ResumableUpload value = new ResumableUpload(uploadId, path, ifGenerationMatch);
         resumableUploads.put(uploadId, value);
         return value;
     }
@@ -114,16 +157,14 @@ public class MockGcsBlobStore {
                 throw failAndThrow("Attempted to update a non-existent resumable: " + uid);
             }
 
-            if (contentRange.hasRange() == false) {
-                // Content-Range: */... is a status check https://cloud.google.com/storage/docs/performing-resumable-uploads#status-check
+            ResumableUpload valueToReturn = existing;
+
+            // Handle the request, a range indicates a chunk of data was submitted
+            if (contentRange.hasRange()) {
                 if (existing.completed) {
-                    updateResponse.set(new UpdateResponse(RestStatus.OK.getStatus(), calculateRangeHeader(blobs.get(existing.path))));
-                } else {
-                    final HttpHeaderParser.Range range = calculateRangeHeader(existing);
-                    updateResponse.set(new UpdateResponse(RESUME_INCOMPLETE, range));
+                    throw failAndThrow("Attempted to write more to a completed resumable upload");
                 }
-                return existing;
-            } else {
+
                 if (contentRange.start() > contentRange.end()) {
                     throw failAndThrow("Invalid content range " + contentRange);
                 }
@@ -143,30 +184,26 @@ public class MockGcsBlobStore {
                     existing.contents,
                     requestBody.slice(offset, requestBody.length())
                 );
-                // We just received the last chunk, update the blob and remove the resumable upload from the map
-                if (contentRange.hasSize() && updatedContent.length() == contentRange.size()) {
-                    updateBlob(existing.path(), existing.ifGenerationMatch, updatedContent);
-                    updateResponse.set(new UpdateResponse(RestStatus.OK.getStatus(), null));
-                    return existing.update(BytesArray.EMPTY, true);
-                }
-                final ResumableUpload updated = existing.update(updatedContent, false);
-                updateResponse.set(new UpdateResponse(RESUME_INCOMPLETE, calculateRangeHeader(updated)));
-                return updated;
+                valueToReturn = existing.update(updatedContent);
             }
+
+            // Next we determine the response
+            if (valueToReturn.completed) {
+                updateResponse.set(new UpdateResponse(RestStatus.OK.getStatus(), valueToReturn.getRange(), valueToReturn.length()));
+            } else if (contentRange.hasSize() && contentRange.size() == valueToReturn.contents.length()) {
+                updateBlob(valueToReturn.path(), valueToReturn.ifGenerationMatch(), valueToReturn.contents);
+                valueToReturn = valueToReturn.complete();
+                updateResponse.set(new UpdateResponse(RestStatus.OK.getStatus(), valueToReturn.getRange(), valueToReturn.length()));
+            } else {
+                updateResponse.set(new UpdateResponse(RESUME_INCOMPLETE, valueToReturn.getRange(), valueToReturn.length()));
+            }
+            return valueToReturn;
         });
         assert updateResponse.get() != null : "Should always produce an update response";
         return updateResponse.get();
     }
 
-    private static HttpHeaderParser.Range calculateRangeHeader(ResumableUpload resumableUpload) {
-        return resumableUpload.contents.length() > 0 ? new HttpHeaderParser.Range(0, resumableUpload.contents.length() - 1) : null;
-    }
-
-    private static HttpHeaderParser.Range calculateRangeHeader(BlobVersion blob) {
-        return blob.contents.length() > 0 ? new HttpHeaderParser.Range(0, blob.contents.length() - 1) : null;
-    }
-
-    record UpdateResponse(int statusCode, HttpHeaderParser.Range rangeHeader) {}
+    record UpdateResponse(int statusCode, HttpHeaderParser.Range rangeHeader, long storedContentLength) {}
 
     void deleteBlob(String path) {
         blobs.remove(path);

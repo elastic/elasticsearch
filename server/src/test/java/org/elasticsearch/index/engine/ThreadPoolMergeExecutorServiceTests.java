@@ -15,6 +15,7 @@ import org.elasticsearch.common.util.concurrent.DeterministicTaskQueue;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.index.engine.ThreadPoolMergeScheduler.MergeTask;
 import org.elasticsearch.index.engine.ThreadPoolMergeScheduler.Schedule;
+import org.elasticsearch.index.merge.OnGoingMerge;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -80,10 +81,14 @@ public class ThreadPoolMergeExecutorServiceTests extends ESTestCase {
             .build();
         TestThreadPool testThreadPool = new TestThreadPool("test", settings);
         ThreadPoolMergeExecutorService threadPoolMergeExecutorService = getThreadPoolMergeExecutorService(testThreadPool);
+        var countingListener = new CountingMergeEventListener();
+        threadPoolMergeExecutorService.registerMergeEventListener(countingListener);
         assertThat(threadPoolMergeExecutorService.getMaxConcurrentMerges(), equalTo(mergeExecutorThreadCount));
         Semaphore runMergeSemaphore = new Semaphore(0);
         ThreadPoolExecutor threadPoolExecutor = (ThreadPoolExecutor) testThreadPool.executor(ThreadPool.Names.MERGE);
         AtomicInteger doneMergesCount = new AtomicInteger(0);
+        AtomicInteger reEnqueuedBackloggedMergesCount = new AtomicInteger();
+        AtomicInteger abortedMergesCount = new AtomicInteger();
         // submit more merge tasks than there are threads so that some are enqueued
         for (int i = 0; i < mergesToSubmit; i++) {
             MergeTask mergeTask = mock(MergeTask.class);
@@ -95,6 +100,7 @@ public class ThreadPoolMergeExecutorServiceTests extends ESTestCase {
                 if (schedule == BACKLOG) {
                     // reenqueue backlogged merge task
                     new Thread(() -> threadPoolMergeExecutorService.reEnqueueBackloggedMergeTask(mergeTask)).start();
+                    reEnqueuedBackloggedMergesCount.incrementAndGet();
                 }
                 return schedule;
             }).when(mergeTask).schedule();
@@ -114,6 +120,7 @@ public class ThreadPoolMergeExecutorServiceTests extends ESTestCase {
                 }
                 runMergeSemaphore.acquireUninterruptibly();
                 doneMergesCount.incrementAndGet();
+                abortedMergesCount.incrementAndGet();
                 return null;
             }).when(mergeTask).abort();
             threadPoolMergeExecutorService.submitMergeTask(mergeTask);
@@ -125,6 +132,12 @@ public class ThreadPoolMergeExecutorServiceTests extends ESTestCase {
             // with the other merge tasks enqueued
             assertThat(threadPoolExecutor.getQueue().size(), is(mergesToSubmit - mergeExecutorThreadCount));
         });
+        assertBusy(
+            () -> assertThat(
+                countingListener.queued.get(),
+                equalTo(threadPoolExecutor.getActiveCount() + threadPoolExecutor.getQueue().size() + reEnqueuedBackloggedMergesCount.get())
+            )
+        );
         // shutdown prevents new merge tasks to be enqueued but existing ones should be allowed to continue
         testThreadPool.shutdown();
         // assert all executors, except the merge one, are terminated
@@ -165,6 +178,8 @@ public class ThreadPoolMergeExecutorServiceTests extends ESTestCase {
             assertTrue(threadPoolExecutor.isTerminated());
             assertTrue(threadPoolMergeExecutorService.allDone());
         });
+        assertThat(countingListener.aborted.get() + countingListener.completed.get(), equalTo(doneMergesCount.get()));
+        assertThat(countingListener.aborted.get(), equalTo(abortedMergesCount.get()));
     }
 
     public void testTargetIORateChangesWhenSubmittingMergeTasks() throws Exception {
@@ -219,18 +234,16 @@ public class ThreadPoolMergeExecutorServiceTests extends ESTestCase {
                     }
                     long newIORate = threadPoolMergeExecutorService.getTargetIORateBytesPerSec();
                     if (supportsIOThrottling) {
-                        if (submittedIOThrottledMergeTasks.get() < threadPoolMergeExecutorService
-                            .getConcurrentMergesFloorLimitForThrottling()) {
-                            // assert the IO rate decreases, with a floor limit, when there are few merge tasks enqueued
+                        if (submittedIOThrottledMergeTasks.get() < 2) {
+                            // assert the IO rate decreases, with a floor limit, when there is just a single merge task running
                             assertThat(newIORate, either(is(MIN_IO_RATE.getBytes())).or(lessThan(currentIORate)));
-                        } else if (submittedIOThrottledMergeTasks.get() > threadPoolMergeExecutorService
-                            .getConcurrentMergesCeilLimitForThrottling()) {
-                                // assert the IO rate increases, with a ceiling limit, when there are many merge tasks enqueued
-                                assertThat(newIORate, either(is(MAX_IO_RATE.getBytes())).or(greaterThan(currentIORate)));
-                            } else {
-                                // assert the IO rate does NOT change when there are a couple of merge tasks enqueued
-                                assertThat(newIORate, equalTo(currentIORate));
-                            }
+                        } else if (submittedIOThrottledMergeTasks.get() > threadPoolMergeExecutorService.getMaxConcurrentMerges() * 2) {
+                            // assert the IO rate increases, with a ceiling limit, when there are many merge tasks enqueued
+                            assertThat(newIORate, either(is(MAX_IO_RATE.getBytes())).or(greaterThan(currentIORate)));
+                        } else {
+                            // assert the IO rate does NOT change when there are a couple of merge tasks enqueued
+                            assertThat(newIORate, equalTo(currentIORate));
+                        }
                     } else {
                         // assert the IO rate does not change, when the merge task doesn't support IO throttling
                         assertThat(newIORate, equalTo(currentIORate));
@@ -375,17 +388,16 @@ public class ThreadPoolMergeExecutorServiceTests extends ESTestCase {
                 initialTasksCounter--;
                 threadPoolMergeExecutorService.submitMergeTask(mergeTask);
                 long newTargetIORateLimit = threadPoolMergeExecutorService.getTargetIORateBytesPerSec();
-                if (currentlySubmittedMergeTaskCount.get() < threadPoolMergeExecutorService.getConcurrentMergesFloorLimitForThrottling()) {
+                if (currentlySubmittedMergeTaskCount.get() < 2) {
                     // assert the IO rate decreases, with a floor limit, when there are few merge tasks enqueued
                     assertThat(newTargetIORateLimit, either(is(MIN_IO_RATE.getBytes())).or(lessThan(targetIORateLimit.get())));
-                } else if (currentlySubmittedMergeTaskCount.get() > threadPoolMergeExecutorService
-                    .getConcurrentMergesCeilLimitForThrottling()) {
-                        // assert the IO rate increases, with a ceiling limit, when there are many merge tasks enqueued
-                        assertThat(newTargetIORateLimit, either(is(MAX_IO_RATE.getBytes())).or(greaterThan(targetIORateLimit.get())));
-                    } else {
-                        // assert the IO rate does change, when there are a couple of merge tasks enqueued
-                        assertThat(newTargetIORateLimit, equalTo(targetIORateLimit.get()));
-                    }
+                } else if (currentlySubmittedMergeTaskCount.get() > threadPoolMergeExecutorService.getMaxConcurrentMerges() * 2) {
+                    // assert the IO rate increases, with a ceiling limit, when there are many merge tasks enqueued
+                    assertThat(newTargetIORateLimit, either(is(MAX_IO_RATE.getBytes())).or(greaterThan(targetIORateLimit.get())));
+                } else {
+                    // assert the IO rate does not change, when there are a couple of merge tasks enqueued
+                    assertThat(newTargetIORateLimit, equalTo(targetIORateLimit.get()));
+                }
                 targetIORateLimit.set(newTargetIORateLimit);
             } else {
                 // execute already submitted merge task
@@ -660,6 +672,27 @@ public class ThreadPoolMergeExecutorServiceTests extends ESTestCase {
                 // run one merge task
                 runOneTask(mergeExecutorTaskQueue);
             }
+        }
+    }
+
+    private static class CountingMergeEventListener implements MergeEventListener {
+        AtomicInteger queued = new AtomicInteger();
+        AtomicInteger aborted = new AtomicInteger();
+        AtomicInteger completed = new AtomicInteger();
+
+        @Override
+        public void onMergeQueued(OnGoingMerge merge, long estimateMergeMemoryBytes) {
+            queued.incrementAndGet();
+        }
+
+        @Override
+        public void onMergeCompleted(OnGoingMerge merge) {
+            completed.incrementAndGet();
+        }
+
+        @Override
+        public void onMergeAborted(OnGoingMerge merge) {
+            aborted.incrementAndGet();
         }
     }
 

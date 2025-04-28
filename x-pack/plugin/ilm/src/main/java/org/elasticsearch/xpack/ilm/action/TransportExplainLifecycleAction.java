@@ -11,14 +11,14 @@ import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.ChannelActionListener;
-import org.elasticsearch.action.support.local.TransportLocalClusterStateAction;
-import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.action.support.local.TransportLocalProjectMetadataAction;
+import org.elasticsearch.cluster.ProjectState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.LifecycleExecutionState;
-import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
@@ -52,7 +52,9 @@ import java.util.TreeMap;
 import static org.elasticsearch.index.IndexSettings.LIFECYCLE_ORIGINATION_DATE;
 import static org.elasticsearch.xpack.core.ilm.WaitForRolloverReadyStep.applyDefaultConditions;
 
-public class TransportExplainLifecycleAction extends TransportLocalClusterStateAction<ExplainLifecycleRequest, ExplainLifecycleResponse> {
+public class TransportExplainLifecycleAction extends TransportLocalProjectMetadataAction<
+    ExplainLifecycleRequest,
+    ExplainLifecycleResponse> {
 
     private final NamedXContentRegistry xContentRegistry;
     private final IndexNameExpressionResolver indexNameExpressionResolver;
@@ -78,7 +80,8 @@ public class TransportExplainLifecycleAction extends TransportLocalClusterStateA
             actionFilters,
             transportService.getTaskManager(),
             clusterService,
-            threadPool.executor(ThreadPool.Names.MANAGEMENT)
+            threadPool.executor(ThreadPool.Names.MANAGEMENT),
+            projectResolver
         );
         this.xContentRegistry = xContentRegistry;
         this.indexNameExpressionResolver = indexNameExpressionResolver;
@@ -95,21 +98,25 @@ public class TransportExplainLifecycleAction extends TransportLocalClusterStateA
     }
 
     @Override
-    protected ClusterBlockException checkBlock(ExplainLifecycleRequest request, ClusterState state) {
-        return state.blocks()
-            .indicesBlockedException(ClusterBlockLevel.METADATA_READ, indexNameExpressionResolver.concreteIndexNames(state, request));
+    protected ClusterBlockException checkBlock(ExplainLifecycleRequest request, ProjectState project) {
+        return project.blocks()
+            .indicesBlockedException(
+                project.projectId(),
+                ClusterBlockLevel.METADATA_READ,
+                indexNameExpressionResolver.concreteIndexNames(project.metadata(), request)
+            );
     }
 
     @Override
     protected void localClusterStateOperation(
         Task task,
         ExplainLifecycleRequest request,
-        final ClusterState state,
+        ProjectState project,
         ActionListener<ExplainLifecycleResponse> listener
     ) {
-        String[] concreteIndices = indexNameExpressionResolver.concreteIndexNames(state, request);
+        String[] concreteIndices = indexNameExpressionResolver.concreteIndexNames(project.metadata(), request);
         boolean rolloverOnlyIfHasDocuments = LifecycleSettings.LIFECYCLE_ROLLOVER_ONLY_IF_HAS_DOCUMENTS_SETTING.get(
-            state.metadata().settings()
+            project.cluster().metadata().settings()
         );
         Map<String, IndexLifecycleExplainResponse> indexResponses = new TreeMap<>();
         for (String index : concreteIndices) {
@@ -117,7 +124,7 @@ public class TransportExplainLifecycleAction extends TransportLocalClusterStateA
             try {
                 indexResponse = getIndexLifecycleExplainResponse(
                     index,
-                    state.metadata(),
+                    project.metadata(),
                     request.onlyErrors(),
                     request.onlyManaged(),
                     xContentRegistry,
@@ -140,13 +147,12 @@ public class TransportExplainLifecycleAction extends TransportLocalClusterStateA
     @Nullable
     static IndexLifecycleExplainResponse getIndexLifecycleExplainResponse(
         String indexName,
-        Metadata metadata,
+        ProjectMetadata project,
         boolean onlyErrors,
         boolean onlyManaged,
         NamedXContentRegistry xContentRegistry,
         boolean rolloverOnlyIfHasDocuments
     ) throws IOException {
-        final var project = metadata.getProject();
         IndexMetadata indexMetadata = project.index(indexName);
         Settings idxSettings = indexMetadata.getSettings();
         LifecycleExecutionState lifecycleState = indexMetadata.getLifecycleExecutionState();

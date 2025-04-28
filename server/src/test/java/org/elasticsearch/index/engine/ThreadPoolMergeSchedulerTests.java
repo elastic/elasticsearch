@@ -61,7 +61,8 @@ public class ThreadPoolMergeSchedulerTests extends ESTestCase {
             ThreadPoolMergeScheduler threadPoolMergeScheduler = new ThreadPoolMergeScheduler(
                 new ShardId("index", "_na_", 1),
                 IndexSettingsModule.newIndexSettings("index", Settings.EMPTY),
-                threadPoolMergeExecutorService
+                threadPoolMergeExecutorService,
+                merge -> 0
             )
         ) {
             List<OneMerge> executedMergesList = new ArrayList<>();
@@ -103,7 +104,8 @@ public class ThreadPoolMergeSchedulerTests extends ESTestCase {
         ThreadPoolMergeScheduler threadPoolMergeScheduler = new ThreadPoolMergeScheduler(
             new ShardId("index", "_na_", 1),
             IndexSettingsModule.newIndexSettings("index", mergeSchedulerSettings),
-            threadPoolMergeExecutorService
+            threadPoolMergeExecutorService,
+            merge -> 0
         );
         // more merge tasks than merge threads
         int mergeCount = mergeExecutorThreadCount + randomIntBetween(1, 5);
@@ -136,7 +138,8 @@ public class ThreadPoolMergeSchedulerTests extends ESTestCase {
         ThreadPoolMergeScheduler threadPoolMergeScheduler = new ThreadPoolMergeScheduler(
             new ShardId("index", "_na_", 1),
             IndexSettingsModule.newIndexSettings("index", mergeSchedulerSettings),
-            threadPoolMergeExecutorService
+            threadPoolMergeExecutorService,
+            merge -> 0
         );
         // sort backlogged merges by size
         PriorityQueue<MergeTask> backloggedMergeTasks = new PriorityQueue<>(16, Comparator.comparingLong(MergeTask::estimatedMergeSize));
@@ -347,7 +350,8 @@ public class ThreadPoolMergeSchedulerTests extends ESTestCase {
                 ThreadPoolMergeScheduler threadPoolMergeScheduler = new ThreadPoolMergeScheduler(
                     new ShardId("index", "_na_", 1),
                     IndexSettingsModule.newIndexSettings("index", settings),
-                    threadPoolMergeExecutorService
+                    threadPoolMergeExecutorService,
+                    merge -> 0
                 )
             ) {
                 MergeSource mergeSource = mock(MergeSource.class);
@@ -390,11 +394,13 @@ public class ThreadPoolMergeSchedulerTests extends ESTestCase {
                 }).when(mergeSource).merge(any(OneMerge.class));
                 // trigger run merges on the merge source
                 threadPoolMergeScheduler.merge(mergeSource, randomFrom(MergeTrigger.values()));
-                do {
+                boolean done = false;
+                while (done == false) {
                     // let merges run, but wait for the in-progress one to signal it is running
                     nextMergeSemaphore.acquire();
+                    done = runMergeIdx.get() >= followUpMergeCount;
                     runMergeSemaphore.release();
-                } while (runMergeIdx.get() < followUpMergeCount);
+                }
                 assertBusy(() -> assertTrue(threadPoolMergeExecutorService.allDone()));
             }
         }
@@ -418,7 +424,8 @@ public class ThreadPoolMergeSchedulerTests extends ESTestCase {
                 ThreadPoolMergeScheduler threadPoolMergeScheduler = new ThreadPoolMergeScheduler(
                     new ShardId("index", "_na_", 1),
                     IndexSettingsModule.newIndexSettings("index", settings),
-                    threadPoolMergeExecutorService
+                    threadPoolMergeExecutorService,
+                    merge -> 0
                 )
             ) {
                 // at least 1 extra merge than there are concurrently allowed
@@ -502,22 +509,26 @@ public class ThreadPoolMergeSchedulerTests extends ESTestCase {
                 ThreadPoolMergeScheduler threadPoolMergeScheduler = new ThreadPoolMergeScheduler(
                     new ShardId("index", "_na_", 1),
                     IndexSettingsModule.newIndexSettings("index", settings),
-                    threadPoolMergeExecutorService
+                    threadPoolMergeExecutorService,
+                    merge -> 0
                 )
             ) {
                 CountDownLatch mergeDoneLatch = new CountDownLatch(1);
+                CountDownLatch mergeRunningLatch = new CountDownLatch(1);
                 MergeSource mergeSource = mock(MergeSource.class);
                 OneMerge oneMerge = mock(OneMerge.class);
                 when(oneMerge.getStoreMergeInfo()).thenReturn(getNewMergeInfo(randomLongBetween(1L, 10L)));
                 when(oneMerge.getMergeProgress()).thenReturn(new MergePolicy.OneMergeProgress());
                 when(mergeSource.getNextMerge()).thenReturn(oneMerge, (OneMerge) null);
                 doAnswer(invocation -> {
+                    mergeRunningLatch.countDown();
                     OneMerge merge = (OneMerge) invocation.getArguments()[0];
                     assertFalse(merge.isAborted());
                     // wait to be signalled before completing the merge
                     mergeDoneLatch.await();
                     return null;
                 }).when(mergeSource).merge(any(OneMerge.class));
+                // submit the merge
                 threadPoolMergeScheduler.merge(mergeSource, randomFrom(MergeTrigger.values()));
                 Thread t = new Thread(() -> {
                     try {
@@ -529,6 +540,8 @@ public class ThreadPoolMergeSchedulerTests extends ESTestCase {
                 t.start();
                 try {
                     assertTrue(t.isAlive());
+                    // wait for the merge to actually run
+                    mergeRunningLatch.await();
                     // ensure the merge scheduler is effectively "closed"
                     assertBusy(() -> {
                         MergeSource mergeSource2 = mock(MergeSource.class);
@@ -569,7 +582,8 @@ public class ThreadPoolMergeSchedulerTests extends ESTestCase {
             ThreadPoolMergeScheduler threadPoolMergeScheduler = new ThreadPoolMergeScheduler(
                 new ShardId("index", "_na_", 1),
                 indexSettings,
-                threadPoolMergeExecutorService
+                threadPoolMergeExecutorService,
+                merge -> 0
             )
         ) {
             threadPoolMergeScheduler.merge(mergeSource, randomFrom(MergeTrigger.values()));
@@ -598,7 +612,8 @@ public class ThreadPoolMergeSchedulerTests extends ESTestCase {
             ThreadPoolMergeScheduler threadPoolMergeScheduler = new ThreadPoolMergeScheduler(
                 new ShardId("index", "_na_", 1),
                 indexSettings,
-                threadPoolMergeExecutorService
+                threadPoolMergeExecutorService,
+                merge -> 0
             )
         ) {
             threadPoolMergeScheduler.merge(mergeSource, randomFrom(MergeTrigger.values()));
@@ -614,7 +629,8 @@ public class ThreadPoolMergeSchedulerTests extends ESTestCase {
             ThreadPoolMergeScheduler threadPoolMergeScheduler = new ThreadPoolMergeScheduler(
                 new ShardId("index", "_na_", 1),
                 indexSettings,
-                threadPoolMergeExecutorService
+                threadPoolMergeExecutorService,
+                merge -> 0
             )
         ) {
             // merge submitted upon closing
@@ -630,7 +646,8 @@ public class ThreadPoolMergeSchedulerTests extends ESTestCase {
             ThreadPoolMergeScheduler threadPoolMergeScheduler = new ThreadPoolMergeScheduler(
                 new ShardId("index", "_na_", 1),
                 indexSettings,
-                threadPoolMergeExecutorService
+                threadPoolMergeExecutorService,
+                merge -> 0
             )
         ) {
             // merge submitted upon closing
@@ -661,7 +678,7 @@ public class ThreadPoolMergeSchedulerTests extends ESTestCase {
             IndexSettings indexSettings,
             ThreadPoolMergeExecutorService threadPoolMergeExecutorService
         ) {
-            super(shardId, indexSettings, threadPoolMergeExecutorService);
+            super(shardId, indexSettings, threadPoolMergeExecutorService, merge -> 0);
         }
 
         @Override

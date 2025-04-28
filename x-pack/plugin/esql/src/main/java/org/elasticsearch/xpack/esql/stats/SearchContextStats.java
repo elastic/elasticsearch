@@ -95,19 +95,18 @@ public class SearchContextStats implements SearchStats {
         // since if it's missing, deleted documents won't change that
         for (SearchExecutionContext context : contexts) {
             if (context.isFieldMapped(field)) {
-                exists = exists || true;
-                MappedFieldType type = context.getFieldType(field);
-                indexed = indexed && type.isIndexed();
-                hasDocValues = hasDocValues && type.hasDocValues();
-                if (type instanceof TextFieldMapper.TextFieldType t) {
-                    hasExactSubfield = hasExactSubfield && t.canUseSyntheticSourceDelegateForQuerying();
-                } else {
-                    hasExactSubfield = false;
-                }
+                var type = context.getFieldType(field);
+                exists |= true;
+                indexed &= type.isIndexed();
+                hasDocValues &= type.hasDocValues();
+                hasExactSubfield &= type instanceof TextFieldMapper.TextFieldType t && t.canUseSyntheticSourceDelegateForQuerying();
             } else {
                 indexed = false;
                 hasDocValues = false;
                 hasExactSubfield = false;
+            }
+            if (exists && indexed == false && hasDocValues == false && hasExactSubfield == false) {
+                break;
             }
         }
         if (exists == false) {
@@ -291,6 +290,24 @@ public class SearchContextStats implements SearchStats {
 
         // unsupported type - default to MV
         return false;
+    }
+
+    @Override
+    public boolean canUseEqualityOnSyntheticSourceDelegate(String name, String value) {
+        for (SearchExecutionContext ctx : contexts) {
+            MappedFieldType type = ctx.getFieldType(name);
+            if (type == null) {
+                return false;
+            }
+            if (type instanceof TextFieldMapper.TextFieldType t) {
+                if (t.canUseSyntheticSourceDelegateForQueryingEquality(value) == false) {
+                    return false;
+                }
+            } else {
+                return false;
+            }
+        }
+        return true;
     }
 
     private interface DocCountTester {

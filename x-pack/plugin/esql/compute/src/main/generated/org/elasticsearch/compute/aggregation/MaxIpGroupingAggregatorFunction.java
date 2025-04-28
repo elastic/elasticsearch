@@ -203,8 +203,8 @@ public final class MaxIpGroupingAggregatorFunction implements GroupingAggregator
 
   @Override
   public void evaluateFinal(Block[] blocks, int offset, IntVector selected,
-      DriverContext driverContext) {
-    blocks[offset] = MaxIpAggregator.evaluateFinal(state, selected, driverContext);
+      GroupingAggregatorEvaluationContext evaluatorContext) {
+    blocks[offset] = MaxIpAggregator.evaluateFinal(state, selected, evaluatorContext.driverContext());
   }
 
   @Override

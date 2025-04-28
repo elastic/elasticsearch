@@ -133,18 +133,18 @@ public interface InferenceService extends Closeable {
     /**
      * Chunk long text.
      *
-     * @param model           The model
-     * @param query           Inference query, mainly for re-ranking
-     * @param input           Inference input
-     * @param taskSettings    Settings in the request to override the model's defaults
-     * @param inputType       For search, ingest etc
-     * @param timeout         The timeout for the request
-     * @param listener        Chunked Inference result listener
+     * @param model            The model
+     * @param query            Inference query, mainly for re-ranking
+     * @param input            Inference input
+     * @param taskSettings     Settings in the request to override the model's defaults
+     * @param inputType        For search, ingest etc
+     * @param timeout          The timeout for the request
+     * @param listener         Chunked Inference result listener
      */
     void chunkedInfer(
         Model model,
         @Nullable String query,
-        List<String> input,
+        List<ChunkInferenceInput> input,
         Map<String, Object> taskSettings,
         InputType inputType,
         TimeValue timeout,
@@ -162,23 +162,12 @@ public interface InferenceService extends Closeable {
     /**
      * Stop the model deployment.
      * The default action does nothing except acknowledge the request (true).
-     * @param unparsedModel The unparsed model configuration
+     * @param model The model configuration
      * @param listener The listener
      */
-    default void stop(UnparsedModel unparsedModel, ActionListener<Boolean> listener) {
+    default void stop(Model model, ActionListener<Boolean> listener) {
         listener.onResponse(true);
     }
-
-    /**
-     * Optionally test the new model configuration in the inference service.
-     * This function should be called when the model is first created, the
-     * default action is to do nothing.
-     * @param model The new model
-     * @param listener The listener
-     */
-    default void checkModelConfig(Model model, ActionListener<Model> listener) {
-        listener.onResponse(model);
-    };
 
     /**
      * Update a text embedding model's dimensions based on a provided embedding

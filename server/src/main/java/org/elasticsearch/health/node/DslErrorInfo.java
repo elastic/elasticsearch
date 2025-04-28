@@ -9,6 +9,8 @@
 
 package org.elasticsearch.health.node;
 
+import org.elasticsearch.TransportVersions;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -20,10 +22,21 @@ import java.io.IOException;
  * exception message and last occurrence timestamp as we could potentially send thousands of entries over the wire
  * and the omitted fields would not be used.
  */
-public record DslErrorInfo(String indexName, long firstOccurrence, int retryCount) implements Writeable {
+public record DslErrorInfo(String indexName, long firstOccurrence, int retryCount, ProjectId projectId) implements Writeable {
+
+    public DslErrorInfo(String indexName, long firstOccurrence, int retryCount) {
+        this(indexName, firstOccurrence, retryCount, ProjectId.DEFAULT);
+    }
 
     public DslErrorInfo(StreamInput in) throws IOException {
-        this(in.readString(), in.readLong(), in.readVInt());
+        this(
+            in.readString(),
+            in.readLong(),
+            in.readVInt(),
+            in.getTransportVersion().onOrAfter(TransportVersions.ADD_PROJECT_ID_TO_DSL_ERROR_INFO)
+                ? ProjectId.readFrom(in)
+                : ProjectId.DEFAULT
+        );
     }
 
     @Override
@@ -31,5 +44,8 @@ public record DslErrorInfo(String indexName, long firstOccurrence, int retryCoun
         out.writeString(indexName);
         out.writeLong(firstOccurrence);
         out.writeVInt(retryCount);
+        if (out.getTransportVersion().onOrAfter(TransportVersions.ADD_PROJECT_ID_TO_DSL_ERROR_INFO)) {
+            projectId.writeTo(out);
+        }
     }
 }

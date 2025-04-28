@@ -165,7 +165,7 @@ public class BwcVersions implements Serializable {
             .sorted(reverseOrder(comparing(s -> Version.fromString(s, Version.Mode.RELAXED))))
             .toList();
 
-        boolean existingBugfix = false;
+        int bugfixCount = 0;
         boolean existingStaged = false;
         for (int i = 0; i < featureFreezeBranches.size(); i++) {
             String branch = featureFreezeBranches.get(i);
@@ -198,9 +198,9 @@ public class BwcVersions implements Serializable {
                 result.put(version, new UnreleasedVersionInfo(version, branch, ":distribution:bwc:" + project));
                 existingStaged = true;
             } else { // This is a bugfix
-                String project = existingBugfix ? "bugfix2" : "bugfix";
+                bugfixCount++;
+                String project = "bugfix" + (bugfixCount > 1 ? bugfixCount : "");
                 result.put(version, new UnreleasedVersionInfo(version, branch, ":distribution:bwc:" + project));
-                existingBugfix = true;
             }
         }
 

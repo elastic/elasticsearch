@@ -1,8 +1,12 @@
 setup:
   - requires:
-      cluster_features: ["gte_v8.12.0"]
-      reason: "extracting non-indexed fields available in 8.12+"
-      test_runner_features: allowed_warnings_regex
+      test_runner_features: [capabilities, allowed_warnings_regex]
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: []
+          capabilities: [loading_non_indexed_ip_fields]
+      reason: "Support for loading non indexed ip"
   - do:
       indices.create:
         index: test
@@ -96,7 +100,6 @@ setup:
 fetch:
   - do:
       allowed_warnings_regex:
-        - "Field \\[ip_noidx\\] cannot be retrieved, it is unsupported or not indexed; returning null"
         - "No limit defined, adding default limit of \\[.*\\]"
 
       esql.query:
@@ -150,10 +153,11 @@ fetch:
   - match: { values.0.5: 40 }
   - match: { values.0.6: 30 }
   - match: { values.0.7: 30 }
+  - match: { values.0.7: 30 }
   - match: { values.0.8: 10 }
   - match: { values.0.9: 10 }
   - match: { values.0.10: "192.168.0.1" }
-  - match: { values.0.11: null }
+  - match: { values.0.11: "192.168.0.1" }
   - match: { values.0.12: "foo" }
   - match: { values.0.13: "foo" }
   - match: { values.0.14: 20 }

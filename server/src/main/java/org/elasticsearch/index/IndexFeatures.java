@@ -25,8 +25,16 @@ public class IndexFeatures implements FeatureSpecification {
 
     private static final NodeFeature SYNONYMS_SET_LENIENT_ON_NON_EXISTING = new NodeFeature("index.synonyms_set_lenient_on_non_existing");
 
+    private static final NodeFeature THROW_EXCEPTION_ON_INDEX_CREATION_IF_UNSUPPORTED_VALUE_TYPE_IN_ALIAS = new NodeFeature(
+        "index.throw_exception_on_index_creation_if_unsupported_value_type_in_alias"
+    );
+
     @Override
     public Set<NodeFeature> getTestFeatures() {
-        return Set.of(LOGSDB_NO_HOST_NAME_FIELD, SYNONYMS_SET_LENIENT_ON_NON_EXISTING);
+        return Set.of(
+            LOGSDB_NO_HOST_NAME_FIELD,
+            SYNONYMS_SET_LENIENT_ON_NON_EXISTING,
+            THROW_EXCEPTION_ON_INDEX_CREATION_IF_UNSUPPORTED_VALUE_TYPE_IN_ALIAS
+        );
     }
 }

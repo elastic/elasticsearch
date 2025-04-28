@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.optimizer.rules;
 
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
@@ -14,9 +15,6 @@ import org.elasticsearch.xpack.esql.core.expression.NameId;
 import org.elasticsearch.xpack.esql.plan.QueryPlan;
 import org.elasticsearch.xpack.esql.plan.logical.BinaryPlan;
 import org.elasticsearch.xpack.esql.plan.physical.BinaryExec;
-
-import java.util.HashSet;
-import java.util.Set;
 
 import static org.elasticsearch.xpack.esql.common.Failure.fail;
 
@@ -50,8 +48,8 @@ public class PlanConsistencyChecker {
             checkMissing(p, p.references(), p.inputSet(), "missing references", failures);
         }
 
-        Set<String> outputAttributeNames = new HashSet<>();
-        Set<NameId> outputAttributeIds = new HashSet<>();
+        var outputAttributeNames = Sets.<String>newHashSetWithExpectedSize(p.output().size());
+        var outputAttributeIds = Sets.<NameId>newHashSetWithExpectedSize(p.output().size());
         for (Attribute outputAttr : p.output()) {
             if (outputAttributeNames.add(outputAttr.name()) == false || outputAttributeIds.add(outputAttr.id()) == false) {
                 failures.add(

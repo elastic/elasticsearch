@@ -11,6 +11,7 @@ package org.elasticsearch.entitlement.initialization;
 
 import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.PathUtils;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.internal.provider.ProviderLocator;
 import org.elasticsearch.entitlement.bootstrap.EntitlementBootstrap;
 import org.elasticsearch.entitlement.bridge.EntitlementChecker;
@@ -20,6 +21,7 @@ import org.elasticsearch.entitlement.instrumentation.Instrumenter;
 import org.elasticsearch.entitlement.instrumentation.MethodKey;
 import org.elasticsearch.entitlement.instrumentation.Transformer;
 import org.elasticsearch.entitlement.runtime.api.ElasticsearchEntitlementChecker;
+import org.elasticsearch.entitlement.runtime.policy.FileAccessTree;
 import org.elasticsearch.entitlement.runtime.policy.PathLookup;
 import org.elasticsearch.entitlement.runtime.policy.Policy;
 import org.elasticsearch.entitlement.runtime.policy.PolicyManager;
@@ -58,6 +60,7 @@ import java.nio.file.spi.FileSystemProvider;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -67,10 +70,14 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
 
+import static org.elasticsearch.entitlement.runtime.policy.PathLookup.BaseDir.CONFIG;
+import static org.elasticsearch.entitlement.runtime.policy.PathLookup.BaseDir.DATA;
+import static org.elasticsearch.entitlement.runtime.policy.PathLookup.BaseDir.LIB;
+import static org.elasticsearch.entitlement.runtime.policy.PathLookup.BaseDir.LOGS;
+import static org.elasticsearch.entitlement.runtime.policy.PathLookup.BaseDir.MODULES;
+import static org.elasticsearch.entitlement.runtime.policy.PathLookup.BaseDir.PLUGINS;
+import static org.elasticsearch.entitlement.runtime.policy.PathLookup.BaseDir.SHARED_REPO;
 import static org.elasticsearch.entitlement.runtime.policy.Platform.LINUX;
-import static org.elasticsearch.entitlement.runtime.policy.entitlements.FilesEntitlement.BaseDir.CONFIG;
-import static org.elasticsearch.entitlement.runtime.policy.entitlements.FilesEntitlement.BaseDir.DATA;
-import static org.elasticsearch.entitlement.runtime.policy.entitlements.FilesEntitlement.BaseDir.SHARED_REPO;
 import static org.elasticsearch.entitlement.runtime.policy.entitlements.FilesEntitlement.Mode.READ;
 import static org.elasticsearch.entitlement.runtime.policy.entitlements.FilesEntitlement.Mode.READ_WRITE;
 
@@ -83,7 +90,6 @@ import static org.elasticsearch.entitlement.runtime.policy.entitlements.FilesEnt
  */
 public class EntitlementInitialization {
 
-    private static final String AGENTS_PACKAGE_NAME = "co.elastic.apm.agent";
     private static final Module ENTITLEMENTS_MODULE = PolicyManager.class.getModule();
 
     private static ElasticsearchEntitlementChecker manager;
@@ -98,7 +104,42 @@ public class EntitlementInitialization {
         return manager;
     }
 
-    // Note: referenced by agent reflectively
+    /**
+     * Initializes the Entitlement system:
+     * <ol>
+     * <li>
+     * Finds the version-specific subclass of {@link EntitlementChecker} to use
+     * </li>
+     * <li>
+     * Builds the set of methods to instrument using {@link InstrumentationService#lookupMethods}
+     * </li>
+     * <li>
+     * Augment this set “dynamically” using {@link InstrumentationService#lookupImplementationMethod}
+     * </li>
+     * <li>
+     * Creates an {@link Instrumenter} via {@link InstrumentationService#newInstrumenter}, and adds a new {@link Transformer} (derived from
+     * {@link java.lang.instrument.ClassFileTransformer}) that uses it. Transformers are invoked when a class is about to load, after its
+     * bytes have been deserialized to memory but before the class is initialized.
+     * </li>
+     * <li>
+     * Re-transforms all already loaded classes: we force the {@link Instrumenter} to run on classes that might have been already loaded
+     * before entitlement initialization by calling the {@link java.lang.instrument.Instrumentation#retransformClasses} method on all
+     * classes that were already loaded.
+     * </li>
+     * </ol>
+     * <p>
+     * The third step is needed as the JDK exposes some API through interfaces that have different (internal) implementations
+     * depending on the JVM host platform. As we cannot instrument an interfaces, we find its concrete implementation.
+     * A prime example is {@link FileSystemProvider}, which has different implementations (e.g. {@code UnixFileSystemProvider} or
+     * {@code WindowsFileSystemProvider}). At runtime, we find the implementation class which is currently used by the JVM, and add
+     * its methods to the set of methods to instrument. See e.g. {@link EntitlementInitialization#fileSystemProviderChecks}.
+     * </p>
+     * <p>
+     * <strong>NOTE:</strong> this method is referenced by the agent reflectively
+     * </p>
+     *
+     * @param inst the JVM instrumentation class instance
+     */
     public static void initialize(Instrumentation inst) throws Exception {
         manager = initChecker();
 
@@ -162,27 +203,20 @@ public class EntitlementInitialization {
     private static PolicyManager createPolicyManager() {
         EntitlementBootstrap.BootstrapArgs bootstrapArgs = EntitlementBootstrap.bootstrapArgs();
         Map<String, Policy> pluginPolicies = bootstrapArgs.pluginPolicies();
-        var pathLookup = new PathLookup(
-            getUserHome(),
-            bootstrapArgs.configDir(),
-            bootstrapArgs.dataDirs(),
-            bootstrapArgs.sharedRepoDirs(),
-            bootstrapArgs.tempDir(),
-            bootstrapArgs.settingResolver()
-        );
+        PathLookup pathLookup = bootstrapArgs.pathLookup();
 
         List<Scope> serverScopes = new ArrayList<>();
         List<FileData> serverModuleFileDatas = new ArrayList<>();
         Collections.addAll(
             serverModuleFileDatas,
             // Base ES directories
-            FileData.ofPath(bootstrapArgs.pluginsDir(), READ),
-            FileData.ofPath(bootstrapArgs.modulesDir(), READ),
-            FileData.ofPath(bootstrapArgs.configDir(), READ),
-            FileData.ofPath(bootstrapArgs.logsDir(), READ_WRITE),
-            FileData.ofPath(bootstrapArgs.libDir(), READ),
-            FileData.ofRelativePath(Path.of(""), DATA, READ_WRITE),
-            FileData.ofRelativePath(Path.of(""), SHARED_REPO, READ_WRITE),
+            FileData.ofBaseDirPath(PLUGINS, READ),
+            FileData.ofBaseDirPath(MODULES, READ),
+            FileData.ofBaseDirPath(CONFIG, READ),
+            FileData.ofBaseDirPath(LOGS, READ_WRITE),
+            FileData.ofBaseDirPath(LIB, READ),
+            FileData.ofBaseDirPath(DATA, READ_WRITE),
+            FileData.ofBaseDirPath(SHARED_REPO, READ_WRITE),
             // exclusive settings file
             FileData.ofRelativePath(Path.of("operator/settings.json"), CONFIG, READ_WRITE).withExclusive(true),
             // OS release on Linux
@@ -203,8 +237,8 @@ public class EntitlementInitialization {
             FileData.ofPath(Path.of("/proc/self/mountinfo"), READ).withPlatform(LINUX),
             FileData.ofPath(Path.of("/proc/diskstats"), READ).withPlatform(LINUX)
         );
-        if (bootstrapArgs.pidFile() != null) {
-            serverModuleFileDatas.add(FileData.ofPath(bootstrapArgs.pidFile(), READ_WRITE));
+        if (pathLookup.pidFile() != null) {
+            serverModuleFileDatas.add(FileData.ofPath(pathLookup.pidFile(), READ_WRITE));
         }
 
         Collections.addAll(
@@ -216,8 +250,8 @@ public class EntitlementInitialization {
                     new FilesEntitlement(
                         List.of(
                             // TODO: what in es.base is accessing shared repo?
-                            FileData.ofRelativePath(Path.of(""), SHARED_REPO, READ_WRITE),
-                            FileData.ofRelativePath(Path.of(""), DATA, READ_WRITE)
+                            FileData.ofBaseDirPath(SHARED_REPO, READ_WRITE),
+                            FileData.ofBaseDirPath(DATA, READ_WRITE)
                         )
                     )
                 )
@@ -230,7 +264,6 @@ public class EntitlementInitialization {
                     new ReadStoreAttributesEntitlement(),
                     new CreateClassLoaderEntitlement(),
                     new InboundNetworkEntitlement(),
-                    new OutboundNetworkEntitlement(),
                     new LoadNativeLibrariesEntitlement(),
                     new ManageThreadsEntitlement(),
                     new FilesEntitlement(serverModuleFileDatas)
@@ -238,31 +271,25 @@ public class EntitlementInitialization {
             ),
             new Scope("java.desktop", List.of(new LoadNativeLibrariesEntitlement())),
             new Scope("org.apache.httpcomponents.httpclient", List.of(new OutboundNetworkEntitlement())),
-            new Scope("io.netty.transport", List.of(new InboundNetworkEntitlement(), new OutboundNetworkEntitlement())),
             new Scope(
                 "org.apache.lucene.core",
                 List.of(
                     new LoadNativeLibrariesEntitlement(),
                     new ManageThreadsEntitlement(),
-                    new FilesEntitlement(
-                        List.of(FileData.ofPath(bootstrapArgs.configDir(), READ), FileData.ofRelativePath(Path.of(""), DATA, READ_WRITE))
-                    )
+                    new FilesEntitlement(List.of(FileData.ofBaseDirPath(CONFIG, READ), FileData.ofBaseDirPath(DATA, READ_WRITE)))
                 )
             ),
             new Scope(
                 "org.apache.lucene.misc",
-                List.of(new FilesEntitlement(List.of(FileData.ofRelativePath(Path.of(""), DATA, READ_WRITE))))
+                List.of(new FilesEntitlement(List.of(FileData.ofBaseDirPath(DATA, READ_WRITE))), new ReadStoreAttributesEntitlement())
             ),
             new Scope(
                 "org.apache.logging.log4j.core",
-                List.of(new ManageThreadsEntitlement(), new FilesEntitlement(List.of(FileData.ofPath(bootstrapArgs.logsDir(), READ_WRITE))))
+                List.of(new ManageThreadsEntitlement(), new FilesEntitlement(List.of(FileData.ofBaseDirPath(LOGS, READ_WRITE))))
             ),
             new Scope(
                 "org.elasticsearch.nativeaccess",
-                List.of(
-                    new LoadNativeLibrariesEntitlement(),
-                    new FilesEntitlement(List.of(FileData.ofRelativePath(Path.of(""), DATA, READ_WRITE)))
-                )
+                List.of(new LoadNativeLibrariesEntitlement(), new FilesEntitlement(List.of(FileData.ofBaseDirPath(DATA, READ_WRITE))))
             )
         );
 
@@ -287,7 +314,7 @@ public class EntitlementInitialization {
                 new Scope(
                     "org.bouncycastle.fips.core",
                     // read to lib dir is required for checksum validation
-                    List.of(new FilesEntitlement(List.of(FileData.ofPath(bootstrapArgs.libDir(), READ))), new ManageThreadsEntitlement())
+                    List.of(new FilesEntitlement(List.of(FileData.ofBaseDirPath(LIB, READ))), new ManageThreadsEntitlement())
                 )
             );
         }
@@ -311,23 +338,93 @@ public class EntitlementInitialization {
             new LoadNativeLibrariesEntitlement(),
             new FilesEntitlement(
                 List.of(
-                    FileData.ofPath(bootstrapArgs.logsDir(), READ_WRITE),
+                    FileData.ofBaseDirPath(LOGS, READ_WRITE),
                     FileData.ofPath(Path.of("/proc/meminfo"), READ),
                     FileData.ofPath(Path.of("/sys/fs/cgroup/"), READ)
                 )
             )
         );
+
+        validateFilesEntitlements(pluginPolicies, pathLookup);
+
         return new PolicyManager(
             serverPolicy,
             agentEntitlements,
             pluginPolicies,
-            EntitlementBootstrap.bootstrapArgs().pluginResolver(),
+            EntitlementBootstrap.bootstrapArgs().scopeResolver(),
             EntitlementBootstrap.bootstrapArgs().sourcePaths(),
-            AGENTS_PACKAGE_NAME,
             ENTITLEMENTS_MODULE,
             pathLookup,
             bootstrapArgs.suppressFailureLogClasses()
         );
+    }
+
+    // package visible for tests
+    static void validateFilesEntitlements(Map<String, Policy> pluginPolicies, PathLookup pathLookup) {
+        Set<Path> readAccessForbidden = new HashSet<>();
+        pathLookup.getBaseDirPaths(PLUGINS).forEach(p -> readAccessForbidden.add(p.toAbsolutePath().normalize()));
+        pathLookup.getBaseDirPaths(MODULES).forEach(p -> readAccessForbidden.add(p.toAbsolutePath().normalize()));
+        pathLookup.getBaseDirPaths(LIB).forEach(p -> readAccessForbidden.add(p.toAbsolutePath().normalize()));
+        Set<Path> writeAccessForbidden = new HashSet<>();
+        pathLookup.getBaseDirPaths(CONFIG).forEach(p -> writeAccessForbidden.add(p.toAbsolutePath().normalize()));
+        for (var pluginPolicy : pluginPolicies.entrySet()) {
+            for (var scope : pluginPolicy.getValue().scopes()) {
+                var filesEntitlement = scope.entitlements()
+                    .stream()
+                    .filter(x -> x instanceof FilesEntitlement)
+                    .map(x -> ((FilesEntitlement) x))
+                    .findFirst();
+                if (filesEntitlement.isPresent()) {
+                    var fileAccessTree = FileAccessTree.withoutExclusivePaths(filesEntitlement.get(), pathLookup, null);
+                    validateReadFilesEntitlements(pluginPolicy.getKey(), scope.moduleName(), fileAccessTree, readAccessForbidden);
+                    validateWriteFilesEntitlements(pluginPolicy.getKey(), scope.moduleName(), fileAccessTree, writeAccessForbidden);
+                }
+            }
+        }
+    }
+
+    private static IllegalArgumentException buildValidationException(
+        String componentName,
+        String moduleName,
+        Path forbiddenPath,
+        FilesEntitlement.Mode mode
+    ) {
+        return new IllegalArgumentException(
+            Strings.format(
+                "policy for module [%s] in [%s] has an invalid file entitlement. Any path under [%s] is forbidden for mode [%s].",
+                moduleName,
+                componentName,
+                forbiddenPath,
+                mode
+            )
+        );
+    }
+
+    private static void validateReadFilesEntitlements(
+        String componentName,
+        String moduleName,
+        FileAccessTree fileAccessTree,
+        Set<Path> readForbiddenPaths
+    ) {
+
+        for (Path forbiddenPath : readForbiddenPaths) {
+            if (fileAccessTree.canRead(forbiddenPath)) {
+                throw buildValidationException(componentName, moduleName, forbiddenPath, READ);
+            }
+        }
+    }
+
+    private static void validateWriteFilesEntitlements(
+        String componentName,
+        String moduleName,
+        FileAccessTree fileAccessTree,
+        Set<Path> writeForbiddenPaths
+    ) {
+        for (Path forbiddenPath : writeForbiddenPaths) {
+            if (fileAccessTree.canWrite(forbiddenPath)) {
+                throw buildValidationException(componentName, moduleName, forbiddenPath, READ_WRITE);
+            }
+        }
     }
 
     private static Path getUserHome() {

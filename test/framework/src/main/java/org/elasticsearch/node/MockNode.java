@@ -9,6 +9,7 @@
 
 package org.elasticsearch.node;
 
+import org.elasticsearch.action.search.OnlinePrewarmingService;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.ClusterInfoService;
 import org.elasticsearch.cluster.MockInternalClusterInfoService;
@@ -101,7 +102,8 @@ public class MockNode extends Node {
             FetchPhase fetchPhase,
             CircuitBreakerService circuitBreakerService,
             ExecutorSelector executorSelector,
-            Tracer tracer
+            Tracer tracer,
+            OnlinePrewarmingService onlinePrewarmingService
         ) {
             if (pluginsService.filterPlugins(MockSearchService.TestPlugin.class).findAny().isEmpty()) {
                 return super.newSearchService(
@@ -114,9 +116,11 @@ public class MockNode extends Node {
                     fetchPhase,
                     circuitBreakerService,
                     executorSelector,
-                    tracer
+                    tracer,
+                    onlinePrewarmingService
                 );
             }
+
             return new MockSearchService(
                 clusterService,
                 indicesService,
@@ -126,7 +130,8 @@ public class MockNode extends Node {
                 fetchPhase,
                 circuitBreakerService,
                 executorSelector,
-                tracer
+                tracer,
+                onlinePrewarmingService
             );
         }
 

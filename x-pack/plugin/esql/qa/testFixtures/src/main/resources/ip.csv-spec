@@ -271,6 +271,86 @@ str1:keyword |str2:keyword |ip1:ip  |ip2:ip
 // end::to_ip-result[]
 ;
 
+convertFromStringLeadingZerosDecimal
+required_capability: to_ip_leading_zeros
+// tag::to_ip_leading_zeros_decimal[]
+ROW s = "1.1.010.1" | EVAL ip = TO_IP(s, {"leading_zeros":"decimal"})
+// end::to_ip_leading_zeros_decimal[]
+;
+
+// tag::to_ip_leading_zeros_decimal-result[]
+s:keyword | ip:ip
+1.1.010.1 | 1.1.10.1
+// end::to_ip_leading_zeros_decimal-result[]
+;
+
+convertFromStringLeadingZerosOctal
+required_capability: to_ip_leading_zeros
+// tag::to_ip_leading_zeros_octal[]
+ROW s = "1.1.010.1" | EVAL ip = TO_IP(s, {"leading_zeros":"octal"})
+// end::to_ip_leading_zeros_octal[]
+;
+
+// tag::to_ip_leading_zeros_octal-result[]
+s:keyword | ip:ip
+1.1.010.1 | 1.1.8.1
+// end::to_ip_leading_zeros_octal-result[]
+;
+
+convertFromStringFancy
+required_capability: to_ip_leading_zeros
+FROM logs
+| KEEP @timestamp, system, message
+| EVAL client = CASE(
+    system == "ping",
+        TO_IP(REPLACE(message, "Pinging ", ""), {"leading_zeros": "octal"}),
+    system == "java" AND STARTS_WITH(message, "Doing java stuff for "),
+        TO_IP(REPLACE(message, "Doing java stuff for ", ""), {"leading_zeros": "decimal"}))
+| SORT @timestamp
+| LIMIT 4
+;
+
+@timestamp:date         |system:keyword|message:keyword                    |client:ip
+2023-10-23T13:55:01.543Z|          ping|Pinging 192.168.86.046             |192.168.86.38
+2023-10-23T13:55:01.544Z|          cron|Running cats                       |null
+2023-10-23T13:55:01.545Z|          java|Doing java stuff for 192.168.86.038|192.168.86.38
+2023-10-23T13:55:01.546Z|          java|More java stuff                    |null
+;
+
+toIpInAgg
+ROW s = "1.1.1.1" | STATS COUNT(*) BY ip = TO_IP(s)
+;
+
+COUNT(*):long | ip:ip
+            1 | 1.1.1.1
+;
+
+toIpInSort
+ROW s = "1.1.1.1" | SORT TO_IP(s)
+;
+
+s:keyword
+1.1.1.1
+;
+
+toIpInAggOctal
+required_capability: to_ip_leading_zeros
+ROW s = "1.1.010.1" | STATS COUNT(*) BY ip = TO_IP(s, {"leading_zeros":"octal"})
+;
+
+COUNT(*):long | ip:ip
+            1 | 1.1.8.1
+;
+
+toIpInSortOctal
+required_capability: to_ip_leading_zeros
+ROW s = "1.1.010.1" | SORT TO_IP(s, {"leading_zeros":"octal"})
+;
+
+s:keyword
+1.1.010.1
+;
+
 cdirMatchOrsIPs
 required_capability: combine_disjunctive_cidrmatches
 

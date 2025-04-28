@@ -99,6 +99,7 @@ toc:
             - file: rest-apis/shard-request-cache.md
             - file: rest-apis/search-suggesters.md
             - file: rest-apis/search-profile.md
+            - file: rest-apis/search-rank-eval.md
   - file: mapping-reference/index.md
     children:
       - file: mapping-reference/document-metadata-fields.md

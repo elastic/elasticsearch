@@ -11,7 +11,6 @@ import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.IndexableFieldType;
-import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.core.Tuple;
@@ -32,7 +31,6 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
-import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import static org.hamcrest.Matchers.equalTo;
@@ -148,27 +146,7 @@ public class VersionStringFieldMapperTests extends MapperTestCase {
 
     @Override
     protected String generateRandomInputValue(MappedFieldType ft) {
-        return randomValue();
-    }
-
-    protected static String randomValue() {
-        return randomVersionNumber() + (randomBoolean() ? "" : randomPrerelease());
-    }
-
-    private static String randomVersionNumber() {
-        int numbers = between(1, 3);
-        String v = Integer.toString(between(0, 100));
-        for (int i = 1; i < numbers; i++) {
-            v += "." + between(0, 100);
-        }
-        return v;
-    }
-
-    private static String randomPrerelease() {
-        if (rarely()) {
-            return randomFrom("alpha", "beta", "prerelease", "whatever");
-        }
-        return randomFrom("alpha", "beta", "") + randomVersionNumber();
+        return VersionStringTestUtils.randomVersionString();
     }
 
     @Override
@@ -185,11 +163,6 @@ public class VersionStringFieldMapperTests extends MapperTestCase {
     protected SyntheticSourceSupport syntheticSourceSupport(boolean ignoreMalformed) {
         assertFalse("version string fields don't support ignore_malformed", ignoreMalformed);
         return new VersionStringSyntheticSourceSupport();
-    }
-
-    @Override
-    protected Function<Object, Object> loadBlockExpected() {
-        return v -> new Version((BytesRef) v).toString();
     }
 
     static class VersionStringSyntheticSourceSupport implements SyntheticSourceSupport {
@@ -212,7 +185,7 @@ public class VersionStringFieldMapperTests extends MapperTestCase {
         }
 
         private Tuple<String, String> generateValue() {
-            String v = randomValue();
+            String v = VersionStringTestUtils.randomVersionString();
             return Tuple.tuple(v, v);
         }
 

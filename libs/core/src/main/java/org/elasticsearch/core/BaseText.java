@@ -12,6 +12,7 @@ package org.elasticsearch.core;
 import org.elasticsearch.core.bytes.BaseBytesArray;
 import org.elasticsearch.core.bytes.BaseBytesReference;
 
+import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 
 /**
@@ -65,7 +66,7 @@ public class BaseText {
      */
     public String string() {
         if (text == null) {
-            throw new UnsupportedOperationException("TODO");
+            text = StandardCharsets.UTF_8.decode(ByteBuffer.wrap(bytes.array(), bytes.arrayOffset(), bytes.length())).toString();
         }
         return text;
     }

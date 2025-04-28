@@ -25,21 +25,21 @@ public class ShardStats implements Writeable {
 
     private final String allocationId;
 
-    private final Double movingAverage;
+    private final Double emwRate;
 
     public ShardStats(StreamInput in) throws IOException {
         assert Transports.assertNotTransportThread("O(#shards) work must always fork to an appropriate executor");
         this.indexName = in.readString();
         this.shardId = in.readVInt();
         this.allocationId = in.readString();
-        this.movingAverage = in.readDouble();
+        this.emwRate = in.readDouble();
     }
 
     public ShardStats(String indexName, Integer shardId, String allocationId, Double ewma) {
         this.indexName = indexName;
         this.shardId = shardId;
         this.allocationId = allocationId;
-        this.movingAverage = ewma;
+        this.emwRate = ewma;
     }
 
     @Override
@@ -50,7 +50,7 @@ public class ShardStats implements Writeable {
         return Objects.equals(indexName, that.indexName)
             && Objects.equals(shardId, that.shardId)
             && Objects.equals(allocationId, that.allocationId)
-            && Objects.equals(movingAverage, that.movingAverage);
+            && Objects.equals(emwRate, that.emwRate);
     }
 
     @Override
@@ -59,7 +59,7 @@ public class ShardStats implements Writeable {
             indexName,
             shardId,
             allocationId,
-            movingAverage
+            emwRate
         );
     }
 
@@ -75,8 +75,8 @@ public class ShardStats implements Writeable {
         return this.allocationId;
     }
 
-    public Double getMovingAverage() {
-        return this.movingAverage;
+    public Double getEwmRate() {
+        return this.emwRate;
     }
 
     @Override
@@ -84,6 +84,6 @@ public class ShardStats implements Writeable {
          out.writeString(indexName);
          out.writeVInt(shardId);
          out.writeString(allocationId);
-         out.writeDouble(movingAverage);
+         out.writeDouble(emwRate);
     }
 }

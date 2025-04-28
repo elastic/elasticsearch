@@ -12,6 +12,9 @@ package org.elasticsearch.action.admin.indices.stats.rrc;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.RemoteClusterActionType;
 
+/**
+ * Action to retrieve shard stats from a remote cluster.
+ */
 public class ShardStatsAction extends ActionType<ShardStatsResponse> {
 
     public static final ShardStatsAction INSTANCE = new ShardStatsAction();

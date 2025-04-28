@@ -20,6 +20,9 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Objects;
 
+/**
+ * Response to a shard stats request.
+ */
 public class ShardStatsResponse extends ChunkedBroadcastResponse {
 
     private final ShardStats[] shards;

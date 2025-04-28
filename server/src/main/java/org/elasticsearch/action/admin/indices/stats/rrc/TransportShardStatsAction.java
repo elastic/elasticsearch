@@ -24,7 +24,7 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardsIterator;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.index.search.stats.ShardSearchRRCStats;
+import org.elasticsearch.index.search.stats.ShardSearchLoadRateStats;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesService;
@@ -38,8 +38,10 @@ import org.elasticsearch.transport.TransportService;
 import java.io.IOException;
 import java.util.Map;
 
-public class TransportShardStatsAction extends
-    TransportBroadcastByNodeAction<TransportShardStatsAction.Request, ShardStatsResponse, ShardStats> {
+public class TransportShardStatsAction extends TransportBroadcastByNodeAction<
+    TransportShardStatsAction.Request,
+    ShardStatsResponse,
+    ShardStats> {
 
     private static final Logger logger = LogManager.getLogger(TransportShardStatsAction.class);
 
@@ -105,26 +107,34 @@ public class TransportShardStatsAction extends
     }
 
     @Override
-    protected void shardOperation(Request request,
-                                  ShardRouting shardRouting,
-                                  Task task,
-                                  ActionListener<ShardStats> listener) {
+    protected void shardOperation(Request request, ShardRouting shardRouting, Task task, ActionListener<ShardStats> listener) {
         ActionListener.completeWith(listener, () -> {
             assert task instanceof CancellableTask;
 
             ShardId shardId = shardRouting.shardId();
             IndexShard indexShard = indicesService.indexServiceSafe(shardId.getIndex()).getShard(shardId.id());
-            ShardSearchRRCStats.ShardStats shardStats = indexShard.shardRRCStats();
+            ShardSearchLoadRateStats.SearchLoadRate searchLoadRate = indexShard.getSearchLoadRate();
 
-            String shardName = shardId.getIndex().getName() + "_" + shardId.getId() + "_" + shardRouting.allocationId().getId();
             logger.info(
-                "Multi - Shard: [{}], tracked-time [{}], delta [{}] ewma [{}]",
-                shardName, shardStats.lastTrackedTime(),    shardStats.delta(), shardStats.ewma());
+                "Multi - Shard: [{}], tracked-time [{}], delta [{}] ewmRate [{}]",
+                shardId.getIndex().getName() + "_" + shardId.getId() + "_" + shardRouting.allocationId().getId(),
+                searchLoadRate.lastTrackedTime(),
+                searchLoadRate.delta(),
+                searchLoadRate.ewmRate()
+            );
 
-            return new ShardStats(shardId.getIndex().getName(), shardId.getId(), shardRouting.allocationId().getId(), shardStats.ewma());
+            return new ShardStats(
+                shardId.getIndex().getName(),
+                shardId.getId(),
+                shardRouting.allocationId().getId(),
+                searchLoadRate.ewmRate()
+            );
         });
     }
 
+    /**
+     * A request to get the stats for a set of shards.
+     */
     public static class Request extends BroadcastRequest<Request> {
 
         public Request() {

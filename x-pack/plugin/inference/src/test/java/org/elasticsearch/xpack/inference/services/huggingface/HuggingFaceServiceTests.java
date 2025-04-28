@@ -821,7 +821,7 @@ public class HuggingFaceServiceTests extends ESTestCase {
                 {
                        "service": "hugging_face",
                        "name": "Hugging Face",
-                       "task_types": ["text_embedding", "sparse_embedding"],
+                       "task_types": ["text_embedding", "sparse_embedding", "completion", "chat_completion"],
                        "configurations": {
                            "api_key": {
                                "description": "API Key for the provider you're connecting to.",
@@ -830,7 +830,7 @@ public class HuggingFaceServiceTests extends ESTestCase {
                                "sensitive": true,
                                "updatable": true,
                                "type": "str",
-                               "supported_task_types": ["text_embedding", "sparse_embedding"]
+                               "supported_task_types": ["text_embedding", "sparse_embedding", "completion", "chat_completion"]
                            },
                            "rate_limit.requests_per_minute": {
                                "description": "Minimize the number of rate limit errors.",
@@ -839,7 +839,7 @@ public class HuggingFaceServiceTests extends ESTestCase {
                                "sensitive": false,
                                "updatable": false,
                                "type": "int",
-                               "supported_task_types": ["text_embedding", "sparse_embedding"]
+                               "supported_task_types": ["text_embedding", "sparse_embedding", "completion", "chat_completion"]
                            },
                            "url": {
                                "default_value": "https://api.openai.com/v1/embeddings",
@@ -849,7 +849,7 @@ public class HuggingFaceServiceTests extends ESTestCase {
                                "sensitive": false,
                                "updatable": false,
                                "type": "str",
-                               "supported_task_types": ["text_embedding", "sparse_embedding"]
+                               "supported_task_types": ["text_embedding", "sparse_embedding", "completion", "chat_completion"]
                            }
                        }
                    }

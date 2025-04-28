@@ -16,7 +16,7 @@ import org.elasticsearch.xpack.inference.external.http.sender.GenericRequestMana
 import org.elasticsearch.xpack.inference.external.http.sender.Sender;
 import org.elasticsearch.xpack.inference.external.http.sender.UnifiedChatInput;
 import org.elasticsearch.xpack.inference.services.ServiceComponents;
-import org.elasticsearch.xpack.inference.services.huggingface.HuggingFaceEmbeddingsRequestManager;
+import org.elasticsearch.xpack.inference.services.huggingface.HuggingFaceRequestManager;
 import org.elasticsearch.xpack.inference.services.huggingface.HuggingFaceResponseHandler;
 import org.elasticsearch.xpack.inference.services.huggingface.completion.HuggingFaceChatCompletionModel;
 import org.elasticsearch.xpack.inference.services.huggingface.elser.HuggingFaceElserModel;
@@ -58,7 +58,7 @@ public class HuggingFaceActionCreator implements HuggingFaceActionVisitor {
             "hugging face text embeddings",
             HuggingFaceEmbeddingsResponseEntity::fromResponse
         );
-        var requestCreator = HuggingFaceEmbeddingsRequestManager.of(
+        var requestCreator = HuggingFaceRequestManager.of(
             model,
             responseHandler,
             serviceComponents.truncator(),
@@ -71,7 +71,7 @@ public class HuggingFaceActionCreator implements HuggingFaceActionVisitor {
     @Override
     public ExecutableAction create(HuggingFaceElserModel model) {
         var responseHandler = new HuggingFaceResponseHandler("hugging face elser", HuggingFaceElserResponseEntity::fromResponse);
-        var requestCreator = HuggingFaceEmbeddingsRequestManager.of(
+        var requestCreator = HuggingFaceRequestManager.of(
             model,
             responseHandler,
             serviceComponents.truncator(),

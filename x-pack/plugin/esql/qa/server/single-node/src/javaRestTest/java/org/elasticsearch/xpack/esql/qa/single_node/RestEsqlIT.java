@@ -111,7 +111,7 @@ public class RestEsqlIT extends RestEsqlTestCase {
             request.setJsonEntity("{\"f\":" + i + "}");
             assertOK(client().performRequest(request));
         }
-        RequestObjectBuilder builder = requestObjectBuilder().query("from test-index | limit 1 | keep f");
+        RequestObjectBuilder builder = requestObjectBuilder().query("from test-index | limit 1 | keep f").allowPartialResults(false);
         builder.pragmas(Settings.builder().put("data_partitioning", "invalid-option").build());
         ResponseException re = expectThrows(ResponseException.class, () -> runEsqlSync(builder));
         assertThat(EntityUtils.toString(re.getResponse().getEntity()), containsString("No enum constant"));
@@ -648,7 +648,7 @@ public class RestEsqlIT extends RestEsqlTestCase {
         }
     }
 
-    private MapMatcher commonProfile() {
+    static MapMatcher commonProfile() {
         return matchesMap() //
             .entry("description", any(String.class))
             .entry("cluster_name", any(String.class))
@@ -669,7 +669,7 @@ public class RestEsqlIT extends RestEsqlTestCase {
      * come back as integers and sometimes longs. This just promotes
      * them to long every time.
      */
-    private void fixTypesOnProfile(Map<String, Object> profile) {
+    static void fixTypesOnProfile(Map<String, Object> profile) {
         profile.put("iterations", ((Number) profile.get("iterations")).longValue());
         profile.put("cpu_nanos", ((Number) profile.get("cpu_nanos")).longValue());
         profile.put("took_nanos", ((Number) profile.get("took_nanos")).longValue());

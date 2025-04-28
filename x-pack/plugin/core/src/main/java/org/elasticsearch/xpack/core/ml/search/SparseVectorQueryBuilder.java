@@ -261,7 +261,11 @@ public class SparseVectorQueryBuilder extends AbstractQueryBuilder<SparseVectorQ
             // we need to check the index options for this field
             // and use those if set.
             SparseVectorFieldMapper sparseVectorFieldMapper = getSparseVectorFieldMapperForQueryRewrite(fieldName, queryRewriteContext);
-            TokenPruningSet pruningOptions = setPruningConfigFromIndexIfNeeded(shouldPruneTokens, tokenPruningConfig, sparseVectorFieldMapper);
+            TokenPruningSet pruningOptions = setPruningConfigFromIndexIfNeeded(
+                shouldPruneTokens,
+                tokenPruningConfig,
+                sparseVectorFieldMapper
+            );
 
             return new SparseVectorQueryBuilder(
                 fieldName,
@@ -451,7 +455,11 @@ public class SparseVectorQueryBuilder extends AbstractQueryBuilder<SparseVectorQ
 
     private record TokenPruningSet(boolean pruneTokens, TokenPruningConfig pruningConfig) {}
 
-    private TokenPruningSet setPruningConfigFromIndexIfNeeded(Boolean queryPruneTokens, TokenPruningConfig queryPruningConfig, SparseVectorFieldMapper fieldMapper) {
+    private TokenPruningSet setPruningConfigFromIndexIfNeeded(
+        Boolean queryPruneTokens,
+        TokenPruningConfig queryPruningConfig,
+        SparseVectorFieldMapper fieldMapper
+    ) {
         boolean doPruneTokens = false;
         TokenPruningConfig setTokenPruningConfig = queryPruningConfig;
         if (queryPruneTokens == null || queryPruningConfig == null) {

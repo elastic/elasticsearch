@@ -15,6 +15,7 @@ import org.elasticsearch.test.MapMatcher;
 import org.elasticsearch.xpack.core.async.GetAsyncResultRequest;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
 
+import java.io.IOException;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
@@ -41,26 +42,10 @@ public class EsqlListQueriesActionIT extends AbstractPausableIntegTestCase {
         try (var initialResponse = sendAsyncQuery()) {
             id = initialResponse.asyncExecutionId().get();
 
+            assertRunningQueries();
             var getResultsRequest = new GetAsyncResultRequest(id);
             getResultsRequest.setWaitForCompletionTimeout(timeValueSeconds(1));
             client().execute(EsqlAsyncGetResultAction.INSTANCE, getResultsRequest).get().close();
-            Response listResponse = getRestClient().performRequest(new Request("GET", "/_query/queries"));
-            @SuppressWarnings("unchecked")
-            var listResult = (Map<String, Map<String, Object>>) EsqlTestUtils.singleValue(
-                jsonEntityToMap(listResponse.getEntity()).values()
-            );
-            String queryId = EsqlTestUtils.singleValue(listResult.keySet());
-            MapMatcher basicMatcher = MapMatcher.matchesMap()
-                .entry("query", is(QUERY))
-                .entry("start_time_millis", IntOrLongMatcher.isIntOrLong())
-                .entry("running_time_nanos", IntOrLongMatcher.isIntOrLong());
-            MapMatcher.assertMap(EsqlTestUtils.singleValue(listResult.values()), basicMatcher);
-
-            Response getQueryResponse = getRestClient().performRequest(new Request("GET", "/_query/queries/" + queryId));
-            MapMatcher.assertMap(
-                jsonEntityToMap(getQueryResponse.getEntity()),
-                basicMatcher.entry("documents_found", IntOrLongMatcher.isIntOrLong()).entry("values_loaded", IntOrLongMatcher.isIntOrLong())
-            );
         } finally {
             if (id != null) {
                 // Finish the query.
@@ -77,27 +62,29 @@ public class EsqlListQueriesActionIT extends AbstractPausableIntegTestCase {
         var future = sendSyncQueryAsyncly();
         try {
             scriptWaits.acquire();
-            Response listResponse = getRestClient().performRequest(new Request("GET", "/_query/queries"));
-            @SuppressWarnings("unchecked")
-            var listResult = (Map<String, Map<String, Object>>) EsqlTestUtils.singleValue(
-                jsonEntityToMap(listResponse.getEntity()).values()
-            );
-            String queryId = EsqlTestUtils.singleValue(listResult.keySet());
-            MapMatcher basicMatcher = MapMatcher.matchesMap()
-                .entry("query", is(QUERY))
-                .entry("start_time_millis", IntOrLongMatcher.isIntOrLong())
-                .entry("running_time_nanos", IntOrLongMatcher.isIntOrLong());
-            MapMatcher.assertMap(EsqlTestUtils.singleValue(listResult.values()), basicMatcher);
-
-            Response getQueryResponse = getRestClient().performRequest(new Request("GET", "/_query/queries/" + queryId));
-            MapMatcher.assertMap(
-                jsonEntityToMap(getQueryResponse.getEntity()),
-                basicMatcher.entry("documents_found", IntOrLongMatcher.isIntOrLong()).entry("values_loaded", IntOrLongMatcher.isIntOrLong())
-            );
+            assertRunningQueries();
         } finally {
             scriptPermits.release(numberOfDocs());
             future.actionGet(timeValueSeconds(60)).close();
         }
+    }
+
+    private static void assertRunningQueries() throws IOException {
+        Response listResponse = getRestClient().performRequest(new Request("GET", "/_query/queries"));
+        @SuppressWarnings("unchecked")
+        var listResult = (Map<String, Map<String, Object>>) EsqlTestUtils.singleValue(jsonEntityToMap(listResponse.getEntity()).values());
+        String queryId = EsqlTestUtils.singleValue(listResult.keySet());
+        MapMatcher basicMatcher = MapMatcher.matchesMap()
+            .entry("query", is(QUERY))
+            .entry("start_time_millis", IntOrLongMatcher.isIntOrLong())
+            .entry("running_time_nanos", IntOrLongMatcher.isIntOrLong());
+        MapMatcher.assertMap(EsqlTestUtils.singleValue(listResult.values()), basicMatcher);
+
+        Response getQueryResponse = getRestClient().performRequest(new Request("GET", "/_query/queries/" + queryId));
+        MapMatcher.assertMap(
+            jsonEntityToMap(getQueryResponse.getEntity()),
+            basicMatcher.entry("documents_found", IntOrLongMatcher.isIntOrLong()).entry("values_loaded", IntOrLongMatcher.isIntOrLong())
+        );
     }
 
     private EsqlQueryResponse sendAsyncQuery() {

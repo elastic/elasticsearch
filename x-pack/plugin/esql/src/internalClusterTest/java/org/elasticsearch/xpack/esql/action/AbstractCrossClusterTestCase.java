@@ -25,6 +25,7 @@ import org.elasticsearch.test.XContentTestUtils;
 import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.json.JsonXContent;
+import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
 import org.junit.After;
 import org.junit.Before;
 
@@ -74,6 +75,11 @@ public abstract class AbstractCrossClusterTestCase extends AbstractMultiClusters
         plugins.add(FailingFieldPlugin.class);
         plugins.add(CrossClusterAsyncQueryIT.CountingPauseFieldPlugin.class);
         return plugins;
+    }
+
+    @Override
+    protected Settings nodeSettings() {
+        return Settings.builder().put(super.nodeSettings()).put(EsqlPlugin.QUERY_ALLOW_PARTIAL_RESULTS.getKey(), false).build();
     }
 
     public static class InternalExchangePlugin extends Plugin {

@@ -19,27 +19,49 @@ esplugin {
 }
 
 dependencies {
-  api "com.amazonaws:aws-java-sdk-s3:${versions.awsv1sdk}"
-  api "com.amazonaws:aws-java-sdk-core:${versions.awsv1sdk}"
-  api "com.amazonaws:aws-java-sdk-sts:${versions.awsv1sdk}"
-  api "com.amazonaws:jmespath-java:${versions.awsv1sdk}"
-  api "org.apache.httpcomponents:httpclient:${versions.httpclient}"
-  api "org.apache.httpcomponents:httpcore:${versions.httpcore}"
-  api "commons-logging:commons-logging:${versions.commonslogging}"
-  api "org.apache.logging.log4j:log4j-1.2-api:${versions.log4j}"
-  api "commons-codec:commons-codec:${versions.commonscodec}"
-  api "com.fasterxml.jackson.core:jackson-core:${versions.jackson}"
-  api "com.fasterxml.jackson.core:jackson-databind:${versions.jackson}"
-  api "com.fasterxml.jackson.core:jackson-annotations:${versions.jackson}"
-  api "com.fasterxml.jackson.dataformat:jackson-dataformat-cbor:${versions.jackson}"
-  api "joda-time:joda-time:2.10.14"
+  implementation "software.amazon.awssdk:annotations:${versions.awsv2sdk}"
+  implementation "software.amazon.awssdk:apache-client:${versions.awsv2sdk}"
+  implementation "software.amazon.awssdk:auth:${versions.awsv2sdk}"
+  implementation "software.amazon.awssdk:aws-core:${versions.awsv2sdk}"
+  implementation "software.amazon.awssdk:aws-xml-protocol:${versions.awsv2sdk}"
+  implementation "software.amazon.awssdk:http-client-spi:${versions.awsv2sdk}"
+  implementation "software.amazon.awssdk:identity-spi:${versions.awsv2sdk}"
+  implementation "software.amazon.awssdk:metrics-spi:${versions.awsv2sdk}"
+  implementation "software.amazon.awssdk:regions:${versions.awsv2sdk}"
+  implementation "software.amazon.awssdk:retries-spi:${versions.awsv2sdk}"
+  implementation "software.amazon.awssdk:retries:${versions.awsv2sdk}"
+  implementation "software.amazon.awssdk:s3:${versions.awsv2sdk}"
+  implementation "software.amazon.awssdk:sdk-core:${versions.awsv2sdk}"
+  implementation "software.amazon.awssdk:services:${versions.awsv2sdk}"
+  implementation "software.amazon.awssdk:sts:${versions.awsv2sdk}"
+  implementation "software.amazon.awssdk:utils:${versions.awsv2sdk}"
 
-  // HACK: javax.xml.bind was removed from default modules in java 9, so we pull the api in here,
-  // and whitelist this hack in JarHell
-  api 'javax.xml.bind:jaxb-api:2.2.2'
+  implementation "org.apache.httpcomponents:httpclient:${versions.httpclient}"
+
+  runtimeOnly "commons-codec:commons-codec:${versions.commonscodec}"
+  runtimeOnly "commons-logging:commons-logging:${versions.commonslogging}"
+  runtimeOnly "joda-time:joda-time:2.10.14"
+  runtimeOnly "org.apache.httpcomponents:httpcore:${versions.httpcore}"
+  runtimeOnly "org.apache.logging.log4j:log4j-1.2-api:${versions.log4j}"
+  runtimeOnly "org.reactivestreams:reactive-streams:${versions.reactive_streams}"
+  runtimeOnly "org.slf4j:slf4j-api:${versions.slf4j}"
+  runtimeOnly "software.amazon.awssdk:arns:${versions.awsv2sdk}"
+  runtimeOnly "software.amazon.awssdk:aws-query-protocol:${versions.awsv2sdk}"
+  runtimeOnly "software.amazon.awssdk:checksums-spi:${versions.awsv2sdk}"
+  runtimeOnly "software.amazon.awssdk:checksums:${versions.awsv2sdk}"
+  runtimeOnly "software.amazon.awssdk:endpoints-spi:${versions.awsv2sdk}"
+  runtimeOnly "software.amazon.awssdk:http-auth:${versions.awsv2sdk}"
+  runtimeOnly "software.amazon.awssdk:http-auth-aws:${versions.awsv2sdk}"
+  runtimeOnly "software.amazon.awssdk:http-auth-spi:${versions.awsv2sdk}"
+  runtimeOnly "software.amazon.awssdk:json-utils:${versions.awsv2sdk}"
+  runtimeOnly "software.amazon.awssdk:profiles:${versions.awsv2sdk}"
+  runtimeOnly "software.amazon.awssdk:protocol-core:${versions.awsv2sdk}"
+  runtimeOnly "software.amazon.awssdk:third-party-jackson-core:${versions.awsv2sdk}"
 
   testImplementation project(':test:fixtures:s3-fixture')
+  testImplementation "software.amazon.awssdk:endpoints-spi:${versions.awsv2sdk}"
 
+  internalClusterTestImplementation project(':test:fixtures:aws-fixture-utils')
   internalClusterTestImplementation project(':test:fixtures:minio-fixture')
   internalClusterTestRuntimeOnly "org.slf4j:slf4j-simple:${versions.slf4j}"
 
@@ -68,10 +90,34 @@ restResources {
 }
 
 tasks.named("dependencyLicenses").configure {
-  mapping from: /aws-java-sdk-.*/, to: 'aws-java-sdk'
-  mapping from: /jmespath-java.*/, to: 'aws-java-sdk'
-  mapping from: /jackson-.*/, to: 'jackson'
-  mapping from: /jaxb-.*/, to: 'jaxb'
+  mapping from: 'annotations',              to: 'aws-sdk-2'
+  mapping from: 'apache-client',            to: 'aws-sdk-2'
+  mapping from: 'arns',                     to: 'aws-sdk-2'
+  mapping from: 'auth',                     to: 'aws-sdk-2'
+  mapping from: 'aws-core',                 to: 'aws-sdk-2'
+  mapping from: 'aws-query-protocol',       to: 'aws-sdk-2'
+  mapping from: 'aws-xml-protocol',         to: 'aws-sdk-2'
+  mapping from: 'checksums',                to: 'aws-sdk-2'
+  mapping from: 'checksums-spi',            to: 'aws-sdk-2'
+  mapping from: 'endpoints-spi',            to: 'aws-sdk-2'
+  mapping from: 'http-auth',                to: 'aws-sdk-2'
+  mapping from: 'http-auth-aws',            to: 'aws-sdk-2'
+  mapping from: 'http-auth-spi',            to: 'aws-sdk-2'
+  mapping from: 'http-client-spi',          to: 'aws-sdk-2'
+  mapping from: 'identity-spi',             to: 'aws-sdk-2'
+  mapping from: 'json-utils',               to: 'aws-sdk-2'
+  mapping from: 'metrics-spi',              to: 'aws-sdk-2'
+  mapping from: 'profiles',                 to: 'aws-sdk-2'
+  mapping from: 'protocol-core',            to: 'aws-sdk-2'
+  mapping from: 'regions',                  to: 'aws-sdk-2'
+  mapping from: 'retries',                  to: 'aws-sdk-2'
+  mapping from: 'retries-spi',              to: 'aws-sdk-2'
+  mapping from: 's3',                       to: 'aws-sdk-2'
+  mapping from: 'sdk-core',                 to: 'aws-sdk-2'
+  mapping from: 'services',                 to: 'aws-sdk-2'
+  mapping from: 'sts',                      to: 'aws-sdk-2'
+  mapping from: 'third-party-jackson-core', to: 'aws-sdk-2'
+  mapping from: 'utils',                    to: 'aws-sdk-2'
 }
 
 esplugin.bundleSpec.from('config/repository-s3') {
@@ -85,23 +131,61 @@ tasks.named("internalClusterTest").configure {
 
 tasks.named("thirdPartyAudit").configure {
   ignoreMissingClasses(
-          // classes are missing
-          'javax.servlet.ServletContextEvent',
-          'javax.servlet.ServletContextListener',
-          'org.apache.avalon.framework.logger.Logger',
-          'org.apache.log.Hierarchy',
-          'org.apache.log.Logger',
-          'javax.jms.Message',
-          // We don't use the kms dependency
-          'com.amazonaws.services.kms.AWSKMS',
-          'com.amazonaws.services.kms.AWSKMSClient',
-          'com.amazonaws.services.kms.AWSKMSClientBuilder',
-          'com.amazonaws.services.kms.model.DecryptRequest',
-          'com.amazonaws.services.kms.model.DecryptResult',
-          'com.amazonaws.services.kms.model.EncryptRequest',
-          'com.amazonaws.services.kms.model.EncryptResult',
-          'com.amazonaws.services.kms.model.GenerateDataKeyRequest',
-          'com.amazonaws.services.kms.model.GenerateDataKeyResult',
-          'javax.activation.DataHandler'
+    // missing/unused classes
+    'javax.servlet.ServletContextEvent',
+    'javax.servlet.ServletContextListener',
+    'org.apache.avalon.framework.logger.Logger',
+    'org.apache.log.Hierarchy',
+    'org.apache.log.Logger',
+    'javax.jms.Message',
+
+    // We use the Apache HTTP client rather than an AWS common runtime (CRT) one, so we don't need any of these classes:
+    'software.amazon.awssdk.crt.CRT',
+    'software.amazon.awssdk.crt.auth.credentials.Credentials',
+    'software.amazon.awssdk.crt.auth.credentials.CredentialsProvider',
+    'software.amazon.awssdk.crt.auth.credentials.DelegateCredentialsProvider$DelegateCredentialsProviderBuilder',
+    'software.amazon.awssdk.crt.auth.signing.AwsSigner',
+    'software.amazon.awssdk.crt.auth.signing.AwsSigningConfig$AwsSignatureType',
+    'software.amazon.awssdk.crt.auth.signing.AwsSigningConfig$AwsSignedBodyHeaderType',
+    'software.amazon.awssdk.crt.auth.signing.AwsSigningConfig$AwsSigningAlgorithm',
+    'software.amazon.awssdk.crt.auth.signing.AwsSigningConfig',
+    'software.amazon.awssdk.crt.auth.signing.AwsSigningResult',
+    'software.amazon.awssdk.crt.http.HttpHeader',
+    'software.amazon.awssdk.crt.http.HttpMonitoringOptions',
+    'software.amazon.awssdk.crt.http.HttpProxyEnvironmentVariableSetting$HttpProxyEnvironmentVariableType',
+    'software.amazon.awssdk.crt.http.HttpProxyEnvironmentVariableSetting',
+    'software.amazon.awssdk.crt.http.HttpProxyOptions',
+    'software.amazon.awssdk.crt.http.HttpRequest',
+    'software.amazon.awssdk.crt.http.HttpRequestBodyStream',
+    'software.amazon.awssdk.crt.io.ClientBootstrap',
+    'software.amazon.awssdk.crt.io.ExponentialBackoffRetryOptions',
+    'software.amazon.awssdk.crt.io.StandardRetryOptions',
+    'software.amazon.awssdk.crt.io.TlsCipherPreference',
+    'software.amazon.awssdk.crt.io.TlsContext',
+    'software.amazon.awssdk.crt.io.TlsContextOptions',
+    'software.amazon.awssdk.crt.s3.ChecksumAlgorithm',
+    'software.amazon.awssdk.crt.s3.ChecksumConfig$ChecksumLocation',
+    'software.amazon.awssdk.crt.s3.ChecksumConfig',
+    'software.amazon.awssdk.crt.s3.ResumeToken',
+    'software.amazon.awssdk.crt.s3.S3Client',
+    'software.amazon.awssdk.crt.s3.S3ClientOptions',
+    'software.amazon.awssdk.crt.s3.S3FinishedResponseContext',
+    'software.amazon.awssdk.crt.s3.S3MetaRequest',
+    'software.amazon.awssdk.crt.s3.S3MetaRequestOptions$MetaRequestType',
+    'software.amazon.awssdk.crt.s3.S3MetaRequestOptions',
+    'software.amazon.awssdk.crt.s3.S3MetaRequestProgress',
+    'software.amazon.awssdk.crt.s3.S3MetaRequestResponseHandler',
+    'software.amazon.awssdk.crtcore.CrtConfigurationUtils',
+    'software.amazon.awssdk.crtcore.CrtConnectionHealthConfiguration$Builder',
+    'software.amazon.awssdk.crtcore.CrtConnectionHealthConfiguration$DefaultBuilder',
+    'software.amazon.awssdk.crtcore.CrtConnectionHealthConfiguration',
+    'software.amazon.awssdk.crtcore.CrtProxyConfiguration$Builder',
+    'software.amazon.awssdk.crtcore.CrtProxyConfiguration$DefaultBuilder',
+    'software.amazon.awssdk.crtcore.CrtProxyConfiguration',
+
+    // We don't use anything eventstream-based so these classes are not needed:
+    'software.amazon.eventstream.HeaderValue',
+    'software.amazon.eventstream.Message',
+    'software.amazon.eventstream.MessageDecoder'
   )
 }

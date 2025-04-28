@@ -49,39 +49,27 @@ $$$index-codec$$$ `index.codec`
 
 $$$index-mode-setting$$$ `index.mode`
 :   The `index.mode` setting is used to control settings applied in specific domains like ingestion of time series data or logs. Different mutually exclusive modes exist, which are used to apply settings or default values controlling indexing of documents, sorting and other parameters whose value affects indexing or query performance.
+        
+        **Example**
 
-```console
-PUT my-index-000001
-{
-  "settings": {
-    "index":{
-      "mode":"standard" <1>
-    }
-  }
-}
-```
+      ```console
+      PUT my-index-000001
+      {
+        "settings": {
+          "index":{
+            "mode":"standard" # This index uses the `standard` index mode
+          }
+        }
+      }
+      ```
+    **Supported values**
 
-1. This index uses the `standard` index mode
-
-
-Index mode supports the following values:
-
-`null`
-:   Default value (same as `standard`).
-
-`standard`
-:   Standard indexing with default settings.
-
-`lookup`
-: Index that can be used for lookup joins in ES|QL. Limited to 1 shard.
-
-
-`time_series`
-:   *(data streams only)* Index mode optimized for storage of metrics. For more information, see [Time series index settings](time-series.md).
-
-`logsdb`
-:   *(data streams only)* Index mode optimized for [logs](docs-content://manage-data/data-store/data-streams/logs-data-stream.md).
-
+    The `index.mode` setting supports the following values:
+       - `null`:   Default value (same as `standard`).
+       -  `standard`:   Standard indexing with default settings.
+       -  `lookup`: Index that can be used for [LOOKUP JOIN](/reference/query-languages/esql/esql-lookup-join.md) in ES|QL. Limited to 1 shard.
+       - `time_series`:   *(data streams only)* Index mode optimized for storage of metrics. For more information, see [Time series index settings](time-series.md).
+       - `logsdb`: *(data streams only)* Index mode optimized for [logs](docs-content://manage-data/data-store/data-streams/logs-data-stream.md).
 
 $$$routing-partition-size$$$ `index.routing_partition_size`
 :   The number of shards a custom routing value can go to. Defaults to 1 and can only be set at index creation time. This value must be less than the `index.number_of_routing_shards` unless the `index.number_of_routing_shards` value is also 1. for more details about how this setting is used, refer to [](/reference/elasticsearch/mapping-reference/mapping-routing-field.md#routing-index-partition).
@@ -89,7 +77,11 @@ $$$routing-partition-size$$$ `index.routing_partition_size`
 $$$ccr-index-soft-deletes$$$
 
 `index.soft_deletes.enabled`
-:   [7.6.0] Indicates whether soft deletes are enabled on the index. Soft deletes can only be configured at index creation and only on indices created on or after {{es}} 6.5.0. Defaults to `true`.
+:   :::{admonition} Deprecated in 7.6.0
+    This setting was deprecated in 7.6.0.
+    :::
+
+    Indicates whether soft deletes are enabled on the index. Soft deletes can only be configured at index creation and only on indices created on or after {{es}} 6.5.0. Defaults to `true`.
 
 $$$ccr-index-soft-deletes-retention-period$$$
 
@@ -100,24 +92,22 @@ $$$load-fixed-bitset-filters-eagerly$$$ `index.load_fixed_bitset_filters_eagerly
 :   Indicates whether [cached filters](/reference/query-languages/query-dsl/query-filter-context.md) are pre-loaded for nested queries. Possible values are `true` (default) and `false`.
 
 $$$index-shard-check-on-startup$$$ `index.shard.check_on_startup`
-:   :::::{admonition}
-::::{warning}
-Expert users only. This setting enables some very expensive processing at shard startup and is only ever useful while diagnosing a problem in your cluster. If you do use it, you should do so only temporarily and remove it once it is no longer needed.
-::::
+:   ::::{warning}
+    Expert users only. This setting enables some very expensive processing at shard startup and is only ever useful while diagnosing a problem in your cluster. If you do use it, you should do so only temporarily and remove it once it is no longer needed.
+    ::::
 
+    {{es}} automatically performs integrity checks on the contents of shards at various points during their lifecycle. For instance, it verifies the checksum of every file transferred when recovering a replica or taking a snapshot. It also verifies the integrity of many important files when opening a shard, which happens when starting up a node and when finishing a shard recovery or relocation. You can therefore manually verify the integrity of a whole shard while it is running by taking a snapshot of it into a fresh repository or by recovering it onto a fresh node.
 
-{{es}} automatically performs integrity checks on the contents of shards at various points during their lifecycle. For instance, it verifies the checksum of every file transferred when recovering a replica or taking a snapshot. It also verifies the integrity of many important files when opening a shard, which happens when starting up a node and when finishing a shard recovery or relocation. You can therefore manually verify the integrity of a whole shard while it is running by taking a snapshot of it into a fresh repository or by recovering it onto a fresh node.
+    This setting determines whether {{es}} performs additional integrity checks while opening a shard. If these checks detect corruption then they will prevent the shard from being opened. It accepts the following values:
 
-This setting determines whether {{es}} performs additional integrity checks while opening a shard. If these checks detect corruption then they will prevent the shard from being opened. It accepts the following values:
+    `false`
+    :   Don’t perform additional checks for corruption when opening a shard. This is the default and recommended behaviour.
 
-`false`
-:   Don’t perform additional checks for corruption when opening a shard. This is the default and recommended behaviour.
+    `checksum`
+    :   Verify that the checksum of every file in the shard matches its contents. This will detect cases where the data read from disk differ from the data that {{es}} originally wrote, for instance due to undetected disk corruption or other hardware failures. These checks require reading the entire shard from disk which takes substantial time and IO bandwidth and may affect cluster performance by evicting important data from your filesystem cache.
 
-`checksum`
-:   Verify that the checksum of every file in the shard matches its contents. This will detect cases where the data read from disk differ from the data that {{es}} originally wrote, for instance due to undetected disk corruption or other hardware failures. These checks require reading the entire shard from disk which takes substantial time and IO bandwidth and may affect cluster performance by evicting important data from your filesystem cache.
-
-`true`
-:   Performs the same checks as `checksum` and also checks for logical inconsistencies in the shard, which could for instance be caused by the data being corrupted while it was being written due to faulty RAM or other hardware failures. These checks require reading the entire shard from disk which takes substantial time and IO bandwidth, and then performing various checks on the contents of the shard which take substantial time, CPU and memory.
+    `true`
+    :   Performs the same checks as `checksum` and also checks for logical inconsistencies in the shard, which could for instance be caused by the data being corrupted while it was being written due to faulty RAM or other hardware failures. These checks require reading the entire shard from disk which takes substantial time and IO bandwidth, and then performing various checks on the contents of the shard which take substantial time, CPU and memory.
 
 :::::
 

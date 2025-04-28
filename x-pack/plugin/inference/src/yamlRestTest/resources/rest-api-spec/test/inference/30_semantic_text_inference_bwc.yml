@@ -751,6 +751,7 @@ setup:
               inference_field:
                 type: semantic_text
                 inference_id: new_inference_endpoint
+                use_legacy_format: true
 
   - do:
       inference.put:

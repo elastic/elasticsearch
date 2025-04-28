@@ -10,16 +10,20 @@ package org.elasticsearch.xpack.inference.services.custom.request;
 import org.apache.http.HttpHeaders;
 import org.apache.http.client.methods.HttpPost;
 import org.apache.http.client.methods.HttpRequestBase;
+import org.apache.http.client.utils.URIBuilder;
 import org.apache.http.entity.StringEntity;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.inference.common.ValidatingSubstitutor;
 import org.elasticsearch.xpack.inference.external.request.HttpRequest;
 import org.elasticsearch.xpack.inference.external.request.Request;
 import org.elasticsearch.xpack.inference.services.custom.CustomModel;
 import org.elasticsearch.xpack.inference.services.custom.CustomServiceSettings;
+import org.elasticsearch.xpack.inference.services.settings.SerializableSecureString;
 
 import java.net.URI;
+import java.net.URISyntaxException;
 import java.nio.charset.StandardCharsets;
 import java.util.HashMap;
 import java.util.List;
@@ -35,11 +39,16 @@ public class CustomRequest implements Request {
     private static final String INPUT = "input";
 
     private final URI uri;
-    private final ValidatingSubstitutor substitutor;
+    private final ValidatingSubstitutor jsonPlaceholderReplacer;
+    private final ValidatingSubstitutor stringPlaceholderReplacer;
     private final CustomModel model;
 
     public CustomRequest(String query, List<String> input, CustomModel model) {
         this.model = Objects.requireNonNull(model);
+
+        var stringOnlyParams = new HashMap<String, String>();
+        addStringParams(stringOnlyParams, model.getSecretSettings().getSecretParameters());
+        addStringParams(stringOnlyParams, model.getTaskSettings().getParameters());
 
         var jsonParams = new HashMap<String, String>();
         addJsonStringParams(jsonParams, model.getSecretSettings().getSecretParameters());
@@ -51,8 +60,21 @@ public class CustomRequest implements Request {
 
         jsonParams.put(INPUT, toJson(input, INPUT));
 
-        substitutor = new ValidatingSubstitutor(jsonParams, "${", "}");
+        jsonPlaceholderReplacer = new ValidatingSubstitutor(jsonParams, "${", "}");
+        stringPlaceholderReplacer = new ValidatingSubstitutor(stringOnlyParams, "${", "}");
         uri = buildUri();
+    }
+
+    private static void addStringParams(Map<String, String> stringParams, Map<String, ?> paramsToAdd) {
+        for (var entry : paramsToAdd.entrySet()) {
+            if (entry.getValue() instanceof String str) {
+                stringParams.put(entry.getKey(), str);
+            } else if (entry.getValue() instanceof SerializableSecureString serializableSecureString) {
+                stringParams.put(entry.getKey(), serializableSecureString.getSecureString().toString());
+            } else if (entry.getValue() instanceof SecureString secureString) {
+                stringParams.put(entry.getKey(), secureString.toString());
+            }
+        }
     }
 
     private static void addJsonStringParams(Map<String, String> jsonStringParams, Map<String, ?> params) {
@@ -62,8 +84,21 @@ public class CustomRequest implements Request {
     }
 
     private URI buildUri() {
-        String replacedUrl = substitutor.replace(model.getServiceSettings().getUrl(), URL);
-        return URI.create(replacedUrl);
+        var replacedUrl = stringPlaceholderReplacer.replace(model.getServiceSettings().getUrl(), URL);
+
+        try {
+            var builder = new URIBuilder(replacedUrl);
+            for (var queryParam : model.getServiceSettings().getQueryParameters().parameters()) {
+                builder.addParameter(
+                    queryParam.key(),
+                    stringPlaceholderReplacer.replace(queryParam.value(), Strings.format("query parameters: [%s]", queryParam.key()))
+                );
+            }
+            return builder.build();
+        } catch (URISyntaxException e) {
+            throw new IllegalStateException(Strings.format("Failed to build URI, error: %s", e.getMessage()), e);
+        }
+
     }
 
     @Override
@@ -81,13 +116,16 @@ public class CustomRequest implements Request {
         httpRequest.setHeader(HttpHeaders.CONTENT_TYPE, XContentType.JSON.mediaType());
 
         for (var entry : model.getServiceSettings().getHeaders().entrySet()) {
-            String replacedHeadersValue = substitutor.replace(entry.getValue(), Strings.format("header.%s", entry.getKey()));
+            String replacedHeadersValue = stringPlaceholderReplacer.replace(entry.getValue(), Strings.format("header.%s", entry.getKey()));
             httpRequest.setHeader(entry.getKey(), replacedHeadersValue);
         }
     }
 
     private void setRequestContent(HttpPost httpRequest) {
-        String replacedRequestContentString = substitutor.replace(model.getServiceSettings().getRequestContentString(), REQUEST_CONTENT);
+        String replacedRequestContentString = jsonPlaceholderReplacer.replace(
+            model.getServiceSettings().getRequestContentString(),
+            REQUEST_CONTENT
+        );
         StringEntity stringEntity = new StringEntity(replacedRequestContentString, StandardCharsets.UTF_8);
         httpRequest.setEntity(stringEntity);
     }

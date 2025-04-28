@@ -20,6 +20,7 @@ import org.elasticsearch.xpack.inference.services.custom.CustomModelTests;
 import org.elasticsearch.xpack.inference.services.custom.CustomSecretSettings;
 import org.elasticsearch.xpack.inference.services.custom.CustomServiceSettings;
 import org.elasticsearch.xpack.inference.services.custom.CustomTaskSettings;
+import org.elasticsearch.xpack.inference.services.custom.QueryParameters;
 import org.elasticsearch.xpack.inference.services.custom.response.ErrorResponseParser;
 import org.elasticsearch.xpack.inference.services.custom.response.TextEmbeddingResponseParser;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
@@ -41,14 +42,19 @@ public class CustomRequestTests extends ESTestCase {
         var dims = 1536;
         var maxInputTokens = 512;
         Map<String, String> headers = Map.of(HttpHeaders.AUTHORIZATION, Strings.format("${api_key}"));
-        var requestContentString = "\"input\":${input}";
+        var requestContentString = """
+            {
+                "input": ${input}
+            }
+            """;
 
         var serviceSettings = new CustomServiceSettings(
             SimilarityMeasure.DOT_PRODUCT,
             dims,
             maxInputTokens,
-            "http://${url}",
+            "${url}",
             headers,
+            new QueryParameters(List.of(new QueryParameters.Parameter("key", "value"), new QueryParameters.Parameter("key", "value2"))),
             requestContentString,
             new TextEmbeddingResponseParser("$.result.embeddings"),
             new RateLimitSettings(10_000),
@@ -59,7 +65,7 @@ public class CustomRequestTests extends ESTestCase {
             "service",
             TaskType.TEXT_EMBEDDING,
             serviceSettings,
-            new CustomTaskSettings(Map.of("url", "elastic.com")),
+            new CustomTaskSettings(Map.of("url", "https://www.elastic.com")),
             new CustomSecretSettings(Map.of("api_key", new SerializableSecureString("my-secret-key")))
         );
 
@@ -68,13 +74,65 @@ public class CustomRequestTests extends ESTestCase {
         assertThat(httpRequest.httpRequestBase(), instanceOf(HttpPost.class));
 
         var httpPost = (HttpPost) httpRequest.httpRequestBase();
-        assertThat(httpPost.getURI().toString(), is("http://elastic.com"));
+        assertThat(httpPost.getURI().toString(), is("https://www.elastic.com?key=value&key=value2"));
         assertThat(httpPost.getLastHeader(HttpHeaders.CONTENT_TYPE).getValue(), is(XContentType.JSON.mediaType()));
         assertThat(httpPost.getLastHeader(HttpHeaders.AUTHORIZATION).getValue(), is("my-secret-key"));
 
         var expectedBody = XContentHelper.stripWhitespace("""
             {
               "input": ["abc", "123"]
+            }
+            """);
+
+        assertThat(convertToString(httpPost.getEntity().getContent()), is(expectedBody));
+    }
+
+    public void testCreateRequest_SecretsInTheJsonBody_AreEncodedCorrectly() throws IOException {
+        var dims = 1536;
+        var maxInputTokens = 512;
+        Map<String, String> headers = Map.of(HttpHeaders.AUTHORIZATION, Strings.format("${api_key}"));
+        var requestContentString = """
+            {
+                "input": ${input},
+                "secret": ${api_key}
+            }
+            """;
+
+        var serviceSettings = new CustomServiceSettings(
+            SimilarityMeasure.DOT_PRODUCT,
+            dims,
+            maxInputTokens,
+            "${url}",
+            headers,
+            new QueryParameters(List.of(new QueryParameters.Parameter("key", "value"), new QueryParameters.Parameter("key", "value2"))),
+            requestContentString,
+            new TextEmbeddingResponseParser("$.result.embeddings"),
+            new RateLimitSettings(10_000),
+            new ErrorResponseParser("$.error.message")
+        );
+
+        var model = CustomModelTests.createModel(
+            "service",
+            TaskType.TEXT_EMBEDDING,
+            serviceSettings,
+            new CustomTaskSettings(Map.of("url", "https://www.elastic.com")),
+            new CustomSecretSettings(Map.of("api_key", new SerializableSecureString("my-secret-key")))
+        );
+
+        var request = new CustomRequest(null, List.of("abc", "123"), model);
+        var httpRequest = request.createHttpRequest();
+        assertThat(httpRequest.httpRequestBase(), instanceOf(HttpPost.class));
+
+        var httpPost = (HttpPost) httpRequest.httpRequestBase();
+        assertThat(httpPost.getURI().toString(), is("https://www.elastic.com?key=value&key=value2"));
+        assertThat(httpPost.getLastHeader(HttpHeaders.CONTENT_TYPE).getValue(), is(XContentType.JSON.mediaType()));
+        assertThat(httpPost.getLastHeader(HttpHeaders.AUTHORIZATION).getValue(), is("my-secret-key"));
+
+        // secret is encoded in json format (with quotes)
+        var expectedBody = XContentHelper.stripWhitespace("""
+            {
+              "input": ["abc", "123"],
+              "secret": "my-secret-key"
             }
             """);
 

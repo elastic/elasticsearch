@@ -11,6 +11,7 @@ import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.inference.InputType;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.ml.inference.assignment.AdaptiveAllocationsSettings;
@@ -26,6 +27,7 @@ import static org.elasticsearch.xpack.inference.services.ServiceUtils.convertMap
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.convertToUri;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.createUri;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalEnum;
+import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalListOfStringTuples;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalMap;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalPositiveInteger;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalPositiveLong;
@@ -993,15 +995,11 @@ public class ServiceUtilsTests extends ESTestCase {
         assertTrue(validation.validationErrors().isEmpty());
     }
 
-    public void testExtractOptionalMap_ReturnsNull_WhenMapIsEmpty() {
+    public void testExtractOptionalMap_ReturnsEmptyMap_WhenEmpty() {
         var validation = new ValidationException();
         var extractedMap = extractOptionalMap(modifiableMap(Map.of("setting", Map.of())), "setting", "scope", validation);
 
-        assertNull(extractedMap);
-        assertThat(
-            validation.getMessage(),
-            is("Validation Failed: 1: [scope] Invalid value empty map. [setting] must be a non-empty map;")
-        );
+        assertThat(extractedMap, is(Map.of()));
     }
 
     public void testValidateMapValues() {
@@ -1151,5 +1149,107 @@ public class ServiceUtilsTests extends ESTestCase {
 
     public void testRemoveNullValues_ReturnsNull_WhenMapIsNull() {
         assertNull(removeNullValues(null));
+    }
+
+    public void testExtractOptionalListOfStringTuples() {
+        var validation = new ValidationException();
+        assertThat(
+            extractOptionalListOfStringTuples(
+                modifiableMap(Map.of("params", List.of(List.of("key", "value"), List.of("key2", "value2")))),
+                "params",
+                "scope",
+                validation
+            ),
+            is(List.of(new Tuple<>("key", "value"), new Tuple<>("key2", "value2")))
+        );
+    }
+
+    public void testExtractOptionalListOfStringTuples_ReturnsNull_WhenFieldIsNotAList() {
+        var validation = new ValidationException();
+        assertNull(extractOptionalListOfStringTuples(modifiableMap(Map.of("params", Map.of())), "params", "scope", validation));
+
+        assertThat(
+            validation.getMessage(),
+            is("Validation Failed: 1: field [params] is not of the expected type. The value [{}] cannot be converted to a [List];")
+        );
+    }
+
+    public void testExtractOptionalListOfStringTuples_Exception_WhenTupleIsNotAList() {
+        var validation = new ValidationException();
+        var exception = expectThrows(
+            ValidationException.class,
+            () -> extractOptionalListOfStringTuples(modifiableMap(Map.of("params", List.of("string"))), "params", "scope", validation)
+        );
+
+        assertThat(
+            exception.getMessage(),
+            is(
+                "Validation Failed: 1: [scope] failed to parse tuple list entry [0] for setting "
+                    + "[params], expected a list but the entry is [String];"
+            )
+        );
+    }
+
+    public void testExtractOptionalListOfStringTuples_Exception_WhenTupleIsListSize2() {
+        var validation = new ValidationException();
+        var exception = expectThrows(
+            ValidationException.class,
+            () -> extractOptionalListOfStringTuples(
+                modifiableMap(Map.of("params", List.of(List.of("string")))),
+                "params",
+                "scope",
+                validation
+            )
+        );
+
+        assertThat(
+            exception.getMessage(),
+            is(
+                "Validation Failed: 1: [scope] failed to parse tuple list entry "
+                    + "[0] for setting [params], the tuple list size must be two, but was [1];"
+            )
+        );
+    }
+
+    public void testExtractOptionalListOfStringTuples_Exception_WhenTupleFirstElement_IsNotAString() {
+        var validation = new ValidationException();
+        var exception = expectThrows(
+            ValidationException.class,
+            () -> extractOptionalListOfStringTuples(
+                modifiableMap(Map.of("params", List.of(List.of(1, "value")))),
+                "params",
+                "scope",
+                validation
+            )
+        );
+
+        assertThat(
+            exception.getMessage(),
+            is(
+                "Validation Failed: 1: [scope] failed to parse tuple list entry [0] for setting [params], "
+                    + "the first element must be a string but was [Integer];"
+            )
+        );
+    }
+
+    public void testExtractOptionalListOfStringTuples_Exception_WhenTupleSecondElement_IsNotAString() {
+        var validation = new ValidationException();
+        var exception = expectThrows(
+            ValidationException.class,
+            () -> extractOptionalListOfStringTuples(
+                modifiableMap(Map.of("params", List.of(List.of("key", 2)))),
+                "params",
+                "scope",
+                validation
+            )
+        );
+
+        assertThat(
+            exception.getMessage(),
+            is(
+                "Validation Failed: 1: [scope] failed to parse tuple list entry [0] for setting [params], "
+                    + "the second element must be a string but was [Integer];"
+            )
+        );
     }
 }

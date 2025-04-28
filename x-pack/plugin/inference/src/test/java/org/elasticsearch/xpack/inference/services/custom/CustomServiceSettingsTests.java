@@ -34,6 +34,7 @@ import org.hamcrest.MatcherAssert;
 
 import java.io.IOException;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 import static org.hamcrest.Matchers.is;
@@ -49,11 +50,13 @@ public class CustomServiceSettingsTests extends AbstractBWCWireSerializationTest
             similarityMeasure = SimilarityMeasure.DOT_PRODUCT;
             dims = 1536;
         }
-        Integer maxInputTokens = randomBoolean() ? null : randomIntBetween(128, 256);
-        String url = inputUrl != null ? inputUrl : randomAlphaOfLength(15);
+        var maxInputTokens = randomBoolean() ? null : randomIntBetween(128, 256);
+        var url = inputUrl != null ? inputUrl : randomAlphaOfLength(15);
         Map<String, String> headers = randomBoolean() ? Map.of() : Map.of("key", "value");
-        Map<String, String> queryParameters = randomBoolean() ? Map.of() : Map.of("param1", "value1");
-        String requestContentString = randomAlphaOfLength(10);
+        var queryParameters = randomBoolean()
+            ? QueryParameters.EMPTY
+            : new QueryParameters(List.of(new QueryParameters.Parameter("key", "value")));
+        var requestContentString = randomAlphaOfLength(10);
 
         var responseJsonParser = switch (taskType) {
             case TEXT_EMBEDDING -> new TextEmbeddingResponseParser("$.result.embeddings[*].embedding");
@@ -98,7 +101,7 @@ public class CustomServiceSettingsTests extends AbstractBWCWireSerializationTest
         Integer maxInputTokens = 512;
         String url = "http://www.abc.com";
         Map<String, String> headers = Map.of("key", "value");
-        Map<String, String> queryParameters = Map.of("param1", "value1");
+        var queryParameters = new QueryParameters(List.of(new QueryParameters.Parameter("key", "value")));
         String requestContentString = "request body";
 
         var responseParser = new TextEmbeddingResponseParser("$.result.embeddings[*].embedding");
@@ -116,7 +119,7 @@ public class CustomServiceSettingsTests extends AbstractBWCWireSerializationTest
                     url,
                     CustomServiceSettings.HEADERS,
                     headers,
-                    CustomServiceSettings.QUERY_PARAMETERS,
+                    QueryParameters.QUERY_PARAMETERS,
                     queryParameters,
                     CustomServiceSettings.REQUEST,
                     new HashMap<>(Map.of(CustomServiceSettings.REQUEST_CONTENT, requestContentString)),
@@ -195,7 +198,7 @@ public class CustomServiceSettingsTests extends AbstractBWCWireSerializationTest
                     null,
                     url,
                     Map.of(),
-                    Map.of(),
+                    null,
                     requestContentString,
                     responseParser,
                     new RateLimitSettings(10_000),
@@ -215,10 +218,6 @@ public class CustomServiceSettingsTests extends AbstractBWCWireSerializationTest
         headersWithNulls.put("value", "abc");
         headersWithNulls.put("null", null);
 
-        var queryParamsWithNulls = new HashMap<String, Object>();
-        queryParamsWithNulls.put("value", "abc");
-        queryParamsWithNulls.put("null", null);
-
         String requestContentString = "request body";
 
         var responseParser = new TextEmbeddingResponseParser("$.result.embeddings[*].embedding");
@@ -236,8 +235,6 @@ public class CustomServiceSettingsTests extends AbstractBWCWireSerializationTest
                     url,
                     CustomServiceSettings.HEADERS,
                     headersWithNulls,
-                    CustomServiceSettings.QUERY_PARAMETERS,
-                    queryParamsWithNulls,
                     CustomServiceSettings.REQUEST,
                     new HashMap<>(Map.of(CustomServiceSettings.REQUEST_CONTENT, requestContentString)),
                     CustomServiceSettings.RESPONSE,
@@ -266,6 +263,7 @@ public class CustomServiceSettingsTests extends AbstractBWCWireSerializationTest
                     maxInputTokens,
                     url,
                     Map.of("value", "abc"),
+                    null,
                     requestContentString,
                     responseParser,
                     new RateLimitSettings(10_000),
@@ -320,6 +318,55 @@ public class CustomServiceSettingsTests extends AbstractBWCWireSerializationTest
             is(
                 "Validation Failed: 1: Map field [headers] has an entry that is not valid, [key => 1]. "
                     + "Value type of [1] is not one of [String].;"
+            )
+        );
+    }
+
+    public void testFromMap_ReturnsError_IfQueryParamsContainsNonStringValues() {
+        String similarity = SimilarityMeasure.DOT_PRODUCT.toString();
+        Integer dims = 1536;
+        Integer maxInputTokens = 512;
+        String url = "http://www.abc.com";
+        String requestContentString = "request body";
+
+        var mapSettings = new HashMap<>(
+            Map.of(
+                ServiceFields.SIMILARITY,
+                similarity,
+                ServiceFields.DIMENSIONS,
+                dims,
+                ServiceFields.MAX_INPUT_TOKENS,
+                maxInputTokens,
+                CustomServiceSettings.URL,
+                url,
+                QueryParameters.QUERY_PARAMETERS,
+                List.of(List.of("key", 1)),
+                CustomServiceSettings.REQUEST,
+                new HashMap<>(Map.of(CustomServiceSettings.REQUEST_CONTENT, requestContentString)),
+                CustomServiceSettings.RESPONSE,
+                new HashMap<>(
+                    Map.of(
+                        CustomServiceSettings.JSON_PARSER,
+                        new HashMap<>(
+                            Map.of(TextEmbeddingResponseParser.TEXT_EMBEDDING_PARSER_EMBEDDINGS, "$.result.embeddings[*].embedding")
+                        ),
+                        CustomServiceSettings.ERROR_PARSER,
+                        new HashMap<>(Map.of(ErrorResponseParser.MESSAGE_PATH, "$.error.message"))
+                    )
+                )
+            )
+        );
+
+        var exception = expectThrows(
+            ValidationException.class,
+            () -> CustomServiceSettings.fromMap(mapSettings, ConfigurationParseContext.REQUEST, TaskType.TEXT_EMBEDDING)
+        );
+
+        assertThat(
+            exception.getMessage(),
+            is(
+                "Validation Failed: 1: [service_settings] failed to parse tuple list entry [0] "
+                    + "for setting [query_parameters], the second element must be a string but was [Integer];"
             )
         );
     }
@@ -604,12 +651,7 @@ public class CustomServiceSettingsTests extends AbstractBWCWireSerializationTest
             () -> CustomServiceSettings.fromMap(mapSettings, ConfigurationParseContext.REQUEST, TaskType.CHAT_COMPLETION)
         );
 
-        assertThat(
-            exception.getMessage(),
-            is(
-                "Invalid task type received [chat_completion] while constructing response parser"
-            )
-        );
+        assertThat(exception.getMessage(), is("Invalid task type received [chat_completion] while constructing response parser"));
     }
 
     public void testXContent() throws IOException {
@@ -619,6 +661,7 @@ public class CustomServiceSettingsTests extends AbstractBWCWireSerializationTest
             null,
             "http://www.abc.com",
             Map.of("key", "value"),
+            null,
             "string",
             new TextEmbeddingResponseParser("$.result.embeddings[*].embedding"),
             null,

@@ -14,6 +14,7 @@ import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.SimilarityMeasure;
@@ -25,6 +26,7 @@ import org.elasticsearch.xpack.inference.services.settings.SerializableSecureStr
 
 import java.net.URI;
 import java.net.URISyntaxException;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.EnumSet;
 import java.util.HashMap;
@@ -491,15 +493,88 @@ public final class ServiceUtils {
             return null;
         }
 
-        if (optionalField != null && optionalField.isEmpty()) {
-            validationException.addValidationError(ServiceUtils.mustBeNonEmptyMap(settingName, scope));
-        }
+        return optionalField;
+    }
+
+    public static List<Tuple<String, String>> extractOptionalListOfStringTuples(
+        Map<String, Object> map,
+        String settingName,
+        String scope,
+        ValidationException validationException
+    ) {
+        int initialValidationErrorCount = validationException.validationErrors().size();
+        List<?> optionalField = ServiceUtils.removeAsType(map, settingName, List.class, validationException);
 
         if (validationException.validationErrors().size() > initialValidationErrorCount) {
             return null;
         }
 
-        return optionalField;
+        if (optionalField == null) {
+            return null;
+        }
+
+        var tuples = new ArrayList<Tuple<String, String>>();
+        for (int tuplesIndex = 0; tuplesIndex < optionalField.size(); tuplesIndex++) {
+
+            var tupleEntry = optionalField.get(tuplesIndex);
+            if (tupleEntry instanceof List<?> == false) {
+                validationException.addValidationError(
+                    Strings.format(
+                        "[%s] failed to parse tuple list entry [%d] for setting [%s], expected a list but the entry is [%s]",
+                        scope,
+                        tuplesIndex,
+                        settingName,
+                        tupleEntry.getClass().getSimpleName()
+                    )
+                );
+                throw validationException;
+            }
+
+            var listEntry = (List<?>) tupleEntry;
+            if (listEntry.size() != 2) {
+                validationException.addValidationError(
+                    Strings.format(
+                        "[%s] failed to parse tuple list entry [%d] for setting [%s], the tuple list size must be two, but was [%d]",
+                        scope,
+                        tuplesIndex,
+                        settingName,
+                        listEntry.size()
+                    )
+                );
+                throw validationException;
+            }
+
+            var firstElement = listEntry.get(0);
+            var secondElement = listEntry.get(1);
+            validateTuple(firstElement, settingName, scope, "the first element", tuplesIndex, validationException);
+            validateTuple(secondElement, settingName, scope, "the second element", tuplesIndex, validationException);
+            tuples.add(new Tuple<>((String) firstElement, (String) secondElement));
+        }
+
+        return tuples;
+    }
+
+    private static void validateTuple(
+        Object tupleValue,
+        String settingName,
+        String scope,
+        String elementDescription,
+        int index,
+        ValidationException validationException
+    ) {
+        if (tupleValue instanceof String == false) {
+            validationException.addValidationError(
+                Strings.format(
+                    "[%s] failed to parse tuple list entry [%d] for setting [%s], %s must be a string but was [%s]",
+                    scope,
+                    index,
+                    settingName,
+                    elementDescription,
+                    tupleValue.getClass().getSimpleName()
+                )
+            );
+            throw validationException;
+        }
     }
 
     /**
@@ -540,7 +615,7 @@ public final class ServiceUtils {
         }
 
         for (var entry : map.entrySet()) {
-            boolean isAllowed = false;
+            var isAllowed = false;
 
             for (Class<?> allowedType : allowedTypes) {
                 if (allowedType.isInstance(entry.getValue())) {

@@ -113,6 +113,7 @@ public class CustomModelTests extends ESTestCase {
             maxInputTokens,
             url,
             headers,
+            QueryParameters.EMPTY,
             requestContentString,
             responseParser,
             new RateLimitSettings(10_000),

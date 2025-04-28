@@ -29,7 +29,6 @@ import static org.elasticsearch.xpack.inference.services.ServiceUtils.validateMa
 public class CustomTaskSettings implements TaskSettings {
     public static final String NAME = "custom_task_settings";
 
-    public static final String PARAMETERS = "json_parameters";
     public static final String PARAMETERS = "parameters";
 
     static final CustomTaskSettings EMPTY_SETTINGS = new CustomTaskSettings(new HashMap<>());

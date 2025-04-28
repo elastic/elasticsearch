@@ -14,6 +14,10 @@ To learn how to upgrade, check out <upgrade docs>.
 
 % ## Next version [elasticsearch-nextversion-breaking-changes]
 
+## 9.0.1 [elasticsearch-901-breaking-changes]
+
+No breaking changes in this version.
+
 ## 9.0.0 [elasticsearch-900-breaking-changes]
 
 Aggregations:

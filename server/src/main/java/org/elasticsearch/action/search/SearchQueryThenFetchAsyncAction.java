@@ -468,27 +468,12 @@ public class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<S
                 @Override
                 protected void doRun() {
                     if (hasPrimaryFieldSort(request.source())) {
-                        var pitBuilder = request.pointInTimeBuilder();
                         @SuppressWarnings("rawtypes")
                         final MinAndMax[] minAndMax = new MinAndMax[localNodeRequest.shards.size()];
                         for (int i = 0; i < minAndMax.length; i++) {
-                            var shardToQuery = localNodeRequest.shards.get(i);
-                            var shardId = shardToQuery.shardId;
-                            var r = buildShardSearchRequest(
-                                shardId,
-                                localNodeRequest.localClusterAlias,
-                                shardToQuery.shardIndex,
-                                shardToQuery.contextId,
-                                new OriginalIndices(shardToQuery.originalIndices, request.indicesOptions()),
-                                localNodeRequest.aliasFilters.getOrDefault(shardId.getIndex().getUUID(), AliasFilter.EMPTY),
-                                pitBuilder == null ? null : pitBuilder.getKeepAlive(),
-                                shardToQuery.boost,
-                                request,
-                                localNodeRequest.totalShards,
-                                localNodeRequest.absoluteStartMillis,
-                                false
-                            );
-                            minAndMax[i] = searchService.canMatch(r).estimatedMinAndMax();
+                            minAndMax[i] = searchService.canMatch(
+                                buildShardSearchRequestForLocal(localNodeRequest, localNodeRequest.shards.get(i))
+                            ).estimatedMinAndMax();
                         }
                         try {
                             int[] indexes = CanMatchPreFilterSearchPhase.sortShards(
@@ -597,6 +582,26 @@ public class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<S
         });
     }
 
+    private static ShardSearchRequest buildShardSearchRequestForLocal(NodeQueryRequest nodeQueryRequest, ShardToQuery shardToQuery) {
+        var shardId = shardToQuery.shardId;
+        var searchRequest = nodeQueryRequest.searchRequest;
+        var pitBuilder = searchRequest.pointInTimeBuilder();
+        return buildShardSearchRequest(
+            shardId,
+            nodeQueryRequest.localClusterAlias,
+            shardToQuery.shardIndex,
+            shardToQuery.contextId,
+            new OriginalIndices(shardToQuery.originalIndices, searchRequest.indicesOptions()),
+            nodeQueryRequest.aliasFilters.getOrDefault(shardId.getIndex().getUUID(), AliasFilter.EMPTY),
+            pitBuilder == null ? null : pitBuilder.getKeepAlive(),
+            shardToQuery.boost,
+            searchRequest,
+            nodeQueryRequest.totalShards,
+            nodeQueryRequest.absoluteStartMillis,
+            false
+        );
+    }
+
     public static boolean connectionSupportsBatchedExecution(Transport.Connection connection) {
         return connection.getTransportVersion().onOrAfter(TransportVersions.BATCHED_QUERY_PHASE_VERSION)
             || connection.getNode().getVersionInformation().nodeVersion().onOrAfter(Version.V_9_1_0);
@@ -647,26 +652,10 @@ public class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<S
                 final ShardSearchRequest[] shardSearchRequests;
                 if (hasPrimaryFieldSort(searchRequest.source())) {
                     shardSearchRequests = new ShardSearchRequest[request.shards.size()];
-                    var pitBuilder = searchRequest.pointInTimeBuilder();
                     @SuppressWarnings("rawtypes")
                     final MinAndMax[] minAndMax = new MinAndMax[request.shards.size()];
                     for (int i = 0; i < minAndMax.length; i++) {
-                        var shardToQuery = request.shards.get(i);
-                        var shardId = shardToQuery.shardId;
-                        var r = buildShardSearchRequest(
-                            shardId,
-                            request.localClusterAlias,
-                            shardToQuery.shardIndex,
-                            shardToQuery.contextId,
-                            new OriginalIndices(shardToQuery.originalIndices, request.indicesOptions()),
-                            request.aliasFilters.getOrDefault(shardId.getIndex().getUUID(), AliasFilter.EMPTY),
-                            pitBuilder == null ? null : pitBuilder.getKeepAlive(),
-                            shardToQuery.boost,
-                            searchRequest,
-                            request.totalShards,
-                            request.absoluteStartMillis,
-                            false
-                        );
+                        ShardSearchRequest r = buildShardSearchRequestForLocal(request, request.shards.get(i));
                         shardSearchRequests[i] = r;
                         minAndMax[i] = searchService.canMatch(r).estimatedMinAndMax();
                     }

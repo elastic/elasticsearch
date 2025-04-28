@@ -111,14 +111,6 @@ public class DefaultMappingParametersHandler implements DataSourceHandler {
                 injected.put("null_value", ESTestCase.randomAlphaOfLengthBetween(0, 10));
             }
 
-            if (ESTestCase.randomDouble() <= 0.1) {
-                var textMultiFieldMapping = textMapping(request, new HashMap<>()).get();
-                textMultiFieldMapping.put("type", "text");
-                textMultiFieldMapping.remove("fields");
-
-                injected.put("fields", Map.of("txt", textMultiFieldMapping));
-            }
-
             return injected;
         };
     }

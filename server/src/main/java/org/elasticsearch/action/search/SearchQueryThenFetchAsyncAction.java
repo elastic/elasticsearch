@@ -32,6 +32,7 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.util.concurrent.CountDown;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.ListenableFuture;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.core.SimpleRefCounted;
 import org.elasticsearch.core.TimeValue;
@@ -78,6 +79,7 @@ import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiFunction;
+import java.util.function.IntUnaryOperator;
 
 import static org.elasticsearch.action.search.SearchPhaseController.getTopDocsSize;
 import static org.elasticsearch.search.sort.FieldSortBuilder.hasPrimaryFieldSort;
@@ -579,8 +581,10 @@ public class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<S
             NodeQueryRequest::new,
             (request, channel, task) -> {
                 final SearchRequest searchRequest = request.searchRequest;
-                final List<ShardToQuery> shards;
+                final IntUnaryOperator shards;
+                final ShardSearchRequest[] shardSearchRequests;
                 if (hasPrimaryFieldSort(searchRequest.source())) {
+                    shardSearchRequests = new ShardSearchRequest[request.shards.size()];
                     var pitBuilder = searchRequest.pointInTimeBuilder();
                     @SuppressWarnings("rawtypes")
                     final MinAndMax[] minAndMax = new MinAndMax[request.shards.size()];
@@ -601,19 +605,21 @@ public class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<S
                             request.absoluteStartMillis,
                             false
                         );
-                        var res = searchService.canMatch(r);
-                        minAndMax[i] = res.estimatedMinAndMax();
+                        shardSearchRequests[i] = r;
+                        minAndMax[i] = searchService.canMatch(r).estimatedMinAndMax();
                     }
-                    shards = CanMatchPreFilterSearchPhase.sortShards(
+                    int[] indexes = CanMatchPreFilterSearchPhase.sortShards(
                         request.shards,
                         minAndMax,
                         FieldSortBuilder.getPrimaryFieldSortOrNull(searchRequest.source()).order()
                     );
+                    shards = pos -> indexes[pos];
                 } else {
-                    shards = request.shards;
+                    shardSearchRequests = null;
+                    shards = IntUnaryOperator.identity();
                 }
                 final CancellableTask cancellableTask = (CancellableTask) task;
-                final int shardCount = shards.size();
+                final int shardCount = request.shards.size();
                 int workers = Math.min(request.searchRequest.getMaxConcurrentShardRequests(), Math.min(shardCount, searchPoolMax));
                 final var state = new QueryPerNodeState(
                     new QueryPhaseResultConsumer(
@@ -630,7 +636,8 @@ public class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<S
                     shards,
                     cancellableTask,
                     channel,
-                    dependencies
+                    dependencies,
+                    shardSearchRequests
                 );
                 // TODO: log activating or otherwise limiting parallelism might be helpful here
                 for (int i = 0; i < workers; i++) {
@@ -694,35 +701,39 @@ public class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<S
 
     private static void executeShardTasks(QueryPerNodeState state) {
         int idx;
-        final int totalShardCount = state.shardsToQuery.size();
+        final NodeQueryRequest nodeQueryRequest = state.nodeQueryRequest;
+        var shards = nodeQueryRequest.shards;
+        final int totalShardCount = shards.size();
         while ((idx = state.currentShardIndex.getAndIncrement()) < totalShardCount) {
             final int dataNodeLocalIdx = idx;
             final ListenableFuture<Void> doneFuture = new ListenableFuture<>();
             try {
-                final NodeQueryRequest nodeQueryRequest = state.nodeQueryRequest;
                 final SearchRequest searchRequest = nodeQueryRequest.searchRequest;
                 var pitBuilder = searchRequest.pointInTimeBuilder();
-                var shardToQuery = state.shardsToQuery.get(dataNodeLocalIdx);
+                int translatedIndex = state.shardsToQuery.applyAsInt(dataNodeLocalIdx);
+                var shardToQuery = shards.get(translatedIndex);
                 final var shardId = shardToQuery.shardId;
+                ShardSearchRequest r = state.shardSearchRequests == null ? null : state.shardSearchRequests[translatedIndex];
+                if (r == null) {
+                    r = buildShardSearchRequest(
+                        shardId,
+                        nodeQueryRequest.localClusterAlias,
+                        shardToQuery.shardIndex,
+                        shardToQuery.contextId,
+                        new OriginalIndices(shardToQuery.originalIndices, nodeQueryRequest.indicesOptions()),
+                        nodeQueryRequest.aliasFilters.getOrDefault(shardId.getIndex().getUUID(), AliasFilter.EMPTY),
+                        pitBuilder == null ? null : pitBuilder.getKeepAlive(),
+                        shardToQuery.boost,
+                        searchRequest,
+                        nodeQueryRequest.totalShards,
+                        nodeQueryRequest.absoluteStartMillis,
+                        state.hasResponse.getAcquire()
+                    );
+                } else {
+                    state.shardSearchRequests[translatedIndex] = null;
+                }
                 state.dependencies.searchService.executeQueryPhase(
-                    tryRewriteWithUpdatedSortValue(
-                        state.bottomSortCollector,
-                        state.trackTotalHitsUpTo,
-                        buildShardSearchRequest(
-                            shardId,
-                            nodeQueryRequest.localClusterAlias,
-                            shardToQuery.shardIndex,
-                            shardToQuery.contextId,
-                            new OriginalIndices(shardToQuery.originalIndices, nodeQueryRequest.indicesOptions()),
-                            nodeQueryRequest.aliasFilters.getOrDefault(shardId.getIndex().getUUID(), AliasFilter.EMPTY),
-                            pitBuilder == null ? null : pitBuilder.getKeepAlive(),
-                            shardToQuery.boost,
-                            searchRequest,
-                            nodeQueryRequest.totalShards,
-                            nodeQueryRequest.absoluteStartMillis,
-                            state.hasResponse.getAcquire()
-                        )
-                    ),
+                    tryRewriteWithUpdatedSortValue(state.bottomSortCollector, state.trackTotalHitsUpTo, r),
                     state.task,
                     new SearchActionListener<>(
                         new SearchShardTarget(null, shardToQuery.shardId, nodeQueryRequest.localClusterAlias),
@@ -781,7 +792,7 @@ public class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<S
         private final AtomicInteger currentShardIndex = new AtomicInteger();
         private final QueryPhaseResultConsumer queryPhaseResultConsumer;
         private final NodeQueryRequest nodeQueryRequest;
-        private final List<ShardToQuery> shardsToQuery;
+        private final IntUnaryOperator shardsToQuery;
         private final CancellableTask task;
         private final ConcurrentHashMap<Integer, Exception> failures = new ConcurrentHashMap<>();
         private final Dependencies dependencies;
@@ -789,16 +800,18 @@ public class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<S
         private final int trackTotalHitsUpTo;
         private final int topDocsSize;
         private final CountDown countDown;
+        private final @Nullable ShardSearchRequest[] shardSearchRequests;
         private final TransportChannel channel;
         private volatile BottomSortValuesCollector bottomSortCollector;
 
         private QueryPerNodeState(
             QueryPhaseResultConsumer queryPhaseResultConsumer,
             NodeQueryRequest nodeQueryRequest,
-            List<ShardToQuery> shardsToQuery,
+            IntUnaryOperator shardsToQuery,
             CancellableTask task,
             TransportChannel channel,
-            Dependencies dependencies
+            Dependencies dependencies,
+            @Nullable ShardSearchRequest[] shardSearchRequests
         ) {
             this.queryPhaseResultConsumer = queryPhaseResultConsumer;
             this.nodeQueryRequest = nodeQueryRequest;
@@ -809,6 +822,7 @@ public class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<S
             this.countDown = new CountDown(queryPhaseResultConsumer.getNumShards());
             this.channel = channel;
             this.dependencies = dependencies;
+            this.shardSearchRequests = shardSearchRequests;
         }
 
         void onShardDone() {
@@ -837,11 +851,11 @@ public class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<S
                 // translate shard indices to those on the coordinator so that it can interpret the merge result without adjustments,
                 // also collect the set of indices that may be part of a subsequent fetch operation here so that we can release all other
                 // indices without a roundtrip to the coordinating node
-                final BitSet relevantShardIndices = new BitSet(shardsToQuery.size());
+                final BitSet relevantShardIndices = new BitSet(nodeQueryRequest.shards.size());
                 if (mergeResult.reducedTopDocs() != null) {
                     for (ScoreDoc scoreDoc : mergeResult.reducedTopDocs().scoreDocs) {
                         final int localIndex = scoreDoc.shardIndex;
-                        scoreDoc.shardIndex = shardsToQuery.get(localIndex).shardIndex;
+                        scoreDoc.shardIndex = nodeQueryRequest.shards.get(localIndex).shardIndex;
                         relevantShardIndices.set(localIndex);
                     }
                 }
@@ -851,10 +865,9 @@ public class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<S
                 try {
                     out.writeVInt(resultCount);
                     for (int i = 0; i < resultCount; i++) {
-                        int idx = shardsToQuery.indexOf(nodeQueryRequest.shards.get(i));
-                        var result = queryPhaseResultConsumer.results.get(idx);
+                        var result = queryPhaseResultConsumer.results.get(i);
                         if (result == null) {
-                            NodeQueryResponse.writePerShardException(out, failures.remove(idx));
+                            NodeQueryResponse.writePerShardException(out, failures.remove(i));
                         } else {
                             // free context id and remove it from the result right away in case we don't need it anymore
                             maybeFreeContext(result, relevantShardIndices);

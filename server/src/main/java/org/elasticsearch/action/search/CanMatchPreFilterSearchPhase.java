@@ -474,10 +474,15 @@ final class CanMatchPreFilterSearchPhase {
         if (shouldSortShards(minAndMaxes) == false) {
             return shardsIts;
         }
-        return sortShards(shardsIts, minAndMaxes, FieldSortBuilder.getPrimaryFieldSortOrNull(request.source()).order());
+        int[] indexTranslation = sortShards(shardsIts, minAndMaxes, FieldSortBuilder.getPrimaryFieldSortOrNull(request.source()).order());
+        List<SearchShardIterator> list = new ArrayList<>(indexTranslation.length);
+        for (int in : indexTranslation) {
+            list.add(shardsIts.get(in));
+        }
+        return list;
     }
 
-    public static <T extends Comparable<T>> List<T> sortShards(List<T> shardsIts, MinAndMax<?>[] minAndMaxes, SortOrder order) {
+    public static <T extends Comparable<T>> int[] sortShards(List<T> shardsIts, MinAndMax<?>[] minAndMaxes, SortOrder order) {
         int bound = shardsIts.size();
         List<Integer> toSort = new ArrayList<>(bound);
         for (int i = 0; i < bound; i++) {
@@ -491,11 +496,11 @@ final class CanMatchPreFilterSearchPhase {
             }
             return shardsIts.get(idx1).compareTo(shardsIts.get(idx2));
         });
-        List<T> list = new ArrayList<>(bound);
-        for (Integer integer : toSort) {
-            list.add(shardsIts.get(integer));
+        int[] result = new int[bound];
+        for (int i = 0; i < bound; i++) {
+            result[i] = toSort.get(i);
         }
-        return list;
+        return result;
     }
 
     private static boolean shouldSortShards(MinAndMax<?>[] minAndMaxes) {

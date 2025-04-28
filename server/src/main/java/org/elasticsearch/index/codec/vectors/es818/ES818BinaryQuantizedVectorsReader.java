@@ -119,11 +119,6 @@ public class ES818BinaryQuantizedVectorsReader extends FlatVectorsReader impleme
         }
     }
 
-    // only for tests
-    FlatVectorsReader getRawVectorsReader() {
-        return rawVectorsReader;
-    }
-
     private void readFields(ChecksumIndexInput meta, FieldInfos infos) throws IOException {
         for (int fieldNumber = meta.readInt(); fieldNumber != -1; fieldNumber = meta.readInt()) {
             FieldInfo info = infos.fieldInfo(fieldNumber);

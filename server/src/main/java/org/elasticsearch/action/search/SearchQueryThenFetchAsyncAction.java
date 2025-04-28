@@ -401,11 +401,13 @@ public class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<S
         // disable tracking total hits if we already reached the required estimation.
         if (trackTotalHitsUpTo != SearchContext.TRACK_TOTAL_HITS_ACCURATE && bottomSortCollector.getTotalHits() > trackTotalHitsUpTo) {
             request.source(request.source().shallowCopy().trackTotalHits(false));
+            request.setRunCanMatchInQueryPhase(true);
         }
 
         // set the current best bottom field doc
         if (bottomSortCollector.getBottomSortValues() != null) {
             request.setBottomSortValues(bottomSortCollector.getBottomSortValues());
+            request.setRunCanMatchInQueryPhase(true);
         }
         return request;
     }
@@ -467,30 +469,32 @@ public class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<S
             transportService.getThreadPool().executor(ThreadPool.Names.SEARCH_COORDINATION).execute(new AbstractRunnable() {
                 @Override
                 protected void doRun() {
-                    if (hasPrimaryFieldSort(request.source())) {
+                    var shards = localNodeRequest.shards;
+                    if (shards.size() > 1 && hasPrimaryFieldSort(request.source())) {
                         @SuppressWarnings("rawtypes")
-                        final MinAndMax[] minAndMax = new MinAndMax[localNodeRequest.shards.size()];
+                        final MinAndMax[] minAndMax = new MinAndMax[shards.size()];
                         for (int i = 0; i < minAndMax.length; i++) {
-                            minAndMax[i] = searchService.canMatch(
-                                buildShardSearchRequestForLocal(localNodeRequest, localNodeRequest.shards.get(i))
-                            ).estimatedMinAndMax();
+                            // TODO: refactor to avoid building the search request twice, here and then when actually executing the query
+                            minAndMax[i] = searchService.canMatch(buildShardSearchRequestForLocal(localNodeRequest, shards.get(i)))
+                                .estimatedMinAndMax();
                         }
+
                         try {
-                            int[] indexes = CanMatchPreFilterSearchPhase.sortShards(
-                                localNodeRequest.shards,
+                            final int[] indexes = CanMatchPreFilterSearchPhase.sortShards(
+                                shards,
                                 minAndMax,
                                 FieldSortBuilder.getPrimaryFieldSortOrNull(request.source()).order()
                             );
+                            final ShardToQuery[] orig = shards.toArray(new ShardToQuery[0]);
                             for (int i = 0; i < indexes.length; i++) {
-                                ShardToQuery shardToQuery = localNodeRequest.shards.get(i);
-                                shardToQuery = localNodeRequest.shards.set(i, shardToQuery);
-                                localNodeRequest.shards.set(i, shardToQuery);
+                                shards.set(i, orig[indexes[i]]);
                             }
                         } catch (Exception e) {
                             // ignored, field type conflicts will be dealt with in upstream logic
                             // TODO: we should fail the query here, we're already seeing a field type conflict on the sort field,
                             // no need to actually execute the queries and go through a lot of work before we inevitably have to
                             // fail the search
+
                         }
                     }
                     executeWithoutBatching(localTarget, localNodeRequest);
@@ -650,14 +654,21 @@ public class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<S
                 final SearchRequest searchRequest = request.searchRequest;
                 final IntUnaryOperator shards;
                 final ShardSearchRequest[] shardSearchRequests;
-                if (hasPrimaryFieldSort(searchRequest.source())) {
-                    shardSearchRequests = new ShardSearchRequest[request.shards.size()];
+                final int shardCount = request.shards.size();
+                if (shardCount > 1 && hasPrimaryFieldSort(searchRequest.source())) {
+                    shardSearchRequests = new ShardSearchRequest[shardCount];
                     @SuppressWarnings("rawtypes")
-                    final MinAndMax[] minAndMax = new MinAndMax[request.shards.size()];
+                    final MinAndMax[] minAndMax = new MinAndMax[shardCount];
                     for (int i = 0; i < minAndMax.length; i++) {
                         ShardSearchRequest r = buildShardSearchRequestForLocal(request, request.shards.get(i));
                         shardSearchRequests[i] = r;
-                        minAndMax[i] = searchService.canMatch(r).estimatedMinAndMax();
+                        var canMatch = searchService.canMatch(r);
+                        if (canMatch.canMatch()) {
+                            r.setRunCanMatchInQueryPhase(false);
+                            minAndMax[i] = canMatch.estimatedMinAndMax();
+                        } else {
+                            assert false;
+                        }
                     }
                     int[] indexes = CanMatchPreFilterSearchPhase.sortShards(
                         request.shards,
@@ -670,11 +681,10 @@ public class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<S
                     shards = IntUnaryOperator.identity();
                 }
                 final CancellableTask cancellableTask = (CancellableTask) task;
-                final int shardCount = request.shards.size();
-                int workers = Math.min(request.searchRequest.getMaxConcurrentShardRequests(), Math.min(shardCount, searchPoolMax));
+                int workers = Math.min(searchRequest.getMaxConcurrentShardRequests(), Math.min(shardCount, searchPoolMax));
                 final var state = new QueryPerNodeState(
                     new QueryPhaseResultConsumer(
-                        request.searchRequest,
+                        searchRequest,
                         dependencies.executor,
                         searchService.getCircuitBreaker(),
                         searchPhaseController,

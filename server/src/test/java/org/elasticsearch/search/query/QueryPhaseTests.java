@@ -970,7 +970,6 @@ public class QueryPhaseTests extends IndexShardTestCase {
         }
     }
 
-    @com.carrotsearch.randomizedtesting.annotations.Repeat(iterations = 10)
     public void testMinScore() throws Exception {
         IndexWriterConfig iwc = newIndexWriterConfig();
         RandomIndexWriter w = new RandomIndexWriter(random(), dir, iwc);

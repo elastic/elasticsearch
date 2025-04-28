@@ -220,8 +220,6 @@ tests:
 - class: org.elasticsearch.xpack.spatial.search.GeoGridAggAndQueryConsistencyIT
   method: testGeoShapeGeoHash
   issue: https://github.com/elastic/elasticsearch/issues/115664
-- class: org.elasticsearch.indices.mapping.UpdateMappingIntegrationIT
-  issue: https://github.com/elastic/elasticsearch/issues/116126
 - class: org.elasticsearch.upgrades.FullClusterRestartIT
   method: testSnapshotRestore {cluster=OLD}
   issue: https://github.com/elastic/elasticsearch/issues/111777

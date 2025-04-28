@@ -63,9 +63,16 @@ public class DirectIOLucene99FlatVectorsFormat extends FlatVectorsFormat {
 
     @Override
     public FlatVectorsReader fieldsReader(SegmentReadState state) throws IOException {
-        return new MergeReaderWrapper(
-            new DirectIOLucene99FlatVectorsReader(state, vectorsScorer),
-            new Lucene99FlatVectorsReader(state, vectorsScorer));
+        if (DirectIOLucene99FlatVectorsReader.shouldUseDirectIO(state)) {
+            // Use mmap for merges and direct I/O for searches.
+            // TODO: Open the mmap file with sequential access instead of random (current behavior).
+            return new MergeReaderWrapper(
+                new DirectIOLucene99FlatVectorsReader(state, vectorsScorer),
+                new Lucene99FlatVectorsReader(state, vectorsScorer)
+            );
+        } else {
+            return new Lucene99FlatVectorsReader(state, vectorsScorer);
+        }
     }
 
     @Override

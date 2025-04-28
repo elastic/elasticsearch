@@ -12,9 +12,11 @@ package org.elasticsearch.index.codec.vectors.es818;
 import org.apache.lucene.codecs.hnsw.FlatVectorsReader;
 import org.apache.lucene.index.ByteVectorValues;
 import org.apache.lucene.index.FloatVectorValues;
+import org.apache.lucene.search.KnnCollector;
 import org.apache.lucene.util.Accountable;
-import org.apache.lucene.util.IOUtils;
+import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.hnsw.RandomVectorScorer;
+import org.elasticsearch.core.IOUtils;
 
 import java.io.IOException;
 import java.util.Collection;
@@ -68,6 +70,16 @@ class MergeReaderWrapper extends FlatVectorsReader {
     @Override
     public Collection<Accountable> getChildResources() {
         return mainReader.getChildResources();
+    }
+
+    @Override
+    public void search(String field, float[] target, KnnCollector knnCollector, Bits acceptDocs) throws IOException {
+        mainReader.search(field, target, knnCollector, acceptDocs);
+    }
+
+    @Override
+    public void search(String field, byte[] target, KnnCollector knnCollector, Bits acceptDocs) throws IOException {
+        mainReader.search(field, target, knnCollector, acceptDocs);
     }
 
     @Override

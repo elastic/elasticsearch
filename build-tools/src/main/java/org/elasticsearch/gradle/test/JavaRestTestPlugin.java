@@ -18,7 +18,6 @@ import org.gradle.api.NamedDomainObjectContainer;
 import org.gradle.api.Plugin;
 import org.gradle.api.Project;
 import org.gradle.api.plugins.JavaBasePlugin;
-import org.gradle.api.provider.ProviderFactory;
 import org.gradle.api.tasks.SourceSetContainer;
 import org.gradle.api.tasks.TaskProvider;
 import org.gradle.api.tasks.bundling.Zip;
@@ -51,7 +50,7 @@ public class JavaRestTestPlugin implements Plugin<Project> {
             .getExtensions()
             .getByName(TestClustersPlugin.EXTENSION_NAME);
         var clusterProvider = testClusters.register(JAVA_REST_TEST);
-        ProviderFactory providers = project.getProviders();
+
         // Register test task
         TaskProvider<StandaloneRestIntegTestTask> javaRestTestTask = project.getTasks()
             .register(JAVA_REST_TEST, StandaloneRestIntegTestTask.class, task -> {
@@ -61,19 +60,10 @@ public class JavaRestTestPlugin implements Plugin<Project> {
 
                 var cluster = clusterProvider.get();
                 var nonInputProperties = new SystemPropertyCommandLineArgumentProvider();
-                nonInputProperties.systemProperty(
-                    "tests.rest.cluster",
-                    providers.provider(() -> String.join(",", cluster.getAllHttpSocketURI()))
-                );
-                nonInputProperties.systemProperty(
-                    "tests.cluster",
-                    providers.provider(() -> String.join(",", cluster.getAllTransportPortURI()))
-                );
-                nonInputProperties.systemProperty("tests.clustername", providers.provider(() -> cluster.getName()));
-                nonInputProperties.systemProperty(
-                    "tests.cluster.readiness",
-                    providers.provider(() -> String.join(",", cluster.getAllReadinessPortURI()))
-                );
+                nonInputProperties.systemProperty("tests.rest.cluster", () -> String.join(",", cluster.getAllHttpSocketURI()));
+                nonInputProperties.systemProperty("tests.cluster", () -> String.join(",", cluster.getAllTransportPortURI()));
+                nonInputProperties.systemProperty("tests.clustername", () -> cluster.getName());
+                nonInputProperties.systemProperty("tests.cluster.readiness", () -> String.join(",", cluster.getAllReadinessPortURI()));
                 task.getJvmArgumentProviders().add(nonInputProperties);
             });
 

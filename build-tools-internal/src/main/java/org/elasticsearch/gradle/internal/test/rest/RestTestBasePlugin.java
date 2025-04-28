@@ -162,17 +162,11 @@ public class RestTestBasePlugin implements Plugin<Project> {
 
             // Pass feature metadata on to tests
             task.getInputs().files(featureMetadataConfig).withPathSensitivity(PathSensitivity.NONE);
-            nonInputSystemProperties.systemProperty(
-                TESTS_FEATURES_METADATA_PATH,
-                providerFactory.provider(() -> featureMetadataConfig.getAsPath())
-            );
+            nonInputSystemProperties.systemProperty(TESTS_FEATURES_METADATA_PATH, () -> featureMetadataConfig.getAsPath());
 
             // Enable parallel execution for these tests since each test gets its own cluster
             task.setMaxParallelForks(task.getProject().getGradle().getStartParameter().getMaxWorkerCount() / 2);
-            nonInputSystemProperties.systemProperty(
-                TESTS_MAX_PARALLEL_FORKS_SYSPROP,
-                providerFactory.provider(() -> String.valueOf(task.getMaxParallelForks()))
-            );
+            nonInputSystemProperties.systemProperty(TESTS_MAX_PARALLEL_FORKS_SYSPROP, () -> String.valueOf(task.getMaxParallelForks()));
 
             // Disable test failure reporting since this stuff is now captured in build scans
             task.getExtensions().getByType(ErrorReportingTestListener.class).setDumpOutputOnFailure(false);
@@ -186,10 +180,10 @@ public class RestTestBasePlugin implements Plugin<Project> {
 
             // Register plugins and modules as task inputs and pass paths as system properties to tests
             var modulePath = project.getObjects().fileCollection().from(modulesConfiguration);
-            nonInputSystemProperties.systemProperty(TESTS_CLUSTER_MODULES_PATH_SYSPROP, providerFactory.provider(modulePath::getAsPath));
+            nonInputSystemProperties.systemProperty(TESTS_CLUSTER_MODULES_PATH_SYSPROP, modulePath::getAsPath);
             registerConfigurationInputs(task, modulesConfiguration.getName(), modulePath);
             var pluginPath = project.getObjects().fileCollection().from(pluginsConfiguration);
-            nonInputSystemProperties.systemProperty(TESTS_CLUSTER_PLUGINS_PATH_SYSPROP, providerFactory.provider(pluginPath::getAsPath));
+            nonInputSystemProperties.systemProperty(TESTS_CLUSTER_PLUGINS_PATH_SYSPROP, pluginPath::getAsPath);
             registerConfigurationInputs(
                 task,
                 extractedPluginsConfiguration.getName(),
@@ -198,10 +192,7 @@ public class RestTestBasePlugin implements Plugin<Project> {
 
             // Wire up integ-test distribution by default for all test tasks
             FileCollection extracted = integTestDistro.getExtracted();
-            nonInputSystemProperties.systemProperty(
-                INTEG_TEST_DISTRIBUTION_SYSPROP,
-                providerFactory.provider(() -> extracted.getSingleFile().getPath())
-            );
+            nonInputSystemProperties.systemProperty(INTEG_TEST_DISTRIBUTION_SYSPROP, () -> extracted.getSingleFile().getPath());
 
             // Add `usesDefaultDistribution()` extension method to test tasks to indicate they require the default distro
             task.getExtensions().getExtraProperties().set("usesDefaultDistribution", new Closure<Void>(task) {
@@ -222,10 +213,7 @@ public class RestTestBasePlugin implements Plugin<Project> {
 
                     // If we are using the default distribution we need to register all module feature metadata
                     task.getInputs().files(defaultDistroFeatureMetadataConfig).withPathSensitivity(PathSensitivity.NONE);
-                    nonInputSystemProperties.systemProperty(
-                        TESTS_FEATURES_METADATA_PATH,
-                        providerFactory.provider(defaultDistroFeatureMetadataConfig::getAsPath)
-                    );
+                    nonInputSystemProperties.systemProperty(TESTS_FEATURES_METADATA_PATH, defaultDistroFeatureMetadataConfig::getAsPath);
 
                     return null;
                 }

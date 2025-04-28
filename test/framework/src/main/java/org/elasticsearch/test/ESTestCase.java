@@ -2313,6 +2313,22 @@ public abstract class ESTestCase extends LuceneTestCase {
     }
 
     /**
+     * Await on the given {@link CountDownLatch} with a supplied timeout, preserving the thread's interrupt status
+     * flag and asserting that the latch is indeed completed before the timeout.
+     */
+    public static void safeAwait(CountDownLatch countDownLatch, TimeValue timeout) {
+        try {
+            assertTrue(
+                "safeAwait: CountDownLatch did not reach zero within the timeout",
+                countDownLatch.await(timeout.millis(), TimeUnit.MILLISECONDS)
+            );
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            fail(e, "safeAwait: interrupted waiting for CountDownLatch to reach zero");
+        }
+    }
+
+    /**
      * Acquire a single permit from the given {@link Semaphore}, with a timeout of {@link #SAFE_AWAIT_TIMEOUT}, preserving the thread's
      * interrupt status flag and asserting that the permit was successfully acquired.
      */

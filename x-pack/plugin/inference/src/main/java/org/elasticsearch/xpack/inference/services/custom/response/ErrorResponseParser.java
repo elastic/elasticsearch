@@ -38,7 +38,7 @@ public class ErrorResponseParser implements ToXContentFragment, Function<HttpRes
     public static ErrorResponseParser fromMap(Map<String, Object> responseParserMap, ValidationException validationException) {
         var path = extractRequiredString(responseParserMap, MESSAGE_PATH, ERROR_PARSER, validationException);
 
-        if (path == null) {
+        if (validationException.validationErrors().isEmpty() == false) {
             throw validationException;
         }
 

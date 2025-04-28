@@ -24,10 +24,6 @@ public record NoopResponseParser() implements CustomResponseParser {
         return new NoopResponseParser();
     }
 
-    public NoopResponseParser() {
-
-    }
-
     public NoopResponseParser(StreamInput in) {
         this();
     }

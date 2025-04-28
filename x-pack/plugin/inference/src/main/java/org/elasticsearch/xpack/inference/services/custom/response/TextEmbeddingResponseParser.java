@@ -33,7 +33,7 @@ public class TextEmbeddingResponseParser extends BaseCustomResponseParser<TextEm
     public static TextEmbeddingResponseParser fromMap(Map<String, Object> responseParserMap, ValidationException validationException) {
         var path = extractRequiredString(responseParserMap, TEXT_EMBEDDING_PARSER_EMBEDDINGS, JSON_PARSER, validationException);
 
-        if (path == null) {
+        if (validationException.validationErrors().isEmpty() == false) {
             throw validationException;
         }
 

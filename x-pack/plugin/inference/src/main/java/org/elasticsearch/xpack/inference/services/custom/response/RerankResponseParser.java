@@ -43,7 +43,7 @@ public class RerankResponseParser extends BaseCustomResponseParser<RankedDocsRes
         var rerankIndex = extractOptionalString(responseParserMap, RERANK_PARSER_INDEX, JSON_PARSER, validationException);
         var documentText = extractOptionalString(responseParserMap, RERANK_PARSER_DOCUMENT_TEXT, JSON_PARSER, validationException);
 
-        if (relevanceScore == null) {
+        if (validationException.validationErrors().isEmpty() == false) {
             throw validationException;
         }
 

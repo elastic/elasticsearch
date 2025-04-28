@@ -40,7 +40,7 @@ public class SparseEmbeddingResponseParser extends BaseCustomResponseParser<Spar
 
         var weightPath = extractRequiredString(responseParserMap, SPARSE_EMBEDDING_WEIGHT_PATH, JSON_PARSER, validationException);
 
-        if (tokenPath == null || weightPath == null) {
+        if (validationException.validationErrors().isEmpty() == false) {
             throw validationException;
         }
 

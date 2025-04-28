@@ -128,6 +128,18 @@ If you are running {{es}} as a Windows service, you can change the heap size usi
 ::::
 
 
+## Default JVM heap sizes [default-jvm-sizes]
+
+If heap sizes are not specifically set, {{es}} will calculate JVM heap sizing based on the total amount of system memory, depending on the node's role.
+
+* Master-only node
+  * 60% of total system memory, up to a maximum of 31 GB.
+* Machine Learning-only node
+  * 40% of the first 16 gigabytes plus 10% of memory above that when total system memory is more than 16 gigabytes, up to a maximum of 31 GB.
+* Data-only node
+  * 40% of total system memory when less than 1 GB, with a minimum of 128 MB.
+  * 50% of total system memory when more than 1 GB, with a maximum of 31 GB.
+
 
 ## JVM heap dump path setting [heap-dump-path-setting]
 

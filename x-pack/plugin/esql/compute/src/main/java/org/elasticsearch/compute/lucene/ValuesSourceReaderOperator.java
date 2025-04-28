@@ -72,18 +72,10 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingOperator {
      * @param shardContexts per-shard loading information
      * @param docChannel the channel containing the shard, leaf/segment and doc id
      */
-    public record Factory(List<FieldInfo> fields, List<ShardContext> shardContexts, int docChannel, double storedFieldsSequentialProportion)
-        implements
-            OperatorFactory {
+    public record Factory(List<FieldInfo> fields, List<ShardContext> shardContexts, int docChannel) implements OperatorFactory {
         @Override
         public Operator get(DriverContext driverContext) {
-            return new ValuesSourceReaderOperator(
-                driverContext.blockFactory(),
-                fields,
-                shardContexts,
-                docChannel,
-                storedFieldsSequentialProportion
-            );
+            return new ValuesSourceReaderOperator(driverContext.blockFactory(), fields, shardContexts, docChannel);
         }
 
         @Override
@@ -115,13 +107,12 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingOperator {
      */
     public record FieldInfo(String name, ElementType type, IntFunction<BlockLoader> blockLoader) {}
 
-    public record ShardContext(IndexReader reader, Supplier<SourceLoader> newSourceLoader) {}
+    public record ShardContext(IndexReader reader, Supplier<SourceLoader> newSourceLoader, double storedFieldsSequentialProportion) {}
 
     private final FieldWork[] fields;
     private final List<ShardContext> shardContexts;
     private final int docChannel;
     private final BlockFactory blockFactory;
-    private final double storedFieldsSequentialProportion;
 
     private final Map<String, Integer> readersBuilt = new TreeMap<>();
     private long valuesLoaded;
@@ -134,18 +125,11 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingOperator {
      * @param fields fields to load
      * @param docChannel the channel containing the shard, leaf/segment and doc id
      */
-    public ValuesSourceReaderOperator(
-        BlockFactory blockFactory,
-        List<FieldInfo> fields,
-        List<ShardContext> shardContexts,
-        int docChannel,
-        double storedFieldsSequentialProportion
-    ) {
+    public ValuesSourceReaderOperator(BlockFactory blockFactory, List<FieldInfo> fields, List<ShardContext> shardContexts, int docChannel) {
         this.fields = fields.stream().map(f -> new FieldWork(f)).toArray(FieldWork[]::new);
         this.shardContexts = shardContexts;
         this.docChannel = docChannel;
         this.blockFactory = blockFactory;
-        this.storedFieldsSequentialProportion = storedFieldsSequentialProportion;
     }
 
     @Override
@@ -263,8 +247,9 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingOperator {
             }
 
             SourceLoader sourceLoader = null;
+            ShardContext shardContext = shardContexts.get(shard);
             if (storedFieldsSpec.requiresSource()) {
-                sourceLoader = shardContexts.get(shard).newSourceLoader.get();
+                sourceLoader = shardContext.newSourceLoader.get();
                 storedFieldsSpec = storedFieldsSpec.merge(new StoredFieldsSpec(true, false, sourceLoader.requiredStoredFields()));
             }
 
@@ -277,7 +262,7 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingOperator {
                 );
             }
             StoredFieldLoader storedFieldLoader;
-            if (useSequentialStoredFieldsReader(docs)) {
+            if (useSequentialStoredFieldsReader(docs, shardContext.storedFieldsSequentialProportion())) {
                 storedFieldLoader = StoredFieldLoader.fromSpecSequential(storedFieldsSpec);
                 trackStoredFields(storedFieldsSpec, true);
             } else {
@@ -454,13 +439,13 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingOperator {
      * Is it more efficient to use a sequential stored field reader
      * when reading stored fields for the documents contained in {@code docIds}?
      */
-    private boolean useSequentialStoredFieldsReader(BlockLoader.Docs docs) {
+    private boolean useSequentialStoredFieldsReader(BlockLoader.Docs docs, double storedFieldsSequentialProportion) {
         int count = docs.count();
         if (count < SEQUENTIAL_BOUNDARY) {
             return false;
         }
         int range = docs.get(count - 1) - docs.get(0);
-        return range * storedFieldsSequentialProportion < count - 1;
+        return range * storedFieldsSequentialProportion <= count;
     }
 
     private void trackStoredFields(StoredFieldsSpec spec, boolean sequential) {

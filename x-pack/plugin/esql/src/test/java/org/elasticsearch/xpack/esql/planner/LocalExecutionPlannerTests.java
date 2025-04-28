@@ -257,7 +257,7 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
     }
 
     private EsPhysicalOperationProviders esPhysicalOperationProviders(List<EsPhysicalOperationProviders.ShardContext> shardContexts) {
-        return new EsPhysicalOperationProviders(FoldContext.small(), shardContexts, null, DataPartitioning.AUTO, 0.1);
+        return new EsPhysicalOperationProviders(FoldContext.small(), shardContexts, null, DataPartitioning.AUTO);
     }
 
     private List<EsPhysicalOperationProviders.ShardContext> createShardContexts() throws IOException {

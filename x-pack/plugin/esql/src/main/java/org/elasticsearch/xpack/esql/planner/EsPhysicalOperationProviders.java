@@ -64,6 +64,7 @@ import org.elasticsearch.xpack.esql.plan.physical.FieldExtractExec;
 import org.elasticsearch.xpack.esql.planner.LocalExecutionPlanner.DriverParallelism;
 import org.elasticsearch.xpack.esql.planner.LocalExecutionPlanner.LocalExecutionPlannerContext;
 import org.elasticsearch.xpack.esql.planner.LocalExecutionPlanner.PhysicalOperation;
+import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -99,23 +100,30 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
          * Returns something to load values from this field into a {@link Block}.
          */
         BlockLoader blockLoader(String name, boolean asUnsupportedSource, MappedFieldType.FieldExtractPreference fieldExtractPreference);
+
+        /**
+         * Tuning parameter for deciding when to use the "merge" stored field loader.
+         * Think of it as "how similar to a sequential block of documents do I have to
+         * be before I'll use the merge reader?" So a value of {@code 1} means I have to
+         * be <strong>exactly</strong> a sequential block, like {@code 0, 1, 2, 3, .. 1299, 1300}.
+         * A value of {@code .2} means we'll use the sequential reader even if we only
+         * need one in ten documents.
+         */
+        double storedFieldsSequentialProportion();
     }
 
     private final List<ShardContext> shardContexts;
     private final DataPartitioning defaultDataPartitioning;
-    private final double storedFieldsSequentialProportion;
 
     public EsPhysicalOperationProviders(
         FoldContext foldContext,
         List<ShardContext> shardContexts,
         AnalysisRegistry analysisRegistry,
-        DataPartitioning defaultDataPartitioning,
-        double storedFieldsSequentialProportion
+        DataPartitioning defaultDataPartitioning
     ) {
         super(foldContext, analysisRegistry);
         this.shardContexts = shardContexts;
         this.defaultDataPartitioning = defaultDataPartitioning;
-        this.storedFieldsSequentialProportion = storedFieldsSequentialProportion;
     }
 
     @Override
@@ -123,7 +131,13 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
         Layout.Builder layout = source.layout.builder();
         var sourceAttr = fieldExtractExec.sourceAttribute();
         List<ValuesSourceReaderOperator.ShardContext> readers = shardContexts.stream()
-            .map(s -> new ValuesSourceReaderOperator.ShardContext(s.searcher().getIndexReader(), s::newSourceLoader))
+            .map(
+                s -> new ValuesSourceReaderOperator.ShardContext(
+                    s.searcher().getIndexReader(),
+                    s::newSourceLoader,
+                    s.storedFieldsSequentialProportion()
+                )
+            )
             .toList();
         List<ValuesSourceReaderOperator.FieldInfo> fields = new ArrayList<>();
         int docChannel = source.layout.get(sourceAttr.id()).channel();
@@ -135,10 +149,7 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
             IntFunction<BlockLoader> loader = s -> getBlockLoaderFor(s, attr, fieldExtractPreference);
             fields.add(new ValuesSourceReaderOperator.FieldInfo(getFieldName(attr), elementType, loader));
         }
-        return source.with(
-            new ValuesSourceReaderOperator.Factory(fields, readers, docChannel, storedFieldsSequentialProportion),
-            layout.build()
-        );
+        return source.with(new ValuesSourceReaderOperator.Factory(fields, readers, docChannel), layout.build());
     }
 
     private static String getFieldName(Attribute attr) {
@@ -273,7 +284,13 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
         var sourceAttribute = FieldExtractExec.extractSourceAttributesFrom(aggregateExec.child());
         int docChannel = source.layout.get(sourceAttribute.id()).channel();
         List<ValuesSourceReaderOperator.ShardContext> vsShardContexts = shardContexts.stream()
-            .map(s -> new ValuesSourceReaderOperator.ShardContext(s.searcher().getIndexReader(), s::newSourceLoader))
+            .map(
+                s -> new ValuesSourceReaderOperator.ShardContext(
+                    s.searcher().getIndexReader(),
+                    s::newSourceLoader,
+                    s.storedFieldsSequentialProportion()
+                )
+            )
             .toList();
         // The grouping-by values are ready, let's group on them directly.
         // Costin: why are they ready and not already exposed in the layout?
@@ -284,8 +301,7 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
             docChannel,
             attrSource.name(),
             aggregatorFactories,
-            context.pageSize(aggregateExec.estimatedRowSize()),
-            storedFieldsSequentialProportion
+            context.pageSize(aggregateExec.estimatedRowSize())
         );
     }
 
@@ -406,6 +422,11 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
 
         protected @Nullable MappedFieldType fieldType(String name) {
             return ctx.getFieldType(name);
+        }
+
+        @Override
+        public double storedFieldsSequentialProportion() {
+            return EsqlPlugin.STORED_FIELDS_SEQUENTIAL_PROPORTION.get(ctx.getIndexSettings().getSettings());
         }
     }
 

@@ -73,27 +73,6 @@ public final class QueryPragmas implements Writeable {
 
     public static final Setting<ByteSizeValue> FOLD_LIMIT = Setting.memorySizeSetting("fold_limit", "5%");
 
-    /**
-     * Tuning parameter for deciding when to use the "merge" stored field loader.
-     * Think of it as "how similar to a sequential block of documents do I have to
-     * be before I'll use the merge reader?" So a value of {@code 1} means I have to
-     * be <strong>exactly</strong> a sequential block, like {@code 0, 1, 2, 3, .. 1299, 1300}.
-     * A value of {@code .1} means we'll use the sequential reader even if we only
-     * need one in ten documents.
-     * <p>
-     *     The default value of this was experimentally derived using a
-     *     <a href="https://gist.github.com/nik9000/4e84ff5a76b86890e540d4a381606a55">script</a>.
-     *     And a little paranoia. A lower default value was looking good locally, but
-     *     I'm concerned about the implications of effectively using this all the time.
-     * </p>
-     */
-    public static final Setting<Double> STORED_FIELDS_SEQUENTIAL_PROPORTION = Setting.doubleSetting(
-        "stored_fields_sequential_proportion",
-        0.10,
-        0,
-        1
-    );
-
     public static final Setting<MappedFieldType.FieldExtractPreference> FIELD_EXTRACT_PREFERENCE = Setting.enumSetting(
         MappedFieldType.FieldExtractPreference.class,
         "field_extract_preference",
@@ -139,18 +118,6 @@ public final class QueryPragmas implements Writeable {
 
     public int taskConcurrency() {
         return TASK_CONCURRENCY.get(settings);
-    }
-
-    /**
-     * Tuning parameter for deciding when to use the "merge" stored field loader.
-     * Think of it as "how similar to a sequential block of documents do I have to
-     * be before I'll use the merge reader?" So a value of {@code 1} means I have to
-     * be <strong>exactly</strong> a sequential block, like {@code 0, 1, 2, 3, .. 1299, 1300}.
-     * A value of {@code .1} means significant gaps are allowed and we'll still use the
-     * sequential reader.
-     */
-    public double storedFieldsSequentialProportion() {
-        return STORED_FIELDS_SEQUENTIAL_PROPORTION.get(settings);
     }
 
     /**

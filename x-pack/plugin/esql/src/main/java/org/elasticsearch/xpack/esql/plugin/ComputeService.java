@@ -539,8 +539,7 @@ public class ComputeService {
             context.foldCtx(),
             contexts,
             searchService.getIndicesService().getAnalysis(),
-            defaultDataPartitioning,
-            context.configuration().pragmas().storedFieldsSequentialProportion()
+            defaultDataPartitioning
         );
         final List<Driver> drivers;
         try {

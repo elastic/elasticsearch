@@ -204,9 +204,8 @@ public class LookupFromIndexIT extends AbstractEsqlIntegTestCase {
                 ),
                 List.of(new ValuesSourceReaderOperator.ShardContext(searchContext.getSearchExecutionContext().getIndexReader(), () -> {
                     throw new IllegalStateException("can't load source here");
-                })),
-                0,
-                0.1
+                }, EsqlPlugin.STORED_FIELDS_SEQUENTIAL_PROPORTION.getDefault(Settings.EMPTY))),
+                0
             );
             CancellableTask parentTask = new EsqlQueryTask(
                 1,

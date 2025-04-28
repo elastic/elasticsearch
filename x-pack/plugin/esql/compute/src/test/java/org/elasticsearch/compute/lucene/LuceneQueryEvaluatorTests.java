@@ -208,9 +208,8 @@ public abstract class LuceneQueryEvaluatorTests<T extends Vector, U extends Vect
                     ),
                     List.of(new ValuesSourceReaderOperator.ShardContext(reader, () -> {
                         throw new UnsupportedOperationException();
-                    })),
-                    0,
-                    0.1
+                    }, 0.2)),
+                    0
                 )
             );
             LuceneQueryEvaluator.ShardConfig[] shards = new LuceneQueryEvaluator.ShardConfig[] {

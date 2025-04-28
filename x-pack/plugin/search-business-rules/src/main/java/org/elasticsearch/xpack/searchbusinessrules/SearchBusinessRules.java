@@ -13,10 +13,13 @@ import org.elasticsearch.plugins.SearchPlugin.QuerySpec;
 import org.elasticsearch.plugins.SearchPlugin.RetrieverSpec;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xpack.searchbusinessrules.retriever.PinnedRetrieverBuilder;
+import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 
 import java.util.List;
 
 import static java.util.Collections.singletonList;
+import static java.util.Collections.emptyList;
 
 public class SearchBusinessRules extends Plugin implements SearchPlugin {
 
@@ -27,7 +30,10 @@ public class SearchBusinessRules extends Plugin implements SearchPlugin {
 
     @Override
     public List<RetrieverSpec<?>> getRetrievers() {
-        return singletonList(new RetrieverSpec<>(new ParseField(PinnedRetrieverBuilder.NAME), PinnedRetrieverBuilder::fromXContent));
+        if (TransportVersion.current().onOrAfter(TransportVersions.PINNED_RETRIEVER)) {
+            return singletonList(new RetrieverSpec<>(new ParseField(PinnedRetrieverBuilder.NAME), PinnedRetrieverBuilder::fromXContent));
+        } 
+        return emptyList();
     }
 
 }

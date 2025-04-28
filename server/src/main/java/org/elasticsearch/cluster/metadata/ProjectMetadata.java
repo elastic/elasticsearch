@@ -1109,6 +1109,9 @@ public class ProjectMetadata implements Iterable<IndexMetadata>, Diffable<Projec
     }
 
     static boolean isStateEquals(ProjectMetadata project1, ProjectMetadata project2) {
+        if (project1.settings().equals(project2.settings()) == false) {
+            return false;
+        }
         if (project1.templates().equals(project2.templates()) == false) {
             return false;
         }
@@ -2389,7 +2392,7 @@ public class ProjectMetadata implements Iterable<IndexMetadata>, Diffable<Projec
                 && builder.dataStreamMetadata() == part.custom(DataStreamMetadata.TYPE, DataStreamMetadata.EMPTY)) {
                 builder.previousIndicesLookup = part.indicesLookup;
             }
-            builder.settings = settingsDiff.apply(builder.settings);
+            builder.settings = settingsDiff.apply(part.settings);
             return builder.build(true);
         }
 

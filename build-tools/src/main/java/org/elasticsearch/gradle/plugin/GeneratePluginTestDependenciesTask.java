@@ -10,27 +10,84 @@
 package org.elasticsearch.gradle.plugin;
 
 import org.gradle.api.DefaultTask;
-import org.gradle.api.file.ProjectLayout;
-import org.gradle.api.logging.Logger;
-import org.gradle.api.logging.Logging;
+import org.gradle.api.file.FileCollection;
+import org.gradle.api.file.RegularFileProperty;
+import org.gradle.api.provider.ListProperty;
+import org.gradle.api.provider.Property;
+import org.gradle.api.tasks.Input;
+import org.gradle.api.tasks.InputFile;
+import org.gradle.api.tasks.InputFiles;
+import org.gradle.api.tasks.Optional;
+import org.gradle.api.tasks.OutputFile;
 import org.gradle.api.tasks.TaskAction;
 
+import java.io.File;
 import java.io.IOException;
-
-import javax.inject.Inject;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
 
 public abstract class GeneratePluginTestDependenciesTask extends DefaultTask {
 
     public static final String DESCRIPTION = "generates plugin test dependencies file";
-    private static final Logger LOGGER = Logging.getLogger(GeneratePluginTestDependenciesTask.class);
+    public static final String PROPERTIES_FILENAME = "plugin-test-dependencies.properties";
 
-    @Inject
-    public GeneratePluginTestDependenciesTask(ProjectLayout projectLayout) {
+    public GeneratePluginTestDependenciesTask() {
         setDescription(DESCRIPTION);
     }
 
+    @InputFile
+    public abstract RegularFileProperty getDescriptorFile();
+
+    @InputFile
+    @Optional
+    public abstract RegularFileProperty getPolicyFile();
+
+    @InputFiles
+    public abstract Property<FileCollection> getJarFiles();
+
+    @Input
+    public abstract ListProperty<String> getClassDirectories();
+
+    @OutputFile
+    public abstract RegularFileProperty getOutputFile();
+
     @TaskAction
     public void generatePropertiesFile() throws IOException {
-        LOGGER.lifecycle("HELLO!");
+        Path outputFile = getOutputFile().get().getAsFile().toPath();
+        Files.createDirectories(outputFile.getParent());
+        try (var writer = Files.newBufferedWriter(outputFile, StandardCharsets.UTF_8)) {
+            writer.write("descriptor=");
+            writer.write(getDescriptorFile().getAsFile().get().getAbsolutePath());
+            writer.write("\n");
+
+            if (getPolicyFile().isPresent()) {
+                writer.write("policy=");
+                writer.write(getPolicyFile().getAsFile().get().getAbsolutePath());
+                writer.write("\n");
+            }
+
+            if (getJarFiles().get().isEmpty() == false) {
+                writer.write("jars=");
+                StringBuilder sb = new StringBuilder();
+                for (File jar : getJarFiles().get()) {
+                    sb.append(jar.getAbsolutePath());
+                    sb.append(":");
+                }
+                writer.write(sb.substring(0, sb.length() - 1));
+                writer.write("\n");
+            }
+
+            if (getClassDirectories().get().isEmpty() == false) {
+                writer.write("directories=");
+                StringBuilder sb = new StringBuilder();
+                for (String sd : getClassDirectories().get()) {
+                    sb.append(sd);
+                    sb.append(":");
+                }
+                writer.write(sb.substring(0, sb.length() - 1));
+                writer.write("\n");
+            }
+        }
     }
 }

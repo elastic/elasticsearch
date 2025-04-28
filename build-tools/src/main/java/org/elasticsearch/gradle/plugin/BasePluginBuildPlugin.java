@@ -76,7 +76,48 @@ public class BasePluginBuildPlugin implements Plugin<Project> {
         var extension = project.getExtensions()
             .create(BasePluginBuildPlugin.PLUGIN_EXTENSION_NAME, PluginPropertiesExtension.class, project);
 
-        final var bundleTask = createBundleTasks(project, extension);
+        final var buildProperties = project.getTasks().register("pluginProperties", GeneratePluginPropertiesTask.class, task -> {
+            task.getPluginName().set(providerFactory.provider(extension::getName));
+            task.getPluginDescription().set(providerFactory.provider(extension::getDescription));
+            task.getPluginVersion().set(providerFactory.provider(extension::getVersion));
+            task.getElasticsearchVersion().set(Version.fromString(VersionProperties.getElasticsearch()).toString());
+            var javaExtension = project.getExtensions().getByType(JavaPluginExtension.class);
+            task.getJavaVersion().set(providerFactory.provider(() -> javaExtension.getTargetCompatibility().toString()));
+            task.getExtendedPlugins().set(providerFactory.provider(extension::getExtendedPlugins));
+            task.getHasNativeController().set(providerFactory.provider(extension::isHasNativeController));
+            task.getRequiresKeystore().set(providerFactory.provider(extension::isRequiresKeystore));
+            task.getIsLicensed().set(providerFactory.provider(extension::isLicensed));
+
+            var mainSourceSet = project.getExtensions().getByType(SourceSetContainer.class).getByName(SourceSet.MAIN_SOURCE_SET_NAME);
+            FileCollection moduleInfoFile = mainSourceSet.getOutput().getAsFileTree().matching(p -> p.include("module-info.class"));
+            task.getModuleInfoFile().setFrom(moduleInfoFile);
+        });
+        final var testDependencies = project.getTasks()
+            .register("generatePluginTestDependencies", GeneratePluginTestDependenciesTask.class, task -> {
+                task.getDescriptorFile().set(buildProperties.get().getOutputFile().get().getAsFile());
+                var policy = project.getLayout().getProjectDirectory().file("src/main/plugin-metadata/entitlement-policy.yaml");
+                if (policy.getAsFile().exists()) {
+                    task.getPolicyFile().set(policy);
+                }
+                task.getJarFiles()
+                    .set(
+                        project.getConfigurations()
+                            .getByName("runtimeClasspath")
+                            .minus(
+                                project.getConfigurations().getByName(CompileOnlyResolvePlugin.RESOLVEABLE_COMPILE_ONLY_CONFIGURATION_NAME)
+                            )
+                    );
+                task.getClassDirectories()
+                    .set(
+                        project.getExtensions()
+                            .getByType(SourceSetContainer.class)
+                            .stream()
+                            .flatMap(ss -> ss.getOutput().getClassesDirs().getFiles().stream())
+                            .map(File::getAbsolutePath)
+                            .toList()
+                    );
+            });
+        final var bundleTask = createBundleTasks(buildProperties, testDependencies, project, extension);
         project.getConfigurations().getByName("default").extendsFrom(project.getConfigurations().getByName("runtimeClasspath"));
 
         // allow running ES with this plugin in the foreground of a build
@@ -94,11 +135,6 @@ public class BasePluginBuildPlugin implements Plugin<Project> {
             r.useCluster(runCluster);
             r.dependsOn(project.getTasks().named(BUNDLE_PLUGIN_TASK_NAME));
         });
-
-        project.getTasks()
-            .register("generatePluginTestDependencies", GeneratePluginTestDependenciesTask.class, generatePluginTestDependenciesTask -> {
-
-            });
     }
 
     @SuppressWarnings("unchecked")
@@ -110,26 +146,14 @@ public class BasePluginBuildPlugin implements Plugin<Project> {
      * Adds bundle tasks which builds the dir and zip containing the plugin jars,
      * metadata, properties, and packaging files
      */
-    private TaskProvider<Zip> createBundleTasks(final Project project, PluginPropertiesExtension extension) {
+    private TaskProvider<Zip> createBundleTasks(
+        final TaskProvider<GeneratePluginPropertiesTask> buildProperties,
+        final TaskProvider<GeneratePluginTestDependenciesTask> testDependencies,
+        final Project project,
+        PluginPropertiesExtension extension
+    ) {
         final var pluginMetadata = project.file("src/main/plugin-metadata");
 
-        final var buildProperties = project.getTasks().register("pluginProperties", GeneratePluginPropertiesTask.class, task -> {
-            task.getPluginName().set(providerFactory.provider(extension::getName));
-            task.getPluginDescription().set(providerFactory.provider(extension::getDescription));
-            task.getPluginVersion().set(providerFactory.provider(extension::getVersion));
-            task.getElasticsearchVersion().set(Version.fromString(VersionProperties.getElasticsearch()).toString());
-            var javaExtension = project.getExtensions().getByType(JavaPluginExtension.class);
-            task.getJavaVersion().set(providerFactory.provider(() -> javaExtension.getTargetCompatibility().toString()));
-            task.getExtendedPlugins().set(providerFactory.provider(extension::getExtendedPlugins));
-            task.getHasNativeController().set(providerFactory.provider(extension::isHasNativeController));
-            task.getRequiresKeystore().set(providerFactory.provider(extension::isRequiresKeystore));
-            task.getIsLicensed().set(providerFactory.provider(extension::isLicensed));
-
-            var mainSourceSet = project.getExtensions().getByType(SourceSetContainer.class).getByName(SourceSet.MAIN_SOURCE_SET_NAME);
-            FileCollection moduleInfoFile = mainSourceSet.getOutput().getAsFileTree().matching(p -> p.include("module-info.class"));
-            task.getModuleInfoFile().setFrom(moduleInfoFile);
-
-        });
         // add the plugin properties and metadata to test resources, so unit tests can
         // know about the plugin (used by test security code to statically initialize the plugin in unit tests)
         var testSourceSet = project.getExtensions().getByType(SourceSetContainer.class).getByName("test");
@@ -155,7 +179,7 @@ public class BasePluginBuildPlugin implements Plugin<Project> {
         });
         project.getArtifacts().add("pluginMetadata", pluginMetadata);
         // getAttributes().attribute(ArtifactTypeDefinition.ARTIFACT_TYPE_ATTRIBUTE, "plugin-metadata");
-        var bundleSpec = createBundleSpec(project, pluginMetadata, buildProperties);
+        var bundleSpec = createBundleSpec(project, pluginMetadata, buildProperties, testDependencies);
         extension.setBundleSpec(bundleSpec);
         // create the actual bundle task, which zips up all the files for the plugin
         final var bundle = project.getTasks().register("bundlePlugin", Zip.class, zip -> zip.with(bundleSpec));
@@ -184,10 +208,12 @@ public class BasePluginBuildPlugin implements Plugin<Project> {
     private static CopySpec createBundleSpec(
         Project project,
         File pluginMetadata,
-        TaskProvider<GeneratePluginPropertiesTask> buildProperties
+        TaskProvider<GeneratePluginPropertiesTask> buildProperties,
+        TaskProvider<GeneratePluginTestDependenciesTask> testDependencies
     ) {
         var bundleSpec = project.copySpec();
         bundleSpec.from(buildProperties);
+        bundleSpec.from(testDependencies);
         bundleSpec.from(pluginMetadata, copySpec -> {
             // metadata (eg custom security policy)
             // the codebases properties file is only for tests and not needed in production

@@ -51,6 +51,12 @@ public class PluginBuildPlugin implements Plugin<Project> {
             task.getOutputFile().set(file);
         });
 
+        project.getTasks().withType(GeneratePluginTestDependenciesTask.class).named("generatePluginTestDependencies").configure(task -> {
+            Provider<RegularFile> file = project.getLayout()
+                .getBuildDirectory()
+                .file("generated-test-dependencies/" + GeneratePluginTestDependenciesTask.PROPERTIES_FILENAME);
+            task.getOutputFile().set(file);
+        });
     }
 
 }

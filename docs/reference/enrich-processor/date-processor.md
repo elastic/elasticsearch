@@ -29,7 +29,7 @@ The `timezone` option may have two effects on the behavior of the processor:
  - The date-time will be converted into the timezone given by this option before it is formatted and written into the target field. This is not applicable if the `output_format` is an absolute time format such as `epoch_millis`.
 
 ::::{warning}
-We recommend avoiding the use of short abbreviations for timezone names, since they can be ambiguous. For example, under certain circumstances, one JDK might interpret `PST` as `America/Tijuana`, i.e. Pacific (Standard) Time, while another JDK might interpret it as `Asia/Manila`, i.e. Philippine Standard Time. If your input data contains such abbreviations, you should convert them into either standard full names or UTC offsets using your own knowledge of what each abbreviation means in your data before parsing them. See below for an example. (This does not apply to `UTC`, which is safe.)
+We recommend avoiding the use of short abbreviations for timezone names, since they can be ambiguous. For example, one JDK might interpret `PST` as `America/Tijuana`, i.e. Pacific (Standard) Time, while another JDK might interpret it as `Asia/Manila`, i.e. Philippine Standard Time. If your input data contains such abbreviations, you should convert them into either standard full names or UTC offsets using your own knowledge of what each abbreviation means in your data before parsing them. See below for an example. (This does not apply to `UTC`, which is safe.)
 ::::
 
 Here is an example that adds the parsed date to the `timestamp` field based on the `initial_date` field:
@@ -69,7 +69,7 @@ The `timezone` and `locale` processor parameters are templated. This means that 
 }
 ```
 
-In the example below, the `message` field in the input is expected to be a string formed of a local date-time in `yyyyMMddHHmmss` format, a timezone abbreviated to one of `PST`, `CET`, or `JST` representing Pacific, Central European, or Japan time, and a body. This field is split up using a `grok` processor, then the timezones are converted into full names using a `script` processor, then the date-time is parsed using a `date` processor, and finally the unwanted fields are discarded using a `drop` processor.
+In the example below, the `message` field in the input is expected to be a string formed of a local date-time in `yyyyMMddHHmmss` format, a timezone abbreviated to one of `PST`, `CET`, or `JST` representing Pacific, Central European, or Japan time, and a payload. This field is split up using a `grok` processor, then the timezones are converted into full names using a `script` processor, then the date-time is parsed using a `date` processor, and finally the unwanted fields are discarded using a `drop` processor.
 
 ```js
 {
@@ -78,7 +78,7 @@ In the example below, the `message` field in the input is expected to be a strin
     {
       "grok": {
         "field": "message",
-        "patterns": ["%{DATESTAMP_EVENTLOG:local_date_time} %{TZ:short_tz} %{GREEDYDATA:body}"],
+        "patterns": ["%{DATESTAMP_EVENTLOG:local_date_time} %{TZ:short_tz} %{GREEDYDATA:payload}"],
         "pattern_definitions": {
           "TZ": "[A-Z]{3}"
         }
@@ -112,4 +112,4 @@ In the example below, the `message` field in the input is expected to be a strin
 }
 ```
 
-With that pipeline, a `message` field with the value `20250102123456 PST Hello world` will result in a `@timestamp` field with the value `2025-01-02T12:34:56.000-08:00` and a `body` field with the value `Hello world`. (Note: A `@timestamp` field will normally be mapped to a `date` type, and therefore it will be indexed as an integer representing milliseconds since the epoch, although the original format and timezone may be preserved in the `_source`.)
+With that pipeline, a `message` field with the value `20250102123456 PST Hello world` will result in a `@timestamp` field with the value `2025-01-02T12:34:56.000-08:00` and a `payload` field with the value `Hello world`. (Note: A `@timestamp` field will normally be mapped to a `date` type, and therefore it will be indexed as an integer representing milliseconds since the epoch, although the original format and timezone may be preserved in the `_source`.)

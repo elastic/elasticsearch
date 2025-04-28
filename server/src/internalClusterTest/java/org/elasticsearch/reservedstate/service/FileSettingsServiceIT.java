@@ -25,7 +25,11 @@ import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.health.node.DataStreamLifecycleHealthInfo;
+import org.elasticsearch.health.node.DslErrorInfo;
+import org.elasticsearch.health.node.FetchHealthInfoCacheAction;
 import org.elasticsearch.health.node.HealthInfoCache;
+import org.elasticsearch.health.node.selection.HealthNode;
 import org.elasticsearch.reservedstate.action.ReservedClusterSettingsAction;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.junit.Before;
@@ -47,8 +51,10 @@ import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
@@ -501,12 +507,8 @@ public class FileSettingsServiceIT extends ESIntegTestCase {
 
     public void testHealthIndicator() throws Exception {
         internalCluster().setBootstrapMasterNodeIndex(0);
-        logger.info("--> start a second node to act as the health node");
-        String dataNode = internalCluster().startNode(Settings.builder().put(dataOnlyNode()).put("discovery.initial_state_timeout", "1s"));
-
-        // Note that we assume the data node is the health node
-        // TODO: Can we do better?
-        var actualHealthInfoCache = internalCluster().getInstance(HealthInfoCache.class, dataNode);
+        logger.info("--> start a data node to act as the health node");
+        internalCluster().startNode(Settings.builder().put(dataOnlyNode()).put("discovery.initial_state_timeout", "1s"));
 
         logger.info("--> start master node");
         final String masterNode = internalCluster().startMasterOnlyNode(
@@ -514,10 +516,19 @@ public class FileSettingsServiceIT extends ESIntegTestCase {
         );
         FileSettingsService masterFileSettingsService = internalCluster().getInstance(FileSettingsService.class, masterNode);
         assertBusy(() -> assertTrue(masterFileSettingsService.watching()));
+
         ensureStableCluster(2);
 
+        var healthNode = HealthNode.findHealthNode(clusterService().state()).getName();
+
         // Initially, all is well
-        assertBusy(() -> assertEquals(0, actualHealthInfoCache.getHealthInfo().fileSettingsHealthInfo().failureStreak()));
+        assertBusy(() -> {
+            FetchHealthInfoCacheAction.Response healthNodeResponse = client(healthNode).execute(
+                FetchHealthInfoCacheAction.INSTANCE,
+                new FetchHealthInfoCacheAction.Request()
+            ).get();
+            assertEquals(0, healthNodeResponse.getHealthInfo().fileSettingsHealthInfo().failureStreak());
+        });
 
         logger.info("--> induce an error and wait for it to be processed");
         var savedClusterState = setupClusterStateListenerForError(masterNode);
@@ -526,7 +537,13 @@ public class FileSettingsServiceIT extends ESIntegTestCase {
         assertTrue(awaitSuccessful);
 
         logger.info("--> ensure the health node also reports it");
-        assertBusy(() -> assertEquals(1, actualHealthInfoCache.getHealthInfo().fileSettingsHealthInfo().failureStreak()));
+        assertBusy(() -> {
+            FetchHealthInfoCacheAction.Response healthNodeResponse = client(healthNode).execute(
+                FetchHealthInfoCacheAction.INSTANCE,
+                new FetchHealthInfoCacheAction.Request()
+            ).get();
+            assertEquals(1, healthNodeResponse.getHealthInfo().fileSettingsHealthInfo().failureStreak());
+        });
     }
 
     private void assertHasErrors(AtomicLong waitForMetadataVersion, String expectedError) {

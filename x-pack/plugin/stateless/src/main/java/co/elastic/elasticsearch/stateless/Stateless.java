@@ -25,6 +25,7 @@ import co.elastic.elasticsearch.stateless.action.TransportFetchShardCommitsInUse
 import co.elastic.elasticsearch.stateless.action.TransportGetVirtualBatchedCompoundCommitChunkAction;
 import co.elastic.elasticsearch.stateless.action.TransportNewCommitNotificationAction;
 import co.elastic.elasticsearch.stateless.allocation.StatelessAllocationDecider;
+import co.elastic.elasticsearch.stateless.allocation.StatelessBalancingWeightsFactory;
 import co.elastic.elasticsearch.stateless.allocation.StatelessExistingShardsAllocator;
 import co.elastic.elasticsearch.stateless.allocation.StatelessIndexSettingProvider;
 import co.elastic.elasticsearch.stateless.allocation.StatelessShardRoutingRoleStrategy;
@@ -159,6 +160,8 @@ import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.routing.allocation.ExistingShardsAllocator;
 import org.elasticsearch.cluster.routing.allocation.allocator.BalancedShardsAllocator;
+import org.elasticsearch.cluster.routing.allocation.allocator.BalancerSettings;
+import org.elasticsearch.cluster.routing.allocation.allocator.BalancingWeightsFactory;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDecider;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.blobstore.BlobContainer;
@@ -1089,7 +1092,12 @@ public class Stateless extends Plugin
             USE_INDEX_REFRESH_BLOCK_SETTING,
             RemoveRefreshClusterBlockService.EXPIRE_AFTER_SETTING,
             SplitTargetService.RESHARD_SPLIT_SEARCH_SHARDS_ONLINE_TIMEOUT,
-            IndexingOperationsMemoryRequirementsSampler.SAMPLE_VALIDITY_SETTING
+            IndexingOperationsMemoryRequirementsSampler.SAMPLE_VALIDITY_SETTING,
+            StatelessBalancingWeightsFactory.SEPARATE_WEIGHTS_PER_TIER_ENABLED_SETTING,
+            StatelessBalancingWeightsFactory.INDEXING_TIER_SHARD_BALANCE_FACTOR_SETTING,
+            StatelessBalancingWeightsFactory.SEARCH_TIER_SHARD_BALANCE_FACTOR_SETTING,
+            StatelessBalancingWeightsFactory.INDEXING_TIER_WRITE_LOAD_BALANCE_FACTOR_SETTING,
+            StatelessBalancingWeightsFactory.SEARCH_TIER_WRITE_LOAD_BALANCE_FACTOR_SETTING
         );
     }
 
@@ -1613,6 +1621,15 @@ public class Stateless extends Plugin
         return List.of(
             ObjectStoreGCTaskExecutor.create(clusterService, threadPool, client, objectStoreService::get, settingsModule.getSettings())
         );
+    }
+
+    @Override
+    public BalancingWeightsFactory getBalancingWeightsFactory(BalancerSettings balancerSettings, ClusterSettings clusterSettings) {
+        if (clusterSettings.get(StatelessBalancingWeightsFactory.SEPARATE_WEIGHTS_PER_TIER_ENABLED_SETTING)) {
+            return new StatelessBalancingWeightsFactory(balancerSettings, clusterSettings);
+        }
+        // Returning null means we use the default (global) BalancingWeightsFactory
+        return null;
     }
 
     public List<NamedWriteableRegistry.Entry> getNamedWriteables() {

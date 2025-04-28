@@ -99,11 +99,6 @@ public abstract class RestCompatTestTransformTask extends DefaultTask {
     private final Map<PatternFilterable, List<Pair<String, String>>> skippedTestByTestNameTransformations = new HashMap<>();
 
     @Inject
-    protected PatternSetFactory getPatternSetFactory() {
-        throw new UnsupportedOperationException();
-    }
-
-    @Inject
     public RestCompatTestTransformTask(FileSystemOperations fileSystemOperations, ObjectFactory objectFactory) {
         this.fileSystemOperations = fileSystemOperations;
         this.compatibleVersion = Version.fromString(VersionProperties.getVersions().get("elasticsearch")).getMajor() - 1;
@@ -116,6 +111,9 @@ public abstract class RestCompatTestTransformTask extends DefaultTask {
         headers.put("Accept", "application/vnd.elasticsearch+json;compatible-with=" + compatibleVersion);
         getTransformations().add(new InjectHeaders(headers, Sets.newHashSet(RestCompatTestTransformTask::doesNotHaveCatOperation)));
     }
+
+    @Inject
+    protected abstract PatternSetFactory getPatternSetFactory();
 
     private static boolean doesNotHaveCatOperation(ObjectNode doNodeValue) {
         final Iterator<String> fieldNamesIterator = doNodeValue.fieldNames();

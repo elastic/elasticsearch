@@ -85,24 +85,16 @@ public abstract class CopyRestTestsTask extends DefaultTask {
     }
 
     @Inject
-    protected ProjectLayout getProjectLayout() {
-        throw new UnsupportedOperationException();
-    }
+    protected abstract ProjectLayout getProjectLayout();
 
     @Inject
-    protected FileSystemOperations getFileSystemOperations() {
-        throw new UnsupportedOperationException();
-    }
+    protected abstract FileSystemOperations getFileSystemOperations();
 
     @Inject
-    protected ObjectFactory getObjectFactory() {
-        throw new UnsupportedOperationException();
-    }
+    protected abstract ObjectFactory getObjectFactory();
 
     @Inject
-    protected PatternSetFactory getPatternSetFactory() {
-        throw new UnsupportedOperationException();
-    }
+    protected abstract PatternSetFactory getPatternSetFactory();
 
     @Input
     public ListProperty<String> getIncludeCore() {

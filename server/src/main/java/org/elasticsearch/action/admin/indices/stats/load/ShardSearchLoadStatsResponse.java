@@ -7,7 +7,7 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-package org.elasticsearch.action.admin.indices.stats.rrc;
+package org.elasticsearch.action.admin.indices.stats.load;
 
 import org.elasticsearch.action.support.DefaultShardOperationFailedException;
 import org.elasticsearch.action.support.broadcast.ChunkedBroadcastResponse;
@@ -23,9 +23,9 @@ import java.util.Objects;
 /**
  * Response to a shard stats request.
  */
-public class ShardStatsResponse extends ChunkedBroadcastResponse {
+public class ShardSearchLoadStatsResponse extends ChunkedBroadcastResponse {
 
-    private final ShardStats[] shards;
+    private final ShardSearchLoadStats[] shards;
 
     /**
      * Constructor to create a ShardStatsResponse object from a StreamInput.
@@ -33,9 +33,9 @@ public class ShardStatsResponse extends ChunkedBroadcastResponse {
      * @param in the StreamInput to read from
      * @throws IOException if an I/O error occurs
      */
-    ShardStatsResponse(StreamInput in) throws IOException {
+    ShardSearchLoadStatsResponse(StreamInput in) throws IOException {
         super(in);
-        shards = in.readArray(ShardStats::new, ShardStats[]::new);
+        shards = in.readArray(ShardSearchLoadStats::new, ShardSearchLoadStats[]::new);
     }
 
     /**
@@ -47,8 +47,8 @@ public class ShardStatsResponse extends ChunkedBroadcastResponse {
      * @param failedShards    the number of failed shards
      * @param shardFailures   the list of shard failures
      */
-    ShardStatsResponse(
-        ShardStats[] shards,
+    ShardSearchLoadStatsResponse(
+        ShardSearchLoadStats[] shards,
         int totalShards,
         int successfulShards,
         int failedShards,
@@ -64,7 +64,7 @@ public class ShardStatsResponse extends ChunkedBroadcastResponse {
      *
      * @return the array of shard stats
      */
-    public ShardStats[] getShards() {
+    public ShardSearchLoadStats[] getShards() {
         return shards;
     }
 

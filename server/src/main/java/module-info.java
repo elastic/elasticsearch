@@ -477,5 +477,5 @@ module org.elasticsearch.server {
     exports org.elasticsearch.plugins.internal.rewriter to org.elasticsearch.inference;
     exports org.elasticsearch.lucene.util.automaton;
     exports org.elasticsearch.index.codec.perfield;
-    exports org.elasticsearch.action.admin.indices.stats.rrc;
+    exports org.elasticsearch.action.admin.indices.stats.load;
 }

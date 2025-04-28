@@ -7,7 +7,7 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-package org.elasticsearch.action.admin.indices.stats.rrc;
+package org.elasticsearch.action.admin.indices.stats.load;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -38,18 +38,18 @@ import org.elasticsearch.transport.TransportService;
 import java.io.IOException;
 import java.util.Map;
 
-public class TransportShardStatsAction extends TransportBroadcastByNodeAction<
-    TransportShardStatsAction.Request,
-    ShardStatsResponse,
-    ShardStats> {
+public class TransportShardSearchLoadStatsAction extends TransportBroadcastByNodeAction<
+    TransportShardSearchLoadStatsAction.Request,
+    ShardSearchLoadStatsResponse,
+    ShardSearchLoadStats> {
 
-    private static final Logger logger = LogManager.getLogger(TransportShardStatsAction.class);
+    private static final Logger logger = LogManager.getLogger(TransportShardSearchLoadStatsAction.class);
 
     private final IndicesService indicesService;
     private final ProjectResolver projectResolver;
 
     @Inject
-    public TransportShardStatsAction(
+    public TransportShardSearchLoadStatsAction(
         ClusterService clusterService,
         TransportService transportService,
         IndicesService indicesService,
@@ -58,7 +58,7 @@ public class TransportShardStatsAction extends TransportBroadcastByNodeAction<
         IndexNameExpressionResolver indexNameExpressionResolver
     ) {
         super(
-            ShardStatsAction.NAME,
+            ShardSearchLoadStatsAction.NAME,
             clusterService,
             transportService,
             actionFilters,
@@ -86,14 +86,14 @@ public class TransportShardStatsAction extends TransportBroadcastByNodeAction<
     }
 
     @Override
-    protected ShardStats readShardResult(StreamInput in) throws IOException {
-        return new ShardStats(in);
+    protected ShardSearchLoadStats readShardResult(StreamInput in) throws IOException {
+        return new ShardSearchLoadStats(in);
     }
 
     @Override
-    protected ResponseFactory<ShardStatsResponse, ShardStats> getResponseFactory(Request request, ClusterState clusterState) {
-        return (totalShards, successfulShards, failedShards, responses, shardFailures) -> new ShardStatsResponse(
-            responses.toArray(new ShardStats[0]),
+    protected ResponseFactory<ShardSearchLoadStatsResponse, ShardSearchLoadStats> getResponseFactory(Request request, ClusterState clusterState) {
+        return (totalShards, successfulShards, failedShards, responses, shardFailures) -> new ShardSearchLoadStatsResponse(
+            responses.toArray(new ShardSearchLoadStats[0]),
             totalShards,
             successfulShards,
             failedShards,
@@ -107,7 +107,7 @@ public class TransportShardStatsAction extends TransportBroadcastByNodeAction<
     }
 
     @Override
-    protected void shardOperation(Request request, ShardRouting shardRouting, Task task, ActionListener<ShardStats> listener) {
+    protected void shardOperation(Request request, ShardRouting shardRouting, Task task, ActionListener<ShardSearchLoadStats> listener) {
         ActionListener.completeWith(listener, () -> {
             assert task instanceof CancellableTask;
 
@@ -123,7 +123,7 @@ public class TransportShardStatsAction extends TransportBroadcastByNodeAction<
                 searchLoadRate.ewmRate()
             );
 
-            return new ShardStats(
+            return new ShardSearchLoadStats(
                 shardId.getIndex().getName(),
                 shardId.getId(),
                 shardRouting.allocationId().getId(),

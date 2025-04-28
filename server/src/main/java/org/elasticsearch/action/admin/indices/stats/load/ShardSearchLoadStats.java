@@ -7,7 +7,7 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-package org.elasticsearch.action.admin.indices.stats.rrc;
+package org.elasticsearch.action.admin.indices.stats.load;
 
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -21,7 +21,7 @@ import java.util.Objects;
  * ShardStats class represents the statistics of a shard in an index.
  * It contains information such as the index name, shard ID, allocation ID, and EWMA rate.
  */
-public class ShardStats implements Writeable {
+public class ShardSearchLoadStats implements Writeable {
 
     private final String indexName;
 
@@ -37,7 +37,7 @@ public class ShardStats implements Writeable {
      * @param in the StreamInput to read from
      * @throws IOException if an I/O error occurs
      */
-    public ShardStats(StreamInput in) throws IOException {
+    public ShardSearchLoadStats(StreamInput in) throws IOException {
         assert Transports.assertNotTransportThread("O(#shards) work must always fork to an appropriate executor");
         this.indexName = in.readString();
         this.shardId = in.readVInt();
@@ -53,7 +53,7 @@ public class ShardStats implements Writeable {
      * @param allocationId the allocation ID of the shard
      * @param ewma        the EWMA rate of the shard
      */
-    public ShardStats(String indexName, Integer shardId, String allocationId, Double ewma) {
+    public ShardSearchLoadStats(String indexName, Integer shardId, String allocationId, Double ewma) {
         this.indexName = indexName;
         this.shardId = shardId;
         this.allocationId = allocationId;
@@ -64,7 +64,7 @@ public class ShardStats implements Writeable {
     public boolean equals(Object o) {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
-        ShardStats that = (ShardStats) o;
+        ShardSearchLoadStats that = (ShardSearchLoadStats) o;
         return Objects.equals(indexName, that.indexName)
             && Objects.equals(shardId, that.shardId)
             && Objects.equals(allocationId, that.allocationId)

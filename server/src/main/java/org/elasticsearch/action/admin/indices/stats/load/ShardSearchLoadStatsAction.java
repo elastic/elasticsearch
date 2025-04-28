@@ -7,7 +7,7 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-package org.elasticsearch.action.admin.indices.stats.rrc;
+package org.elasticsearch.action.admin.indices.stats.load;
 
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.RemoteClusterActionType;
@@ -15,16 +15,16 @@ import org.elasticsearch.action.RemoteClusterActionType;
 /**
  * Action to retrieve shard stats from a remote cluster.
  */
-public class ShardStatsAction extends ActionType<ShardStatsResponse> {
+public class ShardSearchLoadStatsAction extends ActionType<ShardSearchLoadStatsResponse> {
 
-    public static final ShardStatsAction INSTANCE = new ShardStatsAction();
+    public static final ShardSearchLoadStatsAction INSTANCE = new ShardSearchLoadStatsAction();
     public static final String NAME = "shards:monitor/stats";
-    public static final RemoteClusterActionType<ShardStatsResponse> REMOTE_TYPE = new RemoteClusterActionType<>(
+    public static final RemoteClusterActionType<ShardSearchLoadStatsResponse> REMOTE_TYPE = new RemoteClusterActionType<>(
         NAME,
-        ShardStatsResponse::new
+        ShardSearchLoadStatsResponse::new
     );
 
-    private ShardStatsAction() {
+    private ShardSearchLoadStatsAction() {
         super(NAME);
     }
 }

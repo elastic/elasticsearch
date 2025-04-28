@@ -194,7 +194,7 @@ public class TimeSeriesSortedSourceOperatorFactory extends LuceneOperator.Factor
                 iterator.readDocsForNextPage();
                 if (currentPagePos > 0) {
                     int blockIndex = 0;
-                    if (emitDocIds) {
+                    if (docCollector != null) {
                         blocks[blockIndex++] = docCollector.build().asBlock();
                     }
                     blocks[blockIndex++] = tsHashesBuilder.build().asBlock();

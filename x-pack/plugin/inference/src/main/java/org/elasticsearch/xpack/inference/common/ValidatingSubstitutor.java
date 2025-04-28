@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.inference.common;
 
 import org.apache.commons.text.StringSubstitutor;
+import org.elasticsearch.common.Strings;
 
 import java.util.Map;
 import java.util.regex.Matcher;
@@ -37,20 +38,20 @@ public class ValidatingSubstitutor {
      * Substitutes placeholder values in a string that match the keys in a provided map with the map's corresponding values.
      * After replacement, if the source still contains a placeholder an {@link IllegalStateException} is thrown.
      * @param source the string that will be searched for placeholders to be replaced
-     * @param settingName a description of the source string
+     * @param field a description of the source string
      * @return a string with the placeholders replaced by string values
      */
-    public String replace(String source, String settingName) {
+    public String replace(String source, String field) {
         var replacedString = substitutor.replace(source);
-        ensureNoMorePlaceholdersExist(replacedString, settingName);
+        ensureNoMorePlaceholdersExist(replacedString, field);
         return replacedString;
     }
 
-    private static void ensureNoMorePlaceholdersExist(String substitutedString, String settingName) {
+    private static void ensureNoMorePlaceholdersExist(String substitutedString, String field) {
         Matcher matcher = VARIABLE_PLACEHOLDER_PATTERN.matcher(substitutedString);
         if (matcher.find()) {
             throw new IllegalStateException(
-                String.format("Found placeholder [%s] in setting [%s] after replacement call", matcher.group(), settingName)
+                Strings.format("Found placeholder [%s] in field [%s] after replacement call", matcher.group(), field)
             );
         }
     }

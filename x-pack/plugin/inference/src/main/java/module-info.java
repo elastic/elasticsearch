@@ -36,9 +36,6 @@ module org.elasticsearch.inference {
     requires org.elasticsearch.logging;
     requires org.elasticsearch.sslconfig;
     requires org.apache.commons.text;
-    requires json.path;
-    requires json.smart;
-    requires software.amazon.awssdk.protocols.jsoncore;
 
     exports org.elasticsearch.xpack.inference.action;
     exports org.elasticsearch.xpack.inference.registry;

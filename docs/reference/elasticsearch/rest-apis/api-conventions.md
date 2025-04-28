@@ -232,33 +232,17 @@ PUT /%3Cmy-index-%7Bnow%2Fd%7D%3E
 
 The special characters used for date rounding must be URI encoded as follows:
 
-`<`
-:   `%3C`
-
-`>`
-:   `%3E`
-
-`/`
-:   `%2F`
-
-`{`
-:   `%7B`
-
-`}`
-:   `%7D`
-
-`|`
-:   `%7C`
-
-`+`
-:   `%2B`
-
-`:`
-:   `%3A`
-
-`,`
-:   `%2C`
-
+| | |
+|---|---|
+| `<` | `%3C` |
+| `>` | `%3E` |
+| `/` | `%2F` |
+| `{` | `%7B` |
+| `}` | `%7D` |
+| `|` | `%7C` |
+| `+` | `%2B` |
+| `:` | `%3A` |
+| `,` | `%2C` |
 ::::
 
 
@@ -340,8 +324,9 @@ Some multi-target APIs that can target indices also support the following query 
 `ignore_throttled`
 :   (Optional, Boolean) If `true`, concrete, expanded or aliased indices are ignored when frozen. Defaults to `true`.
 
-    [7.16.0]
-
+    :::{admonition} Deprecated in 7.16.0
+    This parameter was deprecated in 7.16.0.
+    :::
 
 ::::{note}
 APIs with a single target, such as the [get document API](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-get), do not support multi-target syntax.

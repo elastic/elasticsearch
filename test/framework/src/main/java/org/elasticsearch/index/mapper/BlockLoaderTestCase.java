@@ -16,16 +16,16 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.datageneration.DataGeneratorSpecification;
+import org.elasticsearch.datageneration.DocumentGenerator;
+import org.elasticsearch.datageneration.Mapping;
+import org.elasticsearch.datageneration.MappingGenerator;
+import org.elasticsearch.datageneration.Template;
+import org.elasticsearch.datageneration.datasource.DataSourceHandler;
+import org.elasticsearch.datageneration.datasource.DataSourceRequest;
+import org.elasticsearch.datageneration.datasource.DataSourceResponse;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.fieldvisitor.StoredFieldLoader;
-import org.elasticsearch.logsdb.datageneration.DataGeneratorSpecification;
-import org.elasticsearch.logsdb.datageneration.DocumentGenerator;
-import org.elasticsearch.logsdb.datageneration.Mapping;
-import org.elasticsearch.logsdb.datageneration.MappingGenerator;
-import org.elasticsearch.logsdb.datageneration.Template;
-import org.elasticsearch.logsdb.datageneration.datasource.DataSourceHandler;
-import org.elasticsearch.logsdb.datageneration.datasource.DataSourceRequest;
-import org.elasticsearch.logsdb.datageneration.datasource.DataSourceResponse;
 import org.elasticsearch.plugins.internal.XContentMeteringParserDecorator;
 import org.elasticsearch.search.fetch.StoredFieldsSpec;
 import org.elasticsearch.search.lookup.SearchLookup;
@@ -166,8 +166,8 @@ public abstract class BlockLoaderTestCase extends MapperServiceTestCase {
         var document = documentGenerator.generate(template, mapping);
         var documentXContent = XContentBuilder.builder(XContentType.JSON.xContent()).map(document);
 
-        Object blockLoaderResult = setupAndInvokeBlockLoader(mapperService, documentXContent, fieldName);
         Object expected = expected(mapping.lookup().get(fieldName), getFieldValue(document, fieldName), testContext);
+        Object blockLoaderResult = setupAndInvokeBlockLoader(mapperService, documentXContent, blockLoaderFieldName(fieldName));
         assertEquals(expected, blockLoaderResult);
     }
 
@@ -214,6 +214,14 @@ public abstract class BlockLoaderTestCase extends MapperServiceTestCase {
         }
 
         return list;
+    }
+
+    /**
+        Allows to change the field name used to obtain a block loader.
+        Useful f.e. to test block loaders of multi fields.
+     */
+    protected String blockLoaderFieldName(String originalName) {
+        return originalName;
     }
 
     private Object setupAndInvokeBlockLoader(MapperService mapperService, XContentBuilder document, String fieldName) throws IOException {

@@ -17,6 +17,7 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.DataStream;
+import org.elasticsearch.cluster.project.TestProjectResolvers;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.datastreams.DataStreamsPlugin;
 import org.elasticsearch.index.mapper.DateFieldMapper;
@@ -36,7 +37,6 @@ import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 
-@ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0, numClientNodes = 0)
 public class IndexTemplateRegistryRolloverIT extends ESIntegTestCase {
 
     private ClusterService clusterService;
@@ -58,7 +58,8 @@ public class IndexTemplateRegistryRolloverIT extends ESIntegTestCase {
             clusterService.threadPool(),
             client,
             xContentRegistry(),
-            3L
+            3L,
+            TestProjectResolvers.mustExecuteFirst()
         );
         registry.initialize();
         ensureGreen();

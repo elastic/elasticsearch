@@ -666,8 +666,6 @@ public class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<S
                         if (canMatch.canMatch()) {
                             r.setRunCanMatchInQueryPhase(false);
                             minAndMax[i] = canMatch.estimatedMinAndMax();
-                        } else {
-                            assert false;
                         }
                     }
                     int[] indexes = CanMatchPreFilterSearchPhase.sortShards(

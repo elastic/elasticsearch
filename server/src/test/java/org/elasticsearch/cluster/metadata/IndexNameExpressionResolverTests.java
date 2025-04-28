@@ -1864,14 +1864,7 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
             )
             .build();
 
-        String[] strings = indexNameExpressionResolver.indexAliases(
-            project,
-            "test-0",
-            x -> true,
-            (x, y) -> true,
-            true,
-            resolvedExpressionsSet("test-0", "test-alias")
-        );
+        String[] strings = indexNameExpressionResolver.allIndexAliases(project, "test-0", resolvedExpressionsSet("test-0", "test-alias"));
         Arrays.sort(strings);
         assertArrayEquals(new String[] { "test-alias" }, strings);
         IndicesRequest request = new IndicesRequest() {
@@ -1943,12 +1936,9 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
                     .putAlias(AliasMetadata.builder("test-alias").writeIndex(testZeroWriteIndex ? randomFrom(false, null) : true))
             )
             .build();
-        String[] strings = indexNameExpressionResolver.indexAliases(
+        String[] strings = indexNameExpressionResolver.allIndexAliases(
             project,
             "test-0",
-            x -> true,
-            (x, y) -> true,
-            true,
             resolvedExpressionsSet("test-0", "test-1", "test-alias")
         );
         Arrays.sort(strings);
@@ -1981,14 +1971,7 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
         ProjectMetadata project = ProjectMetadata.builder(Metadata.DEFAULT_PROJECT_ID)
             .put(indexBuilder("test-0").state(State.OPEN).putAlias(AliasMetadata.builder("test-alias").writeIndex(false)))
             .build();
-        String[] strings = indexNameExpressionResolver.indexAliases(
-            project,
-            "test-0",
-            x -> true,
-            (x, y) -> true,
-            true,
-            resolvedExpressionsSet("test-0", "test-alias")
-        );
+        String[] strings = indexNameExpressionResolver.allIndexAliases(project, "test-0", resolvedExpressionsSet("test-0", "test-alias"));
         Arrays.sort(strings);
         assertArrayEquals(new String[] { "test-alias" }, strings);
         DocWriteRequest<?> request = randomFrom(
@@ -2015,12 +1998,9 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
             .put(indexBuilder("test-0").state(State.OPEN).putAlias(AliasMetadata.builder("test-alias").writeIndex(randomFrom(false, null))))
             .put(indexBuilder("test-1").state(State.OPEN).putAlias(AliasMetadata.builder("test-alias").writeIndex(randomFrom(false, null))))
             .build();
-        String[] strings = indexNameExpressionResolver.indexAliases(
+        String[] strings = indexNameExpressionResolver.allIndexAliases(
             project,
             "test-0",
-            x -> true,
-            (x, y) -> true,
-            true,
             Set.of(new ResolvedExpression("test-0"), new ResolvedExpression("test-1"), new ResolvedExpression("test-alias"))
         );
         Arrays.sort(strings);
@@ -2056,12 +2036,9 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
                     .putAlias(AliasMetadata.builder("test-alias").writeIndex(randomFrom(test0WriteIndex == false, null)))
             )
             .build();
-        String[] strings = indexNameExpressionResolver.indexAliases(
+        String[] strings = indexNameExpressionResolver.allIndexAliases(
             project,
             "test-0",
-            x -> true,
-            (x, y) -> true,
-            true,
             resolvedExpressionsSet("test-0", "test-1", "test-alias")
         );
         Arrays.sort(strings);

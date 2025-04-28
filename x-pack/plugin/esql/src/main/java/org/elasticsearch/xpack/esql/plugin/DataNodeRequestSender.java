@@ -265,9 +265,8 @@ abstract class DataNodeRequestSender {
                     concurrentRequests.release();
                 }
 
-                if (pendingRetries.isEmpty() == false && remainingUnavailableShardResolutionAttempts.decrementAndGet() >= 0) {
+                if (pendingRetries.isEmpty() == false) {
                     try {
-                        sendingLock.lock();
                         var resolutions = resolveShards(pendingRetries);
                         for (var entry : resolutions.entrySet()) {
                             targetShards.shards.get(entry.getKey()).remainingNodes.addAll(entry.getValue());
@@ -292,8 +291,8 @@ abstract class DataNodeRequestSender {
                 for (var entry : response.shardLevelFailures().entrySet()) {
                     final ShardId shardId = entry.getKey();
                     trackShardLevelFailure(shardId, false, entry.getValue());
-                    pendingShardIds.add(shardId);
                     maybeScheduleRetry(shardId, false, entry.getValue());
+                    pendingShardIds.add(shardId);
                 }
                 onAfter(response.completionInfo());
             }
@@ -302,8 +301,8 @@ abstract class DataNodeRequestSender {
             public void onFailure(Exception e, boolean receivedData) {
                 for (ShardId shardId : request.shardIds) {
                     trackShardLevelFailure(shardId, receivedData, e);
-                    pendingShardIds.add(shardId);
                     maybeScheduleRetry(shardId, receivedData, e);
+                    pendingShardIds.add(shardId);
                 }
                 onAfter(DriverCompletionInfo.EMPTY);
             }
@@ -322,6 +321,9 @@ abstract class DataNodeRequestSender {
                 if (receivedData == false
                     && targetShards.getShard(shardId).remainingNodes.isEmpty()
                     && unwrapFailure(shardId, e) instanceof NoShardAvailableActionException) {
+                    if (pendingRetries.isEmpty() && remainingUnavailableShardResolutionAttempts.decrementAndGet() >= 0) {
+                        sendingLock.lock();
+                    }
                     pendingRetries.add(shardId);
                 }
             }

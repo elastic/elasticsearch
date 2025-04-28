@@ -138,7 +138,7 @@ If heap sizes are not specifically set, {{es}} will calculate JVM heap sizing ba
   * 40% of the first 16 gigabytes plus 10% of memory above that when total system memory is more than 16 gigabytes, up to a maximum of 31 GB.
 * Data-only node
   * 40% of total system memory when less than 1 GB, with a minimum of 128 MB.
-  * 50% of total system memory when more than 1 GB, with a maximum of 31 GB.
+  * 50% of total system memory when 1 GB or more, with a maximum of 31 GB.
 
 
 ## JVM heap dump path setting [heap-dump-path-setting]

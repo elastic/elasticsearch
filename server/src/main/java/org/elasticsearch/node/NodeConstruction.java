@@ -23,6 +23,8 @@ import org.elasticsearch.action.bulk.FailureStoreMetrics;
 import org.elasticsearch.action.bulk.IncrementalBulkService;
 import org.elasticsearch.action.datastreams.autosharding.DataStreamAutoShardingService;
 import org.elasticsearch.action.ingest.ReservedPipelineAction;
+import org.elasticsearch.action.search.OnlinePrewarmingService;
+import org.elasticsearch.action.search.OnlinePrewarmingServiceProvider;
 import org.elasticsearch.action.search.SearchExecutionStatsCollector;
 import org.elasticsearch.action.search.SearchPhaseController;
 import org.elasticsearch.action.search.SearchTransportService;
@@ -1166,6 +1168,10 @@ class NodeConstruction {
         final NodeMetrics nodeMetrics = new NodeMetrics(telemetryProvider.getMeterRegistry(), nodeService, metricsInterval);
         final IndicesMetrics indicesMetrics = new IndicesMetrics(telemetryProvider.getMeterRegistry(), indicesService, metricsInterval);
 
+        OnlinePrewarmingService onlinePrewarmingService = pluginsService.loadSingletonServiceProvider(
+            OnlinePrewarmingServiceProvider.class,
+            () -> OnlinePrewarmingServiceProvider.DEFAULT
+        ).create(clusterService.getSettings(), threadPool, clusterService);
         final SearchService searchService = serviceProvider.newSearchService(
             pluginsService,
             clusterService,
@@ -1176,7 +1182,8 @@ class NodeConstruction {
             searchModule.getFetchPhase(),
             circuitBreakerService,
             systemIndices.getExecutorSelector(),
-            telemetryProvider.getTracer()
+            telemetryProvider.getTracer(),
+            onlinePrewarmingService
         );
 
         final ShutdownPrepareService shutdownPrepareService = new ShutdownPrepareService(settings, httpServerTransport, terminationHandler);
@@ -1270,6 +1277,7 @@ class NodeConstruction {
             b.bind(DataStreamAutoShardingService.class).toInstance(dataStreamAutoShardingService);
             b.bind(FailureStoreMetrics.class).toInstance(failureStoreMetrics);
             b.bind(ShutdownPrepareService.class).toInstance(shutdownPrepareService);
+            b.bind(OnlinePrewarmingService.class).toInstance(onlinePrewarmingService);
         });
 
         if (ReadinessService.enabled(environment)) {

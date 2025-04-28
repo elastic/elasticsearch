@@ -51,7 +51,6 @@ public class LegacyRestTestBasePlugin implements Plugin<Project> {
     private static final String TESTS_CLUSTER_REMOTE_ACCESS = "tests.cluster.remote_access";
 
     private ProviderFactory providerFactory;
-    private Project project;
 
     @Inject
     public LegacyRestTestBasePlugin(ProviderFactory providerFactory) {
@@ -60,7 +59,6 @@ public class LegacyRestTestBasePlugin implements Plugin<Project> {
 
     @Override
     public void apply(Project project) {
-        this.project = project;
         Provider<RestrictedBuildApiService> serviceProvider = project.getGradle()
             .getSharedServices()
             .registerIfAbsent("restrictedBuildAPI", RestrictedBuildApiService.class, spec -> {
@@ -88,13 +86,22 @@ public class LegacyRestTestBasePlugin implements Plugin<Project> {
                 }
                 SystemPropertyCommandLineArgumentProvider runnerNonInputProperties =
                     (SystemPropertyCommandLineArgumentProvider) restIntegTestTask.getExtensions().getByName("nonInputProperties");
-                runnerNonInputProperties.systemProperty(TESTS_REST_CLUSTER, () -> String.join(",", cluster.getAllHttpSocketURI()));
-                runnerNonInputProperties.systemProperty(TESTS_CLUSTER, () -> String.join(",", cluster.getAllTransportPortURI()));
-                runnerNonInputProperties.systemProperty(TESTS_CLUSTER_NAME, cluster::getName);
-                runnerNonInputProperties.systemProperty(TESTS_CLUSTER_READINESS, () -> String.join(",", cluster.getAllReadinessPortURI()));
+                runnerNonInputProperties.systemProperty(
+                    TESTS_REST_CLUSTER,
+                    providerFactory.provider(() -> String.join(",", cluster.getAllHttpSocketURI()))
+                );
+                runnerNonInputProperties.systemProperty(
+                    TESTS_CLUSTER,
+                    providerFactory.provider(() -> String.join(",", cluster.getAllTransportPortURI()))
+                );
+                runnerNonInputProperties.systemProperty(TESTS_CLUSTER_NAME, providerFactory.provider(cluster::getName));
+                runnerNonInputProperties.systemProperty(
+                    TESTS_CLUSTER_READINESS,
+                    providerFactory.provider(() -> String.join(",", cluster.getAllReadinessPortURI()))
+                );
                 runnerNonInputProperties.systemProperty(
                     TESTS_CLUSTER_REMOTE_ACCESS,
-                    () -> String.join(",", cluster.getAllRemoteAccessPortURI())
+                    providerFactory.provider(() -> String.join(",", cluster.getAllRemoteAccessPortURI()))
                 );
             } else {
                 if (systemProperty(TESTS_CLUSTER) == null || systemProperty(TESTS_CLUSTER_NAME) == null) {

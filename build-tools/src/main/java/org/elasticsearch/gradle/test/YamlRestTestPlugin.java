@@ -27,6 +27,7 @@ import org.gradle.api.artifacts.dsl.DependencyHandler;
 import org.gradle.api.artifacts.type.ArtifactTypeDefinition;
 import org.gradle.api.attributes.Attribute;
 import org.gradle.api.plugins.JavaBasePlugin;
+import org.gradle.api.provider.ProviderFactory;
 import org.gradle.api.tasks.Copy;
 import org.gradle.api.tasks.SourceSet;
 import org.gradle.api.tasks.SourceSetContainer;
@@ -118,6 +119,7 @@ public class YamlRestTestPlugin implements Plugin<Project> {
         SourceSet testSourceSet,
         NamedDomainObjectProvider<ElasticsearchCluster> clusterProvider
     ) {
+        ProviderFactory providers = project.getProviders();
         return project.getTasks().register(YAML_REST_TEST, StandaloneRestIntegTestTask.class, task -> {
             task.useCluster(clusterProvider.get());
             task.setTestClassesDirs(testSourceSet.getOutput().getClassesDirs());
@@ -125,9 +127,15 @@ public class YamlRestTestPlugin implements Plugin<Project> {
 
             var cluster = clusterProvider.get();
             var nonInputProperties = new SystemPropertyCommandLineArgumentProvider();
-            nonInputProperties.systemProperty("tests.rest.cluster", () -> String.join(",", cluster.getAllHttpSocketURI()));
-            nonInputProperties.systemProperty("tests.cluster", () -> String.join(",", cluster.getAllTransportPortURI()));
-            nonInputProperties.systemProperty("tests.clustername", () -> cluster.getName());
+            nonInputProperties.systemProperty(
+                "tests.rest.cluster",
+                providers.provider(() -> String.join(",", cluster.getAllHttpSocketURI()))
+            );
+            nonInputProperties.systemProperty(
+                "tests.cluster",
+                providers.provider(() -> String.join(",", cluster.getAllTransportPortURI()))
+            );
+            nonInputProperties.systemProperty("tests.clustername", providers.provider(() -> cluster.getName()));
             task.getJvmArgumentProviders().add(nonInputProperties);
             task.systemProperty("tests.rest.load_packaged", Boolean.FALSE.toString());
         });

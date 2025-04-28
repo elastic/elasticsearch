@@ -24,10 +24,6 @@ public class SystemPropertyCommandLineArgumentProvider implements CommandLineArg
         systemProperties.put(key, (Supplier<String>) () -> String.valueOf(value.get()));
     }
 
-    public void systemProperty(String key, Supplier<String> value) {
-        systemProperties.put(key, value);
-    }
-
     public void systemProperty(String key, Object value) {
         systemProperties.put(key, value);
     }

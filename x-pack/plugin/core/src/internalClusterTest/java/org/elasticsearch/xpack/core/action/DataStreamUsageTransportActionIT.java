@@ -182,7 +182,7 @@ public class DataStreamUsageTransportActionIT extends ESIntegTestCase {
                 if (lifecycle == null
                     && (enabledBySetting || Boolean.TRUE.equals(failureStoreEnabled) || failureIndices.isEmpty() == false)) {
                     effectivelyEnabledFailuresLifecycleCount.incrementAndGet();
-                    if (systemDataStream == false) {
+                    if (systemDataStream == false && useDefaultRetention) {
                         failuresLifecycleWithDefaultRetention.incrementAndGet();
                     }
                 }

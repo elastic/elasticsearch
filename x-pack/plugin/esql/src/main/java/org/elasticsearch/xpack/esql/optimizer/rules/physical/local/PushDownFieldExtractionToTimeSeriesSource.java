@@ -26,7 +26,13 @@ import java.util.List;
 import java.util.Set;
 
 /**
- * A rule that pushes down field extractions to occur before filter/limit/topN in the time-series source plan.
+ * An optimization rule that pushes down field extractions to occur at the lowest filter, limit, or topN in the time-series source plan.
+ * For example:
+ * `TS index | WHERE host = 'a' AND cluster = 'b' | STATS max(rate(counter)) BY host, bucket(1minute)`
+ * In this query, the extraction of the `host` and `cluster` fields will be pushed down to the time-series source,
+ * while the extraction of the `counter` field will occur later. In such cases, the `doc_ids` still need to be returned
+ * for the later extraction. However, if the filter (`host = 'a' AND cluster = 'b'`) is pushed down to Lucene, all field extractions
+ * (e.g., `host` and `counter`) will be pushed down to the time-series source, and `doc_ids` will not be returned.
  */
 public class PushDownFieldExtractionToTimeSeriesSource extends PhysicalOptimizerRules.ParameterizedOptimizerRule<
     PhysicalPlan,

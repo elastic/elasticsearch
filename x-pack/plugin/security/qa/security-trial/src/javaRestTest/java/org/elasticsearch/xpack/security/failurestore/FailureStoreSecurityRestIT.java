@@ -2973,9 +2973,13 @@ public class FailureStoreSecurityRestIT extends ESRestTestCase {
         final SearchResponse searchResponse = SearchResponseUtils.parseSearchResponse(responseAsParser(response));
         try {
             SearchHit[] hits = searchResponse.getHits().getHits();
-            assertThat(hits.length, equalTo(docIds.length));
-            List<String> actualDocIds = Arrays.stream(hits).map(SearchHit::getId).toList();
-            assertThat(actualDocIds, containsInAnyOrder(docIds));
+            if (docIds != null) {
+                assertThat(Arrays.toString(hits), hits.length, equalTo(docIds.length));
+                List<String> actualDocIds = Arrays.stream(hits).map(SearchHit::getId).toList();
+                assertThat(actualDocIds, containsInAnyOrder(docIds));
+            } else {
+                assertThat(hits.length, equalTo(0));
+            }
         } finally {
             searchResponse.decRef();
         }
@@ -3019,6 +3023,32 @@ public class FailureStoreSecurityRestIT extends ESRestTestCase {
         return randomBoolean() ? populateDataStreamWithBulkRequest() : populateDataStreamWithDocRequests();
     }
 
+    @SuppressWarnings("unchecked")
+    private List<String> setupOtherDataStream() throws IOException {
+        createOtherTemplates();
+
+        var bulkRequest = new Request("POST", "/_bulk?refresh=true");
+        bulkRequest.setJsonEntity("""
+            { "create" : { "_index" : "other1", "_id" : "3" } }
+            { "@timestamp": 3, "age" : 1, "name" : "jane", "email" : "jane@example.com" }
+            { "create" : { "_index" : "other1", "_id" : "4" } }
+            { "@timestamp": 4, "age" : "this should be an int", "name" : "jane", "email" : "jane@example.com" }
+            """);
+        Response response = performRequest(WRITE_ACCESS, bulkRequest);
+        assertOK(response);
+        // we need this dance because the ID for the failed document is random, **not** 4
+        Map<String, Object> stringObjectMap = responseAsMap(response);
+        List<Object> items = (List<Object>) stringObjectMap.get("items");
+        List<String> ids = new ArrayList<>();
+        for (Object item : items) {
+            Map<String, Object> itemMap = (Map<String, Object>) item;
+            Map<String, Object> create = (Map<String, Object>) itemMap.get("create");
+            assertThat(create.get("status"), equalTo(201));
+            ids.add((String) create.get("_id"));
+        }
+        return ids;
+    }
+
     private void createTemplates() throws IOException {
         var componentTemplateRequest = new Request("PUT", "/_component_template/component1");
         componentTemplateRequest.setJsonEntity("""
@@ -3054,6 +3084,49 @@ public class FailureStoreSecurityRestIT extends ESRestTestCase {
         indexTemplateRequest.setJsonEntity("""
             {
                 "index_patterns": ["test*"],
+                "data_stream": {},
+                "priority": 500,
+                "composed_of": ["component1"]
+            }
+            """);
+        assertOK(adminClient().performRequest(indexTemplateRequest));
+    }
+
+    private void createOtherTemplates() throws IOException {
+        var componentTemplateRequest = new Request("PUT", "/_component_template/component2");
+        componentTemplateRequest.setJsonEntity("""
+            {
+                "template": {
+                    "mappings": {
+                        "properties": {
+                            "@timestamp": {
+                                "type": "date"
+                            },
+                            "age": {
+                                "type": "integer"
+                            },
+                            "email": {
+                                "type": "keyword"
+                            },
+                            "name": {
+                                "type": "text"
+                            }
+                        }
+                    },
+                    "data_stream_options": {
+                      "failure_store": {
+                        "enabled": true
+                      }
+                    }
+                }
+            }
+            """);
+        assertOK(adminClient().performRequest(componentTemplateRequest));
+
+        var indexTemplateRequest = new Request("PUT", "/_index_template/template2");
+        indexTemplateRequest.setJsonEntity("""
+            {
+                "index_patterns": ["other*"],
                 "data_stream": {},
                 "priority": 500,
                 "composed_of": ["component1"]
@@ -3177,6 +3250,11 @@ public class FailureStoreSecurityRestIT extends ESRestTestCase {
 
     protected String createAndStoreApiKey(String username, @Nullable String roleDescriptors) throws IOException {
         assertThat("API key already registered for user: " + username, apiKeys.containsKey(username), is(false));
+        apiKeys.put(username, createApiKey(username, roleDescriptors));
+        return apiKeys.get(username);
+    }
+
+    protected String createOrUpdateApiKey(String username, @Nullable String roleDescriptors) throws IOException {
         apiKeys.put(username, createApiKey(username, roleDescriptors));
         return apiKeys.get(username);
     }

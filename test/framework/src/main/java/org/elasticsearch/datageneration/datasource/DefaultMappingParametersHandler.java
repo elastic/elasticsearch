@@ -77,9 +77,7 @@ public class DefaultMappingParametersHandler implements DataSourceHandler {
         };
     }
 
-    public static Supplier<Map<String, Object>> keywordMapping(
-        DataSourceRequest.LeafMappingParametersGenerator request
-    ) {
+    private Supplier<Map<String, Object>> keywordMapping(DataSourceRequest.LeafMappingParametersGenerator request) {
         return () -> {
             var mapping = commonMappingParameters();
 
@@ -103,14 +101,6 @@ public class DefaultMappingParametersHandler implements DataSourceHandler {
             }
             if (ESTestCase.randomDouble() <= 0.2) {
                 mapping.put("null_value", ESTestCase.randomAlphaOfLengthBetween(0, 10));
-            }
-
-            if (ESTestCase.randomDouble() <= 0.1) {
-                var textMultiFieldMapping = textMapping(request).get();
-                textMultiFieldMapping.put("type", "text");
-                textMultiFieldMapping.remove("fields");
-
-                mapping.put("fields", Map.of("txt", textMultiFieldMapping));
             }
 
             return mapping;
@@ -206,9 +196,7 @@ public class DefaultMappingParametersHandler implements DataSourceHandler {
         };
     }
 
-    public static Supplier<Map<String, Object>> textMapping(
-        DataSourceRequest.LeafMappingParametersGenerator request
-    ) {
+    private Supplier<Map<String, Object>> textMapping(DataSourceRequest.LeafMappingParametersGenerator request) {
         return () -> {
             var mapping = new HashMap<String, Object>();
 

@@ -11,24 +11,13 @@ package org.elasticsearch.index.mapper;
 
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
-import org.apache.lucene.index.DirectoryReader;
-import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.store.Directory;
-import org.apache.lucene.tests.index.RandomIndexWriter;
-import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.datageneration.DataGeneratorSpecification;
 import org.elasticsearch.datageneration.DocumentGenerator;
-import org.elasticsearch.datageneration.Mapping;
 import org.elasticsearch.datageneration.MappingGenerator;
 import org.elasticsearch.datageneration.Template;
 import org.elasticsearch.datageneration.datasource.DataSourceHandler;
 import org.elasticsearch.datageneration.datasource.DataSourceRequest;
 import org.elasticsearch.datageneration.datasource.DataSourceResponse;
-import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.fieldvisitor.StoredFieldLoader;
-import org.elasticsearch.plugins.internal.XContentMeteringParserDecorator;
-import org.elasticsearch.search.fetch.StoredFieldsSpec;
-import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
 
@@ -38,7 +27,6 @@ import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.stream.Stream;
 
 public abstract class BlockLoaderTestCase extends MapperServiceTestCase {
@@ -60,11 +48,12 @@ public abstract class BlockLoaderTestCase extends MapperServiceTestCase {
 
     public record Params(boolean syntheticSource, MappedFieldType.FieldExtractPreference preference) {}
 
-    public record TestContext(boolean forceFallbackSyntheticSource) {}
+    public record TestContext(boolean forceFallbackSyntheticSource, boolean isMultifield) {}
 
     private final String fieldType;
     protected final Params params;
     private final Collection<DataSourceHandler> customDataSourceHandlers;
+    private final BlockLoaderTestRunner runner;
 
     private final String fieldName;
 
@@ -76,6 +65,7 @@ public abstract class BlockLoaderTestCase extends MapperServiceTestCase {
         this.fieldType = fieldType;
         this.params = params;
         this.customDataSourceHandlers = customDataSourceHandlers;
+        this.runner = new BlockLoaderTestRunner(params);
 
         this.fieldName = randomAlphaOfLengthBetween(5, 10);
     }
@@ -92,10 +82,19 @@ public abstract class BlockLoaderTestCase extends MapperServiceTestCase {
 
     public void testBlockLoader() throws IOException {
         var template = new Template(Map.of(fieldName, new Template.Leaf(fieldName, fieldType)));
-        var specification = buildSpecification(List.of());
-        var mapping = new MappingGenerator(specification).generate(template);
+        var specification = buildSpecification(customDataSourceHandlers);
 
-        runTest(template, mapping, new DocumentGenerator(specification), fieldName, fieldName, new TestContext(false));
+        var mapping = new MappingGenerator(specification).generate(template);
+        var document = new DocumentGenerator(specification).generate(template, mapping);
+
+        Object expected = expected(mapping.lookup().get(fieldName), getFieldValue(document, fieldName), new TestContext(false, false));
+
+        var mappingXContent = XContentBuilder.builder(XContentType.JSON.xContent()).map(mapping.raw());
+        var mapperService = params.syntheticSource
+            ? createSytheticSourceMapperService(mappingXContent)
+            : createMapperService(mappingXContent);
+
+        runner.runTest(mapperService, document, expected, fieldName);
     }
 
     @SuppressWarnings("unchecked")
@@ -119,10 +118,11 @@ public abstract class BlockLoaderTestCase extends MapperServiceTestCase {
         currentLevel.put(fieldName, new Template.Leaf(fieldName, fieldType));
         var template = new Template(top);
 
-        var specification = buildSpecification(List.of());
+        var specification = buildSpecification(customDataSourceHandlers);
         var mapping = new MappingGenerator(specification).generate(template);
+        var document = new DocumentGenerator(specification).generate(template, mapping);
 
-        TestContext testContext = new TestContext(false);
+        TestContext testContext = new TestContext(false, false);
 
         if (params.syntheticSource && randomBoolean()) {
             // force fallback synthetic source in the hierarchy
@@ -130,17 +130,31 @@ public abstract class BlockLoaderTestCase extends MapperServiceTestCase {
             var topLevelMapping = (Map<String, Object>) ((Map<String, Object>) docMapping.get("properties")).get("top");
             topLevelMapping.put("synthetic_source_keep", "all");
 
-            testContext = new TestContext(true);
+            testContext = new TestContext(true, false);
         }
 
-        runTest(template, mapping, new DocumentGenerator(specification), fullFieldName.toString(), fullFieldName.toString(), testContext);
+        var mappingXContent = XContentBuilder.builder(XContentType.JSON.xContent()).map(mapping.raw());
+        var mapperService = params.syntheticSource
+            ? createSytheticSourceMapperService(mappingXContent)
+            : createMapperService(mappingXContent);
+
+        Object expected = expected(
+            mapping.lookup().get(fullFieldName.toString()),
+            getFieldValue(document, fullFieldName.toString()),
+            testContext
+        );
+
+        runner.runTest(mapperService, document, expected, fullFieldName.toString());
     }
 
+    @SuppressWarnings("unchecked")
     public void testBlockLoaderOfMultiField() throws IOException {
         // We are going to have a parent field and a multi field of the same type in order to be sure we can index data.
         // Then we'll test block loader of the multi field.
         var template = new Template(Map.of("parent", new Template.Leaf("parent", fieldType)));
-        var specification = buildSpecification(List.of(new DataSourceHandler() {
+
+        var customHandlers = new ArrayList<DataSourceHandler>();
+        customHandlers.add(new DataSourceHandler() {
             @Override
             public DataSourceResponse.LeafMappingParametersGenerator handle(DataSourceRequest.LeafMappingParametersGenerator request) {
                 // This is a bit tricky meta-logic.
@@ -153,27 +167,47 @@ public abstract class BlockLoaderTestCase extends MapperServiceTestCase {
                 return new DataSourceResponse.LeafMappingParametersGenerator(() -> {
                     var dataSource = request.dataSource();
 
-                    // the name here should be different from "parent"
-                    var actualMappingGenerator = dataSource.get(new DataSourceRequest.LeafMappingParametersGenerator(dataSource, "_field", request.fieldType(), request.eligibleCopyToFields(), request.dynamicMapping())).mappingGenerator();
+                    // We need parent field to have the same mapping as multi field due to different behavior caused f.e. by
+                    // ignore_malformed.
+                    // The name here should be different from "parent".
+                    var mapping = dataSource.get(
+                        new DataSourceRequest.LeafMappingParametersGenerator(
+                            dataSource,
+                            "_field",
+                            request.fieldType(),
+                            request.eligibleCopyToFields(),
+                            request.dynamicMapping()
+                        )
+                    ).mappingGenerator().get();
 
-                    var parentMapping = actualMappingGenerator.get();
-                    var multiFieldMapping = actualMappingGenerator.get();
+                    var parentMapping = new HashMap<>(mapping);
+                    var multiFieldMapping = new HashMap<>(mapping);
 
-                    parentMapping.put("type", fieldType);
                     multiFieldMapping.put("type", fieldType);
 
-                    parentMapping.put("fields", Map.of(fieldName, multiFieldMapping));
+                    parentMapping.put("fields", Map.of("mf", multiFieldMapping));
 
                     return parentMapping;
                 });
             }
-        }));
+        });
+        customHandlers.addAll(customDataSourceHandlers);
+        var specification = buildSpecification(customHandlers);
         var mapping = new MappingGenerator(specification).generate(template);
+        var fieldMapping = (Map<String, Object>) ((Map<String, Object>) mapping.lookup().get("parent").get("fields")).get("mf");
 
-        runTest(template, mapping, new DocumentGenerator(specification), "parent", "parent." + fieldName, new TestContext(false));
+        var document = new DocumentGenerator(specification).generate(template, mapping);
+
+        Object expected = expected(fieldMapping, getFieldValue(document, "parent"), new TestContext(false, true));
+        var mappingXContent = XContentBuilder.builder(XContentType.JSON.xContent()).map(mapping.raw());
+        var mapperService = params.syntheticSource
+            ? createSytheticSourceMapperService(mappingXContent)
+            : createMapperService(mappingXContent);
+
+        runner.runTest(mapperService, document, expected, "parent.mf");
     }
 
-    private DataGeneratorSpecification buildSpecification(List<DataSourceHandler> internalCustomHandlers) {
+    public static DataGeneratorSpecification buildSpecification(Collection<DataSourceHandler> customHandlers) {
         return DataGeneratorSpecification.builder()
             .withFullyDynamicMapping(false)
             // Disable dynamic mapping and disabled objects
@@ -190,24 +224,8 @@ public abstract class BlockLoaderTestCase extends MapperServiceTestCase {
                     return new DataSourceResponse.ObjectMappingParametersGenerator(HashMap::new); // just defaults
                 }
             }))
-            .withDataSourceHandlers(internalCustomHandlers)
-            .withDataSourceHandlers(customDataSourceHandlers)
+            .withDataSourceHandlers(customHandlers)
             .build();
-    }
-
-    private void runTest(Template template, Mapping mapping, DocumentGenerator documentGenerator, String documentFieldName, String blockLoaderFieldName, TestContext testContext) throws IOException {
-        var mappingXContent = XContentBuilder.builder(XContentType.JSON.xContent()).map(mapping.raw());
-
-        var mapperService = params.syntheticSource
-            ? createSytheticSourceMapperService(mappingXContent)
-            : createMapperService(mappingXContent);
-
-        var document = documentGenerator.generate(template, mapping);
-        var documentXContent = XContentBuilder.builder(XContentType.JSON.xContent()).map(document);
-
-        Object expected = expected(mapping.lookup().get(documentFieldName), getFieldValue(document, documentFieldName), testContext);
-        Object blockLoaderResult = setupAndInvokeBlockLoader(mapperService, documentXContent, blockLoaderFieldName);
-        assertEquals(expected, blockLoaderResult);
     }
 
     protected abstract Object expected(Map<String, Object> fieldMapping, Object value, TestContext testContext);
@@ -255,116 +273,7 @@ public abstract class BlockLoaderTestCase extends MapperServiceTestCase {
         }
     }
 
-    /**
-        Allows to change the field name used to obtain a block loader.
-        Useful f.e. to test block loaders of multi fields.
-     */
-    protected String blockLoaderFieldName(String originalName) {
-        return originalName;
-    }
-
-    private Object setupAndInvokeBlockLoader(MapperService mapperService, XContentBuilder document, String fieldName) throws IOException {
-        try (Directory directory = newDirectory()) {
-            RandomIndexWriter iw = new RandomIndexWriter(random(), directory);
-
-            var source = new SourceToParse(
-                "1",
-                BytesReference.bytes(document),
-                XContentType.JSON,
-                null,
-                Map.of(),
-                true,
-                XContentMeteringParserDecorator.NOOP
-            );
-            LuceneDocument doc = mapperService.documentMapper().parse(source).rootDoc();
-
-            iw.addDocument(doc);
-            iw.close();
-
-            try (DirectoryReader reader = DirectoryReader.open(directory)) {
-                LeafReaderContext context = reader.leaves().get(0);
-                return load(createBlockLoader(mapperService, fieldName), context, mapperService);
-            }
-        }
-    }
-
-    private Object load(BlockLoader blockLoader, LeafReaderContext context, MapperService mapperService) throws IOException {
-        // `columnAtATimeReader` is tried first, we mimic `ValuesSourceReaderOperator`
-        var columnAtATimeReader = blockLoader.columnAtATimeReader(context);
-        if (columnAtATimeReader != null) {
-            var block = (TestBlock) columnAtATimeReader.read(TestBlock.factory(context.reader().numDocs()), TestBlock.docs(0));
-            if (block.size() == 0) {
-                return null;
-            }
-            return block.get(0);
-        }
-
-        StoredFieldsSpec storedFieldsSpec = blockLoader.rowStrideStoredFieldSpec();
-        SourceLoader.Leaf leafSourceLoader = null;
-        if (storedFieldsSpec.requiresSource()) {
-            var sourceLoader = mapperService.mappingLookup().newSourceLoader(null, SourceFieldMetrics.NOOP);
-            leafSourceLoader = sourceLoader.leaf(context.reader(), null);
-            storedFieldsSpec = storedFieldsSpec.merge(
-                new StoredFieldsSpec(true, storedFieldsSpec.requiresMetadata(), sourceLoader.requiredStoredFields())
-            );
-        }
-        BlockLoaderStoredFieldsFromLeafLoader storedFieldsLoader = new BlockLoaderStoredFieldsFromLeafLoader(
-            StoredFieldLoader.fromSpec(storedFieldsSpec).getLoader(context, null),
-            leafSourceLoader
-        );
-        storedFieldsLoader.advanceTo(0);
-
-        BlockLoader.Builder builder = blockLoader.builder(TestBlock.factory(context.reader().numDocs()), 1);
-        blockLoader.rowStrideReader(context).read(0, storedFieldsLoader, builder);
-        var block = (TestBlock) builder.build();
-        if (block.size() == 0) {
-            return null;
-        }
-        return block.get(0);
-    }
-
-    private BlockLoader createBlockLoader(MapperService mapperService, String fieldName) {
-        SearchLookup searchLookup = new SearchLookup(mapperService.mappingLookup().fieldTypesLookup()::get, null, null);
-
-        return mapperService.fieldType(fieldName).blockLoader(new MappedFieldType.BlockLoaderContext() {
-            @Override
-            public String indexName() {
-                return mapperService.getIndexSettings().getIndex().getName();
-            }
-
-            @Override
-            public IndexSettings indexSettings() {
-                return mapperService.getIndexSettings();
-            }
-
-            @Override
-            public MappedFieldType.FieldExtractPreference fieldExtractPreference() {
-                return params.preference;
-            }
-
-            @Override
-            public SearchLookup lookup() {
-                return searchLookup;
-            }
-
-            @Override
-            public Set<String> sourcePaths(String name) {
-                return mapperService.mappingLookup().sourcePaths(name);
-            }
-
-            @Override
-            public String parentField(String field) {
-                return mapperService.mappingLookup().parentField(field);
-            }
-
-            @Override
-            public FieldNamesFieldMapper.FieldNamesFieldType fieldNames() {
-                return (FieldNamesFieldMapper.FieldNamesFieldType) mapperService.fieldType(FieldNamesFieldMapper.NAME);
-            }
-        });
-    }
-
-    protected static boolean hasDocValues(Map<String, Object> fieldMapping, boolean defaultValue) {
+    public static boolean hasDocValues(Map<String, Object> fieldMapping, boolean defaultValue) {
         return (boolean) fieldMapping.getOrDefault("doc_values", defaultValue);
     }
 }

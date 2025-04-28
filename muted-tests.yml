@@ -444,6 +444,9 @@ tests:
 - class: org.elasticsearch.action.admin.cluster.state.TransportClusterStateActionDisruptionIT
   method: testLocalRequestAlwaysSucceeds
   issue: https://github.com/elastic/elasticsearch/issues/127423
+- class: org.elasticsearch.action.admin.cluster.state.TransportClusterStateActionDisruptionIT
+  method: testLocalRequestWaitsForMetadata
+  issue: https://github.com/elastic/elasticsearch/issues/127466
 
 # Examples:
 #

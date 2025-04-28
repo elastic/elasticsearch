@@ -77,8 +77,10 @@ import static org.elasticsearch.cluster.metadata.DataStream.getDefaultFailureSto
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_INDEX_UUID;
 import static org.elasticsearch.test.ESTestCase.generateRandomStringArray;
 import static org.elasticsearch.test.ESTestCase.randomAlphaOfLength;
+import static org.elasticsearch.test.ESTestCase.randomAlphanumericOfLength;
 import static org.elasticsearch.test.ESTestCase.randomBoolean;
 import static org.elasticsearch.test.ESTestCase.randomFrom;
+import static org.elasticsearch.test.ESTestCase.randomInt;
 import static org.elasticsearch.test.ESTestCase.randomIntBetween;
 import static org.elasticsearch.test.ESTestCase.randomMap;
 import static org.elasticsearch.test.ESTestCase.randomMillisUpToYear9999;
@@ -357,13 +359,14 @@ public final class DataStreamTestHelper {
             dataStreamName,
             generation,
             metadata,
+            randomSettings(),
             randomBoolean(),
             replicated,
             false, // Some tests don't work well with system data streams, since these data streams require special handling
             timeProvider,
             randomBoolean(),
             randomBoolean() ? IndexMode.STANDARD : null, // IndexMode.TIME_SERIES triggers validation that many unit tests doesn't pass
-            randomBoolean() ? DataStreamLifecycle.builder().dataRetention(randomPositiveTimeValue()).build() : null,
+            randomBoolean() ? DataStreamLifecycle.dataLifecycleBuilder().dataRetention(randomPositiveTimeValue()).build() : null,
             failureStore ? DataStreamOptions.FAILURE_STORE_ENABLED : DataStreamOptions.EMPTY,
             DataStream.DataStreamIndices.backingIndicesBuilder(indices)
                 .setRolloverOnWrite(replicated == false && randomBoolean())
@@ -829,5 +832,16 @@ public final class DataStreamTestHelper {
         return new DataStreamOptions.Template(
             ResettableValue.create(new DataStreamFailureStore.Template(ResettableValue.create(failureStore)))
         );
+    }
+
+    static Settings randomSettings() {
+        Settings.Builder builder = Settings.builder();
+        if (randomBoolean()) {
+            return Settings.EMPTY;
+        }
+        for (int i = 1; i < randomInt(100); i++) {
+            builder.put(randomAlphanumericOfLength(20), randomAlphanumericOfLength(50));
+        }
+        return builder.build();
     }
 }

@@ -1,10 +1,10 @@
 ---
-navigation_title: "Data processing with DISSECT and GROK"
+navigation_title: "Extract data with DISSECT and GROK"
 mapped_pages:
   - https://www.elastic.co/guide/en/elasticsearch/reference/current/esql-process-data-with-dissect-and-grok.html
 ---
 
-# Data processing with DISSECT and GROK [esql-process-data-with-dissect-and-grok]
+# Extract data from unstructured text with `DISSECT` and `GROK`[esql-process-data-with-dissect-and-grok]
 
 
 Your data may contain unstructured strings that you want to structure. This makes it easier to analyze the data. For example, log messages may contain IP addresses that you want to extract so you can find the most active IP addresses.

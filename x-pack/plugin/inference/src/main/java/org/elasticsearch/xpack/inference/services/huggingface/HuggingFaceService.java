@@ -73,15 +73,7 @@ public class HuggingFaceService extends HuggingFaceBaseService {
         ConfigurationParseContext context
     ) {
         return switch (taskType) {
-            case RERANK -> new HuggingFaceRerankModel(
-                inferenceEntityId,
-                taskType,
-                NAME,
-                serviceSettings,
-                null,
-                secretSettings,
-                context
-            );
+            case RERANK -> new HuggingFaceRerankModel(inferenceEntityId, taskType, NAME, serviceSettings, null, secretSettings, context);
             case TEXT_EMBEDDING -> new HuggingFaceEmbeddingsModel(
                 inferenceEntityId,
                 taskType,

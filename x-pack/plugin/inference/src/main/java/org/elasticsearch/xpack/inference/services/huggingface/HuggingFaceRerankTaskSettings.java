@@ -71,7 +71,9 @@ public class HuggingFaceRerankTaskSettings implements TaskSettings {
      * @return a constructed {@link HuggingFaceRerankTaskSettings}
      */
     public static HuggingFaceRerankTaskSettings of(
-        HuggingFaceRerankTaskSettings originalSettings, HuggingFaceRerankTaskSettings requestTaskSettings) {
+        HuggingFaceRerankTaskSettings originalSettings,
+        HuggingFaceRerankTaskSettings requestTaskSettings
+    ) {
         return new HuggingFaceRerankTaskSettings(
             requestTaskSettings.getTopNDocumentsOnly() != null
                 ? requestTaskSettings.getTopNDocumentsOnly()

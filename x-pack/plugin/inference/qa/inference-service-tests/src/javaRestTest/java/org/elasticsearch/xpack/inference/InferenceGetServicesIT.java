@@ -106,9 +106,16 @@ public class InferenceGetServicesIT extends BaseMockEISAuthServerTest {
         }
 
         assertArrayEquals(
-            List.of("alibabacloud-ai-search", "cohere", "elasticsearch", "googlevertexai",
-                    "jinaai", "test_reranking_service", "voyageai", "hugging_face")
-                .toArray(),
+            List.of(
+                "alibabacloud-ai-search",
+                "cohere",
+                "elasticsearch",
+                "googlevertexai",
+                "jinaai",
+                "test_reranking_service",
+                "voyageai",
+                "hugging_face"
+            ).toArray(),
             providers
         );
     }

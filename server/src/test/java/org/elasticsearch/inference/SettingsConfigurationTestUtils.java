@@ -21,8 +21,7 @@ public class SettingsConfigurationTestUtils {
 
     public static SettingsConfiguration getRandomSettingsConfigurationField() {
         return new SettingsConfiguration.Builder(EnumSet.of(TaskType.TEXT_EMBEDDING, TaskType.SPARSE_EMBEDDING, TaskType.RERANK))
-            .setDefaultValue(randomAlphaOfLength(10)
-        )
+            .setDefaultValue(randomAlphaOfLength(10))
             .setDescription(randomAlphaOfLength(10))
             .setLabel(randomAlphaOfLength(10))
             .setRequired(randomBoolean())

@@ -32,8 +32,8 @@ import static org.elasticsearch.xpack.inference.services.huggingface.HuggingFace
 
 public class HuggingFaceRerankServiceSettings extends FilteredXContentObject
     implements
-    ServiceSettings,
-    HuggingFaceRateLimitServiceSettings {
+        ServiceSettings,
+        HuggingFaceRateLimitServiceSettings {
 
     public static final String NAME = "hugging_face_rerank_service_settings";
     public static final String URL = "url";

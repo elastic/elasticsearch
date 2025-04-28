@@ -17,12 +17,12 @@ import java.util.List;
 import java.util.Objects;
 
 public record HuggingFaceRerankRequestEntity(
-        String model,
-        String query,
-        List<String> documents,
-        @Nullable Boolean returnDocuments,
-        @Nullable Integer topN,
-        HuggingFaceRerankTaskSettings taskSettings
+    String model,
+    String query,
+    List<String> documents,
+    @Nullable Boolean returnDocuments,
+    @Nullable Integer topN,
+    HuggingFaceRerankTaskSettings taskSettings
 ) implements ToXContentObject {
 
     private static final String DOCUMENTS_FIELD = "documents";
@@ -34,12 +34,12 @@ public record HuggingFaceRerankRequestEntity(
     }
 
     public HuggingFaceRerankRequestEntity(
-            String query,
-            List<String> input,
-            @Nullable Boolean returnDocuments,
-            @Nullable Integer topN,
-            HuggingFaceRerankTaskSettings taskSettings,
-            String model
+        String query,
+        List<String> input,
+        @Nullable Boolean returnDocuments,
+        @Nullable Integer topN,
+        HuggingFaceRerankTaskSettings taskSettings,
+        String model
     ) {
         this(model, query, input, returnDocuments, topN, taskSettings);
     }

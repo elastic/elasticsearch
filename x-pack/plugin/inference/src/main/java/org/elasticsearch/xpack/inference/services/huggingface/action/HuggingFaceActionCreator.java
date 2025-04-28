@@ -53,8 +53,13 @@ public class HuggingFaceActionCreator implements HuggingFaceActionVisitor {
             serviceComponents.threadPool(),
             model,
             RERANK_HANDLER,
-            inputs ->
-                new HuggingFaceRerankRequest(inputs.getQuery(), inputs.getChunks(), inputs.getReturnDocuments(), inputs.getTopN(), model),
+            inputs -> new HuggingFaceRerankRequest(
+                inputs.getQuery(),
+                inputs.getChunks(),
+                inputs.getReturnDocuments(),
+                inputs.getTopN(),
+                model
+            ),
             QueryAndDocsInputs.class
         );
         var errorMessage = format(FAILED_TO_SEND_REQUEST_ERROR_MESSAGE, "RERANK", model.getInferenceEntityId());

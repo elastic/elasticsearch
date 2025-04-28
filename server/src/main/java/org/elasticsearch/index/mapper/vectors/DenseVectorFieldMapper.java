@@ -128,10 +128,14 @@ public class DenseVectorFieldMapper extends FieldMapper {
     public static final IndexVersion LITTLE_ENDIAN_FLOAT_STORED_INDEX_VERSION = IndexVersions.V_8_9_0;
     public static final IndexVersion RESCORE_PARAMS_ALLOW_ZERO_TO_QUANTIZED_VECTORS =
         IndexVersions.RESCORE_PARAMS_ALLOW_ZERO_TO_QUANTIZED_VECTORS;
+    public static final IndexVersion DEFAULT_OVERSAMPLE_VALUE_FOR_BBQ = IndexVersions.DEFAULT_OVERSAMPLE_VALUE_FOR_BBQ;
 
     public static final NodeFeature RESCORE_VECTOR_QUANTIZED_VECTOR_MAPPING = new NodeFeature("mapper.dense_vector.rescore_vector");
     public static final NodeFeature RESCORE_ZERO_VECTOR_QUANTIZED_VECTOR_MAPPING = new NodeFeature(
         "mapper.dense_vector.rescore_zero_vector"
+    );
+    public static final NodeFeature USE_DEFAULT_OVERSAMPLE_VALUE_FOR_BBQ = new NodeFeature(
+        "mapper.dense_vector.default_oversample_value_for_bbq"
     );
 
     public static final String CONTENT_TYPE = "dense_vector";
@@ -141,6 +145,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
     public static short MIN_DIMS_FOR_DYNAMIC_FLOAT_MAPPING = 128; // minimum number of dims for floats to be dynamically mapped to vector
     public static final int MAGNITUDE_BYTES = 4;
     public static final int OVERSAMPLE_LIMIT = 10_000; // Max oversample allowed
+    public static final float DEFAULT_OVERSAMPLE = 3.0F; // Default oversample value
 
     private static DenseVectorFieldMapper toType(FieldMapper in) {
         return (DenseVectorFieldMapper) in;
@@ -1439,6 +1444,9 @@ public class DenseVectorFieldMapper extends FieldMapper {
                 RescoreVector rescoreVector = null;
                 if (hasRescoreIndexVersion(indexVersion)) {
                     rescoreVector = RescoreVector.fromIndexOptions(indexOptionsMap, indexVersion);
+                    if (rescoreVector == null && indexVersion.onOrAfter(DEFAULT_OVERSAMPLE_VALUE_FOR_BBQ)) {
+                        rescoreVector = new RescoreVector(DEFAULT_OVERSAMPLE);
+                    }
                 }
                 MappingParser.checkNoRemainingFields(fieldName, indexOptionsMap);
                 return new BBQHnswIndexOptions(m, efConstruction, rescoreVector);
@@ -1460,6 +1468,9 @@ public class DenseVectorFieldMapper extends FieldMapper {
                 RescoreVector rescoreVector = null;
                 if (hasRescoreIndexVersion(indexVersion)) {
                     rescoreVector = RescoreVector.fromIndexOptions(indexOptionsMap, indexVersion);
+                    if (rescoreVector == null && indexVersion.onOrAfter(DEFAULT_OVERSAMPLE_VALUE_FOR_BBQ)) {
+                        rescoreVector = new RescoreVector(DEFAULT_OVERSAMPLE);
+                    }
                 }
                 MappingParser.checkNoRemainingFields(fieldName, indexOptionsMap);
                 return new BBQFlatIndexOptions(rescoreVector);
@@ -2287,6 +2298,10 @@ public class DenseVectorFieldMapper extends FieldMapper {
 
         ElementType getElementType() {
             return elementType;
+        }
+
+        IndexOptions getIndexOptions() {
+            return indexOptions;
         }
     }
 

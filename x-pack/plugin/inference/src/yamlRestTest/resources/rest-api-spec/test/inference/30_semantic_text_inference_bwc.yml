@@ -746,12 +746,16 @@ setup:
       indices.create:
         index: new-index
         body:
+          settings:
+            index:
+              mapping:
+                semantic_text:
+                  use_legacy_format: true
           mappings:
             properties:
               inference_field:
                 type: semantic_text
                 inference_id: new_inference_endpoint
-                use_legacy_format: true
 
   - do:
       inference.put:

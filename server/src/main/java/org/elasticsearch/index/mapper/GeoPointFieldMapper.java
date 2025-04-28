@@ -30,6 +30,7 @@ import org.elasticsearch.common.geo.GeoUtils;
 import org.elasticsearch.common.geo.GeometryFormatterFactory;
 import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.common.geo.SimpleVectorTileFormatter;
+import org.elasticsearch.common.text.Text;
 import org.elasticsearch.common.unit.DistanceUnit;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.CheckedFunction;
@@ -57,7 +58,6 @@ import org.elasticsearch.xcontent.FilterXContentParserWrapper;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
-import org.elasticsearch.xcontent.XContentString;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -329,8 +329,8 @@ public class GeoPointFieldMapper extends AbstractPointGeometryFieldMapper<GeoPoi
         }
 
         @Override
-        public XContentString xContentTextOrNull() throws IOException {
-            return new XContentString(value);
+        public Text xContentTextOrNull() throws IOException {
+            return new Text(value);
         }
 
         @Override

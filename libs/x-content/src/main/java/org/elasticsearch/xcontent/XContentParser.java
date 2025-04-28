@@ -9,6 +9,7 @@
 
 package org.elasticsearch.xcontent;
 
+import org.elasticsearch.core.BaseText;
 import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.RestApiVersion;
@@ -109,9 +110,9 @@ public interface XContentParser extends Closeable {
 
     String textOrNull() throws IOException;
 
-    XContentString xContentText() throws IOException;
+    BaseText xContentText() throws IOException;
 
-    XContentString xContentTextOrNull() throws IOException;
+    BaseText xContentTextOrNull() throws IOException;
 
     CharBuffer charBufferOrNull() throws IOException;
 

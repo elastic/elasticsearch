@@ -18,10 +18,6 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 
-/**
- * Both {@link String} and {@link BytesReference} representation of the text. Starts with one of those, and if
- * the other is requests, caches the other one in a local reference so no additional conversion will be needed.
- */
 public final class Text extends BaseText implements Comparable<Text>, ToXContentFragment {
 
     public static final Text[] EMPTY_ARRAY = new Text[0];

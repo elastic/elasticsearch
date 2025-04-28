@@ -21,9 +21,15 @@ import java.nio.charset.StandardCharsets;
 public class BaseText {
     protected BaseBytesReference bytes;
     private String text;
+    private int length = -1;
 
     public BaseText(BaseBytesReference bytes) {
         this.bytes = bytes;
+    }
+
+    public BaseText(BaseBytesReference bytes, int length) {
+        this.bytes = bytes;
+        this.length = length;
     }
 
     public BaseText(String text) {
@@ -69,4 +75,10 @@ public class BaseText {
         return string();
     }
 
+    public int length() {
+        if (length < 0) {
+            length = string().length();
+        }
+        return length;
+    }
 }

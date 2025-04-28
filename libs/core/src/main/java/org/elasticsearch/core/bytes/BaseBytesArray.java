@@ -14,6 +14,9 @@ public class BaseBytesArray implements BaseBytesReference {
     private final int offset;
     private final int length;
 
+    int hash = 0;
+    boolean hashIsZero = false;
+
     public BaseBytesArray(byte[] bytes) {
         this(bytes, 0, bytes.length);
     }
@@ -47,5 +50,37 @@ public class BaseBytesArray implements BaseBytesReference {
     @Override
     public int arrayOffset() {
         return offset;
+    }
+
+    @Override
+    public boolean equals(Object other) {
+        if (this == other) {
+            return true;
+        }
+        if (other instanceof final BaseBytesReference otherRef) {
+            if (length != otherRef.length()) {
+                return false;
+            }
+            for (int i = 0; i < length; i++) {
+                if (get(i) != otherRef.get(i)) {
+                    return false;
+                }
+            }
+        }
+        return true;
+    }
+
+    @Override
+    public int hashCode() {
+        if (hash == 0 && hashIsZero == false) {
+            hash = 1;
+            for (int i = offset; i < length; i++) {
+                hash = 31 * hash + bytes[i];
+            }
+            if (hash == 0) {
+                hashIsZero = true;
+            }
+        }
+        return hash;
     }
 }

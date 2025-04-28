@@ -19,8 +19,10 @@ import org.apache.lucene.search.suggest.document.RegexCompletionQuery;
 import org.apache.lucene.search.suggest.document.SuggestField;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.logging.DeprecationCategory;
+import org.elasticsearch.common.text.Text;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.common.util.Maps;
+import org.elasticsearch.core.BaseText;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.analysis.AnalyzerScope;
@@ -37,7 +39,6 @@ import org.elasticsearch.xcontent.XContentLocation;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParser.NumberType;
 import org.elasticsearch.xcontent.XContentParser.Token;
-import org.elasticsearch.xcontent.XContentString;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.support.MapXContentParser;
 
@@ -709,9 +710,9 @@ public class CompletionFieldMapper extends FieldMapper {
         }
 
         @Override
-        public XContentString xContentTextOrNull() throws IOException {
+        public BaseText xContentTextOrNull() throws IOException {
             if (parsingObject == false) {
-                return new XContentString(textValue);
+                return new Text(textValue);
             }
             return super.xContentTextOrNull();
         }

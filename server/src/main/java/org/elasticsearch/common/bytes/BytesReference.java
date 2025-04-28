@@ -103,6 +103,14 @@ public interface BytesReference extends BaseBytesReference, Comparable<BytesRefe
     }
 
     /**
+     * Returns a BytesReference composed of the provided BaseBytesReference
+     */
+    static BytesReference fromBase(BaseBytesReference base) {
+        assert base.hasArray();
+        return new BytesArray(base.array(), base.arrayOffset(), base.length());
+    }
+
+    /**
      * Returns BytesReference either wrapping the provided {@link ByteArray} or in case the has a backing raw byte array one that wraps
      * that backing array directly.
      */

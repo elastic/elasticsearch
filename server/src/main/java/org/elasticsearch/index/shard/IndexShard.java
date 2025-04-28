@@ -570,7 +570,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                 // unlikely case that getRelativeTimeInNanos() returns exactly -1, we advance by 1ns to avoid that special value.
                 startedRelativeTimeInNanos = (relativeTimeInNanos != -1L) ? relativeTimeInNanos : 0L;
                 indexingTimeBeforeShardStartedInNanos = internalIndexingStats.totalIndexingTimeInNanos();
-                indexingLoadBeforeShardStartedInNanos = internalIndexingStats.totalIndexingLoadInNanos();
+                indexingLoadBeforeShardStartedInNanos = internalIndexingStats.totalIndexingExecutionTimeInNanos();
                 recentIndexingLoadAtShardStarted = internalIndexingStats.recentIndexingLoad(startedRelativeTimeInNanos);
             } else if (currentRouting.primary()
                 && currentRouting.relocating()

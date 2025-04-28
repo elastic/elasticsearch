@@ -73,7 +73,7 @@ final class InternalIndexingStats implements IndexingOperationListener {
         return totalStats.indexMetric.sum();
     }
 
-    long totalIndexingLoadInNanos() {
+    long totalIndexingExecutionTimeInNanos() {
         return totalStats.indexMetric.sum() + totalStats.writeIndexingBufferTime.sum();
     }
 

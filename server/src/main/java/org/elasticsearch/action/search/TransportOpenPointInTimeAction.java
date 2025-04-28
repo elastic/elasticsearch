@@ -167,13 +167,13 @@ public class TransportOpenPointInTimeAction extends HandledTransportAction<OpenP
                     connectionLookup,
                     aliasFilter,
                     concreteIndexBoosts,
-                    threadPool.executor(ThreadPool.Names.SEARCH_COORDINATION),
                     searchRequest,
                     shardIterators,
                     timeProvider,
                     task,
                     false,
-                    searchService.getCoordinatorRewriteContextProvider(timeProvider::absoluteStartMillis)
+                    false,
+                    searchService
                 )
                     .addListener(
                         listener.delegateFailureAndWrap(

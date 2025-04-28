@@ -44,6 +44,7 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardLongFieldRange;
 import org.elasticsearch.indices.DateFieldRangeInfo;
 import org.elasticsearch.search.CanMatchShardResponse;
+import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.terms.SignificantTermsAggregationBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
@@ -81,7 +82,9 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
 
@@ -155,13 +158,13 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
             (clusterAlias, node) -> lookup.get(node),
             Collections.singletonMap("_na_", AliasFilter.EMPTY),
             Collections.emptyMap(),
-            threadPool.executor(ThreadPool.Names.SEARCH_COORDINATION),
             searchRequest,
             shardsIter,
             timeProvider,
             null,
             true,
-            EMPTY_CONTEXT_PROVIDER
+            false,
+            mock(SearchService.class)
         ).addListener(ActionTestUtils.assertNoFailureListener(iter -> {
             result.set(iter);
             latch.countDown();
@@ -250,13 +253,13 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
             (clusterAlias, node) -> lookup.get(node),
             Collections.singletonMap("_na_", AliasFilter.EMPTY),
             Collections.emptyMap(),
-            threadPool.executor(ThreadPool.Names.SEARCH_COORDINATION),
             searchRequest,
             shardsIter,
             timeProvider,
             null,
             true,
-            EMPTY_CONTEXT_PROVIDER
+            false,
+            mock(SearchService.class)
         ).addListener(ActionTestUtils.assertNoFailureListener(iter -> {
             result.set(iter);
             latch.countDown();
@@ -341,13 +344,13 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
                 (clusterAlias, node) -> lookup.get(node),
                 Collections.singletonMap("_na_", AliasFilter.EMPTY),
                 Collections.emptyMap(),
-                threadPool.executor(ThreadPool.Names.SEARCH_COORDINATION),
                 searchRequest,
                 shardsIter,
                 timeProvider,
                 null,
                 true,
-                EMPTY_CONTEXT_PROVIDER
+                false,
+                mock(SearchService.class)
             ).addListener(ActionTestUtils.assertNoFailureListener(iter -> {
                 result.set(iter);
                 latch.countDown();
@@ -440,13 +443,13 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
                 (clusterAlias, node) -> lookup.get(node),
                 Collections.singletonMap("_na_", AliasFilter.EMPTY),
                 Collections.emptyMap(),
-                threadPool.executor(ThreadPool.Names.SEARCH_COORDINATION),
                 searchRequest,
                 shardsIter,
                 timeProvider,
                 null,
                 shardsIter.size() > shardToSkip.size(),
-                EMPTY_CONTEXT_PROVIDER
+                false,
+                mock(SearchService.class)
             ).addListener(ActionTestUtils.assertNoFailureListener(iter -> {
                 result.set(iter);
                 latch.countDown();
@@ -1405,6 +1408,8 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
             System::nanoTime
         );
 
+        var searchService = mock(SearchService.class);
+        when(searchService.getCoordinatorRewriteContextProvider(any())).thenReturn(contextProvider);
         return new Tuple<>(
             CanMatchPreFilterSearchPhase.execute(
                 logger,
@@ -1412,13 +1417,13 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
                 (clusterAlias, node) -> lookup.get(node),
                 aliasFilters,
                 Collections.emptyMap(),
-                threadPool.executor(ThreadPool.Names.SEARCH_COORDINATION),
                 searchRequest,
                 shardIters,
                 timeProvider,
                 null,
                 true,
-                contextProvider
+                false,
+                searchService
             ),
             requests
         );

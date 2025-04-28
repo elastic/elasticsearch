@@ -17,6 +17,20 @@ PUT my-index
   "mappings": {
     "properties": {
       "text.tokens": {
+        "type": "sparse_vector"
+      }
+    }
+  }
+}
+```
+
+With optional `index_options` for pruning:
+```console
+PUT my-index
+{
+  "mappings": {
+    "properties": {
+      "text.tokens": {
         "type": "sparse_vector",
         "index_options": {
           "prune": true,
@@ -49,7 +63,7 @@ index_options
 Parameters for `index_options` are:
 
 `prune`
-:   (Optional, boolean) [preview] Whether to perform pruning, omitting the non-significant tokens from the query to improve query performance. If `prune` is true but the `pruning_config` is not specified, pruning will occur but default values will be used. Default: false.
+:   (Optional, boolean) [preview] Whether to perform pruning, omitting the non-significant tokens from the query to improve query performance. If `prune` is true but the `pruning_config` is not specified, pruning will occur but default values will be used. Default: true.
 
 `pruning_config`
 :   (Optional, object) [preview] Optional pruning configuration. If enabled, this will omit non-significant tokens from the query in order to improve query performance. This is only used if `prune` is set to `true`. If `prune` is set to `true` but `pruning_config` is not specified, default values will be used.

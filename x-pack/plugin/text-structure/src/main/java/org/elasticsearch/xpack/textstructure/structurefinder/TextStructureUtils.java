@@ -23,6 +23,7 @@ import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.SortedMap;
 import java.util.TreeMap;
@@ -329,7 +330,7 @@ public final class TextStructureUtils {
 
             List<Object> fieldValues = sampleRecords.stream()
                 .map(record -> record.get(fieldName))
-                .filter(fieldValue -> fieldValue != null)
+                .filter(Objects::nonNull)
                 .collect(Collectors.toList());
 
             Tuple<Map<String, String>, FieldStats> mappingAndFieldStats = guessMappingAndCalculateFieldStats(

@@ -174,6 +174,11 @@ class ParentChildInnerHitContextBuilder extends InnerHitContextBuilder {
             }
         }
 
+        @Override
+        public JoinFieldInnerHitSubContext clone() {
+            return new JoinFieldInnerHitSubContext(getName(), context, typeName, fetchChildInnerHits, joiner);
+        }
+
     }
 
 }

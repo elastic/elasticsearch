@@ -142,6 +142,8 @@ public final class InnerHitsContext {
         public void setRootLookup(Source rootSource) {
             this.rootSource = rootSource;
         }
+
+        public abstract InnerHitSubContext clone();
     }
 
     public static void intersect(Weight weight, Weight innerHitQueryWeight, Collector collector, LeafReaderContext ctx) throws IOException {

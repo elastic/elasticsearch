@@ -2044,12 +2044,34 @@ public abstract class ESRestTestCase extends ESTestCase {
     }
 
     protected static boolean indexExists(String index) throws IOException {
-        return indexExists(client(), index);
+        // We use the /_cluster/health/{index} API to ensure the index exists on the master node - which means all nodes see the index.
+        Request request = new Request("GET", "/_cluster/health/" + index);
+        request.addParameter("timeout", "0");
+        request.addParameter("level", "indices");
+        try {
+            final var response = client().performRequest(request);
+            @SuppressWarnings("unchecked")
+            final var indices = (Map<String, Object>) entityAsMap(response).get("indices");
+            return indices.containsKey(index);
+        } catch (ResponseException e) {
+            if (e.getResponse().getStatusLine().getStatusCode() == HttpStatus.SC_REQUEST_TIMEOUT) {
+                return false;
+            }
+            throw e;
+        }
     }
 
-    protected static boolean indexExists(RestClient client, String index) throws IOException {
-        Response response = client.performRequest(new Request("HEAD", "/" + index));
-        return RestStatus.OK.getStatus() == response.getStatusLine().getStatusCode();
+    protected static void awaitIndexExists(String index) throws IOException {
+        awaitIndexExists(index, SAFE_AWAIT_TIMEOUT);
+    }
+
+    protected static void awaitIndexExists(String index, TimeValue timeout) throws IOException {
+        // We use the /_cluster/health/{index} API to ensure the index exists on the master node - which means all nodes see the index.
+        ensureHealth(client(), index, request -> request.addParameter("timeout", timeout.toString()));
+    }
+
+    protected static void awaitIndexDoesNotExist(String index, TimeValue timeout) throws Exception {
+        assertBusy(() -> assertFalse(indexExists(index)), timeout.millis(), TimeUnit.MILLISECONDS);
     }
 
     /**
@@ -2795,16 +2817,12 @@ public abstract class ESRestTestCase extends ESTestCase {
         if (indexTemplates != null) {
             var templateNames = indexTemplates.keySet().stream().filter(name -> isXPackTemplate(name) == false).toList();
             assertThat("Project [" + projectId + "] should not have index templates", templateNames, empty());
-        } else if (projectId.equals(Metadata.DEFAULT_PROJECT_ID.id())) {
-            fail("Expected default project to have standard templates, but was null");
         }
 
         final Map<String, Object> componentTemplates = state.evaluate("metadata.component_template.component_template");
         if (componentTemplates != null) {
             var templateNames = componentTemplates.keySet().stream().filter(name -> isXPackTemplate(name) == false).toList();
             assertThat("Project [" + projectId + "] should not have component templates", templateNames, empty());
-        } else if (projectId.equals(Metadata.DEFAULT_PROJECT_ID.id())) {
-            fail("Expected default project to have standard component templates, but was null");
         }
 
         final List<Map<String, ?>> pipelines = state.evaluate("metadata.ingest.pipeline");
@@ -2814,8 +2832,6 @@ public abstract class ESRestTestCase extends ESTestCase {
                 .filter(id -> isXPackIngestPipeline(id) == false)
                 .toList();
             assertThat("Project [" + projectId + "] should not have ingest pipelines", pipelineNames, empty());
-        } else if (projectId.equals(Metadata.DEFAULT_PROJECT_ID.id())) {
-            fail("Expected default project to have standard ingest pipelines, but was null");
         }
 
         if (has(ProductFeature.ILM)) {
@@ -2824,8 +2840,6 @@ public abstract class ESRestTestCase extends ESTestCase {
                 var policyNames = new HashSet<>(ilmPolicies.keySet());
                 policyNames.removeAll(preserveILMPolicyIds());
                 assertThat("Project [" + projectId + "] should not have ILM Policies", policyNames, empty());
-            } else if (projectId.equals(Metadata.DEFAULT_PROJECT_ID.id())) {
-                fail("Expected default project to have standard ILM policies, but was null");
             }
         }
     }

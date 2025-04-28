@@ -15,6 +15,7 @@ import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.RemoteException;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.breaker.CircuitBreaker;
@@ -293,6 +294,11 @@ public final class EsqlTestUtils {
         public boolean isSingleValue(String field) {
             return false;
         }
+
+        @Override
+        public boolean canUseEqualityOnSyntheticSourceDelegate(String name, String value) {
+            return false;
+        }
     }
 
     /**
@@ -383,6 +389,7 @@ public final class EsqlTestUtils {
         mock(SearchService.class),
         null,
         mock(ClusterService.class),
+        mock(ProjectResolver.class),
         mock(IndexNameExpressionResolver.class),
         null,
         mockInferenceRunner()

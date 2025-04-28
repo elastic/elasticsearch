@@ -17,7 +17,6 @@ import java.util.List;
 import java.util.Map;
 
 import static java.util.Map.entry;
-import static org.hamcrest.Matchers.sameInstance;
 
 public class NormalizeToOTelProcessorTests extends ESTestCase {
 
@@ -121,8 +120,10 @@ public class NormalizeToOTelProcessorTests extends ESTestCase {
             entry("key1", "value1")
         );
         IngestDocument document = new IngestDocument("index", "id", 1, null, null, source);
+        Map<String, Object> shallowCopy = new HashMap<>(source);
         processor.execute(document);
-        assertThat(source, sameInstance(document.getSource()));
+        // verify that top level keys are not moved when processing a valid OTel document
+        assertEquals(shallowCopy, document.getSource());
     }
 
     public void testExecute_nonOTelDocument() {
@@ -323,6 +324,35 @@ public class NormalizeToOTelProcessorTests extends ESTestCase {
         assertNull(attributes.get("service"));
         assertFalse(source.containsKey("service.name"));
         assertFalse(source.containsKey("service"));
+    }
+
+    public void testKeepNullValues() {
+        Map<String, Object> source = new HashMap<>();
+        Map<String, Object> span = new HashMap<>();
+        span.put("id", null);
+        source.put("span", span);
+        source.put("log.level", null);
+        source.put("trace_id", null);
+        source.put("foo", null);
+        source.put("agent.name", null);
+        IngestDocument document = new IngestDocument("index", "id", 1, null, null, source);
+
+        processor.execute(document);
+
+        assertFalse(source.containsKey("span"));
+        assertTrue(source.containsKey("span_id"));
+        assertNull(source.get("span_id"));
+        assertFalse(source.containsKey("log"));
+        assertTrue(source.containsKey("severity_text"));
+        assertNull(source.get("severity_text"));
+        assertFalse(source.containsKey("trace_id"));
+        Map<String, Object> expectedAttributes = new HashMap<>();
+        expectedAttributes.put("foo", null);
+        expectedAttributes.put("trace_id", null);
+        assertEquals(expectedAttributes, get(source, "attributes"));
+        Map<String, Object> expectedResourceAttributes = new HashMap<>();
+        expectedResourceAttributes.put("agent.name", null);
+        assertEquals(expectedResourceAttributes, get(get(source, "resource"), "attributes"));
     }
 
     public void testExecute_deepFlattening() {

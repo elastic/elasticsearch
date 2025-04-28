@@ -114,9 +114,8 @@ public class NormalizeToOTelProcessor extends AbstractProcessor {
             if (keepKey.equals("@timestamp")) {
                 continue;
             }
-            Object value = source.remove(keepKey);
-            if (value != null) {
-                newAttributes.put(keepKey, value);
+            if (source.containsKey(keepKey)) {
+                newAttributes.put(keepKey, source.remove(keepKey));
             }
         }
 
@@ -147,8 +146,8 @@ public class NormalizeToOTelProcessor extends AbstractProcessor {
         }
 
         // Flatten attributes
-        source.replace(ATTRIBUTES_KEY, Maps.flatten(newAttributes, false, false));
-        newResource.replace(ATTRIBUTES_KEY, Maps.flatten(newResourceAttributes, false, false));
+        source.put(ATTRIBUTES_KEY, Maps.flatten(newAttributes, false, false));
+        newResource.put(ATTRIBUTES_KEY, Maps.flatten(newResourceAttributes, false, false));
 
         return document;
     }
@@ -223,9 +222,12 @@ public class NormalizeToOTelProcessor extends AbstractProcessor {
      */
     static void renameSpecialKeys(IngestDocument document) {
         RENAME_KEYS.forEach((nonOtelName, otelName) -> {
+            boolean fieldExists = false;
+            Object value = null;
             // first look assuming dot notation for nested fields
-            Object value = document.getFieldValue(nonOtelName, Object.class, true);
-            if (value != null) {
+            if (document.hasField(nonOtelName)) {
+                fieldExists = true;
+                value = document.getFieldValue(nonOtelName, Object.class, true);
                 document.removeField(nonOtelName);
                 // recursively remove empty parent fields
                 int lastDot = nonOtelName.lastIndexOf('.');
@@ -243,9 +245,13 @@ public class NormalizeToOTelProcessor extends AbstractProcessor {
                 }
             } else if (nonOtelName.contains(".")) {
                 // look for dotted field names
-                value = document.getSource().remove(nonOtelName);
+                Map<String, Object> source = document.getSource();
+                if (source.containsKey(nonOtelName)) {
+                    fieldExists = true;
+                    value = source.remove(nonOtelName);
+                }
             }
-            if (value != null) {
+            if (fieldExists) {
                 document.setFieldValue(otelName, value);
             }
         });

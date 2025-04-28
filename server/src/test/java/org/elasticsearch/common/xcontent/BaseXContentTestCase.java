@@ -390,6 +390,25 @@ public abstract class BaseXContentTestCase extends ESTestCase {
         }
     }
 
+    public void testXContentString() throws Exception {
+        final BytesReference random = new BytesArray(randomBytes());
+        XContentBuilder builder = builder().startObject().field("text", new Text(random)).endObject();
+
+        try (XContentParser parser = createParser(xcontentType().xContent(), BytesReference.bytes(builder))) {
+            assertSame(Token.START_OBJECT, parser.nextToken());
+            assertSame(Token.FIELD_NAME, parser.nextToken());
+            assertEquals("text", parser.currentName());
+            assertTrue(parser.nextToken().isValue());
+            var valueRef = parser.xContentText().getBytes();
+            assertThat(
+                Arrays.copyOfRange(valueRef.bytes(), valueRef.offset(), valueRef.offset() + valueRef.length()),
+                equalTo(BytesReference.toBytes(random))
+            );
+            assertSame(Token.END_OBJECT, parser.nextToken());
+            assertNull(parser.nextToken());
+        }
+    }
+
     public void testDate() throws Exception {
         assertResult("{'date':null}", () -> builder().startObject().timestampField("date", (Date) null).endObject());
         assertResult("{'date':null}", () -> builder().startObject().field("date").timestampValue((Date) null).endObject());

@@ -13,9 +13,12 @@ import com.fasterxml.jackson.core.JsonFactory;
 import com.fasterxml.jackson.core.JsonParser;
 import com.fasterxml.jackson.core.JsonToken;
 
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentString;
+import org.elasticsearch.xcontent.json.JsonXContent;
 import org.hamcrest.Matchers;
 
 import java.io.IOException;
@@ -108,6 +111,52 @@ public class ESUTF8StreamJsonParserTests extends ESTestCase {
 
             assertThat(parser.nextToken(), Matchers.equalTo(JsonToken.END_ARRAY));
             assertThat(parser.nextToken(), Matchers.equalTo(JsonToken.END_OBJECT));
+        });
+    }
+
+    private boolean validForTextRef(String value) {
+        for (char c : value.toCharArray()) {
+            if (c == '"') {
+                return false;
+            }
+            if (c == '\\') {
+                return false;
+            }
+            if ((int) c < 32 || (int) c >= 128) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    public void testGetValueRandomized() throws IOException {
+        XContentBuilder jsonBuilder = JsonXContent.contentBuilder().startObject();
+        final int numKeys = 128;
+        String[] keys = new String[numKeys];
+        String[] values = new String[numKeys];
+        for (int i = 0; i < numKeys; i++) {
+            String currKey = randomAlphanumericOfLength(6);
+            String currVal = randomUnicodeOfLengthBetween(0, 512);
+            jsonBuilder.field(currKey, currVal);
+            keys[i] = currKey;
+            values[i] = currVal;
+        }
+
+        jsonBuilder.endObject();
+        testParseJson(Strings.toString(jsonBuilder), parser -> {
+            assertThat(parser.nextToken(), Matchers.equalTo(JsonToken.START_OBJECT));
+            for (int i = 0; i < numKeys; i++) {
+                assertThat(parser.nextFieldName(), Matchers.equalTo(keys[i]));
+                assertThat(parser.nextValue(), Matchers.equalTo(JsonToken.VALUE_STRING));
+
+                String currVal = values[i];
+                if (validForTextRef(currVal)) {
+                    assertTextRef(parser.getValueAsByteRef().getBytes(), currVal);
+                } else {
+                    assertThat(parser.getValueAsByteRef(), Matchers.nullValue());
+                    assertThat(parser.getValueAsString(), Matchers.equalTo(currVal));
+                }
+            }
         });
     }
 

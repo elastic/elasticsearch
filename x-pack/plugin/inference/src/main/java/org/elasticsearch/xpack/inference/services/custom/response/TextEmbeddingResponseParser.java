@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.inference.services.custom.response;
 
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -85,9 +86,17 @@ public class TextEmbeddingResponseParser extends BaseCustomResponseParser<TextEm
 
         var embeddings = new ArrayList<TextEmbeddingFloatResults.Embedding>(mapResultsList.size());
 
-        for (var entry : mapResultsList) {
-            var embeddingsAsListFloats = convertToListOfFloats(entry, extractedResult.getArrayFieldName(1));
-            embeddings.add(TextEmbeddingFloatResults.Embedding.of(embeddingsAsListFloats));
+        for (int i = 0; i < mapResultsList.size(); i++) {
+            try {
+                var entry = mapResultsList.get(i);
+                var embeddingsAsListFloats = convertToListOfFloats(entry, extractedResult.getArrayFieldName(1));
+                embeddings.add(TextEmbeddingFloatResults.Embedding.of(embeddingsAsListFloats));
+            } catch (Exception e) {
+                throw new IllegalArgumentException(
+                    Strings.format("Failed to parse text embedding entry [%d], error: %s", i, e.getMessage()),
+                    e
+                );
+            }
         }
 
         return new TextEmbeddingFloatResults(embeddings);

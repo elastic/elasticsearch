@@ -162,7 +162,52 @@ public class TextEmbeddingResponseParserTests extends AbstractBWCWireSerializati
         );
     }
 
-    public void testParse_ThrowsException_WhenExtractedField_IsNotAList() throws IOException {
+    public void testParse_ThrowsException_WhenExtractedField_IsNotAListOfFloats() {
+        String responseJson = """
+            {
+              "object": "list",
+              "data": [
+                  {
+                      "object": "embedding",
+                      "index": 0,
+                      "embedding": [
+                          1,
+                          -0.015288644
+                      ]
+                  },
+                  {
+                      "object": "embedding",
+                      "index": 0,
+                      "embedding": [
+                          true,
+                          -0.015288644
+                      ]
+                  }
+              ],
+              "model": "text-embedding-ada-002-v2",
+              "usage": {
+                  "prompt_tokens": 8,
+                  "total_tokens": 8
+              }
+            }
+            """;
+
+        var parser = new TextEmbeddingResponseParser("$.data[*].embedding");
+        var exception = expectThrows(
+            IllegalArgumentException.class,
+            () -> parser.parse(new HttpResult(mock(HttpResponse.class), responseJson.getBytes(StandardCharsets.UTF_8)))
+        );
+
+        assertThat(
+            exception.getMessage(),
+            is(
+                "Failed to parse text embedding entry [1], error: Failed to parse list entry [0], error:"
+                    + " Unable to convert field [data.embedding] of type [Boolean] to Number"
+            )
+        );
+    }
+
+    public void testParse_ThrowsException_WhenExtractedField_IsNotAList() {
         String responseJson = """
             {
               "object": "list",
@@ -187,7 +232,13 @@ public class TextEmbeddingResponseParserTests extends AbstractBWCWireSerializati
             () -> parser.parse(new HttpResult(mock(HttpResponse.class), responseJson.getBytes(StandardCharsets.UTF_8)))
         );
 
-        assertThat(exception.getMessage(), is("Extracted field is an invalid type, expected a list but received [Integer]"));
+        assertThat(
+            exception.getMessage(),
+            is(
+                "Failed to parse text embedding entry [0], error: Extracted field [data.embedding] "
+                    + "is an invalid type, expected a list but received [Integer]"
+            )
+        );
     }
 
     @Override

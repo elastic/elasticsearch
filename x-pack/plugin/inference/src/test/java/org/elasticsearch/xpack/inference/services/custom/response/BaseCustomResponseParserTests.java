@@ -41,8 +41,11 @@ public class BaseCustomResponseParserTests extends ESTestCase {
     public void testConvertToListOfFloats_ThrowsException_WhenAnItemInTheListIsNotANumber() {
         var list = List.of(1, "hello");
 
-        var exception = expectThrows(IllegalArgumentException.class, () -> convertToListOfFloats(list, "field"));
-        assertThat(exception.getMessage(), is("Unable to convert field [field] of type [String] to Number"));
+        var exception = expectThrows(IllegalStateException.class, () -> convertToListOfFloats(list, "field"));
+        assertThat(
+            exception.getMessage(),
+            is("Failed to parse list entry [1], error: Unable to convert field [field] of type [String] to Number")
+        );
     }
 
     public void testConvertToListOfFloats_ReturnsList() {
@@ -60,11 +63,11 @@ public class BaseCustomResponseParserTests extends ESTestCase {
     public void testCastList_ThrowsException() {
         var list = List.of("abc");
 
-        var exception = expectThrows(IllegalArgumentException.class, () -> castList(list, (obj, fieldName) -> {
+        var exception = expectThrows(IllegalStateException.class, () -> castList(list, (obj, fieldName) -> {
             throw new IllegalArgumentException("failed");
         }, "field"));
 
-        assertThat(exception.getMessage(), is("failed"));
+        assertThat(exception.getMessage(), is("Failed to parse list entry [0], error: failed"));
     }
 
     public void testValidateMap() {

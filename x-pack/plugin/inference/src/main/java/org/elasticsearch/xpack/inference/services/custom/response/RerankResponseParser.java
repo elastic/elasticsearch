@@ -111,8 +111,8 @@ public class RerankResponseParser extends BaseCustomResponseParser<RankedDocsRes
     @Override
     public RankedDocsResults transform(Map<String, Object> map) {
         var scores = extractScores(map);
-        List<Integer> indices = extractIndices(map);
-        List<String> documents = extractDocuments(map);
+        var indices = extractIndices(map);
+        var documents = extractDocuments(map);
 
         if (indices != null && indices.size() != scores.size()) {
             throw new IllegalStateException(

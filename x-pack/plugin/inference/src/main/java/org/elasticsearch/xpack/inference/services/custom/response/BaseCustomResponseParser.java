@@ -119,8 +119,12 @@ public abstract class BaseCustomResponseParser<T extends InferenceServiceResults
         validateNonNull(items, fieldName);
 
         List<T> resultList = new ArrayList<>();
-        for (var obj : items) {
-            resultList.add(converter.apply(obj, fieldName));
+        for (int i = 0; i < items.size(); i++) {
+            try {
+                resultList.add(converter.apply(items.get(i), fieldName));
+            } catch (Exception e) {
+                throw new IllegalStateException(Strings.format("Failed to parse list entry [%d], error: %s", i, e.getMessage()), e);
+            }
         }
 
         return resultList;

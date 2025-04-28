@@ -198,7 +198,10 @@ public class RerankResponseParserTests extends AbstractBWCWireSerializationTestC
 
         assertThat(
             exception.getMessage(),
-            is("Failed to parse rerank indices, error: Unable to convert field [result.scores] of type [String] to Number")
+            is(
+                "Failed to parse rerank indices, error: Failed to parse list entry [0], "
+                    + "error: Unable to convert field [result.scores] of type [String] to Number"
+            )
         );
     }
 
@@ -234,7 +237,10 @@ public class RerankResponseParserTests extends AbstractBWCWireSerializationTestC
 
         assertThat(
             exception.getMessage(),
-            is("Failed to parse rerank scores, error: Unable to convert field [result.scores] of type [Boolean] to Number")
+            is(
+                "Failed to parse rerank scores, error: Failed to parse list entry [0], "
+                    + "error: Unable to convert field [result.scores] of type [Boolean] to Number"
+            )
         );
     }
 
@@ -272,7 +278,10 @@ public class RerankResponseParserTests extends AbstractBWCWireSerializationTestC
 
         assertThat(
             exception.getMessage(),
-            is("Failed to parse rerank documents, error: Unable to convert field [result.scores] of type [Integer] to String")
+            is(
+                "Failed to parse rerank documents, error: Failed to parse list entry [0], error: "
+                    + "Unable to convert field [result.scores] of type [Integer] to [String]"
+            )
         );
     }
 

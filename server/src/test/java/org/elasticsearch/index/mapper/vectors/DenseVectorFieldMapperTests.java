@@ -1022,6 +1022,60 @@ public class DenseVectorFieldMapperTests extends MapperTestCase {
         }
     }
 
+    public void testDefaultOversampleValue() throws IOException {
+        {
+            DocumentMapper mapperService = createDocumentMapper(fieldMapping(b -> {
+                b.field("type", "dense_vector");
+                b.field("dims", 128);
+                b.field("index", true);
+                b.field("similarity", "dot_product");
+                b.startObject("index_options");
+                b.field("type", "bbq_hnsw");
+                b.endObject();
+            }));
+
+            DenseVectorFieldMapper denseVectorFieldMapper = (DenseVectorFieldMapper) mapperService.mappers().getMapper("field");
+            DenseVectorFieldMapper.BBQHnswIndexOptions indexOptions = (DenseVectorFieldMapper.BBQHnswIndexOptions) denseVectorFieldMapper
+                .fieldType()
+                .getIndexOptions();
+            assertEquals(3.0F, indexOptions.rescoreVector.oversample(), 0.0F);
+        }
+        {
+            DocumentMapper mapperService = createDocumentMapper(fieldMapping(b -> {
+                b.field("type", "dense_vector");
+                b.field("dims", 128);
+                b.field("index", true);
+                b.field("similarity", "dot_product");
+                b.startObject("index_options");
+                b.field("type", "bbq_flat");
+                b.endObject();
+            }));
+
+            DenseVectorFieldMapper denseVectorFieldMapper = (DenseVectorFieldMapper) mapperService.mappers().getMapper("field");
+            DenseVectorFieldMapper.BBQFlatIndexOptions indexOptions = (DenseVectorFieldMapper.BBQFlatIndexOptions) denseVectorFieldMapper
+                .fieldType()
+                .getIndexOptions();
+            assertEquals(3.0F, indexOptions.rescoreVector.oversample(), 0.0F);
+        }
+        {
+            DocumentMapper mapperService = createDocumentMapper(fieldMapping(b -> {
+                b.field("type", "dense_vector");
+                b.field("dims", 128);
+                b.field("index", true);
+                b.field("similarity", "dot_product");
+                b.startObject("index_options");
+                b.field("type", "int8_hnsw");
+                b.endObject();
+            }));
+
+            DenseVectorFieldMapper denseVectorFieldMapper = (DenseVectorFieldMapper) mapperService.mappers().getMapper("field");
+            DenseVectorFieldMapper.Int8HnswIndexOptions indexOptions = (DenseVectorFieldMapper.Int8HnswIndexOptions) denseVectorFieldMapper
+                .fieldType()
+                .getIndexOptions();
+            assertNull(indexOptions.rescoreVector);
+        }
+    }
+
     public void testDims() {
         {
             Exception e = expectThrows(MapperParsingException.class, () -> createMapperService(fieldMapping(b -> {

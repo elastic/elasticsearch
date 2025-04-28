@@ -18,7 +18,6 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.core.SuppressForbidden;
-import org.elasticsearch.core.Tuple;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.RestUtils;
 import org.elasticsearch.test.fixture.HttpHeaderParser;
@@ -27,26 +26,17 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentType;
 
-import java.io.BufferedReader;
 import java.io.IOException;
-import java.io.InputStream;
-import java.io.InputStreamReader;
 import java.net.URLDecoder;
 import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Optional;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 import java.util.stream.Collectors;
-import java.util.zip.GZIPInputStream;
 
 import static fixture.gcs.MockGcsBlobStore.failAndThrow;
 import static java.nio.charset.StandardCharsets.UTF_8;
-import static java.util.stream.Collectors.joining;
-import static org.elasticsearch.core.Strings.format;
 
 /**
  * Minimal HTTP handler that acts as a Google Cloud Storage compliant server
@@ -183,26 +173,18 @@ public class GoogleCloudStorageHttpHandler implements HttpHandler {
                 exchange.getResponseBody().write(response);
 
             } else if (Regex.simpleMatch("POST /upload/storage/v1/b/" + bucket + "/*uploadType=multipart*", request)) {
-                // Multipart upload
-                Optional<Tuple<String, BytesReference>> content = parseMultipartRequestBody(requestBody.streamInput());
-                if (content.isPresent()) {
+                try {
+                    final var multipartUpload = MultipartUpload.parseBody(exchange, requestBody.streamInput());
                     final Long ifGenerationMatch = parseOptionalLongParameter(exchange, IF_GENERATION_MATCH);
                     final MockGcsBlobStore.BlobVersion newBlobVersion = mockGcsBlobStore.updateBlob(
-                        content.get().v1(),
+                        multipartUpload.name(),
                         ifGenerationMatch,
-                        content.get().v2()
+                        multipartUpload.content()
                     );
                     writeBlobVersionAsJson(exchange, newBlobVersion);
-                } else {
-                    throw new AssertionError(
-                        "Could not read multi-part request to ["
-                            + request
-                            + "] with headers ["
-                            + new HashMap<>(exchange.getRequestHeaders())
-                            + "]"
-                    );
+                } catch (IllegalArgumentException e) {
+                    throw new AssertionError(e);
                 }
-
             } else if (Regex.simpleMatch("POST /upload/storage/v1/b/" + bucket + "/*uploadType=resumable*", request)) {
                 // Resumable upload initialization https://cloud.google.com/storage/docs/json_api/v1/how-tos/resumable-upload
                 final Map<String, String> params = new HashMap<>();
@@ -326,81 +308,6 @@ public class GoogleCloudStorageHttpHandler implements HttpHandler {
 
     private static String httpServerUrl(final HttpExchange exchange) {
         return "http://" + exchange.getRequestHeaders().get("HOST").get(0);
-    }
-
-    private static final Pattern NAME_PATTERN = Pattern.compile("\"name\":\"([^\"]*)\"");
-
-    public static Optional<Tuple<String, BytesReference>> parseMultipartRequestBody(final InputStream requestBody) throws IOException {
-        Tuple<String, BytesReference> content = null;
-        final BytesReference fullRequestBody;
-        try (InputStream in = new GZIPInputStream(requestBody)) {
-            fullRequestBody = Streams.readFully(in);
-        }
-        String name = null;
-        boolean skippedEmptyLine = false;
-        int startPos = 0;
-        int endPos = 0;
-        while (startPos < fullRequestBody.length()) {
-            do {
-                endPos = fullRequestBody.indexOf((byte) '\r', endPos + 1);
-            } while (endPos >= 0 && fullRequestBody.get(endPos + 1) != '\n');
-            boolean markAndContinue = false;
-            final String bucketPrefix = "{\"bucket\":";
-            if (startPos > 0) {
-                startPos += 2;
-            }
-            if (name == null || skippedEmptyLine == false) {
-                if ((skippedEmptyLine == false && endPos == startPos)
-                    || (fullRequestBody.get(startPos) == '-' && fullRequestBody.get(startPos + 1) == '-')) {
-                    markAndContinue = true;
-                } else {
-                    final String start = fullRequestBody.slice(startPos, Math.min(endPos - startPos, bucketPrefix.length())).utf8ToString();
-                    if (start.toLowerCase(Locale.ROOT).startsWith("content")) {
-                        markAndContinue = true;
-                    } else if (start.startsWith(bucketPrefix)) {
-                        markAndContinue = true;
-                        final String line = fullRequestBody.slice(
-                            startPos + bucketPrefix.length(),
-                            endPos - startPos - bucketPrefix.length()
-                        ).utf8ToString();
-                        Matcher matcher = NAME_PATTERN.matcher(line);
-                        if (matcher.find()) {
-                            name = matcher.group(1);
-                        }
-                    }
-                }
-                skippedEmptyLine = markAndContinue && endPos == startPos;
-                startPos = endPos;
-            } else {
-                while (isEndOfPart(fullRequestBody, endPos) == false) {
-                    endPos = fullRequestBody.indexOf((byte) '\r', endPos + 1);
-                }
-                content = Tuple.tuple(name, fullRequestBody.slice(startPos, endPos - startPos));
-                break;
-            }
-        }
-        if (content == null) {
-            final InputStream stream = fullRequestBody.streamInput();
-            logger.warn(
-                () -> format(
-                    "Failed to find multi-part upload in [%s]",
-                    new BufferedReader(new InputStreamReader(stream)).lines().collect(joining("\n"))
-                )
-            );
-        }
-        return Optional.ofNullable(content);
-    }
-
-    private static final byte[] END_OF_PARTS_MARKER = "\r\n--__END_OF_PART__".getBytes(UTF_8);
-
-    private static boolean isEndOfPart(BytesReference fullRequestBody, int endPos) {
-        for (int i = 0; i < END_OF_PARTS_MARKER.length; i++) {
-            final byte b = END_OF_PARTS_MARKER[i];
-            if (fullRequestBody.get(endPos + i) != b) {
-                return false;
-            }
-        }
-        return true;
     }
 
     private static String requireHeader(HttpExchange exchange, String headerName) {

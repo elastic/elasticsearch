@@ -1,0 +1,5 @@
+pr: 126850
+summary: "[otel-data] Bump plugin version to release _metric_names_hash changes"
+area: Data streams
+type: bug
+issues: []

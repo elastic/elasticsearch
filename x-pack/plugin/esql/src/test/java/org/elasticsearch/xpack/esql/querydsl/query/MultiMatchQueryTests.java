@@ -11,48 +11,36 @@ import org.elasticsearch.index.query.MultiMatchQueryBuilder;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.util.StringUtils;
-import org.elasticsearch.xpack.esql.expression.predicate.fulltext.MultiMatchQueryPredicate;
 
-import java.util.HashMap;
 import java.util.Map;
-import java.util.TreeMap;
 
 import static org.hamcrest.Matchers.equalTo;
 
 public class MultiMatchQueryTests extends ESTestCase {
 
     public void testQueryBuilding() {
-        MultiMatchQueryBuilder qb = getBuilder("lenient=true");
+        MultiMatchQueryBuilder qb = getBuilder(Map.of("lenient", true));
         assertThat(qb.lenient(), equalTo(true));
 
-        qb = getBuilder("type=best_fields");
+        qb = getBuilder(Map.of("type", "best_fields"));
         assertThat(qb.getType(), equalTo(MultiMatchQueryBuilder.Type.BEST_FIELDS));
 
-        Exception e = expectThrows(IllegalArgumentException.class, () -> getBuilder("pizza=yummy"));
+        Exception e = expectThrows(IllegalArgumentException.class, () -> getBuilder(Map.of("pizza", "yummy")));
         assertThat(e.getMessage(), equalTo("illegal multi_match option [pizza]"));
 
-        e = expectThrows(ElasticsearchParseException.class, () -> getBuilder("type=aoeu"));
+        e = expectThrows(ElasticsearchParseException.class, () -> getBuilder(Map.of("type", "aoeu")));
         assertThat(e.getMessage(), equalTo("failed to parse [multi_match] query type [aoeu]. unknown type."));
     }
 
-    private static MultiMatchQueryBuilder getBuilder(String options) {
+    private static MultiMatchQueryBuilder getBuilder(Map<String, Object> options) {
         final Source source = new Source(1, 1, StringUtils.EMPTY);
-        final MultiMatchQueryPredicate mmqp = new MultiMatchQueryPredicate(source, "foo,bar", "eggplant", options);
-        final Map<String, Float> fields = new HashMap<>();
-        fields.put("foo", 1.0f);
-        fields.put("bar", 1.0f);
-        final MultiMatchQuery mmq = new MultiMatchQuery(source, "eggplant", fields, mmqp);
+        final MultiMatchQuery mmq = new MultiMatchQuery(source, "eggplant", Map.of("bar", 1.0f, "foo", 1.0f), options);
         return (MultiMatchQueryBuilder) mmq.asBuilder();
     }
 
     public void testToString() {
         final Source source = new Source(1, 1, StringUtils.EMPTY);
-        final MultiMatchQueryPredicate mmqp = new MultiMatchQueryPredicate(source, "foo,bar", "eggplant", "");
-        // Use a TreeMap so we get the fields in a predictable order.
-        final Map<String, Float> fields = new TreeMap<>();
-        fields.put("foo", 1.0f);
-        fields.put("bar", 1.0f);
-        final MultiMatchQuery mmq = new MultiMatchQuery(source, "eggplant", fields, mmqp);
+        final MultiMatchQuery mmq = new MultiMatchQuery(source, "eggplant", Map.of("bar", 1.0f, "foo", 1.0f), null);
         assertEquals("MultiMatchQuery@1:2[{bar=1.0, foo=1.0}:eggplant]", mmq.toString());
     }
 }

@@ -481,6 +481,7 @@ public abstract class AbstractStatelessIntegTestCase extends ESIntegTestCase {
     /**
      * Initiates and waits for the elected-master to gracefully abdicate to another master-eligible node before shutting it down.
      * Graceful shutdown can only be successful if there is at least one other master-eligible node to which to abdicate.
+     * Note: it is asserted that no other nodes in the cluster are preparing to shut down.
      *
      * @return the name of the master node that is shut down.
      */
@@ -493,6 +494,7 @@ public abstract class AbstractStatelessIntegTestCase extends ESIntegTestCase {
     /**
      * Initiates and waits for the elected-master to gracefully abdicate to another master-eligible node before restarting it.
      * Graceful shutdown can only be successful if there is at least one other master-eligible node to which to abdicate.
+     * Note: it is asserted that no other nodes in the cluster are preparing to shut down.
      *
      * @return the name of the restarted master node.
      */
@@ -500,6 +502,53 @@ public abstract class AbstractStatelessIntegTestCase extends ESIntegTestCase {
         String masterNodeName = masterNodeAbdicatesForGracefulShutdown();
         internalCluster().restartNode(masterNodeName);
         return masterNodeName;
+    }
+
+    /**
+     * Waits for all the nodes flagged for shutdown to no longer be master.
+     * Asserts that there is at least one master eligible node NOT in shutdown.
+     * It is safe to call this method when no nodes are in shutdown: it will simply return.
+     */
+    public void waitForAnyShuttingDownMasterNodesToAbdicateAndElectANewMaster() throws Exception {
+        NodesShutdownMetadata shutdownMetadata = internalCluster().getInstance(ClusterService.class, internalCluster().getMasterName())
+            .state()
+            .metadata()
+            .nodeShutdowns();
+        var shuttingDownNodeIds = shutdownMetadata.getAllNodeIds();
+        if (shuttingDownNodeIds.size() == 0) {
+            return;
+        }
+
+        var nodeIdsToNamesMap = nodeIdsToNames();
+        var masterNodeNames = internalCluster().masterEligibleNodeNames();
+        var shuttingDownNodesNames = shuttingDownNodeIds.stream()
+            .map(shuttingDownNodeId -> nodeIdsToNamesMap.get(shuttingDownNodeId))
+            .collect(Collectors.toSet());
+        var shuttingDownMasterNodeNames = shuttingDownNodesNames.stream()
+            .filter(shuttingDownNodeName -> masterNodeNames.contains(shuttingDownNodeName))
+            .collect(Collectors.toSet());
+
+        // Ensure that there is at least one master-eligible node not in shutdown.
+        assertThat(
+            Strings.format("""
+                    Master node(s) cannot abdicate gracefully on shutdown when there are no other master-eligible nodes.
+                    Nodes with shutdown set [%s]. All nodes with master role [%s]. Master nodes with shutdown set [%s].
+                """, shuttingDownNodesNames, masterNodeNames, shuttingDownMasterNodeNames),
+            masterNodeNames.size(),
+            greaterThan(shuttingDownMasterNodeNames.size())
+        );
+
+        logger.info("--> Checking that master nodes with shutdown [{}] are no longer master", shuttingDownMasterNodeNames);
+        assertBusy(() -> {
+            assertTrue(
+                Strings.format(
+                    "Ensuring all master eligible nodes with shutdown are no longer master. Shutting down nodes [%s]. Current master [%s]",
+                    shuttingDownNodesNames,
+                    internalCluster().getMasterName()
+                ),
+                shuttingDownMasterNodeNames.stream().noneMatch(name -> name.equals(internalCluster().getMasterName()))
+            );
+        });
     }
 
     /**

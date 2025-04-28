@@ -762,7 +762,8 @@ public class AutoscalingIndexingMetricsIT extends AbstractStatelessIntegTestCase
         );
 
         // Needs assertBusy since we might have marked the current master for shutdown which results in it abdicating to a new
-        // master-eligible node which might return only a subset of the nodes (temporarily)
+        // master-eligible node which might return only a subset of the nodes (temporarily). Even after a new master is elected
+        // AND all nodes have rejoined the cluster, there may be a delay in the data nodes publishing fresh ingestion load metrics.
         assertBusy(() -> {
             final List<NodeIngestLoadSnapshot> ingestNodesLoad = getNodesIngestLoad();
             assertThat(ingestNodesLoad.toString(), ingestNodesLoad, hasSize(numNodes));
@@ -772,13 +773,11 @@ public class AutoscalingIndexingMetricsIT extends AbstractStatelessIntegTestCase
             );
         });
 
+        waitForAnyShuttingDownMasterNodesToAbdicateAndElectANewMaster();
         for (var node : shuttingDownNodes) {
+            assertThat(node.getName(), not(equalTo(internalCluster().getMasterName())));
             logger.info("--> stopping node {}", node.getName());
-            if (node.getName().equals(internalCluster().getMasterName())) {
-                shutdownMasterNodeGracefully();
-            } else {
-                internalCluster().stopNode(node.getName());
-            }
+            internalCluster().stopNode(node.getName());
         }
         ensureStableCluster(numNodes - shuttingDownNodes.size());
 

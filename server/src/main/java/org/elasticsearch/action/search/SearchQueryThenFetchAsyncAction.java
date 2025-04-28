@@ -29,6 +29,7 @@ import org.elasticsearch.common.io.stream.RecyclerBytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.CountDown;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.ListenableFuture;
@@ -82,6 +83,7 @@ import java.util.function.BiFunction;
 import java.util.function.IntUnaryOperator;
 
 import static org.elasticsearch.action.search.SearchPhaseController.getTopDocsSize;
+import static org.elasticsearch.search.sort.FieldSortBuilder.NAME;
 import static org.elasticsearch.search.sort.FieldSortBuilder.hasPrimaryFieldSort;
 
 public class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<SearchPhaseResult> {
@@ -96,6 +98,7 @@ public class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<S
     private volatile BottomSortValuesCollector bottomSortCollector;
     private final Client client;
     private final boolean batchQueryPhase;
+    private final SearchService searchService;
 
     SearchQueryThenFetchAsyncAction(
         Logger logger,
@@ -114,7 +117,7 @@ public class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<S
         SearchTask task,
         SearchResponse.Clusters clusters,
         Client client,
-        boolean batchQueryPhase
+        SearchService searchService
     ) {
         super(
             "query",
@@ -139,7 +142,8 @@ public class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<S
         this.trackTotalHitsUpTo = request.resolveTrackTotalHitsUpTo();
         this.progressListener = task.getProgressListener();
         this.client = client;
-        this.batchQueryPhase = batchQueryPhase;
+        this.batchQueryPhase = searchService.batchQueryPhase();
+        this.searchService = searchService;
         // don't build the SearchShard list (can be expensive) if the SearchProgressListener won't use it
         if (progressListener != SearchProgressListener.NOOP) {
             notifyListShards(progressListener, clusters, request, shardsIts);
@@ -423,7 +427,8 @@ public class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<S
         }
         AbstractSearchAsyncAction.doCheckNoMissingShards(getName(), request, shardsIts);
         final Map<CanMatchPreFilterSearchPhase.SendingTarget, NodeQueryRequest> perNodeQueries = new HashMap<>();
-        final String localNodeId = searchTransportService.transportService().getLocalNode().getId();
+        final var transportService = searchTransportService.transportService();
+        final String localNodeId = transportService.getLocalNode().getId();
         final int numberOfShardsTotal = shardsIts.size();
         for (int i = 0; i < numberOfShardsTotal; i++) {
             final SearchShardIterator shardRoutings = shardsIts.get(i);
@@ -436,29 +441,81 @@ public class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<S
             } else {
                 final String nodeId = routing.getNodeId();
                 // local requests don't need batching as there's no network latency
-                if (localNodeId.equals(nodeId)) {
-                    performPhaseOnShard(shardIndex, shardRoutings, routing);
-                } else {
-                    var perNodeRequest = perNodeQueries.computeIfAbsent(
-                        new CanMatchPreFilterSearchPhase.SendingTarget(routing.getClusterAlias(), nodeId),
-                        t -> new NodeQueryRequest(request, numberOfShardsTotal, timeProvider.absoluteStartMillis(), t.clusterAlias())
-                    );
-                    final String indexUUID = routing.getShardId().getIndex().getUUID();
-                    perNodeRequest.shards.add(
-                        new ShardToQuery(
-                            concreteIndexBoosts.getOrDefault(indexUUID, DEFAULT_INDEX_BOOST),
-                            getOriginalIndices(shardIndex).indices(),
-                            shardIndex,
-                            routing.getShardId(),
-                            shardRoutings.getSearchContextId()
-                        )
-                    );
-                    var filterForAlias = aliasFilter.getOrDefault(indexUUID, AliasFilter.EMPTY);
-                    if (filterForAlias != AliasFilter.EMPTY) {
-                        perNodeRequest.aliasFilters.putIfAbsent(indexUUID, filterForAlias);
-                    }
+                var perNodeRequest = perNodeQueries.computeIfAbsent(
+                    new CanMatchPreFilterSearchPhase.SendingTarget(routing.getClusterAlias(), nodeId),
+                    t -> new NodeQueryRequest(request, numberOfShardsTotal, timeProvider.absoluteStartMillis(), t.clusterAlias())
+                );
+                final String indexUUID = routing.getShardId().getIndex().getUUID();
+                perNodeRequest.shards.add(
+                    new ShardToQuery(
+                        concreteIndexBoosts.getOrDefault(indexUUID, DEFAULT_INDEX_BOOST),
+                        getOriginalIndices(shardIndex).indices(),
+                        shardIndex,
+                        routing.getShardId(),
+                        shardRoutings.getSearchContextId()
+                    )
+                );
+                var filterForAlias = aliasFilter.getOrDefault(indexUUID, AliasFilter.EMPTY);
+                if (filterForAlias != AliasFilter.EMPTY) {
+                    perNodeRequest.aliasFilters.putIfAbsent(indexUUID, filterForAlias);
                 }
             }
+        }
+        final var localTarget = new CanMatchPreFilterSearchPhase.SendingTarget(request.getLocalClusterAlias(), localNodeId);
+        var localNodeRequest = perNodeQueries.remove(localTarget);
+        if (localNodeRequest != null) {
+            transportService.getThreadPool().executor(ThreadPool.Names.SEARCH_COORDINATION).execute(new AbstractRunnable() {
+                @Override
+                protected void doRun() {
+                    if (hasPrimaryFieldSort(request.source())) {
+                        var pitBuilder = request.pointInTimeBuilder();
+                        @SuppressWarnings("rawtypes")
+                        final MinAndMax[] minAndMax = new MinAndMax[localNodeRequest.shards.size()];
+                        for (int i = 0; i < minAndMax.length; i++) {
+                            var shardToQuery = localNodeRequest.shards.get(i);
+                            var shardId = shardToQuery.shardId;
+                            var r = buildShardSearchRequest(
+                                shardId,
+                                localNodeRequest.localClusterAlias,
+                                shardToQuery.shardIndex,
+                                shardToQuery.contextId,
+                                new OriginalIndices(shardToQuery.originalIndices, request.indicesOptions()),
+                                localNodeRequest.aliasFilters.getOrDefault(shardId.getIndex().getUUID(), AliasFilter.EMPTY),
+                                pitBuilder == null ? null : pitBuilder.getKeepAlive(),
+                                shardToQuery.boost,
+                                request,
+                                localNodeRequest.totalShards,
+                                localNodeRequest.absoluteStartMillis,
+                                false
+                            );
+                            minAndMax[i] = searchService.canMatch(r).estimatedMinAndMax();
+                        }
+                        try {
+                            int[] indexes = CanMatchPreFilterSearchPhase.sortShards(
+                                localNodeRequest.shards,
+                                minAndMax,
+                                FieldSortBuilder.getPrimaryFieldSortOrNull(request.source()).order()
+                            );
+                            for (int i = 0; i < indexes.length; i++) {
+                                ShardToQuery shardToQuery = localNodeRequest.shards.get(i);
+                                shardToQuery = localNodeRequest.shards.set(i, shardToQuery);
+                                localNodeRequest.shards.set(i, shardToQuery);
+                            }
+                        } catch (Exception e) {
+                            // ignored, field type conflicts will be dealt with in upstream logic
+                            // TODO: we should fail the query here, we're already seeing a field type conflict on the sort field,
+                            // no need to actually execute the queries and go through a lot of work before we inevitably have to
+                            // fail the search
+                        }
+                    }
+                    executeWithoutBatching(localTarget, localNodeRequest);
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    SearchQueryThenFetchAsyncAction.this.onPhaseFailure(NAME, "", e);
+                }
+            });
         }
         perNodeQueries.forEach((routing, request) -> {
             if (request.shards.size() == 1) {
@@ -477,8 +534,12 @@ public class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<S
                 executeWithoutBatching(routing, request);
                 return;
             }
-            searchTransportService.transportService()
-                .sendChildRequest(connection, NODE_SEARCH_ACTION_NAME, request, task, new TransportResponseHandler<NodeQueryResponse>() {
+            transportService.sendChildRequest(
+                connection,
+                NODE_SEARCH_ACTION_NAME,
+                request,
+                task,
+                new TransportResponseHandler<NodeQueryResponse>() {
                     @Override
                     public NodeQueryResponse read(StreamInput in) throws IOException {
                         return new NodeQueryResponse(in);
@@ -531,7 +592,8 @@ public class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<S
                             onPhaseFailure(getName(), "", cause);
                         }
                     }
-                });
+                }
+            );
         });
     }
 

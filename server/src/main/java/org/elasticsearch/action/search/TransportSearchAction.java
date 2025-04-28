@@ -1576,7 +1576,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                         task,
                         clusters,
                         client,
-                        searchService.batchQueryPhase()
+                        searchService
                     );
                 }
                 success = true;

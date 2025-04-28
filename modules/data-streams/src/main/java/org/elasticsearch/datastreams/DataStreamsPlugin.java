@@ -16,10 +16,12 @@ import org.elasticsearch.action.datastreams.CreateDataStreamAction;
 import org.elasticsearch.action.datastreams.DataStreamsStatsAction;
 import org.elasticsearch.action.datastreams.DeleteDataStreamAction;
 import org.elasticsearch.action.datastreams.GetDataStreamAction;
+import org.elasticsearch.action.datastreams.GetDataStreamSettingsAction;
 import org.elasticsearch.action.datastreams.MigrateToDataStreamAction;
 import org.elasticsearch.action.datastreams.ModifyDataStreamsAction;
 import org.elasticsearch.action.datastreams.PromoteDataStreamAction;
 import org.elasticsearch.action.datastreams.PutDataStreamOptionsAction;
+import org.elasticsearch.action.datastreams.UpdateDataStreamSettingsAction;
 import org.elasticsearch.action.datastreams.lifecycle.ExplainDataStreamLifecycleAction;
 import org.elasticsearch.action.datastreams.lifecycle.GetDataStreamLifecycleAction;
 import org.elasticsearch.action.datastreams.lifecycle.PutDataStreamLifecycleAction;
@@ -37,10 +39,12 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.datastreams.action.TransportCreateDataStreamAction;
 import org.elasticsearch.datastreams.action.TransportDataStreamsStatsAction;
 import org.elasticsearch.datastreams.action.TransportDeleteDataStreamAction;
+import org.elasticsearch.datastreams.action.TransportGetDataStreamSettingsAction;
 import org.elasticsearch.datastreams.action.TransportGetDataStreamsAction;
 import org.elasticsearch.datastreams.action.TransportMigrateToDataStreamAction;
 import org.elasticsearch.datastreams.action.TransportModifyDataStreamsAction;
 import org.elasticsearch.datastreams.action.TransportPromoteDataStreamAction;
+import org.elasticsearch.datastreams.action.TransportUpdateDataStreamSettingsAction;
 import org.elasticsearch.datastreams.lifecycle.DataStreamLifecycleErrorStore;
 import org.elasticsearch.datastreams.lifecycle.DataStreamLifecycleService;
 import org.elasticsearch.datastreams.lifecycle.action.DeleteDataStreamLifecycleAction;
@@ -241,6 +245,8 @@ public class DataStreamsPlugin extends Plugin implements ActionPlugin, HealthPlu
         actions.add(new ActionHandler<>(GetDataStreamOptionsAction.INSTANCE, TransportGetDataStreamOptionsAction.class));
         actions.add(new ActionHandler<>(PutDataStreamOptionsAction.INSTANCE, TransportPutDataStreamOptionsAction.class));
         actions.add(new ActionHandler<>(DeleteDataStreamOptionsAction.INSTANCE, TransportDeleteDataStreamOptionsAction.class));
+        actions.add(new ActionHandler<>(GetDataStreamSettingsAction.INSTANCE, TransportGetDataStreamSettingsAction.class));
+        actions.add(new ActionHandler<>(UpdateDataStreamSettingsAction.INSTANCE, TransportUpdateDataStreamSettingsAction.class));
         return actions;
     }
 

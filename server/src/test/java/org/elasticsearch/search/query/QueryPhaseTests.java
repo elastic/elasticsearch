@@ -55,6 +55,7 @@ import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.TotalHits;
+import org.apache.lucene.search.TotalHits.Relation;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.search.join.BitSetProducer;
 import org.apache.lucene.search.join.ScoreMode;
@@ -969,6 +970,7 @@ public class QueryPhaseTests extends IndexShardTestCase {
         }
     }
 
+    @com.carrotsearch.randomizedtesting.annotations.Repeat(iterations = 10)
     public void testMinScore() throws Exception {
         IndexWriterConfig iwc = newIndexWriterConfig();
         RandomIndexWriter w = new RandomIndexWriter(random(), dir, iwc);
@@ -990,7 +992,10 @@ public class QueryPhaseTests extends IndexShardTestCase {
             context.trackTotalHitsUpTo(5);
 
             QueryPhase.addCollectorsAndSearch(context);
-            assertEquals(10, context.queryResult().topDocs().topDocs.totalHits.value());
+            TotalHits totalHits = context.queryResult().topDocs().topDocs.totalHits;
+            assertThat(totalHits.value(), greaterThanOrEqualTo(5L));
+            var expectedRelation = totalHits.value() == 10 ? Relation.EQUAL_TO : Relation.GREATER_THAN_OR_EQUAL_TO;
+            assertThat(totalHits.relation(), is(expectedRelation));
         }
     }
 

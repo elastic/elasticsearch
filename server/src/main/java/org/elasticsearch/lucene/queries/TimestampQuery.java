@@ -11,6 +11,7 @@ package org.elasticsearch.lucene.queries;
 
 import org.apache.lucene.index.DocValues;
 import org.apache.lucene.index.DocValuesSkipper;
+import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.NumericDocValues;
 import org.apache.lucene.search.ConstantScoreScorerSupplier;
@@ -83,7 +84,7 @@ public final class TimestampQuery extends Query {
                     return ConstantScoreScorerSupplier.matchAll(score(), scoreMode, maxDoc);
                 }
 
-                var timestamps = getNumericDocValues(context);
+                var timestamps = getNumericDocValues(reader);
                 String primarySortField = indexSort.getSort()[0].getField();
                 boolean timestampIsPrimarySort = primarySortField.equals(FIELD_NAME);
                 var primaryFieldValues = timestampIsPrimarySort ? null : reader.getSortedDocValues(primarySortField);
@@ -92,10 +93,8 @@ public final class TimestampQuery extends Query {
                     return ConstantScoreScorerSupplier.fromIterator(iterator, score(), scoreMode, maxDoc);
                 }
                 var primaryFieldSkipper = reader.getDocValuesSkipper(primarySortField);
-                var iterator = new TimestampIterator(timestamps, timestampSkipper, primaryFieldSkipper, minTimestamp, maxTimestamp);
+                var iterator = new TimestampTwoPhaseIterator(timestamps, timestampSkipper, primaryFieldSkipper, minTimestamp, maxTimestamp);
                 return ConstantScoreScorerSupplier.fromIterator(TwoPhaseIterator.asDocIdSetIterator(iterator), score(), scoreMode, maxDoc);
-                // var iterator = new TimestampIterator2(timestamps, timestampSkipper, primaryFieldSkipper, minTimestamp, maxTimestamp);
-                // return ConstantScoreScorerSupplier.fromIterator(iterator, score(), scoreMode, maxDoc);
             }
 
             @Override
@@ -137,8 +136,8 @@ public final class TimestampQuery extends Query {
         return Objects.hash(classHash(), minTimestamp, maxTimestamp);
     }
 
-    static NumericDocValues getNumericDocValues(LeafReaderContext ctx) throws IOException {
-        var timestampValues = DocValues.getSortedNumeric(ctx.reader(), FIELD_NAME);
+    static NumericDocValues getNumericDocValues(LeafReader reader) throws IOException {
+        var timestampValues = DocValues.getSortedNumeric(reader, FIELD_NAME);
         assert timestampValues != null;
         var timestampSingleton = DocValues.unwrapSingleton(timestampValues);
         assert timestampSingleton != null : "@timestamp has multiple values per document";

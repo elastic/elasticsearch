@@ -14,10 +14,14 @@ import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.MultiTerms;
 import org.apache.lucene.index.PointValues;
 import org.apache.lucene.index.Terms;
+import org.apache.lucene.search.FieldComparator;
+import org.apache.lucene.search.FieldComparatorSource;
+import org.apache.lucene.search.Pruning;
 import org.apache.lucene.search.SortField;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
+import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.time.DateMathParser;
@@ -38,6 +42,7 @@ import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.QueryShardException;
 import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.lucene.queries.TimestampComparator;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.MultiValueMode;
 import org.elasticsearch.search.SearchSortValuesAndFormats;
@@ -371,10 +376,23 @@ public final class FieldSortBuilder extends SortBuilder<FieldSortBuilder> {
             field = numericFieldData.sortField(resolvedType, missing, localSortMode(), nested, reverse);
             isNanosecond = resolvedType == NumericType.DATE_NANOSECONDS;
         } else {
-            field = fieldData.sortField(missing, localSortMode(), nested, reverse);
-            if (fieldData instanceof IndexNumericFieldData) {
-                isNanosecond = ((IndexNumericFieldData) fieldData).getNumericType() == NumericType.DATE_NANOSECONDS;
+            // TODO: HACK to wire up the special timestamp comparator
+            // (typically we default to Lucene's sort fields and enabling a custom sort field for timestamp field mapper fails,
+            // because index sorting uses this as well. Index sorting doesn't support custom sort fields. Need to fix this)
+            if (DataStream.TIMESTAMP_FIELD_NAME.equals(fieldName)) {
+                field = new SortField(getFieldName(), new FieldComparatorSource() {
+                    @Override
+                    public FieldComparator<?> newComparator(String fieldname, int numHits, Pruning pruning, boolean reversed) {
+                        return new TimestampComparator(numHits, reversed);
+                    }
+                }, reverse);
+            } else {
+                field = fieldData.sortField(missing, localSortMode(), nested, reverse);
+                if (fieldData instanceof IndexNumericFieldData) {
+                    isNanosecond = ((IndexNumericFieldData) fieldData).getNumericType() == NumericType.DATE_NANOSECONDS;
+                }
             }
+
         }
         DocValueFormat formatter = fieldType.docValueFormat(format, null);
         if (format != null) {

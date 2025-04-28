@@ -11,27 +11,23 @@ package org.elasticsearch.lucene.queries;
 import org.apache.lucene.index.DocValuesSkipper;
 import org.apache.lucene.index.NumericDocValues;
 import org.apache.lucene.search.DocIdSetIterator;
-import org.apache.lucene.search.TwoPhaseIterator;
 
 import java.io.IOException;
 
-/**
- * Based on {@link org.apache.lucene.search.DocValuesRangeIterator} but modified for time series and logsdb use cases.
- * <p>
- * The @timestamp field always has exactly one value and all documents always have a @timestamp value.
- * Additionally, the @timestamp field is always the secondary index sort field and sort order is always descending.
- * <p>
- * This makes the doc value skipper on @timestamp field less effective, and so the doc value skipper for the first index sort field is
- * also used to skip to the next primary sort value if for the current skipper represents one value (min and max value are the same) and
- * the current value is lower than minTimestamp.
- */
-final class TimestampIterator extends TwoPhaseIterator {
+// Similar to timestamp two phase iterator, without two matching. Used by TimestampComparator.
+final class TimestampIterator extends DocIdSetIterator {
 
-    private final RangeNoGapsApproximation approximation;
-    private final NumericDocValues timestamps;
+    final NumericDocValues timestamps;
 
-    private final long minTimestamp;
-    private final long maxTimestamp;
+    final DocValuesSkipper timestampSkipper;
+    final DocValuesSkipper primaryFieldSkipper;
+    final long minTimestamp;
+    final long maxTimestamp;
+
+    int docID = -1;
+    boolean skipperMatch;
+    int primaryFieldUpTo = -1;
+    int timestampFieldUpTo = -1;
 
     TimestampIterator(
         NumericDocValues timestamps,
@@ -40,168 +36,120 @@ final class TimestampIterator extends TwoPhaseIterator {
         long minTimestamp,
         long maxTimestamp
     ) {
-        super(new RangeNoGapsApproximation(timestamps, timestampSkipper, primaryFieldSkipper, minTimestamp, maxTimestamp));
-        this.approximation = (RangeNoGapsApproximation) approximation();
         this.timestamps = timestamps;
+        this.timestampSkipper = timestampSkipper;
+        this.primaryFieldSkipper = primaryFieldSkipper;
         this.minTimestamp = minTimestamp;
         this.maxTimestamp = maxTimestamp;
     }
 
-    static final class RangeNoGapsApproximation extends DocIdSetIterator {
+    @Override
+    public int docID() {
+        return docID;
+    }
 
-        private final DocIdSetIterator innerApproximation;
+    @Override
+    public int nextDoc() throws IOException {
+        return advance(docID + 1);
+    }
 
-        final DocValuesSkipper timestampSkipper;
-        final DocValuesSkipper primaryFieldSkipper;
-        final long minTimestamp;
-        final long maxTimestamp;
-
-        private int doc = -1;
-
-        // Track a decision for all doc IDs between the current doc ID and upTo inclusive.
-        Match match = Match.MAYBE;
-        int upTo = -1;
-        int primaryFieldUpTo = -1;
-
-        RangeNoGapsApproximation(
-            DocIdSetIterator innerApproximation,
-            DocValuesSkipper timestampSkipper,
-            DocValuesSkipper primaryFieldSkipper,
-            long minTimestamp,
-            long maxTimestamp
-        ) {
-            this.innerApproximation = innerApproximation;
-            this.timestampSkipper = timestampSkipper;
-            this.primaryFieldSkipper = primaryFieldSkipper;
-            this.minTimestamp = minTimestamp;
-            this.maxTimestamp = maxTimestamp;
+    @Override
+    public int advance(int target) throws IOException {
+        skipperMatch = false;
+        target = timestamps.advance(target);
+        if (target == DocIdSetIterator.NO_MORE_DOCS) {
+            return docID = target;
         }
-
-        @Override
-        public int docID() {
-            return doc;
-        }
-
-        @Override
-        public int nextDoc() throws IOException {
-            return advance(docID() + 1);
-        }
-
-        @Override
-        public int advance(int target) throws IOException {
-            while (true) {
-                if (target > upTo) {
-                    timestampSkipper.advance(target);
-                    upTo = timestampSkipper.maxDocID(0);
-                    if (upTo == DocIdSetIterator.NO_MORE_DOCS) {
-                        return doc = DocIdSetIterator.NO_MORE_DOCS;
-                    }
-                    match = match(0);
-
-                    // If we have a YES or NO decision, see if we still have the same decision on a higher
-                    // level (= on a wider range of doc IDs)
-                    int nextLevel = 1;
-                    while (match != Match.MAYBE && nextLevel < timestampSkipper.numLevels() && match == match(nextLevel)) {
-                        upTo = timestampSkipper.maxDocID(nextLevel);
-                        nextLevel++;
-                    }
-                }
-                switch (match) {
-                    case YES:
-                        return doc = target;
-                    case MAYBE:
-                        if (target > innerApproximation.docID()) {
-                            target = innerApproximation.advance(target);
+        while (true) {
+            if (target > timestampFieldUpTo) {
+                timestampSkipper.advance(target);
+                timestampFieldUpTo = timestampSkipper.maxDocID(0);
+                long minValue = timestampSkipper.minValue(0);
+                long maxValue = timestampSkipper.maxValue(0);
+                if (minValue > maxTimestamp || maxValue < minTimestamp) {
+                    for (int level = 1; level < timestampSkipper.numLevels(); level++) {
+                        minValue = timestampSkipper.minValue(level);
+                        maxValue = timestampSkipper.maxValue(level);
+                        if (minValue > maxTimestamp || maxValue < minTimestamp) {
+                            timestampFieldUpTo = timestampSkipper.maxDocID(level);
+                        } else {
+                            break;
                         }
-                        if (target <= upTo) {
-                            return doc = target;
-                        }
-                        break;
-                    case NO_AND_SKIP:
-                        if (target > primaryFieldUpTo) {
-                            primaryFieldSkipper.advance(target);
-                            for (int level = 0; level < primaryFieldSkipper.numLevels(); level++) {
+                    }
+
+                    int upTo = timestampFieldUpTo;
+                    if (maxValue < minTimestamp) {
+                        primaryFieldSkipper.advance(target);
+                        primaryFieldUpTo = primaryFieldSkipper.maxDocID(0);
+                        if (primaryFieldSkipper.minValue(0) == primaryFieldSkipper.maxValue(0)) {
+                            for (int level = 1; level < primaryFieldSkipper.numLevels(); level++) {
                                 if (primaryFieldSkipper.minValue(level) == primaryFieldSkipper.maxValue(level)) {
                                     primaryFieldUpTo = primaryFieldSkipper.maxDocID(level);
                                 } else {
                                     break;
                                 }
                             }
-                            if (primaryFieldUpTo > upTo) {
-                                upTo = primaryFieldUpTo;
-                            }
                         }
-                        if (upTo == DocIdSetIterator.NO_MORE_DOCS) {
-                            return doc = NO_MORE_DOCS;
+                        if (primaryFieldUpTo > upTo) {
+                            upTo = primaryFieldUpTo;
                         }
-                        target = upTo + 1;
-                        break;
-                    case NO:
-                        if (upTo == DocIdSetIterator.NO_MORE_DOCS) {
-                            return doc = NO_MORE_DOCS;
+                    }
+
+                    target = timestamps.advance(upTo + 1);
+                    if (target == DocIdSetIterator.NO_MORE_DOCS) {
+                        return docID = target;
+                    }
+                } else if (minValue >= minTimestamp && maxValue <= maxTimestamp) {
+                    assert timestampSkipper.docCount(0) == timestampSkipper.maxDocID(0) - timestampSkipper.minDocID(0) + 1;
+                    skipperMatch = true;
+                    return docID = target;
+                }
+            }
+
+            long value = timestamps.longValue();
+            if (value < minTimestamp && target > primaryFieldUpTo) {
+                primaryFieldSkipper.advance(target);
+                primaryFieldUpTo = primaryFieldSkipper.maxDocID(0);
+                if (primaryFieldSkipper.minValue(0) == primaryFieldSkipper.maxValue(0)) {
+                    for (int level = 1; level < primaryFieldSkipper.numLevels(); level++) {
+                        if (primaryFieldSkipper.minValue(level) == primaryFieldSkipper.maxValue(level)) {
+                            primaryFieldUpTo = primaryFieldSkipper.maxDocID(level);
+                        } else {
+                            break;
                         }
-                        target = upTo + 1;
-                        break;
-                    default:
-                        throw new AssertionError("Unknown enum constant: " + match);
+                    }
+                    target = timestamps.advance(primaryFieldUpTo + 1);
+                    if (target == DocIdSetIterator.NO_MORE_DOCS) {
+                        return docID = target;
+                    }
+                } else {
+                    target = timestamps.nextDoc();
+                    if (target == DocIdSetIterator.NO_MORE_DOCS) {
+                        return docID = target;
+                    }
+                }
+            } else if (value >= minTimestamp && value <= maxTimestamp) {
+                return docID = target;
+            } else {
+                target = timestamps.nextDoc();
+                if (target == DocIdSetIterator.NO_MORE_DOCS) {
+                    return docID = target;
                 }
             }
         }
-
-        @Override
-        public long cost() {
-            return innerApproximation.cost();
-        }
-
-        Match match(int level) {
-            long minValue = timestampSkipper.minValue(level);
-            long maxValue = timestampSkipper.maxValue(level);
-            if (minValue > maxTimestamp) {
-                return Match.NO;
-            } else if (maxValue < minTimestamp) {
-                return Match.NO_AND_SKIP;
-            } else if (minValue >= minTimestamp && maxValue <= maxTimestamp) {
-                return Match.YES;
-            } else {
-                return Match.MAYBE;
-            }
-        }
-
-    }
-
-    @Override
-    public boolean matches() throws IOException {
-        return switch (approximation.match) {
-            case YES -> true;
-            case MAYBE -> {
-                final long value = timestamps.longValue();
-                yield value >= minTimestamp && value <= maxTimestamp;
-            }
-            case NO_AND_SKIP, NO -> throw new IllegalStateException("Unpositioned approximation");
-        };
     }
 
     @Override
     public int docIDRunEnd() throws IOException {
-        if (approximation.match == Match.YES) {
-            return approximation.upTo + 1;
+        if (skipperMatch) {
+            return timestampFieldUpTo + 1;
         }
         return super.docIDRunEnd();
     }
 
     @Override
-    public float matchCost() {
-        return 2; // 2 comparisons
+    public long cost() {
+        return timestamps.cost();
     }
 
-    enum Match {
-        /** None of the documents in the range match */
-        NO,
-        /** Same as NO, but can maybe also skip to next primary sort value */
-        NO_AND_SKIP,
-        /** Document values need to be checked to verify matches */
-        MAYBE,
-        /** All docs in the range match */
-        YES;
-    }
 }

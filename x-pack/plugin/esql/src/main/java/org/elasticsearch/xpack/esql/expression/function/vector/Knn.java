@@ -146,7 +146,13 @@ public class Knn extends FullTextFunction implements OptionalArgument {
 
     @Override
     public Expression replaceChildren(List<Expression> newChildren) {
-        return new Knn(source(), newChildren.get(0), newChildren.get(1), newChildren.size() > 2 ? newChildren.get(2) : null);
+        return new Knn(
+            source(),
+            newChildren.get(0),
+            newChildren.get(1),
+            newChildren.size() > 2 ? newChildren.get(2) : null,
+            queryBuilder()
+        );
     }
 
     @Override

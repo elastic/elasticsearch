@@ -78,6 +78,24 @@ public class KnnFunctionIT extends AbstractEsqlIntegTestCase {
         }
     }
 
+    public void testKnnNonPushedDown() {
+        var query = """
+            FROM test METADATA _score
+            | WHERE knn(vector, [1.0, 1.0, 1.0], {"k": 5}) OR id % 2 == 0
+            | KEEP id, floats, _score, vector
+            | SORT _score DESC
+            """;
+
+        try (var resp = run(query)) {
+            assertColumnNames(resp.columns(), List.of("id", "floats", "_score", "vector"));
+            assertColumnTypes(resp.columns(), List.of("integer", "double", "double", "dense_vector"));
+
+            List<List<Object>> valuesList = EsqlTestUtils.getValuesList(resp);
+            // K = 5, 2 more for % operator, total 7
+            assertEquals(7, valuesList.size());
+        }
+    }
+
     @Before
     public void setup() throws IOException {
         var indexName = "test";

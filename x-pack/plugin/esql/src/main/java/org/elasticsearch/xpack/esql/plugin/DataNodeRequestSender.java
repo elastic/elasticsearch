@@ -265,7 +265,7 @@ abstract class DataNodeRequestSender {
                     concurrentRequests.release();
                 }
 
-                if (pendingRetries.isEmpty() == false) {
+                if (sendingLock.isHeldByCurrentThread()) {
                     try {
                         var resolutions = resolveShards(pendingRetries);
                         for (var entry : resolutions.entrySet()) {

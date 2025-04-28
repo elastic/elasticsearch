@@ -58,8 +58,7 @@ public class TimestampComparator extends FieldComparator<Long> {
     }
 
     @Override
-    public void disableSkipping() {
-    }
+    public void disableSkipping() {}
 
     @Override
     public int compare(int slot1, int slot2) {
@@ -180,7 +179,6 @@ public class TimestampComparator extends FieldComparator<Long> {
                 maxTimestamp = bottom;
             }
 
-
             if (timestampSkipper.maxValue() < bottom) {
                 competitiveIterator = DocIdSetIterator.empty();
             } else if (useTimestampFieldOnly) {
@@ -192,13 +190,7 @@ public class TimestampComparator extends FieldComparator<Long> {
                     maxTimestamp
                 );
             } else {
-                competitiveIterator = new TimestampIterator(
-                    timestamps,
-                    timestampSkipper,
-                    primaryFieldSkipper,
-                    minTimestamp,
-                    maxTimestamp
-                );
+                competitiveIterator = new TimestampIterator(timestamps, timestampSkipper, primaryFieldSkipper, minTimestamp, maxTimestamp);
             }
             iteratorCost = competitiveIterator.cost();
         }

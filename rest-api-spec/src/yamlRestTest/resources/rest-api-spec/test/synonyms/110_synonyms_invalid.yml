@@ -11,12 +11,6 @@ setup:
           synonyms_set:
             synonyms: "foo => bar, baz"
 
-  # This is to ensure that all index shards (write and read) are available. In serverless this can take some time.
-  - do:
-      cluster.health:
-        index: .synonyms
-        wait_for_status: green
-
   - do:
       indices.create:
         index: test_index
@@ -313,3 +307,146 @@ setup:
       indices.stats: { index: test_index }
 
   - length: { indices: 0 }
+
+---
+"Load index with non existent synonyms set":
+  - requires:
+      cluster_features: [ index.synonyms_set_lenient_on_non_existing ]
+      reason: "requires synonyms_set_lenient_on_non_existing bug fix"
+  - do:
+      indices.create:
+        index: test_index
+        body:
+          settings:
+            index:
+              number_of_shards: 1
+              number_of_replicas: 0
+            analysis:
+              filter:
+                my_synonym_filter:
+                  type: synonym
+                  synonyms_set: set1
+                  updateable: true
+              analyzer:
+                my_analyzer:
+                  type: custom
+                  tokenizer: whitespace
+                  filter: [ lowercase, my_synonym_filter ]
+          mappings:
+            properties:
+              my_field:
+                type: text
+                search_analyzer: my_analyzer
+
+  - match: { acknowledged: true }
+  - match: { shards_acknowledged: true }
+
+  - do:
+      indices.stats: { index: test_index }
+
+  - match: { indices.test_index.health: "green" }
+
+  # Synonyms are not applied
+  - do:
+      indices.analyze:
+        index: test_index
+        body:
+          analyzer: my_analyzer
+          text: foo
+
+  - length: { tokens: 1 }
+  - match: { tokens.0.token: foo }
+
+
+  # Create synonyms set and check synonyms are applied
+  - do:
+      synonyms.put_synonym:
+        id: set1
+        body:
+          synonyms_set:
+            synonyms: "foo => bar, baz"
+
+  - do:
+      indices.stats: { index: test_index }
+
+  - match: { indices.test_index.health: "green" }
+
+  # Synonyms are applied
+  - do:
+      indices.analyze:
+        index: test_index
+        body:
+          analyzer: my_analyzer
+          text: foo
+
+  - length: { tokens: 2 }
+
+---
+"Load index with non existent synonyms set and lenient set to false":
+  - requires:
+      test_runner_features: [ allowed_warnings ]
+
+  - do:
+      indices.create:
+        index: test_index
+        body:
+          settings:
+            index:
+              number_of_shards: 1
+              number_of_replicas: 0
+            analysis:
+              filter:
+                my_synonym_filter:
+                  type: synonym
+                  synonyms_set: set1
+                  updateable: true
+                  lenient: false
+              analyzer:
+                my_analyzer:
+                  type: custom
+                  tokenizer: whitespace
+                  filter: [ lowercase, my_synonym_filter ]
+          mappings:
+            properties:
+              my_field:
+                type: text
+                search_analyzer: my_analyzer
+
+  - match: { acknowledged: true }
+  - match: { shards_acknowledged: false }
+
+  - do:
+      indices.stats: { index: test_index }
+
+  - length: { indices: 0 }
+
+  # Create synonyms set and check synonyms are applied
+  - do:
+      synonyms.put_synonym:
+        id: set1
+        body:
+          synonyms_set:
+            synonyms: "foo => bar, baz"
+
+  - do:
+      # Warning issued in previous versions
+      allowed_warnings:
+        - "The [state] field in the response to the reroute API is deprecated and will be removed in a future version. Specify ?metric=none to adopt the future behaviour."
+      cluster.reroute:
+        retry_failed: true
+
+  - do:
+      cluster.health:
+        index: test_index
+        wait_for_status: green
+
+  # Synonyms are applied
+  - do:
+      indices.analyze:
+        index: test_index
+        body:
+          analyzer: my_analyzer
+          text: foo
+
+  - length: { tokens: 2 }
+

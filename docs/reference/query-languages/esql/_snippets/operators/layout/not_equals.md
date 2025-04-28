@@ -1,4 +1,4 @@
-## Inequality `!=` [esql-not_equals]
+### Inequality `!=` [esql-not_equals]
 
 :::{image} ../../../images/operators/not_equals.svg
 :alt: Embedded

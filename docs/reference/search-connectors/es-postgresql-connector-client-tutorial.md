@@ -2,6 +2,7 @@
 navigation_title: "Tutorial"
 mapped_pages:
   - https://www.elastic.co/guide/en/elasticsearch/reference/current/es-postgresql-connector-client-tutorial.html
+  - https://www.elastic.co/guide/en/starting-with-the-elasticsearch-platform-and-its-solutions/current/getting-started-appsearch.html
 ---
 
 # PostgreSQL self-managed connector tutorial [es-postgresql-connector-client-tutorial]

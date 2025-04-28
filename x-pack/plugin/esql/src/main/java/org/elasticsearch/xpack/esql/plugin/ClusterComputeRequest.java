@@ -20,7 +20,7 @@ import org.elasticsearch.compute.operator.exchange.ExchangeService;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
-import org.elasticsearch.transport.TransportRequest;
+import org.elasticsearch.transport.AbstractTransportRequest;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamOutput;
 import org.elasticsearch.xpack.esql.session.Configuration;
@@ -35,7 +35,7 @@ import java.util.Objects;
  * via {@link ExchangeService#openExchange} before sending this request to the remote cluster. The coordinator on the main cluster
  * will poll pages from this sink. Internally, this compute will trigger sub-computes on data nodes via {@link DataNodeRequest}.
  */
-final class ClusterComputeRequest extends TransportRequest implements IndicesRequest.Replaceable {
+final class ClusterComputeRequest extends AbstractTransportRequest implements IndicesRequest.Replaceable {
     private final String clusterAlias;
     private final String sessionId;
     private final Configuration configuration;
@@ -46,10 +46,10 @@ final class ClusterComputeRequest extends TransportRequest implements IndicesReq
     /**
      * A request to start a compute on a remote cluster.
      *
-     * @param clusterAlias      the cluster alias of this remote cluster
-     * @param sessionId         the sessionId in which the output pages will be placed in the exchange sink specified by this id
-     * @param configuration     the configuration for this compute
-     * @param plan the physical plan to be executed
+     * @param clusterAlias  the cluster alias of this remote cluster
+     * @param sessionId     the sessionId in which the output pages will be placed in the exchange sink specified by this id
+     * @param configuration the configuration for this compute
+     * @param plan          the physical plan to be executed
      */
     ClusterComputeRequest(String clusterAlias, String sessionId, Configuration configuration, RemoteClusterPlan plan) {
         this.clusterAlias = clusterAlias;

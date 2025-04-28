@@ -10,8 +10,6 @@
 package org.elasticsearch.painless;
 
 import org.apache.lucene.util.SetOnce;
-import org.elasticsearch.action.ActionRequest;
-import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
@@ -164,10 +162,10 @@ public final class PainlessPlugin extends Plugin implements ScriptPlugin, Extens
     }
 
     @Override
-    public List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {
-        List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> actions = new ArrayList<>();
-        actions.add(new ActionHandler<>(PainlessExecuteAction.INSTANCE, PainlessExecuteAction.TransportAction.class));
-        actions.add(new ActionHandler<>(PainlessContextAction.INSTANCE, PainlessContextAction.TransportAction.class));
+    public List<ActionHandler> getActions() {
+        List<ActionHandler> actions = new ArrayList<>();
+        actions.add(new ActionHandler(PainlessExecuteAction.INSTANCE, PainlessExecuteAction.TransportAction.class));
+        actions.add(new ActionHandler(PainlessContextAction.INSTANCE, PainlessContextAction.TransportAction.class));
         return actions;
     }
 

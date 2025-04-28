@@ -192,8 +192,8 @@ public final class MedianAbsoluteDeviationDoubleGroupingAggregatorFunction imple
 
   @Override
   public void evaluateFinal(Block[] blocks, int offset, IntVector selected,
-      DriverContext driverContext) {
-    blocks[offset] = MedianAbsoluteDeviationDoubleAggregator.evaluateFinal(state, selected, driverContext);
+      GroupingAggregatorEvaluationContext evaluatorContext) {
+    blocks[offset] = MedianAbsoluteDeviationDoubleAggregator.evaluateFinal(state, selected, evaluatorContext.driverContext());
   }
 
   @Override

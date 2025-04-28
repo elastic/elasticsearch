@@ -11,7 +11,7 @@ ROW a=["foo", "zoo", "bar"]
 | --- | --- |
 | ["foo", "zoo", "bar"] | "foo, zoo, bar" |
 
-To concat non-string columns, call [`TO_STRING`](/reference/query-languages/esql/esql-functions-operators.md#esql-to_string) first:
+To concat non-string columns, call [`TO_STRING`](/reference/query-languages/esql/functions-operators/type-conversion-functions.md#esql-to_string) first:
 
 ```esql
 ROW a=[10, 9, 8]

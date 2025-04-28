@@ -253,7 +253,7 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
             finalReduce = true;
         }
         ccsMinimizeRoundtrips = in.readBoolean();
-        if ((in.getTransportVersion().isPatchFrom(TransportVersions.RE_REMOVE_MIN_COMPATIBLE_SHARD_NODE_90) == false
+        if ((in.getTransportVersion().isPatchFrom(TransportVersions.V_9_0_0) == false
             && in.getTransportVersion().before(TransportVersions.RE_REMOVE_MIN_COMPATIBLE_SHARD_NODE)) && in.readBoolean()) {
             Version.readVersion(in); // and drop on the floor
         }
@@ -268,9 +268,16 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
+        writeTo(out, false);
+    }
+
+    public void writeTo(StreamOutput out, boolean skipIndices) throws IOException {
         super.writeTo(out);
         out.writeByte(searchType.id());
-        out.writeStringArray(indices);
+        // write list of expressions that always resolves to no indices the same way we do it in security code to safely skip sending the
+        // indices list, this path is only used by the batched execution logic in SearchQueryThenFetchAsyncAction which uses this class to
+        // transport the search request to concrete shards without making use of the indices field.
+        out.writeStringArray(skipIndices ? new String[] { "*", "-*" } : indices);
         out.writeOptionalString(routing);
         out.writeOptionalString(preference);
         out.writeOptionalTimeValue(scrollKeepAlive);
@@ -291,7 +298,7 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
             out.writeBoolean(finalReduce);
         }
         out.writeBoolean(ccsMinimizeRoundtrips);
-        if ((out.getTransportVersion().isPatchFrom(TransportVersions.RE_REMOVE_MIN_COMPATIBLE_SHARD_NODE_90) == false
+        if ((out.getTransportVersion().isPatchFrom(TransportVersions.V_9_0_0) == false
             && out.getTransportVersion().before(TransportVersions.RE_REMOVE_MIN_COMPATIBLE_SHARD_NODE))) {
             out.writeBoolean(false);
         }

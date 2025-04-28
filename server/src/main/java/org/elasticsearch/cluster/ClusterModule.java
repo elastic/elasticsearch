@@ -37,6 +37,7 @@ import org.elasticsearch.cluster.routing.allocation.ExistingShardsAllocator;
 import org.elasticsearch.cluster.routing.allocation.NodeAllocationStatsAndWeightsCalculator;
 import org.elasticsearch.cluster.routing.allocation.WriteLoadForecaster;
 import org.elasticsearch.cluster.routing.allocation.allocator.BalancedShardsAllocator;
+import org.elasticsearch.cluster.routing.allocation.allocator.BalancerSettings;
 import org.elasticsearch.cluster.routing.allocation.allocator.DesiredBalanceShardsAllocator;
 import org.elasticsearch.cluster.routing.allocation.allocator.DesiredBalanceShardsAllocator.DesiredBalanceReconcilerAction;
 import org.elasticsearch.cluster.routing.allocation.allocator.ShardsAllocator;
@@ -89,7 +90,6 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskResultsService;
 import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.upgrades.FeatureMigrationResults;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ParseField;
 
@@ -145,13 +145,12 @@ public class ClusterModule extends AbstractModule {
         this.clusterPlugins = clusterPlugins;
         this.deciderList = createAllocationDeciders(settings, clusterService.getClusterSettings(), clusterPlugins);
         this.allocationDeciders = new AllocationDeciders(deciderList);
-        var nodeAllocationStatsAndWeightsCalculator = new NodeAllocationStatsAndWeightsCalculator(
-            writeLoadForecaster,
-            clusterService.getClusterSettings()
-        );
+        final BalancerSettings balancerSettings = new BalancerSettings(clusterService.getClusterSettings());
+        var nodeAllocationStatsAndWeightsCalculator = new NodeAllocationStatsAndWeightsCalculator(writeLoadForecaster, balancerSettings);
         this.shardsAllocator = createShardsAllocator(
             settings,
             clusterService.getClusterSettings(),
+            balancerSettings,
             threadPool,
             clusterPlugins,
             clusterService,
@@ -226,7 +225,7 @@ public class ClusterModule extends AbstractModule {
             RepositoryCleanupInProgress::readDiffFrom
         );
         // Metadata
-        registerMetadataCustom(entries, RepositoriesMetadata.TYPE, RepositoriesMetadata::new, RepositoriesMetadata::readDiffFrom);
+        registerProjectCustom(entries, RepositoriesMetadata.TYPE, RepositoriesMetadata::new, RepositoriesMetadata::readDiffFrom);
         registerProjectCustom(entries, IngestMetadata.TYPE, IngestMetadata::new, IngestMetadata::readDiffFrom);
         registerProjectCustom(entries, ScriptMetadata.TYPE, ScriptMetadata::new, ScriptMetadata::readDiffFrom);
         registerProjectCustom(entries, IndexGraveyard.TYPE, IndexGraveyard::new, IndexGraveyard::readDiffFrom);
@@ -257,7 +256,6 @@ public class ClusterModule extends AbstractModule {
             ComposableIndexTemplateMetadata::readDiffFrom
         );
         registerProjectCustom(entries, DataStreamMetadata.TYPE, DataStreamMetadata::new, DataStreamMetadata::readDiffFrom);
-        registerProjectCustom(entries, FeatureMigrationResults.TYPE, FeatureMigrationResults::new, FeatureMigrationResults::readDiffFrom);
         registerMetadataCustom(entries, NodesShutdownMetadata.TYPE, NodesShutdownMetadata::new, NodesShutdownMetadata::readDiffFrom);
         registerMetadataCustom(entries, DesiredNodesMetadata.TYPE, DesiredNodesMetadata::new, DesiredNodesMetadata::readDiffFrom);
         registerProjectCustom(
@@ -283,7 +281,7 @@ public class ClusterModule extends AbstractModule {
         // Metadata
         entries.add(
             new NamedXContentRegistry.Entry(
-                Metadata.ClusterCustom.class,
+                Metadata.ProjectCustom.class,
                 new ParseField(RepositoriesMetadata.TYPE),
                 RepositoriesMetadata::fromXContent
             )
@@ -440,6 +438,7 @@ public class ClusterModule extends AbstractModule {
     private static ShardsAllocator createShardsAllocator(
         Settings settings,
         ClusterSettings clusterSettings,
+        BalancerSettings balancerSettings,
         ThreadPool threadPool,
         List<ClusterPlugin> clusterPlugins,
         ClusterService clusterService,
@@ -449,12 +448,12 @@ public class ClusterModule extends AbstractModule {
         NodeAllocationStatsAndWeightsCalculator nodeAllocationStatsAndWeightsCalculator
     ) {
         Map<String, Supplier<ShardsAllocator>> allocators = new HashMap<>();
-        allocators.put(BALANCED_ALLOCATOR, () -> new BalancedShardsAllocator(clusterSettings, writeLoadForecaster));
+        allocators.put(BALANCED_ALLOCATOR, () -> new BalancedShardsAllocator(balancerSettings, writeLoadForecaster));
         allocators.put(
             DESIRED_BALANCE_ALLOCATOR,
             () -> new DesiredBalanceShardsAllocator(
                 clusterSettings,
-                new BalancedShardsAllocator(clusterSettings, writeLoadForecaster),
+                new BalancedShardsAllocator(balancerSettings, writeLoadForecaster),
                 threadPool,
                 clusterService,
                 reconciler,

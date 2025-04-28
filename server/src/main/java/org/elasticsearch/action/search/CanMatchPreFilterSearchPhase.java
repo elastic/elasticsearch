@@ -343,7 +343,7 @@ final class CanMatchPreFilterSearchPhase {
         }
     }
 
-    private record SendingTarget(@Nullable String clusterAlias, @Nullable String nodeId) {}
+    public record SendingTarget(@Nullable String clusterAlias, @Nullable String nodeId) {}
 
     private CanMatchNodeRequest createCanMatchRequest(Map.Entry<SendingTarget, List<SearchShardIterator>> entry) {
         final SearchShardIterator first = entry.getValue().get(0);

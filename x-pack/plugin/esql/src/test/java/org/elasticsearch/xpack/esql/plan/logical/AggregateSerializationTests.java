@@ -30,10 +30,13 @@ public class AggregateSerializationTests extends AbstractLogicalPlanSerializatio
     protected Aggregate createTestInstance() {
         Source source = randomSource();
         LogicalPlan child = randomChild(0);
-        Aggregate.AggregateType aggregateType = randomFrom(Aggregate.AggregateType.values());
         List<Expression> groupings = randomFieldAttributes(0, 5, false).stream().map(a -> (Expression) a).toList();
         List<? extends NamedExpression> aggregates = randomAggregates();
-        return new Aggregate(source, child, aggregateType, groupings, aggregates);
+        if (randomBoolean()) {
+            return new Aggregate(source, child, groupings, aggregates);
+        } else {
+            return new TimeSeriesAggregate(source, child, groupings, aggregates, null);
+        }
     }
 
     public static List<? extends NamedExpression> randomAggregates() {
@@ -62,19 +65,21 @@ public class AggregateSerializationTests extends AbstractLogicalPlanSerializatio
     @Override
     protected Aggregate mutateInstance(Aggregate instance) throws IOException {
         LogicalPlan child = instance.child();
-        Aggregate.AggregateType aggregateType = instance.aggregateType();
         List<Expression> groupings = instance.groupings();
         List<? extends NamedExpression> aggregates = instance.aggregates();
-        switch (between(0, 3)) {
+        switch (between(0, 2)) {
             case 0 -> child = randomValueOtherThan(child, () -> randomChild(0));
-            case 1 -> aggregateType = randomValueOtherThan(aggregateType, () -> randomFrom(Aggregate.AggregateType.values()));
-            case 2 -> groupings = randomValueOtherThan(
+            case 1 -> groupings = randomValueOtherThan(
                 groupings,
                 () -> randomFieldAttributes(0, 5, false).stream().map(a -> (Expression) a).toList()
             );
-            case 3 -> aggregates = randomValueOtherThan(aggregates, AggregateSerializationTests::randomAggregates);
+            case 2 -> aggregates = randomValueOtherThan(aggregates, AggregateSerializationTests::randomAggregates);
         }
-        return new Aggregate(instance.source(), child, aggregateType, groupings, aggregates);
+        if (instance instanceof TimeSeriesAggregate) {
+            return new TimeSeriesAggregate(instance.source(), child, groupings, aggregates, null);
+        } else {
+            return new Aggregate(instance.source(), child, groupings, aggregates);
+        }
     }
 
     @Override

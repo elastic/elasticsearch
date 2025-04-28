@@ -111,11 +111,11 @@ final class CustomReflectionObjectHandler extends ReflectionObjectHandler {
             if ("size".equals(key)) {
                 return size();
             } else if (key instanceof Number number) {
-                return Array.get(array, number.intValue());
+                return number.intValue() >= 0 && number.intValue() < length ? Array.get(array, number.intValue()) : null;
             }
             try {
                 int index = Integer.parseInt(key.toString());
-                return Array.get(array, index);
+                return index >= 0 && index < length ? Array.get(array, index) : null;
             } catch (NumberFormatException nfe) {
                 // if it's not a number it is as if the key doesn't exist
                 return null;
@@ -169,11 +169,11 @@ final class CustomReflectionObjectHandler extends ReflectionObjectHandler {
             if ("size".equals(key)) {
                 return col.size();
             } else if (key instanceof Number number) {
-                return Iterables.get(col, number.intValue());
+                return number.intValue() >= 0 && number.intValue() < col.size() ? Iterables.get(col, number.intValue()) : null;
             }
             try {
                 int index = Integer.parseInt(key.toString());
-                return Iterables.get(col, index);
+                return index >= 0 && index < col.size() ? Iterables.get(col, index) : null;
             } catch (NumberFormatException nfe) {
                 // if it's not a number it is as if the key doesn't exist
                 return null;

@@ -28,14 +28,14 @@ public class FieldArrayContext {
     private static final String OFFSETS_FIELD_NAME_SUFFIX = ".offsets";
     private final Map<String, Offsets> offsetsPerField = new HashMap<>();
 
-    void recordOffset(String field, Comparable<?> value) {
+    public void recordOffset(String field, Comparable<?> value) {
         Offsets arrayOffsets = offsetsPerField.computeIfAbsent(field, k -> new Offsets());
         int nextOffset = arrayOffsets.currentOffset++;
         var offsets = arrayOffsets.valueToOffsets.computeIfAbsent(value, s -> new ArrayList<>(2));
         offsets.add(nextOffset);
     }
 
-    void recordNull(String field) {
+    public void recordNull(String field) {
         Offsets arrayOffsets = offsetsPerField.computeIfAbsent(field, k -> new Offsets());
         int nextOffset = arrayOffsets.currentOffset++;
         arrayOffsets.nullValueOffsets.add(nextOffset);
@@ -83,7 +83,7 @@ public class FieldArrayContext {
         return offsetToOrd;
     }
 
-    static String getOffsetsFieldName(
+    public static String getOffsetsFieldName(
         MapperBuilderContext context,
         Mapper.SourceKeepMode indexSourceKeepMode,
         boolean hasDocValues,

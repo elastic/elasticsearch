@@ -317,36 +317,58 @@ public final class IndicesPermission {
         @Nullable ResourcePrivilegesMap.Builder resourcePrivilegesMapBuilder
     ) {
         boolean allMatch = true;
-        Map<Automaton, Automaton> indexGroupAutomatons = indexGroupAutomatons(
-            combineIndexGroups && checkForIndexPatterns.stream().anyMatch(Automatons::isLuceneRegex)
+        Map<Automaton, Automaton> indexGroupAutomatonsForDataSelector = indexGroupAutomatons(
+            combineIndexGroups && checkForIndexPatterns.stream().anyMatch(Automatons::isLuceneRegex),
+            IndexComponentSelector.DATA
         );
+        // optimization: if there are no failures selector privileges in the set of privileges to check, we can skip building
+        // the automaton map
+        final boolean containsPrivilegesForFailuresSelector = containsPrivilegesForFailuresSelector(checkForPrivileges);
+        Map<Automaton, Automaton> indexGroupAutomatonsForFailuresSelector = false == containsPrivilegesForFailuresSelector
+            ? Map.of()
+            : indexGroupAutomatons(
+                combineIndexGroups && checkForIndexPatterns.stream().anyMatch(Automatons::isLuceneRegex),
+                IndexComponentSelector.FAILURES
+            );
         for (String forIndexPattern : checkForIndexPatterns) {
-            IndexNameExpressionResolver.assertExpressionHasNullOrDataSelector(forIndexPattern);
             Automaton checkIndexAutomaton = Automatons.patterns(forIndexPattern);
             if (false == allowRestrictedIndices && false == isConcreteRestrictedIndex(forIndexPattern)) {
                 checkIndexAutomaton = Automatons.minusAndMinimize(checkIndexAutomaton, restrictedIndices.getAutomaton());
             }
             if (false == Operations.isEmpty(checkIndexAutomaton)) {
-                Automaton allowedIndexPrivilegesAutomaton = null;
-                for (var indexAndPrivilegeAutomaton : indexGroupAutomatons.entrySet()) {
-                    if (Automatons.subsetOf(checkIndexAutomaton, indexAndPrivilegeAutomaton.getValue())) {
-                        if (allowedIndexPrivilegesAutomaton != null) {
-                            allowedIndexPrivilegesAutomaton = Automatons.unionAndMinimize(
-                                Arrays.asList(allowedIndexPrivilegesAutomaton, indexAndPrivilegeAutomaton.getKey())
-                            );
-                        } else {
-                            allowedIndexPrivilegesAutomaton = indexAndPrivilegeAutomaton.getKey();
-                        }
-                    }
-                }
+                Automaton allowedPrivilegesAutomatonForDataSelector = getIndexPrivilegesAutomaton(
+                    indexGroupAutomatonsForDataSelector,
+                    checkIndexAutomaton
+                );
+                Automaton allowedPrivilegesAutomatonForFailuresSelector = getIndexPrivilegesAutomaton(
+                    indexGroupAutomatonsForFailuresSelector,
+                    checkIndexAutomaton
+                );
                 for (String privilege : checkForPrivileges) {
-                    IndexPrivilege indexPrivilege = IndexPrivilege.get(privilege);
-                    if (allowedIndexPrivilegesAutomaton != null
-                        && Automatons.subsetOf(indexPrivilege.getAutomaton(), allowedIndexPrivilegesAutomaton)) {
+                    final IndexPrivilege indexPrivilege = IndexPrivilege.get(privilege);
+                    final boolean checkWithDataSelector = indexPrivilege.getSelectorPredicate().test(IndexComponentSelector.DATA);
+                    final boolean checkWithFailuresSelector = indexPrivilege.getSelectorPredicate().test(IndexComponentSelector.FAILURES);
+                    assert checkWithDataSelector || checkWithFailuresSelector
+                        : "index privilege must map to at least one of [data, failures] selectors";
+                    assert containsPrivilegesForFailuresSelector
+                        || indexPrivilege.getSelectorPredicate() != IndexComponentSelectorPredicate.FAILURES
+                        : "no failures access privileges should be present in the set of privileges to check";
+                    final Automaton automatonToCheck = indexPrivilege.getAutomaton();
+                    if (checkWithDataSelector
+                        && allowedPrivilegesAutomatonForDataSelector != null
+                        && Automatons.subsetOf(automatonToCheck, allowedPrivilegesAutomatonForDataSelector)) {
                         if (resourcePrivilegesMapBuilder != null) {
                             resourcePrivilegesMapBuilder.addResourcePrivilege(forIndexPattern, privilege, Boolean.TRUE);
                         }
-                    } else {
+                    } else if (checkWithFailuresSelector
+                        && allowedPrivilegesAutomatonForFailuresSelector != null
+                        && Automatons.subsetOf(automatonToCheck, allowedPrivilegesAutomatonForFailuresSelector)) {
+                            if (resourcePrivilegesMapBuilder != null) {
+                                resourcePrivilegesMapBuilder.addResourcePrivilege(forIndexPattern, privilege, Boolean.TRUE);
+                            }
+                        }
+                    // comment to force correct else-block indent
+                    else {
                         if (resourcePrivilegesMapBuilder != null) {
                             resourcePrivilegesMapBuilder.addResourcePrivilege(forIndexPattern, privilege, Boolean.FALSE);
                             allMatch = false;
@@ -806,13 +828,11 @@ public final class IndicesPermission {
      *
      * @return a map of all index and privilege pattern automatons
      */
-    private Map<Automaton, Automaton> indexGroupAutomatons(boolean combine) {
+    private Map<Automaton, Automaton> indexGroupAutomatons(boolean combine, IndexComponentSelector selector) {
         // Map of privilege automaton object references (cached by IndexPrivilege::CACHE)
         Map<Automaton, Automaton> allAutomatons = new HashMap<>();
         for (Group group : groups) {
-            // TODO support failure store privileges
-            // we also check that the group does not support data access to avoid erroneously filtering out `all` privilege groups
-            if (group.checkSelector(IndexComponentSelector.FAILURES) && false == group.checkSelector(IndexComponentSelector.DATA)) {
+            if (false == group.checkSelector(selector)) {
                 continue;
             }
             Automaton indexAutomaton = group.getIndexMatcherAutomaton();
@@ -843,6 +863,41 @@ public final class IndicesPermission {
             }
         }
         return allAutomatons;
+    }
+
+    private static boolean containsPrivilegesForFailuresSelector(Set<String> checkForPrivileges) {
+        for (String privilege : checkForPrivileges) {
+            // use `getNamedOrNull` since only a named privilege can be a failures-only privilege (raw action names are always data access)
+            IndexPrivilege named = IndexPrivilege.getNamedOrNull(privilege);
+            // note: we are looking for failures-only privileges here, not `all` which does cover failures but is not a failures-only
+            // privilege
+            if (named != null && named.getSelectorPredicate() == IndexComponentSelectorPredicate.FAILURES) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    @Nullable
+    private static Automaton getIndexPrivilegesAutomaton(Map<Automaton, Automaton> indexGroupAutomatons, Automaton checkIndexAutomaton) {
+        if (indexGroupAutomatons.isEmpty()) {
+            return null;
+        }
+        Automaton allowedPrivilegesAutomaton = null;
+        for (Map.Entry<Automaton, Automaton> indexAndPrivilegeAutomaton : indexGroupAutomatons.entrySet()) {
+            Automaton indexNameAutomaton = indexAndPrivilegeAutomaton.getValue();
+            if (Automatons.subsetOf(checkIndexAutomaton, indexNameAutomaton)) {
+                Automaton privilegesAutomaton = indexAndPrivilegeAutomaton.getKey();
+                if (allowedPrivilegesAutomaton != null) {
+                    allowedPrivilegesAutomaton = Automatons.unionAndMinimize(
+                        Arrays.asList(allowedPrivilegesAutomaton, privilegesAutomaton)
+                    );
+                } else {
+                    allowedPrivilegesAutomaton = privilegesAutomaton;
+                }
+            }
+        }
+        return allowedPrivilegesAutomaton;
     }
 
     public static class Group {

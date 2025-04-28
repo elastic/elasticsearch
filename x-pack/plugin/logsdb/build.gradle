@@ -37,9 +37,9 @@ dependencies {
 }
 
 tasks.named("javaRestTest").configure {
-  usesDefaultDistribution("to be triaged")
+  usesDefaultDistribution("Requires a bunch of xpack plugins")
 }
 
 tasks.named('yamlRestTest') {
-  usesDefaultDistribution("to be triaged")
+  usesDefaultDistribution("Requires a bunch of xpack plugins")
 }

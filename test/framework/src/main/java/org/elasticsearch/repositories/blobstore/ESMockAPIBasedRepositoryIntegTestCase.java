@@ -8,7 +8,6 @@
  */
 package org.elasticsearch.repositories.blobstore;
 
-import com.sun.net.httpserver.Headers;
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpHandler;
 import com.sun.net.httpserver.HttpServer;
@@ -228,10 +227,8 @@ public abstract class ESMockAPIBasedRepositoryIntegTestCase extends ESBlobStoreR
             }
         }).filter(Objects::nonNull).map(Repository::stats).reduce(RepositoryStats::merge).get();
 
-        // Since no abort request is made, filter it out from the stats (also ensure it is 0) before comparing to the mock counts
         Map<String, Long> sdkRequestCounts = repositoryStats.actionStats.entrySet()
             .stream()
-            .filter(entry -> false == ("AbortMultipartObject".equals(entry.getKey()) && entry.getValue().requests() == 0L))
             .collect(Collectors.toUnmodifiableMap(Map.Entry::getKey, e -> e.getValue().requests()));
 
         final Map<String, Long> mockCalls = getMockRequestCounts();
@@ -283,7 +280,7 @@ public abstract class ESMockAPIBasedRepositoryIntegTestCase extends ESBlobStoreR
         // value is the number of times the request has been seen
         private final Map<String, AtomicInteger> requests;
 
-        private final HttpHandler delegate;
+        protected final HttpHandler delegate;
         private final int maxErrorsPerRequest;
 
         @SuppressForbidden(reason = "this test uses a HttpServer to emulate a cloud-based storage service")
@@ -347,7 +344,7 @@ public abstract class ESMockAPIBasedRepositoryIntegTestCase extends ESBlobStoreR
     /**
      * HTTP handler that allows collect request stats per request type.
      *
-     * Implementors should keep track of the desired requests on {@link #maybeTrack(String, Headers)}.
+     * Implementors should keep track of the desired requests on {@link #maybeTrack(HttpExchange)}.
      */
     @SuppressForbidden(reason = "this test uses a HttpServer to emulate a cloud-based storage service")
     public abstract static class HttpStatsCollectorHandler implements DelegatingHttpHandler {
@@ -356,8 +353,11 @@ public abstract class ESMockAPIBasedRepositoryIntegTestCase extends ESBlobStoreR
 
         private final Map<String, Long> operationCount = new HashMap<>();
 
-        public HttpStatsCollectorHandler(HttpHandler delegate) {
+        public HttpStatsCollectorHandler(HttpHandler delegate, String[] operations) {
             this.delegate = delegate;
+            for (String operation : operations) {
+                operationCount.put(operation, 0L);
+            }
         }
 
         @Override
@@ -370,15 +370,12 @@ public abstract class ESMockAPIBasedRepositoryIntegTestCase extends ESBlobStoreR
         }
 
         protected synchronized void trackRequest(final String requestType) {
-            operationCount.put(requestType, operationCount.getOrDefault(requestType, 0L) + 1);
+            operationCount.put(requestType, operationCount.get(requestType) + 1);
         }
 
         @Override
         public void handle(HttpExchange exchange) throws IOException {
-            final String request = exchange.getRequestMethod() + " " + exchange.getRequestURI().toString();
-
-            maybeTrack(request, exchange.getRequestHeaders());
-
+            maybeTrack(exchange);
             delegate.handle(exchange);
         }
 
@@ -388,10 +385,9 @@ public abstract class ESMockAPIBasedRepositoryIntegTestCase extends ESBlobStoreR
          * The request is represented as:
          * Request = Method SP Request-URI
          *
-         * @param request the request to be tracked if it matches the criteria
-         * @param requestHeaders the http request headers
+         * @param exchange the exchange to possibly track
          */
-        protected abstract void maybeTrack(String request, Headers requestHeaders);
+        protected abstract void maybeTrack(HttpExchange exchange);
     }
 
     /**

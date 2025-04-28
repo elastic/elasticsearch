@@ -9,6 +9,8 @@
 
 package org.elasticsearch.node;
 
+import org.elasticsearch.action.search.OnlinePrewarmingService;
+import org.elasticsearch.action.search.OnlinePrewarmingServiceProvider;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.ClusterInfoService;
 import org.elasticsearch.cluster.InternalClusterInfoService;
@@ -123,6 +125,10 @@ class NodeServiceProvider {
         ExecutorSelector executorSelector,
         Tracer tracer
     ) {
+        OnlinePrewarmingService onlinePrewarmingService = pluginsService.loadSingletonServiceProvider(
+            OnlinePrewarmingServiceProvider.class,
+            () -> OnlinePrewarmingServiceProvider.DEFAULT
+        ).create(clusterService.getSettings(), threadPool, clusterService);
         return new SearchService(
             clusterService,
             indicesService,
@@ -132,7 +138,8 @@ class NodeServiceProvider {
             fetchPhase,
             circuitBreakerService,
             executorSelector,
-            tracer
+            tracer,
+            onlinePrewarmingService
         );
     }
 

@@ -29,13 +29,13 @@ import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.NameId;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
-import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.evaluator.EvalMapper;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunction;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
 import org.elasticsearch.xpack.esql.expression.function.grouping.Categorize;
 import org.elasticsearch.xpack.esql.plan.physical.AggregateExec;
 import org.elasticsearch.xpack.esql.plan.physical.ExchangeSourceExec;
+import org.elasticsearch.xpack.esql.plan.physical.TimeSeriesAggregateExec;
 import org.elasticsearch.xpack.esql.planner.LocalExecutionPlanner.LocalExecutionPlannerContext;
 import org.elasticsearch.xpack.esql.planner.LocalExecutionPlanner.PhysicalOperation;
 
@@ -176,13 +176,10 @@ public abstract class AbstractPhysicalOperationProviders implements PhysicalOper
                 context
             );
             // time-series aggregation
-            if (Expressions.anyMatch(aggregates, a -> a instanceof ToTimeSeriesAggregator)
-                && groupSpecs.size() == 2
-                && groupSpecs.get(0).attribute.dataType() == DataType.TSID_DATA_TYPE
-                && groupSpecs.get(1).attribute.dataType() == DataType.LONG) {
+            if (aggregateExec instanceof TimeSeriesAggregateExec ts) {
                 operatorFactory = new TimeSeriesAggregationOperator.Factory(
-                    groupSpecs.get(0).toHashGroupSpec(),
-                    groupSpecs.get(1).toHashGroupSpec(),
+                    ts.timeBucketRounding(context.foldCtx()),
+                    groupSpecs.stream().map(GroupSpec::toHashGroupSpec).toList(),
                     aggregatorMode,
                     aggregatorFactories,
                     context.pageSize(aggregateExec.estimatedRowSize())

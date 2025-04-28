@@ -645,7 +645,7 @@ public class MaxMindSupportTests extends ESTestCase {
             Method[] declaredMethods = declaredClass.getDeclaredMethods();
             Optional<Method> nonAbstractTransformMethod = Arrays.stream(declaredMethods)
                 .filter(
-                    method -> method.getName().equals("transform")
+                    method -> method.getName().equals("cacheableRecord")
                         && method.getParameterTypes().length == 1
                         && Modifier.isAbstract(method.getParameterTypes()[0].getModifiers()) == false
                 )

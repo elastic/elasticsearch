@@ -31,7 +31,6 @@ import org.elasticsearch.inference.configuration.SettingsConfigurationFieldType;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.inference.chunking.ChunkingSettingsBuilder;
 import org.elasticsearch.xpack.inference.chunking.EmbeddingRequestChunker;
-import org.elasticsearch.xpack.inference.external.action.cohere.CohereActionCreator;
 import org.elasticsearch.xpack.inference.external.http.sender.EmbeddingsInput;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSender;
 import org.elasticsearch.xpack.inference.external.http.sender.InferenceInputs;
@@ -40,6 +39,7 @@ import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.SenderService;
 import org.elasticsearch.xpack.inference.services.ServiceComponents;
 import org.elasticsearch.xpack.inference.services.ServiceUtils;
+import org.elasticsearch.xpack.inference.services.cohere.action.CohereActionCreator;
 import org.elasticsearch.xpack.inference.services.cohere.completion.CohereCompletionModel;
 import org.elasticsearch.xpack.inference.services.cohere.embeddings.CohereEmbeddingType;
 import org.elasticsearch.xpack.inference.services.cohere.embeddings.CohereEmbeddingsModel;
@@ -47,7 +47,6 @@ import org.elasticsearch.xpack.inference.services.cohere.embeddings.CohereEmbedd
 import org.elasticsearch.xpack.inference.services.cohere.rerank.CohereRerankModel;
 import org.elasticsearch.xpack.inference.services.settings.DefaultSecretSettings;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
-import org.elasticsearch.xpack.inference.services.validation.ModelValidatorBuilder;
 
 import java.util.EnumSet;
 import java.util.HashMap;
@@ -307,21 +306,8 @@ public class CohereService extends SenderService {
 
         for (var request : batchedRequests) {
             var action = cohereModel.accept(actionCreator, taskSettings);
-            action.execute(new EmbeddingsInput(request.batch().inputs(), inputType), timeout, request.listener());
+            action.execute(EmbeddingsInput.fromStrings(request.batch().inputs().get(), inputType), timeout, request.listener());
         }
-    }
-
-    /**
-     * For text embedding models get the embedding size and
-     * update the service settings.
-     *
-     * @param model The new model
-     * @param listener The listener
-     */
-    @Override
-    public void checkModelConfig(Model model, ActionListener<Model> listener) {
-        // TODO: Remove this function once all services have been updated to use the new model validators
-        ModelValidatorBuilder.buildModelValidator(model.getTaskType()).validate(this, model, listener);
     }
 
     @Override

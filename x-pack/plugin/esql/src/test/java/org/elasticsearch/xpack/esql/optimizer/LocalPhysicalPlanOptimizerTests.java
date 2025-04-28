@@ -20,6 +20,7 @@ import org.elasticsearch.index.mapper.MapperServiceTestCase;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.MatchQueryBuilder;
+import org.elasticsearch.index.query.MultiMatchQueryBuilder;
 import org.elasticsearch.index.query.Operator;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
@@ -103,6 +104,7 @@ import static org.elasticsearch.index.query.QueryBuilders.termQuery;
 import static org.elasticsearch.index.query.QueryBuilders.termsQuery;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.configuration;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.emptyInferenceResolution;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.loadMapping;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.unboundLogicalOptimizerContext;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.withDefaultLimitWarning;
@@ -186,7 +188,7 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
         IndexResolution getIndexResult = IndexResolution.valid(test);
 
         return new Analyzer(
-            new AnalyzerContext(config, new EsqlFunctionRegistry(), getIndexResult, enrichResolution),
+            new AnalyzerContext(config, new EsqlFunctionRegistry(), getIndexResult, enrichResolution, emptyInferenceResolution()),
             new Verifier(new Metrics(new EsqlFunctionRegistry()), new XPackLicenseState(() -> 0L))
         );
     }
@@ -1307,15 +1309,16 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
         return luceneQuery;
     }
 
-    /**
+    /*
      * Expects
      * LimitExec[1000[INTEGER]]
-     * \_ExchangeExec[[],false]
-     *   \_ProjectExec[[_meta_field{f}#8, emp_no{r}#2, first_name{r}#3, gender{f}#4, job{f}#9, job.raw{f}#10, languages{f}#5, first_n
-     * ame{r}#3 AS last_name, long_noidx{f}#11, emp_no{r}#2 AS salary]]
-     *     \_FieldExtractExec[_meta_field{f}#8, gender{f}#4, job{f}#9, job.raw{f}..]
+     * \_ExchangeExec[[_meta_field{f}#8, emp_no{f}#2, first_name{f}#3, gender{f}#4, hire_date{f}#9, job{f}#10, job.raw{f}#11, langua
+     * ges{f}#5, last_name{f}#6, long_noidx{f}#12, salary{f}#7],false]
+     *   \_ProjectExec[[_meta_field{f}#8, emp_no{r}#2, first_name{r}#3, gender{f}#4, hire_date{f}#9, job{f}#10, job.raw{f}#11, langua
+     * ges{f}#5, first_name{r}#3 AS last_name, long_noidx{f}#12, emp_no{r}#2 AS salary]]
+     *     \_FieldExtractExec[_meta_field{f}#8, gender{f}#4, hire_date{f}#9, job{..]<[],[]>
      *       \_EvalExec[[null[INTEGER] AS emp_no, null[KEYWORD] AS first_name]]
-     *         \_EsQueryExec[test], query[][_doc{f}#12], limit[1000], sort[] estimatedRowSize[270]
+     *         \_EsQueryExec[test], indexMode[standard], query[][_doc{f}#13], limit[1000], sort[] estimatedRowSize[278]
      */
     public void testMissingFieldsDoNotGetExtracted() {
         var stats = EsqlTestUtils.statsForMissingField("first_name", "last_name", "emp_no", "salary");
@@ -1489,7 +1492,6 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
             case KEYWORD -> randomAlphaOfLength(5);
             case IP -> NetworkAddress.format(randomIp(randomBoolean()));
             case TEXT -> randomAlphaOfLength(50);
-            case SEMANTIC_TEXT -> randomAlphaOfLength(5);
             case VERSION -> VersionUtils.randomVersion(random()).toString();
             default -> throw new IllegalArgumentException("Unexpected type: " + dataType);
         };
@@ -1657,6 +1659,37 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
             .rewrite("fuzzy")
             .timeZone("America/Los_Angeles");
         assertThat(expectedQStrQuery.toString(), is(planStr.get()));
+    }
+
+    public void testMultiMatchOptionsPushDown() {
+        String query = """
+            from test
+            | where MULTI_MATCH("Anna", first_name, last_name, {"fuzzy_rewrite": "constant_score", "slop": 10, "analyzer": "auto",
+            "auto_generate_synonyms_phrase_query": "false", "fuzziness": "auto", "fuzzy_transpositions": false, "lenient": "false",
+            "max_expansions": 10, "minimum_should_match": 3, "operator": "AND", "prefix_length": 20, "tie_breaker": 1.0,
+            "type": "best_fields", "boost": 2.0})
+            """;
+        var plan = plannerOptimizer.plan(query);
+
+        AtomicReference<String> planStr = new AtomicReference<>();
+        plan.forEachDown(EsQueryExec.class, result -> planStr.set(result.query().toString()));
+
+        var expectedQuery = new MultiMatchQueryBuilder("Anna").fields(Map.of("first_name", 1.0f, "last_name", 1.0f))
+            .slop(10)
+            .boost(2.0f)
+            .analyzer("auto")
+            .autoGenerateSynonymsPhraseQuery(false)
+            .operator(Operator.fromString("AND"))
+            .fuzziness(Fuzziness.fromString("auto"))
+            .fuzzyRewrite("constant_score")
+            .fuzzyTranspositions(false)
+            .lenient(false)
+            .type("best_fields")
+            .maxExpansions(10)
+            .minimumShouldMatch("3")
+            .prefixLength(20)
+            .tieBreaker(1.0f);
+        assertThat(expectedQuery.toString(), is(planStr.get()));
     }
 
     /**

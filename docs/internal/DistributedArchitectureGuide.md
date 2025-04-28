@@ -22,50 +22,6 @@ See the [Javadocs for `ActionListener`](https://github.com/elastic/elasticsearch
 
 (TODO: add useful starter references and explanations for a range of Listener classes. Reference the Netty section.)
 
-### REST Layer
-
-The REST and Transport layers are bound together through the `ActionModule`. `ActionModule#initRestHandlers` registers all the
-rest actions with a `RestController` that matches incoming requests to particular REST actions. `RestController#registerHandler`
-uses each `Rest*Action`'s `#routes()` implementation to match HTTP requests to that particular `Rest*Action`. Typically, REST
-actions follow the class naming convention `Rest*Action`, which makes them easier to find, but not always; the `#routes()`
-definition can also be helpful in finding a REST action. `RestController#dispatchRequest` eventually calls `#handleRequest` on a
-`RestHandler` implementation. `RestHandler` is the base class for `BaseRestHandler`, which most `Rest*Action` instances extend to
-implement a particular REST action.
-
-`BaseRestHandler#handleRequest` calls into `BaseRestHandler#prepareRequest`, which children `Rest*Action` classes extend to
-define the behavior for a particular action. `RestController#dispatchRequest` passes a `RestChannel` to the `Rest*Action` via
-`RestHandler#handleRequest`: `Rest*Action#prepareRequest` implementations return a `RestChannelConsumer` defining how to execute
-the action and reply on the channel (usually in the form of completing an ActionListener wrapper). `Rest*Action#prepareRequest`
-implementations are responsible for parsing the incoming request, and verifying that the structure of the request is valid.
-`BaseRestHandler#handleRequest` will then check that all the request parameters have been consumed: unexpected request parameters
-result in an error.
-
-### How REST Actions Connect to Transport Actions
-
-The Rest layer uses an implementation of `AbstractClient`. `BaseRestHandler#prepareRequest` takes a `NodeClient`: this client
-knows how to connect to a specified TransportAction. A `Rest*Action` implementation will return a `RestChannelConsumer` that
-most often invokes a call into a method on the `NodeClient` to pass through to the TransportAction. Along the way from
-`BaseRestHandler#prepareRequest` through the `AbstractClient` and `NodeClient` code, `NodeClient#executeLocally` is called: this
-method calls into `TaskManager#registerAndExecute`, registering the operation with the `TaskManager` so it can be found in Task
-API requests, before moving on to execute the specified TransportAction.
-
-`NodeClient` has a `NodeClient#actions` map from `ActionType` to `TransportAction`. `ActionModule#setupActions` registers all the
-core TransportActions, as well as those defined in any plugins that are being used: plugins can override `Plugin#getActions()` to
-define additional TransportActions. Note that not all TransportActions will be mapped back to a REST action: many TransportActions
-are only used for internode operations/communications.
-
-### Transport Layer
-
-(Managed by the TransportService, TransportActions must be registered there, too)
-
-(Executing a TransportAction (either locally via NodeClient or remotely via TransportService) is where most of the authorization & other security logic runs)
-
-(What actions, and why, are registered in TransportService but not NodeClient?)
-
-### Direct Node to Node Transport Layer
-
-(TransportService maps incoming requests to TransportActions)
-
 ### Chunk Encoding
 
 #### XContent
@@ -239,6 +195,18 @@ works in parallel with the storage engine.)
 
 # Allocation
 
+### Indexes and Shards
+
+Each index consists of a fixed number of primary shards. The number of primary shards cannot be changed for the lifetime of the index. Each
+primary shard can have zero-to-many replicas used for data redundancy. The number of replicas per shard can be changed dynamically.
+
+The allocation assignment status of each shard copy is tracked by its [ShardRoutingState][]. The `RoutingTable` and `RoutingNodes` objects
+are responsible for tracking the data nodes to which each shard in the cluster is allocated: see the [routing package javadoc][] for more
+details about these structures.
+
+[routing package javadoc]: https://github.com/elastic/elasticsearch/blob/v9.0.0-beta1/server/src/main/java/org/elasticsearch/cluster/routing/package-info.java
+[ShardRoutingState]: https://github.com/elastic/elasticsearch/blob/4c9c82418ed98613edcd91e4d8f818eeec73ce92/server/src/main/java/org/elasticsearch/cluster/routing/ShardRoutingState.java#L12-L46
+
 ### Core Components
 
 The `DesiredBalanceShardsAllocator` is what runs shard allocation decisions. It leverages the `DesiredBalanceComputer` to produce
@@ -278,6 +246,22 @@ placed on the same data node. Node shard weight is based on a sum of factors: di
 of shards, and an incentive to distribute shards within the same index across different nodes. See the `WeightFunction` and
 `NodeAllocationStatsAndWeightsCalculator` classes for more details on the weight calculations that support the `DesiredBalanceComputer`
 decisions.
+
+### Inter-Node Communicaton
+
+The elected master node creates a shard allocation plan with the `DesiredBalanceShardsAllocator` and then selects incremental shard
+movements towards the target allocation plan with the `DesiredBalanceReconciler`. The results of the `DesiredBalanceReconciler` is an
+updated `RoutingTable`. The `RoutingTable` is part of the cluster state, so the master node updates the cluster state with the new
+(incremental) desired shard allocation information. The updated cluster state is then published to the data nodes. Each data node will
+observe any change in shard allocation related to itself and take action to achieve the new shard allocation by: initiating creation of a
+new empty shard; starting recovery (copying) of an existing shard from another data node; or removing a shard. When the data node finishes
+a shard change, a request is sent to the master node to update the shard as having finished recovery/removal in the cluster state. The
+cluster state is used by allocation as a fancy work queue: the master node conveys new work to the data nodes, which pick up the work and
+report back when done.
+
+- See `DesiredBalanceShardsAllocator#submitReconcileTask` for the master node's cluster state update post-reconciliation.
+- See `IndicesClusterStateService#doApplyClusterState` for the data node hook to observe shard changes in the cluster state.
+- See `ShardStateAction#sendShardAction` for the data node request to the master node on completion of a shard state change.
 
 # Autoscaling
 

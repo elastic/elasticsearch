@@ -25,10 +25,10 @@ import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 
-public class RepositoriesMetadataSerializationTests extends ChunkedToXContentDiffableSerializationTestCase<Metadata.ClusterCustom> {
+public class RepositoriesMetadataSerializationTests extends ChunkedToXContentDiffableSerializationTestCase<Metadata.ProjectCustom> {
 
     @Override
-    protected Metadata.ClusterCustom createTestInstance() {
+    protected Metadata.ProjectCustom createTestInstance() {
         int numberOfRepositories = randomInt(10);
         List<RepositoryMetadata> entries = new ArrayList<>();
         for (int i = 0; i < numberOfRepositories; i++) {
@@ -50,12 +50,12 @@ public class RepositoriesMetadataSerializationTests extends ChunkedToXContentDif
     }
 
     @Override
-    protected Writeable.Reader<Metadata.ClusterCustom> instanceReader() {
+    protected Writeable.Reader<Metadata.ProjectCustom> instanceReader() {
         return RepositoriesMetadata::new;
     }
 
     @Override
-    protected Metadata.ClusterCustom mutateInstance(Metadata.ClusterCustom instance) {
+    protected Metadata.ProjectCustom mutateInstance(Metadata.ProjectCustom instance) {
         List<RepositoryMetadata> entries = new ArrayList<>(((RepositoriesMetadata) instance).repositories());
         boolean addEntry = entries.isEmpty() ? true : randomBoolean();
         if (addEntry) {
@@ -80,7 +80,7 @@ public class RepositoriesMetadataSerializationTests extends ChunkedToXContentDif
     }
 
     @Override
-    protected Metadata.ClusterCustom makeTestChanges(Metadata.ClusterCustom testInstance) {
+    protected Metadata.ProjectCustom makeTestChanges(Metadata.ProjectCustom testInstance) {
         RepositoriesMetadata repositoriesMetadata = (RepositoriesMetadata) testInstance;
         List<RepositoryMetadata> repos = new ArrayList<>(repositoriesMetadata.repositories());
         if (randomBoolean() && repos.size() > 1) {
@@ -99,7 +99,7 @@ public class RepositoriesMetadataSerializationTests extends ChunkedToXContentDif
     }
 
     @Override
-    protected Writeable.Reader<Diff<Metadata.ClusterCustom>> diffReader() {
+    protected Writeable.Reader<Diff<Metadata.ProjectCustom>> diffReader() {
         return RepositoriesMetadata::readDiffFrom;
     }
 
@@ -109,7 +109,7 @@ public class RepositoriesMetadataSerializationTests extends ChunkedToXContentDif
     }
 
     @Override
-    protected Metadata.ClusterCustom doParseInstance(XContentParser parser) throws IOException {
+    protected Metadata.ProjectCustom doParseInstance(XContentParser parser) throws IOException {
         assertEquals(XContentParser.Token.START_OBJECT, parser.nextToken());
         RepositoriesMetadata repositoriesMetadata = RepositoriesMetadata.fromXContent(parser);
         assertEquals(XContentParser.Token.END_OBJECT, parser.currentToken());

@@ -56,8 +56,8 @@ import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.search.suggest.SuggestBuilder;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
-import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.Transport;
+import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 
 import java.util.ArrayList;
@@ -137,6 +137,11 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
 
                 new Thread(() -> listener.onResponse(new CanMatchNodeResponse(responses))).start();
             }
+
+            @Override
+            public TransportService transportService() {
+                return mockTransportService();
+            }
         };
 
         AtomicReference<List<SearchShardIterator>> result = new AtomicReference<>();
@@ -164,7 +169,7 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
             null,
             true,
             false,
-            mock(SearchService.class)
+            mockSearchService()
         ).addListener(ActionTestUtils.assertNoFailureListener(iter -> {
             result.set(iter);
             latch.countDown();
@@ -186,6 +191,12 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
             assertEquals(shard1, result.get().get(0).skip() == false);
             assertEquals(shard2, result.get().get(1).skip() == false);
         }
+    }
+
+    private SearchService mockSearchService() {
+        var searchService = mock(SearchService.class);
+        when(searchService.getCoordinatorRewriteContextProvider(any())).thenReturn(EMPTY_CONTEXT_PROVIDER);
+        return searchService;
     }
 
     public void testFilterWithFailure() throws InterruptedException {
@@ -231,6 +242,11 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
                     }
                 }).start();
             }
+
+            @Override
+            public TransportService transportService() {
+                return mockTransportService();
+            }
         };
 
         AtomicReference<List<SearchShardIterator>> result = new AtomicReference<>();
@@ -259,7 +275,7 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
             null,
             true,
             false,
-            mock(SearchService.class)
+            mockSearchService()
         ).addListener(ActionTestUtils.assertNoFailureListener(iter -> {
             result.set(iter);
             latch.countDown();
@@ -322,6 +338,11 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
 
                     new Thread(() -> listener.onResponse(new CanMatchNodeResponse(responses))).start();
                 }
+
+                @Override
+                public TransportService transportService() {
+                    return mockTransportService();
+                }
             };
 
             AtomicReference<List<SearchShardIterator>> result = new AtomicReference<>();
@@ -350,7 +371,7 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
                 null,
                 true,
                 false,
-                mock(SearchService.class)
+                mockSearchService()
             ).addListener(ActionTestUtils.assertNoFailureListener(iter -> {
                 result.set(iter);
                 latch.countDown();
@@ -421,6 +442,11 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
 
                     new Thread(() -> listener.onResponse(new CanMatchNodeResponse(responses))).start();
                 }
+
+                @Override
+                public TransportService transportService() {
+                    return mockTransportService();
+                }
             };
 
             AtomicReference<List<SearchShardIterator>> result = new AtomicReference<>();
@@ -449,7 +475,7 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
                 null,
                 shardsIter.size() > shardToSkip.size(),
                 false,
-                mock(SearchService.class)
+                mockSearchService()
             ).addListener(ActionTestUtils.assertNoFailureListener(iter -> {
                 result.set(iter);
                 latch.countDown();
@@ -1400,6 +1426,11 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
 
                 new Thread(() -> listener.onResponse(new CanMatchNodeResponse(responses))).start();
             }
+
+            @Override
+            public TransportService transportService() {
+                return mockTransportService();
+            }
         };
 
         final TransportSearchAction.SearchTimeProvider timeProvider = new TransportSearchAction.SearchTimeProvider(
@@ -1427,6 +1458,12 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
             ),
             requests
         );
+    }
+
+    private TransportService mockTransportService() {
+        var transportService = mock(TransportService.class);
+        when(transportService.getThreadPool()).thenReturn(threadPool);
+        return transportService;
     }
 
     static class StaticCoordinatorRewriteContextProviderBuilder {

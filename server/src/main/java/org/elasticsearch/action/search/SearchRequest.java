@@ -253,7 +253,7 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
             finalReduce = true;
         }
         ccsMinimizeRoundtrips = in.readBoolean();
-        if ((in.getTransportVersion().isPatchFrom(TransportVersions.RE_REMOVE_MIN_COMPATIBLE_SHARD_NODE_90) == false
+        if ((in.getTransportVersion().isPatchFrom(TransportVersions.V_9_0_0) == false
             && in.getTransportVersion().before(TransportVersions.RE_REMOVE_MIN_COMPATIBLE_SHARD_NODE)) && in.readBoolean()) {
             Version.readVersion(in); // and drop on the floor
         }
@@ -298,7 +298,7 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
             out.writeBoolean(finalReduce);
         }
         out.writeBoolean(ccsMinimizeRoundtrips);
-        if ((out.getTransportVersion().isPatchFrom(TransportVersions.RE_REMOVE_MIN_COMPATIBLE_SHARD_NODE_90) == false
+        if ((out.getTransportVersion().isPatchFrom(TransportVersions.V_9_0_0) == false
             && out.getTransportVersion().before(TransportVersions.RE_REMOVE_MIN_COMPATIBLE_SHARD_NODE))) {
             out.writeBoolean(false);
         }

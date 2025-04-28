@@ -21,6 +21,7 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.core.CheckedRunnable;
+import org.elasticsearch.core.FixForMultiProject;
 
 import java.util.Collection;
 import java.util.Objects;
@@ -94,6 +95,7 @@ public interface ProjectResolver extends ProjectIdResolver {
     /**
      * Returns a client that executes every request in the context of the given project.
      */
+    @FixForMultiProject(description = "This recreates a client on every invocation. We should optimize this to be less wasteful")
     default Client projectClient(Client baseClient, ProjectId projectId) {
         // We only take the shortcut when the given project ID matches the "current" project ID. If it doesn't, we'll let #executeOnProject
         // take care of error handling.

@@ -22,6 +22,7 @@ import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.bucket.histogram.HistogramAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.MaxAggregationBuilder;
+import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.ml.MlTasks;
 import org.elasticsearch.xpack.core.ml.action.CloseJobAction;
@@ -63,6 +64,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasEntry;
 import static org.hamcrest.Matchers.notNullValue;
 
+@ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0)
 public class BasicDistributedJobsIT extends BaseMlIntegTestCase {
 
     public void testFailOverBasics() throws Exception {

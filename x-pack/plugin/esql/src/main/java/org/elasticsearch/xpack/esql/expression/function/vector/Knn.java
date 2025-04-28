@@ -10,13 +10,12 @@ package org.elasticsearch.xpack.esql.expression.function.vector;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.xpack.esql.capabilities.TranslationAware;
+import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.xpack.esql.core.InvalidArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.MapExpression;
 import org.elasticsearch.xpack.esql.core.expression.TypeResolutions;
-import org.elasticsearch.xpack.esql.core.expression.function.Function;
 import org.elasticsearch.xpack.esql.core.querydsl.query.Query;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -26,9 +25,9 @@ import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesTo;
 import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecycle;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.OptionalArgument;
+import org.elasticsearch.xpack.esql.expression.function.fulltext.FullTextFunction;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.Match;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
-import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.LucenePushdownPredicates;
 import org.elasticsearch.xpack.esql.planner.TranslatorHandler;
 import org.elasticsearch.xpack.esql.querydsl.query.KnnQuery;
 
@@ -51,16 +50,13 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isTyp
 import static org.elasticsearch.xpack.esql.core.type.DataType.DENSE_VECTOR;
 import static org.elasticsearch.xpack.esql.core.type.DataType.FLOAT;
 import static org.elasticsearch.xpack.esql.core.type.DataType.INTEGER;
-import static org.elasticsearch.xpack.esql.expression.function.fulltext.FullTextFunction.populateOptionsMap;
 import static org.elasticsearch.xpack.esql.expression.function.fulltext.Match.getNameFromFieldAttribute;
 
-public class Knn extends Function implements TranslationAware, OptionalArgument {
+public class Knn extends FullTextFunction implements OptionalArgument {
 
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Knn", Knn::readFrom);
 
     private final Expression field;
-    private final Expression query;
-    // TODO Options could be serialized via QueryBuilder in case we want to rewrite it in the coordinator node (for query text inference)
     private final Expression options;
 
     public static final Map<String, DataType> ALLOWED_OPTIONS = Map.ofEntries(
@@ -84,18 +80,18 @@ public class Knn extends Function implements TranslationAware, OptionalArgument 
             ) }
     )
     public Knn(Source source, Expression field, Expression query, Expression options) {
-        super(source, options == null ? List.of(field, query) : List.of(field, query, options));
+        this(source, field, query, options, null);
+    }
+
+    public Knn(Source source, Expression field, Expression query, Expression options, QueryBuilder queryBuilder) {
+        super(source, query, options == null ? List.of(field, query) : List.of(field, query, options), queryBuilder);
         this.field = field;
-        this.query = query;
         this.options = options;
     }
 
+
     public Expression field() {
         return field;
-    }
-
-    public Expression query() {
-        return query;
     }
 
     public Expression options() {
@@ -108,7 +104,7 @@ public class Knn extends Function implements TranslationAware, OptionalArgument 
     }
 
     @Override
-    protected final TypeResolution resolveType() {
+    protected TypeResolution resolveParams() {
         if (childrenResolved() == false) {
             return new TypeResolution("Unresolved children");
         }
@@ -118,12 +114,7 @@ public class Knn extends Function implements TranslationAware, OptionalArgument 
     }
 
     @Override
-    public boolean translatable(LucenePushdownPredicates pushdownPredicates) {
-        return true;
-    }
-
-    @Override
-    public Query asQuery(LucenePushdownPredicates pushdownPredicates, TranslatorHandler handler) {
+    protected Query translate(TranslatorHandler handler) {
         var fieldAttribute = Match.fieldAsFieldAttribute(field());
 
         Check.notNull(fieldAttribute, "Match must have a field attribute as the first argument");
@@ -136,6 +127,11 @@ public class Knn extends Function implements TranslationAware, OptionalArgument 
         }
 
         return new KnnQuery(source(), fieldName, queryAsFloats, queryOptions());
+    }
+
+    @Override
+    public Expression replaceQueryBuilder(QueryBuilder queryBuilder) {
+        return new Knn(source(), field(), query(), options(), queryBuilder);
     }
 
     private Map<String, Object> queryOptions() throws InvalidArgumentException {
@@ -167,9 +163,9 @@ public class Knn extends Function implements TranslationAware, OptionalArgument 
         Source source = Source.readFrom((PlanStreamInput) in);
         Expression field = in.readNamedWriteable(Expression.class);
         Expression query = in.readNamedWriteable(Expression.class);
-        Expression options = in.readOptionalNamedWriteable(Expression.class);
+        QueryBuilder queryBuilder = in.readOptionalNamedWriteable(QueryBuilder.class);
 
-        return new Knn(source, field, query, options);
+        return new Knn(source, field, query, null, queryBuilder);
     }
 
     @Override
@@ -177,7 +173,7 @@ public class Knn extends Function implements TranslationAware, OptionalArgument 
         source().writeTo(out);
         out.writeNamedWriteable(field());
         out.writeNamedWriteable(query());
-        out.writeOptionalNamedWriteable(options());
+        out.writeOptionalNamedWriteable(queryBuilder());
     }
 
     @Override
@@ -185,12 +181,13 @@ public class Knn extends Function implements TranslationAware, OptionalArgument 
         if (o == null || getClass() != o.getClass()) return false;
         if (super.equals(o) == false) return false;
         Knn knn = (Knn) o;
-        return Objects.equals(field, knn.field) && Objects.equals(query, knn.query);
+        return Objects.equals(field, knn.field) && Objects.equals(query(), knn.query())
+            && Objects.equals(queryBuilder(), knn.queryBuilder());
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(super.hashCode(), field, query);
+        return Objects.hash(field(), query(), queryBuilder());
     }
 
 }

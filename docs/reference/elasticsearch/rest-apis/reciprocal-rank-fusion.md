@@ -537,6 +537,7 @@ In addition to individual query scoring details, we can make use of the `explain
     ]
 }
 ```
+% NOTCONSOLE
 
 1. the final RRF score for document with `_id=3`
 2. a description on how this score was computed based on the ranks of this document in each individual query
@@ -544,7 +545,7 @@ In addition to individual query scoring details, we can make use of the `explain
 4. the `value` heres specifies the `rank` of this document in the specific query
 5. standard `explain` output of the underlying query, describing matching terms and weights
 6. the `value` heres specifies the `rank` of this document for the second (`knn`) query
-% NOTCONSOLE
+
 
 In addition to the above, explain in RRF also supports [named queries](/reference/query-languages/query-dsl-bool-query.md#named-queries) using the `_name` parameter. Using named queries allows for easier and more intuitive understanding of the RRF score computation, especially when dealing with multiple queries. So, we would now have:
 
@@ -587,9 +588,9 @@ GET example-index/_search
     }
 }
 ```
+% NOTCONSOLE
 
 1. Here we specify a `_name` for the `knn` retriever
-% NOTCONSOLE
 
 The response would now include the named query in the explanation:
 
@@ -630,10 +631,9 @@ The response would now include the named query in the explanation:
     ]
 }
 ```
-
-1. Instead of the anonymous `at index n` , we now have a reference to the named query `my_knn_query`.
 % NOTCONSOLE
 
+1. Instead of the anonymous `at index n` , we now have a reference to the named query `my_knn_query`.
 
 ## Pagination in RRF [_pagination_in_rrf]
 

@@ -21,7 +21,6 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.discovery.MasterNotDiscoveredException;
 import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.transport.TransportService;
@@ -213,12 +212,11 @@ public class TransportClusterStateActionDisruptionIT extends ESIntegTestCase {
         }
 
         final String nonMasterNode = randomValueOtherThan(masterName, () -> randomFrom(internalCluster().getNodeNames()));
-        var newMasterNodeListener = ClusterServiceUtils.addTemporaryStateListener(
-            internalCluster().clusterService(nonMasterNode),
-            state -> Optional.ofNullable(state.nodes().getMasterNode()).map(m -> m.getName().equals(masterName) == false).orElse(false),
-            TEST_REQUEST_TIMEOUT
+        awaitClusterState(
+            logger,
+            nonMasterNode,
+            state -> Optional.ofNullable(state.nodes().getMasterNode()).map(m -> m.getName().equals(masterName) == false).orElse(false)
         );
-        safeAwait(newMasterNodeListener, TEST_REQUEST_TIMEOUT);
 
         shutdown.set(true);
         assertingThread.join();

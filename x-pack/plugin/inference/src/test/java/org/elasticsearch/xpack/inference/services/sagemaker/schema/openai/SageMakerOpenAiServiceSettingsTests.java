@@ -13,6 +13,10 @@ import org.elasticsearch.xpack.inference.services.InferenceSettingsTestCase;
 
 import java.util.Map;
 
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.sameInstance;
+
 public class SageMakerOpenAiServiceSettingsTests extends InferenceSettingsTestCase<OpenAiTextEmbeddingPayload.ApiServiceSettings> {
     @Override
     protected OpenAiTextEmbeddingPayload.ApiServiceSettings fromMutableMap(Map<String, Object> mutableMap) {
@@ -35,5 +39,13 @@ public class SageMakerOpenAiServiceSettingsTests extends InferenceSettingsTestCa
     static OpenAiTextEmbeddingPayload.ApiServiceSettings randomApiServiceSettings() {
         var dimensions = randomBoolean() ? randomIntBetween(1, 100) : null;
         return new OpenAiTextEmbeddingPayload.ApiServiceSettings(dimensions, dimensions != null);
+    }
+
+    public void testDimensionsSetByUser() {
+        var expectedDimensions = randomIntBetween(1, 100);
+        var dimensionlessSettings = new OpenAiTextEmbeddingPayload.ApiServiceSettings(null, false);
+        var updatedSettings = dimensionlessSettings.updateModelWithEmbeddingDetails(expectedDimensions);
+        assertThat(updatedSettings, not(sameInstance(dimensionlessSettings)));
+        assertThat(updatedSettings.dimensions(), equalTo(expectedDimensions));
     }
 }

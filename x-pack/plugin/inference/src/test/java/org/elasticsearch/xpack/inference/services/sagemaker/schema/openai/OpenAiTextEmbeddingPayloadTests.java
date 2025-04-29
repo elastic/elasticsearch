@@ -91,6 +91,24 @@ public class OpenAiTextEmbeddingPayloadTests extends SageMakerSchemaPayloadTestC
             {"input":["hello","there"]}""");
     }
 
+    public void testRequestWithDimensionsNotSetByUserIgnoreDimensions() throws Exception {
+        SageMakerModel model = mock();
+        when(model.apiServiceSettings()).thenReturn(new OpenAiTextEmbeddingPayload.ApiServiceSettings(123, false));
+        when(model.apiTaskSettings()).thenReturn(new OpenAiTextEmbeddingPayload.ApiTaskSettings((String) null));
+        var request = new SageMakerInferenceRequest(
+            null,
+            null,
+            null,
+            List.of("hello", "there"),
+            randomBoolean(),
+            randomFrom(InputType.values())
+        );
+
+        var sdkByes = payload.requestBytes(model, request);
+        assertSdkBytes(sdkByes, """
+            {"input":["hello","there"]}""");
+    }
+
     public void testRequestWithOptionals() throws Exception {
         SageMakerModel model = mock();
         when(model.apiServiceSettings()).thenReturn(new OpenAiTextEmbeddingPayload.ApiServiceSettings(1234, true));

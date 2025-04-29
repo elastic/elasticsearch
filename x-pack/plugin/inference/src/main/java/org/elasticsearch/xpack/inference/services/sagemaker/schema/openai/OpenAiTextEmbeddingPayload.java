@@ -102,7 +102,7 @@ public class OpenAiTextEmbeddingPayload implements SageMakerSchemaPayload {
                 if (apiTaskSettings.user() != null) {
                     builder.field("user", apiTaskSettings.user());
                 }
-                if (apiServiceSettings.dimensions() != null) {
+                if (apiServiceSettings.dimensionsSetByUser() && apiServiceSettings.dimensions() != null) {
                     builder.field("dimensions", apiServiceSettings.dimensions());
                 }
                 builder.endObject();
@@ -174,10 +174,7 @@ public class OpenAiTextEmbeddingPayload implements SageMakerSchemaPayload {
         }
 
         @Override
-        public SageMakerStoredServiceSchema updateModelWithEmbeddingDetails(
-            SageMakerStoredServiceSchema currentSchema,
-            Integer dimensions
-        ) {
+        public SageMakerStoredServiceSchema updateModelWithEmbeddingDetails(Integer dimensions) {
             return new ApiServiceSettings(dimensions, false);
         }
     }

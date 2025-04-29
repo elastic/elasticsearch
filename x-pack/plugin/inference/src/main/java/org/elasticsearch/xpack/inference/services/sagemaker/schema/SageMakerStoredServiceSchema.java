@@ -69,7 +69,7 @@ public interface SageMakerStoredServiceSchema extends ServiceSettings {
      * {@link org.elasticsearch.xpack.inference.services.validation.TextEmbeddingModelValidator} will set the dimensions if the user
      * does not do it, so we need to store the dimensions and flip the {@link #dimensionsSetByUser()} boolean.
      */
-    default SageMakerStoredServiceSchema updateModelWithEmbeddingDetails(SageMakerStoredServiceSchema currentSchema, Integer dimensions) {
-        return currentSchema;
+    default SageMakerStoredServiceSchema updateModelWithEmbeddingDetails(Integer dimensions) {
+        return this;
     }
 }

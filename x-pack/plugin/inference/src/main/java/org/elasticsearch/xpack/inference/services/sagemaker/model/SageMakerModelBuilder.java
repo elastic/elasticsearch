@@ -100,8 +100,7 @@ public class SageMakerModelBuilder {
     }
 
     public SageMakerModel updateModelWithEmbeddingDetails(SageMakerModel model, int embeddingSize) {
-        var updatedApiServiceSettings = model.apiServiceSettings()
-            .updateModelWithEmbeddingDetails(model.apiServiceSettings(), embeddingSize);
+        var updatedApiServiceSettings = model.apiServiceSettings().updateModelWithEmbeddingDetails(embeddingSize);
 
         if (updatedApiServiceSettings == model.apiServiceSettings()) {
             return model;

@@ -62,9 +62,7 @@ public final class ParserUtils {
 
         List<T> results = new ArrayList<>(contexts.size());
         for (ParserRuleContext context : contexts) {
-            // TODO: revert
-            var result = visitor.visit(context);
-            results.add(clazz.cast(result));
+            results.add(clazz.cast(visitor.visit(context)));
         }
         return results;
     }

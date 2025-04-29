@@ -3490,30 +3490,6 @@ public class AnalyzerTests extends ESTestCase {
         assertThat(esRelation.output(), equalTo(NO_FIELDS));
     }
 
-    public void testResolveRerankInferenceId1() {
-        assumeTrue("Requires RERANK command", EsqlCapabilities.Cap.RERANK.isEnabled());
-
-        // Substring function is named, should work.
-        LogicalPlan plan = analyze("""
-            FROM movies METADATA _score
-              | WHERE QSTR("star wars")
-              | RERANK "star wars" ON title, str=SUBSTRING(overview, 0, 100), actors WITH rerankerInferenceId""", "mapping-books.json");
-        Rerank rerank = as(as(plan, Limit.class).child(), Rerank.class);
-        assertThat(rerank.inferenceId(), equalTo(string("reranking-inference-id")));
-    }
-
-    public void testResolveRerankInferenceId2() {
-        assumeTrue("Requires RERANK command", EsqlCapabilities.Cap.RERANK.isEnabled());
-
-        // Substring function is unnamed, should fail.
-        LogicalPlan plan = analyze("""
-            FROM movies METADATA _score
-              | WHERE QSTR("star wars")
-              | RERANK "star wars" ON title, SUBSTRING(overview, 0, 100), actors WITH rerankerInferenceId""", "mapping-books.json");
-        Rerank rerank = as(as(plan, Limit.class).child(), Rerank.class);
-        assertThat(rerank.inferenceId(), equalTo(string("reranking-inference-id")));
-    }
-
     public void testResolveRerankInferenceId() {
         assumeTrue("Requires RERANK command", EsqlCapabilities.Cap.RERANK.isEnabled());
 
@@ -3633,6 +3609,19 @@ public class AnalyzerTests extends ESTestCase {
             assertThat(rerank.rerankFields().get(2), equalTo(alias("yearRenamed", yearAttribute)));
 
             assertThat(rerank.scoreAttribute(), equalTo(getAttributeByName(relation.output(), MetadataAttribute.SCORE)));
+        }
+
+        {
+            // Unnamed field.
+            try {
+                LogicalPlan plan = analyze("""
+                    FROM books METADATA _score
+                    | WHERE title:"food"
+                    | RERANK "food" ON title, SUBSTRING(description, 0, 100), yearRenamed=year WITH `reranking-inference-id`
+                    """, "mapping-books.json");
+            } catch (ParsingException ex) {
+                assertThat(ex.getMessage(), containsString("line 3:36: mismatched input '(' expecting {'=', ',', '.', 'with'}"));
+            }
         }
 
         {

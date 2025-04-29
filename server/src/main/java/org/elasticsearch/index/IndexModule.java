@@ -180,7 +180,7 @@ public final class IndexModule {
     private final SetOnce<Engine.IndexCommitListener> indexCommitListener = new SetOnce<>();
     private final MapperMetrics mapperMetrics;
     private final IndexingStatsSettings indexingStatsSettings;
-    private final SearchStatsSettings searchStatsSettigns;
+    private final SearchStatsSettings searchStatsSettings;
 
     /**
      * Construct the index module for the index with the specified index settings. The index module contains extension points for plugins
@@ -219,7 +219,7 @@ public final class IndexModule {
         this.recoveryStateFactories = recoveryStateFactories;
         this.mapperMetrics = mapperMetrics;
         this.indexingStatsSettings = indexingStatsSettings;
-        this.searchStatsSettigns = searchStatsSettings;
+        this.searchStatsSettings = searchStatsSettings;
     }
 
     /**
@@ -557,7 +557,7 @@ public final class IndexModule {
                 mapperMetrics,
                 queryRewriteInterceptor,
                 indexingStatsSettings,
-                searchStatsSettigns
+                searchStatsSettings
             );
             success = true;
             return indexService;

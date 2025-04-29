@@ -40,6 +40,7 @@ import java.util.Objects;
  * regarding this node.
  */
 public class UpdateHealthInfoCacheAction extends ActionType<AcknowledgedResponse> {
+    private static final Logger logger = LogManager.getLogger(UpdateHealthInfoCacheAction.class);
 
     public static class Request extends HealthNodeRequest {
         private final String nodeId;
@@ -273,5 +274,4 @@ public class UpdateHealthInfoCacheAction extends ActionType<AcknowledgedResponse
         }
     }
 
-    private static final Logger logger = LogManager.getLogger(UpdateHealthInfoCacheAction.class);
 }

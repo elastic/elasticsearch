@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.security.authz.permission;
 import org.elasticsearch.action.admin.indices.mapping.put.TransportAutoPutMappingAction;
 import org.elasticsearch.action.admin.indices.mapping.put.TransportPutMappingAction;
 import org.elasticsearch.action.get.TransportGetAction;
+import org.elasticsearch.action.support.IndexComponentSelector;
 import org.elasticsearch.cluster.metadata.DataStreamTestHelper;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.common.UUIDs;
@@ -56,17 +57,17 @@ public class PermissionTests extends ESTestCase {
             // mapping updates are still permitted on indices and aliases
             when(mockIndexAbstraction.getName()).thenReturn("ingest_foo" + randomAlphaOfLength(3));
             when(mockIndexAbstraction.getType()).thenReturn(IndexAbstraction.Type.CONCRETE_INDEX);
-            assertThat(indexPredicate.test(mockIndexAbstraction), is(true));
+            assertThat(indexPredicate.test(mockIndexAbstraction, IndexComponentSelector.DATA), is(true));
             when(mockIndexAbstraction.getType()).thenReturn(IndexAbstraction.Type.ALIAS);
-            assertThat(indexPredicate.test(mockIndexAbstraction), is(true));
+            assertThat(indexPredicate.test(mockIndexAbstraction, IndexComponentSelector.DATA), is(true));
             // mapping updates are NOT permitted on data streams and backing indices
             when(mockIndexAbstraction.getType()).thenReturn(IndexAbstraction.Type.DATA_STREAM);
-            assertThat(indexPredicate.test(mockIndexAbstraction), is(false));
+            assertThat(indexPredicate.test(mockIndexAbstraction, IndexComponentSelector.DATA), is(false));
             when(mockIndexAbstraction.getType()).thenReturn(IndexAbstraction.Type.CONCRETE_INDEX);
             when(mockIndexAbstraction.getParentDataStream()).thenReturn(
                 DataStreamTestHelper.newInstance("ds", List.of(new Index("idx", UUIDs.randomBase64UUID(random()))))
             );
-            assertThat(indexPredicate.test(mockIndexAbstraction), is(false));
+            assertThat(indexPredicate.test(mockIndexAbstraction, IndexComponentSelector.DATA), is(false));
         }
     }
 
@@ -94,11 +95,16 @@ public class PermissionTests extends ESTestCase {
 
     // "baz_*foo", "/fool.*bar/"
     private void testAllowedIndicesMatcher(IsResourceAuthorizedPredicate indicesMatcher) {
-        assertThat(indicesMatcher.test(mockIndexAbstraction("foobar")), is(false));
-        assertThat(indicesMatcher.test(mockIndexAbstraction("fool")), is(false));
-        assertThat(indicesMatcher.test(mockIndexAbstraction("fool2bar")), is(true));
-        assertThat(indicesMatcher.test(mockIndexAbstraction("baz_foo")), is(true));
-        assertThat(indicesMatcher.test(mockIndexAbstraction("barbapapa")), is(false));
+        IndexAbstraction indexAbstraction4 = mockIndexAbstraction("foobar");
+        assertThat(indicesMatcher.test(indexAbstraction4, IndexComponentSelector.DATA), is(false));
+        IndexAbstraction indexAbstraction3 = mockIndexAbstraction("fool");
+        assertThat(indicesMatcher.test(indexAbstraction3, IndexComponentSelector.DATA), is(false));
+        IndexAbstraction indexAbstraction2 = mockIndexAbstraction("fool2bar");
+        assertThat(indicesMatcher.test(indexAbstraction2, IndexComponentSelector.DATA), is(true));
+        IndexAbstraction indexAbstraction1 = mockIndexAbstraction("baz_foo");
+        assertThat(indicesMatcher.test(indexAbstraction1, IndexComponentSelector.DATA), is(true));
+        IndexAbstraction indexAbstraction = mockIndexAbstraction("barbapapa");
+        assertThat(indicesMatcher.test(indexAbstraction, IndexComponentSelector.DATA), is(false));
     }
 
     private IndexAbstraction mockIndexAbstraction(String name) {

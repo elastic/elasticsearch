@@ -232,11 +232,6 @@ public final class IndicesPermission {
             );
         }
 
-        // TODO remove me (this has >700 usages in tests which would make for a horrible diff; will remove this once the main PR is merged)
-        public boolean test(IndexAbstraction indexAbstraction) {
-            return test(indexAbstraction.getName(), indexAbstraction, IndexComponentSelector.DATA);
-        }
-
         /**
          * Verifies if access is authorized to the given {@param indexAbstraction} resource.
          * The resource must exist. Otherwise, use the {@link #test(String, IndexAbstraction, IndexComponentSelector)} method.

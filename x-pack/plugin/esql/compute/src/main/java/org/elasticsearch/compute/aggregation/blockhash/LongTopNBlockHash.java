@@ -108,13 +108,12 @@ public final class LongTopNBlockHash extends BlockHash {
             hasNull = true;
             if (valuesInTop == limit) {
                 migrateToSmallTop();
-                if (valuesInTop == 1) {
+                if (valuesInTop == 0) {
                     lastTopValue = asc ? Long.MAX_VALUE : Long.MIN_VALUE;
                 } else {
                     lastTopValue = topValues.getWorstValue(0);
                 }
             }
-            migrateToSmallTop();
             return true;
         }
 
@@ -142,17 +141,16 @@ public final class LongTopNBlockHash extends BlockHash {
 
         topValues.collect(value, 0);
 
+        valuesInTop = Math.min(valuesInTop + 1, limit - (hasNull && nullsFirst ? 1 : 0));
         if (valuesInTop == limit) {
             lastTopValue = topValues.getWorstValue(0);
         } else if (valuesInTop == 1 || isBetterThan(lastTopValue, value)) {
             lastTopValue = value;
         }
-        valuesInTop = Math.min(valuesInTop + 1, limit - (hasNull && nullsFirst ? 1 : 0));
 
         // Full top and null, there's an extra value/null we must remove
         if (valuesInTop == limit && hasNull) {
             if (nullsFirst) {
-                migrateToSmallTop();
                 if (valuesInTop == 1) {
                     lastTopValue = asc ? Long.MAX_VALUE : Long.MIN_VALUE;
                 } else {
@@ -161,8 +159,6 @@ public final class LongTopNBlockHash extends BlockHash {
             } else {
                 hasNull = false;
             }
-        if (valuesInTop == limit && hasNull && nullsFirst == false) {
-            hasNull = false;
         }
 
         return true;
@@ -211,7 +207,6 @@ public final class LongTopNBlockHash extends BlockHash {
      * </p>
      */
     private boolean isInTop(long value) {
-        // TODO: Remove lastTopValue and use: long currentWorstValue = topValues.getWorstValue(0);
         return asc ? value <= lastTopValue : value >= lastTopValue;
     }
 

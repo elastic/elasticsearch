@@ -61,6 +61,7 @@ import org.elasticsearch.xpack.esql.plan.physical.AggregateExec;
 import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec;
 import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec.Sort;
 import org.elasticsearch.xpack.esql.plan.physical.FieldExtractExec;
+import org.elasticsearch.xpack.esql.plan.physical.TimeSeriesSourceExec;
 import org.elasticsearch.xpack.esql.planner.LocalExecutionPlanner.DriverParallelism;
 import org.elasticsearch.xpack.esql.planner.LocalExecutionPlanner.LocalExecutionPlannerContext;
 import org.elasticsearch.xpack.esql.planner.LocalExecutionPlanner.PhysicalOperation;
@@ -86,20 +87,11 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
      * Context of each shard we're operating against.
      */
     public interface ShardContext extends org.elasticsearch.compute.lucene.ShardContext {
-        /**
-         * Build something to load source {@code _source}.
-         */
-        SourceLoader newSourceLoader();
 
         /**
          * Convert a {@link QueryBuilder} into a real {@link Query lucene query}.
          */
         Query toQuery(QueryBuilder queryBuilder);
-
-        /**
-         * Returns something to load values from this field into a {@link Block}.
-         */
-        BlockLoader blockLoader(String name, boolean asUnsupportedSource, MappedFieldType.FieldExtractPreference fieldExtractPreference);
 
         /**
          * Tuning parameter for deciding when to use the "merge" stored field loader.
@@ -139,16 +131,11 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
                 )
             )
             .toList();
-        List<ValuesSourceReaderOperator.FieldInfo> fields = new ArrayList<>();
         int docChannel = source.layout.get(sourceAttr.id()).channel();
         for (Attribute attr : fieldExtractExec.attributesToExtract()) {
             layout.append(attr);
-            DataType dataType = attr.dataType();
-            MappedFieldType.FieldExtractPreference fieldExtractPreference = fieldExtractExec.fieldExtractPreference(attr);
-            ElementType elementType = PlannerUtils.toElementType(dataType, fieldExtractPreference);
-            IntFunction<BlockLoader> loader = s -> getBlockLoaderFor(s, attr, fieldExtractPreference);
-            fields.add(new ValuesSourceReaderOperator.FieldInfo(getFieldName(attr), elementType, loader));
         }
+        var fields = extractFields(fieldExtractExec.attributesToExtract(), fieldExtractExec::fieldExtractPreference);
         return source.with(new ValuesSourceReaderOperator.Factory(fields, readers, docChannel), layout.build());
     }
 
@@ -208,6 +195,10 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
 
     @Override
     public final PhysicalOperation sourcePhysicalOperation(EsQueryExec esQueryExec, LocalExecutionPlannerContext context) {
+        if (esQueryExec.indexMode() == IndexMode.TIME_SERIES) {
+            assert false : "Time series source should be translated to TimeSeriesSourceExec";
+            throw new IllegalStateException("Time series source should be translated to TimeSeriesSourceExec");
+        }
         final LuceneOperator.Factory luceneFactory;
         logger.trace("Query Exec is {}", esQueryExec);
 
@@ -232,31 +223,57 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
                 scoring
             );
         } else {
-            if (esQueryExec.indexMode() == IndexMode.TIME_SERIES) {
-                luceneFactory = TimeSeriesSortedSourceOperatorFactory.create(
-                    limit,
-                    context.pageSize(rowEstimatedSize),
-                    context.queryPragmas().taskConcurrency(),
-                    shardContexts,
-                    querySupplier(esQueryExec.query())
-                );
-            } else {
-                luceneFactory = new LuceneSourceOperator.Factory(
-                    shardContexts,
-                    querySupplier(esQueryExec.query()),
-                    context.queryPragmas().dataPartitioning(defaultDataPartitioning),
-                    context.queryPragmas().taskConcurrency(),
-                    context.pageSize(rowEstimatedSize),
-                    limit,
-                    scoring
-                );
-            }
+            luceneFactory = new LuceneSourceOperator.Factory(
+                shardContexts,
+                querySupplier(esQueryExec.query()),
+                context.queryPragmas().dataPartitioning(defaultDataPartitioning),
+                context.queryPragmas().taskConcurrency(),
+                context.pageSize(rowEstimatedSize),
+                limit,
+                scoring
+            );
         }
         Layout.Builder layout = new Layout.Builder();
         layout.append(esQueryExec.output());
         int instanceCount = Math.max(1, luceneFactory.taskConcurrency());
         context.driverParallelism(new DriverParallelism(DriverParallelism.Type.DATA_PARALLELISM, instanceCount));
         return PhysicalOperation.fromSource(luceneFactory, layout.build());
+    }
+
+    @Override
+    public PhysicalOperation timeSeriesSourceOperation(TimeSeriesSourceExec ts, LocalExecutionPlannerContext context) {
+
+        final int limit = ts.limit() != null ? (Integer) ts.limit().fold(context.foldCtx()) : NO_LIMIT;
+        final boolean emitDocIds = ts.attrs().stream().anyMatch(EsQueryExec::isSourceAttribute);
+        LuceneOperator.Factory luceneFactory = TimeSeriesSortedSourceOperatorFactory.create(
+            limit,
+            context.pageSize(ts.estimatedRowSize()),
+            context.queryPragmas().taskConcurrency(),
+            emitDocIds,
+            shardContexts,
+            extractFields(ts.attributesToExtract(), ts::fieldExtractPreference),
+            querySupplier(ts.query())
+        );
+        Layout.Builder layout = new Layout.Builder();
+        layout.append(ts.output());
+        int instanceCount = Math.max(1, luceneFactory.taskConcurrency());
+        context.driverParallelism(new DriverParallelism(DriverParallelism.Type.DATA_PARALLELISM, instanceCount));
+        return PhysicalOperation.fromSource(luceneFactory, layout.build());
+    }
+
+    private List<ValuesSourceReaderOperator.FieldInfo> extractFields(
+        List<Attribute> attributes,
+        Function<Attribute, MappedFieldType.FieldExtractPreference> preference
+    ) {
+        List<ValuesSourceReaderOperator.FieldInfo> fieldInfos = new ArrayList<>(attributes.size());
+        for (Attribute attr : attributes) {
+            DataType dataType = attr.dataType();
+            var fieldExtractPreference = preference.apply(attr);
+            ElementType elementType = PlannerUtils.toElementType(dataType, fieldExtractPreference);
+            IntFunction<BlockLoader> loader = s -> getBlockLoaderFor(s, attr, fieldExtractPreference);
+            fieldInfos.add(new ValuesSourceReaderOperator.FieldInfo(getFieldName(attr), elementType, loader));
+        }
+        return fieldInfos;
     }
 
     /**

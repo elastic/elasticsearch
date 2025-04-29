@@ -1613,7 +1613,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                 enableRewriteAggsToFilterByFilter,
                 source.aggregations().isInSortOrderExecutionRequired()
             );
-            context.addQuerySearchResultReleasable(aggContext);
+            context.addAggregationContext(aggContext);
             try {
                 final AggregatorFactories factories = source.aggregations().build(aggContext, null);
                 context.aggregations(

@@ -30,7 +30,7 @@ POST /sales/_search?size=0
   }
 }
 ```
-% TEST[setup:sales s/now-10M/M/10-2015/]
+% TEST[setup:sales s/now-10M\/M/10-2015/]
 
 1. < now minus 10 months, rounded down to the start of the month.
 2. >= now minus 10 months, rounded down to the start of the month.
@@ -255,7 +255,7 @@ POST /sales/_search?size=0
   }
 }
 ```
-% TEST[setup:sales s/now-10M/M/10-2015/]
+% TEST[setup:sales s/now-10M\/M/10-2015/]
 
 Response:
 

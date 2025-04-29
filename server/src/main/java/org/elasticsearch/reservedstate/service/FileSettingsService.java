@@ -389,7 +389,14 @@ public class FileSettingsService extends MasterNodeFileWatchingService implement
 
         @Override
         public synchronized HealthIndicatorResult calculate(boolean verbose, int maxAffectedResourcesCount, HealthInfo healthInfo) {
-            FileSettingsHealthInfo info = healthInfo.fileSettingsHealthInfo();
+            return calculate(healthInfo.fileSettingsHealthInfo());
+        }
+
+        public HealthIndicatorResult calculateFromCurrentInfo() {
+            return calculate(currentInfo);
+        }
+
+        private HealthIndicatorResult calculate(FileSettingsHealthInfo info) {
             if (info.isActive() == false) {
                 return createIndicator(GREEN, INACTIVE_SYMPTOM, HealthIndicatorDetails.EMPTY, List.of(), List.of());
             }

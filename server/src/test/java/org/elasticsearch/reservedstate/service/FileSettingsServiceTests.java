@@ -233,7 +233,7 @@ public class FileSettingsServiceTests extends ESTestCase {
         verify(fileSettingsService, times(1)).processFile(eq(watchedFile), eq(true));
         verify(controller, times(1)).process(any(), any(XContentParser.class), eq(ReservedStateVersionCheck.HIGHER_OR_SAME_VERSION), any());
 
-        assertEquals(YELLOW, healthIndicatorService.calculate(false, null).status());
+        assertEquals(YELLOW, healthIndicatorService.calculateFromCurrentInfo().status());
         verify(healthIndicatorService, times(1)).changeOccurred();
         verify(healthIndicatorService, times(1)).failureOccurred(argThat(s -> s.startsWith(IllegalStateException.class.getName())));
     }
@@ -268,7 +268,7 @@ public class FileSettingsServiceTests extends ESTestCase {
         verify(fileSettingsService, times(1)).processFile(eq(watchedFile), eq(true));
         verify(controller, times(1)).process(any(), any(XContentParser.class), eq(ReservedStateVersionCheck.HIGHER_OR_SAME_VERSION), any());
 
-        assertEquals(GREEN, healthIndicatorService.calculate(false, null).status());
+        assertEquals(GREEN, healthIndicatorService.calculateFromCurrentInfo().status());
         verify(healthIndicatorService, times(1)).changeOccurred();
         verify(healthIndicatorService, times(1)).successOccurred();
     }
@@ -323,7 +323,7 @@ public class FileSettingsServiceTests extends ESTestCase {
         verify(fileSettingsService, times(1)).processFile(eq(watchedFile), eq(false));
         verify(controller, times(1)).process(any(), any(XContentParser.class), eq(ReservedStateVersionCheck.HIGHER_VERSION_ONLY), any());
 
-        assertEquals(GREEN, healthIndicatorService.calculate(false, null).status());
+        assertEquals(GREEN, healthIndicatorService.calculateFromCurrentInfo().status());
         verify(healthIndicatorService, times(2)).changeOccurred();
         verify(healthIndicatorService, times(2)).successOccurred();
     }
@@ -367,7 +367,7 @@ public class FileSettingsServiceTests extends ESTestCase {
             argThat(e -> unwrapException(e) instanceof XContentParseException)
         );
 
-        assertEquals(YELLOW, healthIndicatorService.calculate(false, null).status());
+        assertEquals(YELLOW, healthIndicatorService.calculateFromCurrentInfo().status());
         verify(healthIndicatorService, Mockito.atLeast(1)).failureOccurred(contains(XContentParseException.class.getName()));
     }
 
@@ -434,7 +434,7 @@ public class FileSettingsServiceTests extends ESTestCase {
         fileSettingsService.close();
 
         // When the service is stopped, the health indicator should be green
-        assertEquals(GREEN, healthIndicatorService.calculate(false, null).status());
+        assertEquals(GREEN, healthIndicatorService.calculateFromCurrentInfo().status());
         verify(healthIndicatorService).stopOccurred();
 
         // let the deadlocked thread end, so we can cleanly exit the test

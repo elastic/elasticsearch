@@ -48,17 +48,17 @@ public class FileSettingsHealthIndicatorServiceTests extends ESTestCase {
     public void testStartAndStop() {
         assertEquals(
             new HealthIndicatorResult("file_settings", GREEN, INACTIVE_SYMPTOM, HealthIndicatorDetails.EMPTY, List.of(), List.of()),
-            healthIndicatorService.calculate(false, null)
+            healthIndicatorService.calculateFromCurrentInfo()
         );
         healthIndicatorService.startOccurred();
         assertEquals(
             new HealthIndicatorResult("file_settings", GREEN, NO_CHANGES_SYMPTOM, HealthIndicatorDetails.EMPTY, List.of(), List.of()),
-            healthIndicatorService.calculate(false, null)
+            healthIndicatorService.calculateFromCurrentInfo()
         );
         healthIndicatorService.stopOccurred();
         assertEquals(
             new HealthIndicatorResult("file_settings", GREEN, INACTIVE_SYMPTOM, HealthIndicatorDetails.EMPTY, List.of(), List.of()),
-            healthIndicatorService.calculate(false, null)
+            healthIndicatorService.calculateFromCurrentInfo()
         );
     }
 
@@ -69,7 +69,7 @@ public class FileSettingsHealthIndicatorServiceTests extends ESTestCase {
         // While the change is still in progress, we don't change the status.
         assertEquals(
             new HealthIndicatorResult("file_settings", GREEN, SUCCESS_SYMPTOM, HealthIndicatorDetails.EMPTY, List.of(), List.of()),
-            healthIndicatorService.calculate(false, null)
+            healthIndicatorService.calculateFromCurrentInfo()
         );
 
         healthIndicatorService.failureOccurred("whoopsie 1");
@@ -82,7 +82,7 @@ public class FileSettingsHealthIndicatorServiceTests extends ESTestCase {
                 STALE_SETTINGS_IMPACT,
                 List.of()
             ),
-            healthIndicatorService.calculate(false, null)
+            healthIndicatorService.calculateFromCurrentInfo()
         );
 
         healthIndicatorService.failureOccurred("whoopsie #2");
@@ -95,13 +95,13 @@ public class FileSettingsHealthIndicatorServiceTests extends ESTestCase {
                 STALE_SETTINGS_IMPACT,
                 List.of()
             ),
-            healthIndicatorService.calculate(false, null)
+            healthIndicatorService.calculateFromCurrentInfo()
         );
 
         healthIndicatorService.successOccurred();
         assertEquals(
             new HealthIndicatorResult("file_settings", GREEN, SUCCESS_SYMPTOM, HealthIndicatorDetails.EMPTY, List.of(), List.of()),
-            healthIndicatorService.calculate(false, null)
+            healthIndicatorService.calculateFromCurrentInfo()
         );
     }
 
@@ -128,7 +128,7 @@ public class FileSettingsHealthIndicatorServiceTests extends ESTestCase {
                 STALE_SETTINGS_IMPACT,
                 List.of()
             ),
-            service.calculate(false, null)
+            service.calculateFromCurrentInfo()
         );
     }
 }

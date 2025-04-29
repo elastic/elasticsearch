@@ -495,7 +495,7 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
         });
     }
 
-    private static MappedFieldType.BlockLoaderContext blContext() {
+    public static MappedFieldType.BlockLoaderContext blContext() {
         return new MappedFieldType.BlockLoaderContext() {
             @Override
             public String indexName() {

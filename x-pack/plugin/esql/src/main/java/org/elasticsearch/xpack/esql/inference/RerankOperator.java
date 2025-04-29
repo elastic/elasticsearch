@@ -169,9 +169,7 @@ public class RerankOperator extends InferenceOperator<RankedDocsResults> {
 
             @Override
             public void close() {
-                inputPage.allowPassingToDifferentDriver();
-                inputPage.releaseBlocks();
-
+                releasePageOnAnyThread(inputPage);
                 Releasables.closeExpectNoException(scoreBlockBuilder);
             }
 

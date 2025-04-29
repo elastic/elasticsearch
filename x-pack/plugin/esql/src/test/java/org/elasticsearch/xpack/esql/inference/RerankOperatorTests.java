@@ -71,7 +71,7 @@ public class RerankOperatorTests extends OperatorTestCase {
         scoreChannel = between(0, channelCount - 1);
         inputChannelElementTypes = IntStream.range(0, channelCount).sorted().mapToObj(this::randomElementType).collect(Collectors.toList());
         rowEncoderFactory = mockRowEncoderFactory();
-        encodedRowLength = between(1, 10);
+        encodedRowLength = between(1, 20);
     }
 
     @Before
@@ -236,7 +236,7 @@ public class RerankOperatorTests extends OperatorTestCase {
             XContentRowEncoder rowEncoder = mock(XContentRowEncoder.class);
             doAnswer(encoderInvocation -> {
                 Page inputPage = encoderInvocation.getArgument(0, Page.class);
-                BytesRef scratch = new BytesRef(randomRealisticUnicodeOfCodepointLength(encodedRowLength));
+                BytesRef scratch = new BytesRef(randomAlphanumericOfLength(encodedRowLength));
                 return driverContext.blockFactory().newConstantBytesRefBlockWith(scratch, inputPage.getPositionCount());
             }).when(rowEncoder).eval(any(Page.class));
 

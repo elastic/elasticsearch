@@ -389,7 +389,9 @@ public class DefaultIVFVectorsWriter extends IVFVectorsWriter {
             clusters[i] = new IntArrayList(floatVectorValues.size() / centroidAssignmentScorer.size() / 4);
         }
         long nanoTime = System.nanoTime();
-        assignCentroidsMerge(centroidAssignmentScorer, floatVectorValues, clusters);
+        // Can we do a pre-filter by finding the nearest centroids to the original vector centroids?
+        // We need to be careful on vecOrd vs. doc as we need random access to the raw vector for posting list writing
+        assignCentroids(centroidAssignmentScorer, floatVectorValues, clusters);
         if (mergeState.infoStream.isEnabled(IVF_VECTOR_COMPONENT)) {
             mergeState.infoStream.message(IVF_VECTOR_COMPONENT, "assignCentroids time ms: " + ((System.nanoTime() - nanoTime) / 1000000.0));
         }
@@ -413,8 +415,8 @@ public class DefaultIVFVectorsWriter extends IVFVectorsWriter {
             postingsOutput.writeVInt(size);
             postingsOutput.writeInt(Float.floatToIntBits(VectorUtil.dotProduct(centroid, centroid)));
             // TODO we might want to consider putting the docIds in a separate file
-            //   to aid with only having to fetch vectors from slower storage when they are required
-            //   keeping them in the same file indicates we pull the entire file into cache
+            // to aid with only having to fetch vectors from slower storage when they are required
+            // keeping them in the same file indicates we pull the entire file into cache
             docIdsWriter.writeDocIds(j -> floatVectorValues.ordToDoc(cluster.get(j)), size, postingsOutput);
             writePostingList(cluster, postingsOutput, binarizedByteVectorValues);
         }
@@ -458,14 +460,10 @@ public class DefaultIVFVectorsWriter extends IVFVectorsWriter {
     }
 
     static void assignCentroids(CentroidAssignmentScorer scorer, FloatVectorValues vectors, IntArrayList[] clusters) throws IOException {
-        short numCentroids = (short) scorer.size();
-        // If soar > 0, then we actually need to apply the projection, otherwise, its just the second
-        // nearest centroid
+        int numCentroids = scorer.size();
         // we at most will look at the EXT_SOAR_LIMIT_CHECK_RATIO nearest centroids if possible
         int soarToCheck = (int) (numCentroids * EXT_SOAR_LIMIT_CHECK_RATIO);
         int soarClusterCheckCount = Math.min(numCentroids - 1, soarToCheck);
-        // if lambda is `0`, that just means overspill to the second nearest, so we will only check the
-        // second nearest
         NeighborQueue neighborsToCheck = new NeighborQueue(soarClusterCheckCount + 1, true);
         OrdScoreIterator ordScoreIterator = new OrdScoreIterator(soarClusterCheckCount + 1);
         float[] scratch = new float[vectors.dimension()];
@@ -482,7 +480,7 @@ public class DefaultIVFVectorsWriter extends IVFVectorsWriter {
                 // pop the best
                 int sz = neighborsToCheck.size();
                 int best = neighborsToCheck.consumeNodesAndScoresMin(ordScoreIterator.ords, ordScoreIterator.scores);
-                // TODO yikes....
+                // reset the ordScoreIterator as it has consumed the ords and scores
                 ordScoreIterator.idx = sz;
                 bestScore = ordScoreIterator.getScore(best);
                 bestCentroid = ordScoreIterator.getOrd(best);
@@ -495,61 +493,6 @@ public class DefaultIVFVectorsWriter extends IVFVectorsWriter {
                 assignCentroidSOAR(
                     ordScoreIterator,
                     docID,
-                    bestCentroid,
-                    scorer.centroid(bestCentroid),
-                    bestScore,
-                    scratch,
-                    scorer,
-                    vectors,
-                    clusters
-                );
-            }
-            neighborsToCheck.clear();
-        }
-    }
-
-    static void assignCentroidsMerge(
-        CentroidAssignmentScorer scorer,
-        FloatVectorValues vectors,
-        IntArrayList[] clusters
-    ) throws IOException {
-        int numCentroids = scorer.size();
-        // If soar > 0, then we actually need to apply the projection, otherwise, its just the second
-        // nearest centroid
-        // we at most will look at the EXT_SOAR_LIMIT_CHECK_RATIO nearest centroids if possible
-        int soarToCheck = (int) (numCentroids * EXT_SOAR_LIMIT_CHECK_RATIO);
-        int soarClusterCheckCount = Math.min(numCentroids - 1, soarToCheck);
-        // TODO is this the right to check?
-        // If cluster quality is higher, maybe we can reduce this...
-        NeighborQueue neighborsToCheck = new NeighborQueue(soarClusterCheckCount + 1, true);
-        OrdScoreIterator ordScoreIterator = new OrdScoreIterator(soarClusterCheckCount + 1);
-        float[] scratch = new float[vectors.dimension()];
-        // Can we do a pre-filter by finding the nearest centroids to the original vector centroids?
-        // We need to be careful on vecOrd vs. doc as we need random access to the raw vector for posting list writing
-        for (int vecOrd = 0; vecOrd < vectors.size(); vecOrd++) {
-            float[] vector = vectors.vectorValue(vecOrd);
-            scorer.setScoringVector(vector);
-            int bestCentroid = 0;
-            float bestScore = Float.MAX_VALUE;
-            if (numCentroids > 1) {
-                for (short c = 0; c < numCentroids; c++) {
-                    float squareDist = scorer.score(c);
-                    neighborsToCheck.insertWithOverflow(c, squareDist);
-                }
-                int centroidCount = neighborsToCheck.size();
-                int bestIdx = neighborsToCheck.consumeNodesAndScoresMin(ordScoreIterator.ords, ordScoreIterator.scores);
-                ordScoreIterator.idx = centroidCount;
-                bestCentroid = ordScoreIterator.getOrd(bestIdx);
-                bestScore = ordScoreIterator.getScore(bestIdx);
-            }
-            if (clusters[bestCentroid] == null) {
-                clusters[bestCentroid] = new IntArrayList(16);
-            }
-            clusters[bestCentroid].add(vecOrd);
-            if (soarClusterCheckCount > 0) {
-                assignCentroidSOAR(
-                    ordScoreIterator,
-                    vecOrd,
                     bestCentroid,
                     scorer.centroid(bestCentroid),
                     bestScore,

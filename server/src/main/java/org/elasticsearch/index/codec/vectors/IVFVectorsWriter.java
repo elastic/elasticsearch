@@ -262,7 +262,7 @@ public abstract class IVFVectorsWriter extends KnnVectorsWriter {
             try (IndexOutput out = mergeState.segmentInfo.dir.createTempOutput(mergeState.segmentInfo.name, "ivf_", IOContext.DEFAULT)) {
                 name = out.getName();
                 // TODO do this better, we shouldn't have to write to a temp file, we should be able to
-                //  to just from the merged vector values.
+                // to just from the merged vector values.
                 numVectors = writeFloatVectorValues(fieldInfo, out, MergedVectorValues.mergeFloatVectorValues(fieldInfo, mergeState));
                 success = true;
             } finally {
@@ -274,9 +274,9 @@ public abstract class IVFVectorsWriter extends KnnVectorsWriter {
             int vectorCount = 0;
             for (int idx = 0; idx < mergeState.knnVectorsReaders.length; idx++) {
                 if (mergeState.fieldInfos[idx] == null
-                  || mergeState.fieldInfos[idx].hasVectorValues() == false
-                  || mergeState.fieldInfos[idx].fieldInfo(fieldInfo.name) == null
-                  || mergeState.fieldInfos[idx].fieldInfo(fieldInfo.name).hasVectorValues() == false) {
+                    || mergeState.fieldInfos[idx].hasVectorValues() == false
+                    || mergeState.fieldInfos[idx].fieldInfo(fieldInfo.name) == null
+                    || mergeState.fieldInfos[idx].fieldInfo(fieldInfo.name).hasVectorValues() == false) {
                     continue;
                 }
                 KnnVectorsReader knnReaders = mergeState.knnVectorsReaders[idx];

@@ -389,7 +389,7 @@ public class IndexEngineTests extends AbstractEngineTestCase {
         DocumentSizeReporter documentSizeReporter = mock(DocumentSizeReporter.class);
         when(
             documentParsingProvider.newDocumentSizeReporter(
-                eq(indexConfig.getShardId().getIndexName()),
+                eq(indexConfig.getShardId().getIndex()),
                 eq(mapperService),
                 any(DocumentSizeAccumulator.class)
             )
@@ -438,7 +438,7 @@ public class IndexEngineTests extends AbstractEngineTestCase {
         DocumentSizeReporter documentSizeReporter = mock(DocumentSizeReporter.class);
         when(
             documentParsingProvider.newDocumentSizeReporter(
-                eq(indexConfig.getShardId().getIndexName()),
+                eq(indexConfig.getShardId().getIndex()),
                 eq(mapperService),
                 eq(documentSizeAccumulator)
             )

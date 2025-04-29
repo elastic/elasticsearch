@@ -343,7 +343,7 @@ final class CanMatchPreFilterSearchPhase {
         }
 
         private void onOperation(int idx, CanMatchShardResponse response) {
-            failedResponses.add(idx);
+            failedResponses.remove(idx);
             consumeResult(response);
             if (countDown.countDown()) {
                 finishRound();

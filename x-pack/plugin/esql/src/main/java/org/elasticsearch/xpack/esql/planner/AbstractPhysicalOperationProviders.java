@@ -174,7 +174,7 @@ public abstract class AbstractPhysicalOperationProviders implements PhysicalOper
             );
             // time-series aggregation
             if (aggregateExec instanceof TimeSeriesAggregateExec ts) {
-                operatorFactory = timeSeriesAggregatorOperatorFactor(
+                operatorFactory = timeSeriesAggregatorOperatorFactory(
                     ts,
                     aggregatorMode,
                     aggregatorFactories,
@@ -379,7 +379,7 @@ public abstract class AbstractPhysicalOperationProviders implements PhysicalOper
         LocalExecutionPlannerContext context
     );
 
-    public abstract Operator.OperatorFactory timeSeriesAggregatorOperatorFactor(
+    public abstract Operator.OperatorFactory timeSeriesAggregatorOperatorFactory(
         TimeSeriesAggregateExec ts,
         AggregatorMode aggregatorMode,
         List<GroupingAggregator.Factory> aggregatorFactories,

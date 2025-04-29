@@ -410,12 +410,12 @@ First, we look at the hits for the query from the `standard` retriever.
     }
 ]
 ```
+% TEST[skip:example fragment]
 
 1. rank 1, `_id` 4
 2. rank 2, `_id` 3
 3. rank 3, `_id` 2
 4. rank 4, `_id` 1
-% TEST[skip:example fragment]
 
 Note that our first hit doesn’t have a value for the `vector` field. Now, we look at the results for the kNN search from the `knn` retriever.
 
@@ -462,12 +462,12 @@ Note that our first hit doesn’t have a value for the `vector` field. Now, we l
     }
 ]
 ```
+% TEST[skip:example fragment]
 
 1. rank 1, `_id` 3
 2. rank 2, `_id` 2
 3. rank 3, `_id` 1
 4. rank 4, `_id` 5
-% TEST[skip:example fragment]
 
 We can now take the two individually ranked result sets and apply the RRF formula to them using parameters from the `rrf` retriever to get our final ranking.
 

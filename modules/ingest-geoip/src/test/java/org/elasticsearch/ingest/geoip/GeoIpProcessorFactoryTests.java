@@ -550,10 +550,6 @@ public class GeoIpProcessorFactoryTests extends ESTestCase {
             config.put("field", "source_field");
             config.put("database_file", "GeoLite2-City.mmdb");
 
-            Map<String, Object> document = new HashMap<>();
-            document.put("source_field", "89.160.20.128");
-            IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), document);
-
             GeoIpProcessor.DatabaseUnavailableProcessor processor = (GeoIpProcessor.DatabaseUnavailableProcessor) factory.create(
                 null,
                 null,
@@ -561,12 +557,14 @@ public class GeoIpProcessorFactoryTests extends ESTestCase {
                 config,
                 null
             );
-            processor.execute(ingestDocument);
-            assertThat(ingestDocument.getSourceAndMetadata().get("geoip"), nullValue());
-            assertThat(
-                ingestDocument.getSourceAndMetadata().get("tags"),
-                equalTo(List.of("_geoip_database_unavailable_GeoLite2-City.mmdb"))
-            );
+
+            IngestDocument document;
+            {
+                document = RandomDocumentPicks.randomIngestDocument(random(), new HashMap<>(Map.of("source_field", "89.160.20.128")));
+                processor.execute(document);
+                assertThat(document.getSourceAndMetadata().get("geoip"), nullValue());
+                assertThat(document.getSourceAndMetadata().get("tags"), equalTo(List.of("_geoip_database_unavailable_GeoLite2-City.mmdb")));
+            }
         }
 
         copyDatabase("GeoLite2-City-Test.mmdb", geoipTmpDir);

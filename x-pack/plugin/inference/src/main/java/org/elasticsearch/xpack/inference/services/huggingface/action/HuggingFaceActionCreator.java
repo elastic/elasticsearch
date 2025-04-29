@@ -24,7 +24,7 @@ import org.elasticsearch.xpack.inference.services.huggingface.embeddings.Hugging
 import org.elasticsearch.xpack.inference.services.huggingface.request.completion.HuggingFaceUnifiedChatCompletionRequest;
 import org.elasticsearch.xpack.inference.services.huggingface.response.HuggingFaceElserResponseEntity;
 import org.elasticsearch.xpack.inference.services.huggingface.response.HuggingFaceEmbeddingsResponseEntity;
-import org.elasticsearch.xpack.inference.services.openai.OpenAiUnifiedChatCompletionResponseHandler;
+import org.elasticsearch.xpack.inference.services.openai.OpenAiChatCompletionResponseHandler;
 import org.elasticsearch.xpack.inference.services.openai.response.OpenAiChatCompletionResponseEntity;
 
 import java.util.Objects;
@@ -37,10 +37,10 @@ import static org.elasticsearch.core.Strings.format;
 public class HuggingFaceActionCreator implements HuggingFaceActionVisitor {
 
     public static final String COMPLETION_ERROR_PREFIX = "Hugging Face completions";
-    private static final String USER_ROLE = "user";
+    static final String USER_ROLE = "user";
     private static final String FAILED_TO_SEND_REQUEST_ERROR_MESSAGE =
         "Failed to send Hugging Face %s request from inference entity id [%s]";
-    static final ResponseHandler COMPLETION_HANDLER = new OpenAiUnifiedChatCompletionResponseHandler(
+    static final ResponseHandler COMPLETION_HANDLER = new OpenAiChatCompletionResponseHandler(
         "hugging face completion",
         OpenAiChatCompletionResponseEntity::fromResponse
     );

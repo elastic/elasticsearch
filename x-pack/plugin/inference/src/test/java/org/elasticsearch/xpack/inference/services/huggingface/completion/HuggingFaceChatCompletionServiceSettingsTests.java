@@ -295,4 +295,13 @@ public class HuggingFaceChatCompletionServiceSettingsTests extends AbstractWireS
             RateLimitSettingsTests.createRandom()
         );
     }
+
+    public static Map<String, Object> getServiceSettingsMap(String url, String model) {
+        var map = new HashMap<String, Object>();
+
+        map.put(ServiceFields.URL, url);
+        map.put(ServiceFields.MODEL_ID, model);
+
+        return map;
+    }
 }

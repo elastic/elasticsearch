@@ -57,6 +57,7 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
+import static org.hamcrest.Matchers.in;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.iterableWithSize;
 import static org.hamcrest.Matchers.notNullValue;
@@ -2117,6 +2118,140 @@ public class FailureStoreSecurityRestIT extends ESRestTestCase {
         ObjectPath path = assertOKAndCreateObjectPath(response);
         assertThat(path.evaluate("data_stream_count"), equalTo(0));
         assertThat(path.evaluate("backing_indices"), equalTo(0));
+    }
+
+    public void testWatcher() throws Exception {
+        setupDataStream();
+        setupOtherDataStream();
+
+        final Tuple<String, String> backingIndices = getSingleDataAndFailureIndices("test1");
+        final String dataIndexName = backingIndices.v1();
+        final String failureIndexName = backingIndices.v2();
+
+        final String watchId = "failures-watch";
+        final String username = "user";
+        final String roleName = "role";
+        createUser(username, PASSWORD, roleName);
+
+        {
+            // grant access to the failure store
+            createOrUpdateRoleAndApiKey(username, roleName, """
+                {
+                  "cluster": ["manage_security", "manage_watcher"],
+                  "indices": [
+                    {
+                      "names": ["test1"],
+                      "privileges": ["read_failure_store"]
+                    }
+                  ]
+                }
+                """);
+
+            // searching the failure store should return only test1 failure indices
+            createOrUpdateWatcher(username, watchId, Strings.format("""
+                {
+                    "trigger": { "schedule": { "interval": "60m"}},
+                    "input": {
+                        "search": {
+                            "request": {
+                                "indices": [ "%s" ],
+                                "body": {"query": {"match_all": {}}}
+                            }
+                        }
+                    }
+                }""", randomFrom("test1::failures", "test*::failures", "*::failures", failureIndexName)));
+            executeWatchAndAssertResults(username, watchId, failureIndexName);
+
+            // searching the data should return empty results
+            createOrUpdateWatcher(username, watchId, Strings.format("""
+                {
+                    "trigger": { "schedule": { "interval": "60m"}},
+                    "input": {
+                        "search": {
+                            "request": {
+                                "indices": [ "%s" ],
+                                "body": {"query": {"match_all": {}}}
+                            }
+                        }
+                    }
+                }""", randomFrom(dataIndexName, "*", "test*", "test1", "test1::data")));
+            executeWatchAndAssertEmptyResults(username, watchId);
+        }
+
+        {
+            // remove read_failure_store and add read
+            createOrUpdateRoleAndApiKey(username, roleName, """
+                {
+                  "cluster": ["manage_security", "manage_watcher"],
+                  "indices": [
+                    {
+                      "names": ["test1"],
+                      "privileges": ["read"]
+                    }
+                  ]
+                }
+                """);
+
+            // searching the failure store should return empty results
+            createOrUpdateWatcher(username, watchId, Strings.format("""
+                {
+                    "trigger": { "schedule": { "interval": "60m"}},
+                    "input": {
+                        "search": {
+                            "request": {
+                                "indices": [ "%s" ],
+                                "body": {"query": {"match_all": {}}}
+                            }
+                        }
+                    }
+                }""", randomFrom("test1::failures", "test*::failures", "*::failures", failureIndexName)));
+            executeWatchAndAssertEmptyResults(username, watchId);
+
+            // searching the data should return single result
+            createOrUpdateWatcher(username, watchId, Strings.format("""
+                {
+                    "trigger": { "schedule": { "interval": "60m"}},
+                    "input": {
+                        "search": {
+                            "request": {
+                                "indices": [ "%s" ],
+                                "body": {"query": {"match_all": {}}}
+                            }
+                        }
+                    }
+                }""", randomFrom("*", "test*", "test1", "test1::data", dataIndexName)));
+            executeWatchAndAssertResults(username, watchId, dataIndexName);
+        }
+    }
+
+    private void executeWatchAndAssertResults(String user, String watchId, final String... expectedIndices) throws IOException {
+        Request request = new Request("POST", "_watcher/watch/" + watchId + "/_execute");
+        Response response = performRequest(user, request);
+        ObjectPath path = assertOKAndCreateObjectPath(response);
+        assertThat(path.evaluate("watch_record.user"), equalTo(user));
+        assertThat(path.evaluate("watch_record.state"), equalTo("executed"));
+        assertThat(path.evaluate("watch_record.result.input.status"), equalTo("success"));
+        assertThat(path.evaluate("watch_record.result.input.payload.hits.total"), equalTo(expectedIndices.length));
+        List<Map<String, ?>> hits = path.evaluate("watch_record.result.input.payload.hits.hits");
+        hits.stream().map(hit -> hit.get("_index")).forEach(index -> { assertThat(index, is(in(expectedIndices))); });
+    }
+
+    private void executeWatchAndAssertEmptyResults(String user, String watchId) throws IOException {
+        Request request = new Request("POST", "_watcher/watch/" + watchId + "/_execute");
+        Response response = performRequest(user, request);
+        ObjectPath path = assertOKAndCreateObjectPath(response);
+        assertThat(path.evaluate("watch_record.user"), equalTo(user));
+        assertThat(path.evaluate("watch_record.state"), equalTo("executed"));
+        assertThat(path.evaluate("watch_record.result.input.status"), equalTo("success"));
+        assertThat(path.evaluate("watch_record.result.input.payload.hits.total"), equalTo(0));
+        List<Map<String, ?>> hits = path.evaluate("watch_record.result.input.payload.hits.hits");
+        assertThat(hits.size(), equalTo(0));
+    }
+
+    private void createOrUpdateWatcher(String user, String watchId, String watch) throws IOException {
+        Request request = new Request("PUT", "/_watcher/watch/" + watchId);
+        request.setJsonEntity(watch);
+        assertOK(performRequest(user, request));
     }
 
     public void testAliasBasedAccess() throws Exception {

@@ -376,12 +376,7 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
 
     public Settings getEffectiveSettings(Metadata metadata) {
         ComposableIndexTemplate template = getMatchingIndexTemplate(metadata);
-        final Settings templateSettings;
-        if (template.template() == null || template.template().settings() == null) {
-            templateSettings = Settings.EMPTY;
-        } else {
-            templateSettings = template.template().settings();
-        }
+        Settings templateSettings = MetadataIndexTemplateService.resolveSettings(template, metadata.componentTemplates());
         return templateSettings.merge(settings);
     }
 

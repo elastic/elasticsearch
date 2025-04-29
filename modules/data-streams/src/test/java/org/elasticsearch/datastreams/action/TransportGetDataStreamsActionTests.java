@@ -11,6 +11,7 @@ package org.elasticsearch.datastreams.action;
 import org.elasticsearch.action.datastreams.GetDataStreamAction;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.ComponentTemplate;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.DataStreamFailureStoreSettings;
@@ -40,6 +41,7 @@ import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -543,11 +545,44 @@ public class TransportGetDataStreamsActionTests extends ESTestCase {
         GetDataStreamAction.Request req = new GetDataStreamAction.Request(TEST_REQUEST_TIMEOUT, new String[] {});
         final String templatePolicy = "templatePolicy";
         final String templateIndexMode = IndexMode.LOOKUP.getName();
-        final String dataStreamPolicy = "dataStreamPolicy";
-        final String dataStreamIndexMode = IndexMode.LOGSDB.getName();
 
         ClusterState state = getClusterStateWithDataStreamWithSettings(
             projectId,
+            Settings.builder()
+                .put(IndexMetadata.LIFECYCLE_NAME, templatePolicy)
+                .put(IndexSettings.MODE.getKey(), templateIndexMode)
+                .build(),
+            Settings.EMPTY,
+            Settings.EMPTY
+        );
+
+        GetDataStreamAction.Response response = TransportGetDataStreamsAction.innerOperation(
+            state.projectState(projectId),
+            req,
+            resolver,
+            systemIndices,
+            ClusterSettings.createBuiltInClusterSettings(),
+            dataStreamGlobalRetentionSettings,
+            emptyDataStreamFailureStoreSettings,
+            new IndexSettingProviders(Set.of()),
+            null
+        );
+        assertNotNull(response.getDataStreams());
+        assertThat(response.getDataStreams().size(), equalTo(1));
+        assertThat(response.getDataStreams().get(0).getIlmPolicy(), equalTo(templatePolicy));
+        assertThat(response.getDataStreams().get(0).getIndexModeName(), equalTo(templateIndexMode));
+    }
+
+    public void testGetEffectiveSettingsComponentTemplateOnlySettings() {
+        // Set a lifecycle only in the template, and make sure that is in the response:
+        ProjectId projectId = randomProjectIdOrDefault();
+        GetDataStreamAction.Request req = new GetDataStreamAction.Request(TEST_REQUEST_TIMEOUT, new String[] {});
+        final String templatePolicy = "templatePolicy";
+        final String templateIndexMode = IndexMode.LOOKUP.getName();
+
+        ClusterState state = getClusterStateWithDataStreamWithSettings(
+            projectId,
+            Settings.EMPTY,
             Settings.builder()
                 .put(IndexMetadata.LIFECYCLE_NAME, templatePolicy)
                 .put(IndexSettings.MODE.getKey(), templateIndexMode)
@@ -587,6 +622,10 @@ public class TransportGetDataStreamsActionTests extends ESTestCase {
                 .put(IndexSettings.MODE.getKey(), templateIndexMode)
                 .build(),
             Settings.builder()
+                .put(IndexMetadata.LIFECYCLE_NAME, templatePolicy)
+                .put(IndexSettings.MODE.getKey(), templateIndexMode)
+                .build(),
+            Settings.builder()
                 .put(IndexMetadata.LIFECYCLE_NAME, dataStreamPolicy)
                 .put(IndexSettings.MODE.getKey(), dataStreamIndexMode)
                 .build()
@@ -611,6 +650,7 @@ public class TransportGetDataStreamsActionTests extends ESTestCase {
     private static ClusterState getClusterStateWithDataStreamWithSettings(
         ProjectId projectId,
         Settings templateSettings,
+        Settings componentTemplateSettings,
         Settings dataStreamSettings
     ) {
         String dataStreamName = "data-stream-1";
@@ -625,8 +665,16 @@ public class TransportGetDataStreamsActionTests extends ESTestCase {
                 .indexPatterns(List.of("*"))
                 .template(Template.builder().settings(templateSettings))
                 .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate())
+                .componentTemplates(List.of("component_template_1"))
                 .build()
         );
+        ComponentTemplate componentTemplate = new ComponentTemplate(
+            Template.builder().settings(componentTemplateSettings).build(),
+            null,
+            null,
+            null
+        );
+        builder.componentTemplates(Map.of("component_template_1", componentTemplate));
 
         List<IndexMetadata> backingIndices = new ArrayList<>();
         for (int backingIndexNumber = 1; backingIndexNumber <= numberOfBackingIndices; backingIndexNumber++) {

@@ -21,7 +21,6 @@ import java.util.concurrent.atomic.AtomicReference;
  */
 public class SearchStatsSettings {
 
-
     static final TimeValue RECENT_READ_LOAD_HALF_LIFE_DEFAULT = TimeValue.timeValueSeconds(15); // TODO this is set to seconds for debugging
     static final TimeValue RECENT_READ_LOAD_HALF_LIFE_MIN = TimeValue.timeValueSeconds(1); // A sub-second half-life makes no sense
     static final TimeValue RECENT_READ_LOAD_HALF_LIFE_MAX = TimeValue.timeValueDays(100_000); // Long.MAX_VALUE nanos, rounded down

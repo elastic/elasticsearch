@@ -833,16 +833,11 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
 
     private Alias visitRerankField(EsqlBaseParser.RerankFieldContext ctx, Source source) {
         UnresolvedAttribute id = visitQualifiedName(ctx.qualifiedName());
-        // TODO: check for null here like visitQualifiedName above.
+        assert id != null;
 
         var boolExprCtx = ctx.booleanExpression();
         Expression value = boolExprCtx == null ? id : expression(boolExprCtx);
-        // Try here.
-        if (id == null && value instanceof UnresolvedFunction) {
-            throw new ParsingException(source, "Expected identifier.");
-        }
-        String name = id == null ? source.text() : id.name();
-        return new Alias(source, name, value);
+        return new Alias(source, id.name(), value);
     }
 
     @Override

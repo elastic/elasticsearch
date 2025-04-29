@@ -346,7 +346,7 @@ public interface Block extends Accountable, BlockLoader.Block, Writeable, RefCou
     static void writeTypedBlock(Block block, StreamOutput out) throws IOException {
         if (out.getTransportVersion().before(TransportVersions.AGGREGATE_METRIC_DOUBLE_BLOCK)
             && block instanceof AggregateMetricDoubleBlock aggregateMetricDoubleBlock) {
-            block = AggregateMetricDoubleBlock.toCompositeBlock(aggregateMetricDoubleBlock);
+            block = aggregateMetricDoubleBlock.asCompositeBlock();
         }
         block.elementType().writeTo(out);
         block.writeTo(out);

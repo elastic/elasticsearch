@@ -55,12 +55,12 @@ public final class AggregateMetricDoubleBlock extends AbstractNonThreadSafeRefCo
         return new AggregateMetricDoubleBlock(min, max, sum, count);
     }
 
-    public static CompositeBlock toCompositeBlock(AggregateMetricDoubleBlock block) {
+    public CompositeBlock asCompositeBlock() {
         final Block[] blocks = new Block[4];
-        blocks[AggregateMetricDoubleBlockBuilder.Metric.MIN.getIndex()] = block.minBlock();
-        blocks[AggregateMetricDoubleBlockBuilder.Metric.MAX.getIndex()] = block.maxBlock();
-        blocks[AggregateMetricDoubleBlockBuilder.Metric.SUM.getIndex()] = block.sumBlock();
-        blocks[AggregateMetricDoubleBlockBuilder.Metric.COUNT.getIndex()] = block.countBlock();
+        blocks[AggregateMetricDoubleBlockBuilder.Metric.MIN.getIndex()] = minBlock;
+        blocks[AggregateMetricDoubleBlockBuilder.Metric.MAX.getIndex()] = maxBlock;
+        blocks[AggregateMetricDoubleBlockBuilder.Metric.SUM.getIndex()] = sumBlock;
+        blocks[AggregateMetricDoubleBlockBuilder.Metric.COUNT.getIndex()] = countBlock;
         return new CompositeBlock(blocks);
     }
 
@@ -146,7 +146,7 @@ public final class AggregateMetricDoubleBlock extends AbstractNonThreadSafeRefCo
 
     @Override
     public boolean doesHaveMultivaluedFields() {
-        if (false == Stream.of(minBlock, maxBlock, sumBlock, countBlock).anyMatch(Block::mayHaveMultivaluedFields)) {
+        if (Stream.of(minBlock, maxBlock, sumBlock, countBlock).noneMatch(Block::mayHaveMultivaluedFields)) {
             return false;
         }
         return Stream.of(minBlock, maxBlock, sumBlock, countBlock).anyMatch(Block::doesHaveMultivaluedFields);

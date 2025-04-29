@@ -141,14 +141,13 @@ public class ToAggregateMetricDouble extends AbstractConvertFunction {
         }
 
         private Block build() {
-            AggregateMetricDoubleBlock aggBlock;
             DoubleBlock doubleBlock = null;
             IntBlock countBlock = null;
             boolean success = false;
             try {
                 doubleBlock = valuesBuilder.build().asBlock();
                 countBlock = blockFactory.newConstantIntBlockWith(1, doubleBlock.getPositionCount());
-                aggBlock = new AggregateMetricDoubleBlock(doubleBlock, doubleBlock, doubleBlock, countBlock);
+                AggregateMetricDoubleBlock aggBlock = new AggregateMetricDoubleBlock(doubleBlock, doubleBlock, doubleBlock, countBlock);
                 doubleBlock.incRef();
                 doubleBlock.incRef();
                 success = true;

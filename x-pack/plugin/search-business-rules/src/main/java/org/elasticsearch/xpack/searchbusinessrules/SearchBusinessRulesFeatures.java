@@ -23,6 +23,6 @@ public class SearchBusinessRulesFeatures implements FeatureSpecification {
 
     @Override
     public Set<NodeFeature> getTestFeatures() {
-        return Set.of(PINNED_RETRIEVER_FEATURE);
+        return Set.of();
     }
 }

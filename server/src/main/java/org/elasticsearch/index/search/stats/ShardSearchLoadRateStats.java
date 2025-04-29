@@ -41,12 +41,12 @@ public class ShardSearchLoadRateStats {
 
     private ExponentiallyWeightedMovingRate ewmRate;
 
-    private double lambdaInInverseNanos;
+    private double lambdaInInverseMillis;
 
     public ShardSearchLoadRateStats(SearchStatsSettings settings) {
         this.lastTrackedTime = 0L;
-        this.lambdaInInverseNanos = Math.log(2.0) / settings.getRecentReadLoadHalfLifeForNewShards().nanos();
-        this.ewmRate = new ExponentiallyWeightedMovingRate(lambdaInInverseNanos, System.currentTimeMillis());
+        this.lambdaInInverseMillis = Math.log(2.0) / settings.getRecentReadLoadHalfLifeForNewShards().millis();
+        this.ewmRate = new ExponentiallyWeightedMovingRate(lambdaInInverseMillis, System.currentTimeMillis());
     }
 
     /**

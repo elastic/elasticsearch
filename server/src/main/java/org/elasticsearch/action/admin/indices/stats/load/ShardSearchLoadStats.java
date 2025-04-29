@@ -73,12 +73,7 @@ public class ShardSearchLoadStats implements Writeable {
 
     @Override
     public int hashCode() {
-        return Objects.hash(
-            indexName,
-            shardId,
-            allocationId,
-            emwRate
-        );
+        return Objects.hash(indexName, shardId, allocationId, emwRate);
     }
 
     /**
@@ -119,9 +114,9 @@ public class ShardSearchLoadStats implements Writeable {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-         out.writeString(indexName);
-         out.writeVInt(shardId);
-         out.writeString(allocationId);
-         out.writeDouble(emwRate);
+        out.writeString(indexName);
+        out.writeVInt(shardId);
+        out.writeString(allocationId);
+        out.writeDouble(emwRate);
     }
 }

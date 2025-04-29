@@ -420,9 +420,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.plugin.DataNodeRequestSenderIT
   method: testSearchWhileRelocating
   issue: https://github.com/elastic/elasticsearch/issues/127188
-- class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeIT
-  method: test
-  issue: https://github.com/elastic/elasticsearch/issues/127157
 - class: org.elasticsearch.geometry.utils.SpatialEnvelopeVisitorTests
   method: testVisitGeoPointsWrapping
   issue: https://github.com/elastic/elasticsearch/issues/123425
@@ -444,6 +441,9 @@ tests:
 - class: org.elasticsearch.action.admin.cluster.state.TransportClusterStateActionDisruptionIT
   method: testLocalRequestAlwaysSucceeds
   issue: https://github.com/elastic/elasticsearch/issues/127423
+- class: org.elasticsearch.action.admin.cluster.state.TransportClusterStateActionDisruptionIT
+  method: testLocalRequestWaitsForMetadata
+  issue: https://github.com/elastic/elasticsearch/issues/127466
 
 # Examples:
 #

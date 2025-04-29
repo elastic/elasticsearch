@@ -418,7 +418,15 @@ public class SparseVectorQueryBuilder extends AbstractQueryBuilder<SparseVectorQ
 
         SparseVectorFieldMapper.IndexOptions indexOptions = sparseVectorFieldMapper.getIndexOptions();
         if (indexOptions == null) {
-            return new IndexFieldPruningSettings(null, null);
+            // return the default if not set in the index options
+            return new IndexFieldPruningSettings(
+                true,
+                new TokenPruningConfig(
+                    TokenPruningConfig.DEFAULT_TOKENS_FREQ_RATIO_THRESHOLD,
+                    TokenPruningConfig.DEFAULT_TOKENS_WEIGHT_THRESHOLD,
+                    false
+                )
+            );
         }
 
         Boolean indexOptionsPrune = indexOptions.getPrune();

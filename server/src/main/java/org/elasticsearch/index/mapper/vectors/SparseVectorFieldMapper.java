@@ -144,13 +144,10 @@ public class SparseVectorFieldMapper extends FieldMapper {
             return new IndexOptions(false, null);
         }
 
-        // index options are not set - for new indices, we
-        // need to set pruning to true by default
-        // with a default pruning configuration
-        return new IndexOptions(
-            true,
-            new PruningConfig(PruningConfig.DEFAULT_TOKENS_FREQ_RATIO_THRESHOLD, PruningConfig.DEFAULT_TOKENS_WEIGHT_THRESHOLD)
-        );
+        // index options are not set - for new indices,
+        // if this is null, in the query will use the
+        // proper defaults
+        return null;
     }
 
     private static SparseVectorFieldMapper.IndexOptions parseIndexOptions(MappingParserContext context, Object propNode) {

@@ -587,8 +587,8 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
 
                 List<NamedExpression> newAggregates = new ArrayList<>();
                 // If the groupings are not resolved, skip the resolution of the references to groupings in the aggregates, resolve the
-                // aggregations besides groupings, so that the fields and attributes referenced by the aggregations can be resolved, and
-                // verifier doesn't report field/reference/column not found errors for them.
+                // aggregations that do not reference to groupings, so that the fields/attributes referenced by the aggregations can be
+                // resolved, and verifier doesn't report field/reference/column not found errors for them.
                 boolean groupingResolved = Resolvables.resolved(groupings);
                 int size = groupingResolved ? aggregates.size() : aggregates.size() - groupings.size();
                 for (int i = 0; i < aggregates.size(); i++) {
@@ -603,10 +603,10 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                                     ne = maybeResolved;
                                 }
                             } else {
-                                // an item in aggregations can reference to groupings explicitly, is groupings are not resolved yet and
+                                // An item in aggregations can reference to groupings explicitly, if groupings are not resolved yet and
                                 // maybeResolved is not resolved, return the original UnresolvedAttribute, so that it has a another chance
-                                // to get resolved. For example, {@code }
-                                // STATS c = count(emp_no), x = d::int + 1 BY d = (date == "2025-01-01")
+                                // to get resolved in the next iteration.
+                                // For example STATS c = count(emp_no), x = d::int + 1 BY d = (date == "2025-01-01")
                                 if (maybeResolved instanceof Unresolvable == false) {
                                     changed.set(true);
                                     ne = maybeResolved;

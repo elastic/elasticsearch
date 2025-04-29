@@ -731,7 +731,6 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
             );
         }
 
-        // TODO: pass rerank context into visitFields?
         return p -> new Rerank(source, p, inferenceId(ctx.inferenceId), queryText, visitRerankFields(ctx.rerankFields()));
     }
 

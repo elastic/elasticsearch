@@ -136,44 +136,63 @@ public class ElasticServiceAccountsTests extends ESTestCase {
         ).forEach(index -> {
             final IndexAbstraction anyIndex = mockIndexAbstraction(index);
 
-            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate18 = role.indices().allowedIndicesMatcher(IndicesStatsAction.NAME);
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate18 = role.indices()
+                .allowedIndicesMatcher(IndicesStatsAction.NAME);
             assertThat(isResourceAuthorizedPredicate18.test(anyIndex, IndexComponentSelector.DATA), is(true));
-            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate17 = role.indices().allowedIndicesMatcher(DataStreamsStatsAction.NAME);
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate17 = role.indices()
+                .allowedIndicesMatcher(DataStreamsStatsAction.NAME);
             assertThat(isResourceAuthorizedPredicate17.test(anyIndex, IndexComponentSelector.DATA), is(true));
-            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate16 = role.indices().allowedIndicesMatcher(GetAliasesAction.NAME);
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate16 = role.indices()
+                .allowedIndicesMatcher(GetAliasesAction.NAME);
             assertThat(isResourceAuthorizedPredicate16.test(anyIndex, IndexComponentSelector.DATA), is(true));
-            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate15 = role.indices().allowedIndicesMatcher(GetSettingsAction.NAME);
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate15 = role.indices()
+                .allowedIndicesMatcher(GetSettingsAction.NAME);
             assertThat(isResourceAuthorizedPredicate15.test(anyIndex, IndexComponentSelector.DATA), is(true));
-            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate14 = role.indices().allowedIndicesMatcher(GetDataStreamLifecycleAction.INSTANCE.name());
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate14 = role.indices()
+                .allowedIndicesMatcher(GetDataStreamLifecycleAction.INSTANCE.name());
             assertThat(isResourceAuthorizedPredicate14.test(anyIndex, IndexComponentSelector.DATA), is(true));
 
-            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate13 = role.indices().allowedIndicesMatcher(AutoCreateAction.NAME);
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate13 = role.indices()
+                .allowedIndicesMatcher(AutoCreateAction.NAME);
             assertThat(isResourceAuthorizedPredicate13.test(anyIndex, IndexComponentSelector.DATA), is(false));
-            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate12 = role.indices().allowedIndicesMatcher(TransportCreateIndexAction.TYPE.name());
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate12 = role.indices()
+                .allowedIndicesMatcher(TransportCreateIndexAction.TYPE.name());
             assertThat(isResourceAuthorizedPredicate12.test(anyIndex, IndexComponentSelector.DATA), is(false));
-            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate11 = role.indices().allowedIndicesMatcher(TransportDeleteAction.NAME);
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate11 = role.indices()
+                .allowedIndicesMatcher(TransportDeleteAction.NAME);
             assertThat(isResourceAuthorizedPredicate11.test(anyIndex, IndexComponentSelector.DATA), is(false));
-            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate10 = role.indices().allowedIndicesMatcher(TransportDeleteIndexAction.TYPE.name());
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate10 = role.indices()
+                .allowedIndicesMatcher(TransportDeleteIndexAction.TYPE.name());
             assertThat(isResourceAuthorizedPredicate10.test(anyIndex, IndexComponentSelector.DATA), is(false));
-            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate9 = role.indices().allowedIndicesMatcher(TransportIndexAction.NAME);
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate9 = role.indices()
+                .allowedIndicesMatcher(TransportIndexAction.NAME);
             assertThat(isResourceAuthorizedPredicate9.test(anyIndex, IndexComponentSelector.DATA), is(false));
-            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate8 = role.indices().allowedIndicesMatcher(TransportIndicesAliasesAction.NAME);
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate8 = role.indices()
+                .allowedIndicesMatcher(TransportIndicesAliasesAction.NAME);
             assertThat(isResourceAuthorizedPredicate8.test(anyIndex, IndexComponentSelector.DATA), is(false));
-            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate7 = role.indices().allowedIndicesMatcher(TransportBulkAction.NAME);
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate7 = role.indices()
+                .allowedIndicesMatcher(TransportBulkAction.NAME);
             assertThat(isResourceAuthorizedPredicate7.test(anyIndex, IndexComponentSelector.DATA), is(false));
-            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate6 = role.indices().allowedIndicesMatcher(TransportGetAction.TYPE.name());
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate6 = role.indices()
+                .allowedIndicesMatcher(TransportGetAction.TYPE.name());
             assertThat(isResourceAuthorizedPredicate6.test(anyIndex, IndexComponentSelector.DATA), is(false));
-            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate5 = role.indices().allowedIndicesMatcher(TransportMultiGetAction.NAME);
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate5 = role.indices()
+                .allowedIndicesMatcher(TransportMultiGetAction.NAME);
             assertThat(isResourceAuthorizedPredicate5.test(anyIndex, IndexComponentSelector.DATA), is(false));
-            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate4 = role.indices().allowedIndicesMatcher(TransportSearchAction.TYPE.name());
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate4 = role.indices()
+                .allowedIndicesMatcher(TransportSearchAction.TYPE.name());
             assertThat(isResourceAuthorizedPredicate4.test(anyIndex, IndexComponentSelector.DATA), is(false));
-            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate3 = role.indices().allowedIndicesMatcher(TransportMultiSearchAction.TYPE.name());
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate3 = role.indices()
+                .allowedIndicesMatcher(TransportMultiSearchAction.TYPE.name());
             assertThat(isResourceAuthorizedPredicate3.test(anyIndex, IndexComponentSelector.DATA), is(false));
-            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate2 = role.indices().allowedIndicesMatcher(TransportUpdateSettingsAction.TYPE.name());
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate2 = role.indices()
+                .allowedIndicesMatcher(TransportUpdateSettingsAction.TYPE.name());
             assertThat(isResourceAuthorizedPredicate2.test(anyIndex, IndexComponentSelector.DATA), is(false));
-            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate1 = role.indices().allowedIndicesMatcher(RefreshAction.NAME);
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate1 = role.indices()
+                .allowedIndicesMatcher(RefreshAction.NAME);
             assertThat(isResourceAuthorizedPredicate1.test(anyIndex, IndexComponentSelector.DATA), is(false));
-            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate = role.indices().allowedIndicesMatcher("indices:foo");
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate = role.indices()
+                .allowedIndicesMatcher("indices:foo");
             assertThat(isResourceAuthorizedPredicate.test(anyIndex, IndexComponentSelector.DATA), is(false));
         });
     }
@@ -242,82 +261,118 @@ public class ElasticServiceAccountsTests extends ESTestCase {
             ".logs-endpoint.action.responses-" + randomAlphaOfLengthBetween(1, 20),
             ".logs-endpoint.heartbeat-" + randomAlphaOfLengthBetween(1, 20)
         ).stream().map(this::mockIndexAbstraction).forEach(index -> {
-            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate11 = role.indices().allowedIndicesMatcher(TransportAutoPutMappingAction.TYPE.name());
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate11 = role.indices()
+                .allowedIndicesMatcher(TransportAutoPutMappingAction.TYPE.name());
             assertThat(isResourceAuthorizedPredicate11.test(index, IndexComponentSelector.DATA), is(true));
-            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate10 = role.indices().allowedIndicesMatcher(AutoCreateAction.NAME);
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate10 = role.indices()
+                .allowedIndicesMatcher(AutoCreateAction.NAME);
             assertThat(isResourceAuthorizedPredicate10.test(index, IndexComponentSelector.DATA), is(true));
-            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate9 = role.indices().allowedIndicesMatcher(TransportDeleteAction.NAME);
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate9 = role.indices()
+                .allowedIndicesMatcher(TransportDeleteAction.NAME);
             assertThat(isResourceAuthorizedPredicate9.test(index, IndexComponentSelector.DATA), is(true));
-            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate8 = role.indices().allowedIndicesMatcher(TransportCreateIndexAction.TYPE.name());
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate8 = role.indices()
+                .allowedIndicesMatcher(TransportCreateIndexAction.TYPE.name());
             assertThat(isResourceAuthorizedPredicate8.test(index, IndexComponentSelector.DATA), is(true));
-            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate7 = role.indices().allowedIndicesMatcher(TransportIndexAction.NAME);
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate7 = role.indices()
+                .allowedIndicesMatcher(TransportIndexAction.NAME);
             assertThat(isResourceAuthorizedPredicate7.test(index, IndexComponentSelector.DATA), is(true));
-            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate6 = role.indices().allowedIndicesMatcher(TransportBulkAction.NAME);
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate6 = role.indices()
+                .allowedIndicesMatcher(TransportBulkAction.NAME);
             assertThat(isResourceAuthorizedPredicate6.test(index, IndexComponentSelector.DATA), is(true));
-            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate5 = role.indices().allowedIndicesMatcher(TransportDeleteIndexAction.TYPE.name());
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate5 = role.indices()
+                .allowedIndicesMatcher(TransportDeleteIndexAction.TYPE.name());
             assertThat(isResourceAuthorizedPredicate5.test(index, IndexComponentSelector.DATA), is(false));
-            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate4 = role.indices().allowedIndicesMatcher(TransportGetAction.TYPE.name());
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate4 = role.indices()
+                .allowedIndicesMatcher(TransportGetAction.TYPE.name());
             assertThat(isResourceAuthorizedPredicate4.test(index, IndexComponentSelector.DATA), is(false));
-            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate3 = role.indices().allowedIndicesMatcher(TransportMultiGetAction.NAME);
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate3 = role.indices()
+                .allowedIndicesMatcher(TransportMultiGetAction.NAME);
             assertThat(isResourceAuthorizedPredicate3.test(index, IndexComponentSelector.DATA), is(false));
-            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate2 = role.indices().allowedIndicesMatcher(TransportSearchAction.TYPE.name());
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate2 = role.indices()
+                .allowedIndicesMatcher(TransportSearchAction.TYPE.name());
             assertThat(isResourceAuthorizedPredicate2.test(index, IndexComponentSelector.DATA), is(false));
-            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate1 = role.indices().allowedIndicesMatcher(TransportMultiSearchAction.TYPE.name());
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate1 = role.indices()
+                .allowedIndicesMatcher(TransportMultiSearchAction.TYPE.name());
             assertThat(isResourceAuthorizedPredicate1.test(index, IndexComponentSelector.DATA), is(false));
-            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate = role.indices().allowedIndicesMatcher(TransportUpdateSettingsAction.TYPE.name());
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate = role.indices()
+                .allowedIndicesMatcher(TransportUpdateSettingsAction.TYPE.name());
             assertThat(isResourceAuthorizedPredicate.test(index, IndexComponentSelector.DATA), is(false));
         });
 
         final IndexAbstraction profilingIndex = mockIndexAbstraction("profiling-" + randomAlphaOfLengthBetween(1, 20));
-        IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate34 = role.indices().allowedIndicesMatcher(TransportAutoPutMappingAction.TYPE.name());
+        IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate34 = role.indices()
+            .allowedIndicesMatcher(TransportAutoPutMappingAction.TYPE.name());
         assertThat(isResourceAuthorizedPredicate34.test(profilingIndex, IndexComponentSelector.DATA), is(true));
-        IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate33 = role.indices().allowedIndicesMatcher(AutoCreateAction.NAME);
+        IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate33 = role.indices()
+            .allowedIndicesMatcher(AutoCreateAction.NAME);
         assertThat(isResourceAuthorizedPredicate33.test(profilingIndex, IndexComponentSelector.DATA), is(false));
-        IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate32 = role.indices().allowedIndicesMatcher(TransportDeleteAction.NAME);
+        IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate32 = role.indices()
+            .allowedIndicesMatcher(TransportDeleteAction.NAME);
         assertThat(isResourceAuthorizedPredicate32.test(profilingIndex, IndexComponentSelector.DATA), is(true));
-        IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate31 = role.indices().allowedIndicesMatcher(TransportCreateIndexAction.TYPE.name());
+        IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate31 = role.indices()
+            .allowedIndicesMatcher(TransportCreateIndexAction.TYPE.name());
         assertThat(isResourceAuthorizedPredicate31.test(profilingIndex, IndexComponentSelector.DATA), is(false));
-        IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate30 = role.indices().allowedIndicesMatcher(TransportIndexAction.NAME);
+        IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate30 = role.indices()
+            .allowedIndicesMatcher(TransportIndexAction.NAME);
         assertThat(isResourceAuthorizedPredicate30.test(profilingIndex, IndexComponentSelector.DATA), is(true));
-        IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate29 = role.indices().allowedIndicesMatcher(TransportBulkAction.NAME);
+        IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate29 = role.indices()
+            .allowedIndicesMatcher(TransportBulkAction.NAME);
         assertThat(isResourceAuthorizedPredicate29.test(profilingIndex, IndexComponentSelector.DATA), is(true));
-        IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate28 = role.indices().allowedIndicesMatcher(TransportDeleteIndexAction.TYPE.name());
+        IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate28 = role.indices()
+            .allowedIndicesMatcher(TransportDeleteIndexAction.TYPE.name());
         assertThat(isResourceAuthorizedPredicate28.test(profilingIndex, IndexComponentSelector.DATA), is(false));
-        IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate27 = role.indices().allowedIndicesMatcher(TransportGetAction.TYPE.name());
+        IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate27 = role.indices()
+            .allowedIndicesMatcher(TransportGetAction.TYPE.name());
         assertThat(isResourceAuthorizedPredicate27.test(profilingIndex, IndexComponentSelector.DATA), is(true));
-        IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate26 = role.indices().allowedIndicesMatcher(TransportMultiGetAction.NAME);
+        IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate26 = role.indices()
+            .allowedIndicesMatcher(TransportMultiGetAction.NAME);
         assertThat(isResourceAuthorizedPredicate26.test(profilingIndex, IndexComponentSelector.DATA), is(true));
-        IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate25 = role.indices().allowedIndicesMatcher(TransportSearchAction.TYPE.name());
+        IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate25 = role.indices()
+            .allowedIndicesMatcher(TransportSearchAction.TYPE.name());
         assertThat(isResourceAuthorizedPredicate25.test(profilingIndex, IndexComponentSelector.DATA), is(true));
-        IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate24 = role.indices().allowedIndicesMatcher(TransportMultiSearchAction.TYPE.name());
+        IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate24 = role.indices()
+            .allowedIndicesMatcher(TransportMultiSearchAction.TYPE.name());
         assertThat(isResourceAuthorizedPredicate24.test(profilingIndex, IndexComponentSelector.DATA), is(true));
-        IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate23 = role.indices().allowedIndicesMatcher(TransportUpdateSettingsAction.TYPE.name());
+        IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate23 = role.indices()
+            .allowedIndicesMatcher(TransportUpdateSettingsAction.TYPE.name());
         assertThat(isResourceAuthorizedPredicate23.test(profilingIndex, IndexComponentSelector.DATA), is(false));
 
         List.of("synthetics-" + randomAlphaOfLengthBetween(1, 20)).stream().map(this::mockIndexAbstraction).forEach(index -> {
-            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate11 = role.indices().allowedIndicesMatcher(TransportAutoPutMappingAction.TYPE.name());
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate11 = role.indices()
+                .allowedIndicesMatcher(TransportAutoPutMappingAction.TYPE.name());
             assertThat(isResourceAuthorizedPredicate11.test(index, IndexComponentSelector.DATA), is(true));
-            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate10 = role.indices().allowedIndicesMatcher(AutoCreateAction.NAME);
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate10 = role.indices()
+                .allowedIndicesMatcher(AutoCreateAction.NAME);
             assertThat(isResourceAuthorizedPredicate10.test(index, IndexComponentSelector.DATA), is(true));
-            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate9 = role.indices().allowedIndicesMatcher(TransportDeleteAction.NAME);
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate9 = role.indices()
+                .allowedIndicesMatcher(TransportDeleteAction.NAME);
             assertThat(isResourceAuthorizedPredicate9.test(index, IndexComponentSelector.DATA), is(true));
-            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate8 = role.indices().allowedIndicesMatcher(TransportCreateIndexAction.TYPE.name());
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate8 = role.indices()
+                .allowedIndicesMatcher(TransportCreateIndexAction.TYPE.name());
             assertThat(isResourceAuthorizedPredicate8.test(index, IndexComponentSelector.DATA), is(true));
-            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate7 = role.indices().allowedIndicesMatcher(TransportIndexAction.NAME);
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate7 = role.indices()
+                .allowedIndicesMatcher(TransportIndexAction.NAME);
             assertThat(isResourceAuthorizedPredicate7.test(index, IndexComponentSelector.DATA), is(true));
-            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate6 = role.indices().allowedIndicesMatcher(TransportBulkAction.NAME);
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate6 = role.indices()
+                .allowedIndicesMatcher(TransportBulkAction.NAME);
             assertThat(isResourceAuthorizedPredicate6.test(index, IndexComponentSelector.DATA), is(true));
-            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate5 = role.indices().allowedIndicesMatcher(TransportDeleteIndexAction.TYPE.name());
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate5 = role.indices()
+                .allowedIndicesMatcher(TransportDeleteIndexAction.TYPE.name());
             assertThat(isResourceAuthorizedPredicate5.test(index, IndexComponentSelector.DATA), is(false));
-            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate4 = role.indices().allowedIndicesMatcher(TransportGetAction.TYPE.name());
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate4 = role.indices()
+                .allowedIndicesMatcher(TransportGetAction.TYPE.name());
             assertThat(isResourceAuthorizedPredicate4.test(index, IndexComponentSelector.DATA), is(true));
-            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate3 = role.indices().allowedIndicesMatcher(TransportMultiGetAction.NAME);
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate3 = role.indices()
+                .allowedIndicesMatcher(TransportMultiGetAction.NAME);
             assertThat(isResourceAuthorizedPredicate3.test(index, IndexComponentSelector.DATA), is(true));
-            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate2 = role.indices().allowedIndicesMatcher(TransportSearchAction.TYPE.name());
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate2 = role.indices()
+                .allowedIndicesMatcher(TransportSearchAction.TYPE.name());
             assertThat(isResourceAuthorizedPredicate2.test(index, IndexComponentSelector.DATA), is(true));
-            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate1 = role.indices().allowedIndicesMatcher(TransportMultiSearchAction.TYPE.name());
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate1 = role.indices()
+                .allowedIndicesMatcher(TransportMultiSearchAction.TYPE.name());
             assertThat(isResourceAuthorizedPredicate1.test(index, IndexComponentSelector.DATA), is(true));
-            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate = role.indices().allowedIndicesMatcher(TransportUpdateSettingsAction.TYPE.name());
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate = role.indices()
+                .allowedIndicesMatcher(TransportUpdateSettingsAction.TYPE.name());
             assertThat(isResourceAuthorizedPredicate.test(index, IndexComponentSelector.DATA), is(false));
         });
 
@@ -333,56 +388,80 @@ public class ElasticServiceAccountsTests extends ESTestCase {
             ".fleet-fileds" + randomAlphaOfLengthBetween(1, 20)
         ).forEach(index -> {
             final IndexAbstraction dotFleetIndex = mockIndexAbstraction(index);
-            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate11 = role.indices().allowedIndicesMatcher(TransportDeleteAction.NAME);
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate11 = role.indices()
+                .allowedIndicesMatcher(TransportDeleteAction.NAME);
             assertThat(isResourceAuthorizedPredicate11.test(dotFleetIndex, IndexComponentSelector.DATA), is(true));
-            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate10 = role.indices().allowedIndicesMatcher(TransportCreateIndexAction.TYPE.name());
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate10 = role.indices()
+                .allowedIndicesMatcher(TransportCreateIndexAction.TYPE.name());
             assertThat(isResourceAuthorizedPredicate10.test(dotFleetIndex, IndexComponentSelector.DATA), is(true));
-            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate9 = role.indices().allowedIndicesMatcher(TransportIndexAction.NAME);
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate9 = role.indices()
+                .allowedIndicesMatcher(TransportIndexAction.NAME);
             assertThat(isResourceAuthorizedPredicate9.test(dotFleetIndex, IndexComponentSelector.DATA), is(true));
-            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate8 = role.indices().allowedIndicesMatcher(TransportBulkAction.NAME);
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate8 = role.indices()
+                .allowedIndicesMatcher(TransportBulkAction.NAME);
             assertThat(isResourceAuthorizedPredicate8.test(dotFleetIndex, IndexComponentSelector.DATA), is(true));
-            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate7 = role.indices().allowedIndicesMatcher(TransportGetAction.TYPE.name());
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate7 = role.indices()
+                .allowedIndicesMatcher(TransportGetAction.TYPE.name());
             assertThat(isResourceAuthorizedPredicate7.test(dotFleetIndex, IndexComponentSelector.DATA), is(true));
-            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate6 = role.indices().allowedIndicesMatcher(TransportMultiGetAction.NAME);
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate6 = role.indices()
+                .allowedIndicesMatcher(TransportMultiGetAction.NAME);
             assertThat(isResourceAuthorizedPredicate6.test(dotFleetIndex, IndexComponentSelector.DATA), is(true));
-            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate5 = role.indices().allowedIndicesMatcher(TransportSearchAction.TYPE.name());
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate5 = role.indices()
+                .allowedIndicesMatcher(TransportSearchAction.TYPE.name());
             assertThat(isResourceAuthorizedPredicate5.test(dotFleetIndex, IndexComponentSelector.DATA), is(true));
-            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate4 = role.indices().allowedIndicesMatcher(TransportMultiSearchAction.TYPE.name());
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate4 = role.indices()
+                .allowedIndicesMatcher(TransportMultiSearchAction.TYPE.name());
             assertThat(isResourceAuthorizedPredicate4.test(dotFleetIndex, IndexComponentSelector.DATA), is(true));
-            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate3 = role.indices().allowedIndicesMatcher(IndicesStatsAction.NAME);
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate3 = role.indices()
+                .allowedIndicesMatcher(IndicesStatsAction.NAME);
             assertThat(isResourceAuthorizedPredicate3.test(dotFleetIndex, IndexComponentSelector.DATA), is(true));
-            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate2 = role.indices().allowedIndicesMatcher(TransportDeleteIndexAction.TYPE.name());
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate2 = role.indices()
+                .allowedIndicesMatcher(TransportDeleteIndexAction.TYPE.name());
             assertThat(isResourceAuthorizedPredicate2.test(dotFleetIndex, IndexComponentSelector.DATA), is(false));
-            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate1 = role.indices().allowedIndicesMatcher(TransportUpdateSettingsAction.TYPE.name());
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate1 = role.indices()
+                .allowedIndicesMatcher(TransportUpdateSettingsAction.TYPE.name());
             assertThat(isResourceAuthorizedPredicate1.test(dotFleetIndex, IndexComponentSelector.DATA), is(false));
-            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate = role.indices().allowedIndicesMatcher("indices:foo");
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate = role.indices()
+                .allowedIndicesMatcher("indices:foo");
             assertThat(isResourceAuthorizedPredicate.test(dotFleetIndex, IndexComponentSelector.DATA), is(false));
         });
 
         final IndexAbstraction dotFleetSecretsIndex = mockIndexAbstraction(".fleet-secrets" + randomAlphaOfLengthBetween(1, 20));
-        IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate22 = role.indices().allowedIndicesMatcher(TransportDeleteAction.NAME);
+        IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate22 = role.indices()
+            .allowedIndicesMatcher(TransportDeleteAction.NAME);
         assertThat(isResourceAuthorizedPredicate22.test(dotFleetSecretsIndex, IndexComponentSelector.DATA), is(false));
-        IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate21 = role.indices().allowedIndicesMatcher(TransportCreateIndexAction.TYPE.name());
+        IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate21 = role.indices()
+            .allowedIndicesMatcher(TransportCreateIndexAction.TYPE.name());
         assertThat(isResourceAuthorizedPredicate21.test(dotFleetSecretsIndex, IndexComponentSelector.DATA), is(false));
-        IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate20 = role.indices().allowedIndicesMatcher(TransportIndexAction.NAME);
+        IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate20 = role.indices()
+            .allowedIndicesMatcher(TransportIndexAction.NAME);
         assertThat(isResourceAuthorizedPredicate20.test(dotFleetSecretsIndex, IndexComponentSelector.DATA), is(false));
-        IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate19 = role.indices().allowedIndicesMatcher(TransportBulkAction.NAME);
+        IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate19 = role.indices()
+            .allowedIndicesMatcher(TransportBulkAction.NAME);
         assertThat(isResourceAuthorizedPredicate19.test(dotFleetSecretsIndex, IndexComponentSelector.DATA), is(false));
-        IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate18 = role.indices().allowedIndicesMatcher(TransportGetAction.TYPE.name());
+        IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate18 = role.indices()
+            .allowedIndicesMatcher(TransportGetAction.TYPE.name());
         assertThat(isResourceAuthorizedPredicate18.test(dotFleetSecretsIndex, IndexComponentSelector.DATA), is(true));
-        IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate17 = role.indices().allowedIndicesMatcher(TransportMultiGetAction.NAME);
+        IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate17 = role.indices()
+            .allowedIndicesMatcher(TransportMultiGetAction.NAME);
         assertThat(isResourceAuthorizedPredicate17.test(dotFleetSecretsIndex, IndexComponentSelector.DATA), is(true));
-        IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate16 = role.indices().allowedIndicesMatcher(TransportSearchAction.TYPE.name());
+        IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate16 = role.indices()
+            .allowedIndicesMatcher(TransportSearchAction.TYPE.name());
         assertThat(isResourceAuthorizedPredicate16.test(dotFleetSecretsIndex, IndexComponentSelector.DATA), is(true));
-        IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate15 = role.indices().allowedIndicesMatcher(TransportMultiSearchAction.TYPE.name());
+        IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate15 = role.indices()
+            .allowedIndicesMatcher(TransportMultiSearchAction.TYPE.name());
         assertThat(isResourceAuthorizedPredicate15.test(dotFleetSecretsIndex, IndexComponentSelector.DATA), is(true));
-        IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate14 = role.indices().allowedIndicesMatcher(IndicesStatsAction.NAME);
+        IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate14 = role.indices()
+            .allowedIndicesMatcher(IndicesStatsAction.NAME);
         assertThat(isResourceAuthorizedPredicate14.test(dotFleetSecretsIndex, IndexComponentSelector.DATA), is(false));
-        IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate13 = role.indices().allowedIndicesMatcher(TransportDeleteIndexAction.TYPE.name());
+        IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate13 = role.indices()
+            .allowedIndicesMatcher(TransportDeleteIndexAction.TYPE.name());
         assertThat(isResourceAuthorizedPredicate13.test(dotFleetSecretsIndex, IndexComponentSelector.DATA), is(false));
-        IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate12 = role.indices().allowedIndicesMatcher(TransportUpdateSettingsAction.TYPE.name());
+        IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate12 = role.indices()
+            .allowedIndicesMatcher(TransportUpdateSettingsAction.TYPE.name());
         assertThat(isResourceAuthorizedPredicate12.test(dotFleetSecretsIndex, IndexComponentSelector.DATA), is(false));
-        IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate11 = role.indices().allowedIndicesMatcher("indices:foo");
+        IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate11 = role.indices()
+            .allowedIndicesMatcher("indices:foo");
         assertThat(isResourceAuthorizedPredicate11.test(dotFleetSecretsIndex, IndexComponentSelector.DATA), is(false));
 
         final TransportRequest request = mock(TransportRequest.class);
@@ -391,27 +470,38 @@ public class ElasticServiceAccountsTests extends ESTestCase {
         assertThat(role.cluster().check("cluster:admin/fleet/secrets/delete", request, authentication), is(false));
 
         final IndexAbstraction apmSampledTracesIndex = mockIndexAbstraction("traces-apm.sampled-" + randomAlphaOfLengthBetween(1, 20));
-        IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate10 = role.indices().allowedIndicesMatcher(TransportDeleteAction.NAME);
+        IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate10 = role.indices()
+            .allowedIndicesMatcher(TransportDeleteAction.NAME);
         assertThat(isResourceAuthorizedPredicate10.test(apmSampledTracesIndex, IndexComponentSelector.DATA), is(true));
-        IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate9 = role.indices().allowedIndicesMatcher(TransportCreateIndexAction.TYPE.name());
+        IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate9 = role.indices()
+            .allowedIndicesMatcher(TransportCreateIndexAction.TYPE.name());
         assertThat(isResourceAuthorizedPredicate9.test(apmSampledTracesIndex, IndexComponentSelector.DATA), is(true));
-        IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate8 = role.indices().allowedIndicesMatcher(TransportIndexAction.NAME);
+        IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate8 = role.indices()
+            .allowedIndicesMatcher(TransportIndexAction.NAME);
         assertThat(isResourceAuthorizedPredicate8.test(apmSampledTracesIndex, IndexComponentSelector.DATA), is(true));
-        IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate7 = role.indices().allowedIndicesMatcher(TransportBulkAction.NAME);
+        IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate7 = role.indices()
+            .allowedIndicesMatcher(TransportBulkAction.NAME);
         assertThat(isResourceAuthorizedPredicate7.test(apmSampledTracesIndex, IndexComponentSelector.DATA), is(true));
-        IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate6 = role.indices().allowedIndicesMatcher(TransportGetAction.TYPE.name());
+        IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate6 = role.indices()
+            .allowedIndicesMatcher(TransportGetAction.TYPE.name());
         assertThat(isResourceAuthorizedPredicate6.test(apmSampledTracesIndex, IndexComponentSelector.DATA), is(true));
-        IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate5 = role.indices().allowedIndicesMatcher(TransportMultiGetAction.NAME);
+        IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate5 = role.indices()
+            .allowedIndicesMatcher(TransportMultiGetAction.NAME);
         assertThat(isResourceAuthorizedPredicate5.test(apmSampledTracesIndex, IndexComponentSelector.DATA), is(true));
-        IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate4 = role.indices().allowedIndicesMatcher(TransportSearchAction.TYPE.name());
+        IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate4 = role.indices()
+            .allowedIndicesMatcher(TransportSearchAction.TYPE.name());
         assertThat(isResourceAuthorizedPredicate4.test(apmSampledTracesIndex, IndexComponentSelector.DATA), is(true));
-        IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate3 = role.indices().allowedIndicesMatcher(TransportMultiSearchAction.TYPE.name());
+        IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate3 = role.indices()
+            .allowedIndicesMatcher(TransportMultiSearchAction.TYPE.name());
         assertThat(isResourceAuthorizedPredicate3.test(apmSampledTracesIndex, IndexComponentSelector.DATA), is(true));
-        IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate2 = role.indices().allowedIndicesMatcher(IndicesStatsAction.NAME);
+        IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate2 = role.indices()
+            .allowedIndicesMatcher(IndicesStatsAction.NAME);
         assertThat(isResourceAuthorizedPredicate2.test(apmSampledTracesIndex, IndexComponentSelector.DATA), is(true));
-        IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate1 = role.indices().allowedIndicesMatcher(TransportDeleteIndexAction.TYPE.name());
+        IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate1 = role.indices()
+            .allowedIndicesMatcher(TransportDeleteIndexAction.TYPE.name());
         assertThat(isResourceAuthorizedPredicate1.test(apmSampledTracesIndex, IndexComponentSelector.DATA), is(false));
-        IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate = role.indices().allowedIndicesMatcher(TransportUpdateSettingsAction.TYPE.name());
+        IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate = role.indices()
+            .allowedIndicesMatcher(TransportUpdateSettingsAction.TYPE.name());
         assertThat(isResourceAuthorizedPredicate.test(apmSampledTracesIndex, IndexComponentSelector.DATA), is(false));
 
         final String privilegeName = randomAlphaOfLengthBetween(3, 16);
@@ -552,36 +642,47 @@ public class ElasticServiceAccountsTests extends ESTestCase {
             "logs-elastic_crawler-default"
         ).forEach(index -> {
             final IndexAbstraction enterpriseSearchIndex = mockIndexAbstraction(index);
-            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate13 = role.indices().allowedIndicesMatcher(AutoCreateAction.NAME);
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate13 = role.indices()
+                .allowedIndicesMatcher(AutoCreateAction.NAME);
             assertThat(isResourceAuthorizedPredicate13.test(enterpriseSearchIndex, IndexComponentSelector.DATA), is(true));
-            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate12 = role.indices().allowedIndicesMatcher(TransportCreateIndexAction.TYPE.name());
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate12 = role.indices()
+                .allowedIndicesMatcher(TransportCreateIndexAction.TYPE.name());
             assertThat(isResourceAuthorizedPredicate12.test(enterpriseSearchIndex, IndexComponentSelector.DATA), is(true));
-            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate11 = role.indices().allowedIndicesMatcher(TransportDeleteAction.NAME);
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate11 = role.indices()
+                .allowedIndicesMatcher(TransportDeleteAction.NAME);
             assertThat(isResourceAuthorizedPredicate11.test(enterpriseSearchIndex, IndexComponentSelector.DATA), is(true));
-            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate10 = role.indices().allowedIndicesMatcher(TransportDeleteIndexAction.TYPE.name());
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate10 = role.indices()
+                .allowedIndicesMatcher(TransportDeleteIndexAction.TYPE.name());
             assertThat(isResourceAuthorizedPredicate10.test(enterpriseSearchIndex, IndexComponentSelector.DATA), is(true));
-            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate9 = role.indices().allowedIndicesMatcher(TransportIndexAction.NAME);
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate9 = role.indices()
+                .allowedIndicesMatcher(TransportIndexAction.NAME);
             assertThat(isResourceAuthorizedPredicate9.test(enterpriseSearchIndex, IndexComponentSelector.DATA), is(true));
-            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate8 = role.indices().allowedIndicesMatcher(TransportBulkAction.NAME);
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate8 = role.indices()
+                .allowedIndicesMatcher(TransportBulkAction.NAME);
             assertThat(isResourceAuthorizedPredicate8.test(enterpriseSearchIndex, IndexComponentSelector.DATA), is(true));
-            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate7 = role.indices().allowedIndicesMatcher(TransportGetAction.TYPE.name());
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate7 = role.indices()
+                .allowedIndicesMatcher(TransportGetAction.TYPE.name());
             assertThat(isResourceAuthorizedPredicate7.test(enterpriseSearchIndex, IndexComponentSelector.DATA), is(true));
-            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate6 = role.indices().allowedIndicesMatcher(TransportMultiGetAction.NAME);
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate6 = role.indices()
+                .allowedIndicesMatcher(TransportMultiGetAction.NAME);
             assertThat(isResourceAuthorizedPredicate6.test(enterpriseSearchIndex, IndexComponentSelector.DATA), is(true));
-            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate5 = role.indices().allowedIndicesMatcher(TransportSearchAction.TYPE.name());
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate5 = role.indices()
+                .allowedIndicesMatcher(TransportSearchAction.TYPE.name());
             assertThat(isResourceAuthorizedPredicate5.test(enterpriseSearchIndex, IndexComponentSelector.DATA), is(true));
-            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate4 = role.indices().allowedIndicesMatcher(TransportMultiSearchAction.TYPE.name());
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate4 = role.indices()
+                .allowedIndicesMatcher(TransportMultiSearchAction.TYPE.name());
             assertThat(isResourceAuthorizedPredicate4.test(enterpriseSearchIndex, IndexComponentSelector.DATA), is(true));
-            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate3 = role.indices().allowedIndicesMatcher(IndicesStatsAction.NAME);
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate3 = role.indices()
+                .allowedIndicesMatcher(IndicesStatsAction.NAME);
             assertThat(isResourceAuthorizedPredicate3.test(enterpriseSearchIndex, IndexComponentSelector.DATA), is(true));
-            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate2 = role.indices().allowedIndicesMatcher(TransportUpdateSettingsAction.TYPE.name());
-            assertThat(
-                    isResourceAuthorizedPredicate2.test(enterpriseSearchIndex, IndexComponentSelector.DATA),
-                is(true)
-            );
-            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate1 = role.indices().allowedIndicesMatcher(RefreshAction.NAME);
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate2 = role.indices()
+                .allowedIndicesMatcher(TransportUpdateSettingsAction.TYPE.name());
+            assertThat(isResourceAuthorizedPredicate2.test(enterpriseSearchIndex, IndexComponentSelector.DATA), is(true));
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate1 = role.indices()
+                .allowedIndicesMatcher(RefreshAction.NAME);
             assertThat(isResourceAuthorizedPredicate1.test(enterpriseSearchIndex, IndexComponentSelector.DATA), is(true));
-            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate = role.indices().allowedIndicesMatcher("indices:foo");
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate = role.indices()
+                .allowedIndicesMatcher("indices:foo");
             assertThat(isResourceAuthorizedPredicate.test(enterpriseSearchIndex, IndexComponentSelector.DATA), is(false));
         });
     }

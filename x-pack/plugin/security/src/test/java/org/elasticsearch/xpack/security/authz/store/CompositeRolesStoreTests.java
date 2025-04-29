@@ -3521,10 +3521,7 @@ public class CompositeRolesStoreTests extends ESTestCase {
                 assertThat(predicate.test(indexAbstraction, IndexComponentSelector.DATA), Matchers.is(false));
             }
             IndexAbstraction indexAbstraction = mockIndexAbstraction(XPackPlugin.ASYNC_RESULTS_INDEX + randomAlphaOfLengthBetween(0, 2));
-            assertThat(
-                    predicate.test(indexAbstraction, IndexComponentSelector.DATA),
-                Matchers.is(false)
-            );
+            assertThat(predicate.test(indexAbstraction, IndexComponentSelector.DATA), Matchers.is(false));
         }
     }
 
@@ -3560,10 +3557,7 @@ public class CompositeRolesStoreTests extends ESTestCase {
                 assertThat(predicate.test(indexAbstraction, IndexComponentSelector.DATA), Matchers.is(false));
             }
             IndexAbstraction indexAbstraction = mockIndexAbstraction(XPackPlugin.ASYNC_RESULTS_INDEX + randomAlphaOfLengthBetween(0, 3));
-            assertThat(
-                    predicate.test(indexAbstraction, IndexComponentSelector.DATA),
-                Matchers.is(true)
-            );
+            assertThat(predicate.test(indexAbstraction, IndexComponentSelector.DATA), Matchers.is(true));
         }
     }
 

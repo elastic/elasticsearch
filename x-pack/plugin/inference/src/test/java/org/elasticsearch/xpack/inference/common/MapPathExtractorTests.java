@@ -111,9 +111,12 @@ public class MapPathExtractorTests extends ESTestCase {
         assertThat(
             MapPathExtractor.extract(input, "$.result.sparse_embeddings[*].embedding[*]"),
             is(
-                List.of(
-                    List.of(Map.of("tokenId", 6, "weight", 0.123d), Map.of("tokenId", 100, "weight", -123d)),
-                    List.of(Map.of("tokenId", 7, "weight", 0.456d), Map.of("tokenId", 200, "weight", -456d))
+                new MapPathExtractor.Result(
+                    List.of(
+                        List.of(Map.of("tokenId", 6, "weight", 0.123d), Map.of("tokenId", 100, "weight", -123d)),
+                        List.of(Map.of("tokenId", 7, "weight", 0.456d), Map.of("tokenId", 200, "weight", -456d))
+                    ),
+                    List.of("result.sparse_embeddings", "result.sparse_embeddings.embedding")
                 )
             )
         );
@@ -143,7 +146,12 @@ public class MapPathExtractorTests extends ESTestCase {
 
         assertThat(
             MapPathExtractor.extract(input, "$.result.sparse_embeddings[*].embedding[*].tokenId"),
-            is(List.of(List.of(6, 100), List.of(7, 200)))
+            is(
+                new MapPathExtractor.Result(
+                    List.of(List.of(6, 100), List.of(7, 200)),
+                    List.of("result.sparse_embeddings", "result.sparse_embeddings.embedding", "result.sparse_embeddings.embedding.tokenId")
+                )
+            )
         );
     }
 

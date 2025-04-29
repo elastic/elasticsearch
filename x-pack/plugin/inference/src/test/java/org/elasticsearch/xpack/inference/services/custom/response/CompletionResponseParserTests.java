@@ -39,7 +39,11 @@ public class CompletionResponseParserTests extends AbstractBWCWireSerializationT
     public void testFromMap() {
         var validation = new ValidationException();
 
-        var parser = CompletionResponseParser.fromMap(new HashMap<>(Map.of(COMPLETION_PARSER_RESULT, "$.result[*].text")), "scope", validation);
+        var parser = CompletionResponseParser.fromMap(
+            new HashMap<>(Map.of(COMPLETION_PARSER_RESULT, "$.result[*].text")),
+            "scope",
+            validation
+        );
 
         assertThat(parser, is(new CompletionResponseParser("$.result[*].text")));
     }

@@ -30,17 +30,19 @@ public class CompletionResponseParser extends BaseCustomResponseParser<ChatCompl
 
     private final String completionResultPath;
 
-<<<<<<< HEAD
-    public static CompletionResponseParser fromMap(Map<String, Object> responseParserMap, String scope, ValidationException validationException) {
-        var path = extractRequiredString(responseParserMap, COMPLETION_PARSER_RESULT, String.join(".", scope, JSON_PARSER), validationException);
-
-        if (path == null) {
-=======
-    public static CompletionResponseParser fromMap(Map<String, Object> responseParserMap, ValidationException validationException) {
-        var path = extractRequiredString(responseParserMap, COMPLETION_PARSER_RESULT, JSON_PARSER, validationException);
+    public static CompletionResponseParser fromMap(
+        Map<String, Object> responseParserMap,
+        String scope,
+        ValidationException validationException
+    ) {
+        var path = extractRequiredString(
+            responseParserMap,
+            COMPLETION_PARSER_RESULT,
+            String.join(".", scope, JSON_PARSER),
+            validationException
+        );
 
         if (validationException.validationErrors().isEmpty() == false) {
->>>>>>> 23b7a31406ea7fe4502a8b582915cb066bf8b86e
             throw validationException;
         }
 
@@ -88,14 +90,6 @@ public class CompletionResponseParser extends BaseCustomResponseParser<ChatCompl
 
     @Override
     public ChatCompletionResults transform(Map<String, Object> map) {
-<<<<<<< HEAD
-        var extractedField = MapPathExtractor.extract(map, completionResultPath);
-
-        validateNonNull(extractedField);
-
-        if (extractedField instanceof List<?> extractedList) {
-            var completionList = validateAndCastList(extractedList, (obj) -> toType(obj, String.class));
-=======
         var result = MapPathExtractor.extract(map, completionResultPath);
         var extractedField = result.extractedObject();
 
@@ -103,20 +97,15 @@ public class CompletionResponseParser extends BaseCustomResponseParser<ChatCompl
 
         if (extractedField instanceof List<?> extractedList) {
             var completionList = castList(extractedList, (obj, fieldName) -> toType(obj, String.class, fieldName), completionResultPath);
->>>>>>> 23b7a31406ea7fe4502a8b582915cb066bf8b86e
             return new ChatCompletionResults(completionList.stream().map(ChatCompletionResults.Result::new).toList());
         } else if (extractedField instanceof String extractedString) {
             return new ChatCompletionResults(List.of(new ChatCompletionResults.Result(extractedString)));
         } else {
             throw new IllegalArgumentException(
                 Strings.format(
-<<<<<<< HEAD
-                    "Extracted field is an invalid type, expected a list or a string but received [%s]",
-=======
                     "Extracted field [%s] from path [%s] is an invalid type, expected a list or a string but received [%s]",
                     result.getArrayFieldName(0),
                     completionResultPath,
->>>>>>> 23b7a31406ea7fe4502a8b582915cb066bf8b86e
                     extractedField.getClass().getSimpleName()
                 )
             );

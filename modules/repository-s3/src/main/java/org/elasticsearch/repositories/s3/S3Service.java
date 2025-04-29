@@ -254,7 +254,13 @@ class S3Service extends AbstractLifecycleComponent {
         }
 
         if (Strings.hasLength(clientSettings.endpoint)) {
-            s3clientBuilder.endpointOverride(URI.create(clientSettings.endpoint));
+            String endpoint = clientSettings.endpoint;
+            if ((endpoint.startsWith("http://") || endpoint.startsWith("https://")) == false) {
+                // Default protocol to https if not specified
+                // See https://docs.aws.amazon.com/sdk-for-java/latest/developer-guide/client-configuration.html#client-config-other-diffs
+                endpoint = "https://" + endpoint;
+            }
+            s3clientBuilder.endpointOverride(URI.create(endpoint));
         }
 
         return s3clientBuilder;

@@ -115,7 +115,7 @@ public class InferenceGetServicesIT extends BaseMockEISAuthServerTest {
     @SuppressWarnings("unchecked")
     public void testGetServicesWithCompletionTaskType() throws IOException {
         List<Object> services = getServices(TaskType.COMPLETION);
-        assertThat(services.size(), equalTo(10));
+        assertThat(services.size(), equalTo(11));
 
         String[] providers = new String[services.size()];
         for (int i = 0; i < services.size(); i++) {
@@ -133,6 +133,7 @@ public class InferenceGetServicesIT extends BaseMockEISAuthServerTest {
                 "cohere",
                 "deepseek",
                 "googleaistudio",
+                "hugging_face",
                 "openai",
                 "streaming_completion_test_service"
             ).toArray(),
@@ -143,7 +144,7 @@ public class InferenceGetServicesIT extends BaseMockEISAuthServerTest {
     @SuppressWarnings("unchecked")
     public void testGetServicesWithChatCompletionTaskType() throws IOException {
         List<Object> services = getServices(TaskType.CHAT_COMPLETION);
-        assertThat(services.size(), equalTo(4));
+        assertThat(services.size(), equalTo(5));
 
         String[] providers = new String[services.size()];
         for (int i = 0; i < services.size(); i++) {
@@ -151,7 +152,8 @@ public class InferenceGetServicesIT extends BaseMockEISAuthServerTest {
             providers[i] = (String) serviceConfig.get("service");
         }
 
-        assertArrayEquals(List.of("deepseek", "elastic", "openai", "streaming_completion_test_service").toArray(), providers);
+        assertArrayEquals(List.of("deepseek", "elastic",  "hugging_face", "openai",
+           "streaming_completion_test_service").toArray(), providers);
     }
 
     @SuppressWarnings("unchecked")

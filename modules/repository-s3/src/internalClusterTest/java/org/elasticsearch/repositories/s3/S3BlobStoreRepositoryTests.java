@@ -645,7 +645,9 @@ public class S3BlobStoreRepositoryTests extends ESMockAPIBasedRepositoryIntegTes
             assertTrue(
                 isValidAwsV4SignedAuthorizationHeader(
                     "test_access_key",
-                    Objects.requireNonNullElse(region, "us-east-1"),
+                    // If unset, the region used by the SDK is usually going to be `us-east-1` but sometimes these tests run on bare EC2
+                    // machines and the SDK picks up the region from the IMDS there, so for now we use '*' to skip validation.
+                    Objects.requireNonNullElse(region, "*"),
                     "s3",
                     exchange.getRequestHeaders().getFirst("Authorization")
                 )

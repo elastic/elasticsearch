@@ -152,8 +152,10 @@ public class InferenceGetServicesIT extends BaseMockEISAuthServerTest {
             providers[i] = (String) serviceConfig.get("service");
         }
 
-        assertArrayEquals(List.of("deepseek", "elastic",  "hugging_face", "openai",
-           "streaming_completion_test_service").toArray(), providers);
+        assertArrayEquals(
+            List.of("deepseek", "elastic", "hugging_face", "openai", "streaming_completion_test_service").toArray(),
+            providers
+        );
     }
 
     @SuppressWarnings("unchecked")

@@ -549,6 +549,7 @@ public class GeoIpProcessorFactoryTests extends ESTestCase {
             Map<String, Object> config = new HashMap<>();
             config.put("field", "source_field");
             config.put("database_file", "GeoLite2-City.mmdb");
+            config.put("ignore_missing", true);
 
             GeoIpProcessor.DatabaseUnavailableProcessor processor = (GeoIpProcessor.DatabaseUnavailableProcessor) factory.create(
                 null,
@@ -564,6 +565,13 @@ public class GeoIpProcessorFactoryTests extends ESTestCase {
                 processor.execute(document);
                 assertThat(document.getSourceAndMetadata().get("geoip"), nullValue());
                 assertThat(document.getSourceAndMetadata().get("tags"), equalTo(List.of("_geoip_database_unavailable_GeoLite2-City.mmdb")));
+            }
+            {
+                // if there's no value for the source_field and ignore_missing is true, then we don't tag the document
+                document = RandomDocumentPicks.randomIngestDocument(random(), new HashMap<>()); // note: no source_field
+                processor.execute(document);
+                assertThat(document.getSourceAndMetadata().get("geoip"), nullValue());
+                assertThat(document.getSourceAndMetadata().get("tags"), nullValue());
             }
         }
 

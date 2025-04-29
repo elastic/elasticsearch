@@ -95,6 +95,7 @@ public final class TimeSeriesBlockHash extends BlockHash {
         }
         try (var ordsBuilder = blockFactory.newIntVectorBuilder(tsidOrdinals.getPositionCount())) {
             final BytesRef spare = new BytesRef();
+            final BytesRef lastTsid = new BytesRef();
             final LongVector timestampVector = getTimestampVector(page);
             int lastOrd = -1;
             for (int i = 0; i < tsidOrdinals.getPositionCount(); i++) {
@@ -105,7 +106,8 @@ public final class TimeSeriesBlockHash extends BlockHash {
                     if (positionCount() == 0) {
                         newGroup = true;
                     } else if (lastOrd == -1) {
-                        newGroup = lastTsid().equals(newTsid) == false;
+                        tsidArray.get(lastTsidPosition, lastTsid);
+                        newGroup = lastTsid.equals(newTsid) == false;
                     } else {
                         newGroup = true;
                     }
@@ -136,12 +138,6 @@ public final class TimeSeriesBlockHash extends BlockHash {
             perTsidCountArray.append(currentTimestampCount);
             currentTimestampCount = 0;
         }
-    }
-
-    private BytesRef lastTsid() {
-        final BytesRef bytesRef = new BytesRef();
-        tsidArray.get(lastTsidPosition, bytesRef);
-        return bytesRef;
     }
 
     @Override

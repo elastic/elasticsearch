@@ -31,7 +31,7 @@ The `timezone` option may have two effects on the behavior of the processor:
  - The date-time will be converted into the timezone given by this option before it is formatted and written into the target field. This is not applicable if the `output_format` is an absolute time format such as `epoch_millis`.
 
 ::::{warning}
-We recommend avoiding the use of short abbreviations for timezone names, since they can be ambiguous. For example, one JDK might interpret `PST` as `America/Tijuana`, i.e. Pacific (Standard) Time, while another JDK might interpret it as `Asia/Manila`, i.e. Philippine Standard Time. If your input data contains such abbreviations, you should convert them into either standard full names or UTC offsets using your own knowledge of what each abbreviation means in your data before parsing them. See [below](#date-processor-short-timezone-example) for an example. (This does not apply to `UTC`, which is safe.)
+We recommend avoiding the use of short abbreviations for timezone names, since they can be ambiguous. For example, one JDK might interpret `PST` as `America/Tijuana`, i.e. Pacific (Standard) Time, while another JDK might interpret it as `Asia/Manila`, i.e. Philippine Standard Time. If your input data contains such abbreviations, you should convert them into either standard full names or UTC offsets before parsing them, using your own knowledge of what each abbreviation means in your data. See [below](#date-processor-short-timezone-example) for an example. (This does not apply to `UTC`, which is safe.)
 ::::
 
 ## Examples [date-processor-examples]

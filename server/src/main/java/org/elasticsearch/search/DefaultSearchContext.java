@@ -26,7 +26,6 @@ import org.elasticsearch.cluster.routing.IndexRouting;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexService;
@@ -51,6 +50,7 @@ import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.search.NestedHelper;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.search.aggregations.SearchContextAggregations;
+import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.collapse.CollapseContext;
 import org.elasticsearch.search.dfs.DfsSearchResult;
@@ -861,8 +861,8 @@ final class DefaultSearchContext extends SearchContext {
         return queryResult;
     }
 
-    public void addQuerySearchResultReleasable(Releasable releasable) {
-        queryResult.addReleasable(releasable);
+    public void addAggregationContext(AggregationContext aggregationContext) {
+        queryResult.addAggregationContext(aggregationContext);
     }
 
     @Override

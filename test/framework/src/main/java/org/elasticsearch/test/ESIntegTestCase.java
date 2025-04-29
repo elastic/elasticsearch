@@ -193,6 +193,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.IdentityHashMap;
 import java.util.List;
@@ -907,7 +908,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
         GetDataStreamAction.Response response = safeGet(
             client().execute(
                 GetDataStreamAction.INSTANCE,
-                new GetDataStreamAction.Request(TEST_REQUEST_TIMEOUT, new String[] { dataStreamName })
+                new GetDataStreamAction.Request(SAFE_AWAIT_TIMEOUT, new String[] { dataStreamName })
             )
         );
         assertThat(response.getDataStreams().size(), equalTo(1));
@@ -1205,6 +1206,19 @@ public abstract class ESIntegTestCase extends ESTestCase {
 
     public static String getNodeId(String nodeName) {
         return internalCluster().getInstance(ClusterService.class, nodeName).localNode().getId();
+    }
+
+    /**
+     * @return A map of the cluster node Ids to their node names.
+     */
+    public static Map<String, String> nodeIdsToNames() {
+        var names = internalCluster().getNodeNames();
+        Map<String, String> nodeIdsToNames = new HashMap<>();
+        for (var name : names) {
+            nodeIdsToNames.put(getNodeId(name), name);
+        }
+        return nodeIdsToNames;
+
     }
 
     /**

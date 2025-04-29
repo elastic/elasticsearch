@@ -523,7 +523,7 @@ public class FileSettingsServiceIT extends ESIntegTestCase {
 
         // Initially, all is well
         assertBusy(() -> {
-            FetchHealthInfoCacheAction.Response healthNodeResponse = client(healthNode).execute(
+            FetchHealthInfoCacheAction.Response healthNodeResponse = client().execute(
                 FetchHealthInfoCacheAction.INSTANCE,
                 new FetchHealthInfoCacheAction.Request()
             ).get();
@@ -538,7 +538,7 @@ public class FileSettingsServiceIT extends ESIntegTestCase {
 
         logger.info("--> ensure the health node also reports it");
         assertBusy(() -> {
-            FetchHealthInfoCacheAction.Response healthNodeResponse = client(healthNode).execute(
+            FetchHealthInfoCacheAction.Response healthNodeResponse = client().execute(
                 FetchHealthInfoCacheAction.INSTANCE,
                 new FetchHealthInfoCacheAction.Request()
             ).get();

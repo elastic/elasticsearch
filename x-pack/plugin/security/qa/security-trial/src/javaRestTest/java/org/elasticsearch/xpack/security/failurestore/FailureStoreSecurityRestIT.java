@@ -2074,11 +2074,7 @@ public class FailureStoreSecurityRestIT extends ESRestTestCase {
             }
             """, aliasName));
         expectSearch(username, new Search(aliasName + "::failures"), failuresDocId, otherFailuresDocId);
-        expectSearchThrows(
-            username,
-            new Search(randomFrom(aliasName + "::data", "my-alias::failures", dataIndexName, failureIndexName)),
-            403
-        );
+        expectSearchThrows(username, new Search(randomFrom(aliasName + "::data", aliasName, dataIndexName, failureIndexName)), 403);
 
         createOrUpdateRoleAndApiKey(username, roleName, Strings.format("""
             {

@@ -207,6 +207,13 @@ public abstract class MapperServiceTestCase extends FieldTypeTestCase {
         return mapperService;
     }
 
+    protected final MapperService createMapperService(IndexVersion indexVersion, Settings settings, XContentBuilder mappings)
+        throws IOException {
+        MapperService mapperService = createMapperService(indexVersion, settings, () -> true, mappings);
+        merge(mapperService, mappings);
+        return mapperService;
+    }
+
     protected final MapperService createMapperService(IndexVersion version, XContentBuilder mapping) throws IOException {
         return createMapperService(version, getIndexSettings(), () -> true, mapping);
     }

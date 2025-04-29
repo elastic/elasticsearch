@@ -606,7 +606,7 @@ public class JwtRealmSettingsTests extends JwtTestCase {
 
         assertThat(
             e.getMessage(),
-            equalTo(Strings.format("Invalid value [https] for [%s]. Allowed values are [http].", proxySchemeSettingKey))
+            equalTo(Strings.format("Invalid value [%s] for [%s]. Allowed values are [http].", scheme, proxySchemeSettingKey))
         );
     }
 

@@ -11,6 +11,8 @@ package org.elasticsearch.index.search.stats;
 
 import org.elasticsearch.common.metrics.ExponentiallyWeightedMovingRate;
 
+import java.util.function.Supplier;
+
 /**
  * Represents the statistics for tracking the search load rate of a shard.
  *
@@ -37,16 +39,16 @@ import org.elasticsearch.common.metrics.ExponentiallyWeightedMovingRate;
  */
 public class ShardSearchLoadRateStats {
 
-    private Long lastTrackedTime;
+    private long lastTrackedTime;
 
     private ExponentiallyWeightedMovingRate ewmRate;
 
     private double lambdaInInverseMillis;
 
-    public ShardSearchLoadRateStats(SearchStatsSettings settings) {
+    public ShardSearchLoadRateStats(SearchStatsSettings settings, Supplier<Long> timeProvider) {
         this.lastTrackedTime = 0L;
         this.lambdaInInverseMillis = Math.log(2.0) / settings.getRecentReadLoadHalfLifeForNewShards().millis();
-        this.ewmRate = new ExponentiallyWeightedMovingRate(lambdaInInverseMillis, System.currentTimeMillis());
+        this.ewmRate = new ExponentiallyWeightedMovingRate(lambdaInInverseMillis, timeProvider.get());
     }
 
     /**
@@ -59,9 +61,9 @@ public class ShardSearchLoadRateStats {
         long trackedTime = stats.getQueryTimeInMillis() +
             stats.getFetchTimeInMillis() +
             stats.getScrollTimeInMillis() +
-            stats.getScrollTimeInMillis();
+            stats.getSuggestTimeInMillis();
 
-        long delta = trackedTime - lastTrackedTime;
+        long delta = Math.max(0, trackedTime - lastTrackedTime);
         lastTrackedTime = trackedTime;
 
         long currentTime = System.currentTimeMillis();

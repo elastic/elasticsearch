@@ -81,7 +81,15 @@ If you’re using the RPM or Debian packages, you can specify `ES_JAVA_OPTS` in 
 
 ## Set the JVM heap size [set-jvm-heap-size]
 
-By default, {{es}} automatically sets the JVM heap size based on a node’s [roles](/reference/elasticsearch/configuration-reference/node-settings.md#node-roles) and total memory. Using the default sizing is recommended for most production environments.
+By default, {{es}} automatically sets the JVM heap size based on a node’s [roles](/reference/elasticsearch/configuration-reference/node-settings.md#node-roles) and total memory. Using the default sizing is recommended for most production environments.  The default heap sizing uses the following formulas:
+
+* Master-only node
+  * 60% of total system memory, up to a maximum of 31 GB.
+* Machine Learning-only node
+  * 40% of the first 16 gigabytes plus 10% of memory above that when total system memory is more than 16 gigabytes, up to a maximum of 31 GB.
+* Data-only node
+  * 40% of total system memory when less than 1 GB, with a minimum of 128 MB.
+  * 50% of total system memory when 1 GB or more, with a maximum of 31 GB.
 
 To override the default heap size, set the minimum and maximum heap size settings, `Xms` and `Xmx`. The minimum and maximum values must be the same.
 
@@ -126,19 +134,6 @@ The `ES_JAVA_OPTS` variable overrides all other JVM options. We do not recommend
 ::::{note}
 If you are running {{es}} as a Windows service, you can change the heap size using the service manager. See [Install and run {{es}} as a service on Windows](docs-content://deploy-manage/deploy/self-managed/install-elasticsearch-with-zip-on-windows.md#windows-service).
 ::::
-
-
-## Default JVM heap sizes [default-jvm-sizes]
-
-If heap sizes are not specifically set, {{es}} will calculate JVM heap sizing based on the total amount of system memory, depending on the node's role.
-
-* Master-only node
-  * 60% of total system memory, up to a maximum of 31 GB.
-* Machine Learning-only node
-  * 40% of the first 16 gigabytes plus 10% of memory above that when total system memory is more than 16 gigabytes, up to a maximum of 31 GB.
-* Data-only node
-  * 40% of total system memory when less than 1 GB, with a minimum of 128 MB.
-  * 50% of total system memory when 1 GB or more, with a maximum of 31 GB.
 
 
 ## JVM heap dump path setting [heap-dump-path-setting]

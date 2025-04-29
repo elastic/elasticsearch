@@ -429,9 +429,10 @@ public class FileSettingsService extends MasterNodeFileWatchingService implement
                 );
             } else {
                 logger.debug("Publishing file settings health indicators: [{}]", info);
+                String localNode = clusterService.localNode().getId();
                 client.execute(
                     UpdateHealthInfoCacheAction.INSTANCE,
-                    new UpdateHealthInfoCacheAction.Request(currentHealthNode.getId(), info),
+                    new UpdateHealthInfoCacheAction.Request(localNode, info),
                     actionListener
                 );
             }

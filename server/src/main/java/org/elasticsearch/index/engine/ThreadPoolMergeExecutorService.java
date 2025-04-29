@@ -30,7 +30,6 @@ import static org.elasticsearch.index.engine.ThreadPoolMergeScheduler.Schedule.B
 import static org.elasticsearch.index.engine.ThreadPoolMergeScheduler.Schedule.RUN;
 
 public class ThreadPoolMergeExecutorService {
-
     /**
      * Floor for IO write rate limit of individual merge tasks (we will never go any lower than this)
      */

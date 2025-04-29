@@ -164,9 +164,8 @@ SELECT FIRST(a) FROM t
 
 will result in:
 
-|     |
-| --- |
 | **FIRST(a)** |
+| --- |
 | 1 |
 
 and
@@ -177,9 +176,8 @@ SELECT FIRST(a, b) FROM t
 
 will result in:
 
-|     |
-| --- |
 | **FIRST(a, b)** |
+| --- |
 | 100 |
 
 ```sql
@@ -285,9 +283,8 @@ SELECT LAST(a) FROM t
 
 will result in:
 
-|     |
-| --- |
 | **LAST(a)** |
+| --- |
 | 200 |
 
 and
@@ -298,9 +295,8 @@ SELECT LAST(a, b) FROM t
 
 will result in:
 
-|     |
-| --- |
 | **LAST(a, b)** |
+| --- |
 | 2 |
 
 ```sql

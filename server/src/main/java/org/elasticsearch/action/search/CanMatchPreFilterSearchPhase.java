@@ -22,11 +22,11 @@ import org.elasticsearch.index.query.CoordinatorRewriteContextProvider;
 import org.elasticsearch.search.CanMatchShardResponse;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.SearchShardTarget;
+import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.search.sort.FieldSortBuilder;
 import org.elasticsearch.search.sort.MinAndMax;
-import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.Transport;
 
@@ -474,7 +474,7 @@ final class CanMatchPreFilterSearchPhase {
         if (shouldSortShards(minAndMaxes) == false) {
             return shardsIts;
         }
-        int[] indexTranslation = sortShards(shardsIts, minAndMaxes, FieldSortBuilder.getPrimaryFieldSortOrNull(request.source()).order());
+        int[] indexTranslation = sortShards(shardsIts, minAndMaxes, request.source());
         List<SearchShardIterator> list = new ArrayList<>(indexTranslation.length);
         for (int in : indexTranslation) {
             list.add(shardsIts.get(in));
@@ -482,13 +482,15 @@ final class CanMatchPreFilterSearchPhase {
         return list;
     }
 
-    public static <T extends Comparable<T>> int[] sortShards(List<T> shardsIts, MinAndMax<?>[] minAndMaxes, SortOrder order) {
+    public static <T extends Comparable<T>> int[] sortShards(List<T> shardsIts, MinAndMax<?>[] minAndMaxes, SearchSourceBuilder source) {
         int bound = shardsIts.size();
         List<Integer> toSort = new ArrayList<>(bound);
         for (int i = 0; i < bound; i++) {
             toSort.add(i);
         }
-        Comparator<? super MinAndMax<?>> keyComparator = forciblyCast(MinAndMax.getComparator(order));
+        Comparator<? super MinAndMax<?>> keyComparator = forciblyCast(
+            MinAndMax.getComparator(FieldSortBuilder.getPrimaryFieldSortOrNull(source).order())
+        );
         toSort.sort((idx1, idx2) -> {
             int res = keyComparator.compare(minAndMaxes[idx1], minAndMaxes[idx2]);
             if (res != 0) {

@@ -48,7 +48,6 @@ import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.internal.ShardSearchContextId;
 import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.search.query.QuerySearchResult;
-import org.elasticsearch.search.sort.FieldSortBuilder;
 import org.elasticsearch.search.sort.MinAndMax;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
@@ -480,11 +479,7 @@ public class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<S
                         }
 
                         try {
-                            final int[] indexes = CanMatchPreFilterSearchPhase.sortShards(
-                                shards,
-                                minAndMax,
-                                FieldSortBuilder.getPrimaryFieldSortOrNull(request.source()).order()
-                            );
+                            final int[] indexes = CanMatchPreFilterSearchPhase.sortShards(shards, minAndMax, request.source());
                             final ShardToQuery[] orig = shards.toArray(new ShardToQuery[0]);
                             for (int i = 0; i < indexes.length; i++) {
                                 shards.set(i, orig[indexes[i]]);
@@ -652,31 +647,29 @@ public class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<S
             NodeQueryRequest::new,
             (request, channel, task) -> {
                 final SearchRequest searchRequest = request.searchRequest;
-                final IntUnaryOperator shards;
-                final ShardSearchRequest[] shardSearchRequests;
+                ShardSearchRequest[] shardSearchRequests = null;
+                IntUnaryOperator shards = IntUnaryOperator.identity();
                 final int shardCount = request.shards.size();
                 if (shardCount > 1 && hasPrimaryFieldSort(searchRequest.source())) {
-                    shardSearchRequests = new ShardSearchRequest[shardCount];
-                    @SuppressWarnings("rawtypes")
-                    final MinAndMax[] minAndMax = new MinAndMax[shardCount];
-                    for (int i = 0; i < minAndMax.length; i++) {
-                        ShardSearchRequest r = buildShardSearchRequestForLocal(request, request.shards.get(i));
-                        shardSearchRequests[i] = r;
-                        var canMatch = searchService.canMatch(r);
-                        if (canMatch.canMatch()) {
-                            r.setRunCanMatchInQueryPhase(false);
-                            minAndMax[i] = canMatch.estimatedMinAndMax();
+                    try {
+                        shardSearchRequests = new ShardSearchRequest[shardCount];
+                        @SuppressWarnings("rawtypes")
+                        final MinAndMax[] minAndMax = new MinAndMax[shardCount];
+                        for (int i = 0; i < minAndMax.length; i++) {
+                            ShardSearchRequest r = buildShardSearchRequestForLocal(request, request.shards.get(i));
+                            shardSearchRequests[i] = r;
+                            var canMatch = searchService.canMatch(r);
+                            if (canMatch.canMatch()) {
+                                r.setRunCanMatchInQueryPhase(false);
+                                minAndMax[i] = canMatch.estimatedMinAndMax();
+                            }
                         }
+                        int[] indexes = CanMatchPreFilterSearchPhase.sortShards(request.shards, minAndMax, searchRequest.source());
+                        shards = pos -> indexes[pos];
+                    } catch (Exception e) {
+                        // TODO: ignored for now but we'll be guaranteed to fail the query phase at this point, fix things to fail here
+                        // already
                     }
-                    int[] indexes = CanMatchPreFilterSearchPhase.sortShards(
-                        request.shards,
-                        minAndMax,
-                        FieldSortBuilder.getPrimaryFieldSortOrNull(searchRequest.source()).order()
-                    );
-                    shards = pos -> indexes[pos];
-                } else {
-                    shardSearchRequests = null;
-                    shards = IntUnaryOperator.identity();
                 }
                 final CancellableTask cancellableTask = (CancellableTask) task;
                 int workers = Math.min(searchRequest.getMaxConcurrentShardRequests(), Math.min(shardCount, searchPoolMax));

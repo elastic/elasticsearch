@@ -196,6 +196,12 @@ public class CustomServiceSettings extends FilteredXContentObject implements Ser
     }
 
     @Override
+    public String modelId() {
+        // returning null because the model id is embedded in the url
+        return null;
+    }
+
+    @Override
     public SimilarityMeasure similarity() {
         return similarity;
     }
@@ -354,12 +360,6 @@ public class CustomServiceSettings extends FilteredXContentObject implements Ser
             rateLimitSettings,
             errorParser
         );
-    }
-
-    @Override
-    public String modelId() {
-        // returning null because the model id is embedded in the url
-        return null;
     }
 
     private static CustomResponseParser extractResponseParser(

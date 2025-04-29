@@ -264,6 +264,7 @@ public class CustomService extends SenderService {
         private static final LazyInitializable<InferenceServiceConfiguration, RuntimeException> configuration = new LazyInitializable<>(
             () -> {
                 var configurationMap = new HashMap<String, SettingsConfiguration>();
+                // TODO revisit this
                 return new InferenceServiceConfiguration.Builder().setService(NAME)
                     .setName(SERVICE_NAME)
                     .setTaskTypes(supportedTaskTypes)

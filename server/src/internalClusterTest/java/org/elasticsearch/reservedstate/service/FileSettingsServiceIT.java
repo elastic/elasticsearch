@@ -25,11 +25,8 @@ import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.Tuple;
-import org.elasticsearch.health.node.DataStreamLifecycleHealthInfo;
-import org.elasticsearch.health.node.DslErrorInfo;
+import org.elasticsearch.health.GetHealthAction;
 import org.elasticsearch.health.node.FetchHealthInfoCacheAction;
-import org.elasticsearch.health.node.HealthInfoCache;
-import org.elasticsearch.health.node.selection.HealthNode;
 import org.elasticsearch.reservedstate.action.ReservedClusterSettingsAction;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.junit.Before;
@@ -38,11 +35,13 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
+import java.util.List;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 
+import static org.elasticsearch.health.HealthStatus.YELLOW;
 import static org.elasticsearch.indices.recovery.RecoverySettings.INDICES_RECOVERY_MAX_BYTES_PER_SEC_SETTING;
 import static org.elasticsearch.node.Node.INITIAL_STATE_TIMEOUT_SETTING;
 import static org.elasticsearch.test.NodeRoles.dataOnlyNode;
@@ -51,10 +50,8 @@ import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
-import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
@@ -508,7 +505,9 @@ public class FileSettingsServiceIT extends ESIntegTestCase {
     public void testHealthIndicator() throws Exception {
         internalCluster().setBootstrapMasterNodeIndex(0);
         logger.info("--> start a data node to act as the health node");
-        internalCluster().startNode(Settings.builder().put(dataOnlyNode()).put("discovery.initial_state_timeout", "1s"));
+        String healthNode = internalCluster().startNode(
+            Settings.builder().put(dataOnlyNode()).put("discovery.initial_state_timeout", "1s")
+        );
 
         logger.info("--> start master node");
         final String masterNode = internalCluster().startMasterOnlyNode(
@@ -518,8 +517,6 @@ public class FileSettingsServiceIT extends ESIntegTestCase {
         assertBusy(() -> assertTrue(masterFileSettingsService.watching()));
 
         ensureStableCluster(2);
-
-        var healthNode = HealthNode.findHealthNode(clusterService().state()).getName();
 
         // Initially, all is well
         assertBusy(() -> {
@@ -542,7 +539,23 @@ public class FileSettingsServiceIT extends ESIntegTestCase {
                 FetchHealthInfoCacheAction.INSTANCE,
                 new FetchHealthInfoCacheAction.Request()
             ).get();
-            assertEquals(1, healthNodeResponse.getHealthInfo().fileSettingsHealthInfo().failureStreak());
+            assertEquals(
+                "Cached info on health node should report one failure",
+                1,
+                healthNodeResponse.getHealthInfo().fileSettingsHealthInfo().failureStreak()
+            );
+
+            for (var node : List.of(masterNode, healthNode)) {
+                GetHealthAction.Response getHealthResponse = client(node).execute(
+                    GetHealthAction.INSTANCE,
+                    new GetHealthAction.Request(false, 123)
+                ).get();
+                assertEquals(
+                    "Health should be yellow on node " + node,
+                    YELLOW,
+                    getHealthResponse.findIndicator(FileSettingsService.FileSettingsHealthIndicatorService.NAME).status()
+                );
+            }
         });
     }
 

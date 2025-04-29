@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.searchbusinessrules;
 
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
+import org.elasticsearch.plugins.ExtensiblePlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.plugins.SearchPlugin.QuerySpec;
@@ -21,7 +22,7 @@ import java.util.List;
 import static java.util.Collections.emptyList;
 import static java.util.Collections.singletonList;
 
-public class SearchBusinessRules extends Plugin implements SearchPlugin {
+public class SearchBusinessRules extends Plugin implements SearchPlugin, ExtensiblePlugin {
 
     @Override
     public List<QuerySpec<?>> getQueries() {

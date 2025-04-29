@@ -1,5 +1,0 @@
-pr: 127489
-summary: Default S3 endpoint scheme to HTTPS when not specified
-area: Snapshot/Restore
-type: bug
-issues: []

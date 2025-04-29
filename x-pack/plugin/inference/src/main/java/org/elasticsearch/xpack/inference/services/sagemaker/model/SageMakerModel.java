@@ -135,4 +135,12 @@ public class SageMakerModel extends Model {
     public SageMakerStoredTaskSchema apiTaskSettings() {
         return taskSettings.apiTaskSettings();
     }
+
+    SageMakerServiceSettings serviceSettings() {
+        return serviceSettings;
+    }
+
+    SageMakerTaskSettings taskSettings() {
+        return taskSettings;
+    }
 }

@@ -33,7 +33,7 @@ public class SageMakerOpenAiServiceSettingsTests extends InferenceSettingsTestCa
     }
 
     static OpenAiTextEmbeddingPayload.ApiServiceSettings randomApiServiceSettings() {
-        return new OpenAiTextEmbeddingPayload.ApiServiceSettings(randomBoolean() ? randomIntBetween(1, 100) : null);
-
+        var dimensions = randomBoolean() ? randomIntBetween(1, 100) : null;
+        return new OpenAiTextEmbeddingPayload.ApiServiceSettings(dimensions, dimensions != null);
     }
 }

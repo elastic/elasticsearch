@@ -42,6 +42,7 @@ import java.util.Set;
 import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.xpack.inference.InferencePlugin.UTILITY_THREAD_POOL_NAME;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.createInvalidModelException;
+import static org.elasticsearch.xpack.inference.services.ServiceUtils.invalidModelTypeForUpdateModelWithEmbeddingDetails;
 
 public class SageMakerService implements InferenceService {
     public static final String NAME = "sagemaker";
@@ -281,6 +282,15 @@ public class SageMakerService implements InferenceService {
     @Override
     public void start(Model model, TimeValue timeout, ActionListener<Boolean> listener) {
         listener.onResponse(true);
+    }
+
+    @Override
+    public Model updateModelWithEmbeddingDetails(Model model, int embeddingSize) {
+        if (model instanceof SageMakerModel sageMakerModel) {
+            return modelBuilder.updateModelWithEmbeddingDetails(sageMakerModel, embeddingSize);
+        }
+
+        throw invalidModelTypeForUpdateModelWithEmbeddingDetails(model.getClass());
     }
 
     @Override

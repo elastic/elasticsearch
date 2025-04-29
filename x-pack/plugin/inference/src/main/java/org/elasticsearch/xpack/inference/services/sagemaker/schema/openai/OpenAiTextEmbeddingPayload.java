@@ -18,7 +18,9 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.inference.ModelConfigurations;
+import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.xcontent.XContent;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -62,7 +64,7 @@ public class OpenAiTextEmbeddingPayload implements SageMakerSchemaPayload {
 
     @Override
     public SageMakerStoredTaskSchema apiTaskSettings(Map<String, Object> taskSettings, ValidationException validationException) {
-        return new ApiTaskSettings.ApiTaskSettingsBuilder().fromMap(taskSettings, validationException).build();
+        return ApiTaskSettings.fromMap(taskSettings, validationException);
     }
 
     @Override
@@ -118,12 +120,12 @@ public class OpenAiTextEmbeddingPayload implements SageMakerSchemaPayload {
         }
     }
 
-    record ApiServiceSettings(@Nullable Integer dimensions) implements SageMakerStoredServiceSchema {
+    record ApiServiceSettings(@Nullable Integer dimensions, Boolean dimensionsSetByUser) implements SageMakerStoredServiceSchema {
         private static final String NAME = "sagemaker_openai_text_embeddings_service_settings";
         private static final String DIMENSIONS_FIELD = "dimensions";
 
         ApiServiceSettings(StreamInput in) throws IOException {
-            this(in.readOptionalInt());
+            this(in.readOptionalInt(), in.readBoolean());
         }
 
         @Override
@@ -139,6 +141,7 @@ public class OpenAiTextEmbeddingPayload implements SageMakerSchemaPayload {
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeOptionalInt(dimensions);
+            out.writeBoolean(dimensionsSetByUser);
         }
 
         @Override
@@ -157,7 +160,25 @@ public class OpenAiTextEmbeddingPayload implements SageMakerSchemaPayload {
                 validationException
             );
 
-            return new ApiServiceSettings(dimensions);
+            return new ApiServiceSettings(dimensions, dimensions != null);
+        }
+
+        @Override
+        public SimilarityMeasure similarity() {
+            return SimilarityMeasure.DOT_PRODUCT;
+        }
+
+        @Override
+        public DenseVectorFieldMapper.ElementType elementType() {
+            return DenseVectorFieldMapper.ElementType.FLOAT;
+        }
+
+        @Override
+        public SageMakerStoredServiceSchema updateModelWithEmbeddingDetails(
+            SageMakerStoredServiceSchema currentSchema,
+            Integer dimensions
+        ) {
+            return new ApiServiceSettings(dimensions, false);
         }
     }
 
@@ -167,11 +188,6 @@ public class OpenAiTextEmbeddingPayload implements SageMakerSchemaPayload {
 
         ApiTaskSettings(StreamInput in) throws IOException {
             this(in.readOptionalString());
-        }
-
-        @Override
-        public Builder toBuilder() {
-            return new ApiTaskSettingsBuilder().user(user);
         }
 
         @Override
@@ -194,24 +210,23 @@ public class OpenAiTextEmbeddingPayload implements SageMakerSchemaPayload {
             return user != null ? builder.field(USER_FIELD, user) : builder;
         }
 
-        static class ApiTaskSettingsBuilder implements Builder {
-            private String user;
+        @Override
+        public boolean isEmpty() {
+            return user == null;
+        }
 
-            private ApiTaskSettingsBuilder user(@Nullable String user) {
-                this.user = user != null ? user : this.user;
-                return this;
-            }
+        @Override
+        public ApiTaskSettings updatedTaskSettings(Map<String, Object> newSettings) {
+            var validationException = new ValidationException();
+            var newTaskSettings = fromMap(newSettings, validationException);
+            validationException.throwIfValidationErrorsExist();
 
-            @Override
-            public ApiTaskSettingsBuilder fromMap(Map<String, Object> map, ValidationException exception) {
-                user(extractOptionalString(map, USER_FIELD, ModelConfigurations.TASK_SETTINGS, exception));
-                return this;
-            }
+            return new ApiTaskSettings(newTaskSettings.user() != null ? newTaskSettings.user() : user);
+        }
 
-            @Override
-            public ApiTaskSettings build() {
-                return new ApiTaskSettings(user);
-            }
+        static ApiTaskSettings fromMap(Map<String, Object> map, ValidationException exception) {
+            var user = extractOptionalString(map, USER_FIELD, ModelConfigurations.TASK_SETTINGS, exception);
+            return new ApiTaskSettings(user);
         }
     }
 }

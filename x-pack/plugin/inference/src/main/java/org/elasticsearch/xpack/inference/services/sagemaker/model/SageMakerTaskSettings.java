@@ -72,7 +72,7 @@ record SageMakerTaskSettings(
     public SageMakerTaskSettings updatedTaskSettings(Map<String, Object> newSettings) {
         var validationException = new ValidationException();
 
-        var updateTaskSettings = fromMap(newSettings, apiTaskSettings.update(newSettings, validationException), validationException);
+        var updateTaskSettings = fromMap(newSettings, apiTaskSettings.updatedTaskSettings(newSettings), validationException);
 
         validationException.throwIfValidationErrorsExist();
 

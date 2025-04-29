@@ -12,7 +12,6 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.xcontent.ToXContent;
-import org.elasticsearch.xcontent.ToXContentFragment;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.core.ml.AbstractBWCWireSerializationTestCase;
@@ -72,11 +71,11 @@ public abstract class InferenceSettingsTestCase<T extends Writeable & ToXContent
 
     public static Map<String, Object> toMap(ToXContent instance) throws IOException {
         try (var builder = JsonXContent.contentBuilder()) {
-            if (instance instanceof ToXContentFragment) {
+            if (instance.isFragment()) {
                 builder.startObject();
             }
             instance.toXContent(builder, ToXContent.EMPTY_PARAMS);
-            if (instance instanceof ToXContentFragment) {
+            if (instance.isFragment()) {
                 builder.endObject();
             }
             var taskSettingsBytes = Strings.toString(builder).getBytes(StandardCharsets.UTF_8);

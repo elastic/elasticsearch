@@ -9,38 +9,28 @@ package org.elasticsearch.xpack.inference.services.sagemaker.schema;
 
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
-import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.io.stream.VersionedNamedWriteable;
-import org.elasticsearch.xcontent.ToXContentFragment;
+import org.elasticsearch.inference.TaskSettings;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.util.Map;
 
 /**
  * Contains any model-specific settings that are stored in SageMakerTaskSettings.
- * Because TaskSettings are updatable, this object must be able to mutate itself, which we handle through the {@link Builder}.
  */
-public interface SageMakerStoredTaskSchema extends ToXContentFragment, VersionedNamedWriteable {
+public interface SageMakerStoredTaskSchema extends TaskSettings {
     SageMakerStoredTaskSchema NO_OP = new SageMakerStoredTaskSchema() {
-
-        private static final String NAME = "noop_sagemaker_task_schema";
-        private static final Builder NO_OP_BUILDER = new Builder() {
-            @Override
-            public Builder fromMap(Map<String, Object> map, ValidationException exception) {
-                return this;
-            }
-
-            @Override
-            public SageMakerStoredTaskSchema build() {
-                return NO_OP;
-            }
-        };
+        @Override
+        public boolean isEmpty() {
+            return true;
+        }
 
         @Override
-        public Builder toBuilder() {
-            return NO_OP_BUILDER;
+        public SageMakerStoredTaskSchema updatedTaskSettings(Map<String, Object> newSettings) {
+            return this;
         }
+
+        private static final String NAME = "noop_sagemaker_task_schema";
 
         @Override
         public String getWriteableName() {
@@ -61,23 +51,14 @@ public interface SageMakerStoredTaskSchema extends ToXContentFragment, Versioned
         }
     };
 
-    default SageMakerStoredTaskSchema update(Map<String, Object> map, ValidationException exception) {
-        return toBuilder().fromMap(map, exception).build();
-    }
-
     /**
-     * This is called during {@link #update(Map, ValidationException)}.
-     * Implementations should set the current field values in the Builder, as the update function is expected to overwrite them.
+     * These extra service settings serialize flatly alongside the overall SageMaker ServiceSettings.
      */
-    Builder toBuilder();
-
-    interface Builder {
-        /**
-         * The map will either come from the PUT request or the stored value in the model index.
-         * It must match the map written by toXContent.
-         */
-        Builder fromMap(Map<String, Object> map, ValidationException exception);
-
-        SageMakerStoredTaskSchema build();
+    @Override
+    default boolean isFragment() {
+        return true;
     }
+
+    @Override
+    SageMakerStoredTaskSchema updatedTaskSettings(Map<String, Object> newSettings);
 }

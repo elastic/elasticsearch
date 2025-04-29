@@ -98,4 +98,39 @@ public class SageMakerModelBuilder {
             awsSecretSettings
         );
     }
+
+    public SageMakerModel updateModelWithEmbeddingDetails(SageMakerModel model, int embeddingSize) {
+        var updatedApiServiceSettings = model.apiServiceSettings()
+            .updateModelWithEmbeddingDetails(model.apiServiceSettings(), embeddingSize);
+
+        if (updatedApiServiceSettings == model.apiServiceSettings()) {
+            return model;
+        }
+
+        var updatedServiceSettings = new SageMakerServiceSettings(
+            model.serviceSettings().endpointName(),
+            model.serviceSettings().region(),
+            model.serviceSettings().api(),
+            model.serviceSettings().targetModel(),
+            model.serviceSettings().targetContainerHostname(),
+            model.serviceSettings().inferenceComponentName(),
+            model.serviceSettings().batchSize(),
+            updatedApiServiceSettings
+        );
+
+        var modelConfigurations = new ModelConfigurations(
+            model.getInferenceEntityId(),
+            model.getTaskType(),
+            model.getConfigurations().getService(),
+            updatedServiceSettings,
+            model.taskSettings()
+        );
+        return new SageMakerModel(
+            modelConfigurations,
+            model.getSecrets(),
+            updatedServiceSettings,
+            model.taskSettings(),
+            model.awsSecretSettings().orElse(null)
+        );
+    }
 }

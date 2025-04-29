@@ -116,9 +116,7 @@ public abstract class SageMakerSchemaPayloadTestCase<T extends SageMakerSchemaPa
         if (taskSettings != SageMakerStoredTaskSchema.NO_OP) {
             var otherTaskSettings = randomValueOtherThan(taskSettings, this::randomApiTaskSettings);
 
-            var validationException = new ValidationException();
-            var updatedSettings = toMap(taskSettings.update(toMap(otherTaskSettings), validationException));
-            validationException.throwIfValidationErrorsExist();
+            var updatedSettings = toMap(taskSettings.updatedTaskSettings(toMap(otherTaskSettings)));
 
             var initialSettings = toMap(taskSettings);
             var newSettings = toMap(otherTaskSettings);
@@ -137,8 +135,7 @@ public abstract class SageMakerSchemaPayloadTestCase<T extends SageMakerSchemaPa
             var otherTaskSettings = randomValueOtherThan(randomApiTaskSettings(), this::randomApiTaskSettings);
             var otherTaskSettingsAsMap = toMap(otherTaskSettings);
 
-            var validationException = new ValidationException();
-            taskSchema.update(otherTaskSettingsAsMap, validationException);
+            taskSchema.updatedTaskSettings(otherTaskSettingsAsMap);
         }
     }
 

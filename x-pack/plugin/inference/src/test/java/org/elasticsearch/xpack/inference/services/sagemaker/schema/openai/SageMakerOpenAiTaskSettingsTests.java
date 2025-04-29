@@ -17,8 +17,7 @@ public class SageMakerOpenAiTaskSettingsTests extends InferenceSettingsTestCase<
     @Override
     protected OpenAiTextEmbeddingPayload.ApiTaskSettings fromMutableMap(Map<String, Object> mutableMap) {
         var validationException = new ValidationException();
-        var settings = new OpenAiTextEmbeddingPayload.ApiTaskSettings.ApiTaskSettingsBuilder().fromMap(mutableMap, validationException)
-            .build();
+        var settings = OpenAiTextEmbeddingPayload.ApiTaskSettings.fromMap(mutableMap, validationException);
         validationException.throwIfValidationErrorsExist();
         return settings;
     }

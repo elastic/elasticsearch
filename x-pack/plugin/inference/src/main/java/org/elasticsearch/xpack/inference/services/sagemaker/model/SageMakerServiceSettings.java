@@ -13,9 +13,11 @@ import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ServiceSettings;
 import org.elasticsearch.inference.SettingsConfiguration;
+import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.inference.configuration.SettingsConfigurationFieldType;
 import org.elasticsearch.xcontent.ToXContentObject;
@@ -78,6 +80,31 @@ record SageMakerServiceSettings(
     }
 
     @Override
+    public String modelId() {
+        return apiServiceSettings.modelId();
+    }
+
+    @Override
+    public SimilarityMeasure similarity() {
+        return apiServiceSettings.similarity();
+    }
+
+    @Override
+    public Integer dimensions() {
+        return apiServiceSettings.dimensions();
+    }
+
+    @Override
+    public Boolean dimensionsSetByUser() {
+        return apiServiceSettings.dimensionsSetByUser();
+    }
+
+    @Override
+    public DenseVectorFieldMapper.ElementType elementType() {
+        return apiServiceSettings.elementType();
+    }
+
+    @Override
     public String getWriteableName() {
         return NAME;
     }
@@ -124,14 +151,6 @@ record SageMakerServiceSettings(
         if (value != null) {
             builder.field(name, value);
         }
-    }
-
-    /**
-     * For SageMaker, the unique and required identifier is the endpointName. The modelId is only required for multi-model endpoints.
-     */
-    @Override
-    public String modelId() {
-        return endpointName();
     }
 
     static SageMakerServiceSettings fromMap(SageMakerSchemas schemas, TaskType taskType, Map<String, Object> serviceSettingsMap) {

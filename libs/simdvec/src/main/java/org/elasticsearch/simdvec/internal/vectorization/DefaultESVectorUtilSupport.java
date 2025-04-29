@@ -39,6 +39,100 @@ final class DefaultESVectorUtilSupport implements ESVectorUtilSupport {
         return ipFloatBitImpl(q, d);
     }
 
+    @Override
+    public float calculateOSQLoss(float[] target, float[] interval, float step, float invStep, float norm2, float lambda) {
+        float a = interval[0];
+        float b = interval[1];
+        float xe = 0f;
+        float e = 0f;
+        for (float xi : target) {
+            // this is quantizing and then dequantizing the vector
+            float xiq = fma(step, Math.round((Math.min(Math.max(xi, a), b) - a) * invStep), a);
+            // how much does the de-quantized value differ from the original value
+            float xiiq = xi - xiq;
+            e = fma(xiiq, xiiq, e);
+            xe = fma(xi, xiiq, xe);
+        }
+        return (1f - lambda) * xe * xe / norm2 + lambda * e;
+    }
+
+    @Override
+    public void calculateOSQGridPoints(float[] target, float[] interval, int points, float invStep, float[] pts) {
+        float a = interval[0];
+        float b = interval[1];
+        float daa = 0;
+        float dab = 0;
+        float dbb = 0;
+        float dax = 0;
+        float dbx = 0;
+        for (float v : target) {
+            float k = Math.round((Math.min(Math.max(v, a), b) - a) * invStep);
+            float s = k / (points - 1);
+            float ms = 1f - s;
+            daa = fma(ms, ms, daa);
+            dab = fma(ms, s, dab);
+            dbb = fma(s, s, dbb);
+            dax = fma(ms, v, dax);
+            dbx = fma(s, v, dbx);
+        }
+        pts[0] = daa;
+        pts[1] = dab;
+        pts[2] = dbb;
+        pts[3] = dax;
+        pts[4] = dbx;
+    }
+
+    @Override
+    public void centerAndCalculateOSQStatsEuclidean(float[] target, float[] centroid, float[] centered, float[] stats) {
+        float vecMean = 0;
+        float vecVar = 0;
+        float norm2 = 0;
+        float min = Float.MAX_VALUE;
+        float max = -Float.MAX_VALUE;
+        for (int i = 0; i < target.length; i++) {
+            centered[i] = target[i] - centroid[i];
+            min = Math.min(min, centered[i]);
+            max = Math.max(max, centered[i]);
+            norm2 = fma(centered[i], centered[i], norm2);
+            float delta = centered[i] - vecMean;
+            vecMean += delta / (i + 1);
+            float delta2 = centered[i] - vecMean;
+            vecVar = fma(delta, delta2, vecVar);
+        }
+        stats[0] = vecMean;
+        stats[1] = vecVar / target.length;
+        stats[2] = norm2;
+        stats[3] = min;
+        stats[4] = max;
+    }
+
+    @Override
+    public void centerAndCalculateOSQStatsDp(float[] target, float[] centroid, float[] centered, float[] stats) {
+        float vecMean = 0;
+        float vecVar = 0;
+        float norm2 = 0;
+        float centroidDot = 0;
+        float min = Float.MAX_VALUE;
+        float max = -Float.MAX_VALUE;
+        for (int i = 0; i < target.length; i++) {
+            centroidDot = fma(target[i], centroid[i], centroidDot);
+            centered[i] = target[i] - centroid[i];
+            min = Math.min(min, centered[i]);
+            max = Math.max(max, centered[i]);
+            norm2 = fma(centered[i], centered[i], norm2);
+            float delta = centered[i] - vecMean;
+            vecMean += delta / (i + 1);
+            float delta2 = centered[i] - vecMean;
+            vecVar = fma(delta, delta2, vecVar);
+        }
+        stats[0] = vecMean;
+        stats[1] = vecVar / target.length;
+        stats[2] = norm2;
+        stats[3] = min;
+        stats[4] = max;
+        stats[5] = centroidDot;
+    }
+
     public static int ipByteBitImpl(byte[] q, byte[] d) {
         assert q.length == d.length * Byte.SIZE;
         int acc0 = 0;

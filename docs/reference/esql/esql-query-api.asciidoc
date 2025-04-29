@@ -65,8 +65,9 @@ precedence.
 
 `allow_partial_results`::
 (Optional, boolean) If `true`, partial results will be returned if there are shard failures, but
-the query can continue to execute on other clusters and shards. This defaults to the value of
-the cluster setting `esql.query.allow_partial_results`.
+the query can continue to execute on other clusters and shards. This defaults to `true`, unless
+the cluster setting `esql.query.allow_partial_results` is set to `false`, in which case it also
+defaults to `false`.
 
 [discrete]
 [role="child_attributes"]

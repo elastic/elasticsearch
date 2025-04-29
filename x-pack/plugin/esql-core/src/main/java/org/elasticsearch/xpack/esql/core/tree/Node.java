@@ -184,7 +184,6 @@ public abstract class Node<T extends Node<T>> implements NamedWriteable {
     public T transformDown(Function<? super T, ? extends T> rule) {
         T root = rule.apply((T) this);
         Node<T> node = this.equals(root) ? this : root;
-
         return node.transformChildren(child -> child.transformDown(rule));
     }
 
@@ -192,6 +191,12 @@ public abstract class Node<T extends Node<T>> implements NamedWriteable {
     public <E extends T> T transformDown(Class<E> typeToken, Function<E, ? extends T> rule) {
         // type filtering function
         return transformDown((t) -> (typeToken.isInstance(t) ? rule.apply((E) t) : t));
+    }
+
+    @SuppressWarnings("unchecked")
+    public <E extends T> T transformDown(Predicate<Node<?>> tokenPredicate, Function<E, ? extends T> rule) {
+        // type filtering function
+        return transformDown((t) -> (tokenPredicate.test(t) ? rule.apply((E) t) : t));
     }
 
     @SuppressWarnings("unchecked")
@@ -205,6 +210,12 @@ public abstract class Node<T extends Node<T>> implements NamedWriteable {
     public <E extends T> T transformUp(Class<E> typeToken, Function<E, ? extends T> rule) {
         // type filtering function
         return transformUp((t) -> (typeToken.isInstance(t) ? rule.apply((E) t) : t));
+    }
+
+    @SuppressWarnings("unchecked")
+    public <E extends T> T transformUp(Predicate<Node<?>> tokenPredicate, Function<E, ? extends T> rule) {
+        // type filtering function
+        return transformUp((t) -> (tokenPredicate.test(t) ? rule.apply((E) t) : t));
     }
 
     @SuppressWarnings("unchecked")

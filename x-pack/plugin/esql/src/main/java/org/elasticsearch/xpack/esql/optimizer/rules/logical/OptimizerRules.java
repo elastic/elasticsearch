@@ -7,9 +7,12 @@
 package org.elasticsearch.xpack.esql.optimizer.rules.logical;
 
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.tree.Node;
 import org.elasticsearch.xpack.esql.core.util.ReflectionUtils;
 import org.elasticsearch.xpack.esql.optimizer.LogicalOptimizerContext;
+import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.rule.ParameterizedRule;
 import org.elasticsearch.xpack.esql.rule.Rule;
 
@@ -55,11 +58,19 @@ public final class OptimizerRules {
         @Override
         public final LogicalPlan apply(LogicalPlan plan, LogicalOptimizerContext ctx) {
             return direction == TransformDirection.DOWN
-                ? plan.transformExpressionsDown(expressionTypeToken, e -> rule(e, ctx))
-                : plan.transformExpressionsUp(expressionTypeToken, e -> rule(e, ctx));
+                ? plan.transformExpressionsDown(this::shouldVisit, expressionTypeToken, e -> rule(e, ctx))
+                : plan.transformExpressionsUp(this::shouldVisit, expressionTypeToken, e -> rule(e, ctx));
         }
 
         protected abstract Expression rule(E e, LogicalOptimizerContext ctx);
+
+        protected boolean shouldVisit(Node<?> node) {
+            return switch (node) {
+                case EsRelation esr -> false;
+                case Project p -> false;// this covers both keep and project
+                default -> true;
+            };
+        }
 
         public Class<E> expressionToken() {
             return expressionTypeToken;

@@ -47,6 +47,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -57,6 +58,7 @@ import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.iterableWithSize;
 import static org.hamcrest.Matchers.notNullValue;
 
 public class FailureStoreSecurityRestIT extends ESRestTestCase {
@@ -2016,9 +2018,105 @@ public class FailureStoreSecurityRestIT extends ESRestTestCase {
         return performRequest(user, request);
     }
 
-    public void testDataStreamApi() {
-        // test get data stream
-        // test data stream stats
+    public void testDataStreamApis() throws Exception {
+        setupDataStream();
+        setupOtherDataStream();
+
+        final String username = "user";
+        final String roleName = "role";
+        createUser(username, PASSWORD, roleName);
+        {
+            // manage_failure_store does not grant access to _data_stream APIs
+            createOrUpdateRoleAndApiKey(username, roleName, """
+                {
+                  "cluster": ["all"],
+                  "indices": [
+                    {
+                      "names": ["test1", "other1"],
+                      "privileges": ["manage_failure_store"]
+                    }
+                  ]
+                }
+                """);
+
+            expectThrows(() -> performRequest(username, new Request("GET", "/_data_stream/test1")), 403);
+            expectThrows(() -> performRequest(username, new Request("GET", "/_data_stream/test1/_stats")), 403);
+            expectThrows(() -> performRequest(username, new Request("GET", "/_data_stream/test1/_options")), 403);
+            expectThrows(() -> performRequest(username, new Request("GET", "/_data_stream/test1/_lifecycle")), 403);
+            expectThrows(() -> putDataStreamLifecycle(username, "test1", """
+                {
+                    "data_retention": "7d"
+                }"""), 403);
+            expectEmptyDataStreamStats(username, new Request("GET", "/_data_stream/_stats"));
+            expectEmptyDataStreamStats(username, new Request("GET", "/_data_stream/" + randomFrom("test*", "*") + "/_stats"));
+        }
+        {
+            createOrUpdateRoleAndApiKey(username, roleName, """
+                {
+                  "cluster": ["all"],
+                  "indices": [
+                    {
+                      "names": ["test1"],
+                      "privileges": ["manage"]
+                    }
+                  ]
+                }
+                """);
+
+            expectDataStreamStats(username, new Request("GET", "/_data_stream/_stats"), "test1", 2);
+            expectDataStreamStats(
+                username,
+                new Request("GET", "/_data_stream/" + randomFrom("test1", "test*", "*") + "/_stats"),
+                "test1",
+                2
+            );
+            expectDataStreams(username, new Request("GET", "/_data_stream/" + randomFrom("test1", "test*", "*")), "test1");
+            putDataStreamLifecycle(username, "test1", """
+                {
+                    "data_retention": "7d"
+                }""");
+
+            var lifecycleResponse = assertOKAndCreateObjectPath(
+                performRequest(username, new Request("GET", "/_data_stream/" + randomFrom("test1", "test*", "*") + "/_lifecycle"))
+            );
+            assertThat(lifecycleResponse.evaluate("data_streams"), iterableWithSize(1));
+            assertThat(lifecycleResponse.evaluate("data_streams.0.name"), equalTo("test1"));
+
+            var optionsResponse = assertOKAndCreateObjectPath(
+                performRequest(username, new Request("GET", "/_data_stream/" + randomFrom("test1", "test*", "*") + "/_options"))
+            );
+            assertThat(optionsResponse.evaluate("data_streams"), iterableWithSize(1));
+            assertThat(optionsResponse.evaluate("data_streams.0.name"), equalTo("test1"));
+        }
+    }
+
+    private void putDataStreamLifecycle(String user, String dataStreamName, String lifecyclePolicy) throws IOException {
+        Request request = new Request("PUT", "/_data_stream/" + dataStreamName + "/_lifecycle");
+        request.setJsonEntity(lifecyclePolicy);
+        assertOK(performRequest(user, request));
+    }
+
+    private void expectDataStreams(String user, Request dataStreamRequest, String dataStreamName) throws IOException {
+        Response response = performRequest(user, dataStreamRequest);
+        ObjectPath path = assertOKAndCreateObjectPath(response);
+        List<Objects> dataStreams = path.evaluate("data_streams");
+        assertThat(dataStreams.size(), equalTo(1));
+        assertThat(path.evaluate("data_streams.0.name"), equalTo(dataStreamName));
+    }
+
+    private void expectDataStreamStats(String user, Request statsRequest, String dataStreamName, int backingIndices) throws IOException {
+        Response response = performRequest(user, statsRequest);
+        ObjectPath path = assertOKAndCreateObjectPath(response);
+        assertThat(path.evaluate("data_stream_count"), equalTo(1));
+        assertThat(path.evaluate("backing_indices"), equalTo(backingIndices));
+        assertThat(path.evaluate("data_streams.0.data_stream"), equalTo(dataStreamName));
+    }
+
+    private void expectEmptyDataStreamStats(String user, Request request) throws IOException {
+        Response response = performRequest(user, request);
+        ObjectPath path = assertOKAndCreateObjectPath(response);
+        assertThat(path.evaluate("data_stream_count"), equalTo(0));
+        assertThat(path.evaluate("backing_indices"), equalTo(0));
     }
 
     public void testAliasBasedAccess() throws Exception {

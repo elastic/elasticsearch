@@ -16,6 +16,7 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xpack.core.security.authc.RealmSettings;
 import org.elasticsearch.xpack.core.security.authc.support.ClaimSetting;
 import org.elasticsearch.xpack.core.security.authc.support.DelegatedAuthorizationSettings;
+import org.elasticsearch.xpack.core.security.authc.support.SecuritySettingsUtil;
 import org.elasticsearch.xpack.core.ssl.SSLConfigurationSettings;
 
 import java.util.Collection;
@@ -30,6 +31,7 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static org.elasticsearch.xpack.core.security.authc.support.SecuritySettingsUtil.verifyNonNullNotEmpty;
+import static org.elasticsearch.xpack.core.security.authc.support.SecuritySettingsUtil.verifyProxySettings;
 
 /**
  * Settings unique to each JWT realm.
@@ -496,32 +498,7 @@ public class JwtRealmSettings {
 
             @Override
             public void validate(String value, Map<Setting<?>, Object> settings) {
-                final String namespace = HTTP_PROXY_HOST.getNamespace(HTTP_PROXY_HOST.getConcreteSetting(key));
-                final Setting<Integer> portSetting = HTTP_PROXY_PORT.getConcreteSettingForNamespace(namespace);
-                final Integer port = (Integer) settings.get(portSetting);
-                final Setting<String> schemeSetting = HTTP_PROXY_SCHEME.getConcreteSettingForNamespace(namespace);
-                final String scheme = (String) settings.get(schemeSetting);
-                try {
-                    new HttpHost(value, port, scheme);
-                } catch (Exception e) {
-                    throw new IllegalArgumentException(
-                        "HTTP host for hostname ["
-                            + value
-                            + "] (from ["
-                            + key
-                            + "]),"
-                            + " port ["
-                            + port
-                            + "] (from ["
-                            + portSetting.getKey()
-                            + "]) and "
-                            + "scheme ["
-                            + scheme
-                            + "] (from (["
-                            + schemeSetting.getKey()
-                            + "]) is invalid"
-                    );
-                }
+                verifyProxySettings(key, value, settings, HTTP_PROXY_HOST, HTTP_PROXY_SCHEME, HTTP_PROXY_PORT);
             }
 
             @Override
@@ -544,11 +521,13 @@ public class JwtRealmSettings {
     public static final Setting.AffixSetting<String> HTTP_PROXY_SCHEME = Setting.affixKeySetting(
         RealmSettings.realmSettingPrefix(TYPE),
         "http.proxy.scheme",
-        key -> Setting.simpleString(key, "http", value -> {
-            if (value.equals("http") == false && value.equals("https") == false) {
-                throw new IllegalArgumentException("Invalid value [" + value + "] for [" + key + "]. Only `http` or `https` are allowed.");
-            }
-        }, Setting.Property.NodeScope)
+        key -> Setting.simpleString(
+            key,
+            "http",
+            // TODO allow HTTPS once https://github.com/elastic/elasticsearch/issues/100264 is fixed
+            value -> verifyNonNullNotEmpty(key, value, List.of("http")),
+            Setting.Property.NodeScope
+        )
     );
 
     // SSL Configuration settings

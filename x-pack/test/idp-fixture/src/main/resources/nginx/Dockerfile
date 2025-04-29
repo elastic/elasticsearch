@@ -1,7 +1,7 @@
 # We need to do SSL tunnelling, but NGINX doesn't support this out of the box - there's a module for this, but the only
 #  way to install it is to compile NGINX from source, so here we go
 
-FROM nginx:latest
+FROM nginx:1.27.1
 
 RUN set -x \
     && apt-get update \
@@ -9,7 +9,7 @@ RUN set -x \
     && apt-get install --no-install-recommends --no-install-suggests -y  \
       zlib1g-dev libpcre2-dev libssl-dev wget git gcc patch make  \
     && wget http://nginx.org/download/nginx-1.27.1.tar.gz \
-    && git clone https://github.com/chobits/ngx_http_proxy_connect_module.git \
+    && git clone --depth 1 --branch v0.0.7 --single-branch https://github.com/chobits/ngx_http_proxy_connect_module.git \
     && tar -xzvf nginx-1.27.1.tar.gz \
     && cd nginx-1.27.1 \
     # patch the CONNECT module in

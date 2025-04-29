@@ -226,20 +226,20 @@ public final class GeoIpProcessor extends AbstractProcessor {
         @Override
         public Processor create(
             final Map<String, Processor.Factory> registry,
-            final String processorTag,
+            final String tag,
             final String description,
             final Map<String, Object> config,
             final ProjectId projectId
         ) throws IOException {
-            String ipField = readStringProperty(type, processorTag, config, "field");
-            String targetField = readStringProperty(type, processorTag, config, "target_field", type);
-            String databaseFile = readStringProperty(type, processorTag, config, "database_file", "GeoLite2-City.mmdb");
-            List<String> propertyNames = readOptionalList(type, processorTag, config, "properties");
-            boolean ignoreMissing = readBooleanProperty(type, processorTag, config, "ignore_missing", false);
-            boolean firstOnly = readBooleanProperty(type, processorTag, config, "first_only", true);
+            String ipField = readStringProperty(type, tag, config, "field");
+            String targetField = readStringProperty(type, tag, config, "target_field", type);
+            String databaseFile = readStringProperty(type, tag, config, "database_file", "GeoLite2-City.mmdb");
+            List<String> propertyNames = readOptionalList(type, tag, config, "properties");
+            boolean ignoreMissing = readBooleanProperty(type, tag, config, "ignore_missing", false);
+            boolean firstOnly = readBooleanProperty(type, tag, config, "first_only", true);
 
             // validate (and consume) the download_database_on_pipeline_creation property even though the result is not used by the factory
-            readBooleanProperty(type, processorTag, config, "download_database_on_pipeline_creation", true);
+            readBooleanProperty(type, tag, config, "download_database_on_pipeline_creation", true);
 
             final String databaseType;
             try (IpDatabase ipDatabase = ipDatabaseProvider.getDatabase(databaseFile)) {
@@ -248,7 +248,7 @@ public final class GeoIpProcessor extends AbstractProcessor {
                     // at a later moment, so a processor impl is returned that tags documents instead. If a database cannot be sourced
                     // then the processor will continue to tag documents with a warning until it is remediated by providing a database
                     // or changing the pipeline.
-                    return new DatabaseUnavailableProcessor(type, processorTag, description, databaseFile);
+                    return new DatabaseUnavailableProcessor(type, tag, description, databaseFile);
                 }
                 databaseType = ipDatabase.getDatabaseType();
             }
@@ -257,7 +257,7 @@ public final class GeoIpProcessor extends AbstractProcessor {
             try {
                 factory = IpDataLookupFactories.get(databaseType, databaseFile);
             } catch (IllegalArgumentException e) {
-                throw newConfigurationException(type, processorTag, "database_file", e.getMessage());
+                throw newConfigurationException(type, tag, "database_file", e.getMessage());
             }
 
             // the "geoip" processor type does additional validation of the database_type
@@ -270,7 +270,7 @@ public final class GeoIpProcessor extends AbstractProcessor {
                 if (lowerCaseDatabaseType.startsWith(IpinfoIpDataLookups.IPINFO_PREFIX)) {
                     throw newConfigurationException(
                         type,
-                        processorTag,
+                        tag,
                         "database_file",
                         Strings.format("Unsupported database type [%s] for file [%s]", databaseType, databaseFile)
                     );
@@ -294,12 +294,12 @@ public final class GeoIpProcessor extends AbstractProcessor {
             try {
                 ipDataLookup = factory.create(propertyNames);
             } catch (IllegalArgumentException e) {
-                throw newConfigurationException(type, processorTag, "properties", e.getMessage());
+                throw newConfigurationException(type, tag, "properties", e.getMessage());
             }
 
             return new GeoIpProcessor(
                 type,
-                processorTag,
+                tag,
                 description,
                 ipField,
                 new DatabaseVerifyingSupplier(ipDatabaseProvider, databaseFile, databaseType),
@@ -336,9 +336,9 @@ public final class GeoIpProcessor extends AbstractProcessor {
         }
 
         @Override
-        public IngestDocument execute(IngestDocument ingestDocument) throws Exception {
-            tag(ingestDocument, this.type, databaseName);
-            return ingestDocument;
+        public IngestDocument execute(IngestDocument document) throws Exception {
+            tag(document, this.type, databaseName);
+            return document;
         }
 
         @Override
@@ -351,7 +351,7 @@ public final class GeoIpProcessor extends AbstractProcessor {
         }
     }
 
-    private static void tag(IngestDocument ingestDocument, String type, String databaseName) {
-        ingestDocument.appendFieldValue("tags", "_" + type + "_database_unavailable_" + databaseName, true);
+    private static void tag(IngestDocument document, String type, String databaseName) {
+        document.appendFieldValue("tags", "_" + type + "_database_unavailable_" + databaseName, true);
     }
 }

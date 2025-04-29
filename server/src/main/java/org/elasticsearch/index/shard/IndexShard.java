@@ -163,7 +163,6 @@ import java.io.PrintStream;
 import java.lang.invoke.MethodHandles;
 import java.lang.invoke.VarHandle;
 import java.lang.reflect.Constructor;
-import java.lang.reflect.InvocationTargetException;
 import java.nio.channels.ClosedByInterruptException;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
@@ -209,7 +208,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     private final Store store;
     private final InternalIndexingStats internalIndexingStats;
     private final ShardSearchStats searchStats = new ShardSearchStats();
-    private final ShardSearchLoadRateStatsService searchLoadRateStats;
+    private final ShardSearchLoadRateStatsService searchLoadRateStats = null;
     private final ShardFieldUsageTracker fieldUsageTracker;
     private final String shardUuid = UUIDs.randomBase64UUID();
     private final long shardCreationTime;
@@ -348,7 +347,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         final MapperMetrics mapperMetrics,
         final IndexingStatsSettings indexingStatsSettings,
         final SearchStatsSettings searchStatsSettings
-    ) throws IOException, NoSuchMethodException, InvocationTargetException, InstantiationException, IllegalAccessException {
+    ) throws IOException {
         super(shardRouting.shardId(), indexSettings);
         assert shardRouting.initializing();
         this.shardRouting = shardRouting;
@@ -373,10 +372,12 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             logger
         );
 
-        ServiceLoader<ShardSearchLoadRateStatsService> searchLoadRateStatsLoader = ServiceLoader.load(ShardSearchLoadRateStatsService.class);
-        ShardSearchLoadRateStatsService servire = searchLoadRateStatsLoader.findFirst().get();
-        Constructor<?> constructor = servire.getClass().getConstructor(SearchStatsSettings.class, Long.class);
-        this.searchLoadRateStats = (ShardSearchLoadRateStatsService) constructor.newInstance(searchStatsSettings, System.currentTimeMillis());
+        try {
+            ServiceLoader<ShardSearchLoadRateStatsService> searchLoadRateStatsLoader = ServiceLoader.load(ShardSearchLoadRateStatsService.class);
+            ShardSearchLoadRateStatsService servire = searchLoadRateStatsLoader.findFirst().get();
+            Constructor<?> constructor = servire.getClass().getConstructor(SearchStatsSettings.class, Long.class);
+            this.searchLoadRateStats = (ShardSearchLoadRateStatsService) constructor.newInstance(searchStatsSettings, System.currentTimeMillis());
+        } catch(Exception e) {}
 
         this.bulkOperationListener = new ShardBulkStats();
         this.globalCheckpointSyncer = globalCheckpointSyncer;

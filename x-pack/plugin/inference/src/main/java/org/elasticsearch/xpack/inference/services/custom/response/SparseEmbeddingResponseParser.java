@@ -35,10 +35,11 @@ public class SparseEmbeddingResponseParser extends BaseCustomResponseParser<Spar
     private final String tokenPath;
     private final String weightPath;
 
-    public static SparseEmbeddingResponseParser fromMap(Map<String, Object> responseParserMap, ValidationException validationException) {
-        var tokenPath = extractRequiredString(responseParserMap, SPARSE_EMBEDDING_TOKEN_PATH, JSON_PARSER, validationException);
+    public static SparseEmbeddingResponseParser fromMap(Map<String, Object> responseParserMap, String scope, ValidationException validationException) {
+        var fullScope = String.join(".", scope, JSON_PARSER);
+        var tokenPath = extractRequiredString(responseParserMap, SPARSE_EMBEDDING_TOKEN_PATH, fullScope, validationException);
 
-        var weightPath = extractRequiredString(responseParserMap, SPARSE_EMBEDDING_WEIGHT_PATH, JSON_PARSER, validationException);
+        var weightPath = extractRequiredString(responseParserMap, SPARSE_EMBEDDING_WEIGHT_PATH, fullScope, validationException);
 
         if (tokenPath == null || weightPath == null) {
             throw validationException;

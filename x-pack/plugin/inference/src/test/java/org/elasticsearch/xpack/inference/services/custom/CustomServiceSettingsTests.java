@@ -446,8 +446,8 @@ public class CustomServiceSettingsTests extends AbstractBWCWireSerializationTest
             exception.getMessage(),
             is(
                 "Validation Failed: 1: [service_settings] does not contain the required setting [response];"
-                    + "2: [service_settings] does not contain the required setting [json_parser];"
-                    + "3: [service_settings] does not contain the required setting [error_parser];"
+                    + "2: [service_settings.response] does not contain the required setting [json_parser];"
+                    + "3: [service_settings.response] does not contain the required setting [error_parser];"
                     + "4: Encountered a null input map while parsing field [path];"
             )
         );

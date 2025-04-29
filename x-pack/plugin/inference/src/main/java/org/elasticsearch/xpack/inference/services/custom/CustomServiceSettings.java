@@ -61,6 +61,7 @@ public class CustomServiceSettings extends FilteredXContentObject implements Ser
     public static final String ERROR_PARSER = "error_parser";
 
     private static final RateLimitSettings DEFAULT_RATE_LIMIT_SETTINGS = new RateLimitSettings(10_000);
+    private static final String RESPONSE_SCOPE = String.join(".", ModelConfigurations.SERVICE_SETTINGS, RESPONSE);
 
     public static CustomServiceSettings fromMap(Map<String, Object> map, ConfigurationParseContext context, TaskType taskType) {
         ValidationException validationException = new ValidationException();
@@ -96,7 +97,7 @@ public class CustomServiceSettings extends FilteredXContentObject implements Ser
         Map<String, Object> jsonParserMap = extractRequiredMap(
             Objects.requireNonNullElse(responseParserMap, new HashMap<>()),
             JSON_PARSER,
-            ModelConfigurations.SERVICE_SETTINGS,
+            RESPONSE_SCOPE,
             validationException
         );
 
@@ -105,11 +106,11 @@ public class CustomServiceSettings extends FilteredXContentObject implements Ser
         Map<String, Object> errorParserMap = extractRequiredMap(
             Objects.requireNonNullElse(responseParserMap, new HashMap<>()),
             ERROR_PARSER,
-            ModelConfigurations.SERVICE_SETTINGS,
+            RESPONSE_SCOPE,
             validationException
         );
 
-        var errorParser = ErrorResponseParser.fromMap(errorParserMap, validationException);
+        var errorParser = ErrorResponseParser.fromMap(errorParserMap, RESPONSE_SCOPE, validationException);
 
         RateLimitSettings rateLimitSettings = RateLimitSettings.of(
             map,
@@ -371,10 +372,10 @@ public class CustomServiceSettings extends FilteredXContentObject implements Ser
         }
 
         return switch (taskType) {
-            case TEXT_EMBEDDING -> TextEmbeddingResponseParser.fromMap(responseParserMap, validationException);
-            case SPARSE_EMBEDDING -> SparseEmbeddingResponseParser.fromMap(responseParserMap, validationException);
-            case RERANK -> RerankResponseParser.fromMap(responseParserMap, validationException);
-            case COMPLETION -> CompletionResponseParser.fromMap(responseParserMap, validationException);
+            case TEXT_EMBEDDING -> TextEmbeddingResponseParser.fromMap(responseParserMap, RESPONSE_SCOPE, validationException);
+            case SPARSE_EMBEDDING -> SparseEmbeddingResponseParser.fromMap(responseParserMap, RESPONSE_SCOPE, validationException);
+            case RERANK -> RerankResponseParser.fromMap(responseParserMap, RESPONSE_SCOPE, validationException);
+            case COMPLETION -> CompletionResponseParser.fromMap(responseParserMap, RESPONSE_SCOPE, validationException);
             default -> throw new IllegalArgumentException(
                 Strings.format("Invalid task type received [%s] while constructing response parser", taskType)
             );

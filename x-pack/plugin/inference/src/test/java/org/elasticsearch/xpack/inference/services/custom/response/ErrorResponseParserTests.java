@@ -35,7 +35,7 @@ public class ErrorResponseParserTests extends ESTestCase {
 
     public void testFromMap() {
         var validation = new ValidationException();
-        var parser = ErrorResponseParser.fromMap(new HashMap<>(Map.of(MESSAGE_PATH, "$.error.message")), validation);
+        var parser = ErrorResponseParser.fromMap(new HashMap<>(Map.of(MESSAGE_PATH, "$.error.message")), "scope", validation);
 
         assertThat(parser, is(new ErrorResponseParser("$.error.message")));
     }
@@ -44,13 +44,10 @@ public class ErrorResponseParserTests extends ESTestCase {
         var validation = new ValidationException();
         var exception = expectThrows(
             ValidationException.class,
-            () -> ErrorResponseParser.fromMap(new HashMap<>(Map.of("some_field", "$.error.message")), validation)
+            () -> ErrorResponseParser.fromMap(new HashMap<>(Map.of("some_field", "$.error.message")), "scope", validation)
         );
 
-        assertThat(
-            exception.getMessage(),
-            is("Validation Failed: 1: [error_parser] does not contain the required setting [path];")
-        );
+        assertThat(exception.getMessage(), is("Validation Failed: 1: [scope.error_parser] does not contain the required setting [path];"));
     }
 
     public void testToXContent() throws IOException {
@@ -124,8 +121,7 @@ public class ErrorResponseParserTests extends ESTestCase {
     }
 
     public void testErrorResponse_ReturnsUndefinedObjectIfNoError() throws IOException {
-        var mockResult
-            = getMockResult("""
+        var mockResult = getMockResult("""
             {"noerror":true}""");
 
         var parser = new ErrorResponseParser("$.error.message");

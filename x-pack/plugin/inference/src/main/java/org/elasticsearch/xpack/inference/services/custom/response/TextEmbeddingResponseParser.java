@@ -30,8 +30,8 @@ public class TextEmbeddingResponseParser extends BaseCustomResponseParser<TextEm
 
     private final String textEmbeddingsPath;
 
-    public static TextEmbeddingResponseParser fromMap(Map<String, Object> responseParserMap, ValidationException validationException) {
-        var path = extractRequiredString(responseParserMap, TEXT_EMBEDDING_PARSER_EMBEDDINGS, JSON_PARSER, validationException);
+    public static TextEmbeddingResponseParser fromMap(Map<String, Object> responseParserMap, String scope, ValidationException validationException) {
+        var path = extractRequiredString(responseParserMap, TEXT_EMBEDDING_PARSER_EMBEDDINGS, String.join(".", scope, JSON_PARSER), validationException);
 
         if (path == null) {
             throw validationException;

@@ -162,6 +162,8 @@ import java.io.IOException;
 import java.io.PrintStream;
 import java.lang.invoke.MethodHandles;
 import java.lang.invoke.VarHandle;
+import java.lang.reflect.Constructor;
+import java.lang.reflect.InvocationTargetException;
 import java.nio.channels.ClosedByInterruptException;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
@@ -207,7 +209,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     private final Store store;
     private final InternalIndexingStats internalIndexingStats;
     private final ShardSearchStats searchStats = new ShardSearchStats();
-    private final ServiceLoader<ShardSearchLoadRateStatsService> searchLoadRateStatsLoader;
+    private final ShardSearchLoadRateStatsService searchLoadRateStats;
     private final ShardFieldUsageTracker fieldUsageTracker;
     private final String shardUuid = UUIDs.randomBase64UUID();
     private final long shardCreationTime;
@@ -346,7 +348,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         final MapperMetrics mapperMetrics,
         final IndexingStatsSettings indexingStatsSettings,
         final SearchStatsSettings searchStatsSettings
-    ) throws IOException {
+    ) throws IOException, NoSuchMethodException, InvocationTargetException, InstantiationException, IllegalAccessException {
         super(shardRouting.shardId(), indexSettings);
         assert shardRouting.initializing();
         this.shardRouting = shardRouting;
@@ -370,8 +372,12 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             CollectionUtils.appendToCopyNoNullElements(listeners, internalIndexingStats, indexingFailuresDebugListener),
             logger
         );
-        this.searchLoadRateStatsLoader = ServiceLoader.load(ShardSearchLoadRateStatsService.class);
-       // this.searchLoadRateStats = new ShardSearchLoadRateStats(searchStatsSettings, System::currentTimeMillis);
+
+        ServiceLoader<ShardSearchLoadRateStatsService> searchLoadRateStatsLoader = ServiceLoader.load(ShardSearchLoadRateStatsService.class);
+        ShardSearchLoadRateStatsService servire = searchLoadRateStatsLoader.findFirst().get();
+        Constructor<?> constructor = servire.getClass().getConstructor(SearchStatsSettings.class, Long.class);
+        this.searchLoadRateStats = (ShardSearchLoadRateStatsService) constructor.newInstance(searchStatsSettings, System.currentTimeMillis());
+
         this.bulkOperationListener = new ShardBulkStats();
         this.globalCheckpointSyncer = globalCheckpointSyncer;
         this.retentionLeaseSyncer = Objects.requireNonNull(retentionLeaseSyncer);
@@ -1422,9 +1428,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      * Returns the search load rate stats for this shard.
      */
     public ShardSearchLoadRateStatsService.SearchLoadRate getSearchLoadRate() {
-        return searchLoadRateStatsLoader.findFirst()
-            .map(loader -> loader.getSearchLoadRate(searchStats.stats().getTotal()))
-            .orElse(ShardSearchLoadRateStatsService.SearchLoadRate.NO_OP);
+        return searchLoadRateStats.getSearchLoadRate(searchStats.stats().getTotal());
     }
 
     public FieldUsageStats fieldUsageStats(String... fields) {

@@ -9,6 +9,8 @@
 
 package org.elasticsearch.index.search.stats;
 
+import java.util.function.Supplier;
+
 /**
  * Service interface for calculating the search load rate on a shard.
  * <p>

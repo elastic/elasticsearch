@@ -443,6 +443,7 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
                         }
                         builder.field(MANAGED_BY.getPreferredName(), indexProperties.managedBy.displayValue);
                     }
+
                     builder.endObject();
                 }
                 builder.endArray();

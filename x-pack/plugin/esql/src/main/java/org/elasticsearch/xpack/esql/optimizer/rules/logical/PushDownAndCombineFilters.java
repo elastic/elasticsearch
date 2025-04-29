@@ -87,6 +87,8 @@ public final class PushDownAndCombineFilters extends OptimizerRules.OptimizerRul
             plan = orderBy.replaceChild(filter.with(orderBy.child(), condition));
         } else if (child instanceof Join join && child instanceof InlineJoin == false) {
             // TODO: could we do better here about pushing down filters for inlinestats?
+            // See also https://github.com/elastic/elasticsearch/issues/127497
+            // Push down past INLINESTATS if the condition is on the groupings
             return pushDownPastJoin(filter, join);
         }
         // cannot push past a Limit, this could change the tailing result set returned

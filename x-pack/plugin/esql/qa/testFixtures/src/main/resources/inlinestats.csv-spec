@@ -918,6 +918,7 @@ FROM employees
 | INLINESTATS max_salary = MAX(salary), min_salary = MIN(salary) by languages
 | KEEP emp_no, languages, *salary
 | WHERE salary > 65000 and languages > 2
+| SORT emp_no
 ;
 
 emp_no:integer |languages:integer|salary:integer |max_salary:integer|min_salary:integer   
@@ -938,16 +939,16 @@ FROM employees
 | INLINESTATS max_salary = MAX(salary), min_salary = MIN(salary) by languages
 | KEEP emp_no, languages, *salary
 | WHERE min_salary > 27000 or max_salary < 70000
+| sort salary desc
 | limit 5
-| sort salary
 ;
 
 emp_no:integer |languages:integer|salary:integer |max_salary:integer|min_salary:integer
-10004          |5                |36174          |66817             |25324          
-10002          |5                |56371          |66817             |25324          
-10001          |2                |57305          |73578             |29175          
-10003          |4                |61805          |74572             |27215          
+10029          |null             |74999          |74999             |28336          
 10007          |4                |74572          |74572             |27215          
+10027          |null             |73851          |74999             |28336          
+10099          |2                |73578          |73578             |29175          
+10078          |2                |69904          |73578             |29175          
 ;
 
 filterOnInlineStatsAggsValues_And_Groupings
@@ -957,14 +958,14 @@ FROM employees
 | INLINESTATS max_salary = MAX(salary), min_salary = MIN(salary) by languages
 | KEEP emp_no, languages, *salary
 | WHERE (min_salary > 27000 or max_salary < 70000) and languages > 3
-| limit 5
 | sort salary
+| limit 5
 ;
 
 emp_no:integer |languages:integer|salary:integer |max_salary:integer|min_salary:integer
-10004          |5                |36174          |66817             |25324          
-10010          |4                |45797          |74572             |27215          
-10002          |5                |56371          |66817             |25324          
-10003          |4                |61805          |74572             |27215          
-10007          |4                |74572          |74572             |27215
+10015          |5                |25324          |66817             |25324          
+10035          |5                |25945          |66817             |25324          
+10057          |4                |27215          |74572             |27215          
+10011          |5                |31120          |66817             |25324          
+10066          |5                |31897          |66817             |25324          
 ;

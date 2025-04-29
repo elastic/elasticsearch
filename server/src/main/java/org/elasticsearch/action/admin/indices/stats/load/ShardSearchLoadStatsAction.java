@@ -18,7 +18,7 @@ import org.elasticsearch.action.RemoteClusterActionType;
 public class ShardSearchLoadStatsAction extends ActionType<ShardSearchLoadStatsResponse> {
 
     public static final ShardSearchLoadStatsAction INSTANCE = new ShardSearchLoadStatsAction();
-    public static final String NAME = "shards:monitor/stats";
+    public static final String NAME = "internal:monitor/stats";
     public static final RemoteClusterActionType<ShardSearchLoadStatsResponse> REMOTE_TYPE = new RemoteClusterActionType<>(
         NAME,
         ShardSearchLoadStatsResponse::new

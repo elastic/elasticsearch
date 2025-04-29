@@ -6,7 +6,6 @@
  */
 package org.elasticsearch.xpack.core.security.authc.oidc;
 
-import org.apache.http.HttpHost;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.util.set.Sets;

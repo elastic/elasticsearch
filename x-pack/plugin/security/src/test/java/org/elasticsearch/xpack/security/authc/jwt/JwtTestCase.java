@@ -203,8 +203,7 @@ public abstract class JwtTestCase extends ESTestCase {
                 settingsBuilder.put(RealmSettings.getFullSettingKey(name, JwtRealmSettings.HTTP_PROXY_SCHEME), "http");
             }
 
-            settingsBuilder
-                .put(RealmSettings.getFullSettingKey(name, JwtRealmSettings.HTTP_PROXY_HOST), "localhost/proxy")
+            settingsBuilder.put(RealmSettings.getFullSettingKey(name, JwtRealmSettings.HTTP_PROXY_HOST), "localhost/proxy")
                 .put(RealmSettings.getFullSettingKey(name, JwtRealmSettings.HTTP_PROXY_PORT), randomIntBetween(1, 65535));
         }
 

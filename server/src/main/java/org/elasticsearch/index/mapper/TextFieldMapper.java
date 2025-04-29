@@ -1093,6 +1093,7 @@ public final class TextFieldMapper extends FieldMapper {
                 // between text and keyword).
                 return BlockSourceReader.lookupMatchingAll();
             }
+
             if (isIndexed()) {
                 if (getTextSearchInfo().hasNorms()) {
                     return BlockSourceReader.lookupFromNorms(name());

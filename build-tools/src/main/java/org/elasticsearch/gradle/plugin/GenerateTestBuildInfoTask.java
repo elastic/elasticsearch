@@ -10,15 +10,15 @@
 package org.elasticsearch.gradle.plugin;
 
 import org.gradle.api.DefaultTask;
+import org.gradle.api.file.DirectoryProperty;
 import org.gradle.api.file.FileCollection;
 import org.gradle.api.file.RegularFileProperty;
-import org.gradle.api.provider.ListProperty;
 import org.gradle.api.provider.Property;
 import org.gradle.api.tasks.Input;
 import org.gradle.api.tasks.InputFile;
 import org.gradle.api.tasks.InputFiles;
 import org.gradle.api.tasks.Optional;
-import org.gradle.api.tasks.OutputFile;
+import org.gradle.api.tasks.OutputDirectory;
 import org.gradle.api.tasks.TaskAction;
 
 import java.io.File;
@@ -27,16 +27,22 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 
-public abstract class GeneratePluginTestDependenciesTask extends DefaultTask {
+// TODO: 3 sets - testBuildInfo, internalClusterTest, external (as dependency of another)
+
+public abstract class GenerateTestBuildInfoTask extends DefaultTask {
 
     public static final String DESCRIPTION = "generates plugin test dependencies file";
-    public static final String PROPERTIES_FILENAME = "plugin-test-dependencies.properties";
+    public static final String PROPERTIES_FILENAME = "test-build-info.json";
 
-    public GeneratePluginTestDependenciesTask() {
+    public GenerateTestBuildInfoTask() {
         setDescription(DESCRIPTION);
     }
 
+    @Input
+    public abstract Property<String> getComponentName();
+
     @InputFile
+    @Optional
     public abstract RegularFileProperty getDescriptorFile();
 
     @InputFile
@@ -44,19 +50,22 @@ public abstract class GeneratePluginTestDependenciesTask extends DefaultTask {
     public abstract RegularFileProperty getPolicyFile();
 
     @InputFiles
-    public abstract Property<FileCollection> getJarFiles();
+    public abstract Property<FileCollection> getCodeLocations();
 
-    @Input
-    public abstract ListProperty<String> getClassDirectories();
-
-    @OutputFile
-    public abstract RegularFileProperty getOutputFile();
+    @OutputDirectory
+    public abstract DirectoryProperty getOutputDirectory();
 
     @TaskAction
     public void generatePropertiesFile() throws IOException {
-        Path outputFile = getOutputFile().get().getAsFile().toPath();
-        Files.createDirectories(outputFile.getParent());
+        Path outputDirectory = getOutputDirectory().get().getAsFile().toPath();
+        Files.createDirectories(outputDirectory);
+        Path outputFile = outputDirectory.resolve(PROPERTIES_FILENAME);
+
         try (var writer = Files.newBufferedWriter(outputFile, StandardCharsets.UTF_8)) {
+            writer.write("name=");
+            writer.write(getComponentName().get());
+            writer.write("\n");
+
             writer.write("descriptor=");
             writer.write(getDescriptorFile().getAsFile().get().getAbsolutePath());
             writer.write("\n");
@@ -67,27 +76,14 @@ public abstract class GeneratePluginTestDependenciesTask extends DefaultTask {
                 writer.write("\n");
             }
 
-            if (getJarFiles().get().isEmpty() == false) {
-                writer.write("jars=");
-                StringBuilder sb = new StringBuilder();
-                for (File jar : getJarFiles().get()) {
-                    sb.append(jar.getAbsolutePath());
-                    sb.append(":");
-                }
-                writer.write(sb.substring(0, sb.length() - 1));
-                writer.write("\n");
+            writer.write("locations=");
+            StringBuilder sb = new StringBuilder();
+            for (File jar : getCodeLocations().get()) {
+                sb.append(jar.getAbsolutePath());
+                sb.append(":");
             }
-
-            if (getClassDirectories().get().isEmpty() == false) {
-                writer.write("directories=");
-                StringBuilder sb = new StringBuilder();
-                for (String sd : getClassDirectories().get()) {
-                    sb.append(sd);
-                    sb.append(":");
-                }
-                writer.write(sb.substring(0, sb.length() - 1));
-                writer.write("\n");
-            }
+            writer.write(sb.substring(0, sb.length() - 1));
+            writer.write("\n");
         }
     }
 }

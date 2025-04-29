@@ -10,11 +10,15 @@
 package org.elasticsearch.gradle.plugin;
 
 import org.elasticsearch.gradle.VersionProperties;
+import org.elasticsearch.gradle.dependencies.CompileOnlyResolvePlugin;
 import org.gradle.api.Plugin;
 import org.gradle.api.Project;
+import org.gradle.api.file.Directory;
 import org.gradle.api.file.RegularFile;
 import org.gradle.api.provider.Provider;
 import org.gradle.api.provider.ProviderFactory;
+import org.gradle.api.tasks.SourceSet;
+import org.gradle.api.tasks.SourceSetContainer;
 
 import javax.inject.Inject;
 
@@ -51,11 +55,34 @@ public class PluginBuildPlugin implements Plugin<Project> {
             task.getOutputFile().set(file);
         });
 
-        project.getTasks().withType(GeneratePluginTestDependenciesTask.class).named("generatePluginTestDependencies").configure(task -> {
-            Provider<RegularFile> file = project.getLayout()
+        SourceSetContainer sourceSets = project.getExtensions().getByType(SourceSetContainer.class);
+
+        var testBuildInfoTask = project.getTasks().register("generateTestBuildInfo", GenerateTestBuildInfoTask.class, task -> {
+            var pluginProperties = project.getTasks().getByName("pluginProperties");
+            task.getDescriptorFile().set(pluginProperties.getOutputs().getFiles().getSingleFile());
+            var propertiesExtension = project.getExtensions().getByType(PluginPropertiesExtension.class);
+            task.getComponentName().set(providerFactory.provider(propertiesExtension::getName));
+            var policy = project.getLayout().getProjectDirectory().file("src/main/plugin-metadata/entitlement-policy.yaml");
+            if (policy.getAsFile().exists()) {
+                task.getPolicyFile().set(policy);
+            }
+            task.getCodeLocations().set(
+                project.getConfigurations()
+                    .getByName("runtimeClasspath")
+                    .minus(project.getConfigurations().getByName(CompileOnlyResolvePlugin.RESOLVEABLE_COMPILE_ONLY_CONFIGURATION_NAME))
+                    .plus(sourceSets.getByName(SourceSet.MAIN_SOURCE_SET_NAME).getOutput().getClassesDirs())
+                    .plus(sourceSets.getByName(SourceSet.TEST_SOURCE_SET_NAME).getOutput().getClassesDirs())
+            );
+
+            Provider<Directory> directory = project.getLayout()
                 .getBuildDirectory()
-                .file("generated-test-dependencies/" + GeneratePluginTestDependenciesTask.PROPERTIES_FILENAME);
-            task.getOutputFile().set(file);
+                .dir("generated-build-info/test");
+            task.getOutputDirectory().set(directory);
+        });
+
+
+        sourceSets.named(SourceSet.TEST_SOURCE_SET_NAME).configure(sourceSet -> {
+            sourceSet.getResources().srcDir(testBuildInfoTask);
         });
     }
 

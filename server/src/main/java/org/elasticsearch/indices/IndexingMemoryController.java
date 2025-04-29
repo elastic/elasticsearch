@@ -244,15 +244,15 @@ public class IndexingMemoryController implements IndexingOperationListener, Clos
 
     @Override
     public void postIndex(ShardId shardId, Engine.Index index, Engine.IndexResult result) {
-        postOperation(shardId, index, result);
+        postOperation(index, result);
     }
 
     @Override
     public void postDelete(ShardId shardId, Engine.Delete delete, Engine.DeleteResult result) {
-        postOperation(shardId, delete, result);
+        postOperation(delete, result);
     }
 
-    private void postOperation(ShardId shardId, Engine.Operation operation, Engine.Result result) {
+    private void postOperation(Engine.Operation operation, Engine.Result result) {
         recordOperationBytes(operation, result);
         // Piggy back on indexing threads to write segments. We're not submitting a task to the index threadpool because we want memory to
         // be reclaimed rapidly. This has the downside of increasing the latency of _bulk requests though. Lucene does the same thing in

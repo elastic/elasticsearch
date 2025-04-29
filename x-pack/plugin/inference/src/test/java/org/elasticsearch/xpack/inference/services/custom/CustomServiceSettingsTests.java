@@ -101,7 +101,7 @@ public class CustomServiceSettingsTests extends AbstractBWCWireSerializationTest
         Integer maxInputTokens = 512;
         String url = "http://www.abc.com";
         Map<String, String> headers = Map.of("key", "value");
-        var queryParameters = new QueryParameters(List.of(new QueryParameters.Parameter("key", "value")));
+        var queryParameters = List.of(List.of("key", "value"));
         String requestContentString = "request body";
 
         var responseParser = new TextEmbeddingResponseParser("$.result.embeddings[*].embedding");
@@ -149,7 +149,7 @@ public class CustomServiceSettingsTests extends AbstractBWCWireSerializationTest
                     maxInputTokens,
                     url,
                     headers,
-                    queryParameters,
+                    new QueryParameters(List.of(new QueryParameters.Parameter("key", "value"))),
                     requestContentString,
                     responseParser,
                     new RateLimitSettings(10_000),

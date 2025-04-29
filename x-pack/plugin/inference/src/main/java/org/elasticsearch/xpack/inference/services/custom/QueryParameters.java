@@ -52,9 +52,6 @@ public record QueryParameters(List<Parameter> parameters) implements ToXContentF
     }
 
     public record Parameter(String key, String value) implements ToXContentFragment, Writeable {
-        private static final String KEY = "key";
-        private static final String VALUE = "value";
-
         public Parameter {
             Objects.requireNonNull(key);
             Objects.requireNonNull(value);

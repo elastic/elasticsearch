@@ -22,6 +22,7 @@ import org.elasticsearch.xpack.inference.services.custom.CustomServiceSettings;
 import org.elasticsearch.xpack.inference.services.custom.CustomTaskSettings;
 import org.elasticsearch.xpack.inference.services.custom.QueryParameters;
 import org.elasticsearch.xpack.inference.services.custom.response.ErrorResponseParser;
+import org.elasticsearch.xpack.inference.services.custom.response.RerankResponseParser;
 import org.elasticsearch.xpack.inference.services.custom.response.TextEmbeddingResponseParser;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 import org.elasticsearch.xpack.inference.services.settings.SerializableSecureString;
@@ -87,6 +88,55 @@ public class CustomRequestTests extends ESTestCase {
         assertThat(convertToString(httpPost.getEntity().getContent()), is(expectedBody));
     }
 
+    public void testCreateRequest_QueryParametersAreEscaped_AndEncoded() {
+        var requestContentString = """
+            {
+                "input": ${input}
+            }
+            """;
+
+        var serviceSettings = new CustomServiceSettings(
+            null,
+            null,
+            null,
+            "http://www.elastic.co",
+            null,
+            // escaped characters retrieved from here: https://docs.microfocus.com/OMi/10.62/Content/OMi/ExtGuide/ExtApps/URL_encoding.htm
+            new QueryParameters(
+                List.of(
+                    new QueryParameters.Parameter("key", " <>#%+{}|\\^~[]`;/?:@=&$"),
+                    // unicode is a 😀
+                    // Note: In the current version of the apache library (4.x) being used to do the encoding, spaces are converted to +
+                    // There's a bug fix here explaining that: https://issues.apache.org/jira/browse/HTTPCORE-628
+                    new QueryParameters.Parameter("key", "Σ \uD83D\uDE00")
+                )
+            ),
+            requestContentString,
+            new TextEmbeddingResponseParser("$.result.embeddings"),
+            new RateLimitSettings(10_000),
+            new ErrorResponseParser("$.error.message")
+        );
+
+        var model = CustomModelTests.createModel(
+            "service",
+            TaskType.TEXT_EMBEDDING,
+            serviceSettings,
+            new CustomTaskSettings(Map.of("url", "https://www.elastic.com")),
+            new CustomSecretSettings(Map.of("api_key", new SerializableSecureString("my-secret-key")))
+        );
+
+        var request = new CustomRequest(null, List.of("abc", "123"), model);
+        var httpRequest = request.createHttpRequest();
+        assertThat(httpRequest.httpRequestBase(), instanceOf(HttpPost.class));
+
+        var httpPost = (HttpPost) httpRequest.httpRequestBase();
+        assertThat(
+            httpPost.getURI().toString(),
+            // To visually verify that this is correct, input the query parameters into here: https://www.urldecoder.org/
+            is("http://www.elastic.co?key=+%3C%3E%23%25%2B%7B%7D%7C%5C%5E%7E%5B%5D%60%3B%2F%3F%3A%40%3D%26%24&key=%CE%A3+%F0%9F%98%80")
+        );
+    }
+
     public void testCreateRequest_SecretsInTheJsonBody_AreEncodedCorrectly() throws IOException {
         var dims = 1536;
         var maxInputTokens = 512;
@@ -137,6 +187,116 @@ public class CustomRequestTests extends ESTestCase {
             """);
 
         assertThat(convertToString(httpPost.getEntity().getContent()), is(expectedBody));
+    }
+
+    public void testCreateRequest_HandlesQuery() throws IOException {
+        var requestContentString = """
+            {
+                "input": ${input},
+                "query": ${query}
+            }
+            """;
+
+        var serviceSettings = new CustomServiceSettings(
+            null,
+            null,
+            null,
+            "http://www.elastic.co",
+            null,
+            null,
+            requestContentString,
+            new RerankResponseParser("$.result.score"),
+            new RateLimitSettings(10_000),
+            new ErrorResponseParser("$.error.message")
+        );
+
+        var model = CustomModelTests.createModel(
+            "service",
+            TaskType.RERANK,
+            serviceSettings,
+            new CustomTaskSettings(Map.of()),
+            new CustomSecretSettings(Map.of("api_key", new SerializableSecureString("my-secret-key")))
+        );
+
+        var request = new CustomRequest("query string", List.of("abc", "123"), model);
+        var httpRequest = request.createHttpRequest();
+        assertThat(httpRequest.httpRequestBase(), instanceOf(HttpPost.class));
+
+        var httpPost = (HttpPost) httpRequest.httpRequestBase();
+
+        var expectedBody = XContentHelper.stripWhitespace("""
+            {
+              "input": ["abc", "123"],
+              "query": "query string"
+            }
+            """);
+
+        assertThat(convertToString(httpPost.getEntity().getContent()), is(expectedBody));
+    }
+
+    public void testCreateRequest_IgnoresNonStringFields_ForStringParams() throws IOException {
+        var requestContentString = """
+            {
+                "input": ${input}
+            }
+            """;
+
+        var serviceSettings = new CustomServiceSettings(
+            null,
+            null,
+            null,
+            "http://www.elastic.co",
+            Map.of(HttpHeaders.ACCEPT, Strings.format("${task.key}")),
+            null,
+            requestContentString,
+            new RerankResponseParser("$.result.score"),
+            new RateLimitSettings(10_000),
+            new ErrorResponseParser("$.error.message")
+        );
+
+        var model = CustomModelTests.createModel(
+            "service",
+            TaskType.RERANK,
+            serviceSettings,
+            new CustomTaskSettings(Map.of("task.key", 100)),
+            new CustomSecretSettings(Map.of("api_key", new SerializableSecureString("my-secret-key")))
+        );
+
+        var request = new CustomRequest(null, List.of("abc", "123"), model);
+        var exception = expectThrows(IllegalStateException.class, request::createHttpRequest);
+        assertThat(exception.getMessage(), is("Found placeholder [${task.key}] in field [header.Accept] after replacement call"));
+    }
+
+    public void testCreateRequest_ThrowsException_ForInvalidUrl() {
+        var requestContentString = """
+            {
+                "input": ${input}
+            }
+            """;
+
+        var serviceSettings = new CustomServiceSettings(
+            null,
+            null,
+            null,
+            "${url}",
+            Map.of(HttpHeaders.ACCEPT, Strings.format("${task.key}")),
+            null,
+            requestContentString,
+            new RerankResponseParser("$.result.score"),
+            new RateLimitSettings(10_000),
+            new ErrorResponseParser("$.error.message")
+        );
+
+        var model = CustomModelTests.createModel(
+            "service",
+            TaskType.RERANK,
+            serviceSettings,
+            new CustomTaskSettings(Map.of("url", "^")),
+            new CustomSecretSettings(Map.of("api_key", new SerializableSecureString("my-secret-key")))
+        );
+
+        var exception = expectThrows(IllegalStateException.class, () -> new CustomRequest(null, List.of("abc", "123"), model));
+        assertThat(exception.getMessage(), is("Failed to build URI, error: Illegal character in path at index 0: ^"));
     }
 
     private static String convertToString(InputStream inputStream) throws IOException {

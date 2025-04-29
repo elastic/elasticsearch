@@ -2,4 +2,5 @@ pr: 127522
 summary: Use INTERNAL_INGEST for Inference
 area: Machine Learning
 type: bug
-issues: []
+issues:
+ - 127519

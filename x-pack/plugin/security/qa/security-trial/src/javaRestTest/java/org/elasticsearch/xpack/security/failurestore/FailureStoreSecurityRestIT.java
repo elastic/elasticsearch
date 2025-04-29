@@ -105,7 +105,7 @@ public class FailureStoreSecurityRestIT extends ESRestTestCase {
         upsertRole(Strings.format("""
             {
               "cluster": ["all"],
-              "indices": [{"names": ["test*"], "privileges": ["write", "auto_configure"]}]
+              "indices": [{"names": ["test*", "other*"], "privileges": ["write", "auto_configure"]}]
             }"""), WRITE_ACCESS);
     }
 
@@ -1921,6 +1921,241 @@ public class FailureStoreSecurityRestIT extends ESRestTestCase {
         }
     }
 
+    public void testAliasBasedAccess() throws Exception {
+        List<String> docIds = setupDataStream();
+        assertThat(docIds.size(), equalTo(2));
+        assertThat(docIds, hasItem("1"));
+        String dataDocId = "1";
+        String failuresDocId = docIds.stream().filter(id -> false == id.equals(dataDocId)).findFirst().get();
+
+        List<String> otherDocIds = setupOtherDataStream();
+        assertThat(otherDocIds.size(), equalTo(2));
+        assertThat(otherDocIds, hasItem("3"));
+        String otherDataDocId = "3";
+        String otherFailuresDocId = otherDocIds.stream().filter(id -> false == id.equals(otherDataDocId)).findFirst().get();
+
+        final Tuple<String, String> backingIndices = getSingleDataAndFailureIndices("test1");
+        final String dataIndexName = backingIndices.v1();
+        final String failureIndexName = backingIndices.v2();
+
+        final String aliasName = "my-alias";
+        final String username = "user";
+        final String roleName = "role";
+
+        createUser(username, PASSWORD, roleName);
+        // manage is required to add the alias to the data stream
+        createOrUpdateRoleAndApiKey(username, roleName, Strings.format("""
+            {
+              "cluster": ["all"],
+              "indices": [
+                {
+                  "names": ["test1", "%s", "other1"],
+                  "privileges": ["manage"]
+                }
+              ]
+            }
+            """, aliasName));
+
+        addAlias(username, "test1", aliasName, "");
+        addAlias(username, "other1", aliasName, "");
+        assertThat(fetchAliases(username, "test1"), containsInAnyOrder(aliasName));
+        expectSearchThrows(username, new Search(randomFrom(aliasName + "::data", aliasName)), 403);
+        expectSearchThrows(username, new Search(randomFrom(aliasName + "::failures")), 403);
+
+        createOrUpdateRoleAndApiKey(username, roleName, Strings.format("""
+            {
+              "cluster": ["all"],
+              "indices": [
+                {
+                  "names": ["%s"],
+                  "privileges": ["read_failure_store"]
+                }
+              ]
+            }
+            """, aliasName));
+        expectSearch(username, new Search(aliasName + "::failures"), failuresDocId, otherFailuresDocId);
+        expectSearchThrows(username, new Search(randomFrom(aliasName + "::data", aliasName, dataIndexName, failureIndexName)), 403);
+
+        createOrUpdateRoleAndApiKey(username, roleName, Strings.format("""
+            {
+              "cluster": ["all"],
+              "indices": [
+                {
+                  "names": ["%s"],
+                  "privileges": ["read"]
+                }
+              ]
+            }
+            """, aliasName));
+        expectSearch(username, new Search(randomFrom(aliasName + "::data")), dataDocId, otherDataDocId);
+        expectSearchThrows(username, new Search(aliasName + "::failures"), 403);
+
+        expectThrows(() -> removeAlias(username, "test1", aliasName), 403);
+        createOrUpdateRoleAndApiKey(username, roleName, Strings.format("""
+            {
+              "cluster": ["all"],
+              "indices": [
+                {
+                  "names": ["test1", "%s", "other1"],
+                  "privileges": ["manage"]
+                }
+              ]
+            }
+            """, aliasName));
+        removeAlias(username, "test1", aliasName);
+        removeAlias(username, "other1", aliasName);
+
+        final String filteredAliasName = "my-filtered-alias";
+        createOrUpdateRoleAndApiKey(username, roleName, Strings.format("""
+            {
+              "cluster": ["all"],
+              "indices": [
+                {
+                  "names": ["test1", "%s", "other1"],
+                  "privileges": ["manage"]
+                }
+              ]
+            }
+            """, filteredAliasName));
+        addAlias(username, "test1", filteredAliasName, """
+            {
+              "term": {
+                "document.source.name": "jack"
+              }
+            }
+            """);
+        addAlias(username, "other1", filteredAliasName, """
+            {
+              "term": {
+                "document.source.name": "jack"
+              }
+            }
+            """);
+        assertThat(fetchAliases(username, "test1"), containsInAnyOrder(filteredAliasName));
+        assertThat(fetchAliases(username, "other1"), containsInAnyOrder(filteredAliasName));
+
+        createOrUpdateRoleAndApiKey(username, roleName, Strings.format("""
+            {
+              "cluster": ["all"],
+              "indices": [
+                {
+                  "names": ["%s"],
+                  "privileges": ["read", "read_failure_store"]
+                }
+              ]
+            }
+            """, filteredAliasName));
+
+        expectSearch(username, new Search(randomFrom(filteredAliasName + "::data", filteredAliasName)));
+        // the alias filter is not applied to the failure store
+        expectSearch(username, new Search(filteredAliasName + "::failures"), failuresDocId, otherFailuresDocId);
+    }
+
+    private void createOrUpdateRoleAndApiKey(String username, String roleName, String roleDescriptor) throws IOException {
+        upsertRole(roleDescriptor, roleName);
+        createOrUpdateApiKey(username, randomBoolean() ? null : Strings.format("""
+            {
+              "%s": %s
+            }
+            """, roleName, roleDescriptor));
+    }
+
+    private void addAlias(String user, String dataStream, String alias, String filter) throws IOException {
+        aliasAction(user, "add", dataStream, alias, filter);
+    }
+
+    private void removeAlias(String user, String dataStream, String alias) throws IOException {
+        aliasAction(user, "remove", dataStream, alias, "");
+    }
+
+    private void aliasAction(String user, String action, String dataStream, String alias, String filter) throws IOException {
+        Request request = new Request("POST", "/_aliases");
+        if (filter == null || filter.isEmpty()) {
+            request.setJsonEntity(Strings.format("""
+                {
+                  "actions": [
+                    {
+                      "%s": {
+                        "index": "%s",
+                        "alias": "%s"
+                      }
+                    }
+                  ]
+                }
+                """, action, dataStream, alias));
+        } else {
+            request.setJsonEntity(Strings.format("""
+                {
+                  "actions": [
+                    {
+                      "%s": {
+                        "index": "%s",
+                        "alias": "%s",
+                        "filter": %s
+                      }
+                    }
+                  ]
+                }
+                """, action, dataStream, alias, filter));
+        }
+        Response response = performRequestMaybeUsingApiKey(user, request);
+        var path = assertOKAndCreateObjectPath(response);
+        assertThat(path.evaluate("acknowledged"), is(true));
+        assertThat(path.evaluate("errors"), is(false));
+
+    }
+
+    private Set<String> fetchAliases(String user, String dataStream) throws IOException {
+        Response response = performRequestMaybeUsingApiKey(user, new Request("GET", dataStream + "/_alias"));
+        ObjectPath path = assertOKAndCreateObjectPath(response);
+        Map<String, Object> aliases = path.evaluate(dataStream + ".aliases");
+        return aliases.keySet();
+    }
+
+    public void testPatternExclusions() throws Exception {
+        List<String> docIds = setupDataStream();
+        assertThat(docIds.size(), equalTo(2));
+        assertThat(docIds, hasItem("1"));
+        String dataDocId = "1";
+        String failuresDocId = docIds.stream().filter(id -> false == id.equals(dataDocId)).findFirst().get();
+
+        List<String> otherDocIds = setupOtherDataStream();
+        assertThat(otherDocIds.size(), equalTo(2));
+        assertThat(otherDocIds, hasItem("3"));
+        String otherDataDocId = "3";
+        String otherFailuresDocId = otherDocIds.stream().filter(id -> false == id.equals(otherDataDocId)).findFirst().get();
+
+        createUser("user", PASSWORD, "role");
+        upsertRole("""
+            {
+              "cluster": ["all"],
+              "indices": [
+                {
+                  "names": ["test*", "other*"],
+                  "privileges": ["read", "read_failure_store"]
+                }
+              ]
+            }
+            """, "role");
+        createAndStoreApiKey("user", randomBoolean() ? null : """
+            {
+              "role": {
+                "cluster": ["all"],
+                "indices": [
+                  {
+                    "names": ["*"],
+                    "privileges": ["read", "read_failure_store"]
+                  }
+                ]
+              }
+            }
+            """);
+
+        // no exclusion -> should return two failure docs
+        expectSearch("user", new Search("*::failures"), failuresDocId, otherFailuresDocId);
+        expectSearch("user", new Search("*::failures,-other*::failures"), failuresDocId);
+    }
+
     @SuppressWarnings("unchecked")
     private void expectEsql(String user, Search search, String... docIds) throws Exception {
         var response = performRequestMaybeUsingApiKey(user, search.toEsqlRequest());
@@ -2734,9 +2969,13 @@ public class FailureStoreSecurityRestIT extends ESRestTestCase {
         final SearchResponse searchResponse = SearchResponseUtils.parseSearchResponse(responseAsParser(response));
         try {
             SearchHit[] hits = searchResponse.getHits().getHits();
-            assertThat(hits.length, equalTo(docIds.length));
-            List<String> actualDocIds = Arrays.stream(hits).map(SearchHit::getId).toList();
-            assertThat(actualDocIds, containsInAnyOrder(docIds));
+            if (docIds != null) {
+                assertThat(Arrays.toString(hits), hits.length, equalTo(docIds.length));
+                List<String> actualDocIds = Arrays.stream(hits).map(SearchHit::getId).toList();
+                assertThat(actualDocIds, containsInAnyOrder(docIds));
+            } else {
+                assertThat(hits.length, equalTo(0));
+            }
         } finally {
             searchResponse.decRef();
         }
@@ -2780,6 +3019,32 @@ public class FailureStoreSecurityRestIT extends ESRestTestCase {
         return randomBoolean() ? populateDataStreamWithBulkRequest() : populateDataStreamWithDocRequests();
     }
 
+    @SuppressWarnings("unchecked")
+    private List<String> setupOtherDataStream() throws IOException {
+        createOtherTemplates();
+
+        var bulkRequest = new Request("POST", "/_bulk?refresh=true");
+        bulkRequest.setJsonEntity("""
+            { "create" : { "_index" : "other1", "_id" : "3" } }
+            { "@timestamp": 3, "age" : 1, "name" : "jane", "email" : "jane@example.com" }
+            { "create" : { "_index" : "other1", "_id" : "4" } }
+            { "@timestamp": 4, "age" : "this should be an int", "name" : "jane", "email" : "jane@example.com" }
+            """);
+        Response response = performRequest(WRITE_ACCESS, bulkRequest);
+        assertOK(response);
+        // we need this dance because the ID for the failed document is random, **not** 4
+        Map<String, Object> stringObjectMap = responseAsMap(response);
+        List<Object> items = (List<Object>) stringObjectMap.get("items");
+        List<String> ids = new ArrayList<>();
+        for (Object item : items) {
+            Map<String, Object> itemMap = (Map<String, Object>) item;
+            Map<String, Object> create = (Map<String, Object>) itemMap.get("create");
+            assertThat(create.get("status"), equalTo(201));
+            ids.add((String) create.get("_id"));
+        }
+        return ids;
+    }
+
     private void createTemplates() throws IOException {
         var componentTemplateRequest = new Request("PUT", "/_component_template/component1");
         componentTemplateRequest.setJsonEntity("""
@@ -2815,6 +3080,49 @@ public class FailureStoreSecurityRestIT extends ESRestTestCase {
         indexTemplateRequest.setJsonEntity("""
             {
                 "index_patterns": ["test*"],
+                "data_stream": {},
+                "priority": 500,
+                "composed_of": ["component1"]
+            }
+            """);
+        assertOK(adminClient().performRequest(indexTemplateRequest));
+    }
+
+    private void createOtherTemplates() throws IOException {
+        var componentTemplateRequest = new Request("PUT", "/_component_template/component2");
+        componentTemplateRequest.setJsonEntity("""
+            {
+                "template": {
+                    "mappings": {
+                        "properties": {
+                            "@timestamp": {
+                                "type": "date"
+                            },
+                            "age": {
+                                "type": "integer"
+                            },
+                            "email": {
+                                "type": "keyword"
+                            },
+                            "name": {
+                                "type": "text"
+                            }
+                        }
+                    },
+                    "data_stream_options": {
+                      "failure_store": {
+                        "enabled": true
+                      }
+                    }
+                }
+            }
+            """);
+        assertOK(adminClient().performRequest(componentTemplateRequest));
+
+        var indexTemplateRequest = new Request("PUT", "/_index_template/template2");
+        indexTemplateRequest.setJsonEntity("""
+            {
+                "index_patterns": ["other*"],
                 "data_stream": {},
                 "priority": 500,
                 "composed_of": ["component1"]
@@ -2938,6 +3246,11 @@ public class FailureStoreSecurityRestIT extends ESRestTestCase {
 
     protected String createAndStoreApiKey(String username, @Nullable String roleDescriptors) throws IOException {
         assertThat("API key already registered for user: " + username, apiKeys.containsKey(username), is(false));
+        apiKeys.put(username, createApiKey(username, roleDescriptors));
+        return apiKeys.get(username);
+    }
+
+    protected String createOrUpdateApiKey(String username, @Nullable String roleDescriptors) throws IOException {
         apiKeys.put(username, createApiKey(username, roleDescriptors));
         return apiKeys.get(username);
     }

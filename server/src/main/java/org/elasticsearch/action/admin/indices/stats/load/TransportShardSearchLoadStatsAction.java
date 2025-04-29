@@ -38,6 +38,16 @@ import org.elasticsearch.transport.TransportService;
 import java.io.IOException;
 import java.util.Map;
 
+/**
+ * Transport action responsible for collecting shard-level search load statistics across the cluster.
+ * <p>
+ * This action broadcasts requests to all replica shards of the specified indices (scoped by a project)
+ * and aggregates their {@link ShardSearchLoadRateStats.SearchLoadRate} metrics into a final response.
+ * </p>
+ *
+ * Extends {@link TransportBroadcastByNodeAction} to handle fan-out to all replica shards.
+ */
+
 public class TransportShardSearchLoadStatsAction extends TransportBroadcastByNodeAction<
     TransportShardSearchLoadStatsAction.Request,
     ShardSearchLoadStatsResponse,
@@ -48,6 +58,16 @@ public class TransportShardSearchLoadStatsAction extends TransportBroadcastByNod
     private final IndicesService indicesService;
     private final ProjectResolver projectResolver;
 
+    /**
+     * Constructs a new {@code TransportShardSearchLoadStatsAction}.
+     *
+     * @param clusterService the cluster service
+     * @param transportService the transport service for communication
+     * @param indicesService service to access index and shard-level operations
+     * @param actionFilters filters applied to the action
+     * @param projectResolver resolves the project context for scoping operations
+     * @param indexNameExpressionResolver resolves index name expressions
+     */
     @Inject
     public TransportShardSearchLoadStatsAction(
         ClusterService clusterService,
@@ -70,6 +90,9 @@ public class TransportShardSearchLoadStatsAction extends TransportBroadcastByNod
         this.projectResolver = projectResolver;
     }
 
+    /**
+     * Returns an iterator over all replica shards for the resolved indices.
+     */
     @Override
     protected ShardsIterator shards(ClusterState clusterState, Request request, String[] concreteIndices) {
         return clusterState.routingTable(projectResolver.getProjectId()).allReplicaShards(concreteIndices);
@@ -90,6 +113,9 @@ public class TransportShardSearchLoadStatsAction extends TransportBroadcastByNod
         return new ShardSearchLoadStats(in);
     }
 
+    /**
+     * Returns the factory used to construct the final response from individual shard responses.
+     */
     @Override
     protected ResponseFactory<ShardSearchLoadStatsResponse, ShardSearchLoadStats> getResponseFactory(Request request, ClusterState clusterState) {
         return (totalShards, successfulShards, failedShards, responses, shardFailures) -> new ShardSearchLoadStatsResponse(
@@ -101,11 +127,22 @@ public class TransportShardSearchLoadStatsAction extends TransportBroadcastByNod
         );
     }
 
+    /**
+     * Reads the request object from the stream.
+     */
     @Override
     protected Request readRequestFrom(StreamInput in) throws IOException {
         return new Request(in);
     }
 
+    /**
+     * Executes the shard-level operation for collecting search load statistics.
+     *
+     * @param request the original request
+     * @param shardRouting routing info of the shard
+     * @param task the parent task
+     * @param listener listener to notify on result
+     */
     @Override
     protected void shardOperation(Request request, ShardRouting shardRouting, Task task, ActionListener<ShardSearchLoadStats> listener) {
         ActionListener.completeWith(listener, () -> {
@@ -133,18 +170,30 @@ public class TransportShardSearchLoadStatsAction extends TransportBroadcastByNod
     }
 
     /**
-     * A request to get the stats for a set of shards.
+     * A broadcast request for collecting shard-level search load statistics.
      */
     public static class Request extends BroadcastRequest<Request> {
 
+        /**
+         * Constructs a new request.
+         */
         public Request() {
             super((String[]) null);
         }
 
+        /**
+         * Deserializes the request from the stream input.
+         *
+         * @param in the stream input
+         * @throws IOException if an I/O exception occurs
+         */
         public Request(StreamInput in) throws IOException {
             super(in);
         }
 
+        /**
+         * Creates a cancellable task to track execution of this request.
+         */
         @Override
         public Task createTask(long id, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
             return new CancellableTask(id, type, action, "", parentTaskId, headers);

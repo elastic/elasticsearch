@@ -206,7 +206,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     private final Store store;
     private final InternalIndexingStats internalIndexingStats;
     private final ShardSearchStats searchStats = new ShardSearchStats();
-    private final ShardSearchLoadRateStats searchLoadRate;
+    private final ShardSearchLoadRateStats searchLoadRateStats;
     private final ShardFieldUsageTracker fieldUsageTracker;
     private final String shardUuid = UUIDs.randomBase64UUID();
     private final long shardCreationTime;
@@ -369,7 +369,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             CollectionUtils.appendToCopyNoNullElements(listeners, internalIndexingStats, indexingFailuresDebugListener),
             logger
         );
-        this.searchLoadRate = new ShardSearchLoadRateStats(searchStatsSettings, System::currentTimeMillis);
+        this.searchLoadRateStats = new ShardSearchLoadRateStats(searchStatsSettings, System::currentTimeMillis);
         this.bulkOperationListener = new ShardBulkStats();
         this.globalCheckpointSyncer = globalCheckpointSyncer;
         this.retentionLeaseSyncer = Objects.requireNonNull(retentionLeaseSyncer);
@@ -1420,7 +1420,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      * Returns the search load rate stats for this shard.
      */
     public ShardSearchLoadRateStats.SearchLoadRate getSearchLoadRate() {
-        return searchLoadRate.getSearchLoadRate(searchStats.stats().getTotal());
+        return searchLoadRateStats.getSearchLoadRate(searchStats.stats().getTotal());
     }
 
     public FieldUsageStats fieldUsageStats(String... fields) {

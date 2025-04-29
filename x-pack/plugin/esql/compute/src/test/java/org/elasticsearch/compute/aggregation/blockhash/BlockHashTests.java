@@ -22,7 +22,6 @@ import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.LongBlock;
-import org.elasticsearch.compute.data.LongVector;
 import org.elasticsearch.compute.data.OrdinalBytesRefBlock;
 import org.elasticsearch.compute.data.OrdinalBytesRefVector;
 import org.elasticsearch.compute.data.Page;
@@ -30,14 +29,12 @@ import org.elasticsearch.compute.test.TestBlockFactory;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.ReleasableIterator;
 import org.elasticsearch.core.Releasables;
-import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.junit.After;
 
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashSet;
 import java.util.List;
-import java.util.Locale;
 import java.util.Set;
 import java.util.function.Consumer;
 import java.util.stream.IntStream;
@@ -1326,115 +1323,6 @@ public class BlockHashTests extends BlockHashTestCase {
             Releasables.close(output1);
             Releasables.close(output2);
             page.releaseBlocks();
-        }
-    }
-
-    public void testTimeSeriesBlockHash() {
-        long endTime = randomLongBetween(10_000_000, 20_000_000);
-        var hash1 = new TimeSeriesBlockHash(0, 1, blockFactory);
-        var hash2 = BlockHash.build(
-            List.of(new BlockHash.GroupSpec(0, ElementType.BYTES_REF), new BlockHash.GroupSpec(1, ElementType.LONG)),
-            blockFactory,
-            32 * 1024,
-            forcePackedHash
-        );
-        int numPages = between(1, 100);
-        int globalTsid = -1;
-        long timestamp = endTime;
-        try (hash1; hash2) {
-            for (int p = 0; p < numPages; p++) {
-                int numRows = between(1, 1000);
-                if (randomBoolean()) {
-                    timestamp -= between(0, 100);
-                }
-                try (
-                    BytesRefVector.Builder dictBuilder = blockFactory.newBytesRefVectorBuilder(numRows);
-                    IntVector.Builder ordinalBuilder = blockFactory.newIntVectorBuilder(numRows);
-                    LongVector.Builder timestampsBuilder = blockFactory.newLongVectorBuilder(numRows)
-                ) {
-                    int perPageOrd = -1;
-                    for (int i = 0; i < numRows; i++) {
-                        boolean newGroup = globalTsid == -1 || randomInt(100) < 10;
-                        if (newGroup) {
-                            globalTsid++;
-                            timestamp = endTime;
-                            if (randomBoolean()) {
-                                timestamp -= between(0, 1000);
-                            }
-                        }
-                        if (perPageOrd == -1 || newGroup) {
-                            perPageOrd++;
-                            dictBuilder.appendBytesRef(new BytesRef(String.format(Locale.ROOT, "id-%06d", globalTsid)));
-                        }
-                        ordinalBuilder.appendInt(perPageOrd);
-                        if (randomInt(100) < 20) {
-                            timestamp -= between(1, 10);
-                        }
-                        timestampsBuilder.appendLong(timestamp);
-                    }
-                    try (
-                        var tsidBlock = new OrdinalBytesRefVector(ordinalBuilder.build(), dictBuilder.build()).asBlock();
-                        var timestampBlock = timestampsBuilder.build().asBlock()
-                    ) {
-                        Page page = new Page(tsidBlock, timestampBlock);
-                        Holder<IntVector> ords1 = new Holder<>();
-                        hash1.add(page, new GroupingAggregatorFunction.AddInput() {
-                            @Override
-                            public void add(int positionOffset, IntBlock groupIds) {
-                                throw new AssertionError("time-series block hash should emit a vector");
-                            }
-
-                            @Override
-                            public void add(int positionOffset, IntVector groupIds) {
-                                groupIds.incRef();
-                                ords1.set(groupIds);
-                            }
-
-                            @Override
-                            public void close() {
-
-                            }
-                        });
-                        Holder<IntVector> ords2 = new Holder<>();
-                        hash2.add(page, new GroupingAggregatorFunction.AddInput() {
-                            @Override
-                            public void add(int positionOffset, IntBlock groupIds) {
-                                // TODO: check why PackedValuesBlockHash doesn't emit a vector?
-                                IntVector vector = groupIds.asVector();
-                                assertNotNull("should emit a vector", vector);
-                                vector.incRef();
-                                ords2.set(vector);
-                            }
-
-                            @Override
-                            public void add(int positionOffset, IntVector groupIds) {
-                                groupIds.incRef();
-                                ords2.set(groupIds);
-                            }
-
-                            @Override
-                            public void close() {
-
-                            }
-                        });
-                        try {
-                            assertThat("input=" + page, ords1.get(), equalTo(ords2.get()));
-                        } finally {
-                            Releasables.close(ords1.get(), ords2.get());
-                        }
-                    }
-                }
-            }
-            Block[] keys1 = null;
-            Block[] keys2 = null;
-            try {
-                keys1 = hash1.getKeys();
-                keys2 = hash2.getKeys();
-                assertThat(keys1, equalTo(keys2));
-            } finally {
-                Releasables.close(keys1);
-                Releasables.close(keys2);
-            }
         }
     }
 

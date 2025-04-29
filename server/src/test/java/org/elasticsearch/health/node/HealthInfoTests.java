@@ -34,7 +34,9 @@ public class HealthInfoTests extends AbstractWireSerializingTestCase<HealthInfo>
             diskInfoByNode,
             randomBoolean() ? randomDslHealthInfo() : null,
             repositoriesInfoByNode,
-            FileSettingsHealthInfo.INDETERMINATE
+            (randomFloat() < 0.1)
+                ? FileSettingsHealthInfo.INDETERMINATE
+                : mutateFileSettingsHealthInfo(FileSettingsHealthInfo.INDETERMINATE)
         );
     }
 
@@ -47,6 +49,7 @@ public class HealthInfoTests extends AbstractWireSerializingTestCase<HealthInfo>
         var diskHealth = originalHealthInfo.diskInfoByNode();
         var dslHealth = originalHealthInfo.dslHealthInfo();
         var repoHealth = originalHealthInfo.repositoriesInfoByNode();
+        var fsHealth = originalHealthInfo.fileSettingsHealthInfo();
         switch (randomInt(2)) {
             case 0 -> diskHealth = mutateMap(
                 originalHealthInfo.diskInfoByNode(),
@@ -60,7 +63,7 @@ public class HealthInfoTests extends AbstractWireSerializingTestCase<HealthInfo>
                 HealthInfoTests::randomRepoHealthInfo
             );
         }
-        return new HealthInfo(diskHealth, dslHealth, repoHealth, FileSettingsHealthInfo.INDETERMINATE);
+        return new HealthInfo(diskHealth, dslHealth, repoHealth, mutateFileSettingsHealthInfo(fsHealth));
     }
 
     public static DiskHealthInfo randomDiskHealthInfo() {
@@ -78,6 +81,18 @@ public class HealthInfoTests extends AbstractWireSerializingTestCase<HealthInfo>
 
     public static RepositoriesHealthInfo randomRepoHealthInfo() {
         return new RepositoriesHealthInfo(randomList(5, () -> randomAlphaOfLength(10)), randomList(5, () -> randomAlphaOfLength(10)));
+    }
+
+    private static FileSettingsHealthInfo mutateFileSettingsHealthInfo(FileSettingsHealthInfo original) {
+        long changeCount = original.changeCount() ^ randomLongBetween(1, 100); // Always different from original
+        long failureStreak = randomLongBetween(0, changeCount);
+        String mostRecentFailure;
+        if (failureStreak == 0) {
+            mostRecentFailure = null;
+        } else {
+            mostRecentFailure = "Random failure #" + randomIntBetween(1000, 9999);
+        }
+        return new FileSettingsHealthInfo(true, changeCount, failureStreak, mostRecentFailure);
     }
 
     /**

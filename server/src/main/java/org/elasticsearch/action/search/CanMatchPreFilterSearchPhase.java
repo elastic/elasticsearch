@@ -229,14 +229,14 @@ final class CanMatchPreFilterSearchPhase {
     private void consumeResult(boolean canMatch, ShardSearchRequest request) {
         CanMatchShardResponse result = new CanMatchShardResponse(canMatch, null);
         result.setShardIndex(request.shardRequestIndex());
-        consumeResult(result);
+        consumeResult(request.shardRequestIndex(), result);
     }
 
-    private void consumeResult(CanMatchShardResponse result) {
+    private void consumeResult(int index, CanMatchShardResponse result) {
         final boolean canMatch = result.canMatch();
         final MinAndMax<?> minAndMax = result.estimatedMinAndMax();
         if (canMatch || minAndMax != null) {
-            consumeResult(result.getShardIndex(), canMatch, minAndMax);
+            consumeResult(index, canMatch, minAndMax);
         }
     }
 
@@ -295,8 +295,11 @@ final class CanMatchPreFilterSearchPhase {
                 List<CanMatchNodeRequest.Shard> shardLevelRequests = canMatchNodeRequest.getShardLevelRequests();
 
                 if (entry.getKey().nodeId == null) {
-                    // no target node: just mark the requests as failed
-                    onAllFailed(shardLevelRequests);
+                    // no target node: just mark as matching and have the next phase fail the shard operation if needed
+                    for (CanMatchNodeRequest.Shard shard : shardLevelRequests) {
+                        var resp = new CanMatchShardResponse(true, null);
+                        onOperation(shard.getShardRequestIndex(), resp);
+                    }
                     continue;
                 }
 
@@ -344,7 +347,7 @@ final class CanMatchPreFilterSearchPhase {
 
         private void onOperation(int idx, CanMatchShardResponse response) {
             failedResponses.remove(idx);
-            consumeResult(response);
+            consumeResult(idx, response);
             if (countDown.countDown()) {
                 finishRound();
             }

@@ -26,11 +26,23 @@ import java.io.IOException;
  * Codec format for Inverted File Vector indexes. This index expects to break the dimensional space
  * into clusters and assign each vector to a cluster generating a posting list of vectors. Clusters
  * are represented by centroids.
- * <p>
- * Each posting list is individual quantized and stored in-line allowing for fast block scoring.
+ * The vector quantization format used here is a per-vector optimized scalar quantization. Also see {@link
+ * OptimizedScalarQuantizer}. Some of key features are:
  *
- * <p>THe index is searcher by looking for the closest centroids to our vector query and then
- * scoring the vectors in the posting list of the closest centroids.
+ * The format is stored in three files:
+ *
+ * <h2>.cenivf (centroid data) file</h2>
+ *  <p> Which stores the raw and quantized centroid vectors.
+ *
+ * <h2>.clivf (cluster data) file</h2>
+ *
+ * <p> Stores the quantized vectors for each cluster, inline and stored in blocks. Additionally, the docIds of
+ *  each vector is stored.
+ *
+ * <h2>.mivf (centroid metadata) file</h2>
+ *
+ * <p> Stores metadata including the number of centroids and their offsets in the clivf file</p>
+ *
  */
 public class IVFVectorsFormat extends KnnVectorsFormat {
 

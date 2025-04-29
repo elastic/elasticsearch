@@ -68,7 +68,7 @@ Response:
   }
 }
 ```
-% TESTRESPONSE[s/...//]
+% TESTRESPONSE[s/\.\.\.//]
 
 In this example, the only bucket that we see is the "swing" bucket, because it is the only term that appears in one document. If we increase the `max_doc_count` to `2`, we’ll see some more buckets:
 
@@ -110,7 +110,7 @@ This now shows the "jazz" term which has a `doc_count` of 2":
   }
 }
 ```
-% TESTRESPONSE[s/...//]
+% TESTRESPONSE[s/\.\.\.//]
 
 
 ## Maximum document count [search-aggregations-bucket-rare-terms-aggregation-max-doc-count]

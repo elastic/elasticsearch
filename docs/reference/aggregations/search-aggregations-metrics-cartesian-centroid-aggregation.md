@@ -70,7 +70,7 @@ The response for the above aggregation:
   }
 }
 ```
-% TESTRESPONSE[s/.../"took": $body.took,"_shards": $body._shards,"hits":$body.hits,"timed_out":false,/]
+% TESTRESPONSE[s/\.\.\./"took": $body.took,"_shards": $body._shards,"hits":$body.hits,"timed_out":false,/]
 
 The `cartesian_centroid` aggregation is more interesting when combined as a sub-aggregation to other bucket aggregations.
 
@@ -143,7 +143,7 @@ The response for the above aggregation:
   }
 }
 ```
-% TESTRESPONSE[s/.../"took": $body.took,"_shards": $body._shards,"hits":$body.hits,"timed_out":false,/]
+% TESTRESPONSE[s/\.\.\./"took": $body.took,"_shards": $body._shards,"hits":$body.hits,"timed_out":false,/]
 
 
 ## Cartesian Centroid Aggregation on `shape` fields [cartesian-centroid-aggregation-geo-shape]
@@ -204,5 +204,5 @@ POST /places/_search?size=0
   }
 }
 ```
-% TESTRESPONSE[s/.../"took": $body.took,"_shards": $body._shards,"hits":$body.hits,"timed_out":false,/]
+% TESTRESPONSE[s/\.\.\./"took": $body.took,"_shards": $body._shards,"hits":$body.hits,"timed_out":false,/]
 

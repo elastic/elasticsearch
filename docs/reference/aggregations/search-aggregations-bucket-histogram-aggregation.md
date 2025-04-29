@@ -69,7 +69,7 @@ And the following may be the response:
   }
 }
 ```
-% TESTRESPONSE[s/.../"took": $body.took,"timed_out": false,"_shards": $body._shards,"hits": $body.hits,/]
+% TESTRESPONSE[s/\.\.\./"took": $body.took,"timed_out": false,"_shards": $body._shards,"hits": $body.hits,/]
 
 ## Minimum document count [_minimum_document_count]
 
@@ -122,7 +122,7 @@ Response:
   }
 }
 ```
-% TESTRESPONSE[s/.../"took": $body.took,"timed_out": false,"_shards": $body._shards,"hits": $body.hits,/]
+% TESTRESPONSE[s/\.\.\./"took": $body.took,"timed_out": false,"_shards": $body._shards,"hits": $body.hits,/]
 
 $$$search-aggregations-bucket-histogram-aggregation-extended-bounds$$$
 By default the `histogram` returns all the buckets within the range of the data itself, that is, the documents with the smallest values (on which with histogram) will determine the min bucket (the bucket with the smallest key) and the documents with the highest values will determine the max bucket (the bucket with the highest key). Often, when requesting empty buckets, this causes a confusion, specifically, when the data is also filtered.
@@ -262,7 +262,7 @@ Response:
   }
 }
 ```
-% TESTRESPONSE[s/.../"took": $body.took,"timed_out": false,"_shards": $body._shards,"hits": $body.hits,/]
+% TESTRESPONSE[s/\.\.\./"took": $body.took,"timed_out": false,"_shards": $body._shards,"hits": $body.hits,/]
 
 
 ## Missing value [_missing_value_2]
@@ -376,7 +376,7 @@ The `histogram` aggregation will sum the counts of each interval computed based 
   }
 }
 ```
-% TESTRESPONSE[s/.../"took": $body.took,"timed_out": false,"_shards": $body._shards,"hits": $body.hits,/]
+% TESTRESPONSE[s/\.\.\./"took": $body.took,"timed_out": false,"_shards": $body._shards,"hits": $body.hits,/]
 
 ::::{important}
 Histogram aggregation is a bucket aggregation, which partitions documents into buckets rather than calculating metrics over fields like metrics aggregations do. Each bucket represents a collection of documents which sub-aggregations can run on. On the other hand, a histogram field is a pre-aggregated field representing multiple values inside a single field: buckets of numerical data and a count of items/documents for each bucket. This mismatch between the histogram aggregations expected input (expecting raw documents) and the histogram field (that provides summary information) limits the outcome of the aggregation to only the doc counts for each bucket.

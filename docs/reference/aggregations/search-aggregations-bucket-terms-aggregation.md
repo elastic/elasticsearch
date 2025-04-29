@@ -52,7 +52,7 @@ Response:
   }
 }
 ```
-% TESTRESPONSE[s/...//]
+% TESTRESPONSE[s/\.\.\.//]
 
 1. an upper bound of the error on the document counts for each term, see [below](#terms-agg-doc-count-error)
 2. when there are lots of unique terms, Elasticsearch only returns the top terms; this number is the sum of the document counts for all buckets that are not part of the response
@@ -422,7 +422,7 @@ Which will look like:
   ...
 }
 ```
-% TESTRESPONSE[s/.../"took": "$body.took", "timed_out": false, "_shards": "$body._shards", "hits": "$body.hits"/]
+% TESTRESPONSE[s/\.\.\./"took": "$body.took", "timed_out": false, "_shards": "$body._shards", "hits": "$body.hits"/]
 
 This is a little slower because the runtime field has to access two fields instead of one and because there are some optimizations that work on non-runtime `keyword` fields that we have to give up for for runtime `keyword` fields. If you need the speed, you can index the `normalized_genre` field.
 

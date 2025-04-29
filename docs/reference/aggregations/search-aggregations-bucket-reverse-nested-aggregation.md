@@ -118,5 +118,5 @@ Possible response snippet:
   }
 }
 ```
-% TESTRESPONSE[s/...//]
+% TESTRESPONSE[s/\.\.\.//]
 

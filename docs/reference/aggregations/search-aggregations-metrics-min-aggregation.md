@@ -39,7 +39,7 @@ Response:
   }
 }
 ```
-% TESTRESPONSE[s/.../"took": $body.took,"timed_out": false,"_shards": $body._shards,"hits": $body.hits,/]
+% TESTRESPONSE[s/\.\.\./"took": $body.took,"timed_out": false,"_shards": $body._shards,"hits": $body.hits,/]
 
 As can be seen, the name of the aggregation (`min_price` above) also serves as the key by which the aggregation result can be retrieved from the returned response.
 

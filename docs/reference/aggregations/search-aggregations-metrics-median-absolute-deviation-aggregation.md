@@ -57,7 +57,7 @@ The resulting median absolute deviation of `2` tells us that there is a fair amo
   }
 }
 ```
-% TESTRESPONSE[s/.../"took": $body.took,"timed_out": false,"_shards": $body._shards,"hits": $body.hits,/]
+% TESTRESPONSE[s/\.\.\./"took": $body.took,"timed_out": false,"_shards": $body._shards,"hits": $body.hits,/]
 
 
 ## Approximation [_approximation]

@@ -94,7 +94,7 @@ The response will return the annual rate of transactions in each bucket. Since t
   }
 }
 ```
-% TESTRESPONSE[s/.../"took": $body.took,"timed_out": false,"_shards": $body._shards,"hits": $body.hits,/]
+% TESTRESPONSE[s/\.\.\./"took": $body.took,"timed_out": false,"_shards": $body._shards,"hits": $body.hits,/]
 
 Instead of counting the number of documents, it is also possible to calculate a sum of all values of the fields in the documents in each bucket or the number of values in each bucket. The following request will group all sales records into monthly bucket and than calculate the total monthly sales and convert them into average daily sales.
 
@@ -164,7 +164,7 @@ The response will contain the average daily sale prices for each month.
   }
 }
 ```
-% TESTRESPONSE[s/.../"took": $body.took,"timed_out": false,"_shards": $body._shards,"hits": $body.hits,/]
+% TESTRESPONSE[s/\.\.\./"took": $body.took,"timed_out": false,"_shards": $body._shards,"hits": $body.hits,/]
 
 You can also take advantage of `composite` aggregations to calculate the average daily sale price for each item in your inventory
 
@@ -370,7 +370,7 @@ The response will contain the average daily sale prices for each month.
   }
 }
 ```
-% TESTRESPONSE[s/.../"took": $body.took,"timed_out": false,"_shards": $body._shards,"hits": $body.hits,/]
+% TESTRESPONSE[s/\.\.\./"took": $body.took,"timed_out": false,"_shards": $body._shards,"hits": $body.hits,/]
 
 By default `sum` mode is used.
 
@@ -485,6 +485,6 @@ GET sales/_search
   }
 }
 ```
-% TESTRESPONSE[s/.../"took": $body.took,"timed_out": false,"_shards": $body._shards,"hits": $body.hits,/]
+% TESTRESPONSE[s/\.\.\./"took": $body.took,"timed_out": false,"_shards": $body._shards,"hits": $body.hits,/]
 
 

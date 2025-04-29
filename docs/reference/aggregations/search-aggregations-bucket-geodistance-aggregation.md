@@ -85,7 +85,7 @@ Response:
   }
 }
 ```
-% TESTRESPONSE[s/.../"took": $body.took,"_shards": $body._shards,"hits":$body.hits,"timed_out":false,/]
+% TESTRESPONSE[s/\.\.\./"took": $body.took,"_shards": $body._shards,"hits":$body.hits,"timed_out":false,/]
 
 The specified field must be of type `geo_point` (which can only be set explicitly in the mappings). And it can also hold an array of `geo_point` fields, in which case all will be taken into account during aggregation. The origin point can accept all formats supported by the [`geo_point` type](/reference/elasticsearch/mapping-reference/geo-point.md):
 
@@ -195,7 +195,7 @@ Response:
   }
 }
 ```
-% TESTRESPONSE[s/.../"took": $body.took,"_shards": $body._shards,"hits":$body.hits,"timed_out":false,/]
+% TESTRESPONSE[s/\.\.\./"took": $body.took,"_shards": $body._shards,"hits":$body.hits,"timed_out":false,/]
 
 It is also possible to customize the key for each range:
 
@@ -247,6 +247,6 @@ Response:
   }
 }
 ```
-% TESTRESPONSE[s/.../"took": $body.took,"_shards": $body._shards,"hits":$body.hits,"timed_out":false,/]
+% TESTRESPONSE[s/\.\.\./"took": $body.took,"_shards": $body._shards,"hits":$body.hits,"timed_out":false,/]
 
 

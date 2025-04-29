@@ -83,7 +83,7 @@ Response:
   }
 }
 ```
-% TESTRESPONSE[s/...//]
+% TESTRESPONSE[s/\.\.\.//]
 
 1. an upper bound of the error on the document counts for each term, see <<search-aggregations-bucket-multi-terms-aggregation-approximate-counts,below>
 2. when there are lots of unique terms, Elasticsearch only returns the top terms; this number is the sum of the document counts for all buckets that are not part of the response
@@ -191,7 +191,7 @@ Response:
   }
 }
 ```
-% TESTRESPONSE[s/...//]
+% TESTRESPONSE[s/\.\.\.//]
 
 
 ## Missing value [_missing_value_3]
@@ -277,7 +277,7 @@ Response:
   }
 }
 ```
-% TESTRESPONSE[s/...//]
+% TESTRESPONSE[s/\.\.\.//]
 
 1. Documents without a value in the `product` field will fall into the same bucket as documents that have the value `Product Z`.
 
@@ -385,6 +385,6 @@ GET /products/_search
   }
 }
 ```
-% TESTRESPONSE[s/...//]
+% TESTRESPONSE[s/\.\.\.//]
 
 

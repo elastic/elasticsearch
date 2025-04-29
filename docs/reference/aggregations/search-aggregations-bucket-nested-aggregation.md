@@ -106,7 +106,7 @@ Response:
   }
 }
 ```
-% TESTRESPONSE[s/...//]
+% TESTRESPONSE[s/\.\.\.//]
 
 You can use a [`filter`](/reference/aggregations/search-aggregations-bucket-filter-aggregation.md) sub-aggregation to return results for a specific reseller.
 
@@ -170,5 +170,5 @@ The search returns:
   }
 }
 ```
-% TESTRESPONSE[s/...//]
+% TESTRESPONSE[s/\.\.\.//]
 

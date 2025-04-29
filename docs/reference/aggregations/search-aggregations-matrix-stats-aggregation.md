@@ -96,7 +96,7 @@ The aggregation type is `matrix_stats` and the `fields` setting defines the set 
   }
 }
 ```
-% TESTRESPONSE[s/...//]
+% TESTRESPONSE[s/\.\.\.//]
 % TESTRESPONSE[s/: (-)?[0-9.E]+/: $body.$_path/]
 
 The `doc_count` field indicates the number of documents involved in the computation of the statistics.

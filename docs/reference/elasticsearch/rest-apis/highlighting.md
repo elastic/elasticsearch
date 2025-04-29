@@ -523,7 +523,7 @@ The above request matches both "run with scissors" and "running with scissors" a
   }
 }
 ```
-% TESTRESPONSE[s/.../"took" : $body.took,"timed_out" : $body.timed_out,"_shards" : $body._shards,/]
+% TESTRESPONSE[s/\.\.\./"took" : $body.took,"timed_out" : $body.timed_out,"_shards" : $body._shards,/]
 
 The below request highlights "run" as well as "running" and "scissors", because the `matched_fields` parameter instructs that for highlighting we need to combine matches from the `comment.english` field with the matches from the original `comment` field.
 
@@ -588,7 +588,7 @@ GET index1/_search
   }
 }
 ```
-% TESTRESPONSE[s/.../"took" : $body.took,"timed_out" : $body.timed_out,"_shards" : $body._shards,/]
+% TESTRESPONSE[s/\.\.\./"took" : $body.took,"timed_out" : $body.timed_out,"_shards" : $body._shards,/]
 ::::::
 ::::::
 
@@ -690,7 +690,7 @@ The above request matches both "run with scissors" and "running with scissors" a
   }
 }
 ```
-% TESTRESPONSE[s/.../"took" : $body.took,"timed_out" : $body.timed_out,"_shards" : $body._shards,/]
+% TESTRESPONSE[s/\.\.\./"took" : $body.took,"timed_out" : $body.timed_out,"_shards" : $body._shards,/]
 
 The below request highlights "run" as well as "running" and "scissors", because the `matched_fields` parameter instructs that for highlighting we need to combine matches from the `comment` and `comment.english` fields.
 
@@ -756,7 +756,7 @@ GET index2/_search
   }
 }
 ```
-% TESTRESPONSE[s/.../"took" : $body.took,"timed_out" : $body.timed_out,"_shards" : $body._shards,/]
+% TESTRESPONSE[s/\.\.\./"took" : $body.took,"timed_out" : $body.timed_out,"_shards" : $body._shards,/]
 
 The below request wouldn’t highlight "run" or "scissor" but shows that it is just fine not to list the field to which the matches are combined (`comment.english`) in the matched fields.
 
@@ -822,7 +822,7 @@ GET index2/_search
   }
 }
 ```
-% TESTRESPONSE[s/.../"took" : $body.took,"timed_out" : $body.timed_out,"_shards" : $body._shards,/]
+% TESTRESPONSE[s/\.\.\./"took" : $body.took,"timed_out" : $body.timed_out,"_shards" : $body._shards,/]
 
 :::::{note}
 There is a small amount of overhead involved with setting `matched_fields` to a non-empty array so always prefer
@@ -1051,7 +1051,7 @@ Response:
   }
 }
 ```
-% TESTRESPONSE[s/.../"took": $body.took,"timed_out": false,"_shards": $body._shards,/]
+% TESTRESPONSE[s/\.\.\./"took": $body.took,"timed_out": false,"_shards": $body._shards,/]
 
 ```console
 GET my-index-000001/_search
@@ -1103,7 +1103,7 @@ Response:
   }
 }
 ```
-% TESTRESPONSE[s/.../"took": $body.took,"timed_out": false,"_shards": $body._shards,/]
+% TESTRESPONSE[s/\.\.\./"took": $body.took,"timed_out": false,"_shards": $body._shards,/]
 
 If the `number_of_fragments` option is set to `0`, `NullFragmenter` is used which does not fragment the text at all. This is useful for highlighting the entire contents of a document or field.
 

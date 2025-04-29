@@ -80,7 +80,7 @@ Response:
   }
 }
 ```
-% TESTRESPONSE[s/.../"took": $body.took,"timed_out": false,"_shards": $body._shards,"hits": $body.hits,/]
+% TESTRESPONSE[s/\.\.\./"took": $body.took,"timed_out": false,"_shards": $body._shards,"hits": $body.hits,/]
 % TESTRESPONSE[s/2.213/$body.aggregations.my_unbiased_sample.keywords.buckets.0.score/]
 
 1. 151 documents were sampled in total.
@@ -158,7 +158,7 @@ Response:
   }
 }
 ```
-% TESTRESPONSE[s/.../"took": $body.took,"timed_out": false,"_shards": $body._shards,"hits": $body.hits,/]
+% TESTRESPONSE[s/\.\.\./"took": $body.took,"timed_out": false,"_shards": $body._shards,"hits": $body.hits,/]
 % TESTRESPONSE[s/2.213/$body.aggregations.my_unbiased_sample.keywords.buckets.0.score/]
 % TESTRESPONSE[s/1.34/$body.aggregations.my_unbiased_sample.keywords.buckets.1.score/]
 

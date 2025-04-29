@@ -61,7 +61,7 @@ The response for the above aggregation:
   }
 }
 ```
-% TESTRESPONSE[s/.../"took": $body.took,"timed_out": false,"_shards": $body._shards,"hits": $body.hits,/]
+% TESTRESPONSE[s/\.\.\./"took": $body.took,"timed_out": false,"_shards": $body._shards,"hits": $body.hits,/]
 
 1. The number of documents that were aggregated (in our case, all documents within the search context)
 2. The average price of all products in the index

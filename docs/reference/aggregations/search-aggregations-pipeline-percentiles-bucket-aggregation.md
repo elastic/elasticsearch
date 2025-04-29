@@ -115,8 +115,8 @@ And the following may be the response:
 }
 ```
 % TESTRESPONSE[s/"took": 11/"took": $body.took/]
-% TESTRESPONSE[s/"_shards": .../"_shards": $body._shards/]
-% TESTRESPONSE[s/"hits": .../"hits": $body.hits/]
+% TESTRESPONSE[s/"_shards": \.\.\./"_shards": $body._shards/]
+% TESTRESPONSE[s/"hits": \.\.\./"hits": $body.hits/]
 
 
 ## Percentiles_bucket implementation [_percentiles_bucket_implementation]

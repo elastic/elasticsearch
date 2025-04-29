@@ -89,7 +89,7 @@ Response:
 }
 }
 ```
-% TESTRESPONSE[s/.../"took": $body.took,"_shards": $body._shards,"hits":$body.hits,"timed_out":false,/]
+% TESTRESPONSE[s/\.\.\./"took": $body.took,"_shards": $body._shards,"hits":$body.hits,"timed_out":false,/]
 
 
 ## High-precision requests [_high_precision_requests]
@@ -180,7 +180,7 @@ POST /museums/_search?size=0
   }
 }
 ```
-% TESTRESPONSE[s/.../"took": $body.took,"_shards": $body._shards,"hits":$body.hits,"timed_out":false,/]
+% TESTRESPONSE[s/\.\.\./"took": $body.took,"_shards": $body._shards,"hits":$body.hits,"timed_out":false,/]
 
 For "zooming in" on the system that don’t support geohashes, the bucket keys should be translated into bounding boxes using one of available geohash libraries. For example, for javascript the [node-geohash](https://github.com/sunng87/node-geohash) library can be used:
 
@@ -241,7 +241,7 @@ POST /museums/_search?size=0
   }
 }
 ```
-% TESTRESPONSE[s/.../"took": $body.took,"_shards": $body._shards,"hits":$body.hits,"timed_out":false,/]
+% TESTRESPONSE[s/\.\.\./"took": $body.took,"_shards": $body._shards,"hits":$body.hits,"timed_out":false,/]
 
 
 ## Cell dimensions at the equator [_cell_dimensions_at_the_equator]

@@ -56,7 +56,7 @@ The response will look like this:
   }
 }
 ```
-% TESTRESPONSE[s/.../"took": $body.took,"timed_out": false,"_shards": $body._shards,"hits": $body.hits,/]
+% TESTRESPONSE[s/\.\.\./"took": $body.took,"timed_out": false,"_shards": $body._shards,"hits": $body.hits,/]
 % TESTRESPONSE[s/"500.0": 55.0/"500.0": 55.00000000000001/]
 % TESTRESPONSE[s/"600.0": 64.0/"600.0": 64.0/]
 
@@ -105,7 +105,7 @@ Response:
   }
 }
 ```
-% TESTRESPONSE[s/.../"took": $body.took,"timed_out": false,"_shards": $body._shards,"hits": $body.hits,/]
+% TESTRESPONSE[s/\.\.\./"took": $body.took,"timed_out": false,"_shards": $body._shards,"hits": $body.hits,/]
 % TESTRESPONSE[s/"value": 55.0/"value": 55.00000000000001/]
 % TESTRESPONSE[s/"value": 64.0/"value": 64.0/]
 

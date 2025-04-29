@@ -195,8 +195,8 @@ The response’s `hits.sequences` property contains the 10 most recent matching 
   }
 }
 ```
-% TESTRESPONSE[s/  ...\n/"is_partial": false, "is_running": false, "took": $body.took, "timed_out": false,/]
-% TESTRESPONSE[s/"total": ...,/"total": { "value": 1, "relation": "eq" },/]
+% TESTRESPONSE[s/  \.\.\.\n/"is_partial": false, "is_running": false, "took": $body.took, "timed_out": false,/]
+% TESTRESPONSE[s/"total": \.\.\.,/"total": { "value": 1, "relation": "eq" },/]
 % TESTRESPONSE[s/"_index": ".ds-my-data-stream-2099.12.07-000001"/"_index": $body.hits.sequences.0.events.0._index/]
 % TESTRESPONSE[s/"_id": "OQmfCaduce8zoHT93o4H"/"_id": $body.hits.sequences.0.events.0._id/]
 % TESTRESPONSE[s/"_id": "yDwnGIJouOYGBzP0ZE9n"/"_id": $body.hits.sequences.0.events.1._id/]
@@ -290,8 +290,8 @@ Missing events are indicated in the response as `missing": true`:
   }
 }
 ```
-% TESTRESPONSE[s/  ...\n/"is_partial": false, "is_running": false, "took": $body.took, "timed_out": false,/]
-% TESTRESPONSE[s/"total": ...,/"total": { "value": 1, "relation": "eq" },/]
+% TESTRESPONSE[s/  \.\.\.\n/"is_partial": false, "is_running": false, "took": $body.took, "timed_out": false,/]
+% TESTRESPONSE[s/"total": \.\.\.,/"total": { "value": 1, "relation": "eq" },/]
 % TESTRESPONSE[s/"_index": ".ds-my-data-stream-2023.07.04-000001"/"_index": $body.hits.sequences.0.events.0._index/]
 % TESTRESPONSE[s/"_id": "AnpTIYkBrVQ2QEgsWg94"/"_id": $body.hits.sequences.0.events.0._id/]
 % TESTRESPONSE[s/"_id": "BHpTIYkBrVQ2QEgsWg94"/"_id": $body.hits.sequences.0.events.2._id/]
@@ -341,9 +341,9 @@ The `hits.sequences.join_keys` property contains the shared field values.
   }
 }
 ```
-% TESTRESPONSE[s/  ...\n/"is_partial": false, "is_running": false, "took": $body.took, "timed_out": false,/]
-% TESTRESPONSE[s/"hits": ...,/"hits": { "total": { "value": 1, "relation": "eq" },/]
-% TESTRESPONSE[s/"events": .../"events": $body.hits.sequences.0.events/]
+% TESTRESPONSE[s/  \.\.\.\n/"is_partial": false, "is_running": false, "took": $body.took, "timed_out": false,/]
+% TESTRESPONSE[s/"hits": \.\.\.,/"hits": { "total": { "value": 1, "relation": "eq" },/]
+% TESTRESPONSE[s/"events": \.\.\./"events": $body.hits.sequences.0.events/]
 
 Use the [`until` keyword](/reference/query-languages/eql/eql-syntax.md#eql-until-keyword) to specify an expiration event for sequences. Matching sequences must end before this event.
 
@@ -1019,11 +1019,11 @@ The response includes values as a flat list in the `fields` section for each hit
   }
 }
 ```
-% TESTRESPONSE[s/  ...\n/"is_partial": false, "is_running": false, "took": $body.took, "timed_out": false,/]
-% TESTRESPONSE[s/"total": ...,/"total": { "value": 2, "relation": "eq" },/]
+% TESTRESPONSE[s/  \.\.\.\n/"is_partial": false, "is_running": false, "took": $body.took, "timed_out": false,/]
+% TESTRESPONSE[s/"total": \.\.\.,/"total": { "value": 2, "relation": "eq" },/]
 % TESTRESPONSE[s/"_index": ".ds-my-data-stream-2099.12.07-000001"/"_index": $body.hits.events.0._index/]
 % TESTRESPONSE[s/"_id": "OQmfCaduce8zoHT93o4H"/"_id": $body.hits.events.0._id/]
-% TESTRESPONSE[s/      ....\n/$body.hits.events.1/]
+% TESTRESPONSE[s/      \.\.\..\n/$body.hits.events.1/]
 
 
 ## Use runtime fields [eql-use-runtime-fields]
@@ -1077,11 +1077,11 @@ The API returns:
   }
 }
 ```
-% TESTRESPONSE[s/  ...\n/"is_partial": false, "is_running": false, "took": $body.took, "timed_out": false,/]
-% TESTRESPONSE[s/"total": ...,/"total": { "value": 2, "relation": "eq" },/]
+% TESTRESPONSE[s/  \.\.\.\n/"is_partial": false, "is_running": false, "took": $body.took, "timed_out": false,/]
+% TESTRESPONSE[s/"total": \.\.\.,/"total": { "value": 2, "relation": "eq" },/]
 % TESTRESPONSE[s/"_index": ".ds-my-data-stream-2099.12.07-000001"/"_index": $body.hits.events.0._index/]
 % TESTRESPONSE[s/"_id": "OQmfCaduce8zoHT93o4H"/"_id": $body.hits.events.0._id/]
-% TESTRESPONSE[s/      ....\n/$body.hits.events.1/]
+% TESTRESPONSE[s/      \.\.\..\n/$body.hits.events.1/]
 
 
 ## Specify a timestamp or event category field [specify-a-timestamp-or-event-category-field]
@@ -1185,7 +1185,7 @@ The async search continues to run in the background without blocking other reque
 % TESTRESPONSE[s/"is_partial": true/"is_partial": $body.is_partial/]
 % TESTRESPONSE[s/"is_running": true/"is_running": $body.is_running/]
 % TESTRESPONSE[s/"took": 2000/"took": $body.took/]
-% TESTRESPONSE[s/"hits": .../"hits": $body.hits/]
+% TESTRESPONSE[s/"hits": \.\.\./"hits": $body.hits/]
 
 To check the progress of an async search, use the [get async EQL search API](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-eql-search) with the search ID. Specify how long you’d like for complete results in the `wait_for_completion_timeout` parameter.
 
@@ -1208,7 +1208,7 @@ If the response’s `is_running` value is `false`, the async search has finished
 ```
 % TESTRESPONSE[s/FmNJRUZ1YWZCU3dHY1BIOUhaenVSRkEaaXFlZ3h4c1RTWFNocDdnY2FSaERnUTozNDE=/$body.id/]
 % TESTRESPONSE[s/"took": 2000/"took": $body.took/]
-% TESTRESPONSE[s/"hits": .../"hits": $body.hits/]
+% TESTRESPONSE[s/"hits": \.\.\./"hits": $body.hits/]
 
 Another more lightweight way to check the progress of an async search is to use the [get async EQL status API](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-eql-get-status) with the search ID.
 
@@ -1291,7 +1291,7 @@ The response includes a search ID. `is_partial` and `is_running` are `false`, in
 ```
 % TESTRESPONSE[s/FjlmbndxNmJjU0RPdExBTGg0elNOOEEaQk9xSjJBQzBRMldZa1VVQ2pPa01YUToxMDY=/$body.id/]
 % TESTRESPONSE[s/"took": 52/"took": $body.took/]
-% TESTRESPONSE[s/"hits": .../"hits": $body.hits/]
+% TESTRESPONSE[s/"hits": \.\.\./"hits": $body.hits/]
 
 Use the [get async EQL search API](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-eql-search) to get the same results later:
 

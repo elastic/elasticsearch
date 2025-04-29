@@ -62,7 +62,7 @@ Response:
   }
 }
 ```
-% TESTRESPONSE[s/...//]
+% TESTRESPONSE[s/\.\.\.//]
 
 ## Keyed Response [_keyed_response_4]
 
@@ -117,7 +117,7 @@ Response:
   }
 }
 ```
-% TESTRESPONSE[s/...//]
+% TESTRESPONSE[s/\.\.\.//]
 
 It is also possible to customize the key for each range:
 
@@ -170,7 +170,7 @@ Response:
   }
 }
 ```
-% TESTRESPONSE[s/...//]
+% TESTRESPONSE[s/\.\.\.//]
 
 
 ## Script [_script]
@@ -294,7 +294,7 @@ Response:
   }
 }
 ```
-% TESTRESPONSE[s/...//]
+% TESTRESPONSE[s/\.\.\.//]
 
 
 ## Histogram fields [search-aggregations-bucket-range-aggregation-histogram-fields]
@@ -394,7 +394,7 @@ The `range` aggregation will sum the counts of each range computed based on the 
   }
 }
 ```
-% TESTRESPONSE[s/.../"took": $body.took,"timed_out": false,"_shards": $body._shards,"hits": $body.hits,/]
+% TESTRESPONSE[s/\.\.\./"took": $body.took,"timed_out": false,"_shards": $body._shards,"hits": $body.hits,/]
 
 ::::{important}
 Range aggregation is a bucket aggregation, which partitions documents into buckets rather than calculating metrics over fields like metrics aggregations do. Each bucket represents a collection of documents which sub-aggregations can run on. On the other hand, a histogram field is a pre-aggregated field representing multiple values inside a single field: buckets of numerical data and a count of items/documents for each bucket. This mismatch between the range aggregations expected input (expecting raw documents) and the histogram field (that provides summary information) limits the outcome of the aggregation to only the doc counts for each bucket.

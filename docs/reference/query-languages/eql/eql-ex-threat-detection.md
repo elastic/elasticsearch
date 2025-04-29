@@ -153,7 +153,7 @@ The query matches one event with an `event.type` of `creation`, indicating the s
   }
 }
 ```
-% TESTRESPONSE[s/  ...\n/"is_partial": false, "is_running": false, "took": $body.took, "timed_out": false,/]
+% TESTRESPONSE[s/  \.\.\.\n/"is_partial": false, "is_running": false, "took": $body.took, "timed_out": false,/]
 % TESTRESPONSE[s/"_index": ".ds-my-data-stream-2099.12.07-000001"/"_index": $body.hits.events.0._index/]
 % TESTRESPONSE[s/"_id": "gl5MJXMBMk1dGnErnBW8"/"_id": $body.hits.events.0._id/]
 
@@ -207,7 +207,7 @@ The query matches an event, confirming `scrobj.dll` was loaded.
   }
 }
 ```
-% TESTRESPONSE[s/  ...\n/"is_partial": false, "is_running": false, "took": $body.took, "timed_out": false,/]
+% TESTRESPONSE[s/  \.\.\.\n/"is_partial": false, "is_running": false, "took": $body.took, "timed_out": false,/]
 % TESTRESPONSE[s/"_index": ".ds-my-data-stream-2099.12.07-000001"/"_index": $body.hits.events.0._index/]
 % TESTRESPONSE[s/"_id": "ol5MJXMBMk1dGnErnBW8"/"_id": $body.hits.events.0._id/]
 
@@ -340,7 +340,7 @@ The query matches a sequence, indicating the attack likely succeeded.
   }
 }
 ```
-% TESTRESPONSE[s/  ...\n/"is_partial": false, "is_running": false, "took": $body.took, "timed_out": false,/]
+% TESTRESPONSE[s/  \.\.\.\n/"is_partial": false, "is_running": false, "took": $body.took, "timed_out": false,/]
 % TESTRESPONSE[s/"_index": ".ds-my-data-stream-2099.12.07-000001"/"_index": $body.hits.sequences.0.events.0._index/]
 % TESTRESPONSE[s/"_id": "gl5MJXMBMk1dGnErnBW8"/"_id": $body.hits.sequences.0.events.0._id/]
 % TESTRESPONSE[s/"_id": "ol5MJXMBMk1dGnErnBW8"/"_id": $body.hits.sequences.0.events.1._id/]

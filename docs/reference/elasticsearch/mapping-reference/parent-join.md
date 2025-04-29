@@ -237,7 +237,7 @@ Will return:
   }
 }
 ```
-% TESTRESPONSE[s/.../"timed_out": false, "took": $body.took, "_shards": $body._shards/]
+% TESTRESPONSE[s/\.\.\./"timed_out": false, "took": $body.took, "_shards": $body._shards/]
 
 1. This document belongs to the `question` join
 2. This document belongs to the `question` join

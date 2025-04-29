@@ -58,7 +58,7 @@ The `std_deviation` and `variance` are calculated as population metrics so they 
   }
 }
 ```
-% TESTRESPONSE[s/.../"took": $body.took,"timed_out": false,"_shards": $body._shards,"hits": $body.hits,/]
+% TESTRESPONSE[s/\.\.\./"took": $body.took,"timed_out": false,"_shards": $body._shards,"hits": $body.hits,/]
 
 The name of the aggregation (`grades_stats` above) also serves as the key by which the aggregation result can be retrieved from the returned response.
 

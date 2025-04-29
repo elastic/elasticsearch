@@ -63,7 +63,7 @@ The response will look like this:
   }
 }
 ```
-% TESTRESPONSE[s/.../"took": $body.took,"timed_out": false,"_shards": $body._shards,"hits": $body.hits,/]
+% TESTRESPONSE[s/\.\.\./"took": $body.took,"timed_out": false,"_shards": $body._shards,"hits": $body.hits,/]
 
 In this case, the lower and upper whisker values are equal to the min and max. In general, these values are the 1.5 * IQR range, which is to say the nearest values to `q1 - (1.5 * IQR)` and `q3 + (1.5 * IQR)`. Since this is an approximation, the given values may not actually be observed values from the data, but should be within a reasonable error bound of them. While the Boxplot aggregation doesn’t directly return outlier points, you can check if `lower > min` or `upper < max` to see if outliers exist on either side, and then query for them directly.
 

@@ -58,7 +58,7 @@ By default, the `percentile` metric will generate a range of percentiles: `[ 1, 
   }
 }
 ```
-% TESTRESPONSE[s/.../"took": $body.took,"timed_out": false,"_shards": $body._shards,"hits": $body.hits,/]
+% TESTRESPONSE[s/\.\.\./"took": $body.took,"timed_out": false,"_shards": $body._shards,"hits": $body.hits,/]
 % TESTRESPONSE[s/"1.0": 10.0/"1.0": 9.9/]
 % TESTRESPONSE[s/"5.0": 30.0/"5.0": 29.5/]
 % TESTRESPONSE[s/"25.0": 170.0/"25.0": 167.5/]
@@ -152,7 +152,7 @@ Response:
   }
 }
 ```
-% TESTRESPONSE[s/.../"took": $body.took,"timed_out": false,"_shards": $body._shards,"hits": $body.hits,/]
+% TESTRESPONSE[s/\.\.\./"took": $body.took,"timed_out": false,"_shards": $body._shards,"hits": $body.hits,/]
 % TESTRESPONSE[s/"value": 10.0/"value": 9.9/]
 % TESTRESPONSE[s/"value": 30.0/"value": 29.5/]
 % TESTRESPONSE[s/"value": 170.0/"value": 167.5/]

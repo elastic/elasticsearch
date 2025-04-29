@@ -156,7 +156,7 @@ The aggregation results are based on related metric sub-field values.
   }
 }
 ```
-% TESTRESPONSE[s/.../"took": $body.took,"timed_out": false,"_shards": $body._shards,"hits": $body.hits,/]
+% TESTRESPONSE[s/\.\.\./"took": $body.took,"timed_out": false,"_shards": $body._shards,"hits": $body.hits,/]
 
 Queries on a `aggregate_metric_double` field use the `default_metric` value.
 
@@ -203,7 +203,7 @@ The search returns the following hit. The value of the `default_metric` field, `
   }
 }
 ```
-% TESTRESPONSE[s/.../"took": $body.took,"timed_out": false,"_shards": $body._shards,/]
+% TESTRESPONSE[s/\.\.\./"took": $body.took,"timed_out": false,"_shards": $body._shards,/]
 
 
 ## Synthetic `_source` [aggregate-metric-double-synthetic-source]

@@ -89,7 +89,7 @@ Response:
   }
 }
 ```
-% TESTRESPONSE[s/.../"took": $body.took,"timed_out": false,"_shards": $body._shards,"hits": $body.hits,/]
+% TESTRESPONSE[s/\.\.\./"took": $body.took,"timed_out": false,"_shards": $body._shards,"hits": $body.hits,/]
 
 
 ## Intervals [_intervals]
@@ -185,7 +185,7 @@ UTC is used if no time zone is specified, three 1-hour buckets are returned star
   }
 }
 ```
-% TESTRESPONSE[s/.../"took": $body.took,"timed_out": false,"_shards": $body._shards,"hits": $body.hits,/]
+% TESTRESPONSE[s/\.\.\./"took": $body.took,"timed_out": false,"_shards": $body._shards,"hits": $body.hits,/]
 
 If a `time_zone` of `-01:00` is specified, then midnight starts at one hour before midnight UTC:
 
@@ -234,7 +234,7 @@ Now three 1-hour buckets are still returned but the first bucket starts at 11:00
   }
 }
 ```
-% TESTRESPONSE[s/.../"took": $body.took,"timed_out": false,"_shards": $body._shards,"hits": $body.hits,/]
+% TESTRESPONSE[s/\.\.\./"took": $body.took,"timed_out": false,"_shards": $body._shards,"hits": $body.hits,/]
 
 1. The `key_as_string` value represents midnight on each day in the specified time zone.
 

@@ -361,7 +361,7 @@ And we receive the response with ranked `hits` and the terms aggregation result.
     }
 }
 ```
-% TESTRESPONSE[s/: .../: $body.$_path/]
+% TESTRESPONSE[s/: \.\.\./: $body.$_path/]
 
 Let’s break down how these hits were ranked. We start by running the `standard` retriever specifying a query and the `knn` retriever specifying a kNN search separately to collect what their individual hits are.
 

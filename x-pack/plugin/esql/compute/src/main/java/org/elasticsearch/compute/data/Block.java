@@ -345,13 +345,11 @@ public interface Block extends Accountable, BlockLoader.Block, Writeable, RefCou
      */
     static void writeTypedBlock(Block block, StreamOutput out) throws IOException {
         if (out.getTransportVersion().before(TransportVersions.AGGREGATE_METRIC_DOUBLE_BLOCK)
-            && block.elementType() == ElementType.AGGREGATE_METRIC_DOUBLE) {
-            ElementType.COMPOSITE.writeTo(out);
-            CompositeBlock.fromAggregateMetricDoubleBlock((AggregateMetricDoubleBlock) block).writeTo(out);
-        } else {
-            block.elementType().writeTo(out);
-            block.writeTo(out);
+            && block instanceof AggregateMetricDoubleBlock aggregateMetricDoubleBlock) {
+            block = AggregateMetricDoubleBlock.toCompositeBlock(aggregateMetricDoubleBlock);
         }
+        block.elementType().writeTo(out);
+        block.writeTo(out);
     }
 
     /**
@@ -360,7 +358,12 @@ public interface Block extends Accountable, BlockLoader.Block, Writeable, RefCou
      */
     static Block readTypedBlock(BlockStreamInput in) throws IOException {
         ElementType elementType = ElementType.readFrom(in);
-        return elementType.reader.readBlock(in);
+        Block block = elementType.reader.readBlock(in);
+        if (in.getTransportVersion().before(TransportVersions.AGGREGATE_METRIC_DOUBLE_BLOCK)
+            && block instanceof CompositeBlock compositeBlock) {
+            block = AggregateMetricDoubleBlock.fromCompositeBlock(compositeBlock);
+        }
+        return block;
     }
 
     /**

@@ -11,7 +11,6 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.compute.data.AggregateMetricDoubleBlock;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BytesRefBlock;
-import org.elasticsearch.compute.data.CompositeBlock;
 import org.elasticsearch.compute.data.Vector;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator;
@@ -44,9 +43,7 @@ public class ToStringFromAggregateMetricDoubleEvaluator extends AbstractConvertF
 
     @Override
     public Block evalBlock(Block b) {
-        AggregateMetricDoubleBlock block = b instanceof AggregateMetricDoubleBlock
-            ? (AggregateMetricDoubleBlock) b
-            : AggregateMetricDoubleBlock.fromCompositeBlock((CompositeBlock) b);
+        AggregateMetricDoubleBlock block = (AggregateMetricDoubleBlock) b;
         int positionCount = block.getPositionCount();
         try (BytesRefBlock.Builder builder = driverContext.blockFactory().newBytesRefBlockBuilder(positionCount)) {
             for (int p = 0; p < positionCount; p++) {

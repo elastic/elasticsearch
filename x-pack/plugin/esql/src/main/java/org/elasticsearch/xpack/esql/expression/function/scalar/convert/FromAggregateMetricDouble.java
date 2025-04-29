@@ -13,7 +13,6 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.compute.data.AggregateMetricDoubleBlock;
 import org.elasticsearch.compute.data.AggregateMetricDoubleBlockBuilder;
 import org.elasticsearch.compute.data.Block;
-import org.elasticsearch.compute.data.CompositeBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator;
@@ -146,10 +145,9 @@ public class FromAggregateMetricDouble extends EsqlScalarFunction {
                             return block;
                         }
                         try {
-                            AggregateMetricDoubleBlock aggBlock = block instanceof AggregateMetricDoubleBlock
-                                ? (AggregateMetricDoubleBlock) block
-                                : AggregateMetricDoubleBlock.fromCompositeBlock((CompositeBlock) block);
-                            Block resultBlock = aggBlock.getMetricBlock(((Number) subfieldIndex.fold(FoldContext.small())).intValue());
+                            Block resultBlock = ((AggregateMetricDoubleBlock) block).getMetricBlock(
+                                ((Number) subfieldIndex.fold(FoldContext.small())).intValue()
+                            );
                             resultBlock.incRef();
                             return resultBlock;
                         } finally {

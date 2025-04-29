@@ -11,7 +11,6 @@ import org.elasticsearch.compute.data.AggregateMetricDoubleBlock;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.BytesRefBlock;
-import org.elasticsearch.compute.data.CompositeBlock;
 import org.elasticsearch.compute.data.DocBlock;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.ElementType;
@@ -27,16 +26,11 @@ interface ValueExtractor {
     void writeValue(BreakingBytesRefBuilder values, int position);
 
     static ValueExtractor extractorFor(ElementType elementType, TopNEncoder encoder, boolean inKey, Block block) {
-        if (false == (elementType == block.elementType()
-            || ElementType.NULL == block.elementType()
-            || ElementType.COMPOSITE == block.elementType())) {
+        if (false == (elementType == block.elementType() || ElementType.NULL == block.elementType())) {
             // While this maybe should be an IllegalArgumentException, it's important to throw an exception that causes a 500 response.
             // If we reach here, that's a bug. Arguably, the operators are in an illegal state because the layout doesn't match the
             // actual pages.
             throw new IllegalStateException("Expected [" + elementType + "] but was [" + block.elementType() + "]");
-        }
-        if (elementType == ElementType.AGGREGATE_METRIC_DOUBLE && block.elementType() == ElementType.COMPOSITE) {
-            block = AggregateMetricDoubleBlock.fromCompositeBlock((CompositeBlock) block);
         }
         return switch (block.elementType()) {
             case BOOLEAN -> ValueExtractorForBoolean.extractorFor(encoder, inKey, (BooleanBlock) block);

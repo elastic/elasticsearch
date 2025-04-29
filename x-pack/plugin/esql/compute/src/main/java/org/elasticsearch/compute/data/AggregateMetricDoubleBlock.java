@@ -55,6 +55,15 @@ public final class AggregateMetricDoubleBlock extends AbstractNonThreadSafeRefCo
         return new AggregateMetricDoubleBlock(min, max, sum, count);
     }
 
+    public static CompositeBlock toCompositeBlock(AggregateMetricDoubleBlock block) {
+        final Block[] blocks = new Block[4];
+        blocks[AggregateMetricDoubleBlockBuilder.Metric.MIN.getIndex()] = block.minBlock();
+        blocks[AggregateMetricDoubleBlockBuilder.Metric.MAX.getIndex()] = block.maxBlock();
+        blocks[AggregateMetricDoubleBlockBuilder.Metric.SUM.getIndex()] = block.sumBlock();
+        blocks[AggregateMetricDoubleBlockBuilder.Metric.COUNT.getIndex()] = block.countBlock();
+        return new CompositeBlock(blocks);
+    }
+
     @Override
     protected void closeInternal() {
         Releasables.close(minBlock, maxBlock, sumBlock, countBlock);
@@ -193,18 +202,42 @@ public final class AggregateMetricDoubleBlock extends AbstractNonThreadSafeRefCo
 
     @Override
     public MvOrdering mvOrdering() {
+        // TODO: determine based on sub-blocks
         return MvOrdering.UNORDERED;
     }
 
     @Override
     public Block expand() {
+        // TODO: support
         throw new UnsupportedOperationException("AggregateMetricDoubleBlock");
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         for (Block block : List.of(minBlock, maxBlock, sumBlock, countBlock)) {
-            Block.writeTypedBlock(block, out);
+            block.writeTo(out);
+        }
+    }
+
+    public static Block readFrom(StreamInput in) throws IOException {
+        boolean success = false;
+        DoubleBlock minBlock = null;
+        DoubleBlock maxBlock = null;
+        DoubleBlock sumBlock = null;
+        IntBlock countBlock = null;
+        BlockStreamInput blockStreamInput = (BlockStreamInput) in;
+        try {
+            minBlock = DoubleBlock.readFrom(blockStreamInput);
+            maxBlock = DoubleBlock.readFrom(blockStreamInput);
+            sumBlock = DoubleBlock.readFrom(blockStreamInput);
+            countBlock = IntBlock.readFrom(blockStreamInput);
+            AggregateMetricDoubleBlock result = new AggregateMetricDoubleBlock(minBlock, maxBlock, sumBlock, countBlock);
+            success = true;
+            return result;
+        } finally {
+            if (success == false) {
+                Releasables.close(minBlock, maxBlock, sumBlock, countBlock);
+            }
         }
     }
 
@@ -234,28 +267,6 @@ public final class AggregateMetricDoubleBlock extends AbstractNonThreadSafeRefCo
             IntBlock.hash(countBlock),
             positionCount
         );
-    }
-
-    public static Block readFrom(StreamInput in) throws IOException {
-        boolean success = false;
-        DoubleBlock minBlock = null;
-        DoubleBlock maxBlock = null;
-        DoubleBlock sumBlock = null;
-        IntBlock countBlock = null;
-        BlockStreamInput blockStreamInput = (BlockStreamInput) in;
-        try {
-            minBlock = (DoubleBlock) Block.readTypedBlock(blockStreamInput);
-            maxBlock = (DoubleBlock) Block.readTypedBlock(blockStreamInput);
-            sumBlock = (DoubleBlock) Block.readTypedBlock(blockStreamInput);
-            countBlock = (IntBlock) Block.readTypedBlock(blockStreamInput);
-            AggregateMetricDoubleBlock result = new AggregateMetricDoubleBlock(minBlock, maxBlock, sumBlock, countBlock);
-            success = true;
-            return result;
-        } finally {
-            if (success == false) {
-                Releasables.close(minBlock, maxBlock, sumBlock, countBlock);
-            }
-        }
     }
 
     public DoubleBlock minBlock() {

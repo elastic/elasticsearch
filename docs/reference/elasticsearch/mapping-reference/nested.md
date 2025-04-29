@@ -52,7 +52,7 @@ The previous document would be transformed internally into a document that looks
   "user.last" :  [ "smith", "white" ]
 }
 ```
-%  NOTCONSOLE
+% NOTCONSOLE
 
 The `user.first` and `user.last` fields are flattened into multi-value fields, and the association between `alice` and `white` is lost. This document would incorrectly match a query for `alice AND smith`:
 
@@ -69,7 +69,7 @@ GET my-index-000001/_search
   }
 }
 ```
-%  TEST[continued]
+% TEST[continued]
 
 
 ## Using `nested` fields for arrays of objects [nested-fields-array-objects]

@@ -29,7 +29,7 @@ POST /sales/_search?size=0
   }
 }
 ```
-%  TEST[setup:sales]
+% TEST[setup:sales]
 
 Response:
 
@@ -56,7 +56,7 @@ Response:
   }
 }
 ```
-%  TESTRESPONSE[s/.../"took": $body.took,"timed_out": false,"_shards": $body._shards,"hits": $body.hits,/]
+% TESTRESPONSE[s/.../"took": $body.took,"timed_out": false,"_shards": $body._shards,"hits": $body.hits,/]
 
 ::::{important}
 This aggregation cannot currently be nested under any aggregation that collects from more than a single bucket.

@@ -93,7 +93,7 @@ The search response includes an array of `sort` values for each hit:
   }
 }
 ```
-%  TESTRESPONSE[skip: demo of where the sort values are]
+% TESTRESPONSE[skip: demo of where the sort values are]
 
 1. Sort values for the last returned hit.
 
@@ -122,7 +122,7 @@ Repeat this process by updating the `search_after` array every time you retrieve
 ```console
 POST /my-index-000001/_pit?keep_alive=1m
 ```
-%  TEST[setup:my_index]
+% TEST[setup:my_index]
 
 The API returns a PIT ID.
 
@@ -132,8 +132,8 @@ The API returns a PIT ID.
   "_shards": ...
 }
 ```
-%  TESTRESPONSE[s/"id": "46ToAwMDaWR5BXV1aWQyKwZub2RlXzMAAAAAAAAAACoBYwADaWR4BXV1aWQxAgZub2RlXzEAAAAAAAAAAAEBYQADaWR5BXV1aWQyKgZub2RlXzIAAAAAAAAAAAwBYgACBXV1aWQyAAAFdXVpZDEAAQltYXRjaF9hbGw_gAAAAA=="/"id": $body.id/]
-%  TESTRESPONSE[s/"_shards": .../"_shards": "$body._shards"/]
+% TESTRESPONSE[s/"id": "46ToAwMDaWR5BXV1aWQyKwZub2RlXzMAAAAAAAAAACoBYwADaWR4BXV1aWQxAgZub2RlXzEAAAAAAAAAAAEBYQADaWR5BXV1aWQyKgZub2RlXzIAAAAAAAAAAAwBYgACBXV1aWQyAAAFdXVpZDEAAQltYXRjaF9hbGw_gAAAAA=="/"id": $body.id/]
+% TESTRESPONSE[s/"_shards": .../"_shards": "$body._shards"/]
 
 To get the first page of results, submit a search request with a `sort` argument. If using a PIT, specify the PIT ID in the `pit.id` parameter and omit the target data stream or index from the request path.
 
@@ -170,7 +170,7 @@ GET /_search
   ]
 }
 ```
-%  TEST[catch:unavailable]
+% TEST[catch:unavailable]
 
 1. PIT ID for the search.
 2. Sorts hits for the search with an implicit tiebreak on `_shard_doc` ascending.
@@ -197,7 +197,7 @@ GET /_search
   ]
 }
 ```
-%  TEST[catch:unavailable]
+% TEST[catch:unavailable]
 
 1. PIT ID for the search.
 2. Sorts hits for the search with an explicit tiebreak on `_shard_doc` descending.
@@ -228,7 +228,7 @@ GET /_search
   }
 }
 ```
-%  TESTRESPONSE[skip: unable to access PIT ID]
+% TESTRESPONSE[skip: unable to access PIT ID]
 
 1. Updated `id` for the point in time.
 2. Sort values for the last returned hit.
@@ -260,7 +260,7 @@ GET /_search
   "track_total_hits": false                        <3>
 }
 ```
-%  TEST[catch:unavailable]
+% TEST[catch:unavailable]
 
 1. PIT ID returned by the previous search.
 2. Sort values from the previous search’s last hit.
@@ -277,7 +277,7 @@ DELETE /_pit
     "id" : "46ToAwMDaWR5BXV1aWQyKwZub2RlXzMAAAAAAAAAACoBYwADaWR4BXV1aWQxAgZub2RlXzEAAAAAAAAAAAEBYQADaWR5BXV1aWQyKgZub2RlXzIAAAAAAAAAAAwBYgACBXV1aWQyAAAFdXVpZDEAAQltYXRjaF9hbGw_gAAAAA=="
 }
 ```
-%  TEST[catch:missing]
+% TEST[catch:missing]
 
 
 ## Scroll search results [scroll-search-results]
@@ -324,7 +324,7 @@ POST /my-index-000001/_search?scroll=1m
   }
 }
 ```
-%  TEST[setup:my_index]
+% TEST[setup:my_index]
 
 The result from the above request includes a `_scroll_id`, which should be passed to the `scroll` API in order to retrieve the next batch of results.
 
@@ -335,7 +335,7 @@ POST /_search/scroll                                                            
   "scroll_id" : "DXF1ZXJ5QW5kRmV0Y2gBAAAAAAAAAD4WYm9laVYtZndUQlNsdDcwakFMNjU1QQ==" <3>
 }
 ```
-%  TEST[continued s/DXF1ZXJ5QW5kRmV0Y2gBAAAAAAAAAD4WYm9laVYtZndUQlNsdDcwakFMNjU1QQ==/$body._scroll_id/]
+% TEST[continued s/DXF1ZXJ5QW5kRmV0Y2gBAAAAAAAAAD4WYm9laVYtZndUQlNsdDcwakFMNjU1QQ==/$body._scroll_id/]
 
 1. `GET` or `POST` can be used and the URL should not include the `index` name — this is specified in the original `search` request instead.
 2. The `scroll` parameter tells Elasticsearch to keep the search context open for another `1m`.
@@ -367,7 +367,7 @@ GET /_search?scroll=1m
   ]
 }
 ```
-%  TEST[setup:my_index]
+% TEST[setup:my_index]
 
 
 ### Keeping the search context alive [scroll-search-context]
@@ -407,7 +407,7 @@ DELETE /_search/scroll
   "scroll_id" : "DXF1ZXJ5QW5kRmV0Y2gBAAAAAAAAAD4WYm9laVYtZndUQlNsdDcwakFMNjU1QQ=="
 }
 ```
-%  TEST[catch:missing]
+% TEST[catch:missing]
 
 Multiple scroll IDs can be passed as array:
 
@@ -420,7 +420,7 @@ DELETE /_search/scroll
   ]
 }
 ```
-%  TEST[catch:missing]
+% TEST[catch:missing]
 
 All search contexts can be cleared with the `_all` parameter:
 
@@ -433,7 +433,7 @@ The `scroll_id` can also be passed as a query string parameter or in the request
 ```console
 DELETE /_search/scroll/DXF1ZXJ5QW5kRmV0Y2gBAAAAAAAAAD4WYm9laVYtZndUQlNsdDcwakFMNjU1QQ==,DnF1ZXJ5VGhlbkZldGNoBQAAAAAAAAABFmtSWWRRWUJrU2o2ZExpSGJCVmQxYUEAAAAAAAAAAxZrUllkUVlCa1NqNmRMaUhiQlZkMWFBAAAAAAAAAAIWa1JZZFFZQmtTajZkTGlIYkJWZDFhQQAAAAAAAAAFFmtSWWRRWUJrU2o2ZExpSGJCVmQxYUEAAAAAAAAABBZrUllkUVlCa1NqNmRMaUhiQlZkMWFB
 ```
-%  TEST[catch:missing]
+% TEST[catch:missing]
 
 
 ### Sliced scroll [slice-scroll]
@@ -466,7 +466,7 @@ GET /my-index-000001/_search?scroll=1m
   }
 }
 ```
-%  TEST[setup:my_index_big]
+% TEST[setup:my_index_big]
 
 1. The id of the slice
 2. The maximum number of slices
@@ -506,7 +506,7 @@ GET /my-index-000001/_search?scroll=1m
   }
 }
 ```
-%  TEST[setup:my_index_big]
+% TEST[setup:my_index_big]
 
 For append only time-based indices, the `timestamp` field can be used safely.
 

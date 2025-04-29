@@ -229,7 +229,7 @@ A sample query can look like below:
   }
 }
 ```
-%  NOTCONSOLE
+% NOTCONSOLE
 
 Note that nested `knn` only supports `score_mode=max`.
 

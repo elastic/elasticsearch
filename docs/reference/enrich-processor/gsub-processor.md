@@ -33,5 +33,5 @@ $$$gsub-options$$$
   }
 }
 ```
-%  NOTCONSOLE
+% NOTCONSOLE
 

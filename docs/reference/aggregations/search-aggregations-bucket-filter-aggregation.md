@@ -27,7 +27,7 @@ POST /sales/_search?size=0&filter_path=aggregations
   }
 }
 ```
-%  TEST[setup:sales]
+% TEST[setup:sales]
 
 The previous example calculates the average price of all sales as well as the average price of all T-shirt sales.
 
@@ -62,7 +62,7 @@ POST /sales/_search?size=0&filter_path=aggregations
   }
 }
 ```
-%  TEST[setup:sales]
+% TEST[setup:sales]
 
 Instead of this:
 
@@ -81,7 +81,7 @@ POST /sales/_search?size=0&filter_path=aggregations
   }
 }
 ```
-%  TEST[setup:sales]
+% TEST[setup:sales]
 
 
 ## Use the `filters` aggregation for multiple filters [use-filters-agg-for-multiple-filters]
@@ -110,7 +110,7 @@ POST /sales/_search?size=0&filter_path=aggregations
   }
 }
 ```
-%  TEST[setup:sales]
+% TEST[setup:sales]
 
 Instead of this:
 
@@ -135,6 +135,6 @@ POST /sales/_search?size=0&filter_path=aggregations
   }
 }
 ```
-%  TEST[setup:sales]
+% TEST[setup:sales]
 
 

@@ -28,7 +28,7 @@ PUT my-index-000001
   }
 }
 ```
-%  TESTSETUP
+% TESTSETUP
 
 Then you can index a query:
 
@@ -92,7 +92,7 @@ PUT queries/_doc/1?refresh
   }
 }
 ```
-%  TEST[continued]
+% TEST[continued]
 
 1. It is always recommended to define an alias for your index, so that in case of a reindex systems / applications don’t need to be changed to know that the percolator queries are now in a different index.
 
@@ -142,7 +142,7 @@ POST _aliases
   ]
 }
 ```
-%  TEST[continued]
+% TEST[continued]
 
 1. If you have an alias don’t forget to point it to the new index.
 
@@ -162,7 +162,7 @@ GET /queries/_search
   }
 }
 ```
-%  TEST[continued]
+% TEST[continued]
 
 now returns matches from the new index:
 
@@ -202,7 +202,7 @@ now returns matches from the new index:
   }
 }
 ```
-%  TESTRESPONSE[s/"took": 3,/"took": "$body.took",/]
+% TESTRESPONSE[s/"took": 3,/"took": "$body.took",/]
 
 1. Percolator query hit is now being presented from the new index.
 
@@ -229,7 +229,7 @@ Lets say we want to index the following percolator query:
   }
 }
 ```
-%  NOTCONSOLE
+% NOTCONSOLE
 
 with these settings and mapping:
 
@@ -259,7 +259,7 @@ PUT /test_index
   }
 }
 ```
-%  TEST[continued]
+% TEST[continued]
 
 1. For the purpose of this example, this analyzer is considered expensive.
 
@@ -273,7 +273,7 @@ POST /test_index/_analyze
   "text" : "missing bicycles"
 }
 ```
-%  TEST[continued]
+% TEST[continued]
 
 This results the following response:
 
@@ -313,7 +313,7 @@ PUT /test_index/_doc/1?refresh
   }
 }
 ```
-%  TEST[continued]
+% TEST[continued]
 
 1. It is important to select a whitespace analyzer here, otherwise the analyzer defined in the mapping will be used, which defeats the point of using this workflow. Note that `whitespace` is a built-in analyzer, if a different analyzer needs to be used, it needs to be configured first in the index’s settings.
 
@@ -335,7 +335,7 @@ GET /test_index/_search
   }
 }
 ```
-%  TEST[continued]
+% TEST[continued]
 
 This results in a response like this:
 
@@ -378,7 +378,7 @@ This results in a response like this:
   }
 }
 ```
-%  TESTRESPONSE[s/"took": 6,/"took": "$body.took",/]
+% TESTRESPONSE[s/"took": 6,/"took": "$body.took",/]
 
 
 ## Optimizing wildcard queries. [_optimizing_wildcard_queries]
@@ -432,7 +432,7 @@ PUT my_queries1
   }
 }
 ```
-%  TEST[continued]
+% TEST[continued]
 
 1. The analyzer that generates the prefix tokens to be used at index time only.
 2. Increase the `min_gram` and decrease `max_gram` settings based on your prefix search needs.
@@ -450,7 +450,7 @@ Then instead of indexing the following query:
   }
 }
 ```
-%  NOTCONSOLE
+% NOTCONSOLE
 
 this query below should be indexed:
 
@@ -464,7 +464,7 @@ PUT /my_queries1/_doc/1?refresh
   }
 }
 ```
-%  TEST[continued]
+% TEST[continued]
 
 This way can handle the second query more efficiently than the first query.
 
@@ -483,7 +483,7 @@ GET /my_queries1/_search
   }
 }
 ```
-%  TEST[continued]
+% TEST[continued]
 
 ```console-result
 {
@@ -523,7 +523,7 @@ GET /my_queries1/_search
   }
 }
 ```
-%  TESTRESPONSE[s/"took": 6,/"took": "$body.took",/]
+% TESTRESPONSE[s/"took": 6,/"took": "$body.took",/]
 
 The same technique can also be used to speed up suffix wildcard searches. By using the `reverse` token filter before the `edge_ngram` token filter.
 
@@ -579,7 +579,7 @@ PUT my_queries2
   }
 }
 ```
-%  TEST[continued]
+% TEST[continued]
 
 1. A custom analyzer is needed at search time too, because otherwise the query terms are not being reversed and would otherwise not match with the reserved suffix tokens.
 
@@ -595,7 +595,7 @@ Then instead of indexing the following query:
   }
 }
 ```
-%  NOTCONSOLE
+% NOTCONSOLE
 
 the following query below should be indexed:
 
@@ -609,7 +609,7 @@ PUT /my_queries2/_doc/2?refresh
   }
 }
 ```
-%  TEST[continued]
+% TEST[continued]
 
 1. The `match` query should be used instead of the `term` query, because text analysis needs to reverse the query terms.
 
@@ -629,7 +629,7 @@ GET /my_queries2/_search
   }
 }
 ```
-%  TEST[continued]
+% TEST[continued]
 
 
 ## Dedicated Percolator Index [_dedicated_percolator_index]

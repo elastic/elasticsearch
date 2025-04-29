@@ -136,7 +136,7 @@ GET /events/_search
   ]
 }
 ```
-%  TEST[continued]
+% TEST[continued]
 
 Elasticsearch will detect that the top docs of each segment are already sorted in the index and will only compare the first N documents per segment. The rest of the documents matching the query are collected to count the total number of results and to build aggregations.
 
@@ -152,7 +152,7 @@ GET /events/_search
   "track_total_hits": false
 }
 ```
-%  TEST[continued]
+% TEST[continued]
 
 1. The index sort will be used to rank the top documents and each segment will early terminate the collection after the first 10 matches.
 
@@ -170,8 +170,8 @@ This time, Elasticsearch will not try to count the number of documents and will 
   "timed_out": false
 }
 ```
-%  TESTRESPONSE[s/"_shards": .../"_shards": "$body._shards",/]
-%  TESTRESPONSE[s/"took": 20,/"took": "$body.took",/]
+% TESTRESPONSE[s/"_shards": .../"_shards": "$body._shards",/]
+% TESTRESPONSE[s/"took": 20,/"took": "$body.took",/]
 
 1. The total number of hits matching the query is unknown because of early termination.
 

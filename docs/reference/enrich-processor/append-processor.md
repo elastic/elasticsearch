@@ -31,5 +31,5 @@ $$$append-options$$$
   }
 }
 ```
-%  NOTCONSOLE
+% NOTCONSOLE
 

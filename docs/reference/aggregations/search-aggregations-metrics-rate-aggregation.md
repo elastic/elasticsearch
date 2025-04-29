@@ -26,7 +26,7 @@ A `rate` aggregation looks like this in isolation:
   }
 }
 ```
-%  NOTCONSOLE
+% NOTCONSOLE
 
 The following request will group all sales records into monthly buckets and then convert the number of sales transactions in each bucket into per annual sales rate.
 
@@ -51,7 +51,7 @@ GET sales/_search
   }
 }
 ```
-%  TEST[setup:sales]
+% TEST[setup:sales]
 
 1. Histogram is grouped by month.
 2. But the rate is converted into annual rate.
@@ -94,7 +94,7 @@ The response will return the annual rate of transactions in each bucket. Since t
   }
 }
 ```
-%  TESTRESPONSE[s/.../"took": $body.took,"timed_out": false,"_shards": $body._shards,"hits": $body.hits,/]
+% TESTRESPONSE[s/.../"took": $body.took,"timed_out": false,"_shards": $body._shards,"hits": $body.hits,/]
 
 Instead of counting the number of documents, it is also possible to calculate a sum of all values of the fields in the documents in each bucket or the number of values in each bucket. The following request will group all sales records into monthly bucket and than calculate the total monthly sales and convert them into average daily sales.
 
@@ -120,7 +120,7 @@ GET sales/_search
   }
 }
 ```
-%  TEST[setup:sales]
+% TEST[setup:sales]
 
 1. Histogram is grouped by month.
 2. Calculate sum of all sale prices
@@ -164,7 +164,7 @@ The response will contain the average daily sale prices for each month.
   }
 }
 ```
-%  TESTRESPONSE[s/.../"took": $body.took,"timed_out": false,"_shards": $body._shards,"hits": $body.hits,/]
+% TESTRESPONSE[s/.../"took": $body.took,"timed_out": false,"_shards": $body._shards,"hits": $body.hits,/]
 
 You can also take advantage of `composite` aggregations to calculate the average daily sale price for each item in your inventory
 
@@ -204,7 +204,7 @@ GET sales/_search?filter_path=aggregations&size=0
   }
 }
 ```
-%  TEST[setup:sales]
+% TEST[setup:sales]
 
 1. Composite aggregation with a date histogram source and a source for the item type.
 2. The date histogram source grouping monthly
@@ -325,7 +325,7 @@ GET sales/_search
   }
 }
 ```
-%  TEST[setup:sales]
+% TEST[setup:sales]
 
 1. Histogram is grouped by month.
 2. Calculate number of all sale prices
@@ -370,7 +370,7 @@ The response will contain the average daily sale prices for each month.
   }
 }
 ```
-%  TESTRESPONSE[s/.../"took": $body.took,"timed_out": false,"_shards": $body._shards,"hits": $body.hits,/]
+% TESTRESPONSE[s/.../"took": $body.took,"timed_out": false,"_shards": $body._shards,"hits": $body.hits,/]
 
 By default `sum` mode is used.
 
@@ -448,7 +448,7 @@ GET sales/_search
   }
 }
 ```
-%  TEST[setup:sales]
+% TEST[setup:sales]
 
 ```console-result
 {
@@ -485,6 +485,6 @@ GET sales/_search
   }
 }
 ```
-%  TESTRESPONSE[s/.../"took": $body.took,"timed_out": false,"_shards": $body._shards,"hits": $body.hits,/]
+% TESTRESPONSE[s/.../"took": $body.took,"timed_out": false,"_shards": $body._shards,"hits": $body.hits,/]
 
 

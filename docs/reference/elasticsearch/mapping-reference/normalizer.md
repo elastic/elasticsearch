@@ -110,7 +110,7 @@ The above queries match documents 1 and 2 since `BÀR` is converted to `bar` at 
   }
 }
 ```
-%  TESTRESPONSE[s/"took".*/"took": "$body.took",/]
+% TESTRESPONSE[s/"took".*/"took": "$body.took",/]
 
 Also, the fact that keywords are converted prior to indexing also means that aggregations return normalized values:
 
@@ -127,7 +127,7 @@ GET index/_search
   }
 }
 ```
-%  TEST[continued]
+% TEST[continued]
 
 returns
 
@@ -167,5 +167,5 @@ returns
   }
 }
 ```
-%  TESTRESPONSE[s/"took".*/"took": "$body.took",/]
+% TESTRESPONSE[s/"took".*/"took": "$body.took",/]
 

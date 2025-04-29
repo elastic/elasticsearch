@@ -130,7 +130,7 @@ The API returns the following response. Note that one version of each token has 
   }
 }
 ```
-%  TESTRESPONSE[s/"tokenizer": .../"tokenizer": $body.detail.tokenizer/]
+% TESTRESPONSE[s/"tokenizer": .../"tokenizer": $body.detail.tokenizer/]
 
 ::::
 
@@ -241,8 +241,8 @@ The API returns the following response. Note the following changes:
   }
 }
 ```
-%  TESTRESPONSE[s/"tokenizer": .../"tokenizer": $body.detail.tokenizer/]
-%  TESTRESPONSE[s/"tokens": …​/"tokens": $body.$_path/]
+% TESTRESPONSE[s/"tokenizer": .../"tokenizer": $body.detail.tokenizer/]
+% TESTRESPONSE[s/"tokens": …​/"tokens": $body.$_path/]
 
 ::::
 
@@ -341,8 +341,8 @@ The API returns the following response. Note that the duplicate tokens for `fox`
   }
 }
 ```
-%  TESTRESPONSE[s/"tokenizer": .../"tokenizer": $body.detail.tokenizer/]
-%  TESTRESPONSE[s/"tokens": …​/"tokens": $body.$_path/]
+% TESTRESPONSE[s/"tokenizer": .../"tokenizer": $body.detail.tokenizer/]
+% TESTRESPONSE[s/"tokens": …​/"tokens": $body.$_path/]
 
 ::::
 

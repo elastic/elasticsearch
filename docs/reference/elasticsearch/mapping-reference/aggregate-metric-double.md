@@ -113,8 +113,8 @@ PUT stats-index/_doc/2
   }
 }
 ```
-%  TEST[continued]
-%  TEST[s/_doc/2/_doc/2?refresh=wait_for/]
+% TEST[continued]
+% TEST[s/_doc/2/_doc/2?refresh=wait_for/]
 
 You can run `min`, `max`, `sum`, `value_count`, and `avg` aggregations on a `agg_metric` field.
 
@@ -130,7 +130,7 @@ POST stats-index/_search?size=0
   }
 }
 ```
-%  TEST[continued]
+% TEST[continued]
 
 The aggregation results are based on related metric sub-field values.
 
@@ -156,7 +156,7 @@ The aggregation results are based on related metric sub-field values.
   }
 }
 ```
-%  TESTRESPONSE[s/.../"took": $body.took,"timed_out": false,"_shards": $body._shards,"hits": $body.hits,/]
+% TESTRESPONSE[s/.../"took": $body.took,"timed_out": false,"_shards": $body._shards,"hits": $body.hits,/]
 
 Queries on a `aggregate_metric_double` field use the `default_metric` value.
 
@@ -172,7 +172,7 @@ GET stats-index/_search
   }
 }
 ```
-%  TEST[continued]
+% TEST[continued]
 
 The search returns the following hit. The value of the `default_metric` field, `max`, matches the query value.
 
@@ -203,7 +203,7 @@ The search returns the following hit. The value of the `default_metric` field, `
   }
 }
 ```
-%  TESTRESPONSE[s/.../"took": $body.took,"timed_out": false,"_shards": $body._shards,/]
+% TESTRESPONSE[s/.../"took": $body.took,"timed_out": false,"_shards": $body._shards,/]
 
 
 ## Synthetic `_source` [aggregate-metric-double-synthetic-source]
@@ -250,7 +250,7 @@ PUT idx/_doc/1
   }
 }
 ```
-%  TEST[s/$/\nGET idx/_doc/1?filter_path=_source\n/]
+% TEST[s/$/\nGET idx/_doc/1?filter_path=_source\n/]
 
 Will become:
 
@@ -264,6 +264,6 @@ Will become:
   }
 }
 ```
-%  TEST[s/^/{"_source":/ s/\n$/}/]
+% TEST[s/^/{"_source":/ s/\n$/}/]
 
 

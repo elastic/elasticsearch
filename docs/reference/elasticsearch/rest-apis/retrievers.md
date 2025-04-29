@@ -238,7 +238,7 @@ GET /restaurants/_search
   }
 }
 ```
-%  TEST[continued]
+% TEST[continued]
 
 1. Configuration for k-nearest neighbor (knn) search, which is based on vector similarity.
 2. Specifies the field name that contains the vectors.
@@ -372,7 +372,7 @@ GET /restaurants/_search
   }
 }
 ```
-%  TEST[continued]
+% TEST[continued]
 
 1. Defines a retriever tree with an RRF retriever.
 2. The sub-retriever array.
@@ -430,7 +430,7 @@ GET movies/_search
   }
 }
 ```
-%  TEST[skip:uses ELSER]
+% TEST[skip:uses ELSER]
 
 
 ## Rescorer Retriever [rescorer-retriever]
@@ -544,7 +544,7 @@ GET movies/_search
   }
 }
 ```
-%  TEST[skip:uses ELSER]
+% TEST[skip:uses ELSER]
 
 1. Specifies the number of top documents to return in the final response.
 2. A `rescorer` retriever applied as the final step.
@@ -730,7 +730,7 @@ GET /index/_search
    }
 }
 ```
-%  TEST[skip:uses ML]
+% TEST[skip:uses ML]
 
 
 ### Example: Semantic re-ranking with a Hugging Face model [text-similarity-reranker-retriever-example-eland]

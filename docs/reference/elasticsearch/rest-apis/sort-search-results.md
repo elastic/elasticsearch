@@ -30,7 +30,7 @@ PUT /my-index-000001
   }
 }
 ```
-%  TEST[continued]
+% TEST[continued]
 
 ```console
 GET /my-index-000001/_search
@@ -82,7 +82,7 @@ GET /my-index-000001/_search
   }
 }
 ```
-%  TEST[continued]
+% TEST[continued]
 
 
 ## Sort order [_sort_order]
@@ -159,7 +159,7 @@ PUT /index_double
   }
 }
 ```
-%  TEST[continued]
+% TEST[continued]
 
 ```console
 PUT /index_long
@@ -171,7 +171,7 @@ PUT /index_long
   }
 }
 ```
-%  TEST[continued]
+% TEST[continued]
 
 Since `field` is mapped as a `double` in the first index and as a `long` in the second index, it is not possible to use this field to sort requests that query both indices by default. However you can force the type to one or the other with the `numeric_type` option in order to force a specific type for all indices:
 
@@ -187,7 +187,7 @@ POST /index_long,index_double/_search
    ]
 }
 ```
-%  TEST[continued]
+% TEST[continued]
 
 In the example above, values for the `index_long` index are casted to a double in order to be compatible with the values produced by the `index_double` index. It is also possible to transform a floating point field into a `long` but note that in this case floating points are replaced by the largest value that is less than or equal (greater than or equal if the value is negative) to the argument and is equal to a mathematical integer.
 
@@ -203,7 +203,7 @@ PUT /index_double
   }
 }
 ```
-%  TEST[continued]
+% TEST[continued]
 
 ```console
 PUT /index_long
@@ -215,7 +215,7 @@ PUT /index_long
   }
 }
 ```
-%  TEST[continued]
+% TEST[continued]
 
 Values in these indices are stored with different resolutions so sorting on these fields will always sort the `date` before the `date_nanos` (ascending order). With the `numeric_type` type option it is possible to set a single resolution for the sort, setting to `date` will convert the `date_nanos` to the millisecond resolution while `date_nanos` will convert the values in the `date` field to the nanoseconds resolution:
 
@@ -231,7 +231,7 @@ POST /index_long,index_double/_search
    ]
 }
 ```
-%  TEST[continued]
+% TEST[continued]
 
 ::::{warning}
 To avoid overflow, the conversion to `date_nanos` cannot be applied on dates before 1970 and after 2262 as nanoseconds are represented as longs.

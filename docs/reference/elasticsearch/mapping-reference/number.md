@@ -213,7 +213,7 @@ PUT idx/_doc/1
   "long": [0, 0, -123466, 87612]
 }
 ```
-%  TEST[s/$/\nGET idx/_doc/1?filter_path=_source\n/]
+% TEST[s/$/\nGET idx/_doc/1?filter_path=_source\n/]
 
 Will become:
 
@@ -222,7 +222,7 @@ Will become:
   "long": [-123466, 0, 0, 87612]
 }
 ```
-%  TEST[s/^/{"_source":/ s/\n$/}/]
+% TEST[s/^/{"_source":/ s/\n$/}/]
 
 Scaled floats will always apply their scaling factor so:
 
@@ -251,7 +251,7 @@ PUT idx/_doc/1
   "f": 123
 }
 ```
-%  TEST[s/$/\nGET idx/_doc/1?filter_path=_source\n/]
+% TEST[s/$/\nGET idx/_doc/1?filter_path=_source\n/]
 
 Will become:
 
@@ -260,6 +260,6 @@ Will become:
   "f": 100.0
 }
 ```
-%  TEST[s/^/{"_source":/ s/\n$/}/]
+% TEST[s/^/{"_source":/ s/\n$/}/]
 
 

@@ -20,7 +20,7 @@ A `percentiles_bucket` aggregation looks like this in isolation:
   }
 }
 ```
-%  NOTCONSOLE
+% NOTCONSOLE
 
 $$$percentiles-bucket-params$$$
 
@@ -61,7 +61,7 @@ POST /sales/_search
   }
 }
 ```
-%  TEST[setup:sales]
+% TEST[setup:sales]
 
 1. `buckets_path` instructs this percentiles_bucket aggregation that we want to calculate percentiles for the `sales` aggregation in the `sales_per_month` date histogram.
 2. `percents` specifies which percentiles we wish to calculate, in this case, the 25th, 50th and 75th percentiles.
@@ -114,9 +114,9 @@ And the following may be the response:
    }
 }
 ```
-%  TESTRESPONSE[s/"took": 11/"took": $body.took/]
-%  TESTRESPONSE[s/"_shards": .../"_shards": $body._shards/]
-%  TESTRESPONSE[s/"hits": .../"hits": $body.hits/]
+% TESTRESPONSE[s/"took": 11/"took": $body.took/]
+% TESTRESPONSE[s/"_shards": .../"_shards": $body._shards/]
+% TESTRESPONSE[s/"hits": .../"hits": $body.hits/]
 
 
 ## Percentiles_bucket implementation [_percentiles_bucket_implementation]

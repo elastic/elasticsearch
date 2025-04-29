@@ -910,4 +910,61 @@ emp_no:integer |languages:integer|last_name:keyword|max_lang:integer|min_lang:in
 10049          |5                |Tramer           |5               |5               |T              |F              
 10028          |null             |Tempesti         |1               |1               |T              |M            
 ;
+
+doubleFilterOnLeftAndRight_InlineStats_Sides
+required_capability: inlinestats_v6
   
+FROM employees
+| INLINESTATS max_salary = MAX(salary), min_salary = MIN(salary) by languages
+| KEEP emp_no, languages, *salary
+| WHERE salary > 65000 and languages > 2
+;
+
+emp_no:integer |languages:integer|salary:integer |max_salary:integer|min_salary:integer   
+10007          |4                |74572          |74572             |27215          
+10030          |3                |67492          |74970             |26436          
+10045          |3                |74970          |74970             |26436          
+10054          |4                |65367          |74572             |27215          
+10062          |3                |65030          |74970             |26436          
+10094          |5                |66817          |66817             |25324          
+10097          |3                |71165          |74970             |26436          
+10100          |4                |68431          |74572             |27215          
+;
+
+filterOnInlineStatsAggs
+required_capability: inlinestats_v6
+
+FROM employees
+| INLINESTATS max_salary = MAX(salary), min_salary = MIN(salary) by languages
+| KEEP emp_no, languages, *salary
+| WHERE min_salary > 27000 or max_salary < 70000
+| limit 5
+| sort salary
+;
+
+emp_no:integer |languages:integer|salary:integer |max_salary:integer|min_salary:integer
+10004          |5                |36174          |66817             |25324          
+10002          |5                |56371          |66817             |25324          
+10001          |2                |57305          |73578             |29175          
+10003          |4                |61805          |74572             |27215          
+10007          |4                |74572          |74572             |27215          
+;
+
+filterOnInlineStatsAggsValues_And_Groupings
+required_capability: inlinestats_v6
+
+FROM employees
+| INLINESTATS max_salary = MAX(salary), min_salary = MIN(salary) by languages
+| KEEP emp_no, languages, *salary
+| WHERE (min_salary > 27000 or max_salary < 70000) and languages > 3
+| limit 5
+| sort salary
+;
+
+emp_no:integer |languages:integer|salary:integer |max_salary:integer|min_salary:integer
+10004          |5                |36174          |66817             |25324          
+10010          |4                |45797          |74572             |27215          
+10002          |5                |56371          |66817             |25324          
+10003          |4                |61805          |74572             |27215          
+10007          |4                |74572          |74572             |27215
+;

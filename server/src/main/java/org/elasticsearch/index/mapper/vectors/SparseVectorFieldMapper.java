@@ -91,7 +91,7 @@ public class SparseVectorFieldMapper extends FieldMapper {
                 SPARSE_VECTOR_INDEX_OPTIONS,
                 true,
                 () -> null,
-                (n, c, o) -> o == null ? getDefaultIndexOptions(c) : parseIndexOptions(c, o),
+                (n, c, o) -> parseIndexOptions(c, o),
                 m -> toType(m).fieldType().indexOptions,
                 (b, n, v) -> {
                     if (v != null) {

@@ -184,6 +184,7 @@ public abstract class BlockLoaderTestCase extends MapperServiceTestCase {
                     var multiFieldMapping = new HashMap<>(mapping);
 
                     multiFieldMapping.put("type", fieldType);
+                    multiFieldMapping.remove("fields");
 
                     parentMapping.put("fields", Map.of("mf", multiFieldMapping));
 

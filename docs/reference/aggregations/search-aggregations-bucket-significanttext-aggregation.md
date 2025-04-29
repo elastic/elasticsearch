@@ -265,7 +265,7 @@ The numbers returned for scores are primarily intended for ranking different sug
 ::::
 
 
-::::{admonition} Use the *"like this but not this"* pattern
+::::{admonition} Use the "like this but not this" pattern
 You can spot mis-categorized content by first searching a structured field e.g. `category:adultMovie` and use significant_text on the text "movie_description" field. Take the suggested words (I’ll leave them to your imagination) and then search for all movies NOT marked as category:adultMovie but containing these keywords. You now have a ranked list of badly-categorized movies that you should reclassify or at least remove from the "familyFriendly" category.
 
 The significance score from each term can also provide a useful `boost` setting to sort matches. Using the `minimum_should_match` setting of the `terms` query with the keywords will help control the balance of precision/recall in the result set i.e a high setting would have a small number of relevant results packed full of keywords and a setting of "1" would produce a more exhaustive results set with all documents containing *any* keyword.

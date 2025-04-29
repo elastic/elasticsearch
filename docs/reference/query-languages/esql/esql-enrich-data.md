@@ -1,11 +1,10 @@
 ---
-navigation_title: "Data enrichment"
+navigation_title: "Combine data with ENRICH"
 mapped_pages:
   - https://www.elastic.co/guide/en/elasticsearch/reference/current/esql-enrich-data.html
 ---
 
-# Data enrichment [esql-enrich-data]
-
+# Combine data from multiple indices with `ENRICH` [esql-enrich-data]
 
 The {{esql}} [`ENRICH`](/reference/query-languages/esql/commands/processing-commands.md#esql-enrich) processing command combines, at query-time, data from one or more source indexes with field-value combinations found in {{es}} enrich indexes.
 

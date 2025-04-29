@@ -639,14 +639,42 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingOperator {
         }
     }
 
-    private static class ComputeBlockLoaderFactory implements BlockLoader.BlockFactory, Releasable {
-        private final BlockFactory factory;
+    private static class ComputeBlockLoaderFactory extends DelegatingBlockLoaderFactory implements Releasable {
         private final int pageSize;
         private Block nullBlock;
 
         private ComputeBlockLoaderFactory(BlockFactory factory, int pageSize) {
-            this.factory = factory;
+            super(factory);
             this.pageSize = pageSize;
+        }
+
+        @Override
+        public Block constantNulls() {
+            if (nullBlock == null) {
+                nullBlock = factory.newConstantNullBlock(pageSize);
+            }
+            nullBlock.incRef();
+            return nullBlock;
+        }
+
+        @Override
+        public void close() {
+            if (nullBlock != null) {
+                nullBlock.close();
+            }
+        }
+
+        @Override
+        public BytesRefBlock constantBytes(BytesRef value) {
+            return factory.newConstantBytesRefBlockWith(value, pageSize);
+        }
+    }
+
+    public abstract static class DelegatingBlockLoaderFactory implements BlockLoader.BlockFactory {
+        protected final BlockFactory factory;
+
+        protected DelegatingBlockLoaderFactory(BlockFactory factory) {
+            this.factory = factory;
         }
 
         @Override
@@ -702,27 +730,6 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingOperator {
         @Override
         public BlockLoader.Builder nulls(int expectedCount) {
             return ElementType.NULL.newBlockBuilder(expectedCount, factory);
-        }
-
-        @Override
-        public Block constantNulls() {
-            if (nullBlock == null) {
-                nullBlock = factory.newConstantNullBlock(pageSize);
-            }
-            nullBlock.incRef();
-            return nullBlock;
-        }
-
-        @Override
-        public void close() {
-            if (nullBlock != null) {
-                nullBlock.close();
-            }
-        }
-
-        @Override
-        public BytesRefBlock constantBytes(BytesRef value) {
-            return factory.newConstantBytesRefBlockWith(value, pageSize);
         }
 
         @Override

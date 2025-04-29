@@ -8,6 +8,10 @@
 package org.elasticsearch.compute.lucene;
 
 import org.apache.lucene.search.IndexSearcher;
+import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.index.mapper.BlockLoader;
+import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.SourceLoader;
 import org.elasticsearch.search.sort.SortAndFormats;
 import org.elasticsearch.search.sort.SortBuilder;
 
@@ -39,4 +43,14 @@ public interface ShardContext {
      * {@code _cat/shards}.
      */
     String shardIdentifier();
+
+    /**
+     * Build something to load source {@code _source}.
+     */
+    SourceLoader newSourceLoader();
+
+    /**
+     * Returns something to load values from this field into a {@link Block}.
+     */
+    BlockLoader blockLoader(String name, boolean asUnsupportedSource, MappedFieldType.FieldExtractPreference fieldExtractPreference);
 }

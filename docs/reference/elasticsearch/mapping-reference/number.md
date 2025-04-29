@@ -213,7 +213,7 @@ PUT idx/_doc/1
   "long": [0, 0, -123466, 87612]
 }
 ```
-% TEST[s/$/\nGET idx/_doc/1?filter_path=_source\n/]
+% TEST[s/$/\nGET idx/_doc/1\?filter_path=_source\n/]
 
 Will become:
 
@@ -251,7 +251,7 @@ PUT idx/_doc/1
   "f": 123
 }
 ```
-% TEST[s/$/\nGET idx/_doc/1?filter_path=_source\n/]
+% TEST[s/$/\nGET idx/_doc/1\?filter_path=_source\n/]
 
 Will become:
 

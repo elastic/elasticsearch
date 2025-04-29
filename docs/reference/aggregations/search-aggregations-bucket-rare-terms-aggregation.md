@@ -49,7 +49,7 @@ GET /_search
   }
 }
 ```
-% TEST[s/_search/_search?filter_path=aggregations/]
+% TEST[s/_search/_search\?filter_path=aggregations/]
 
 Response:
 
@@ -87,7 +87,7 @@ GET /_search
   }
 }
 ```
-% TEST[s/_search/_search?filter_path=aggregations/]
+% TEST[s/_search/_search\?filter_path=aggregations/]
 
 This now shows the "jazz" term which has a `doc_count` of 2":
 

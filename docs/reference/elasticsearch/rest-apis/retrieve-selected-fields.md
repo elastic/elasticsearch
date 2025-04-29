@@ -59,7 +59,7 @@ POST my-index-000001/_search
 }
 ```
 % TEST[setup:my_index]
-% TEST[s/_search/_search?filter_path=hits/]
+% TEST[s/_search/_search\?filter_path=hits/]
 
 1. Both full field names and wildcard patterns are accepted.
 2. Use the `format` parameter to apply a custom format for the field’s values.

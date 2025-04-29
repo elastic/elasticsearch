@@ -164,7 +164,7 @@ POST my-index-000001/_search
   "_source": false
 }
 ```
-% TEST[s/_search/_search?filter_path=hits.hits/]
+% TEST[s/_search/_search\?filter_path=hits.hits/]
 
 Which will reply with a date like:
 
@@ -220,7 +220,7 @@ PUT idx/_doc/1
   "date": ["2015-01-01T12:10:30Z", "2014-01-01T12:10:30Z"]
 }
 ```
-% TEST[s/$/\nGET idx/_doc/1?filter_path=_source\n/]
+% TEST[s/$/\nGET idx/_doc/1\?filter_path=_source\n/]
 
 Will become:
 

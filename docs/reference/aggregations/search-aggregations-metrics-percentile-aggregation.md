@@ -191,7 +191,7 @@ GET latency/_search
 }
 ```
 % TEST[setup:latency]
-% TEST[s/_search/_search?filter_path=aggregations/]
+% TEST[s/_search/_search\?filter_path=aggregations/]
 % TEST[s/"timeUnit": 1000/"timeUnit": 10/]
 
 

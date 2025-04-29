@@ -324,7 +324,7 @@ POST my-index/_search
   }
 }
 ```
-% TEST[s/_search/_search?filter_path=hits.hits/]
+% TEST[s/_search/_search\?filter_path=hits.hits/]
 
 The search returns:
 
@@ -395,7 +395,7 @@ POST my-index/_search
 }
 ```
 % TEST[continued]
-% TEST[s/_search/_search?filter_path=hits.hits/]
+% TEST[s/_search/_search\?filter_path=hits.hits/]
 
 The search returns:
 

@@ -140,7 +140,7 @@ GET latency/_search
 }
 ```
 % TEST[setup:latency]
-% TEST[s/_search/_search?filter_path=aggregations/]
+% TEST[s/_search/_search\?filter_path=aggregations/]
 
 
 ## HDR Histogram [_hdr_histogram]

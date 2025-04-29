@@ -31,7 +31,7 @@ GET /products/_search
   }
 }
 ```
-% TEST[s/_search/_search?filter_path=aggregations/]
+% TEST[s/_search/_search\?filter_path=aggregations/]
 
 1. `multi_terms` aggregation can work with the same field types as a [`terms aggregation`](/reference/aggregations/search-aggregations-bucket-terms-aggregation.md#search-aggregations-bucket-terms-aggregation-order) and supports most of the terms aggregation parameters.
 
@@ -150,7 +150,7 @@ GET /products/_search
   }
 }
 ```
-% TEST[s/_search/_search?filter_path=aggregations/]
+% TEST[s/_search/_search\?filter_path=aggregations/]
 
 Response:
 
@@ -220,7 +220,7 @@ GET /products/_search
   }
 }
 ```
-% TEST[s/_search/_search?filter_path=aggregations/]
+% TEST[s/_search/_search\?filter_path=aggregations/]
 
 Response:
 
@@ -326,7 +326,7 @@ GET /products/_search
   }
 }
 ```
-% TEST[s/_search/_search?filter_path=aggregations/]
+% TEST[s/_search/_search\?filter_path=aggregations/]
 
 ```console-result
 {

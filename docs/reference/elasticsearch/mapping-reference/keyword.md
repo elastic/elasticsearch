@@ -151,7 +151,7 @@ PUT idx/_doc/1
   "kwd": ["foo", "foo", "bar", "baz"]
 }
 ```
-% TEST[s/$/\nGET idx/_doc/1?filter_path=_source\n/]
+% TEST[s/$/\nGET idx/_doc/1\?filter_path=_source\n/]
 
 Will become:
 
@@ -189,7 +189,7 @@ PUT idx/_doc/1
   "kwd": ["foo", "foo", "bar", "baz"]
 }
 ```
-% TEST[s/$/\nGET idx/_doc/1?filter_path=_source\n/]
+% TEST[s/$/\nGET idx/_doc/1\?filter_path=_source\n/]
 
 Will become:
 
@@ -227,7 +227,7 @@ PUT idx/_doc/1
   "kwd": ["foo", "foo", "bang", "bar", "baz"]
 }
 ```
-% TEST[s/$/\nGET idx/_doc/1?filter_path=_source\n/]
+% TEST[s/$/\nGET idx/_doc/1\?filter_path=_source\n/]
 
 Will become:
 
@@ -418,7 +418,7 @@ PUT idx/_doc/1
   "card": ["king", "ace", "ace", "jack"]
 }
 ```
-% TEST[s/$/\nGET idx/_doc/1?filter_path=_source\n/]
+% TEST[s/$/\nGET idx/_doc/1\?filter_path=_source\n/]
 
 Will become:
 

@@ -304,7 +304,7 @@ POST /sales/_search
 }
 ```
 % TEST[continued]
-% TEST[s/_search/_search?filter_path=aggregations.by_sale.by_user.buckets/]
+% TEST[s/_search/_search\?filter_path=aggregations.by_sale.by_user.buckets/]
 
 Top hits response snippet with a nested hit, which resides in the first slot of array field `comments`:
 

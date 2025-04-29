@@ -77,7 +77,7 @@ PUT idx/_doc/1
   "versions": ["8.0.0-beta1", "8.5.0", "0.90.12", "2.6.1", "1.3.4", "1.3.4"]
 }
 ```
-% TEST[s/$/\nGET idx/_doc/1?filter_path=_source\n/]
+% TEST[s/$/\nGET idx/_doc/1\?filter_path=_source\n/]
 
 Will become:
 

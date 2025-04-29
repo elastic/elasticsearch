@@ -516,7 +516,7 @@ GET /_search
   }
 }
 ```
-% TEST[s/_search/_search?filter_path=aggregations/]
+% TEST[s/_search/_search\?filter_path=aggregations/]
 
 ... returns:
 
@@ -714,7 +714,7 @@ GET /_search
   }
 }
 ```
-% TEST[s/_search/_search?filter_path=aggregations/]
+% TEST[s/_search/_search\?filter_path=aggregations/]
 
 ... returns:
 

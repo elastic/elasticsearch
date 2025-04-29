@@ -257,7 +257,7 @@ public class TransportActionProxyTests extends ESTestCase {
             );
             latch.await();
             assertThat(responses, hasSize(1));
-            assertThat(responses.get(0), instanceOf(TransportActionProxy.BytesTransportResponse.class));
+            assertThat(responses.get(0), instanceOf(BytesTransportResponse.class));
             serviceB.clearAllRules();
         }
     }
@@ -400,7 +400,7 @@ public class TransportActionProxyTests extends ESTestCase {
         latch.await();
     }
 
-    public static class SimpleTestRequest extends TransportRequest {
+    public static class SimpleTestRequest extends AbstractTransportRequest {
         final boolean cancellable;
         final String sourceNode;
 

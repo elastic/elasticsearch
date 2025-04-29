@@ -45,6 +45,7 @@ import org.elasticsearch.xpack.esql.expression.function.aggregate.Max;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Min;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.Match;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.MatchOperator;
+import org.elasticsearch.xpack.esql.expression.function.fulltext.MultiMatch;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.QueryString;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Concat;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Substring;
@@ -106,6 +107,7 @@ import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.analyzer;
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.analyzerDefaultMapping;
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.defaultEnrichResolution;
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.loadMapping;
+import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.randomValueOtherThanTest;
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.tsdbIndexResolution;
 import static org.elasticsearch.xpack.esql.core.tree.Source.EMPTY;
 import static org.hamcrest.Matchers.contains;
@@ -2851,6 +2853,22 @@ public class AnalyzerTests extends ESTestCase {
         assertEquals(DataType.DOUBLE, ee.dataType());
     }
 
+    public void testFunctionNamedParamsAsFunctionArgument2() {
+        LogicalPlan plan = analyze("""
+            from test
+            | WHERE MULTI_MATCH("Anna Smith", first_name, last_name, {"minimum_should_match": 3.0})
+            """);
+        Limit limit = as(plan, Limit.class);
+        Filter filter = as(limit.child(), Filter.class);
+        MultiMatch mm = as(filter.condition(), MultiMatch.class);
+        MapExpression me = as(mm.options(), MapExpression.class);
+        assertEquals(1, me.entryExpressions().size());
+        EntryExpression ee = as(me.entryExpressions().get(0), EntryExpression.class);
+        assertEquals(new Literal(EMPTY, "minimum_should_match", DataType.KEYWORD), ee.key());
+        assertEquals(new Literal(EMPTY, 3.0, DataType.DOUBLE), ee.value());
+        assertEquals(DataType.DOUBLE, ee.dataType());
+    }
+
     public void testResolveInsist_fieldExists_insistedOutputContainsNoUnmappedFields() {
         assumeTrue("Requires UNMAPPED FIELDS", EsqlCapabilities.Cap.UNMAPPED_FIELDS.isEnabled());
 
@@ -3386,6 +3404,21 @@ public class AnalyzerTests extends ESTestCase {
         assertThat(e.getMessage(), containsString("Unknown column [_id]"));
     }
 
+    public void testRandomSampleProbability() {
+        assumeTrue("requires SAMPLE capability", EsqlCapabilities.Cap.SAMPLE.isEnabled());
+
+        var e = expectThrows(VerificationException.class, () -> analyze("FROM test | SAMPLE 1."));
+        assertThat(e.getMessage(), containsString("RandomSampling probability must be strictly between 0.0 and 1.0, was [1.0]"));
+
+        e = expectThrows(VerificationException.class, () -> analyze("FROM test | SAMPLE .0"));
+        assertThat(e.getMessage(), containsString("RandomSampling probability must be strictly between 0.0 and 1.0, was [0.0]"));
+
+        double p = randomValueOtherThanTest(d -> 0 < d && d < 1, () -> randomDoubleBetween(0, Double.MAX_VALUE, false));
+        e = expectThrows(VerificationException.class, () -> analyze("FROM test | SAMPLE " + p));
+        assertThat(e.getMessage(), containsString("RandomSampling probability must be strictly between 0.0 and 1.0, was [" + p + "]"));
+    }
+
+    // TODO There's too much boilerplate involved here! We need a better way of creating FieldCapabilitiesResponses from a mapping or index.
     private static FieldCapabilitiesIndexResponse fieldCapabilitiesIndexResponse(
         String indexName,
         Map<String, IndexFieldCapabilities> fields

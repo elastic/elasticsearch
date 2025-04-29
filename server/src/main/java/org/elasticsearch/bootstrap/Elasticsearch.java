@@ -40,6 +40,7 @@ import org.elasticsearch.entitlement.runtime.policy.PolicyUtils;
 import org.elasticsearch.entitlement.runtime.policy.entitlements.LoadNativeLibrariesEntitlement;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.codec.vectors.reflect.OffHeapReflectionUtils;
 import org.elasticsearch.jdk.JarHell;
 import org.elasticsearch.jdk.RuntimeVersionFeature;
 import org.elasticsearch.monitor.jvm.HotThreads;
@@ -87,6 +88,7 @@ class Elasticsearch {
 
     private static final String POLICY_PATCH_PREFIX = "es.entitlements.policy.";
     private static final String SERVER_POLICY_PATCH_NAME = POLICY_PATCH_PREFIX + "server";
+    private static final String APM_AGENT_PACKAGE_NAME = "co.elastic.apm.agent";
 
     /**
      * Main entry point for starting elasticsearch.
@@ -232,7 +234,9 @@ class Elasticsearch {
             // RequestHandlerRegistry and MethodHandlers classes do nontrivial static initialization which should always succeed but load
             // it now (before SM) to be sure
             RequestHandlerRegistry.class,
-            MethodHandlers.class
+            MethodHandlers.class,
+            // Ensure member access and reflection lookup are as expected
+            OffHeapReflectionUtils.class
         );
 
         // load the plugin Java modules and layers now for use in entitlements
@@ -263,13 +267,13 @@ class Elasticsearch {
 
             pluginsLoader = PluginsLoader.createPluginsLoader(modulesBundles, pluginsBundles, findPluginsWithNativeAccess(pluginPolicies));
 
-            var pluginsResolver = PluginsResolver.create(pluginsLoader);
+            var scopeResolver = ScopeResolver.create(pluginsLoader.pluginLayers(), APM_AGENT_PACKAGE_NAME);
             Map<String, Path> sourcePaths = Stream.concat(modulesBundles.stream(), pluginsBundles.stream())
                 .collect(Collectors.toUnmodifiableMap(bundle -> bundle.pluginDescriptor().getName(), PluginBundle::getDir));
             EntitlementBootstrap.bootstrap(
                 serverPolicyPatch,
                 pluginPolicies,
-                pluginsResolver::resolveClassToPluginName,
+                scopeResolver::resolveClassToScope,
                 nodeEnv.settings()::getValues,
                 nodeEnv.dataDirs(),
                 nodeEnv.repoDirs(),
@@ -394,7 +398,7 @@ class Elasticsearch {
     private static void ensureInitialized(Class<?>... classes) {
         for (final var clazz : classes) {
             try {
-                MethodHandles.publicLookup().ensureInitialized(clazz);
+                MethodHandles.lookup().ensureInitialized(clazz);
             } catch (IllegalAccessException unexpected) {
                 throw new AssertionError(unexpected);
             }

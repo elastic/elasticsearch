@@ -371,7 +371,7 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
                     .field(DataStream.NAME_FIELD.getPreferredName(), DataStream.TIMESTAMP_FIELD_NAME)
                     .endObject();
 
-                indicesToXContent(builder, dataStream.getIndices());
+                indicesToXContent(builder, dataStream.getIndices(), false);
                 builder.field(DataStream.GENERATION_FIELD.getPreferredName(), dataStream.getGeneration());
                 if (dataStream.getMetadata() != null) {
                     builder.field(DataStream.METADATA_FIELD.getPreferredName(), dataStream.getMetadata());
@@ -416,22 +416,24 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
                     builder.endArray();
                     builder.endObject();
                 }
-                if (DataStream.isFailureStoreFeatureFlagEnabled()) {
-                    builder.startObject(DataStream.FAILURE_STORE_FIELD.getPreferredName());
-                    builder.field(FAILURE_STORE_ENABLED.getPreferredName(), failureStoreEffectivelyEnabled);
-                    builder.field(
-                        DataStream.ROLLOVER_ON_WRITE_FIELD.getPreferredName(),
-                        dataStream.getFailureComponent().isRolloverOnWrite()
-                    );
-                    indicesToXContent(builder, dataStream.getFailureIndices());
-                    addAutoShardingEvent(builder, params, dataStream.getFailureComponent().getAutoShardingEvent());
-                    builder.endObject();
+
+                builder.startObject(DataStream.FAILURE_STORE_FIELD.getPreferredName());
+                builder.field(FAILURE_STORE_ENABLED.getPreferredName(), failureStoreEffectivelyEnabled);
+                builder.field(DataStream.ROLLOVER_ON_WRITE_FIELD.getPreferredName(), dataStream.getFailureComponent().isRolloverOnWrite());
+                indicesToXContent(builder, dataStream.getFailureIndices(), true);
+                addAutoShardingEvent(builder, params, dataStream.getFailureComponent().getAutoShardingEvent());
+                DataStreamLifecycle failuresLifecycle = dataStream.getFailuresLifecycle();
+                if (failuresLifecycle != null) {
+                    builder.field(LIFECYCLE_FIELD.getPreferredName());
+                    failuresLifecycle.toXContent(builder, params, rolloverConfiguration, globalRetention, dataStream.isInternal());
                 }
+                builder.endObject();
                 builder.endObject();
                 return builder;
             }
 
-            private XContentBuilder indicesToXContent(XContentBuilder builder, List<Index> indices) throws IOException {
+            private XContentBuilder indicesToXContent(XContentBuilder builder, List<Index> indices, boolean failureIndices)
+                throws IOException {
                 builder.field(DataStream.INDICES_FIELD.getPreferredName());
                 builder.startArray();
                 for (Index index : indices) {
@@ -439,12 +441,22 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
                     index.toXContentFragment(builder);
                     IndexProperties indexProperties = indexSettingsValues.get(index);
                     if (indexProperties != null) {
-                        builder.field(PREFER_ILM.getPreferredName(), indexProperties.preferIlm());
-                        if (indexProperties.ilmPolicyName() != null) {
-                            builder.field(ILM_POLICY_FIELD.getPreferredName(), indexProperties.ilmPolicyName());
-                        }
                         builder.field(MANAGED_BY.getPreferredName(), indexProperties.managedBy.displayValue);
-                        builder.field(INDEX_MODE.getPreferredName(), indexProperties.indexMode);
+                        // Failure indices have more limitation than backing indices,
+                        // so we hide some index properties that are less relevant
+                        if (failureIndices) {
+                            // We only display ILM info, if this index has an ILM policy
+                            if (indexProperties.ilmPolicyName() != null) {
+                                builder.field(PREFER_ILM.getPreferredName(), indexProperties.preferIlm());
+                                builder.field(ILM_POLICY_FIELD.getPreferredName(), indexProperties.ilmPolicyName());
+                            }
+                        } else {
+                            builder.field(PREFER_ILM.getPreferredName(), indexProperties.preferIlm());
+                            if (indexProperties.ilmPolicyName() != null) {
+                                builder.field(ILM_POLICY_FIELD.getPreferredName(), indexProperties.ilmPolicyName());
+                            }
+                            builder.field(INDEX_MODE.getPreferredName(), indexProperties.indexMode);
+                        }
                     }
                     builder.endObject();
                 }

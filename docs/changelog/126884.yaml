@@ -1,0 +1,5 @@
+pr: 126884
+summary: Rare terms aggregation false **positive** fix
+area: Aggregations
+type: bug
+issues: []

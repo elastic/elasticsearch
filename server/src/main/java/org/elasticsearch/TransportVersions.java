@@ -225,6 +225,9 @@ public class TransportVersions {
     public static final TransportVersion COMPRESS_DELAYABLE_WRITEABLE = def(9_059_0_00);
     public static final TransportVersion SYNONYMS_REFRESH_PARAM = def(9_060_0_00);
     public static final TransportVersion DOC_FIELDS_AS_LIST = def(9_061_0_00);
+    public static final TransportVersion DENSE_VECTOR_OFF_HEAP_STATS = def(9_062_00_0);
+    public static final TransportVersion RANDOM_SAMPLER_QUERY_BUILDER = def(9_063_0_00);
+    public static final TransportVersion SETTINGS_IN_DATA_STREAMS = def(9_064_0_00);
 
     /*
      * STOP! READ THIS FIRST! No, really,

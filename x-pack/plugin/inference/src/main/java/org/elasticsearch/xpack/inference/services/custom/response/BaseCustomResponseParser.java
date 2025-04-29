@@ -20,7 +20,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.function.Function;
+import java.util.function.BiFunction;
 
 public abstract class BaseCustomResponseParser<T extends InferenceServiceResults> implements CustomResponseParser {
 
@@ -38,28 +38,37 @@ public abstract class BaseCustomResponseParser<T extends InferenceServiceResults
 
     protected abstract T transform(Map<String, Object> extractedField);
 
-    static List<?> validateList(Object obj) {
-        validateNonNull(obj);
+    static List<?> validateList(Object obj, String fieldName) {
+        validateNonNull(obj, fieldName);
 
         if (obj instanceof List<?> == false) {
             throw new IllegalArgumentException(
-                Strings.format("Extracted field is an invalid type, expected a list but received [%s]", obj.getClass().getSimpleName())
+                Strings.format(
+                    "Extracted field [%s] is an invalid type, expected a list but received [%s]",
+                    fieldName,
+                    obj.getClass().getSimpleName()
+                )
             );
         }
 
         return (List<?>) obj;
     }
 
-    static void validateNonNull(Object obj) {
-        Objects.requireNonNull(obj, "Failed to parse response, extracted field was null");
+
+    static void validateNonNull(Object obj, String fieldName) {
+        Objects.requireNonNull(obj, Strings.format("Failed to parse field [%s], extracted field was null", fieldName));
     }
 
-    static Map<String, Object> validateMap(Object obj) {
-        validateNonNull(obj);
+    static Map<String, Object> validateMap(Object obj, String fieldName) {
+        validateNonNull(obj, fieldName);
 
         if (obj instanceof Map<?, ?> == false) {
             throw new IllegalArgumentException(
-                Strings.format("Extracted field is an invalid type, expected a map but received [%s]", obj.getClass().getSimpleName())
+                Strings.format(
+                    "Extracted field [%s] is an invalid type, expected a map but received [%s]",
+                    fieldName,
+                    obj.getClass().getSimpleName()
+                )
             );
         }
 
@@ -68,7 +77,8 @@ public abstract class BaseCustomResponseParser<T extends InferenceServiceResults
             if (key instanceof String == false) {
                 throw new IllegalStateException(
                     Strings.format(
-                        "Extracted map has an invalid key type. Expected a string but received [%s]",
+                        "Extracted field [%s] map has an invalid key type. Expected a string but received [%s]",
+                        fieldName,
                         key.getClass().getSimpleName()
                     )
                 );
@@ -80,47 +90,58 @@ public abstract class BaseCustomResponseParser<T extends InferenceServiceResults
         return result;
     }
 
-    static List<Float> convertToListOfFloats(Object obj) {
-        return validateAndCastList(validateList(obj), BaseCustomResponseParser::toFloat);
+    static List<Float> convertToListOfFloats(Object obj, String fieldName) {
+        return castList(validateList(obj, fieldName), BaseCustomResponseParser::toFloat, fieldName);
     }
 
-    static Float toFloat(Object obj) {
-        return toNumber(obj).floatValue();
+    static Float toFloat(Object obj, String fieldName) {
+        return toNumber(obj, fieldName).floatValue();
     }
 
-    private static Number toNumber(Object obj) {
+    private static Number toNumber(Object obj, String fieldName) {
         if (obj instanceof Number == false) {
-            throw new IllegalArgumentException(Strings.format("Unable to convert type [%s] to Number", obj.getClass().getSimpleName()));
+            throw new IllegalArgumentException(
+                Strings.format("Unable to convert field [%s] of type [%s] to Number", fieldName, obj.getClass().getSimpleName())
+            );
         }
 
         return ((Number) obj);
     }
 
-    static List<Integer> convertToListOfIntegers(Object obj) {
-        return validateAndCastList(validateList(obj), BaseCustomResponseParser::toInteger);
+    static List<Integer> convertToListOfIntegers(Object obj, String fieldName) {
+        return castList(validateList(obj, fieldName), BaseCustomResponseParser::toInteger, fieldName);
     }
 
-    private static Integer toInteger(Object obj) {
-        return toNumber(obj).intValue();
+    private static Integer toInteger(Object obj, String fieldName) {
+        return toNumber(obj, fieldName).intValue();
     }
 
-    static <T> List<T> validateAndCastList(List<?> items, Function<Object, T> converter) {
-        validateNonNull(items);
+    static <T> List<T> castList(List<?> items, BiFunction<Object, String, T> converter, String fieldName) {
+        validateNonNull(items, fieldName);
 
         List<T> resultList = new ArrayList<>();
-        for (var obj : items) {
-            resultList.add(converter.apply(obj));
+        for (int i = 0; i < items.size(); i++) {
+            try {
+                resultList.add(converter.apply(items.get(i), fieldName));
+            } catch (Exception e) {
+                throw new IllegalStateException(Strings.format("Failed to parse list entry [%d], error: %s", i, e.getMessage()), e);
+            }
         }
 
         return resultList;
     }
 
-    static <T> T toType(Object obj, Class<T> type) {
-        validateNonNull(obj);
+    static <T> T toType(Object obj, Class<T> type, String fieldName) {
+        validateNonNull(obj, fieldName);
 
         if (type.isInstance(obj) == false) {
             throw new IllegalArgumentException(
-                Strings.format("Unable to convert object of type [%s] to type [%s]", obj.getClass().getSimpleName(), type.getSimpleName())
+                Strings.format(
+                    "Unable to convert field [%s] of type [%s] to [%s]",
+                    fieldName,
+                    obj.getClass().getSimpleName(),
+                    type.getSimpleName()
+                )
             );
         }
 

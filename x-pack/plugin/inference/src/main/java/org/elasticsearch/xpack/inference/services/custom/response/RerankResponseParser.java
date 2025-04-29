@@ -37,14 +37,18 @@ public class RerankResponseParser extends BaseCustomResponseParser<RankedDocsRes
     private final String rerankIndexPath;
     private final String documentTextPath;
 
-    public static RerankResponseParser fromMap(Map<String, Object> responseParserMap, String scope, ValidationException validationException) {
+    public static RerankResponseParser fromMap(
+        Map<String, Object> responseParserMap,
+        String scope,
+        ValidationException validationException
+    ) {
         var fullScope = String.join(".", scope, JSON_PARSER);
 
         var relevanceScore = extractRequiredString(responseParserMap, RERANK_PARSER_SCORE, fullScope, validationException);
         var rerankIndex = extractOptionalString(responseParserMap, RERANK_PARSER_INDEX, fullScope, validationException);
         var documentText = extractOptionalString(responseParserMap, RERANK_PARSER_DOCUMENT_TEXT, fullScope, validationException);
 
-        if (relevanceScore == null) {
+        if (validationException.validationErrors().isEmpty() == false) {
             throw validationException;
         }
 
@@ -111,25 +115,14 @@ public class RerankResponseParser extends BaseCustomResponseParser<RankedDocsRes
 
     @Override
     public RankedDocsResults transform(Map<String, Object> map) {
-        var scores = convertToListOfFloats(MapPathExtractor.extract(map, relevanceScorePath));
-
-        List<Integer> indices = null;
-        if (rerankIndexPath != null) {
-            indices = convertToListOfIntegers(MapPathExtractor.extract(map, rerankIndexPath));
-        }
-
-        List<String> documents = null;
-        if (documentTextPath != null) {
-            documents = validateAndCastList(
-                validateList(MapPathExtractor.extract(map, documentTextPath)),
-                (obj) -> toType(obj, String.class)
-            );
-        }
+        var scores = extractScores(map);
+        var indices = extractIndices(map);
+        var documents = extractDocuments(map);
 
         if (indices != null && indices.size() != scores.size()) {
             throw new IllegalStateException(
                 Strings.format(
-                    "The number of index paths [%d] was not the same as the number of scores [%d]",
+                    "The number of index fields [%d] was not the same as the number of scores [%d]",
                     indices.size(),
                     scores.size()
                 )
@@ -139,7 +132,7 @@ public class RerankResponseParser extends BaseCustomResponseParser<RankedDocsRes
         if (documents != null && documents.size() != scores.size()) {
             throw new IllegalStateException(
                 Strings.format(
-                    "The number of document texts [%d] was no the same as the number of scores [%d]",
+                    "The number of document fields [%d] was not the same as the number of scores [%d]",
                     documents.size(),
                     scores.size()
                 )
@@ -155,5 +148,45 @@ public class RerankResponseParser extends BaseCustomResponseParser<RankedDocsRes
         }
 
         return new RankedDocsResults(rankedDocs);
+    }
+
+    private List<Float> extractScores(Map<String, Object> map) {
+        try {
+            var result = MapPathExtractor.extract(map, relevanceScorePath);
+            return convertToListOfFloats(result.extractedObject(), result.getArrayFieldName(0));
+        } catch (Exception e) {
+            throw new IllegalStateException(Strings.format("Failed to parse rerank scores, error: %s", e.getMessage()), e);
+        }
+    }
+
+    private List<Integer> extractIndices(Map<String, Object> map) {
+        if (rerankIndexPath != null) {
+            try {
+                var indexResult = MapPathExtractor.extract(map, rerankIndexPath);
+                return convertToListOfIntegers(indexResult.extractedObject(), indexResult.getArrayFieldName(0));
+            } catch (Exception e) {
+                throw new IllegalStateException(Strings.format("Failed to parse rerank indices, error: %s", e.getMessage()), e);
+            }
+        }
+
+        return null;
+    }
+
+    private List<String> extractDocuments(Map<String, Object> map) {
+        try {
+            if (documentTextPath != null) {
+                var documentResult = MapPathExtractor.extract(map, documentTextPath);
+                var documentFieldName = documentResult.getArrayFieldName(0);
+                return castList(
+                    validateList(documentResult.extractedObject(), documentFieldName),
+                    (obj, fieldName) -> toType(obj, String.class, fieldName),
+                    documentFieldName
+                );
+            }
+        } catch (Exception e) {
+            throw new IllegalStateException(Strings.format("Failed to parse rerank documents, error: %s", e.getMessage()), e);
+        }
+
+        return null;
     }
 }

@@ -7,10 +7,10 @@
 
 package org.elasticsearch.xpack.inference.services.custom.response;
 
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.inference.results.TextEmbeddingFloatResults;
 import org.elasticsearch.xpack.inference.common.MapPathExtractor;
@@ -30,10 +30,19 @@ public class TextEmbeddingResponseParser extends BaseCustomResponseParser<TextEm
 
     private final String textEmbeddingsPath;
 
-    public static TextEmbeddingResponseParser fromMap(Map<String, Object> responseParserMap, String scope, ValidationException validationException) {
-        var path = extractRequiredString(responseParserMap, TEXT_EMBEDDING_PARSER_EMBEDDINGS, String.join(".", scope, JSON_PARSER), validationException);
+    public static TextEmbeddingResponseParser fromMap(
+        Map<String, Object> responseParserMap,
+        String scope,
+        ValidationException validationException
+    ) {
+        var path = extractRequiredString(
+            responseParserMap,
+            TEXT_EMBEDDING_PARSER_EMBEDDINGS,
+            String.join(".", scope, JSON_PARSER),
+            validationException
+        );
 
-        if (path == null) {
+        if (validationException.validationErrors().isEmpty() == false) {
             throw validationException;
         }
 
@@ -52,7 +61,7 @@ public class TextEmbeddingResponseParser extends BaseCustomResponseParser<TextEm
         out.writeString(textEmbeddingsPath);
     }
 
-    public XContentBuilder toXContent(XContentBuilder builder, ToXContent.Params params) throws IOException {
+    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(JSON_PARSER);
         {
             builder.field(TEXT_EMBEDDING_PARSER_EMBEDDINGS, textEmbeddingsPath);
@@ -81,13 +90,22 @@ public class TextEmbeddingResponseParser extends BaseCustomResponseParser<TextEm
 
     @Override
     protected TextEmbeddingFloatResults transform(Map<String, Object> map) {
-        var mapResultsList = validateList(MapPathExtractor.extract(map, textEmbeddingsPath));
+        var extractedResult = MapPathExtractor.extract(map, textEmbeddingsPath);
+        var mapResultsList = validateList(extractedResult.extractedObject(), extractedResult.getArrayFieldName(0));
 
         var embeddings = new ArrayList<TextEmbeddingFloatResults.Embedding>(mapResultsList.size());
 
-        for (var entry : mapResultsList) {
-            var embeddingsAsListFloats = convertToListOfFloats(entry);
-            embeddings.add(TextEmbeddingFloatResults.Embedding.of(embeddingsAsListFloats));
+        for (int i = 0; i < mapResultsList.size(); i++) {
+            try {
+                var entry = mapResultsList.get(i);
+                var embeddingsAsListFloats = convertToListOfFloats(entry, extractedResult.getArrayFieldName(1));
+                embeddings.add(TextEmbeddingFloatResults.Embedding.of(embeddingsAsListFloats));
+            } catch (Exception e) {
+                throw new IllegalArgumentException(
+                    Strings.format("Failed to parse text embedding entry [%d], error: %s", i, e.getMessage()),
+                    e
+                );
+            }
         }
 
         return new TextEmbeddingFloatResults(embeddings);

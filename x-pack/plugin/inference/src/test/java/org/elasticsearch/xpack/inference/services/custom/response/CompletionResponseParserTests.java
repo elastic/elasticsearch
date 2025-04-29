@@ -38,11 +38,8 @@ public class CompletionResponseParserTests extends AbstractBWCWireSerializationT
 
     public void testFromMap() {
         var validation = new ValidationException();
-        var parser = CompletionResponseParser.fromMap(
-            new HashMap<>(Map.of(COMPLETION_PARSER_RESULT, "$.result[*].text")),
-            "scope",
-            validation
-        );
+
+        var parser = CompletionResponseParser.fromMap(new HashMap<>(Map.of(COMPLETION_PARSER_RESULT, "$.result[*].text")), "scope", validation);
 
         assertThat(parser, is(new CompletionResponseParser("$.result[*].text")));
     }
@@ -234,6 +231,32 @@ public class CompletionResponseParserTests extends AbstractBWCWireSerializationT
         );
     }
 
+    public void testParse_ThrowsException_WhenExtractedField_IsNotListOfStrings() {
+        String responseJson = """
+            {
+              "request_id": "450fcb80-f796-****-8d69-e1e86d29aa9f",
+              "latency": 564.903929,
+              "result": ["string", true],
+              "usage": {
+                  "output_tokens": 6320,
+                  "input_tokens": 35,
+                  "total_tokens": 6355
+              }
+            }
+            """;
+
+        var parser = new CompletionResponseParser("$.result");
+        var exception = expectThrows(
+            IllegalStateException.class,
+            () -> parser.parse(new HttpResult(mock(HttpResponse.class), responseJson.getBytes(StandardCharsets.UTF_8)))
+        );
+
+        assertThat(
+            exception.getMessage(),
+            is("Failed to parse list entry [1], error: Unable to convert field [$.result] of type [Boolean] to [String]")
+        );
+    }
+
     public void testParse_ThrowsException_WhenExtractedField_IsNotAListOrString() {
         String responseJson = """
             {
@@ -254,7 +277,10 @@ public class CompletionResponseParserTests extends AbstractBWCWireSerializationT
             () -> parser.parse(new HttpResult(mock(HttpResponse.class), responseJson.getBytes(StandardCharsets.UTF_8)))
         );
 
-        assertThat(exception.getMessage(), is("Extracted field is an invalid type, expected a list or a string but received [Integer]"));
+        assertThat(
+            exception.getMessage(),
+            is("Extracted field [result] from path [$.result] is an invalid type, expected a list or a string but received [Integer]")
+        );
     }
 
     @Override

@@ -24,17 +24,11 @@ public record NoopResponseParser() implements CustomResponseParser {
         return new NoopResponseParser();
     }
 
-    public NoopResponseParser() {
-
-    }
-
     public NoopResponseParser(StreamInput in) {
         this();
     }
 
-    public void writeTo(StreamOutput out) throws IOException {
-    }
-
+    public void writeTo(StreamOutput out) throws IOException {}
 
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         return builder;

@@ -144,7 +144,150 @@ public class SparseEmbeddingResponseParserTests extends AbstractBWCWireSerializa
                 )
             )
         );
+    }
 
+    public void testParse_ThrowsException_WhenTheTokenField_IsNotAnArray() {
+        String responseJson = """
+            {
+                "request_id": "75C50B5B-E79E-4930-****-F48DBB392231",
+                "latency": 22,
+                "usage": {
+                    "token_count": 11
+                },
+                "result": {
+                    "sparse_embeddings": [
+                        {
+                            "index": 0,
+                            "tokenId": 6,
+                            "weight": [0.101]
+                        }
+                    ]
+                }
+            }
+            """;
+
+        var parser = new SparseEmbeddingResponseParser("$.result.sparse_embeddings[*].tokenId", "$.result.sparse_embeddings[*].weight");
+
+        var exception = expectThrows(
+            IllegalStateException.class,
+            () -> parser.parse(new HttpResult(mock(HttpResponse.class), responseJson.getBytes(StandardCharsets.UTF_8)))
+        );
+
+        assertThat(
+            exception.getMessage(),
+            is(
+                "Failed to parse sparse embedding entry [0], error: Extracted field [result.sparse_embeddings.tokenId] "
+                    + "is an invalid type, expected a list but received [Integer]"
+            )
+        );
+    }
+
+    public void testParse_ThrowsException_WhenTheTokenArraySize_AndWeightArraySize_AreDifferent() {
+        String responseJson = """
+            {
+                "request_id": "75C50B5B-E79E-4930-****-F48DBB392231",
+                "latency": 22,
+                "usage": {
+                    "token_count": 11
+                },
+                "result": {
+                    "sparse_embeddings": [
+                        {
+                            "index": 0,
+                            "tokenId": [6, 7],
+                            "weight": [0.101]
+                        }
+                    ]
+                }
+            }
+            """;
+
+        var parser = new SparseEmbeddingResponseParser("$.result.sparse_embeddings[*].tokenId", "$.result.sparse_embeddings[*].weight");
+
+        var exception = expectThrows(
+            IllegalStateException.class,
+            () -> parser.parse(new HttpResult(mock(HttpResponse.class), responseJson.getBytes(StandardCharsets.UTF_8)))
+        );
+
+        assertThat(
+            exception.getMessage(),
+            is(
+                "Failed to parse sparse embedding entry [0], error: The extracted tokens list is size [2] "
+                    + "but the weights list is size [1]. The list sizes must be equal."
+            )
+        );
+    }
+
+    public void testParse_ThrowsException_WhenTheWeightValue_IsNotAFloat() {
+        String responseJson = """
+            {
+                "request_id": "75C50B5B-E79E-4930-****-F48DBB392231",
+                "latency": 22,
+                "usage": {
+                    "token_count": 11
+                },
+                "result": {
+                    "sparse_embeddings": [
+                        {
+                            "index": 0,
+                            "tokenId": [6],
+                            "weight": [true]
+                        }
+                    ]
+                }
+            }
+            """;
+
+        var parser = new SparseEmbeddingResponseParser("$.result.sparse_embeddings[*].tokenId", "$.result.sparse_embeddings[*].weight");
+
+        var exception = expectThrows(
+            IllegalStateException.class,
+            () -> parser.parse(new HttpResult(mock(HttpResponse.class), responseJson.getBytes(StandardCharsets.UTF_8)))
+        );
+
+        assertThat(
+            exception.getMessage(),
+            is(
+                "Failed to parse sparse embedding entry [0], error: Failed to parse weight item: "
+                    + "[0] of array, error: Unable to convert field [result.sparse_embeddings.weight] of type [Boolean] to Number"
+            )
+        );
+    }
+
+    public void testParse_ThrowsException_WhenTheWeightField_IsNotAnArray() {
+        String responseJson = """
+            {
+                "request_id": "75C50B5B-E79E-4930-****-F48DBB392231",
+                "latency": 22,
+                "usage": {
+                    "token_count": 11
+                },
+                "result": {
+                    "sparse_embeddings": [
+                        {
+                            "index": 0,
+                            "tokenId": [6],
+                            "weight": 0.101
+                        }
+                    ]
+                }
+            }
+            """;
+
+        var parser = new SparseEmbeddingResponseParser("$.result.sparse_embeddings[*].tokenId", "$.result.sparse_embeddings[*].weight");
+
+        var exception = expectThrows(
+            IllegalStateException.class,
+            () -> parser.parse(new HttpResult(mock(HttpResponse.class), responseJson.getBytes(StandardCharsets.UTF_8)))
+        );
+
+        assertThat(
+            exception.getMessage(),
+            is(
+                "Failed to parse sparse embedding entry [0], error: Extracted field [result.sparse_embeddings.weight] "
+                    + "is an invalid type, expected a list but received [Double]"
+            )
+        );
     }
 
     public void testParse_ThrowsException_WhenExtractedField_IsNotFormattedCorrectly() {

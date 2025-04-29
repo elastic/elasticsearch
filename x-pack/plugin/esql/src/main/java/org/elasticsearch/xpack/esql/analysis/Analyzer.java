@@ -20,6 +20,7 @@ import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.analysis.AnalyzerRules.ParameterizedAnalyzerRule;
 import org.elasticsearch.xpack.esql.common.Failure;
 import org.elasticsearch.xpack.esql.core.capabilities.Resolvables;
+import org.elasticsearch.xpack.esql.core.capabilities.Unresolvable;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.EmptyAttribute;
@@ -588,16 +589,28 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 // If the groupings are not resolved, skip the resolution of the references to groupings in the aggregates, resolve the
                 // aggregations besides groupings, so that the fields and attributes referenced by the aggregations can be resolved, and
                 // verifier doesn't report field/reference/column not found errors for them.
-                int size = Resolvables.resolved(groupings) ? aggregates.size() : aggregates.size() - groupings.size();
+                boolean groupingResolved = Resolvables.resolved(groupings);
+                int size = groupingResolved ? aggregates.size() : aggregates.size() - groupings.size();
                 for (int i = 0; i < aggregates.size(); i++) {
                     NamedExpression ag = aggregates.get(i);
                     if (i < size) {
                         var agg = (NamedExpression) ag.transformUp(UnresolvedAttribute.class, ua -> {
                             Expression ne = ua;
                             Attribute maybeResolved = maybeResolveAttribute(ua, resolvedList);
-                            if (maybeResolved != null) {
-                                changed.set(true);
-                                ne = maybeResolved;
+                            if (groupingResolved) {
+                                if (maybeResolved != null) {
+                                    changed.set(true);
+                                    ne = maybeResolved;
+                                }
+                            } else {
+                                // an item in aggregations can reference to groupings explicitly, is groupings are not resolved yet and
+                                // maybeResolved is not resolved, return the original UnresolvedAttribute, so that it has a another chance
+                                // to get resolved. For example, {@code }
+                                // STATS c = count(emp_no), x = d::int + 1 BY d = (date == "2025-01-01")
+                                if (maybeResolved instanceof Unresolvable == false) {
+                                    changed.set(true);
+                                    ne = maybeResolved;
+                                }
                             }
                             return ne;
                         });

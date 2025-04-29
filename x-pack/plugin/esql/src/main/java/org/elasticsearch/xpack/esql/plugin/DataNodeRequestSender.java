@@ -257,7 +257,7 @@ abstract class DataNodeRequestSender {
         final ActionListener<DriverCompletionInfo> listener = computeListener.acquireCompute();
         sendRequest(request.node, request.shardIds, request.aliasFilters, new NodeListener() {
 
-            private final Set<ShardId> pendingRetries = new HashSet<>();
+            private Set<ShardId> pendingRetries;
 
             void onAfter(DriverCompletionInfo info) {
                 nodePermits.get(request.node).release();
@@ -265,7 +265,7 @@ abstract class DataNodeRequestSender {
                     concurrentRequests.release();
                 }
 
-                if (sendingLock.isHeldByCurrentThread()) {
+                if (pendingRetries != null) {
                     try {
                         var resolutions = resolveShards(pendingRetries);
                         for (var entry : resolutions.entrySet()) {
@@ -290,8 +290,8 @@ abstract class DataNodeRequestSender {
                 }
                 for (var entry : response.shardLevelFailures().entrySet()) {
                     final ShardId shardId = entry.getKey();
-                    trackShardLevelFailure(shardId, false, entry.getValue());
                     maybeScheduleRetry(shardId, false, entry.getValue());
+                    trackShardLevelFailure(shardId, false, entry.getValue());
                     pendingShardIds.add(shardId);
                 }
                 onAfter(response.completionInfo());
@@ -300,8 +300,8 @@ abstract class DataNodeRequestSender {
             @Override
             public void onFailure(Exception e, boolean receivedData) {
                 for (ShardId shardId : request.shardIds) {
-                    trackShardLevelFailure(shardId, receivedData, e);
                     maybeScheduleRetry(shardId, receivedData, e);
+                    trackShardLevelFailure(shardId, receivedData, e);
                     pendingShardIds.add(shardId);
                 }
                 onAfter(DriverCompletionInfo.EMPTY);
@@ -321,10 +321,13 @@ abstract class DataNodeRequestSender {
                 if (receivedData == false
                     && targetShards.getShard(shardId).remainingNodes.isEmpty()
                     && unwrapFailure(shardId, e) instanceof NoShardAvailableActionException) {
-                    if (pendingRetries.isEmpty() && remainingUnavailableShardResolutionAttempts.decrementAndGet() >= 0) {
+                    if (pendingRetries == null && remainingUnavailableShardResolutionAttempts.decrementAndGet() >= 0) {
+                        pendingRetries = new HashSet<>();
                         sendingLock.lock();
                     }
-                    pendingRetries.add(shardId);
+                    if (pendingRetries != null) {
+                        pendingRetries.add(shardId);
+                    }
                 }
             }
         });

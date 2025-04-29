@@ -259,6 +259,7 @@ class S3Service extends AbstractLifecycleComponent {
                 // Default protocol to https if not specified
                 // See https://docs.aws.amazon.com/sdk-for-java/latest/developer-guide/client-configuration.html#client-config-other-diffs
                 endpoint = "https://" + endpoint;
+                LOGGER.info("Defaulting to https for endpoint with no scheme [{}]", clientSettings.endpoint);
             }
             s3clientBuilder.endpointOverride(URI.create(endpoint));
         }

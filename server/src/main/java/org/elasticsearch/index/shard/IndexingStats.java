@@ -288,7 +288,7 @@ public class IndexingStats implements Writeable, ToXContentFragment {
         /**
          * The total amount of time spend on indexing plus writing indexing buffers.
          */
-        public long getTotalIndexExecutionTimeInMillis() {
+        public long getTotalIndexingExecutionTimeInMillis() {
             return TimeUnit.NANOSECONDS.toMillis(totalIndexingExecutionTimeSinceShardStartedInNanos);
         }
 

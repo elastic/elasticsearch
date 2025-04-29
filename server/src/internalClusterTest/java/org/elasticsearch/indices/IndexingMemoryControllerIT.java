@@ -127,7 +127,7 @@ public class IndexingMemoryControllerIT extends ESSingleNodeTestCase {
             prepareIndex("index").setId(Integer.toString(i)).setSource("field", "value").get();
         }
         assertThat(
-            shard.indexingStats().getTotal().getTotalIndexExecutionTimeInMillis(),
+            shard.indexingStats().getTotal().getTotalIndexingExecutionTimeInMillis(),
             greaterThan(shard.indexingStats().getTotal().getIndexTime().getMillis())
         );
     }

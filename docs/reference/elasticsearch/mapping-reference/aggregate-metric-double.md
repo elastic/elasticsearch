@@ -114,7 +114,7 @@ PUT stats-index/_doc/2
 }
 ```
 % TEST[continued]
-% TEST[s/_doc/2/_doc/2\?refresh=wait_for/]
+% TEST[s/_doc\/2/_doc\/2?refresh=wait_for/]
 
 You can run `min`, `max`, `sum`, `value_count`, and `avg` aggregations on a `agg_metric` field.
 
@@ -250,7 +250,7 @@ PUT idx/_doc/1
   }
 }
 ```
-% TEST[s/$/\nGET idx/_doc/1\?filter_path=_source\n/]
+% TEST[s/$/\nGET idx\/_doc\/1?filter_path=_source\n/]
 
 Will become:
 

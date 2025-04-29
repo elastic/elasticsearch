@@ -280,7 +280,7 @@ PUT idx/_doc/1
   }
 }
 ```
-% TEST[s/$/\nGET idx/_doc/1\?filter_path=_source\n/]
+% TEST[s/$/\nGET idx\/_doc\/1?filter_path=_source\n/]
 
 Will become:
 
@@ -326,7 +326,7 @@ PUT idx/_doc/1
   }
 }
 ```
-% TEST[s/$/\nGET idx/_doc/1\?filter_path=_source\n/]
+% TEST[s/$/\nGET idx\/_doc\/1?filter_path=_source\n/]
 
 Will become (note the nested objects instead of the "flattened" array):
 
@@ -371,7 +371,7 @@ PUT idx/_doc/1
   }
 }
 ```
-% TEST[s/$/\nGET idx/_doc/1\?filter_path=_source\n/]
+% TEST[s/$/\nGET idx\/_doc\/1?filter_path=_source\n/]
 
 Will become (note the nested objects instead of the "flattened" array):
 

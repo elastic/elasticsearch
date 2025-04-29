@@ -157,7 +157,7 @@ PUT idx/_doc/1
          "2001:db8::1:0:0:1", "::afff:4567:890a"]
 }
 ```
-% TEST[s/$/\nGET idx/_doc/1\?filter_path=_source\n/]
+% TEST[s/$/\nGET idx\/_doc\/1?filter_path=_source\n/]
 
 Will become:
 

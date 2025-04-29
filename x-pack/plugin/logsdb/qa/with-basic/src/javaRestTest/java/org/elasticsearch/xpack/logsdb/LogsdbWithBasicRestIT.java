@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.logsdb;
 
 import org.elasticsearch.client.Request;
-import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexSettings;
@@ -178,7 +177,7 @@ public class LogsdbWithBasicRestIT extends ESRestTestCase {
             """);
         assertOK(client().performRequest(request));
 
-        String index = DataStream.getDefaultBackingIndexName("logs-test-foo", 1);
+        String index = getDataStreamBackingIndexNames("logs-test-foo").getFirst();
         var settings = (Map<?, ?>) ((Map<?, ?>) getIndexSettings(index).get(index)).get("settings");
         assertEquals("logsdb", settings.get("index.mode"));
         assertEquals(SourceFieldMapper.Mode.STORED.toString(), settings.get("index.mapping.source.mode"));
@@ -231,7 +230,7 @@ public class LogsdbWithBasicRestIT extends ESRestTestCase {
             """);
         assertOK(client().performRequest(request));
 
-        String index = DataStream.getDefaultBackingIndexName("my-log-foo", 1);
+        String index = getDataStreamBackingIndexNames("my-log-foo").getFirst();
         var settings = (Map<?, ?>) ((Map<?, ?>) getIndexSettings(index).get(index)).get("settings");
         assertEquals("logsdb", settings.get("index.mode"));
         assertEquals(SourceFieldMapper.Mode.STORED.toString(), settings.get("index.mapping.source.mode"));

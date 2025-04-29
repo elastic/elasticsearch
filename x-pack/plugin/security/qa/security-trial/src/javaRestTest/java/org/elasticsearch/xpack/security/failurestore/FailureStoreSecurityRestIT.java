@@ -47,7 +47,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -2100,7 +2099,7 @@ public class FailureStoreSecurityRestIT extends ESRestTestCase {
     private void expectDataStreams(String user, Request dataStreamRequest, String dataStreamName) throws IOException {
         Response response = performRequest(user, dataStreamRequest);
         ObjectPath path = assertOKAndCreateObjectPath(response);
-        List<Objects> dataStreams = path.evaluate("data_streams");
+        List<?> dataStreams = path.evaluate("data_streams");
         assertThat(dataStreams.size(), equalTo(1));
         assertThat(path.evaluate("data_streams.0.name"), equalTo(dataStreamName));
     }

@@ -1,0 +1,5 @@
+pr: 127525
+summary: Text field block loader properly handles null values from delegate
+area: ES|QL
+type: bug
+issues: []

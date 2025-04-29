@@ -119,7 +119,7 @@ import org.elasticsearch.index.search.stats.FieldUsageStats;
 import org.elasticsearch.index.search.stats.SearchStats;
 import org.elasticsearch.index.search.stats.SearchStatsSettings;
 import org.elasticsearch.index.search.stats.ShardFieldUsageTracker;
-import org.elasticsearch.index.search.stats.ShardSearchLoadRateStats;
+import org.elasticsearch.index.search.stats.ShardSearchLoadRateStatsService;
 import org.elasticsearch.index.search.stats.ShardSearchStats;
 import org.elasticsearch.index.seqno.ReplicationTracker;
 import org.elasticsearch.index.seqno.RetentionLease;
@@ -174,6 +174,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.ServiceLoader;
 import java.util.Set;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
@@ -206,7 +207,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     private final Store store;
     private final InternalIndexingStats internalIndexingStats;
     private final ShardSearchStats searchStats = new ShardSearchStats();
-    private final ShardSearchLoadRateStats searchLoadRateStats;
+    private final ServiceLoader<ShardSearchLoadRateStatsService> searchLoadRateStatsLoader;
     private final ShardFieldUsageTracker fieldUsageTracker;
     private final String shardUuid = UUIDs.randomBase64UUID();
     private final long shardCreationTime;
@@ -369,7 +370,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             CollectionUtils.appendToCopyNoNullElements(listeners, internalIndexingStats, indexingFailuresDebugListener),
             logger
         );
-        this.searchLoadRateStats = new ShardSearchLoadRateStats(searchStatsSettings, System::currentTimeMillis);
+        this.searchLoadRateStatsLoader = ServiceLoader.load(ShardSearchLoadRateStatsService.class);
+       // this.searchLoadRateStats = new ShardSearchLoadRateStats(searchStatsSettings, System::currentTimeMillis);
         this.bulkOperationListener = new ShardBulkStats();
         this.globalCheckpointSyncer = globalCheckpointSyncer;
         this.retentionLeaseSyncer = Objects.requireNonNull(retentionLeaseSyncer);
@@ -1419,8 +1421,10 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     /**
      * Returns the search load rate stats for this shard.
      */
-    public ShardSearchLoadRateStats.SearchLoadRate getSearchLoadRate() {
-        return searchLoadRateStats.getSearchLoadRate(searchStats.stats().getTotal());
+    public ShardSearchLoadRateStatsService.SearchLoadRate getSearchLoadRate() {
+        return searchLoadRateStatsLoader.findFirst()
+            .map(loader -> loader.getSearchLoadRate(searchStats.stats().getTotal()))
+            .orElse(ShardSearchLoadRateStatsService.SearchLoadRate.NO_OP);
     }
 
     public FieldUsageStats fieldUsageStats(String... fields) {

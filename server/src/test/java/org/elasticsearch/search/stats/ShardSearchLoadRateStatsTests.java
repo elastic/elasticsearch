@@ -12,7 +12,7 @@ package org.elasticsearch.search.stats;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.search.stats.SearchStats;
 import org.elasticsearch.index.search.stats.SearchStatsSettings;
-import org.elasticsearch.index.search.stats.ShardSearchLoadRateStats;
+import org.elasticsearch.index.search.stats.ShardSearchLoadRateStatsService;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;
 
@@ -23,7 +23,7 @@ import static org.mockito.Mockito.when;
 
 public class ShardSearchLoadRateStatsTests extends ESTestCase {
 
-    private ShardSearchLoadRateStats shardStats;
+    private ShardSearchLoadRateStatsService shardStats;
 
     @Before
     public void setUp() throws Exception {
@@ -33,7 +33,8 @@ public class ShardSearchLoadRateStatsTests extends ESTestCase {
         when(mockSettings.getRecentReadLoadHalfLifeForNewShards()).thenReturn(mockHalfLife);
         when(mockHalfLife.millis()).thenReturn(1000L);
         AtomicLong fakeClock = new AtomicLong(1_000_000L);
-        shardStats = new ShardSearchLoadRateStats(mockSettings, fakeClock::get);
+        shardStats = null;
+        //shardStats = new NoOpShardSearchLoadRateStats(mockSettings, fakeClock::get);
     }
 
     public void testZeroDeltaReturnsZeroRate() {
@@ -42,7 +43,7 @@ public class ShardSearchLoadRateStatsTests extends ESTestCase {
         when(mockStats.getFetchTimeInMillis()).thenReturn(0L);
         when(mockStats.getScrollTimeInMillis()).thenReturn(0L);
         when(mockStats.getSuggestTimeInMillis()).thenReturn(0L);
-        ShardSearchLoadRateStats.SearchLoadRate result = shardStats.getSearchLoadRate(mockStats);
+        ShardSearchLoadRateStatsService.SearchLoadRate result = shardStats.getSearchLoadRate(mockStats);
 
         assertEquals(0L, result.lastTrackedTime());
         assertEquals(0L, result.delta());
@@ -55,7 +56,7 @@ public class ShardSearchLoadRateStatsTests extends ESTestCase {
         when(mockStats.getFetchTimeInMillis()).thenReturn(50L);
         when(mockStats.getScrollTimeInMillis()).thenReturn(25L);
         when(mockStats.getSuggestTimeInMillis()).thenReturn(25L);
-        ShardSearchLoadRateStats.SearchLoadRate result = shardStats.getSearchLoadRate(mockStats);
+        ShardSearchLoadRateStatsService.SearchLoadRate result = shardStats.getSearchLoadRate(mockStats);
 
         assertEquals(200L, result.lastTrackedTime());
         assertEquals(200L, result.delta());
@@ -76,7 +77,7 @@ public class ShardSearchLoadRateStatsTests extends ESTestCase {
         when(mockStats2.getScrollTimeInMillis()).thenReturn(30L);
         when(mockStats2.getSuggestTimeInMillis()).thenReturn(30L);
         Thread.sleep(10);
-        ShardSearchLoadRateStats.SearchLoadRate result = shardStats.getSearchLoadRate(mockStats2);
+        ShardSearchLoadRateStatsService.SearchLoadRate result = shardStats.getSearchLoadRate(mockStats2);
 
         assertEquals(330L, result.lastTrackedTime());
         assertEquals(130L, result.delta());

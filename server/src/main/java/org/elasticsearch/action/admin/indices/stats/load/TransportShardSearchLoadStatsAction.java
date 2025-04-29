@@ -24,7 +24,7 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardsIterator;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.index.search.stats.ShardSearchLoadRateStats;
+import org.elasticsearch.index.search.stats.ShardSearchLoadRateStatsService;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesService;
@@ -42,7 +42,7 @@ import java.util.Map;
  * Transport action responsible for collecting shard-level search load statistics across the cluster.
  * <p>
  * This action broadcasts requests to all replica shards of the specified indices (scoped by a project)
- * and aggregates their {@link ShardSearchLoadRateStats.SearchLoadRate} metrics into a final response.
+ * and aggregates their {@link ShardSearchLoadRateStatsService.SearchLoadRate} metrics into a final response.
  * </p>
  *
  * Extends {@link TransportBroadcastByNodeAction} to handle fan-out to all replica shards.
@@ -117,7 +117,8 @@ public class TransportShardSearchLoadStatsAction extends TransportBroadcastByNod
      * Returns the factory used to construct the final response from individual shard responses.
      */
     @Override
-    protected ResponseFactory<ShardSearchLoadStatsResponse, ShardSearchLoadStats> getResponseFactory(Request request, ClusterState clusterState) {
+    protected ResponseFactory<ShardSearchLoadStatsResponse, ShardSearchLoadStats> getResponseFactory(Request request,
+                                                                                                     ClusterState clusterState) {
         return (totalShards, successfulShards, failedShards, responses, shardFailures) -> new ShardSearchLoadStatsResponse(
             responses.toArray(new ShardSearchLoadStats[0]),
             totalShards,
@@ -150,7 +151,7 @@ public class TransportShardSearchLoadStatsAction extends TransportBroadcastByNod
 
             ShardId shardId = shardRouting.shardId();
             IndexShard indexShard = indicesService.indexServiceSafe(shardId.getIndex()).getShard(shardId.id());
-            ShardSearchLoadRateStats.SearchLoadRate searchLoadRate = indexShard.getSearchLoadRate();
+            ShardSearchLoadRateStatsService.SearchLoadRate searchLoadRate = indexShard.getSearchLoadRate();
 
             logger.info(
                 "Multi - Shard: [{}], tracked-time [{}], delta [{}] ewmRate [{}]",

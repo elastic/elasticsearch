@@ -173,35 +173,15 @@ public class InferenceNamedWriteablesProvider {
 
     private static void addCustomNamedWriteables(List<NamedWriteableRegistry.Entry> namedWriteables) {
         namedWriteables.add(
-            new NamedWriteableRegistry.Entry(
-                ServiceSettings.class,
-                CustomServiceSettings.NAME,
-                CustomServiceSettings::new
-            )
+            new NamedWriteableRegistry.Entry(ServiceSettings.class, CustomServiceSettings.NAME, CustomServiceSettings::new)
         );
 
-        namedWriteables.add(
-            new NamedWriteableRegistry.Entry(
-                TaskSettings.class,
-                CustomTaskSettings.NAME,
-                CustomTaskSettings::new
-            )
-        );
+        namedWriteables.add(new NamedWriteableRegistry.Entry(TaskSettings.class, CustomTaskSettings.NAME, CustomTaskSettings::new));
+
+        namedWriteables.add(new NamedWriteableRegistry.Entry(SecretSettings.class, CustomSecretSettings.NAME, CustomSecretSettings::new));
 
         namedWriteables.add(
-            new NamedWriteableRegistry.Entry(
-                SecretSettings.class,
-                CustomSecretSettings.NAME,
-                CustomSecretSettings::new
-            )
-        );
-
-        namedWriteables.add(
-            new NamedWriteableRegistry.Entry(
-                CustomResponseParser.class,
-                TextEmbeddingResponseParser.NAME,
-                TextEmbeddingResponseParser::new
-            )
+            new NamedWriteableRegistry.Entry(CustomResponseParser.class, TextEmbeddingResponseParser.NAME, TextEmbeddingResponseParser::new)
         );
 
         namedWriteables.add(
@@ -213,27 +193,13 @@ public class InferenceNamedWriteablesProvider {
         );
 
         namedWriteables.add(
-            new NamedWriteableRegistry.Entry(
-                CustomResponseParser.class,
-                RerankResponseParser.NAME,
-                RerankResponseParser::new
-            )
+            new NamedWriteableRegistry.Entry(CustomResponseParser.class, RerankResponseParser.NAME, RerankResponseParser::new)
         );
 
-        namedWriteables.add(
-            new NamedWriteableRegistry.Entry(
-                CustomResponseParser.class,
-                NoopResponseParser.NAME,
-                NoopResponseParser::new
-            )
-        );
+        namedWriteables.add(new NamedWriteableRegistry.Entry(CustomResponseParser.class, NoopResponseParser.NAME, NoopResponseParser::new));
 
         namedWriteables.add(
-            new NamedWriteableRegistry.Entry(
-                CustomResponseParser.class,
-                CompletionResponseParser.NAME,
-                CompletionResponseParser::new
-            )
+            new NamedWriteableRegistry.Entry(CustomResponseParser.class, CompletionResponseParser.NAME, CompletionResponseParser::new)
         );
     }
 

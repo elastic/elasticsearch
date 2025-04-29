@@ -54,7 +54,6 @@ public abstract class BaseCustomResponseParser<T extends InferenceServiceResults
         return (List<?>) obj;
     }
 
-
     static void validateNonNull(Object obj, String fieldName) {
         Objects.requireNonNull(obj, Strings.format("Failed to parse field [%s], extracted field was null", fieldName));
     }

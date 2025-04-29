@@ -105,7 +105,7 @@ public final class GeoIpProcessor extends AbstractProcessor {
         } else if (ip == null && ignoreMissing) {
             return document;
         } else if (ip == null) {
-            throw new IllegalArgumentException("field [" + field + "] is null, cannot extract geoip information.");
+            throw new IllegalArgumentException("field [" + field + "] is null, cannot extract " + type + " information");
         }
 
         try (IpDatabase ipDatabase = this.supplier.get()) {

@@ -1976,7 +1976,7 @@ public class FailureStoreSecurityRestIT extends ESRestTestCase {
         expectSearch(username, new Search(aliasName + "::failures"), failuresDocId, otherFailuresDocId);
         expectSearchThrows(
             username,
-            new Search(randomFrom(aliasName + "::data", "my-alias::failures", dataIndexName, failureIndexName)),
+            new Search(randomFrom(aliasName + "::data", aliasName, dataIndexName, failureIndexName)),
             403
         );
 

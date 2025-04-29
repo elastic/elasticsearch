@@ -35,8 +35,10 @@ import org.elasticsearch.compute.test.TestResultPageSinkOperator;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.cache.query.TrivialQueryCachingPolicy;
+import org.elasticsearch.index.mapper.BlockLoader;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
+import org.elasticsearch.index.mapper.SourceLoader;
 import org.elasticsearch.indices.CrankyCircuitBreakerService;
 import org.elasticsearch.search.internal.ContextIndexSearcher;
 import org.elasticsearch.search.sort.SortAndFormats;
@@ -297,6 +299,20 @@ public class LuceneSourceOperatorTests extends AnyOperatorTestCase {
         @Override
         public IndexSearcher searcher() {
             return searcher;
+        }
+
+        @Override
+        public SourceLoader newSourceLoader() {
+            return SourceLoader.FROM_STORED_SOURCE;
+        }
+
+        @Override
+        public BlockLoader blockLoader(
+            String name,
+            boolean asUnsupportedSource,
+            MappedFieldType.FieldExtractPreference fieldExtractPreference
+        ) {
+            throw new UnsupportedOperationException();
         }
 
         @Override

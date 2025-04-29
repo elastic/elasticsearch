@@ -227,25 +227,17 @@ final class CanMatchPreFilterSearchPhase {
     }
 
     private void consumeResult(boolean canMatch, ShardSearchRequest request) {
-        CanMatchShardResponse result = new CanMatchShardResponse(canMatch, null);
-        result.setShardIndex(request.shardRequestIndex());
-        consumeResult(request.shardRequestIndex(), result);
+        consumeResult(request.shardRequestIndex(), canMatch, null);
     }
 
-    private void consumeResult(int index, CanMatchShardResponse result) {
-        final boolean canMatch = result.canMatch();
-        final MinAndMax<?> minAndMax = result.estimatedMinAndMax();
-        if (canMatch || minAndMax != null) {
-            consumeResult(index, canMatch, minAndMax);
-        }
-    }
-
-    private synchronized void consumeResult(int shardIndex, boolean canMatch, MinAndMax<?> minAndMax) {
+    private void consumeResult(int shardIndex, boolean canMatch, MinAndMax<?> minAndMax) {
         if (canMatch) {
-            possibleMatches.set(shardIndex);
-            numPossibleMatches++;
+            synchronized (this) {
+                possibleMatches.set(shardIndex);
+                numPossibleMatches++;
+                minAndMaxes[shardIndex] = minAndMax;
+            }
         }
-        minAndMaxes[shardIndex] = minAndMax;
     }
 
     private void checkNoMissingShards(List<SearchShardIterator> shards) {
@@ -347,7 +339,7 @@ final class CanMatchPreFilterSearchPhase {
 
         private void onOperation(int idx, CanMatchShardResponse response) {
             failedResponses.remove(idx);
-            consumeResult(idx, response);
+            consumeResult(idx, response.canMatch(), response.estimatedMinAndMax());
             if (countDown.countDown()) {
                 finishRound();
             }

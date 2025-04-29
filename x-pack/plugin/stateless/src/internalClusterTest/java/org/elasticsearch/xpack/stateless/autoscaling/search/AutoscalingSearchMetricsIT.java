@@ -164,6 +164,7 @@ public class AutoscalingSearchMetricsIT extends AbstractStatelessIntegTestCase {
         });
 
         internalCluster().stopNode(masterNode);
+        ensureStableCluster(3);
 
         assertBusy(() -> {
             var searchMetricsService = internalCluster().getCurrentMasterNodeInstance(SearchMetricsService.class);

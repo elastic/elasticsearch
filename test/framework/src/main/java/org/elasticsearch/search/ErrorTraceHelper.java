@@ -26,7 +26,6 @@ import java.util.function.BooleanSupplier;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.common.Strings.format;
-import static org.elasticsearch.test.ESIntegTestCase.getNodeId;
 import static org.elasticsearch.test.ESIntegTestCase.internalCluster;
 import static org.elasticsearch.test.ESTestCase.asInstanceOf;
 
@@ -88,34 +87,6 @@ public enum ErrorTraceHelper {
                     "failed to create query: For input string: \"foo\""
                 )
             );
-        }
-    }
-
-    /**
-     * Adds expectations for the _absence_ of debug logging of a message. An unseen expectation is added for each
-     * combination of node in the internal cluster and shard in the index.
-     *
-     * @param numShards                 the number of shards in the index (an expectation will be added for each shard)
-     * @param mockLog                   the mock log
-     * @param errorTriggeringIndex      the name of the index that will trigger the error
-     */
-    public static void addUnseenLoggingExpectations(int numShards, MockLog mockLog, String errorTriggeringIndex) {
-        for (String nodeName : internalCluster().getNodeNames()) {
-            for (int shard = 0; shard < numShards; shard++) {
-                mockLog.addExpectation(
-                    new MockLog.UnseenEventExpectation(
-                        format(
-                            "\"[%s][%s][%d]: failed to execute search request\" and an exception logged",
-                            getNodeId(nodeName),
-                            errorTriggeringIndex,
-                            shard
-                        ),
-                        SearchService.class.getCanonicalName(),
-                        Level.DEBUG,
-                        format("[%s][%s][%d]: failed to execute search request", getNodeId(nodeName), errorTriggeringIndex, shard)
-                    )
-                );
-            }
         }
     }
 }

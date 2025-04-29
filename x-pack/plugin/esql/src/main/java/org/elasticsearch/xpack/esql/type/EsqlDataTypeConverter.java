@@ -36,6 +36,7 @@ import org.elasticsearch.xpack.esql.core.type.DataTypeConverter;
 import org.elasticsearch.xpack.esql.core.util.NumericUtils;
 import org.elasticsearch.xpack.esql.core.util.StringUtils;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.AbstractConvertFunction;
+import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToAggregateMetricDouble;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToBoolean;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToCartesianPoint;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToCartesianShape;
@@ -70,6 +71,7 @@ import java.util.function.BiFunction;
 import java.util.function.Function;
 
 import static java.util.Map.entry;
+import static org.elasticsearch.xpack.esql.core.type.DataType.AGGREGATE_METRIC_DOUBLE;
 import static org.elasticsearch.xpack.esql.core.type.DataType.BOOLEAN;
 import static org.elasticsearch.xpack.esql.core.type.DataType.CARTESIAN_POINT;
 import static org.elasticsearch.xpack.esql.core.type.DataType.CARTESIAN_SHAPE;
@@ -112,6 +114,7 @@ public class EsqlDataTypeConverter {
     public static final DateFormatter HOUR_MINUTE_SECOND = DateFormatter.forPattern("strict_hour_minute_second_fraction");
 
     private static final Map<DataType, BiFunction<Source, Expression, AbstractConvertFunction>> TYPE_TO_CONVERTER_FUNCTION = Map.ofEntries(
+        entry(AGGREGATE_METRIC_DOUBLE, ToAggregateMetricDouble::new),
         entry(BOOLEAN, ToBoolean::new),
         entry(CARTESIAN_POINT, ToCartesianPoint::new),
         entry(CARTESIAN_SHAPE, ToCartesianShape::new),

@@ -183,7 +183,7 @@ public class IndexEngine extends InternalEngine {
         this.commitBCCResolver = commitBCCResolver;
         this.documentSizeAccumulator = documentParsingProvider.createDocumentSizeAccumulator();
         this.documentParsingReporter = documentParsingProvider.newDocumentSizeReporter(
-            shardId.getIndexName(),
+            shardId.getIndex(),
             engineConfig.getMapperService(),
             documentSizeAccumulator
         );

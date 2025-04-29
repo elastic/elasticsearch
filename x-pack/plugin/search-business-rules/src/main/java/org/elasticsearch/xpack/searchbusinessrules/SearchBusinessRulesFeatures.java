@@ -12,8 +12,6 @@ import org.elasticsearch.features.NodeFeature;
 
 import java.util.Set;
 
-import static org.elasticsearch.xpack.searchbusinessrules.retriever.PinnedRetrieverBuilder.PINNED_RETRIEVER_FEATURE;
-
 public class SearchBusinessRulesFeatures implements FeatureSpecification {
 
     @Override

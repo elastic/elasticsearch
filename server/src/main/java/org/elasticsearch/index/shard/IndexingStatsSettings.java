@@ -48,7 +48,7 @@ public class IndexingStatsSettings {
         clusterSettings.initializeAndWatch(RECENT_WRITE_LOAD_HALF_LIFE_SETTING, recentWriteLoadHalfLifeForNewShards::set);
     }
 
-    public TimeValue getRecentWriteLoadHalfLifeForNewShards() {
+    TimeValue getRecentWriteLoadHalfLifeForNewShards() {
         return recentWriteLoadHalfLifeForNewShards.get();
     }
 }

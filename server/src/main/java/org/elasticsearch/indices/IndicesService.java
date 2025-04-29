@@ -1925,8 +1925,6 @@ public class IndicesService extends AbstractLifecycleComponent
         return indexScopedSettings;
     }
 
-    public SearchStatsSettings getSearchStatsSettings() { return searchStatsSettings; }
-
     // TODO move this?
     public BigArrays getBigArrays() {
         return bigArrays;

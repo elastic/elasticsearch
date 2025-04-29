@@ -201,7 +201,6 @@ import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.action.XPackInfoFeatureAction;
 import org.elasticsearch.xpack.core.action.XPackUsageFeatureAction;
-import org.elasticsearch.xpack.searchbusinessrules.SearchBusinessRules;
 
 import java.util.ArrayList;
 import java.util.Arrays;

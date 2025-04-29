@@ -24,6 +24,7 @@ import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.plugins.ActionPlugin;
+import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.plugins.SystemIndexPlugin;
 import org.elasticsearch.rest.RestController;
@@ -212,7 +213,7 @@ import java.util.function.Supplier;
 
 import static java.util.Collections.singletonList;
 
-public class EnterpriseSearch extends SearchBusinessRules implements ActionPlugin, SystemIndexPlugin, SearchPlugin {
+public class EnterpriseSearch extends Plugin implements ActionPlugin, SystemIndexPlugin, SearchPlugin {
 
     public static final String APPLICATION_API_ENDPOINT = "_application";
 

@@ -165,7 +165,7 @@ changelogs:
     breaking:
       area: Analysis
       title: The "german2" snowball stemmer is now an alias for the "german" stemmer
-      details: "Lucene 10 has merged the improved \"german2\" snowball language stemmer with the \"german\" stemmer. For Elasticsearch, \"german2\" is now a deprecated alias for \"german\". This may results in slightly different tokens being generated for terms with umlaut substitution (like \"ue\" for \"ü\" etc...)"
+      details: 'Lucene 10 has merged the improved "german2" snowball language stemmer with the "german" stemmer. For Elasticsearch, "german2" is now a deprecated alias for "german". This may results in slightly different tokens being generated for terms with umlaut substitution (like "ue" for "ü" etc...)'
       impact: Replace usages of "german2" with "german" in analysis configuration. Old indices that use the "german" stemmer should be reindexed if possible.
       notable: false
       essSettingChange: false
@@ -640,7 +640,7 @@ changelogs:
     breaking:
       area: Transform
       title: Remove `data_frame_transforms` roles
-      details: '`data_frame_transforms_admin` and `data_frame_transforms_user` were deprecated in Elasticsearch 7 and are being removed in Elasticsearch 9. `data_frame_transforms_admin` is now `transform_admin`. `data_frame_transforms_user` is now `transform_user`. Users must call the `_update` API to replace the permissions on the Transform before the Transform can be started.'
+      details: "`data_frame_transforms_admin` and `data_frame_transforms_user` were deprecated in Elasticsearch 7 and are being removed in Elasticsearch 9. `data_frame_transforms_admin` is now `transform_admin`. `data_frame_transforms_user` is now `transform_user`. Users must call the `_update` API to replace the permissions on the Transform before the Transform can be started."
       impact: "Transforms created with either the `data_frame_transforms_admin` or the `data_frame_transforms_user` role will fail to start. The Transform will remain in a `stopped` state, and its health will be red while displaying permission failures."
       notable: false
       essSettingChange: false
@@ -723,7 +723,7 @@ changelogs:
     issues:
       - 105135
   - pr: 117750
-    summary: '`CrossClusterIT` `testCancel` failure'
+    summary: "`CrossClusterIT` `testCancel` failure"
     area: Search
     type: bug
     issues:
@@ -788,7 +788,7 @@ changelogs:
     type: bug
     issues: []
   - pr: 117963
-    summary: '`SearchServiceTests.testParseSourceValidation` failure'
+    summary: "`SearchServiceTests.testParseSourceValidation` failure"
     area: Search
     type: bug
     issues: []
@@ -969,7 +969,7 @@ changelogs:
     type: enhancement
     issues: []
   - pr: 118435
-    summary: '`_score` should not be a reserved attribute in ES|QL'
+    summary: "`_score` should not be a reserved attribute in ES|QL"
     area: ES|QL
     type: enhancement
     issues:
@@ -1056,7 +1056,7 @@ changelogs:
     type: enhancement
     issues: []
   - pr: 118681
-    summary: '`ConnectTransportException` returns retryable BAD_GATEWAY'
+    summary: "`ConnectTransportException` returns retryable BAD_GATEWAY"
     area: Network
     type: enhancement
     issues:
@@ -1089,8 +1089,11 @@ changelogs:
     issues: []
     highlight:
       notable: true
-      title: Add new experimental `rank_vectors` mapping for late-interaction second order ranking
-      body: "Late-interaction models are powerful rerankers. While their size and overall cost doesn't lend itself for HNSW indexing, utilizing them as second order reranking can provide excellent boosts in relevance. The new `rank_vectors` mapping allows for rescoring over new and novel multi-vector late-interaction models like ColBERT or ColPali."
+      title: rank_vectors field type is now available for late-interaction ranking
+      body: |
+        [`rank_vectors`](../reference/elasticsearch/mapping-reference/rank-vectors.md) is a new field type released as an experimental feature in Elasticsearch 9.0. It is designed to be used with dense vectors and allows for late-interaction second order ranking.
+
+        Late-interaction models are powerful rerankers. While their size and overall cost doesn’t lend itself for HNSW indexing, utilizing them as second order reranking can provide excellent boosts in relevance. The new `rank_vectors` mapping allows for rescoring over new and novel multi-vector late-interaction models like ColBERT or ColPali.
       pr: 118804
   - pr: 118823
     summary: Fix attribute set equals
@@ -1922,16 +1925,14 @@ changelogs:
       - 121185
     highlight:
       notable: true
-      title: Enable LOOKUP JOIN in non-snapshot builds
+      title: "ES|QL LOOKUP JOIN is now available in technical preview"
       body: |-
-        This effectively releases LOOKUP JOIN into tech preview. Docs will
-        follow in a separate PR.
+        [LOOKUP JOIN](../reference/query-languages/esql/esql-commands.md) is now available in technical preview. LOOKUP JOIN combines data from your ES|QL queries with matching records from a lookup index, enabling you to:
 
-        - Enable the lexing/grammar for LOOKUP JOIN in non-snapshot builds.
-        - Remove the grammar for the unsupported `| JOIN ...` command (without `LOOKUP` as first keyword). The way the lexer modes work, otherwise we'd also have to enable `| JOIN ...` syntax on non-snapshot builds and would have to add additional validation to provide appropriate error messages.
-        - Remove grammar for `LOOKUP JOIN index AS ...` because qualifiers are not yet supported. Otherwise we'd have to put in additional validation as well to prevent such queries.
-
-        Also fix https://github.com/elastic/elasticsearch/issues/121185
+        - Enrich your search results with reference data
+        - Speed up root-cause analysis and security investigations
+        - Join data across indices without complex queries
+        - Reduce operational overhead when correlating events
       pr: 121193
   - pr: 121196
     summary: Fix geoip databases index access after system feature migration
@@ -1944,7 +1945,7 @@ changelogs:
     type: bug
     issues: []
   - pr: 121325
-    summary: '`ReindexDataStreamIndex` bug in assertion caused by reference equality'
+    summary: "`ReindexDataStreamIndex` bug in assertion caused by reference equality"
     area: Data streams
     type: bug
     issues: []
@@ -2342,8 +2343,8 @@ changelogs:
     issues: []
     highlight:
       notable: true
-      title: Release semantic_text as a GA feature
-      body: semantic_text is now an official GA (generally available) feature! This field type allows you to easily set up and perform semantic search with minimal ramp up time.
+      title: The semantic_text field type is now GA
+      body: "[`semantic_text`](../reference/elasticsearch/mapping-reference/semantic-text.md) is now an official GA (generally available) feature! This field type allows you to easily set up and perform semantic search with minimal ramp up time."
       pr: 124669
   - pr: 124739
     summary: Improve rolling up metrics

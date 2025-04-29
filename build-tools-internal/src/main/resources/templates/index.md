@@ -40,8 +40,6 @@ for (highlights in [notableHighlights, nonNotableHighlights]) {
     for (highlight in highlights) { %>
 ::::{dropdown} ${highlight.title}
 ${highlight.body.trim()}
-
-For more information, check [PR #${highlight.pr}](https://github.com/elastic/elasticsearch/pull/${highlight.pr}).
 ::::
 <% }
   }

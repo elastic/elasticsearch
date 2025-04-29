@@ -62,28 +62,31 @@ public abstract class GenerateTestBuildInfoTask extends DefaultTask {
         Path outputFile = outputDirectory.resolve(PROPERTIES_FILENAME);
 
         try (var writer = Files.newBufferedWriter(outputFile, StandardCharsets.UTF_8)) {
-            writer.write("name=");
-            writer.write(getComponentName().get());
-            writer.write("\n");
+            writer.write("{\n");
 
-            writer.write("descriptor=");
+            writer.write("    \"name\": \"");
+            writer.write(getComponentName().get());
+            writer.write("\",\n");
+
+            writer.write("    \"descriptor\": \"");
             writer.write(getDescriptorFile().getAsFile().get().getAbsolutePath());
-            writer.write("\n");
+            writer.write("\",\n");
 
             if (getPolicyFile().isPresent()) {
-                writer.write("policy=");
+                writer.write("    \"policy\": \"");
                 writer.write(getPolicyFile().getAsFile().get().getAbsolutePath());
-                writer.write("\n");
+                writer.write("\",\n");
             }
 
-            writer.write("locations=");
+            writer.write("    \"locations\": [\n");
             StringBuilder sb = new StringBuilder();
             for (File jar : getCodeLocations().get()) {
+                sb.append("        \"");
                 sb.append(jar.getAbsolutePath());
-                sb.append(":");
+                sb.append("\",\n");
             }
-            writer.write(sb.substring(0, sb.length() - 1));
-            writer.write("\n");
+            writer.write(sb.substring(0, sb.length() - 2));
+            writer.write("\n    ]\n}\n");
         }
     }
 }

@@ -248,7 +248,7 @@ public final class GeoIpProcessor extends AbstractProcessor {
                     // at a later moment, so a processor impl is returned that tags documents instead. If a database cannot be sourced
                     // then the processor will continue to tag documents with a warning until it is remediated by providing a database
                     // or changing the pipeline.
-                    return new DatabaseUnavailableProcessor(type, tag, description, databaseFile);
+                    return new DatabaseUnavailableProcessor(type, tag, description, ipField, ignoreMissing, databaseFile);
                 }
                 databaseType = ipDatabase.getDatabaseType();
             }
@@ -328,15 +328,35 @@ public final class GeoIpProcessor extends AbstractProcessor {
 
         private final String type;
         private final String databaseName;
+        private final String field;
+        private final boolean ignoreMissing;
 
-        DatabaseUnavailableProcessor(String type, String tag, String description, String databaseName) {
+        DatabaseUnavailableProcessor(
+            String type,
+            String tag,
+            String description,
+            String field,
+            boolean ignoreMissing,
+            String databaseName
+        ) {
             super(tag, description);
             this.type = type;
             this.databaseName = databaseName;
+            this.field = field;
+            this.ignoreMissing = ignoreMissing;
         }
 
         @Override
         public IngestDocument execute(IngestDocument document) throws Exception {
+            Object ip = document.getFieldValue(field, Object.class, ignoreMissing);
+
+            if (ip == null && ignoreMissing) {
+                return document;
+            } else if (ip == null) {
+                throw new IllegalArgumentException("field [" + field + "] is null, cannot extract " + type + " information");
+            }
+
+            // if we didn't no-op, and we didn't throw an exception due to violation of preconditions, then tag this document
             tag(document, this.type, databaseName);
             return document;
         }

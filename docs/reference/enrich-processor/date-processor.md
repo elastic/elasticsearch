@@ -15,7 +15,7 @@ $$$date-options$$$
 | `field` | yes | - | The field to get the date from. |
 | `target_field` | no | @timestamp | The field that will hold the parsed date. |
 | `formats` | yes | - | An array of the expected date formats. Can be a [java time pattern](/reference/elasticsearch/mapping-reference/mapping-date-format.md) or one of the following formats: ISO8601, UNIX, UNIX_MS, or TAI64N. |
-| `timezone` | no | UTC | The default timezone used by the processor (see [below](#date-processor-timezones)). Supports [template snippets](docs-content://manage-data/ingest/transform-enrich/ingest-pipelines.md#template-snippets). |
+| `timezone` | no | UTC | The default [timezone](#date-processor-timezones) used by the processor. Supports [template snippets](docs-content://manage-data/ingest/transform-enrich/ingest-pipelines.md#template-snippets). |
 | `locale` | no | ENGLISH | The locale to use when parsing the date, relevant when parsing month names or week days. Supports [template snippets](docs-content://manage-data/ingest/transform-enrich/ingest-pipelines.md#template-snippets). |
 | `output_format` | no | `yyyy-MM-dd'T'HH:mm:ss.SSSXXX` | The format to use when writing the date to `target_field`. Must be a valid [java time pattern](/reference/elasticsearch/mapping-reference/mapping-date-format.md). |
 | `description` | no | - | Description of the processor. Useful for describing the purpose of the processor or its configuration. |

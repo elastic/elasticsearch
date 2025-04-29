@@ -435,9 +435,6 @@ tests:
 - class: org.elasticsearch.action.admin.cluster.state.TransportClusterStateActionDisruptionIT
   method: testNonLocalRequestAlwaysFindsMasterAndWaitsForMetadata
   issue: https://github.com/elastic/elasticsearch/issues/127422
-- class: org.elasticsearch.xpack.esql.qa.single_node.PushQueriesIT
-  method: testPushCaseInsensitiveEqualityOnDefaults
-  issue: https://github.com/elastic/elasticsearch/issues/127431
 - class: org.elasticsearch.action.admin.cluster.state.TransportClusterStateActionDisruptionIT
   method: testLocalRequestAlwaysSucceeds
   issue: https://github.com/elastic/elasticsearch/issues/127423

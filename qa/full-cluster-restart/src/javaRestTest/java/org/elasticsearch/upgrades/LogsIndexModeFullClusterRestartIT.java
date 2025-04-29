@@ -18,6 +18,7 @@ import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.time.FormatNames;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
+import org.elasticsearch.test.cluster.FeatureFlag;
 import org.elasticsearch.test.cluster.local.distribution.DistributionType;
 import org.elasticsearch.test.cluster.util.Version;
 import org.hamcrest.Matcher;
@@ -46,7 +47,9 @@ public class LogsIndexModeFullClusterRestartIT extends ParameterizedFullClusterR
             .module("x-pack-aggregate-metric")
             .module("x-pack-stack")
             .setting("xpack.security.enabled", "false")
-            .setting("xpack.license.self_generated.type", "trial");
+            .setting("xpack.license.self_generated.type", "trial")
+            .feature(FeatureFlag.FAILURE_STORE_ENABLED);
+        ;
 
         if (oldVersion.before(Version.fromString("8.18.0"))) {
             cluster.jvmArg("-da:org.elasticsearch.index.mapper.DocumentMapper");

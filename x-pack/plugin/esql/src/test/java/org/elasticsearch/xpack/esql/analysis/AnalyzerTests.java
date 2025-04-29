@@ -110,6 +110,8 @@ import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.loadMappin
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.randomValueOtherThanTest;
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.tsdbIndexResolution;
 import static org.elasticsearch.xpack.esql.core.tree.Source.EMPTY;
+import static org.elasticsearch.xpack.esql.core.type.DataType.DATETIME;
+import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.dateTimeToString;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
@@ -368,7 +370,7 @@ public class AnalyzerTests extends ESTestCase {
             DataType.INTEGER,
             DataType.KEYWORD,
             DataType.TEXT,
-            DataType.DATETIME,
+            DATETIME,
             DataType.TEXT,
             DataType.KEYWORD,
             DataType.INTEGER,
@@ -3774,6 +3776,36 @@ public class AnalyzerTests extends ESTestCase {
         EsRelation esRelation = as(completion.child(), EsRelation.class);
         assertThat(getAttributeByName(completion.output(), "description"), equalTo(completion.targetField()));
         assertThat(getAttributeByName(esRelation.output(), "description"), not(equalTo(completion.targetField())));
+    }
+
+    public void testResolveAggregateWithGroupings() {
+        var plan = analyze("""
+            FROM test
+            | EVAL date = "2025-01-01"::datetime
+            | STATS c = count(emp_no) BY d = (date == "2025-01-01")
+            """, "mapping-default.json");
+
+        var limit = as(plan, Limit.class);
+        var agg = as(limit.child(), Aggregate.class);
+        var aggregates = agg.aggregates();
+        assertThat(aggregates, hasSize(2));
+        Alias a = as(aggregates.get(0), Alias.class);
+        assertEquals("c", a.name());
+        Count c = as(a.child(), Count.class);
+        FieldAttribute fa = as(c.field(), FieldAttribute.class);
+        assertEquals("emp_no", fa.name());
+        ReferenceAttribute ra = as(aggregates.get(1), ReferenceAttribute.class); // reference in aggregates is resolved
+        assertEquals("d", ra.name());
+        List<Expression> groupings = agg.groupings();
+        assertEquals(1, groupings.size());
+        a = as(groupings.get(0), Alias.class); // reference in grouping is resolved
+        assertEquals("d", ra.name());
+        Equals equals = as(a.child(), Equals.class);
+        ra = as(equals.left(), ReferenceAttribute.class);
+        assertEquals("date", ra.name());
+        Literal literal = as(equals.right(), Literal.class);
+        assertEquals("2025-01-01T00:00:00.000Z", dateTimeToString(Long.parseLong(literal.value().toString())));
+        assertEquals(DATETIME, literal.dataType());
     }
 
     @Override

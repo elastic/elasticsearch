@@ -13,6 +13,7 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.health.HealthStatus;
 import org.elasticsearch.reservedstate.service.FileSettingsService.FileSettingsHealthInfo;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
+import org.elasticsearch.test.ESTestCase;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -50,7 +51,7 @@ public class HealthInfoTests extends AbstractWireSerializingTestCase<HealthInfo>
         var dslHealth = originalHealthInfo.dslHealthInfo();
         var repoHealth = originalHealthInfo.repositoriesInfoByNode();
         var fsHealth = originalHealthInfo.fileSettingsHealthInfo();
-        switch (randomInt(2)) {
+        switch (randomInt(3)) {
             case 0 -> diskHealth = mutateMap(
                 originalHealthInfo.diskInfoByNode(),
                 () -> randomAlphaOfLength(10),
@@ -62,8 +63,9 @@ public class HealthInfoTests extends AbstractWireSerializingTestCase<HealthInfo>
                 () -> randomAlphaOfLength(10),
                 HealthInfoTests::randomRepoHealthInfo
             );
+            case 3 -> fsHealth = mutateFileSettingsHealthInfo(fsHealth);
         }
-        return new HealthInfo(diskHealth, dslHealth, repoHealth, mutateFileSettingsHealthInfo(fsHealth));
+        return new HealthInfo(diskHealth, dslHealth, repoHealth, fsHealth);
     }
 
     public static DiskHealthInfo randomDiskHealthInfo() {
@@ -84,7 +86,7 @@ public class HealthInfoTests extends AbstractWireSerializingTestCase<HealthInfo>
     }
 
     private static FileSettingsHealthInfo mutateFileSettingsHealthInfo(FileSettingsHealthInfo original) {
-        long changeCount = original.changeCount() ^ randomLongBetween(1, 100); // Always different from original
+        long changeCount = randomValueOtherThan(original.changeCount(), ESTestCase::randomLong);
         long failureStreak = randomLongBetween(0, changeCount);
         String mostRecentFailure;
         if (failureStreak == 0) {

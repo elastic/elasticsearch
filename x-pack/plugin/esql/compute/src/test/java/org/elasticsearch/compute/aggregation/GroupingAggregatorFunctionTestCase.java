@@ -19,6 +19,8 @@ import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.FloatBlock;
+import org.elasticsearch.compute.data.IntArrayBlock;
+import org.elasticsearch.compute.data.IntBigArrayBlock;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.LongBlock;
@@ -648,8 +650,7 @@ public abstract class GroupingAggregatorFunctionTestCase extends ForkingOperator
                                 return seen;
                             }, page);
 
-                            @Override
-                            public void add(int positionOffset, IntBlock groupIds) {
+                            private void addBlock(int positionOffset, IntBlock groupIds) {
                                 for (int offset = 0; offset < groupIds.getPositionCount(); offset += emitChunkSize) {
                                     try (IntBlock.Builder builder = blockFactory().newIntBlockBuilder(emitChunkSize)) {
                                         int endP = Math.min(groupIds.getPositionCount(), offset + emitChunkSize);
@@ -680,6 +681,16 @@ public abstract class GroupingAggregatorFunctionTestCase extends ForkingOperator
                                         }
                                     }
                                 }
+                            }
+
+                            @Override
+                            public void add(int positionOffset, IntArrayBlock groupIds) {
+                                addBlock(positionOffset, groupIds);
+                            }
+
+                            @Override
+                            public void add(int positionOffset, IntBigArrayBlock groupIds) {
+                                addBlock(positionOffset, groupIds);
                             }
 
                             @Override

@@ -48,9 +48,7 @@ public class LogsIndexModeFullClusterRestartIT extends ParameterizedFullClusterR
             .module("x-pack-aggregate-metric")
             .module("x-pack-stack")
             .setting("xpack.security.enabled", "false")
-            .setting("xpack.license.self_generated.type", "trial")
-            .feature(FeatureFlag.FAILURE_STORE_ENABLED);
-        ;
+            .setting("xpack.license.self_generated.type", "trial");
 
         if (oldVersion.before(Version.fromString("8.18.0"))) {
             cluster.jvmArg("-da:org.elasticsearch.index.mapper.DocumentMapper");

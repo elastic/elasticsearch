@@ -241,7 +241,7 @@ public class TransportClusterStatsAction extends TransportNodesAction<
         NodeStats nodeStats = nodeService.stats(
             CommonStatsFlags.NONE,
             false,
-            false,
+            true,
             true,
             true,
             true,

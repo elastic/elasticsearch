@@ -30,8 +30,8 @@ import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.util.BitSet;
 import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.FixedBitSet;
-import org.apache.lucene.util.IOUtils;
 import org.apache.lucene.util.hnsw.NeighborQueue;
+import org.elasticsearch.core.IOUtils;
 
 import java.io.IOException;
 import java.util.function.IntPredicate;

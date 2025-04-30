@@ -45,6 +45,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.math.Cosh;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Exp;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Floor;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Log10;
+import org.elasticsearch.xpack.esql.expression.function.scalar.math.Scalb;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Signum;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Sin;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Sinh;
@@ -169,6 +170,7 @@ public class ExpressionWritables {
         entries.add(Not.ENTRY);
         entries.add(RLike.ENTRY);
         entries.add(RTrim.ENTRY);
+        entries.add(Scalb.ENTRY);
         entries.add(Signum.ENTRY);
         entries.add(Sin.ENTRY);
         entries.add(Sinh.ENTRY);

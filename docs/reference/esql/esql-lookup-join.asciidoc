@@ -79,7 +79,7 @@ contains multi-valued entries, those entries will not match anything
 image::images/esql/esql-lookup-join.png[align="center"]
 
 If you're familiar with SQL, `LOOKUP JOIN` has left-join behavior. This means that 
-if no rows match in the lookup index, the incoming row is retained and `null`s are added. If many rows in the lookup index match, `LOOKUP JOIN` adds one row per match.
+if no rows match in the lookup index, the incoming row is retained and `null` values are added. If many rows in the lookup index match, `LOOKUP JOIN` adds one row per match.
 
 [discrete]
 [[esql-lookup-join-example]]

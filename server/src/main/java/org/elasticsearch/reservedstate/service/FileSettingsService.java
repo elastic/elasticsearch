@@ -115,10 +115,6 @@ public class FileSettingsService extends MasterNodeFileWatchingService implement
         return watchedFile;
     }
 
-    public FileSettingsHealthTracker healthIndicatorService() {
-        return healthIndicatorTracker;
-    }
-
     /**
      * Used by snapshot restore service {@link org.elasticsearch.snapshots.RestoreService} to prepare the reserved
      * state of the snapshot for the current cluster.

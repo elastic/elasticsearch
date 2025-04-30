@@ -2228,6 +2228,7 @@ public class IngestServiceTests extends ESTestCase {
         assertStats(initialStats.totalStats(), 0, 0, 0);
 
         PutPipelineRequest putRequest = putJsonPipelineRequest("_id1", "{\"processors\": [{\"mock\" : {}}]}");
+        // TODO: fix this
         @FixForMultiProject(description = "Do not use default project id once stats are project aware")
         var projectId = DEFAULT_PROJECT_ID;
         ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
@@ -2265,8 +2266,8 @@ public class IngestServiceTests extends ESTestCase {
         var endSize1 = indexRequest.ramBytesUsed();
         assertThat(afterFirstRequestStats.pipelineStats().size(), equalTo(2));
 
-        afterFirstRequestStats.processorStats().get("_id1").forEach(p -> assertEquals(p.name(), "mock:mockTag"));
-        afterFirstRequestStats.processorStats().get("_id2").forEach(p -> assertEquals(p.name(), "mock:mockTag"));
+        afterFirstRequestStats.processorStats().get(projectId).get("_id1").forEach(p -> assertEquals(p.name(), "mock:mockTag"));
+        afterFirstRequestStats.processorStats().get(projectId).get("_id2").forEach(p -> assertEquals(p.name(), "mock:mockTag"));
 
         // total
         assertStats(afterFirstRequestStats.totalStats(), 1, 0, 0);
@@ -3406,7 +3407,8 @@ public class IngestServiceTests extends ESTestCase {
     }
 
     private void assertProcessorStats(int processor, IngestStats stats, String pipelineId, long count, long failed, long time) {
-        assertStats(stats.processorStats().get(pipelineId).get(processor).stats(), count, failed, time);
+        //TODO: Fix to not use default
+        assertStats(stats.processorStats().get(ProjectId.DEFAULT).get(pipelineId).get(processor).stats(), count, failed, time);
     }
 
     private void assertPipelineStats(

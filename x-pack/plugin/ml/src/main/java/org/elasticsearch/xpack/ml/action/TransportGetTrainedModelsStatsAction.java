@@ -22,6 +22,7 @@ import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.document.DocumentField;
@@ -422,9 +423,12 @@ public class TransportGetTrainedModelsStatsAction extends TransportAction<
         return nodesStatsRequest;
     }
 
+    @FixForMultiProject // do not use default project
     static IngestStats ingestStatsForPipelineIds(NodeStats nodeStats, Set<String> pipelineIds) {
         IngestStats fullNodeStats = nodeStats.getIngestStats();
-        Map<String, List<IngestStats.ProcessorStat>> filteredProcessorStats = new HashMap<>(fullNodeStats.processorStats());
+        Map<String, List<IngestStats.ProcessorStat>> filteredProcessorStats = new HashMap<>(
+            fullNodeStats.processorStats().getOrDefault(ProjectId.DEFAULT, Map.of())
+        );
         filteredProcessorStats.keySet().retainAll(pipelineIds);
         List<IngestStats.PipelineStat> filteredPipelineStats = fullNodeStats.pipelineStats()
             .stream()
@@ -434,7 +438,7 @@ public class TransportGetTrainedModelsStatsAction extends TransportAction<
 
         filteredPipelineStats.forEach(pipelineStat -> accumulator.inc(pipelineStat.stats()));
 
-        return new IngestStats(accumulator.build(), filteredPipelineStats, filteredProcessorStats);
+        return new IngestStats(accumulator.build(), filteredPipelineStats, Map.of(ProjectId.DEFAULT, filteredProcessorStats));
     }
 
     @FixForMultiProject // don't use default project
@@ -451,7 +455,7 @@ public class TransportGetTrainedModelsStatsAction extends TransportAction<
                         .inc(pipelineStat)
                 );
 
-            ingestStats.processorStats().forEach((pipelineId, processorStat) -> {
+            ingestStats.processorStats().getOrDefault(ProjectId.DEFAULT, Map.of()).forEach((pipelineId, processorStat) -> {
                 Map<String, IngestStatsAccumulator> processorAcc = processorStatsAcc.computeIfAbsent(
                     pipelineId,
                     k -> new LinkedHashMap<>()
@@ -485,7 +489,7 @@ public class TransportGetTrainedModelsStatsAction extends TransportAction<
             processorStatList.put(pipelineId, processorStats);
         });
 
-        return new IngestStats(totalStats.build(), pipelineStatList, processorStatList);
+        return new IngestStats(totalStats.build(), pipelineStatList, Map.of(ProjectId.DEFAULT, processorStatList));
     }
 
     private static class IngestStatsAccumulator {

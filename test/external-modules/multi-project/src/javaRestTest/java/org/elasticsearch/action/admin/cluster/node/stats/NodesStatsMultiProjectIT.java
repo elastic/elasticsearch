@@ -20,6 +20,7 @@ import org.elasticsearch.multiproject.MultiProjectRestTestCase;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.cluster.local.distribution.DistributionType;
 import org.elasticsearch.test.rest.ObjectPath;
+import org.junit.After;
 import org.junit.ClassRule;
 
 import java.io.IOException;
@@ -27,6 +28,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.stream.Stream;
 
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
@@ -58,12 +60,13 @@ public class NodesStatsMultiProjectIT extends MultiProjectRestTestCase {
         return Settings.builder().put(ThreadContext.PREFIX + ".Authorization", token).build();
     }
 
-    @Override
-    protected void deleteProject(String projectId) throws IOException {
-        for (String pipelineId : getPipelineIds(projectId)) {
-            client().performRequest(setRequestProjectId(new Request("DELETE", "/_ingest/pipeline/" + pipelineId), projectId));
+    @After
+    public void deletePipelines() throws IOException {
+        for (String projectId : listProjects()) {
+            for (String pipelineId : getPipelineIds(projectId)) {
+                client().performRequest(setRequestProjectId(new Request("DELETE", "/_ingest/pipeline/" + pipelineId), projectId));
+            }
         }
-        super.deleteProject(projectId);
     }
 
     private static Set<String> getPipelineIds(String projectId) throws IOException {
@@ -238,10 +241,7 @@ public class NodesStatsMultiProjectIT extends MultiProjectRestTestCase {
         );
         assertThat(ObjectPath.evaluate(processorStatsPipeline2Of2And3, "set.stats.count"), equalTo(numDocs2Of2And3));
         assertThat(ObjectPath.evaluate(processorStatsPipeline2Of2And3, "lowercase.stats.count"), equalTo(numDocs2Of2And3 / 2));
-        Map<String, Object> processorStatsPipeline3All = extractMergedProcessorStats(
-            pipelineStats,
-            "project-3/my-pipeline-all-projects"
-        );
+        Map<String, Object> processorStatsPipeline3All = extractMergedProcessorStats(pipelineStats, "project-3/my-pipeline-all-projects");
         assertThat(ObjectPath.evaluate(processorStatsPipeline3All, "set.stats.count"), equalTo(numDocs3All));
         assertThat(ObjectPath.evaluate(processorStatsPipeline3All, "lowercase.stats.count"), equalTo(numDocs3All / 2));
     }

@@ -17,7 +17,6 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.xcontent.ChunkedToXContent;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xcontent.ToXContent;
@@ -26,7 +25,6 @@ import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.Iterator;
@@ -35,10 +33,14 @@ import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
 
-public record IngestStats(Stats totalStats, List<PipelineStat> pipelineStats, Map<String, List<ProcessorStat>> processorStats)
-    implements
-        Writeable,
-        ChunkedToXContent {
+import static java.util.Collections.unmodifiableList;
+import static java.util.Collections.unmodifiableMap;
+
+public record IngestStats(
+    Stats totalStats,
+    List<PipelineStat> pipelineStats,
+    Map<ProjectId, Map<String, List<ProcessorStat>>> processorStats
+) implements Writeable, ChunkedToXContent {
 
     private static final Comparator<PipelineStat> PIPELINE_STAT_COMPARATOR = Comparator.comparingLong(
         (PipelineStat p) -> p.stats.ingestTimeInMillis
@@ -71,7 +73,7 @@ public record IngestStats(Stats totalStats, List<PipelineStat> pipelineStats, Ma
             return IDENTITY;
         }
         var pipelineStats = new ArrayList<PipelineStat>(size);
-        var processorStats = Maps.<String, List<ProcessorStat>>newMapWithExpectedSize(size);
+        Map<ProjectId, Map<String, List<ProcessorStat>>> processorStats = new HashMap<>();
 
         for (var i = 0; i < size; i++) {
             ProjectId projectId = in.getTransportVersion().onOrAfter(TransportVersions.NODES_STATS_SUPPORTS_MULTI_PROJECT)
@@ -92,10 +94,10 @@ public record IngestStats(Stats totalStats, List<PipelineStat> pipelineStats, Ma
                 processorType = namesAndTypesCache.computeIfAbsent(processorType, Function.identity());
                 processorStatsPerPipeline.add(new ProcessorStat(processorName, processorType, processorStat));
             }
-            processorStats.put(pipelineId, Collections.unmodifiableList(processorStatsPerPipeline));
+            processorStats.computeIfAbsent(projectId, k -> new HashMap<>()).put(pipelineId, unmodifiableList(processorStatsPerPipeline));
         }
 
-        return new IngestStats(stats, pipelineStats, processorStats);
+        return new IngestStats(stats, pipelineStats, unmodifiableMap(processorStats));
     }
 
     @Override
@@ -111,7 +113,8 @@ public record IngestStats(Stats totalStats, List<PipelineStat> pipelineStats, Ma
             if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_15_0)) {
                 pipelineStat.byteStats().writeTo(out);
             }
-            List<ProcessorStat> processorStatsForPipeline = processorStats.get(pipelineStat.pipelineId());
+            List<ProcessorStat> processorStatsForPipeline = processorStats.getOrDefault(pipelineStat.projectId(), Map.of())
+                .get(pipelineStat.pipelineId());
             if (processorStatsForPipeline == null) {
                 out.writeVInt(0);
             } else {
@@ -153,7 +156,9 @@ public record IngestStats(Stats totalStats, List<PipelineStat> pipelineStats, Ma
                     }),
 
                     Iterators.map(
-                        processorStats.getOrDefault(pipelineStat.pipelineId(), List.of()).iterator(),
+                        processorStats.getOrDefault(pipelineStat.projectId(), Map.of())
+                            .getOrDefault(pipelineStat.pipelineId(), List.of())
+                            .iterator(),
                         processorStat -> (builder, params) -> {
                             builder.startObject();
                             builder.startObject(processorStat.name());
@@ -181,7 +186,17 @@ public record IngestStats(Stats totalStats, List<PipelineStat> pipelineStats, Ma
         );
     }
 
-    static Map<String, List<ProcessorStat>> merge(Map<String, List<ProcessorStat>> first, Map<String, List<ProcessorStat>> second) {
+    static Map<ProjectId, Map<String, List<ProcessorStat>>> merge(
+        Map<ProjectId, Map<String, List<ProcessorStat>>> first,
+        Map<ProjectId, Map<String, List<ProcessorStat>>> second
+    ) {
+        Map<ProjectId, Map<String, List<ProcessorStat>>> totals = new HashMap<>();
+        first.forEach((projectId, statsByPipeline) -> totals.merge(projectId, statsByPipeline, IngestStats::innerMerge));
+        second.forEach((projectId, statsByPipeline) -> totals.merge(projectId, statsByPipeline, IngestStats::innerMerge));
+        return totals;
+    }
+
+    static Map<String, List<ProcessorStat>> innerMerge(Map<String, List<ProcessorStat>> first, Map<String, List<ProcessorStat>> second) {
         var totalsPerPipelineProcessor = new HashMap<String, List<ProcessorStat>>();
 
         first.forEach((pipelineId, stats) -> totalsPerPipelineProcessor.merge(pipelineId, stats, ProcessorStat::merge));
@@ -274,7 +289,7 @@ public record IngestStats(Stats totalStats, List<PipelineStat> pipelineStats, Ma
         }
 
         IngestStats build() {
-            return new IngestStats(totalStats, Collections.unmodifiableList(pipelineStats), Collections.unmodifiableMap(processorStats));
+            return new IngestStats(totalStats, unmodifiableList(pipelineStats), unmodifiableMap(processorStats));
         }
     }
 

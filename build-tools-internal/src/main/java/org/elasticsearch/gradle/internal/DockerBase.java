@@ -24,16 +24,21 @@ public enum DockerBase {
     // Chainguard based wolfi image with latest jdk
     // This is usually updated via renovatebot
     // spotless:off
-    WOLFI("docker.elastic.co/wolfi/chainguard-base:latest@sha256:1c7f5aa0e7997455b8500d095c7a90e617102d3941eb0757ac62cfea509e09b9",
+    WOLFI(
+        "docker.elastic.co/wolfi/chainguard-base:latest@sha256:1c7f5aa0e7997455b8500d095c7a90e617102d3941eb0757ac62cfea509e09b9",
         "-wolfi",
         "apk"
     ),
-    FIPS("docker.elastic.co/wolfi/chainguard-base-fips:sha256-ebfc3f1d7dba992231747a2e05ad1b859843e81b5e676ad342859d7cf9e425a7", "-fips", "apk"),
     // spotless:on
 
     // Based on WOLFI above, with more extras. We don't set a base image because
     // we programmatically extend from the wolfi image.
-    CLOUD_ESS(null, "-cloud-ess", "apk");
+    CLOUD_ESS(null, "-cloud-ess", "apk"),
+    CLOUD_ESS_FIPS(
+        "docker.elastic.co/wolfi/chainguard-base-fips:sha256-ebfc3f1d7dba992231747a2e05ad1b859843e81b5e676ad342859d7cf9e425a7",
+        "-cloud-ess-fips",
+        "apk"
+    ),
 
     private final String image;
     private final String suffix;

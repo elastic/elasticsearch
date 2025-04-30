@@ -43,13 +43,13 @@ RUN chmod 0555 /bin/tini
 # Install required packages to extract the Elasticsearch distribution
 <% if (docker_base == 'default') { %>
 RUN <%= retry.loop(package_manager, "${package_manager} update && DEBIAN_FRONTEND=noninteractive ${package_manager} install -y curl ") %>
-<% } else if (docker_base == "wolfi" || docker_base == "fips") { %>
+<% } else if (docker_base == "wolfi" || docker_base == 'cloud_ess_fips') { %>
 RUN <%= retry.loop(package_manager, "export DEBIAN_FRONTEND=noninteractive && ${package_manager} update && ${package_manager} update && ${package_manager} add --no-cache curl") %>
 <% } else { %>
 RUN <%= retry.loop(package_manager, "${package_manager} install -y findutils tar gzip") %>
 <% } %>
 
-<% if (docker_base != 'wolfi' && docker_base != 'fips' ) { %>
+<% if (docker_base != 'wolfi' && docker_base != 'cloud_ess_fips' ) { %>
     # `tini` is a tiny but valid init for containers. This is used to cleanly
     # control how ES and any child processes are shut down.
     # For wolfi we pick it from the blessed wolfi package registry.
@@ -117,7 +117,7 @@ RUN sed -i -e 's/ES_DISTRIBUTION_TYPE=tar/ES_DISTRIBUTION_TYPE=docker/' bin/elas
     chmod 0775 bin config config/jvm.options.d data logs plugins && \\
     find config -type f -exec chmod 0664 {} +
 
-<% if (docker_base == "fips") { %>
+<% if (docker_base == 'cloud_ess_fips') { %>
 # Add plugins infrastructure
 RUN mkdir -p /opt/plugins/archive
 RUN chmod -R 0555 /opt/plugins
@@ -178,7 +178,7 @@ RUN ${package_manager} update --setopt=tsflags=nodocs -y && \\
       nc shadow-utils zip findutils unzip procps-ng && \\
     ${package_manager} clean all
 
-<% } else if (docker_base == "wolfi" || docker_base == "fips") { %>
+<% } else if (docker_base == "wolfi" || docker_base == 'cloud_ess_fips') { %>
 RUN <%= retry.loop(package_manager,
           "export DEBIAN_FRONTEND=noninteractive && \n" +
           "      ${package_manager} update && \n" +
@@ -227,7 +227,7 @@ RUN groupadd -g 1000 elasticsearch && \\
     adduser --uid 1000 --gid 1000 --home /usr/share/elasticsearch elasticsearch && \\
     adduser elasticsearch root && \\
     chown -R 0:0 /usr/share/elasticsearch
-<% } else if (docker_base == "wolfi" || docker_base == "fips") { %>
+<% } else if (docker_base == "wolfi" || docker_base == 'cloud_ess_fips') { %>
 RUN groupadd -g 1000 elasticsearch && \
     adduser -G elasticsearch -u 1000 elasticsearch -D --home /usr/share/elasticsearch elasticsearch && \
     adduser elasticsearch root && \
@@ -243,7 +243,7 @@ ENV ELASTIC_CONTAINER true
 WORKDIR /usr/share/elasticsearch
 
 COPY --from=builder --chown=0:0 /usr/share/elasticsearch /usr/share/elasticsearch
-<% if (docker_base != "wolfi" && docker_base != "fips") { %>
+<% if (docker_base != "wolfi" && docker_base != 'cloud_ess_fips') { %>
 COPY --from=builder --chown=0:0 /bin/tini /bin/tini
 <% } %>
 
@@ -277,7 +277,7 @@ RUN chmod g=u /etc/passwd && \\
 # stays up-to-date with changes to Ubuntu's store)
 COPY bin/docker-openjdk /etc/ca-certificates/update.d/docker-openjdk
 RUN /etc/ca-certificates/update.d/docker-openjdk
-<% } else if (docker_base == 'wolfi' || docker_base == "fips") { %>
+<% } else if (docker_base == 'wolfi' || docker_base == 'cloud_ess_fips') { %>
 RUN ln -sf /etc/ssl/certs/java/cacerts /usr/share/elasticsearch/jdk/lib/security/cacerts
 <% } else { %>
 RUN ln -sf /etc/pki/ca-trust/extracted/java/cacerts /usr/share/elasticsearch/jdk/lib/security/cacerts
@@ -324,7 +324,7 @@ RUN mkdir /licenses && cp LICENSE.txt /licenses/LICENSE
 COPY LICENSE /licenses/LICENSE.addendum
 <% } %>
 
-<% if (docker_base == "wolfi" || docker_base == "fips") { %>
+<% if (docker_base == "wolfi" || docker_base == 'cloud_ess_fips') { %>
 # Our actual entrypoint is `tini`, a minimal but functional init program. It
 # calls the entrypoint we provide, while correctly forwarding signals.
 ENTRYPOINT ["/sbin/tini", "--", "/usr/local/bin/docker-entrypoint.sh"]
@@ -344,7 +344,7 @@ USER 1000:0
 HEALTHCHECK --interval=10s --timeout=5s --start-period=1m --retries=5 CMD curl -I -f --max-time 5 http://localhost:9200 || exit 1
 <% } %>
 
-<% if (docker_base == 'fips') { %>
+<% if (docker_base == 'cloud_ess_fips') { %>
 COPY --from=builder --chown=0:0 /opt /opt
 ENV ES_PLUGIN_ARCHIVE_DIR /opt/plugins/archive
 WORKDIR /usr/share/elasticsearch

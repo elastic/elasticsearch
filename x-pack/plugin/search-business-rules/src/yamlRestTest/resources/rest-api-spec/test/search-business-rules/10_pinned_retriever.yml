@@ -5,6 +5,9 @@ setup:
   - do:
       indices.create:
         index: test-index1
+  - do:
+      indices.create:
+        index: test-index2
 
   - do:
       bulk:
@@ -26,6 +29,17 @@ setup:
           - index:
               _id: doc5
           - { "text": "document five" }
+  - do:
+      bulk:
+        refresh: true
+        index: test-index2
+        body:
+          - index:
+              _id: idx2-docA
+          - { "text": "index two document A" }
+          - index:
+              _id: idx2-docB
+          - { "text": "index two document B" }
 
 ---
 "pinned retriever parameter variations":
@@ -442,7 +456,56 @@ setup:
   - match: { hits.hits.2._score < 100.0 }
   - match: { hits.hits.3._id: doc4 }
   - match: { hits.hits.4._id: doc5 }
-  
-  
- 
 
+---
+"pinned retriever multi-index vs single-index filtering":
+  - skip: { features: headers }
+
+  - do:
+      headers: { Content-Type: application/json }
+      search:
+        index: test-index1,test-index2
+        body:
+          retriever:
+            pinned:
+              ids: ["doc1", "idx2-docA"]
+              retriever:
+                standard:
+                  query:
+                    match: { text: "document" }
+
+  - match: { hits.total.value: 7 }
+  - length: { hits.hits: 7 }
+  - match: { hits.hits.0._id: doc1 }
+  - match: { hits.hits.1._id: idx2-docA }
+  - match: { hits.hits.2._id: idx2-docB }
+  - match: { hits.hits.3._id: doc2 }
+  - match: { hits.hits.4._id: doc3 }
+  - match: { hits.hits.5._id: doc4 }
+  - match: { hits.hits.6._id: doc5 }
+
+  - do:
+      headers: { Content-Type: application/json }
+      search:
+        index: test-index1
+        body:
+          retriever:
+            pinned:
+              ids: ["doc1", "idx2-docA"]
+              retriever:
+                standard:
+                  query:
+                    match: { text: "document" }
+
+  - match: { hits.total.value: 5 }
+  - length: { hits.hits: 5 } 
+  - match: { hits.hits.0._id: doc1 }
+  - match: { hits.hits.0._score: 1.7014124E38 }
+  - match: { hits.hits.1._id: doc2 }          
+  - match: { hits.hits.2._id: doc3 }
+  - match: { hits.hits.3._id: doc4 }
+  - match: { hits.hits.4._id: doc5 }
+
+
+
+  

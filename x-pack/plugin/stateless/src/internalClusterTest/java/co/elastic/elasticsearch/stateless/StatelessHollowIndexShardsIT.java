@@ -60,7 +60,6 @@ import org.elasticsearch.cluster.metadata.DataStreamFailureStore;
 import org.elasticsearch.cluster.metadata.DataStreamLifecycle;
 import org.elasticsearch.cluster.metadata.DataStreamOptions;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.cluster.metadata.ResettableValue;
 import org.elasticsearch.cluster.metadata.Template;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.routing.allocation.command.MoveAllocationCommand;
@@ -1943,9 +1942,7 @@ public class StatelessHollowIndexShardsIT extends AbstractStatelessIntegTestCase
                     Template.builder()
                         .dataStreamOptions(
                             failureStore
-                                ? new DataStreamOptions.Template(
-                                    ResettableValue.create(new DataStreamFailureStore.Template(ResettableValue.create(true)))
-                                )
+                                ? new DataStreamOptions.Template(DataStreamFailureStore.builder().enabled(true).buildTemplate())
                                 : null
                         )
                         .lifecycle(DataStreamLifecycle.dataLifecycleBuilder().dataRetention(TimeValue.timeValueDays(1)))

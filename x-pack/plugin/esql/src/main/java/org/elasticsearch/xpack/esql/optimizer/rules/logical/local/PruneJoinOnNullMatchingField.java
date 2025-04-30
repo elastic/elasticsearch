@@ -24,6 +24,8 @@ import java.util.ArrayList;
 import java.util.List;
 
 import static org.elasticsearch.xpack.esql.core.expression.Expressions.isGuaranteedNull;
+import static org.elasticsearch.xpack.esql.plan.logical.join.JoinTypes.INNER;
+import static org.elasticsearch.xpack.esql.plan.logical.join.JoinTypes.LEFT;
 
 /**
  * The rule matches a plan pattern having a Join on top of a Project and/or Eval. It then checks if the join's performed on a field which
@@ -36,6 +38,10 @@ public class PruneJoinOnNullMatchingField extends OptimizerRules.OptimizerRule<J
 
     @Override
     protected LogicalPlan rule(Join join) {
+        var joinType = join.config().type();
+        if ((joinType == INNER || joinType == LEFT) == false) { // other types will have different replacement logic
+            return join;
+        }
         AttributeMap.Builder<Expression> attributeMapBuilder = AttributeMap.builder();
         loop: for (var child = join.left();; child = ((UnaryPlan) child).child()) { // cast is safe as both Project and Eval are UnaryPlans
             switch (child) {

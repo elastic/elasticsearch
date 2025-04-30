@@ -1,0 +1,113 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
+ */
+
+package org.elasticsearch.xpack.esql.expression.function.fulltext;
+
+import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.operator.DriverContext;
+import org.elasticsearch.compute.operator.EvalOperator;
+import org.elasticsearch.compute.operator.ScoreOperator;
+import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.function.Function;
+import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
+import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
+import org.elasticsearch.xpack.esql.expression.function.Example;
+import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
+import org.elasticsearch.xpack.esql.expression.function.Param;
+import org.elasticsearch.xpack.esql.score.ScoreMapper;
+
+import java.io.IOException;
+import java.util.List;
+
+public class ChickenScore  extends Function implements EvaluatorMapper {
+
+
+    @FunctionInfo(
+        returnType = "double",
+        preview = true,
+        description = "Scores a full text function. Returns scores for all the matching docs.",
+        examples = { @Example(file = "chickenscore-function", tag = "chickenscore-with-field") }
+    )
+    public ChickenScore(
+        Source source,
+        @Param(
+            name = "query",
+            type = { "keyword", "text" },
+            description = "full text function."
+        ) Expression scorableQuery
+    ) {
+        this(source, List.of(scorableQuery));
+    }
+
+    protected ChickenScore(Source source, List<Expression> children) {
+        super(source, children);
+    }
+
+    @Override
+    public DataType dataType() {
+        return DataType.DOUBLE;
+    }
+
+    @Override
+    public Expression replaceChildren(List<Expression> newChildren) {
+        return new ChickenScore(source(), newChildren);
+    }
+
+    @Override
+    protected NodeInfo<? extends Expression> info() {
+        return NodeInfo.create(this, ChickenScore::new, children());
+    }
+
+    @Override
+    public String getWriteableName() {
+        return "chicken_score";
+    }
+
+    @Override
+    public EvalOperator.ExpressionEvaluator.Factory toEvaluator(EvaluatorMapper.ToEvaluator toEvaluator) {
+
+        ScoreOperator.ExpressionScorer.Factory scorerFactory = ScoreMapper.toScorer(children().getFirst(), toEvaluator.shardContexts());
+
+        return new EvalOperator.ExpressionEvaluator.Factory() {
+            @Override
+            public EvalOperator.ExpressionEvaluator get(DriverContext driverContext) {
+                return new ChickenScorerEvaluatorFactory(scorerFactory).get(driverContext);
+            }
+        };
+
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+
+    }
+
+    private record ChickenScorerEvaluatorFactory(ScoreOperator.ExpressionScorer.Factory scoreFactory)
+        implements EvalOperator.ExpressionEvaluator.Factory {
+
+        @Override
+        public EvalOperator.ExpressionEvaluator get(DriverContext context) {
+            return new EvalOperator.ExpressionEvaluator() {
+
+                @Override
+                public void close() {
+
+                }
+
+                @Override
+                public Block eval(Page page) {
+                    ScoreOperator.ExpressionScorer scorer = scoreFactory.get(context);
+                    return scorer.score(page);
+                }
+            };
+        }
+    }
+}

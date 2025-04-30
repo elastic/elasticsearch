@@ -536,6 +536,12 @@ public class ComputeService {
                 new EsPhysicalOperationProviders.DefaultShardContext(i, searchExecutionContext, searchContext.request().getAliasFilter())
             );
         }
+        EsPhysicalOperationProviders physicalOperationProviders = new EsPhysicalOperationProviders(
+            context.foldCtx(),
+            contexts,
+            searchService.getIndicesService().getAnalysis(),
+            defaultDataPartitioning
+        );
         final List<Driver> drivers;
         try {
             LocalExecutionPlanner planner = new LocalExecutionPlanner(
@@ -551,12 +557,7 @@ public class ComputeService {
                 enrichLookupService,
                 lookupFromIndexService,
                 inferenceRunner,
-                new EsPhysicalOperationProviders(
-                    context.foldCtx(),
-                    contexts,
-                    searchService.getIndicesService().getAnalysis(),
-                    defaultDataPartitioning
-                ),
+                physicalOperationProviders,
                 contexts
             );
 

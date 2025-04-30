@@ -494,7 +494,7 @@ public class SearchableSnapshotDirectory extends BaseDirectory {
                 }
                 recoveryState.getIndex().addFileDetail(file.physicalName(), file.length(), false);
                 try {
-                    final IndexInput input = openInput(file.physicalName(), CachedBlobContainerIndexInput.CACHE_WARMING_CONTEXT);
+                    final IndexInput input = openInput(file.physicalName(), IOContext.DEFAULT);
                     assert input instanceof CachedBlobContainerIndexInput : "expected cached index input but got " + input.getClass();
                     CachedBlobContainerIndexInput cachedIndexInput = (CachedBlobContainerIndexInput) input;
 

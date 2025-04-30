@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.searchablesnapshots.store.input;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.store.IOContext;
-import org.apache.lucene.store.ReadAdvice;
 import org.elasticsearch.blobcache.BlobCacheUtils;
 import org.elasticsearch.blobcache.common.ByteRange;
 import org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshot.FileInfo;
@@ -30,13 +29,6 @@ import static org.elasticsearch.blobcache.BlobCacheUtils.readSafe;
 import static org.elasticsearch.blobcache.BlobCacheUtils.toIntBytes;
 
 public class CachedBlobContainerIndexInput extends MetadataCachingIndexInput {
-
-    /**
-     * Specific IOContext used for prewarming the cache. This context allows to write
-     * a complete part of the {@link #fileInfo} at once in the cache and should not be
-     * used for anything else than what the {@link #prefetchPart(int, Supplier)} method does.
-     */
-    public static final IOContext CACHE_WARMING_CONTEXT = new IOContext(IOContext.Context.DEFAULT, null, null, ReadAdvice.NORMAL);
 
     private static final Logger logger = LogManager.getLogger(CachedBlobContainerIndexInput.class);
 
@@ -102,7 +94,6 @@ public class CachedBlobContainerIndexInput extends MetadataCachingIndexInput {
 
     @Override
     protected void readWithoutBlobCache(ByteBuffer b) throws Exception {
-        ensureContext(ctx -> ctx != CACHE_WARMING_CONTEXT);
         final long position = getAbsolutePosition();
         final int length = b.remaining();
 
@@ -139,7 +130,6 @@ public class CachedBlobContainerIndexInput extends MetadataCachingIndexInput {
      * or {@code -1} if the prewarming was cancelled
      */
     public long prefetchPart(final int part, Supplier<Boolean> isCancelled) throws IOException {
-        ensureContext(ctx -> ctx == CACHE_WARMING_CONTEXT);
         if (part >= fileInfo.numberOfParts()) {
             throw new IllegalArgumentException("Unexpected part number [" + part + "]");
         }

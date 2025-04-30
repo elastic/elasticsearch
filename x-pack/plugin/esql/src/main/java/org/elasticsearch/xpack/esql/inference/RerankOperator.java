@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.esql.inference;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.compute.data.Block;
-import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.Page;
@@ -19,8 +18,11 @@ import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
 import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.inference.TaskType;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
 import org.elasticsearch.xpack.core.inference.results.RankedDocsResults;
+import org.elasticsearch.xpack.esql.inference.bulk.BulkInferenceOutputBuilder;
+import org.elasticsearch.xpack.esql.inference.bulk.BulkInferenceRequestIterator;
 
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -47,6 +49,7 @@ public class RerankOperator extends InferenceOperator<RankedDocsResults> {
             return new RerankOperator(
                 driverContext,
                 inferenceRunner,
+                inferenceRunner.threadPool(),
                 inferenceId,
                 queryText,
                 rowEncoderFactory().get(driverContext),
@@ -56,8 +59,6 @@ public class RerankOperator extends InferenceOperator<RankedDocsResults> {
     }
 
     private static final int DEFAULT_BATCH_SIZE = 20;
-
-    private final BlockFactory blockFactory;
     private final String queryText;
     private final ExpressionEvaluator rowEncoder;
     private final int scoreChannel;
@@ -68,14 +69,13 @@ public class RerankOperator extends InferenceOperator<RankedDocsResults> {
     public RerankOperator(
         DriverContext driverContext,
         InferenceRunner inferenceRunner,
+        ThreadPool threadPool,
         String inferenceId,
         String queryText,
         ExpressionEvaluator rowEncoder,
         int scoreChannel
     ) {
-        super(driverContext, inferenceRunner, inferenceId);
-
-        this.blockFactory = driverContext.blockFactory();
+        super(driverContext, inferenceRunner, threadPool, inferenceId);
         this.queryText = queryText;
         this.rowEncoder = rowEncoder;
         this.scoreChannel = scoreChannel;
@@ -92,8 +92,8 @@ public class RerankOperator extends InferenceOperator<RankedDocsResults> {
     }
 
     @Override
-    protected RequestIterator requests(Page inputPage) {
-        return new RequestIterator() {
+    protected BulkInferenceRequestIterator requests(Page inputPage) {
+        return new BulkInferenceRequestIterator() {
             private final BytesRefBlock inputBlock = (BytesRefBlock) rowEncoder.eval(inputPage);
             private int remainingPositions = inputPage.getPositionCount();
 
@@ -136,9 +136,9 @@ public class RerankOperator extends InferenceOperator<RankedDocsResults> {
     }
 
     @Override
-    protected OutputBuilder<RankedDocsResults> outputBuilder(Page inputPage) {
-        return new InferenceOperator.OutputBuilder<>() {
-            private final DoubleBlock.Builder scoreBlockBuilder = blockFactory.newDoubleBlockBuilder(inputPage.getPositionCount());
+    protected BulkInferenceOutputBuilder<RankedDocsResults, Page> outputBuilder(Page inputPage) {
+        return new BulkInferenceOutputBuilder<>() {
+            private final DoubleBlock.Builder scoreBlockBuilder = blockFactory().newDoubleBlockBuilder(inputPage.getPositionCount());
 
             @Override
             protected Class<RankedDocsResults> inferenceResultsClass() {

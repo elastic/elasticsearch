@@ -165,8 +165,8 @@ public abstract class BlockLoaderTestCase extends MapperServiceTestCase {
         var document = documentGenerator.generate(template, mapping);
         var documentXContent = XContentBuilder.builder(XContentType.JSON.xContent()).map(document);
 
-        Object blockLoaderResult = setupAndInvokeBlockLoader(mapperService, documentXContent, fieldName);
         Object expected = expected(mapping.lookup().get(fieldName), getFieldValue(document, fieldName), testContext);
+        Object blockLoaderResult = setupAndInvokeBlockLoader(mapperService, documentXContent, blockLoaderFieldName(fieldName));
         assertEquals(expected, blockLoaderResult);
     }
 
@@ -213,6 +213,14 @@ public abstract class BlockLoaderTestCase extends MapperServiceTestCase {
         }
 
         return list;
+    }
+
+    /**
+        Allows to change the field name used to obtain a block loader.
+        Useful f.e. to test block loaders of multi fields.
+     */
+    protected String blockLoaderFieldName(String originalName) {
+        return originalName;
     }
 
     private Object setupAndInvokeBlockLoader(MapperService mapperService, XContentBuilder document, String fieldName) throws IOException {

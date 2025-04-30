@@ -185,6 +185,17 @@ public class SemanticTextFieldTests extends AbstractXContentTestCase<SemanticTex
         assertThat(ex.getMessage(), containsString("required [element_type] field is missing"));
     }
 
+    public static ChunkedInferenceEmbedding randomChunkedInferenceEmbedding(Model model, List<String> inputs) {
+        return switch (model.getTaskType()) {
+            case SPARSE_EMBEDDING -> randomChunkedInferenceEmbeddingSparse(inputs);
+            case TEXT_EMBEDDING -> switch (model.getServiceSettings().elementType()) {
+                case FLOAT -> randomChunkedInferenceEmbeddingFloat(model, inputs);
+                case BIT, BYTE -> randomChunkedInferenceEmbeddingByte(model, inputs);
+            };
+            default -> throw new AssertionError("invalid task type: " + model.getTaskType().name());
+        };
+    }
+
     public static ChunkedInferenceEmbedding randomChunkedInferenceEmbeddingByte(Model model, List<String> inputs) {
         DenseVectorFieldMapper.ElementType elementType = model.getServiceSettings().elementType();
         int embeddingLength = DenseVectorFieldMapperTestUtils.getEmbeddingLength(elementType, model.getServiceSettings().dimensions());

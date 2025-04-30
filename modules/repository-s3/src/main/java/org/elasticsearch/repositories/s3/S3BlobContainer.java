@@ -582,7 +582,7 @@ class S3BlobContainer extends AbstractBlobContainer {
                 SocketAccess.doPrivilegedVoid(() -> clientReference.client().completeMultipartUpload(completeMultipartUploadRequest));
             }
             cleanupOnFailureActions.clear();
-        } catch (final Exception e) {
+        } catch (final SdkException e) {
             if (e instanceof SdkServiceException sse && sse.statusCode() == RestStatus.NOT_FOUND.getStatus()) {
                 throw new NoSuchFileException(blobName, null, e.getMessage());
             }

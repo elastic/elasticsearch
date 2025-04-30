@@ -544,11 +544,7 @@ public final class CsvTestUtils {
         private final boolean sortMultiValues;
 
         Type(Function<String, Object> converter, Class<?> clazz) {
-            this(
-                converter,
-                clazz,
-                true
-            );
+            this(converter, clazz, true);
         }
 
         @SuppressWarnings("unchecked")

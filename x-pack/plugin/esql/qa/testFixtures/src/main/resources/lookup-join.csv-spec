@@ -1650,3 +1650,22 @@ event_duration:long
 2764889
 3450233
 ;
+
+nullifiedJoinKeyToPurgeTheJoin
+required_capability: join_lookup_v12
+
+FROM employees
+| RENAME languages AS language_code
+| SORT language_code
+| LIMIT 4
+| EVAL language_code = TO_INTEGER(NULL)
+| LOOKUP JOIN languages_lookup ON language_code
+| KEEP emp_no, language_code, language_name
+;
+
+emp_no:integer | language_code:integer | language_name:keyword
+10009          |null           |null
+10013          |null           |null
+10019          |null           |null
+10005          |null           |null
+;

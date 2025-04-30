@@ -15,8 +15,11 @@ import org.elasticsearch.compute.data.DoubleVector;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.FloatBlock;
 import org.elasticsearch.compute.data.FloatVector;
+import org.elasticsearch.compute.data.IntArrayBlock;
+import org.elasticsearch.compute.data.IntBigArrayBlock;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.IntVector;
+import org.elasticsearch.compute.data.IntVectorBlock;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.LongVector;
 import org.elasticsearch.compute.data.Page;
@@ -81,6 +84,21 @@ public final class RateFloatGroupingAggregatorFunction implements GroupingAggreg
         }
 
         @Override
+        public void add(int positionOffset, IntArrayBlock groupIds) {
+          addRawInput(positionOffset, groupIds, valuesBlock, timestampsVector);
+        }
+
+        @Override
+        public void add(int positionOffset, IntVectorBlock groupIds) {
+          addRawInput(positionOffset, groupIds, valuesBlock, timestampsVector);
+        }
+
+        @Override
+        public void add(int positionOffset, IntBigArrayBlock groupIds) {
+          addRawInput(positionOffset, groupIds, valuesBlock, timestampsVector);
+        }
+
+        @Override
         public void add(int positionOffset, IntVector groupIds) {
           addRawInput(positionOffset, groupIds, valuesBlock, timestampsVector);
         }
@@ -97,6 +115,21 @@ public final class RateFloatGroupingAggregatorFunction implements GroupingAggreg
       }
 
       @Override
+      public void add(int positionOffset, IntArrayBlock groupIds) {
+        addRawInput(positionOffset, groupIds, valuesVector, timestampsVector);
+      }
+
+      @Override
+      public void add(int positionOffset, IntVectorBlock groupIds) {
+        addRawInput(positionOffset, groupIds, valuesVector, timestampsVector);
+      }
+
+      @Override
+      public void add(int positionOffset, IntBigArrayBlock groupIds) {
+        addRawInput(positionOffset, groupIds, valuesVector, timestampsVector);
+      }
+
+      @Override
       public void add(int positionOffset, IntVector groupIds) {
         addRawInput(positionOffset, groupIds, valuesVector, timestampsVector);
       }
@@ -105,30 +138,6 @@ public final class RateFloatGroupingAggregatorFunction implements GroupingAggreg
       public void close() {
       }
     };
-  }
-
-  private void addRawInput(int positionOffset, IntVector groups, FloatBlock values,
-      LongVector timestamps) {
-    for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
-      int groupId = groups.getInt(groupPosition);
-      if (values.isNull(groupPosition + positionOffset)) {
-        continue;
-      }
-      int valuesStart = values.getFirstValueIndex(groupPosition + positionOffset);
-      int valuesEnd = valuesStart + values.getValueCount(groupPosition + positionOffset);
-      for (int v = valuesStart; v < valuesEnd; v++) {
-        RateFloatAggregator.combine(state, groupId, timestamps.getLong(v), values.getFloat(v));
-      }
-    }
-  }
-
-  private void addRawInput(int positionOffset, IntVector groups, FloatVector values,
-      LongVector timestamps) {
-    for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
-      int groupId = groups.getInt(groupPosition);
-      var valuePosition = groupPosition + positionOffset;
-      RateFloatAggregator.combine(state, groupId, timestamps.getLong(valuePosition), values.getFloat(valuePosition));
-    }
   }
 
   private void addRawInput(int positionOffset, IntBlock groups, FloatBlock values,
@@ -166,6 +175,144 @@ public final class RateFloatGroupingAggregatorFunction implements GroupingAggreg
         var valuePosition = groupPosition + positionOffset;
         RateFloatAggregator.combine(state, groupId, timestamps.getLong(valuePosition), values.getFloat(valuePosition));
       }
+    }
+  }
+
+  private void addRawInput(int positionOffset, IntArrayBlock groups, FloatBlock values,
+      LongVector timestamps) {
+    for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
+      if (groups.isNull(groupPosition)) {
+        continue;
+      }
+      int groupStart = groups.getFirstValueIndex(groupPosition);
+      int groupEnd = groupStart + groups.getValueCount(groupPosition);
+      for (int g = groupStart; g < groupEnd; g++) {
+        int groupId = groups.getInt(g);
+        if (values.isNull(groupPosition + positionOffset)) {
+          continue;
+        }
+        int valuesStart = values.getFirstValueIndex(groupPosition + positionOffset);
+        int valuesEnd = valuesStart + values.getValueCount(groupPosition + positionOffset);
+        for (int v = valuesStart; v < valuesEnd; v++) {
+          RateFloatAggregator.combine(state, groupId, timestamps.getLong(v), values.getFloat(v));
+        }
+      }
+    }
+  }
+
+  private void addRawInput(int positionOffset, IntArrayBlock groups, FloatVector values,
+      LongVector timestamps) {
+    for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
+      if (groups.isNull(groupPosition)) {
+        continue;
+      }
+      int groupStart = groups.getFirstValueIndex(groupPosition);
+      int groupEnd = groupStart + groups.getValueCount(groupPosition);
+      for (int g = groupStart; g < groupEnd; g++) {
+        int groupId = groups.getInt(g);
+        var valuePosition = groupPosition + positionOffset;
+        RateFloatAggregator.combine(state, groupId, timestamps.getLong(valuePosition), values.getFloat(valuePosition));
+      }
+    }
+  }
+
+  private void addRawInput(int positionOffset, IntVectorBlock groups, FloatBlock values,
+      LongVector timestamps) {
+    for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
+      if (groups.isNull(groupPosition)) {
+        continue;
+      }
+      int groupStart = groups.getFirstValueIndex(groupPosition);
+      int groupEnd = groupStart + groups.getValueCount(groupPosition);
+      for (int g = groupStart; g < groupEnd; g++) {
+        int groupId = groups.getInt(g);
+        if (values.isNull(groupPosition + positionOffset)) {
+          continue;
+        }
+        int valuesStart = values.getFirstValueIndex(groupPosition + positionOffset);
+        int valuesEnd = valuesStart + values.getValueCount(groupPosition + positionOffset);
+        for (int v = valuesStart; v < valuesEnd; v++) {
+          RateFloatAggregator.combine(state, groupId, timestamps.getLong(v), values.getFloat(v));
+        }
+      }
+    }
+  }
+
+  private void addRawInput(int positionOffset, IntVectorBlock groups, FloatVector values,
+      LongVector timestamps) {
+    for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
+      if (groups.isNull(groupPosition)) {
+        continue;
+      }
+      int groupStart = groups.getFirstValueIndex(groupPosition);
+      int groupEnd = groupStart + groups.getValueCount(groupPosition);
+      for (int g = groupStart; g < groupEnd; g++) {
+        int groupId = groups.getInt(g);
+        var valuePosition = groupPosition + positionOffset;
+        RateFloatAggregator.combine(state, groupId, timestamps.getLong(valuePosition), values.getFloat(valuePosition));
+      }
+    }
+  }
+
+  private void addRawInput(int positionOffset, IntBigArrayBlock groups, FloatBlock values,
+      LongVector timestamps) {
+    for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
+      if (groups.isNull(groupPosition)) {
+        continue;
+      }
+      int groupStart = groups.getFirstValueIndex(groupPosition);
+      int groupEnd = groupStart + groups.getValueCount(groupPosition);
+      for (int g = groupStart; g < groupEnd; g++) {
+        int groupId = groups.getInt(g);
+        if (values.isNull(groupPosition + positionOffset)) {
+          continue;
+        }
+        int valuesStart = values.getFirstValueIndex(groupPosition + positionOffset);
+        int valuesEnd = valuesStart + values.getValueCount(groupPosition + positionOffset);
+        for (int v = valuesStart; v < valuesEnd; v++) {
+          RateFloatAggregator.combine(state, groupId, timestamps.getLong(v), values.getFloat(v));
+        }
+      }
+    }
+  }
+
+  private void addRawInput(int positionOffset, IntBigArrayBlock groups, FloatVector values,
+      LongVector timestamps) {
+    for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
+      if (groups.isNull(groupPosition)) {
+        continue;
+      }
+      int groupStart = groups.getFirstValueIndex(groupPosition);
+      int groupEnd = groupStart + groups.getValueCount(groupPosition);
+      for (int g = groupStart; g < groupEnd; g++) {
+        int groupId = groups.getInt(g);
+        var valuePosition = groupPosition + positionOffset;
+        RateFloatAggregator.combine(state, groupId, timestamps.getLong(valuePosition), values.getFloat(valuePosition));
+      }
+    }
+  }
+
+  private void addRawInput(int positionOffset, IntVector groups, FloatBlock values,
+      LongVector timestamps) {
+    for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
+      int groupId = groups.getInt(groupPosition);
+      if (values.isNull(groupPosition + positionOffset)) {
+        continue;
+      }
+      int valuesStart = values.getFirstValueIndex(groupPosition + positionOffset);
+      int valuesEnd = valuesStart + values.getValueCount(groupPosition + positionOffset);
+      for (int v = valuesStart; v < valuesEnd; v++) {
+        RateFloatAggregator.combine(state, groupId, timestamps.getLong(v), values.getFloat(v));
+      }
+    }
+  }
+
+  private void addRawInput(int positionOffset, IntVector groups, FloatVector values,
+      LongVector timestamps) {
+    for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
+      int groupId = groups.getInt(groupPosition);
+      var valuePosition = groupPosition + positionOffset;
+      RateFloatAggregator.combine(state, groupId, timestamps.getLong(valuePosition), values.getFloat(valuePosition));
     }
   }
 

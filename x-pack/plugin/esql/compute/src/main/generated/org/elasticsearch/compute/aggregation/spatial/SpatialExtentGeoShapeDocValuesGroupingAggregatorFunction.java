@@ -15,8 +15,11 @@ import org.elasticsearch.compute.aggregation.IntermediateStateDesc;
 import org.elasticsearch.compute.aggregation.SeenGroupIds;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.ElementType;
+import org.elasticsearch.compute.data.IntArrayBlock;
+import org.elasticsearch.compute.data.IntBigArrayBlock;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.IntVector;
+import org.elasticsearch.compute.data.IntVectorBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverContext;
 
@@ -76,6 +79,21 @@ public final class SpatialExtentGeoShapeDocValuesGroupingAggregatorFunction impl
         }
 
         @Override
+        public void add(int positionOffset, IntArrayBlock groupIds) {
+          addRawInput(positionOffset, groupIds, valuesBlock);
+        }
+
+        @Override
+        public void add(int positionOffset, IntVectorBlock groupIds) {
+          addRawInput(positionOffset, groupIds, valuesBlock);
+        }
+
+        @Override
+        public void add(int positionOffset, IntBigArrayBlock groupIds) {
+          addRawInput(positionOffset, groupIds, valuesBlock);
+        }
+
+        @Override
         public void add(int positionOffset, IntVector groupIds) {
           addRawInput(positionOffset, groupIds, valuesBlock);
         }
@@ -92,6 +110,21 @@ public final class SpatialExtentGeoShapeDocValuesGroupingAggregatorFunction impl
       }
 
       @Override
+      public void add(int positionOffset, IntArrayBlock groupIds) {
+        addRawInput(positionOffset, groupIds, valuesVector);
+      }
+
+      @Override
+      public void add(int positionOffset, IntVectorBlock groupIds) {
+        addRawInput(positionOffset, groupIds, valuesVector);
+      }
+
+      @Override
+      public void add(int positionOffset, IntBigArrayBlock groupIds) {
+        addRawInput(positionOffset, groupIds, valuesVector);
+      }
+
+      @Override
       public void add(int positionOffset, IntVector groupIds) {
         addRawInput(positionOffset, groupIds, valuesVector);
       }
@@ -100,26 +133,6 @@ public final class SpatialExtentGeoShapeDocValuesGroupingAggregatorFunction impl
       public void close() {
       }
     };
-  }
-
-  private void addRawInput(int positionOffset, IntVector groups, IntBlock values) {
-    for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
-      int groupId = groups.getInt(groupPosition);
-      if (values.isNull(groupPosition + positionOffset)) {
-        continue;
-      }
-      int valuesStart = values.getFirstValueIndex(groupPosition + positionOffset);
-      int valuesEnd = valuesStart + values.getValueCount(groupPosition + positionOffset);
-      int[] valuesArray = new int[valuesEnd - valuesStart];
-      for (int v = valuesStart; v < valuesEnd; v++) {
-        valuesArray[v-valuesStart] = values.getInt(v);
-      }
-      SpatialExtentGeoShapeDocValuesAggregator.combine(state, groupId, valuesArray);
-    }
-  }
-
-  private void addRawInput(int positionOffset, IntVector groups, IntVector values) {
-    // This type does not support vectors because all values are multi-valued
   }
 
   private void addRawInput(int positionOffset, IntBlock groups, IntBlock values) {
@@ -146,6 +159,107 @@ public final class SpatialExtentGeoShapeDocValuesGroupingAggregatorFunction impl
   }
 
   private void addRawInput(int positionOffset, IntBlock groups, IntVector values) {
+    // This type does not support vectors because all values are multi-valued
+  }
+
+  private void addRawInput(int positionOffset, IntArrayBlock groups, IntBlock values) {
+    for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
+      if (groups.isNull(groupPosition)) {
+        continue;
+      }
+      int groupStart = groups.getFirstValueIndex(groupPosition);
+      int groupEnd = groupStart + groups.getValueCount(groupPosition);
+      for (int g = groupStart; g < groupEnd; g++) {
+        int groupId = groups.getInt(g);
+        if (values.isNull(groupPosition + positionOffset)) {
+          continue;
+        }
+        int valuesStart = values.getFirstValueIndex(groupPosition + positionOffset);
+        int valuesEnd = valuesStart + values.getValueCount(groupPosition + positionOffset);
+        int[] valuesArray = new int[valuesEnd - valuesStart];
+        for (int v = valuesStart; v < valuesEnd; v++) {
+          valuesArray[v-valuesStart] = values.getInt(v);
+        }
+        SpatialExtentGeoShapeDocValuesAggregator.combine(state, groupId, valuesArray);
+      }
+    }
+  }
+
+  private void addRawInput(int positionOffset, IntArrayBlock groups, IntVector values) {
+    // This type does not support vectors because all values are multi-valued
+  }
+
+  private void addRawInput(int positionOffset, IntVectorBlock groups, IntBlock values) {
+    for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
+      if (groups.isNull(groupPosition)) {
+        continue;
+      }
+      int groupStart = groups.getFirstValueIndex(groupPosition);
+      int groupEnd = groupStart + groups.getValueCount(groupPosition);
+      for (int g = groupStart; g < groupEnd; g++) {
+        int groupId = groups.getInt(g);
+        if (values.isNull(groupPosition + positionOffset)) {
+          continue;
+        }
+        int valuesStart = values.getFirstValueIndex(groupPosition + positionOffset);
+        int valuesEnd = valuesStart + values.getValueCount(groupPosition + positionOffset);
+        int[] valuesArray = new int[valuesEnd - valuesStart];
+        for (int v = valuesStart; v < valuesEnd; v++) {
+          valuesArray[v-valuesStart] = values.getInt(v);
+        }
+        SpatialExtentGeoShapeDocValuesAggregator.combine(state, groupId, valuesArray);
+      }
+    }
+  }
+
+  private void addRawInput(int positionOffset, IntVectorBlock groups, IntVector values) {
+    // This type does not support vectors because all values are multi-valued
+  }
+
+  private void addRawInput(int positionOffset, IntBigArrayBlock groups, IntBlock values) {
+    for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
+      if (groups.isNull(groupPosition)) {
+        continue;
+      }
+      int groupStart = groups.getFirstValueIndex(groupPosition);
+      int groupEnd = groupStart + groups.getValueCount(groupPosition);
+      for (int g = groupStart; g < groupEnd; g++) {
+        int groupId = groups.getInt(g);
+        if (values.isNull(groupPosition + positionOffset)) {
+          continue;
+        }
+        int valuesStart = values.getFirstValueIndex(groupPosition + positionOffset);
+        int valuesEnd = valuesStart + values.getValueCount(groupPosition + positionOffset);
+        int[] valuesArray = new int[valuesEnd - valuesStart];
+        for (int v = valuesStart; v < valuesEnd; v++) {
+          valuesArray[v-valuesStart] = values.getInt(v);
+        }
+        SpatialExtentGeoShapeDocValuesAggregator.combine(state, groupId, valuesArray);
+      }
+    }
+  }
+
+  private void addRawInput(int positionOffset, IntBigArrayBlock groups, IntVector values) {
+    // This type does not support vectors because all values are multi-valued
+  }
+
+  private void addRawInput(int positionOffset, IntVector groups, IntBlock values) {
+    for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
+      int groupId = groups.getInt(groupPosition);
+      if (values.isNull(groupPosition + positionOffset)) {
+        continue;
+      }
+      int valuesStart = values.getFirstValueIndex(groupPosition + positionOffset);
+      int valuesEnd = valuesStart + values.getValueCount(groupPosition + positionOffset);
+      int[] valuesArray = new int[valuesEnd - valuesStart];
+      for (int v = valuesStart; v < valuesEnd; v++) {
+        valuesArray[v-valuesStart] = values.getInt(v);
+      }
+      SpatialExtentGeoShapeDocValuesAggregator.combine(state, groupId, valuesArray);
+    }
+  }
+
+  private void addRawInput(int positionOffset, IntVector groups, IntVector values) {
     // This type does not support vectors because all values are multi-valued
   }
 

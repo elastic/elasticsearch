@@ -112,7 +112,6 @@ setup:
                 standard:
                   query:
                     match: { text: "document" }
-        explain: true
 
   - match: { hits.total.value: 5 }
   - match: { hits.hits.0._id: doc1 }
@@ -135,7 +134,6 @@ setup:
                 standard:
                   query:
                     match: { text: "document" }
-        explain: true
 
   - match: { hits.total.value: 5 }
   - match: { hits.hits.0._id: doc1 }

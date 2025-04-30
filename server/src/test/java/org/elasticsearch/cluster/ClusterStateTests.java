@@ -293,18 +293,6 @@ public class ClusterStateTests extends ESTestCase {
                     },
                     "projects": [
                       {
-                        "id": "tb5W0bx765nDVIwqJPw92G",
-                        "indices": {
-                          "common-index": {
-                            "9": {
-                              "retryable": false,
-                              "description": "index metadata (api)",
-                              "levels": [ "metadata_read", "metadata_write"]
-                            }
-                          }
-                        }
-                      },
-                      {
                         "id": "3LftaL7hgfXAsF60Gm6jcD",
                         "indices": {
                           "another-index": {
@@ -312,6 +300,18 @@ public class ClusterStateTests extends ESTestCase {
                               "retryable": false,
                               "description": "index read-only (api)",
                               "levels": [ "write", "metadata_write"]
+                            }
+                          }
+                        }
+                      },
+                      {
+                        "id": "tb5W0bx765nDVIwqJPw92G",
+                        "indices": {
+                          "common-index": {
+                            "9": {
+                              "retryable": false,
+                              "description": "index metadata (api)",
+                              "levels": [ "metadata_read", "metadata_write"]
                             }
                           }
                         }
@@ -468,40 +468,7 @@ public class ClusterStateTests extends ESTestCase {
                       "voting_config_exclusions": []
                     },
                     "projects": [
-                      {
-                        "id": "tb5W0bx765nDVIwqJPw92G",
-                        "templates": {},
-                        "indices": {
-                          "common-index": {
-                            "version": 2,
-                            "mapping_version": 1,
-                            "settings_version": 1,
-                            "aliases_version": 1,
-                            "routing_num_shards": 3,
-                            "state": "open",
-                            "settings": {
-                              "index": {
-                                "number_of_shards": "3",
-                                "number_of_replicas": "1",
-                                "uuid": "tE62Ga40yvlmOSujUvruVw",
-                                "version": { "created": "%s" }
-                              }
-                            },
-                            "mappings": {},
-                            "aliases": [],
-                            "primary_terms": { "0":0, "1":0, "2":0 },
-                            "in_sync_allocations": { "0":[], "1":[], "2":[] },
-                            "rollover_info": {},
-                            "mappings_updated_version": %s,
-                            "system": false,
-                            "timestamp_range": { "shards":[] },
-                            "event_ingested_range": { "shards": [] }
-                          }
-                        },
-                        "index-graveyard": { "tombstones": [] },
-                        "reserved_state": {}
-                      },
-                      {
+                    {
                         "id": "3LftaL7hgfXAsF60Gm6jcD",
                         "templates": {},
                         "indices": {
@@ -559,10 +526,43 @@ public class ClusterStateTests extends ESTestCase {
                         "index-graveyard": { "tombstones": [] },
                         "reserved_state": {}
                       },
-                      {
+                                            {
                         "id": "WHyuJ0uqBYOPgHX9kYUXlZ",
                         "templates": {},
                         "indices": {},
+                        "index-graveyard": { "tombstones": [] },
+                        "reserved_state": {}
+                      },
+                      {
+                        "id": "tb5W0bx765nDVIwqJPw92G",
+                        "templates": {},
+                        "indices": {
+                          "common-index": {
+                            "version": 2,
+                            "mapping_version": 1,
+                            "settings_version": 1,
+                            "aliases_version": 1,
+                            "routing_num_shards": 3,
+                            "state": "open",
+                            "settings": {
+                              "index": {
+                                "number_of_shards": "3",
+                                "number_of_replicas": "1",
+                                "uuid": "tE62Ga40yvlmOSujUvruVw",
+                                "version": { "created": "%s" }
+                              }
+                            },
+                            "mappings": {},
+                            "aliases": [],
+                            "primary_terms": { "0":0, "1":0, "2":0 },
+                            "in_sync_allocations": { "0":[], "1":[], "2":[] },
+                            "rollover_info": {},
+                            "mappings_updated_version": %s,
+                            "system": false,
+                            "timestamp_range": { "shards":[] },
+                            "event_ingested_range": { "shards": [] }
+                          }
+                        },
                         "index-graveyard": { "tombstones": [] },
                         "reserved_state": {}
                       }
@@ -812,13 +812,13 @@ public class ClusterStateTests extends ESTestCase {
             Version.CURRENT,
             IndexVersions.MINIMUM_COMPATIBLE,
             IndexVersion.current(),
-            // project:tb5W0bx765nDVIwqJPw92G index:common-index
-            IndexVersion.current(),
-            IndexVersion.current(),
             // project:3LftaL7hgfXAsF60Gm6jcD index:another-index
             IndexVersion.current(),
             IndexVersion.current(),
             // project:3LftaL7hgfXAsF60Gm6jcD index:common-index
+            IndexVersion.current(),
+            IndexVersion.current(),
+            // project:tb5W0bx765nDVIwqJPw92G index:common-index
             IndexVersion.current(),
             IndexVersion.current()
         );

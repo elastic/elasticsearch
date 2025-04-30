@@ -333,7 +333,7 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
                 );
             }
             if (indexOptions.get() != null) {
-                validateIndexOptions(indexOptions.get(), inferenceId.getValue(), modelSettings.get());
+                validateIndexOptions(indexOptions.get(), inferenceId.getValue(), resolvedModelSettings);
             }
             final String fullName = context.buildFullName(leafName());
 
@@ -392,8 +392,11 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
             if (indexOptions == null) {
                 return;
             }
+
             if (modelSettings == null) {
-                modelSettings = modelRegistry.getMinimalServiceSettings(inferenceId);
+                throw new IllegalArgumentException(
+                    "Model settings must be set to validate index options for inference ID [" + inferenceId + "]"
+                );
             }
 
             // Right now text_embedding is the only task_type supporting index_options

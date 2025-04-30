@@ -3171,6 +3171,19 @@ public class AnalyzerTests extends ESTestCase {
         }
 
         {
+            // Unnamed field.
+            try {
+                LogicalPlan plan = analyze("""
+                    FROM books METADATA _score
+                    | WHERE title:"food"
+                    | RERANK "food" ON title, SUBSTRING(description, 0, 100), yearRenamed=year WITH `reranking-inference-id`
+                    """, "mapping-books.json");
+            } catch (ParsingException ex) {
+                assertThat(ex.getMessage(), containsString("line 3:36: mismatched input '(' expecting {'=', ',', '.', 'with'}"));
+            }
+        }
+
+        {
             VerificationException ve = expectThrows(
                 VerificationException.class,
                 () -> analyze(

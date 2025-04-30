@@ -9,7 +9,6 @@ package org.elasticsearch.compute.aggregation;
 
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.ConstantNullBlock;
-import org.elasticsearch.compute.data.ConstantNullVector;
 import org.elasticsearch.compute.data.IntArrayBlock;
 import org.elasticsearch.compute.data.IntBigArrayBlock;
 import org.elasticsearch.compute.data.IntBlock;

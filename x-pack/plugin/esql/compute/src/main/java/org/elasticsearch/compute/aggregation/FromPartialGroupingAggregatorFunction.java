@@ -47,11 +47,13 @@ public class FromPartialGroupingAggregatorFunction implements GroupingAggregator
                 assert false : "Intermediate group id must not have nulls";
                 throw new IllegalStateException("Intermediate group id must not have nulls");
             }
+
             @Override
             public void add(int positionOffset, IntArrayBlock groupIds) {
                 assert false : "Intermediate group id must not have nulls";
                 throw new IllegalStateException("Intermediate group id must not have nulls");
             }
+
             @Override
             public void add(int positionOffset, IntBigArrayBlock groupIds) {
                 assert false : "Intermediate group id must not have nulls";

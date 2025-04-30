@@ -77,8 +77,7 @@ import static org.elasticsearch.compute.gen.Types.vectorType;
  * and break-point-able as possible.
  */
 public class GroupingAggregatorImplementer {
-    private static final List<ClassName> GROUP_IDS_CLASSES =
-        List.of(INT_ARRAY_BLOCK, INT_BIG_ARRAY_BLOCK, INT_VECTOR);
+    private static final List<ClassName> GROUP_IDS_CLASSES = List.of(INT_ARRAY_BLOCK, INT_BIG_ARRAY_BLOCK, INT_VECTOR);
 
     private final TypeElement declarationType;
     private final List<TypeMirror> warnExceptions;

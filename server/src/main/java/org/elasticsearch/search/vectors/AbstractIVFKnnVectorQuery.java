@@ -118,7 +118,7 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
         if (topK.scoreDocs.length == 0) {
             return new MatchNoDocsQuery();
         }
-        return createRewrittenQuery(reader, topK);
+        return new KnnScoreDocQuery(topK.scoreDocs, reader);
     }
 
     private TopDocs searchLeaf(LeafReaderContext ctx, Weight filterWeight, KnnCollectorManager knnCollectorManager) throws IOException {
@@ -195,11 +195,4 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
             return new TopKnnCollector(k, visitedLimit, new IVFKnnSearchStrategy(nprobe));
         }
     }
-
-    private Query createRewrittenQuery(IndexReader reader, TopDocs topK) {
-        int len = topK.scoreDocs.length;
-        assert len > 0;
-        return new KnnScoreDocQuery(topK.scoreDocs, reader);
-    }
-
 }

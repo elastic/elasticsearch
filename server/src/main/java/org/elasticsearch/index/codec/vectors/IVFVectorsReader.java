@@ -261,7 +261,7 @@ public abstract class IVFVectorsReader extends KnnVectorsReader {
         if (knnCollector.getSearchStrategy() instanceof IVFKnnSearchStrategy ivfSearchStrategy) {
             nProbe = ivfSearchStrategy.getNProbe();
         } else {
-            
+
         }
 
         FieldEntry entry = fields.get(fieldInfo.number);

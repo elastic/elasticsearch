@@ -7,9 +7,7 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-package org.elasticsearch.index.search.stats.multi;
-
-import org.elasticsearch.index.search.stats.SearchStats;
+package org.elasticsearch.index.search.stats;
 
 import java.util.ServiceLoader;
 import java.util.function.Supplier;

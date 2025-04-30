@@ -436,7 +436,7 @@ module org.elasticsearch.server {
     uses org.elasticsearch.plugins.internal.SettingsExtension;
     uses RestExtension;
     uses org.elasticsearch.action.admin.cluster.node.info.ComponentVersionNumber;
-    uses org.elasticsearch.index.search.stats.multi.ShardSearchLoadRateStats;
+    uses org.elasticsearch.index.search.stats.ShardSearchLoadRateStats;
 
     provides org.apache.lucene.codecs.PostingsFormat
         with
@@ -479,5 +479,4 @@ module org.elasticsearch.server {
     exports org.elasticsearch.plugins.internal.rewriter to org.elasticsearch.inference;
     exports org.elasticsearch.lucene.util.automaton;
     exports org.elasticsearch.index.codec.perfield;
-    exports org.elasticsearch.index.search.stats.multi;
 }

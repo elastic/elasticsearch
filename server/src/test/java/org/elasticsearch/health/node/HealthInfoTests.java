@@ -86,7 +86,7 @@ public class HealthInfoTests extends AbstractWireSerializingTestCase<HealthInfo>
     }
 
     private static FileSettingsHealthInfo mutateFileSettingsHealthInfo(FileSettingsHealthInfo original) {
-        long changeCount = randomValueOtherThan(original.changeCount(), ESTestCase::randomLong);
+        long changeCount = randomValueOtherThan(original.changeCount(), ESTestCase::randomNonNegativeLong);
         long failureStreak = randomLongBetween(0, changeCount);
         String mostRecentFailure;
         if (failureStreak == 0) {

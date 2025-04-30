@@ -197,7 +197,8 @@ public class ShapeFieldMapper extends AbstractShapeGeometryFieldMapper<Geometry>
                 return new CartesianBoundsBlockLoader(name());
             }
 
-            if (isSyntheticSource) {
+            // Multi fields don't have fallback synthetic source.
+            if (isSyntheticSource && blContext.parentField(name()) == null) {
                 return blockLoaderFromFallbackSyntheticSource(blContext);
             }
 

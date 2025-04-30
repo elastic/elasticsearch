@@ -56,7 +56,7 @@ public abstract class CopyRestTestsTask extends DefaultTask {
     private FileCollection coreConfig;
     private FileCollection xpackConfig;
     private FileCollection additionalConfig;
-    private SerializableCopyRestTestsTaskFunction<FileCollection, FileTree> coreConfigToFileTree = FileCollection::getAsFileTree;
+    private SerializableFunction<FileCollection, FileTree> coreConfigToFileTree = FileCollection::getAsFileTree;
     private SerializableFunction<FileCollection, FileTree> xpackConfigToFileTree = FileCollection::getAsFileTree;
     private SerializableFunction<FileCollection, FileTree> additionalConfigToFileTree = FileCollection::getAsFileTree;
 

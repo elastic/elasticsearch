@@ -108,6 +108,9 @@ public final class InferenceFieldMetadata implements SimpleDiffable<InferenceFie
         if (out.getTransportVersion().onOrAfter(SEMANTIC_TEXT_CHUNKING_CONFIG)) {
             out.writeGenericMap(chunkingSettings);
         }
+        if (out.getTransportVersion().onOrAfter(SEMANTIC_TEXT_INDEX_OPTIONS)) {
+            out.writeOptionalWriteable(indexOptions);
+        }
     }
 
     @Override

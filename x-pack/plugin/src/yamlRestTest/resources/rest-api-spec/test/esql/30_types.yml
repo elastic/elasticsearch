@@ -30,6 +30,26 @@ constant_keyword:
           - { "color": "red" }
 
   - do:
+      indices.create:
+        index:  test_2
+        body:
+          mappings:
+            properties:
+              kind:
+                type: constant_keyword
+                value: a different constant
+              color:
+                type: keyword
+
+  - do:
+      bulk:
+        index: test_2
+        refresh: true
+        body:
+          - { "index": { } }
+          - { "color": "blue" }
+
+  - do:
       allowed_warnings_regex:
         - "No limit defined, adding default limit of \\[.*\\]"
       esql.query:
@@ -53,6 +73,84 @@ constant_keyword:
   - match: {columns.0.type: integer}
   - length: {values: 1}
   - match: {values.0.0: 17}
+
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'from test | where kind == "wow such constant" | keep color, kind'
+  - match: {columns.0.name: color}
+  - match: {columns.0.type: keyword}
+  - match: { columns.1.name: kind }
+  - match: { columns.1.type: keyword }
+  - length: {values: 1}
+  - match: {values.0.0: red}
+  - match: {values.0.1: "wow such constant"}
+
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'from test | dissect kind "%{one} %{two} %{three}" | keep one, two, three, kind'
+  - match: {columns.0.name: one}
+  - match: {columns.0.type: keyword}
+  - match: {columns.1.name: two }
+  - match: {columns.1.type: keyword }
+  - match: {columns.2.name: three }
+  - match: {columns.2.type: keyword }
+  - match: {columns.3.name: kind }
+  - match: {columns.3.type: keyword }
+
+  - length: {values: 1}
+  - match: {values.0.0: wow}
+  - match: {values.0.1: such}
+  - match: {values.0.2: constant}
+  - match: {values.0.3: wow such constant}
+
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'from test | stats x = max(kind)'
+  - match: {columns.0.name: x}
+  - match: {columns.0.type: keyword}
+
+  - length: {values: 1}
+  - match: {values.0.0: wow such constant}
+
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'from test* | where kind == "wow such constant" | keep color, kind'
+  - match: {columns.0.name: color}
+  - match: {columns.0.type: keyword}
+  - match: { columns.1.name: kind }
+  - match: { columns.1.type: keyword }
+  - length: {values: 1}
+  - match: {values.0.0: red}
+  - match: {values.0.1: "wow such constant"}
+
+
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'from test* | where kind >=  "a" | keep color, kind | sort color'
+  - match: {columns.0.name: color}
+  - match: {columns.0.type: keyword}
+  - match: { columns.1.name: kind }
+  - match: { columns.1.type: keyword }
+  - length: {values: 2}
+  - match: {values.0.0: blue}
+  - match: {values.0.1: "a different constant"}
+  - match: {values.1.0: red}
+  - match: {values.1.1: "wow such constant"}
 
 ---
 constant_keyword with null value:

@@ -42,6 +42,7 @@ import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
+import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -69,6 +70,7 @@ import org.elasticsearch.xpack.esql.plan.physical.FieldExtractExec;
 import org.elasticsearch.xpack.esql.plan.physical.FilterExec;
 import org.elasticsearch.xpack.esql.plan.physical.LimitExec;
 import org.elasticsearch.xpack.esql.plan.physical.LocalSourceExec;
+import org.elasticsearch.xpack.esql.plan.physical.MvExpandExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.plan.physical.ProjectExec;
 import org.elasticsearch.xpack.esql.plan.physical.TimeSeriesAggregateExec;
@@ -147,6 +149,18 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
         @Override
         public boolean isSingleValue(String field) {
             return true;
+        }
+    };
+
+    private final SearchStats CONSTANT_K_STATS = new TestSearchStats() {
+        @Override
+        public boolean isSingleValue(String field) {
+            return true;
+        }
+
+        @Override
+        public String constantValue(String name) {
+            return name.startsWith("constant_keyword") ? "foo" : null;
         }
     };
 
@@ -1854,6 +1868,100 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
         assertThat(field.name(), equalTo("network.total_bytes_in"));
         assertThat(timeSeriesSource.attrs(), hasSize(2));
         assertTrue(timeSeriesSource.attrs().stream().noneMatch(EsQueryExec::isSourceAttribute));
+    }
+
+    /**
+     * LimitExec[1000[INTEGER]]
+     * \_ExchangeExec[[!alias_integer, boolean{f}#4, byte{f}#5, constant_keyword-foo{f}#6, date{f}#7, date_nanos{f}#8, double{f}#9,
+     *   float{f}#10, half_float{f}#11, integer{f}#13, ip{f}#14, keyword{f}#15, long{f}#16, scaled_float{f}#12, !semantic_text,
+     *   short{f}#18, text{f}#19, unsigned_long{f}#17, version{f}#20, wildcard{f}#21], false]
+     *   \_ProjectExec[[!alias_integer, boolean{f}#4, byte{f}#5, constant_keyword-foo{r}#6, date{f}#7, date_nanos{f}#8, double{f}#9,
+     *     float{f}#10, half_float{f}#11, integer{f}#13, ip{f}#14, keyword{f}#15, long{f}#16, scaled_float{f}#12,
+     *     !semantic_text, short{f}#18, text{f}#19, unsigned_long{f}#17, version{f}#20, wildcard{f}#21]]
+     *     \_FieldExtractExec[!alias_integer, boolean{f}#4, byte{f}#5, date{f}#7, ]
+     *       \_EvalExec[[[66 6f 6f][KEYWORD] AS constant_keyword-foo]]
+     *         \_EsQueryExec[test], indexMode[standard], query[][_doc{f}#23], limit[1000], sort[] estimatedRowSize[412]
+     */
+    public void testConstantKeywordWithMatchingFilter() {
+        String queryText = """
+            from test
+            | where `constant_keyword-foo` == "foo"
+            """;
+        var analyzer = makeAnalyzer("mapping-all-types.json");
+        var plan = plannerOptimizer.plan(queryText, CONSTANT_K_STATS, analyzer);
+
+        var limit = as(plan, LimitExec.class);
+        var exchange = as(limit.child(), ExchangeExec.class);
+        var project = as(exchange.child(), ProjectExec.class);
+        var field = as(project.child(), FieldExtractExec.class);
+        var eval = as(field.child(), EvalExec.class);
+        var query = as(eval.child(), EsQueryExec.class);
+        assertThat(as(query.limit(), Literal.class).value(), is(1000));
+        assertNull(query.query());
+        assertFalse(field.attributesToExtract().stream().map(NamedExpression::name).anyMatch(x -> x.equals("constant_keyword-foo")));
+    }
+
+    /**
+     * LimitExec[1000[INTEGER]]
+     * \_ExchangeExec[[!alias_integer, boolean{f}#4, byte{f}#5, constant_keyword-foo{f}#6, date{f}#7, date_nanos{f}#8, double{f}#9,
+     *    float{f}#10, half_float{f}#11, integer{f}#13, ip{f}#14, keyword{f}#15, long{f}#16, scaled_float{f}#12, !semantic_text,
+     *    short{f}#18, text{f}#19, unsigned_long{f}#17, version{f}#20, wildcard{f}#21], false]
+     *   \_LocalSourceExec[[!alias_integer, boolean{f}#4, byte{f}#5, constant_keyword-foo{f}#6, date{f}#7, date_nanos{f}#8, double{f}#9,
+     *     float{f}#10, half_float{f}#11, integer{f}#13, ip{f}#14, keyword{f}#15, long{f}#16, scaled_float{f}#12, !semantic_text,
+     *     short{f}#18, text{f}#19, unsigned_long{f}#17, version{f}#20, wildcard{f}#21], EMPTY]
+     */
+    public void testConstantKeywordWithNonMatchingFilter() {
+        String queryText = """
+            from test
+            | where `constant_keyword-foo` == "non-matching"
+            """;
+        var analyzer = makeAnalyzer("mapping-all-types.json");
+        var plan = plannerOptimizer.plan(queryText, CONSTANT_K_STATS, analyzer);
+
+        var limit = as(plan, LimitExec.class);
+        var exchange = as(limit.child(), ExchangeExec.class);
+        var source = as(exchange.child(), LocalSourceExec.class);
+    }
+
+    /**
+     * LimitExec[1000[INTEGER]]
+     * \_ExchangeExec[[!alias_integer, boolean{f}#6, byte{f}#7, constant_keyword-foo{r}#25, date{f}#9, date_nanos{f}#10, double{f}#1
+     *   1, float{f}#12, half_float{f}#13, integer{f}#15, ip{f}#16, keyword{f}#17, long{f}#18, scaled_float{f}#14,
+     *   !semantic_text, short{f}#20, text{f}#21, unsigned_long{f}#19, version{f}#22, wildcard{f}#23], false]
+     *   \_ProjectExec[[!alias_integer, boolean{f}#6, byte{f}#7, constant_keyword-foo{r}#25, date{f}#9, date_nanos{f}#10, double{f}#1
+     *     1, float{f}#12, half_float{f}#13, integer{f}#15, ip{f}#16, keyword{f}#17, long{f}#18, scaled_float{f}#14,
+     *     !semantic_text, short{f}#20, text{f}#21, unsigned_long{f}#19, version{f}#22, wildcard{f}#23]]
+     *     \_LimitExec[1000[INTEGER]]
+     *       \_FilterExec[constant_keyword-foo{r}#25 == [66 6f 6f][KEYWORD]]
+     *         \_MvExpandExec[constant_keyword-foo{f}#8,constant_keyword-foo{r}#25]
+     *           \_ProjectExec[[!alias_integer, boolean{f}#6, byte{f}#7, constant_keyword-foo{r}#8, date{f}#9, date_nanos{f}#10,
+     *           double{f}#11, float{f}#12, half_float{f}#13, integer{f}#15, ip{f}#16, keyword{f}#17, long{f}#18, scaled_float{f}#14,
+     *           !semantic_text, short{f}#20, text{f}#21, unsigned_long{f}#19, version{f}#22, wildcard{f}#23]]
+     *             \_FieldExtractExec[!alias_integer, boolean{f}#6, byte{f}#7, date{f}#9, ..]
+     *               \_EvalExec[[[66 6f 6f][KEYWORD] AS constant_keyword-foo]]
+     *                 \_EsQueryExec[test], indexMode[standard], query[][_doc{f}#26], limit[], sort[] estimatedRowSize[412]
+     */
+    public void testConstantKeywordExpandFilter() {
+        String queryText = """
+            from test
+            | mv_expand `constant_keyword-foo`
+            | where `constant_keyword-foo` == "foo"
+            """;
+        var analyzer = makeAnalyzer("mapping-all-types.json");
+        var plan = plannerOptimizer.plan(queryText, CONSTANT_K_STATS, analyzer);
+
+        var limit = as(plan, LimitExec.class);
+        var exchange = as(limit.child(), ExchangeExec.class);
+        var project = as(exchange.child(), ProjectExec.class);
+        var limit2 = as(project.child(), LimitExec.class);
+        var filter = as(limit2.child(), FilterExec.class);
+        var expand = as(filter.child(), MvExpandExec.class);
+        var project2 = as(expand.child(), ProjectExec.class);
+        var field = as(project2.child(), FieldExtractExec.class);
+        var eval = as(field.child(), EvalExec.class);
+        var query = as(eval.child(), EsQueryExec.class);
+        assertNull(query.query());
+        assertFalse(field.attributesToExtract().stream().map(NamedExpression::name).anyMatch(x -> x.equals("constant_keyword-foo")));
     }
 
     private QueryBuilder wrapWithSingleQuery(String query, QueryBuilder inner, String fieldName, Source source) {

@@ -375,7 +375,7 @@
 
   - do:
       indices.create:
-        index: test2
+        index: test3
         body:
           settings:
             number_of_replicas: 0
@@ -424,7 +424,7 @@
 
   - do:
       index:
-        index: test2
+        index: test3
         id: "1"
         body:
           vector:
@@ -438,7 +438,7 @@
 
   - do:
       index:
-        index: test2
+        index: test3
         id: "2"
         body:
           vector:

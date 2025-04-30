@@ -455,6 +455,7 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
                             }
                         }
                     }
+
                     builder.endObject();
                 }
                 builder.endArray();

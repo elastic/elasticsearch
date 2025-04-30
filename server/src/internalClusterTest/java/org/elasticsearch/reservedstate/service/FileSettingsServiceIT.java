@@ -504,9 +504,8 @@ public class FileSettingsServiceIT extends ESIntegTestCase {
     }
 
     public void testHealthIndicatorWithSingleNode() throws Exception {
-        internalCluster().setBootstrapMasterNodeIndex(0);
         logger.info("--> start the node");
-        String nodeName = internalCluster().startNode((dataNode()));
+        String nodeName = internalCluster().startNode();
         FileSettingsService masterFileSettingsService = internalCluster().getInstance(FileSettingsService.class, nodeName);
         assertBusy(() -> assertTrue(masterFileSettingsService.watching()));
 

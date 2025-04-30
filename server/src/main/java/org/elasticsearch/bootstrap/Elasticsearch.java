@@ -42,7 +42,6 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.codec.vectors.reflect.OffHeapReflectionUtils;
 import org.elasticsearch.jdk.JarHell;
-import org.elasticsearch.jdk.RuntimeVersionFeature;
 import org.elasticsearch.monitor.jvm.HotThreads;
 import org.elasticsearch.monitor.jvm.JvmInfo;
 import org.elasticsearch.monitor.os.OsProbe;
@@ -63,7 +62,6 @@ import java.lang.management.ManagementFactory;
 import java.lang.reflect.InvocationTargetException;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.security.Permission;
 import java.security.Security;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -78,7 +76,6 @@ import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-import static org.elasticsearch.bootstrap.BootstrapSettings.SECURITY_FILTER_BAD_DEFAULTS_SETTING;
 import static org.elasticsearch.nativeaccess.WindowsFunctions.ConsoleCtrlHandler.CTRL_CLOSE_EVENT;
 
 /**
@@ -236,8 +233,7 @@ class Elasticsearch {
         var pluginData = Stream.concat(
             modulesBundles.stream()
                 .map(bundle -> new PolicyUtils.PluginData(bundle.getDir(), bundle.pluginDescriptor().isModular(), false)),
-            pluginsBundles.stream()
-                .map(bundle -> new PolicyUtils.PluginData(bundle.getDir(), bundle.pluginDescriptor().isModular(), true))
+            pluginsBundles.stream().map(bundle -> new PolicyUtils.PluginData(bundle.getDir(), bundle.pluginDescriptor().isModular(), true))
         ).toList();
 
         var pluginPolicyPatches = collectPluginPolicyPatches(modulesBundles, pluginsBundles, logger);

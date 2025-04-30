@@ -8,7 +8,6 @@
  */
 package org.elasticsearch.gradle.test;
 
-import org.gradle.api.provider.Provider;
 import org.gradle.api.tasks.Input;
 import org.gradle.process.CommandLineArgumentProvider;
 

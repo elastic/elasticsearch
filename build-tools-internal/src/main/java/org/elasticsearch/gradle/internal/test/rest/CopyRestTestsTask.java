@@ -56,7 +56,7 @@ public abstract class CopyRestTestsTask extends DefaultTask {
     private FileCollection coreConfig;
     private FileCollection xpackConfig;
     private FileCollection additionalConfig;
-    private SerializableFunction<FileCollection, FileTree> coreConfigToFileTree = FileCollection::getAsFileTree;
+    private SerializableCopyRestTestsTaskFunction<FileCollection, FileTree> coreConfigToFileTree = FileCollection::getAsFileTree;
     private SerializableFunction<FileCollection, FileTree> xpackConfigToFileTree = FileCollection::getAsFileTree;
     private SerializableFunction<FileCollection, FileTree> additionalConfigToFileTree = FileCollection::getAsFileTree;
 
@@ -64,9 +64,6 @@ public abstract class CopyRestTestsTask extends DefaultTask {
     private final PatternFilterable xpackPatternSet;
     private final ProjectLayout projectLayout;
     private final FileSystemOperations fileSystemOperations;
-
-    @Inject
-    public abstract FileOperations getFileOperations();
 
     @Inject
     public CopyRestTestsTask(
@@ -85,16 +82,7 @@ public abstract class CopyRestTestsTask extends DefaultTask {
     }
 
     @Inject
-    protected abstract ProjectLayout getProjectLayout();
-
-    @Inject
-    protected abstract FileSystemOperations getFileSystemOperations();
-
-    @Inject
-    protected abstract ObjectFactory getObjectFactory();
-
-    @Inject
-    protected abstract PatternSetFactory getPatternSetFactory();
+    public abstract FileOperations getFileOperations();
 
     @Input
     public ListProperty<String> getIncludeCore() {

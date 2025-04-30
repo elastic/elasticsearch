@@ -406,7 +406,6 @@ module org.elasticsearch.server {
 
     provides org.elasticsearch.xcontent.ErrorOnUnknown with org.elasticsearch.common.xcontent.SuggestingErrorOnUnknown;
     provides org.elasticsearch.xcontent.XContentBuilderExtension with org.elasticsearch.common.xcontent.XContentElasticsearchExtension;
-
     provides org.elasticsearch.cli.CliToolProvider
         with
             org.elasticsearch.cluster.coordination.NodeToolCliProvider,

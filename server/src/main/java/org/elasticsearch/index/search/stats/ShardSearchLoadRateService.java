@@ -10,12 +10,17 @@
 package org.elasticsearch.index.search.stats;
 
 /**
- * Interface for prewarming the segments of a shard, tailored for consumption at
- * higher volumes than alternative warming strategies (i.e. offline / recovery warming)
- * that are more speculative.
+ * Service interface for estimating the search load rate of a shard using provided search statistics.
+ * <p>
+ * Implementations may apply various heuristics or models, such as exponentially weighted moving averages,
+ * to track and estimate the current load on a shard based on its search activity.
  */
 public interface ShardSearchLoadRateService {
 
+    /**
+     * A no-op implementation of {@code ShardSearchLoadRateService} that always returns {@link SearchLoadRate#NO_OP}.
+     * This can be used as a fallback or default when no actual load tracking is required.
+     */
     ShardSearchLoadRateService NOOP = (stats) -> SearchLoadRate.NO_OP;
 
     /**
@@ -27,17 +32,20 @@ public interface ShardSearchLoadRateService {
     SearchLoadRate getSearchLoadRate(SearchStats.Stats stats);
 
     /**
-     * Represents the rate of search load using an exponentially weighted moving rate (EWMRate).
+     * Represents the search load rate as computed over time using an exponentially weighted moving average (EWM).
+     * <p>
+     * This record captures the timing of the last update, the delta since the last observation,
+     * and the computed rate itself.
      *
-     * @param lastTrackedTime the last timestamp (in ms or ns, depending on context) when the rate was updated
-     * @param delta the time difference since the previous update
-     * @param ewmRate the exponentially weighted moving average of the rate
+     * @param lastTrackedTime the timestamp (e.g., in milliseconds or nanoseconds) of the last update
+     * @param delta the elapsed time since the previous update
+     * @param ewmRate the current exponentially weighted moving average rate
      */
     record SearchLoadRate(long lastTrackedTime, long delta, double ewmRate) {
 
         /**
-         * A no-op instance of {@code SearchLoadRate} representing an empty or default state.
-         * All values are set to zero.
+         * A static no-op instance representing a default or zeroed state of {@code SearchLoadRate}.
+         * All numeric values are initialized to zero.
          */
         public static final SearchLoadRate NO_OP = new SearchLoadRate(0,0,0.0);
     }

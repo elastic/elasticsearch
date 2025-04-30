@@ -261,13 +261,14 @@ public class IndexResolverFieldNamesTests extends ESTestCase {
     }
 
     public void testEvalDissect() {
-        assertFieldNames("""
-            from employees
-            | eval full_name = concat(first_name, " ", last_name)
-            | dissect full_name "%{a} %{b}"
-            | sort emp_no asc
-            | keep full_name, a, b
-            | limit 3""",
+        assertFieldNames(
+            """
+                from employees
+                | eval full_name = concat(first_name, " ", last_name)
+                | dissect full_name "%{a} %{b}"
+                | sort emp_no asc
+                | keep full_name, a, b
+                | limit 3""",
             Set.of("emp_no", "first_name", "last_name", "full_name", "last_name.*", "first_name.*", "full_name.*", "emp_no.*")
         );
     }
@@ -687,13 +688,14 @@ public class IndexResolverFieldNamesTests extends ESTestCase {
     }
 
     public void testEvalGrok() {
-        assertFieldNames("""
-            from employees
-            | eval full_name = concat(first_name, " ", last_name)
-            | grok full_name "%{WORD:a} %{WORD:b}"
-            | sort emp_no asc
-            | keep full_name, a, b
-            | limit 3""",
+        assertFieldNames(
+            """
+                from employees
+                | eval full_name = concat(first_name, " ", last_name)
+                | grok full_name "%{WORD:a} %{WORD:b}"
+                | sort emp_no asc
+                | keep full_name, a, b
+                | limit 3""",
             Set.of("emp_no", "first_name", "last_name", "full_name", "last_name.*", "first_name.*", "full_name.*", "emp_no.*")
         );
     }

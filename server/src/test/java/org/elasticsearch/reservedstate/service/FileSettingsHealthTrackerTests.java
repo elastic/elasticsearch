@@ -71,10 +71,7 @@ public class FileSettingsHealthTrackerTests extends ESTestCase {
         tracker.startOccurred();
         tracker.changeOccurred();
         tracker.failureOccurred(description);
-        assertEquals(
-            new FileSettingsHealthInfo(true, 1, 1, expectedTruncatedDescription),
-            tracker.getCurrentInfo()
-        );
+        assertEquals(new FileSettingsHealthInfo(true, 1, 1, expectedTruncatedDescription), tracker.getCurrentInfo());
     }
 
 }

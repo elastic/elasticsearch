@@ -46,20 +46,18 @@ public class FileSettingsHealthIndicatorServiceTests extends ESTestCase {
     public void testGreenWhenInactive() {
         var expected = new HealthIndicatorResult(NAME, GREEN, INACTIVE_SYMPTOM, HealthIndicatorDetails.EMPTY, List.of(), List.of());
         assertEquals(expected, healthIndicatorService.calculate(INDETERMINATE));
-        assertEquals(expected, healthIndicatorService.calculate(new FileSettingsHealthInfo(
-           false, 0, 0, null
-        )));
-        assertEquals("Inactive should be GREEN regardless of other fields", expected, healthIndicatorService.calculate(new FileSettingsHealthInfo(
-            false, 123, 123, "test"
-        )));
+        assertEquals(expected, healthIndicatorService.calculate(new FileSettingsHealthInfo(false, 0, 0, null)));
+        assertEquals(
+            "Inactive should be GREEN regardless of other fields",
+            expected,
+            healthIndicatorService.calculate(new FileSettingsHealthInfo(false, 123, 123, "test"))
+        );
     }
 
     public void testNoChangesYet() {
         var expected = new HealthIndicatorResult(NAME, GREEN, NO_CHANGES_SYMPTOM, HealthIndicatorDetails.EMPTY, List.of(), List.of());
         assertEquals(expected, healthIndicatorService.calculate(INITIAL_ACTIVE));
-        assertEquals(expected, healthIndicatorService.calculate(new FileSettingsHealthInfo(
-            true, 0, 0, null
-        )));
+        assertEquals(expected, healthIndicatorService.calculate(new FileSettingsHealthInfo(true, 0, 0, null)));
     }
 
     public void testSuccess() {
@@ -79,9 +77,7 @@ public class FileSettingsHealthIndicatorServiceTests extends ESTestCase {
     }
 
     private HealthIndicatorResult yellow(long failureStreak, String mostRecentFailure) {
-        var details = new SimpleHealthIndicatorDetails(
-            Map.of("failure_streak", failureStreak, "most_recent_failure", mostRecentFailure)
-        );
+        var details = new SimpleHealthIndicatorDetails(Map.of("failure_streak", failureStreak, "most_recent_failure", mostRecentFailure));
         return new HealthIndicatorResult(NAME, YELLOW, FAILURE_SYMPTOM, details, STALE_SETTINGS_IMPACT, List.of());
     }
 }

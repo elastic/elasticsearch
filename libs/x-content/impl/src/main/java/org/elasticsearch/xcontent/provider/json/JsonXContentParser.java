@@ -117,7 +117,7 @@ public class JsonXContentParser extends AbstractXContentParser {
     }
 
     @Override
-    public BaseText xContentText() throws IOException {
+    public BaseText optimizedText() throws IOException {
         if (currentToken().isValue() == false) {
             throwOnNoText();
         }

@@ -1108,7 +1108,7 @@ public final class KeywordFieldMapper extends FieldMapper {
     }
 
     protected void parseCreateField(DocumentParserContext context) throws IOException {
-        var value = context.parser().xContentTextOrNull();
+        var value = context.parser().optimizedTextOrNull();
 
         if (value == null && fieldType().nullValue != null) {
             value = new Text(fieldType().nullValue);

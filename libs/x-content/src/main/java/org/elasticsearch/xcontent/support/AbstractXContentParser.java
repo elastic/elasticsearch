@@ -260,16 +260,16 @@ public abstract class AbstractXContentParser implements XContentParser {
     }
 
     @Override
-    public BaseText xContentText() throws IOException {
+    public BaseText optimizedText() throws IOException {
         return new BaseText(text());
     }
 
     @Override
-    public final BaseText xContentTextOrNull() throws IOException {
+    public final BaseText optimizedTextOrNull() throws IOException {
         if (currentToken() == Token.VALUE_NULL) {
             return null;
         }
-        return xContentText();
+        return optimizedText();
     }
 
     @Override

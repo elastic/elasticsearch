@@ -329,7 +329,7 @@ public class GeoPointFieldMapper extends AbstractPointGeometryFieldMapper<GeoPoi
         }
 
         @Override
-        public Text xContentTextOrNull() throws IOException {
+        public Text optimizedTextOrNull() throws IOException {
             return new Text(value);
         }
 

@@ -710,11 +710,11 @@ public class CompletionFieldMapper extends FieldMapper {
         }
 
         @Override
-        public BaseText xContentTextOrNull() throws IOException {
+        public BaseText optimizedTextOrNull() throws IOException {
             if (parsingObject == false) {
                 return new Text(textValue);
             }
-            return super.xContentTextOrNull();
+            return super.optimizedTextOrNull();
         }
 
         @Override

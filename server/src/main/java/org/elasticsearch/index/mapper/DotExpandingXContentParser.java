@@ -381,11 +381,11 @@ class DotExpandingXContentParser extends FilterXContentParserWrapper {
     }
 
     @Override
-    public BaseText xContentTextOrNull() throws IOException {
+    public BaseText optimizedTextOrNull() throws IOException {
         if (state == State.EXPANDING_START_OBJECT) {
             throw new IllegalStateException("Can't get text on a " + currentToken() + " at " + getTokenLocation());
         }
-        return super.xContentTextOrNull();
+        return super.optimizedTextOrNull();
     }
 
     @Override

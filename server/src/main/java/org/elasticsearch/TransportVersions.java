@@ -231,7 +231,6 @@ public class TransportVersions {
     public static final TransportVersion INTRODUCE_FAILURES_LIFECYCLE = def(9_065_0_00);
     public static final TransportVersion PINNED_RETRIEVER = def(9_066_0_00);
 
-
     /*
      * STOP! READ THIS FIRST! No, really,
      *        ____ _____ ___  ____  _        ____  _____    _    ____    _____ _   _ ___ ____    _____ ___ ____  ____ _____ _

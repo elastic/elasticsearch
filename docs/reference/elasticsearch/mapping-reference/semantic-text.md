@@ -69,7 +69,7 @@ PUT my-index-000003
 ## Parameters for `semantic_text` fields [semantic-text-params]
 
 `inference_id`
-:   (Required, string) {{infer-cap}} endpoint that will be used to generate embeddings for the field. By default, `.elser-2-elasticsearch` is used. This parameter cannot be updated. Use the [Create {{infer}} API](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-inference-put) to create the endpoint. If `search_inference_id` is specified, the {{infer}} endpoint will only be used at index time.
+:   (Optional, string) {{infer-cap}} endpoint that will be used to generate embeddings for the field. By default, `.elser-2-elasticsearch` is used. This parameter cannot be updated. Use the [Create {{infer}} API](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-inference-put) to create the endpoint. If `search_inference_id` is specified, the {{infer}} endpoint will only be used at index time.
 
 `search_inference_id`
 :   (Optional, string) {{infer-cap}} endpoint that will be used to generate embeddings at query time. You can update this parameter by using the [Update mapping API](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-indices-put-mapping). Use the [Create {{infer}} API](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-inference-put) to create the endpoint. If not specified, the {{infer}} endpoint defined by `inference_id` will be used at both index and query time.

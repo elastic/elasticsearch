@@ -107,6 +107,7 @@ import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.analyzer;
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.analyzerDefaultMapping;
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.defaultEnrichResolution;
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.loadMapping;
+import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.randomValueOtherThanTest;
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.tsdbIndexResolution;
 import static org.elasticsearch.xpack.esql.core.tree.Source.EMPTY;
 import static org.hamcrest.Matchers.contains;
@@ -3403,6 +3404,21 @@ public class AnalyzerTests extends ESTestCase {
         assertThat(e.getMessage(), containsString("Unknown column [_id]"));
     }
 
+    public void testRandomSampleProbability() {
+        assumeTrue("requires SAMPLE capability", EsqlCapabilities.Cap.SAMPLE.isEnabled());
+
+        var e = expectThrows(VerificationException.class, () -> analyze("FROM test | SAMPLE 1."));
+        assertThat(e.getMessage(), containsString("RandomSampling probability must be strictly between 0.0 and 1.0, was [1.0]"));
+
+        e = expectThrows(VerificationException.class, () -> analyze("FROM test | SAMPLE .0"));
+        assertThat(e.getMessage(), containsString("RandomSampling probability must be strictly between 0.0 and 1.0, was [0.0]"));
+
+        double p = randomValueOtherThanTest(d -> 0 < d && d < 1, () -> randomDoubleBetween(0, Double.MAX_VALUE, false));
+        e = expectThrows(VerificationException.class, () -> analyze("FROM test | SAMPLE " + p));
+        assertThat(e.getMessage(), containsString("RandomSampling probability must be strictly between 0.0 and 1.0, was [" + p + "]"));
+    }
+
+    // TODO There's too much boilerplate involved here! We need a better way of creating FieldCapabilitiesResponses from a mapping or index.
     private static FieldCapabilitiesIndexResponse fieldCapabilitiesIndexResponse(
         String indexName,
         Map<String, IndexFieldCapabilities> fields
@@ -3595,6 +3611,19 @@ public class AnalyzerTests extends ESTestCase {
             assertThat(rerank.rerankFields().get(2), equalTo(alias("yearRenamed", yearAttribute)));
 
             assertThat(rerank.scoreAttribute(), equalTo(getAttributeByName(relation.output(), MetadataAttribute.SCORE)));
+        }
+
+        {
+            // Unnamed field.
+            try {
+                LogicalPlan plan = analyze("""
+                    FROM books METADATA _score
+                    | WHERE title:"food"
+                    | RERANK "food" ON title, SUBSTRING(description, 0, 100), yearRenamed=year WITH `reranking-inference-id`
+                    """, "mapping-books.json");
+            } catch (ParsingException ex) {
+                assertThat(ex.getMessage(), containsString("line 3:36: mismatched input '(' expecting {'=', ',', '.', 'with'}"));
+            }
         }
 
         {

@@ -94,14 +94,12 @@ The response contains buckets with document counts for each filter and combinati
 `filters`
 :   (Required, object) Filters used to create buckets.
 
-    ::::{dropdown} Properties of `filters`
-    `<filter>`
-    :   (Required, [Query DSL object](/reference/query-languages/querydsl.md)) Query used to filter documents. The key is the filter name.
+::::{dropdown} Properties of filters
+`<filter>`
+:   (Required, [Query DSL object](/reference/query-languages/querydsl.md)) Query used to filter documents. The key is the filter name.
 
-        At least one filter is required. The total number of filters cannot exceed the [`indices.query.bool.max_clause_count`](/reference/elasticsearch/configuration-reference/search-settings.md#indices-query-bool-max-clause-count) setting. See [Filter limits](#adjacency-matrix-agg-filter-limits).
-
-
-    ::::
+    At least one filter is required. The total number of filters cannot exceed the [`indices.query.bool.max_clause_count`](/reference/elasticsearch/configuration-reference/search-settings.md#indices-query-bool-max-clause-count) setting. See [Filter limits](#adjacency-matrix-agg-filter-limits).
+::::
 
 
 `separator`

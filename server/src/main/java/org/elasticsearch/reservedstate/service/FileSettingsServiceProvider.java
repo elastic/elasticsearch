@@ -17,6 +17,6 @@ public interface FileSettingsServiceProvider {
         ClusterService clusterService,
         ReservedClusterStateService stateService,
         Environment environment,
-        FileSettingsService.FileSettingsHealthTracker healthIndicatorService
+        FileSettingsService.FileSettingsHealthTracker healthTracker
     );
 }

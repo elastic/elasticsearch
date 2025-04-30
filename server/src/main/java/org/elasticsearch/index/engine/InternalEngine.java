@@ -174,9 +174,6 @@ public class InternalEngine extends Engine {
     // are falling behind and when writing indexing buffer to disk is too slow. When this is 0, there is no throttling, else we throttle
     // incoming indexing ops to a single thread:
     private final AtomicInteger throttleRequestCount = new AtomicInteger();
-    // Should we throttle indexing ops by pausing them completely. Default value is false which will throttle
-    // incoming indexing ops to a single thread.
-    private final AtomicBoolean throttleShouldPauseIndexing = new AtomicBoolean(false);
     private final AtomicBoolean pendingTranslogRecovery = new AtomicBoolean(false);
     private final AtomicLong maxUnsafeAutoIdTimestamp = new AtomicLong(-1);
     private final AtomicLong maxSeenAutoIdTimestamp = new AtomicLong(-1);
@@ -2825,24 +2822,23 @@ public class InternalEngine extends Engine {
     }
 
     @Override
-    public void activateThrottling(boolean pauseIndexing) {
+    public void activateThrottling() {
         int count = throttleRequestCount.incrementAndGet();
-        // System.out.println("activateThrottling, throttleRequestCount = " + count);
-        // This means that the first time we activateThrottling with pauseIndexing set to
-        // true, this condition will remain true while this shard is active.
-        if (pauseIndexing) {
-            throttleShouldPauseIndexing.setRelease(true);
-        }
+        System.out.println("activateThrottling, throttleRequestCount = " + count);
         assert count >= 1 : "invalid post-increment throttleRequestCount=" + count;
         if (count == 1) {
-            throttle.activate(throttleShouldPauseIndexing);
+            if (pauseIndexingOnThrottle) {
+                throttle.activatePause();
+            } else {
+                throttle.activate();
+            }
         }
     }
 
     @Override
     public void deactivateThrottling() {
         int count = throttleRequestCount.decrementAndGet();
-        // System.out.println("deactivateThrottling, throttleRequestCount = " + count);
+        System.out.println("deactivateThrottling, throttleRequestCount = " + count);
         assert count >= 0 : "invalid post-decrement throttleRequestCount=" + count;
         if (count == 0) {
             throttle.deactivate();
@@ -2930,7 +2926,7 @@ public class InternalEngine extends Engine {
                 numQueuedMerges,
                 configuredMaxMergeCount
             );
-            InternalEngine.this.activateThrottling(false);
+            InternalEngine.this.activateThrottling();
         }
 
         @Override
@@ -2969,7 +2965,7 @@ public class InternalEngine extends Engine {
             if (numMergesInFlight.incrementAndGet() > maxNumMerges) {
                 if (isThrottling.getAndSet(true) == false) {
                     logger.info("now throttling indexing: numMergesInFlight={}, maxNumMerges={}", numMergesInFlight, maxNumMerges);
-                    activateThrottling(false);
+                    activateThrottling();
                 }
             }
         }

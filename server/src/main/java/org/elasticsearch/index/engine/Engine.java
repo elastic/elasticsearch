@@ -87,6 +87,7 @@ import org.elasticsearch.index.shard.SparseVectorStats;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.index.translog.TranslogStats;
+import org.elasticsearch.indices.IndexingMemoryController;
 import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.search.suggest.completion.CompletionStats;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -119,6 +120,7 @@ import java.util.function.Function;
 import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_PRIMARY_TERM;
 import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
+import static org.elasticsearch.indices.IndexingMemoryController.PAUSE_INDEXING_ON_THROTTLE;
 
 public abstract class Engine implements Closeable {
 
@@ -145,6 +147,7 @@ public abstract class Engine implements Closeable {
     protected final ReentrantLock failEngineLock = new ReentrantLock();
     protected final SetOnce<Exception> failedEngine = new SetOnce<>();
     protected final boolean enableRecoverySource;
+    protected final boolean pauseIndexingOnThrottle;
 
     private final AtomicBoolean isClosing = new AtomicBoolean();
     private final SubscribableListener<Void> drainOnCloseListener = new SubscribableListener<>();
@@ -174,6 +177,9 @@ public abstract class Engine implements Closeable {
         this.logger = Loggers.getLogger(Engine.class, engineConfig.getShardId());
         this.eventListener = engineConfig.getEventListener();
         this.enableRecoverySource = RecoverySettings.INDICES_RECOVERY_SOURCE_ENABLED_SETTING.get(
+            engineConfig.getIndexSettings().getSettings()
+        );
+        this.pauseIndexingOnThrottle = IndexingMemoryController.PAUSE_INDEXING_ON_THROTTLE.get(
             engineConfig.getIndexSettings().getSettings()
         );
     }
@@ -456,10 +462,12 @@ public abstract class Engine implements Closeable {
 
         public Releasable acquireThrottle() {
             if (lock == pauseLockReference) {
+                System.out.println("acquireThrottle pauseLock");
                 // pauseIndexingLock.lock();
                 lock.acquire();
                 try {
                     while (pauseIndexing.getAcquire()) {
+                        System.out.println("Here");
                         pauseCondition.await();
                     }
                 } catch (InterruptedException e) {
@@ -475,15 +483,18 @@ public abstract class Engine implements Closeable {
         }
 
         /** Activate throttling, which switches the lock to be a real lock */
-        public void activate(AtomicBoolean pauseIndexing) {
+        public void activate() {
             assert lock == NOOP_LOCK : "throttling activated while already active";
             startOfThrottleNS = System.nanoTime();
-            if (pauseIndexing.getAcquire()) {
-                pauseIndexing.setRelease(true);
-                lock = pauseLockReference;
-            } else {
-                lock = lockReference;
-            }
+            lock = lockReference;
+        }
+
+        public void activatePause() {
+            assert lock == NOOP_LOCK : "throttling activated while already active";
+            startOfThrottleNS = System.nanoTime();
+            System.out.println("ActivatePause");
+            pauseIndexing.setRelease(true);
+            lock = pauseLockReference;
         }
 
         /** Deactivate throttling, which switches the lock to be an always-acquirable NoOpLock */
@@ -2221,7 +2232,7 @@ public abstract class Engine implements Closeable {
      * Request that this engine throttle incoming indexing requests to one thread.
      * Must be matched by a later call to {@link #deactivateThrottling()}.
      */
-    public abstract void activateThrottling(boolean pauseIndexing);
+    public abstract void activateThrottling();
 
     /**
      * Reverses a previous {@link #activateThrottling} call.

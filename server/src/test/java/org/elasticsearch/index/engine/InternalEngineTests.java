@@ -7007,7 +7007,7 @@ public class InternalEngineTests extends EngineTestCase {
                 throw new RuntimeException(ex);
             }
         }).when(indexWithoutThrottlingCheck).startTime();
-        engine.activateThrottling(false);
+        engine.activateThrottling();
         engine.index(indexWithThrottlingCheck);
         engine.deactivateThrottling();
         engine.index(indexWithoutThrottlingCheck);

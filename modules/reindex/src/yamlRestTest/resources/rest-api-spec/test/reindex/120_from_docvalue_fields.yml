@@ -1,0 +1,149 @@
+setup:
+  - requires:
+      cluster_features: [ "reindex.support_from_fields" ]
+      reason: "reindexing support fields introduced"
+
+  - do:
+      indices.create:
+        index: source_docvalue
+        body:
+          mappings:
+            _source:
+              excludes: ["excluded_field"]
+            properties:
+              included_field:
+                type: keyword
+              excluded_field:
+                type: keyword
+              date_field:
+                type: date
+              long_field:
+                type: long
+
+  - do:
+      bulk:
+        refresh: true
+        index: source_docvalue
+        body:
+          - '{"index": {}}'
+          - '{"included_field": "value1", "excluded_field": "excluded1", "date_field": "2024-01-01", "long_field": 123}'
+          - '{"index": {}}'
+          - '{"included_field": "value2", "excluded_field": "excluded2", "date_field": "2024-01-02", "long_field": 456}'
+
+  - do:
+      indices.create:
+        index: target_docvalue
+        body:
+          mappings:
+            properties:
+              included_field:
+                type: keyword
+              excluded_field:
+                type: keyword
+              date_field:
+                type: date
+              long_field:
+                type: long
+
+  - do:
+      indices.create:
+        index: target_docvalue2
+        body:
+          mappings:
+            properties:
+              included_field:
+                type: keyword
+              excluded_field:
+                type: keyword
+              date_field:
+                type: date
+              long_field:
+                type: long
+
+---
+from docvalue fields:
+  - do:
+      reindex:
+        refresh: true
+        body:
+          source:
+            index: source_docvalue
+            docvalue_fields: ["excluded_field"]
+          dest:
+            index: target_docvalue
+
+  - match: {created: 2}
+  - match: {updated: 0}
+  - match: {version_conflicts: 0}
+  - match: {batches: 1}
+  - match: {failures: []}
+  - match: {throttled_millis: 0}
+  - gte: { took: 0 }
+  - is_false: task
+  - is_false: deleted
+
+  - do:
+      search:
+        index: target_docvalue
+        body:
+          sort:
+            - included_field: asc
+  - match: { hits.total.value: 2 }
+  - match:
+      hits.hits.0._source:
+        included_field: value1
+        excluded_field: excluded1
+        date_field: "2024-01-01"
+        long_field: 123
+  - match:
+      hits.hits.1._source:
+        included_field: value2
+        excluded_field: excluded2
+        date_field: "2024-01-02"
+        long_field: 456
+
+---
+from docvalue fields with partial source:
+  - do:
+      reindex:
+        refresh: true
+        body:
+          source:
+            index: source_docvalue
+            _source:
+              includes: ["date_field"]
+            docvalue_fields: ["excluded_field", "long_field"]
+          dest:
+            index: target_docvalue2
+
+  - match: {created: 2}
+  - match: {updated: 0}
+  - match: {version_conflicts: 0}
+  - match: {batches: 1}
+  - match: {failures: []}
+  - match: {throttled_millis: 0}
+  - gte: { took: 0 }
+  - is_false: task
+  - is_false: deleted
+
+  - do:
+      search:
+        index: target_docvalue2
+        body:
+          sort:
+            - long_field: asc
+  - match: { hits.total.value: 2 }
+  - match:
+      hits.hits.0._source:
+        excluded_field: excluded1
+        date_field: "2024-01-01"
+        long_field: 123
+  - match:
+      hits.hits.1._source:
+        excluded_field: excluded2
+        date_field: "2024-01-02"
+        long_field: 456
+
+  - do:
+      indices.delete:
+        index: [source_docvalue, target_docvalue, target_docvalue2]

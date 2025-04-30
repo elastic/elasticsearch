@@ -24,7 +24,7 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardsIterator;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.index.search.stats.ShardSearchLoadRateStats;
+import org.elasticsearch.index.search.stats.ShardSearchLoadRateService;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesService;
@@ -42,7 +42,7 @@ import java.util.Map;
  * Transport action responsible for collecting shard-level search load statistics across the cluster.
  * <p>
  * This action broadcasts requests to all replica shards of the specified indices (scoped by a project)
- * and aggregates their {@link ShardSearchLoadRateStats.SearchLoadRate} metrics into a final response.
+ * and aggregates their {@link  ShardSearchLoadRateService.SearchLoadRate} metrics into a final response.
  * </p>
  *
  * Extends {@link TransportBroadcastByNodeAction} to handle fan-out to all replica shards.
@@ -151,7 +151,7 @@ public class TransportShardSearchLoadStatsAction extends TransportBroadcastByNod
 
             ShardId shardId = shardRouting.shardId();
             IndexShard indexShard = indicesService.indexServiceSafe(shardId.getIndex()).getShard(shardId.id());
-            ShardSearchLoadRateStats.SearchLoadRate searchLoadRate = indexShard.getSearchLoadRate();
+            ShardSearchLoadRateService.SearchLoadRate searchLoadRate = indexShard.getSearchLoadRate();
 
             logger.info(
                 "Multi - Shard: [{}], tracked-time [{}], delta [{}] ewmRate [{}]",

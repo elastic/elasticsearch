@@ -17,7 +17,7 @@ import org.elasticsearch.core.TimeValue;
 import java.util.concurrent.atomic.AtomicReference;
 
 /**
- * Container for cluster settings related to {@link ShardSearchLoadRateStats}.
+ * Container for cluster settings
  */
 public class SearchStatsSettings {
 
@@ -27,7 +27,7 @@ public class SearchStatsSettings {
 
     /**
      * A cluster setting giving the half-life, in seconds, to use for the Exponentially Weighted Moving Rate calculation used for the
-     * recency-weighted read load returned by {@link ShardSearchLoadRateStats}.
+     * recency-weighted read load
      *
      * <p>This is dynamic, but changes only apply to newly-opened shards.
      */

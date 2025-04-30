@@ -68,6 +68,7 @@ import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.query.SearchIndexNameMatcher;
 import org.elasticsearch.index.search.stats.SearchStatsSettings;
+import org.elasticsearch.index.search.stats.ShardSearchLoadRateProvider;
 import org.elasticsearch.index.seqno.RetentionLeaseSyncer;
 import org.elasticsearch.index.shard.GlobalCheckpointSyncer;
 import org.elasticsearch.index.shard.IndexEventListener;
@@ -465,8 +466,9 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
     public synchronized IndexShard createShard(
         final ShardRouting routing,
         final GlobalCheckpointSyncer globalCheckpointSyncer,
-        final RetentionLeaseSyncer retentionLeaseSyncer
-    ) throws IOException {
+        final RetentionLeaseSyncer retentionLeaseSyncer,
+        final ShardSearchLoadRateProvider shardSearchLoadRateProvider
+        ) throws IOException {
         Objects.requireNonNull(retentionLeaseSyncer);
         /*
          * TODO: we execute this in parallel but it's a synced method. Yet, we might
@@ -582,7 +584,8 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
                 indexCommitListener,
                 mapperMetrics,
                 indexingStatsSettings,
-                searchStatsSettings
+                searchStatsSettings,
+                shardSearchLoadRateProvider
             );
             eventListener.indexShardStateChanged(indexShard, null, indexShard.state(), "shard created");
             eventListener.afterIndexShardCreated(indexShard);

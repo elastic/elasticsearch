@@ -484,6 +484,7 @@ x:integer            | agg_metric:aggregate_metric_double
 
 convertToAggregateMetricDoubleCastingOperatorFromDouble
 required_capability: suggested_cast
+required_capability: aggregate_metric_double_convert_to
 ROW x = 29384.1256
 | EVAL agg_metric = x::aggregate_metric_double
 ;
@@ -494,6 +495,7 @@ x:double   | agg_metric:aggregate_metric_double
 
 convertToAggregateMetricDoubleCastingOperatorFromInt
 required_capability: suggested_cast
+required_capability: aggregate_metric_double_convert_to
 ROW x = 55555
 | EVAL agg_metric = x::aggregate_metric_double
 ;

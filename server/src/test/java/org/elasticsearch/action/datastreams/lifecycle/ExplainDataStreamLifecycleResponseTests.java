@@ -311,7 +311,7 @@ public class ExplainDataStreamLifecycleResponseTests extends AbstractWireSeriali
         );
         var failuresGlobalRetention = DataStreamGlobalRetention.create(
             randomBoolean() ? TimeValue.timeValueDays(randomIntBetween(1, 10)) : null,
-            dataGlobalRetention.maxRetention()
+            dataGlobalRetention == null ? null : dataGlobalRetention.maxRetention()
         );
         return new Response(
             List.of(

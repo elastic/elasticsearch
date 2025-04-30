@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.esql.inference;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.CountDownActionListener;
 import org.elasticsearch.client.internal.Client;
-import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.inference.action.GetInferenceModelAction;
@@ -20,25 +19,21 @@ import org.elasticsearch.xpack.esql.plan.logical.inference.InferencePlan;
 
 import java.util.List;
 import java.util.Set;
-import java.util.concurrent.ExecutorService;
 import java.util.stream.Collectors;
 
 public class InferenceRunner {
 
     private final Client client;
-
-    private final ExecutorService executorService;
-    private final ThreadContext threadContext;
+    private final ThreadPool threadPool;
 
     public InferenceRunner(Client client) {
         this.client = client;
         // TODO: revisit the executor service instantiation and thread pool choice.
-        this.executorService = client.threadPool().executor(ThreadPool.Names.SEARCH);
-        this.threadContext = client.threadPool().getThreadContext();
+        this.threadPool = client.threadPool();
     }
 
-    public ThreadContext threadContext() {
-        return threadContext;
+    public ThreadPool threadPool() {
+        return threadPool;
     }
 
     public void resolveInferenceIds(List<InferencePlan<?>> plans, ActionListener<InferenceResolution> listener) {
@@ -82,9 +77,5 @@ public class InferenceRunner {
 
     public void doInference(InferenceAction.Request request, ActionListener<InferenceAction.Response> listener) {
         client.execute(InferenceAction.INSTANCE, request, listener);
-    }
-
-    public InferenceExecutionContext.Builder executionContextBuilder() {
-        return new InferenceExecutionContext.Builder(this, executorService);
     }
 }

@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.esql.inference;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
 import org.elasticsearch.compute.data.Block;
-import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverContext;
@@ -18,8 +17,11 @@ import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
 import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.inference.TaskType;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
 import org.elasticsearch.xpack.core.inference.results.ChatCompletionResults;
+import org.elasticsearch.xpack.esql.inference.bulk.BulkInferenceOutputBuilder;
+import org.elasticsearch.xpack.esql.inference.bulk.BulkInferenceRequestIterator;
 
 import java.util.List;
 import java.util.NoSuchElementException;
@@ -36,22 +38,27 @@ public class CompletionOperator extends InferenceOperator<ChatCompletionResults>
 
         @Override
         public Operator get(DriverContext driverContext) {
-            return new CompletionOperator(driverContext, inferenceRunner, inferenceId, promptEvaluatorFactory.get(driverContext));
+            return new CompletionOperator(
+                driverContext,
+                inferenceRunner,
+                inferenceRunner.threadPool(),
+                inferenceId,
+                promptEvaluatorFactory.get(driverContext)
+            );
         }
     }
 
     private final ExpressionEvaluator promptEvaluator;
-    private final BlockFactory blockFactory;
 
     public CompletionOperator(
         DriverContext driverContext,
         InferenceRunner inferenceRunner,
+        ThreadPool threadPool,
         String inferenceId,
         ExpressionEvaluator promptEvaluator
     ) {
-        super(driverContext, inferenceRunner, inferenceId);
+        super(driverContext, inferenceRunner, threadPool, inferenceId);
         this.promptEvaluator = promptEvaluator;
-        this.blockFactory = driverContext.blockFactory();
     }
 
     @Override
@@ -65,8 +72,8 @@ public class CompletionOperator extends InferenceOperator<ChatCompletionResults>
     }
 
     @Override
-    protected RequestIterator requests(Page inputPage) {
-        return new InferenceOperator.RequestIterator() {
+    protected BulkInferenceRequestIterator requests(Page inputPage) {
+        return new BulkInferenceRequestIterator() {
             private final BytesRefBlock promptBlock = (BytesRefBlock) promptEvaluator.eval(inputPage);
             private BytesRef readBuffer = new BytesRef();
             private int currentPos = 0;
@@ -105,9 +112,9 @@ public class CompletionOperator extends InferenceOperator<ChatCompletionResults>
     }
 
     @Override
-    protected OutputBuilder<ChatCompletionResults> outputBuilder(Page inputPage) {
-        return new InferenceOperator.OutputBuilder<>() {
-            private final BytesRefBlock.Builder outputBlockBuilder = blockFactory.newBytesRefBlockBuilder(inputPage.getPositionCount());
+    protected BulkInferenceOutputBuilder<ChatCompletionResults, Page> outputBuilder(Page inputPage) {
+        return new BulkInferenceOutputBuilder<>() {
+            private final BytesRefBlock.Builder outputBlockBuilder = blockFactory().newBytesRefBlockBuilder(inputPage.getPositionCount());
             private final BytesRefBuilder bytesRefBuilder = new BytesRefBuilder();
 
             @Override

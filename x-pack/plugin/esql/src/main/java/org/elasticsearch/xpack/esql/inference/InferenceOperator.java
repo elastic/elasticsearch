@@ -8,30 +8,36 @@
 package org.elasticsearch.xpack.esql.inference;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.AsyncOperator;
 import org.elasticsearch.compute.operator.DriverContext;
-import org.elasticsearch.core.CheckedConsumer;
-import org.elasticsearch.core.Releasable;
-import org.elasticsearch.core.Releasables;
 import org.elasticsearch.inference.InferenceServiceResults;
-import org.elasticsearch.xpack.core.inference.action.InferenceAction;
-
-import java.util.Iterator;
-
-import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
+import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xpack.esql.inference.bulk.BulkInferenceExecutionConfig;
+import org.elasticsearch.xpack.esql.inference.bulk.BulkInferenceExecutor;
+import org.elasticsearch.xpack.esql.inference.bulk.BulkInferenceOutputBuilder;
+import org.elasticsearch.xpack.esql.inference.bulk.BulkInferenceRequestIterator;
 
 public abstract class InferenceOperator<InferenceResult extends InferenceServiceResults> extends AsyncOperator<Page> {
 
     // Move to a setting.
     private static final int MAX_INFERENCE_WORKER = 10;
-    private final InferenceRunner inferenceRunner;
     private final String inferenceId;
+    private final BlockFactory blockFactory;
 
-    public InferenceOperator(DriverContext driverContext, InferenceRunner inferenceRunner, String inferenceId) {
-        super(driverContext, inferenceRunner.threadContext(), MAX_INFERENCE_WORKER);
-        this.inferenceRunner = inferenceRunner;
+    private final BulkInferenceExecutor<InferenceResult, Page> bulkInferenceExecutor;
+
+    @SuppressWarnings("this-escape")
+    public InferenceOperator(DriverContext driverContext, InferenceRunner inferenceRunner, ThreadPool threadPool, String inferenceId) {
+        super(driverContext, threadPool.getThreadContext(), MAX_INFERENCE_WORKER);
+        this.blockFactory = driverContext.blockFactory();
+        this.bulkInferenceExecutor = new BulkInferenceExecutor<>(inferenceRunner, threadPool, bulkExecutionConfig());
         this.inferenceId = inferenceId;
+    }
+
+    protected BlockFactory blockFactory() {
+        return blockFactory;
     }
 
     protected String inferenceId() {
@@ -50,52 +56,14 @@ public abstract class InferenceOperator<InferenceResult extends InferenceService
 
     @Override
     protected void performAsync(Page input, ActionListener<Page> listener) {
-        final RequestIterator requests = requests(input);
-        final OutputBuilder<InferenceResult> outputBuilder = outputBuilder(input);
-
-        new BulkInferenceOperation(requests, outputBuilder).execute(
-            inferenceExecutionContext(),
-            listener.delegateFailureIgnoreResponseAndWrap(l -> {
-                l.onResponse(outputBuilder.buildOutput());
-                Releasables.closeExpectNoException(requests, outputBuilder);
-            })
-        );
+        bulkInferenceExecutor.execute(requests(input), outputBuilder(input), listener);
     }
 
-    protected InferenceExecutionContext inferenceExecutionContext() {
-        return inferenceRunner.executionContextBuilder().build();
+    protected BulkInferenceExecutionConfig bulkExecutionConfig() {
+        return BulkInferenceExecutionConfig.DEFAULT;
     }
 
-    protected abstract RequestIterator requests(Page input);
+    protected abstract BulkInferenceRequestIterator requests(Page input);
 
-    protected abstract OutputBuilder<InferenceResult> outputBuilder(Page input);
-
-    public abstract static class OutputBuilder<InferenceResults extends InferenceServiceResults>
-        implements
-            CheckedConsumer<InferenceAction.Response, Exception>,
-            Releasable {
-        protected abstract Class<InferenceResults> inferenceResultsClass();
-
-        public abstract Page buildOutput();
-
-        public abstract void onInferenceResults(InferenceResults results);
-
-        @Override
-        public void accept(InferenceAction.Response response) throws Exception {
-            InferenceServiceResults results = response.getResults();
-            if (inferenceResultsClass().isInstance(response.getResults()) == false) {
-                throw new IllegalStateException(
-                    format(
-                        "Inference result has wrong type. Got [{}] while expecting [{}]",
-                        results.getClass().getName(),
-                        inferenceResultsClass().getName()
-                    )
-                );
-            }
-
-            onInferenceResults(inferenceResultsClass().cast(results));
-        }
-    }
-
-    public interface RequestIterator extends Iterator<InferenceAction.Request>, Releasable {}
+    protected abstract BulkInferenceOutputBuilder<InferenceResult, Page> outputBuilder(Page input);
 }

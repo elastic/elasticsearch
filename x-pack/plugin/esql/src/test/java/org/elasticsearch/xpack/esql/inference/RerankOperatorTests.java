@@ -56,7 +56,6 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 public class RerankOperatorTests extends OperatorTestCase {
-    private static final String ESQL_TEST_EXECUTOR = "esql_test_executor";
     private static final String SIMPLE_INFERENCE_ID = "test_reranker";
     private static final String SIMPLE_QUERY = "query text";
     private ThreadPool threadPool;
@@ -237,7 +236,7 @@ public class RerankOperatorTests extends OperatorTestCase {
             doAnswer(encoderInvocation -> {
                 Page inputPage = encoderInvocation.getArgument(0, Page.class);
                 BytesRef scratch = new BytesRef(randomAlphanumericOfLength(encodedRowLength));
-                return driverContext.blockFactory().newConstantBytesRefBlockWith(scratch, inputPage.getPositionCount());
+                return DriverContext.getLocalDriver().blockFactory().newConstantBytesRefBlockWith(scratch, inputPage.getPositionCount());
             }).when(rowEncoder).eval(any(Page.class));
 
             return rowEncoder;

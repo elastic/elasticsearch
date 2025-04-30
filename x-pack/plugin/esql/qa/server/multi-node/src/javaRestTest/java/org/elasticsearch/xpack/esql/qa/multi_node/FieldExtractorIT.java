@@ -28,4 +28,9 @@ public class FieldExtractorIT extends FieldExtractorTestCase {
     protected String getTestRestCluster() {
         return cluster.getHttpAddresses();
     }
+
+    @Override
+    protected void canUsePragmasOk() {
+        // always ok
+    }
 }

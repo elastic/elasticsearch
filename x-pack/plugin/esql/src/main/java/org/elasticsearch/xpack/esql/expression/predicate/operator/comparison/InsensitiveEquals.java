@@ -7,6 +7,7 @@
 package org.elasticsearch.xpack.esql.expression.predicate.operator.comparison;
 
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.automaton.Automata;
 import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.ByteRunAutomaton;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
@@ -83,6 +84,10 @@ public class InsensitiveEquals extends InsensitiveBinaryComparison {
     }
 
     public static Automaton automaton(BytesRef val) {
+        if (val.length == 0) {
+            // toCaseInsensitiveString doesn't match empty strings properly so let's do it ourselves
+            return Automata.makeEmptyString();
+        }
         return AutomatonQueries.toCaseInsensitiveString(val.utf8ToString());
     }
 

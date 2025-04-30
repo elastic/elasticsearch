@@ -912,7 +912,12 @@ public class EsqlCapabilities {
          * Avid GROK and DISSECT attributes being removed when resolving fields.
          * see <a href="https://github.com/elastic/elasticsearch/issues/127468"> ES|QL: Grok only supports KEYWORD or TEXT values, found expression [type] type [INTEGER] #127468 </a>
          */
-        KEEP_REGEX_EXTRACT_ATTRIBUTES;
+        KEEP_REGEX_EXTRACT_ATTRIBUTES,
+
+        /**
+         * Guards a bug fix matching {@code TO_LOWER(f) == ""}.
+         */
+        TO_LOWER_EMPTY_STRING;
 
         private final boolean enabled;
 

@@ -927,7 +927,7 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
         }
         Set<Index> indicesToBeRemoved = new HashSet<>();
         if (backingIndicesOlderThanRetention.isEmpty() == false) {
-            assert dataStream.getDataLifecycle() != null : "data stream should have failures lifecycle if we have 'old' indices";
+            assert dataStream.getDataLifecycle() != null : "data stream should have data lifecycle if we have 'old' indices";
             for (Index index : backingIndicesOlderThanRetention) {
                 if (indicesToExcludeForRemainingRun.contains(index) == false) {
                     IndexMetadata backingIndex = project.index(index);

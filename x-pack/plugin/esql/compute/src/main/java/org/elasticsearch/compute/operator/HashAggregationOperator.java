@@ -20,8 +20,11 @@ import org.elasticsearch.compute.aggregation.GroupingAggregatorEvaluationContext
 import org.elasticsearch.compute.aggregation.GroupingAggregatorFunction;
 import org.elasticsearch.compute.aggregation.blockhash.BlockHash;
 import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.compute.data.IntArrayBlock;
+import org.elasticsearch.compute.data.IntBigArrayBlock;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.IntVector;
+import org.elasticsearch.compute.data.IntVectorBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
@@ -156,6 +159,30 @@ public class HashAggregationOperator implements Operator {
                         }
                         end();
                     }
+                }
+
+                @Override
+                public void add(int positionOffset, IntVectorBlock groupIds) {
+                    IntVector groupIdsVector = groupIds.asVector();
+                    add(positionOffset, groupIdsVector);
+                }
+
+                @Override
+                public void add(int positionOffset, IntArrayBlock groupIds) {
+                    startAggEndHash();
+                    for (GroupingAggregatorFunction.AddInput p : prepared) {
+                        p.add(positionOffset, groupIds);
+                    }
+                    end();
+                }
+
+                @Override
+                public void add(int positionOffset, IntBigArrayBlock groupIds) {
+                    startAggEndHash();
+                    for (GroupingAggregatorFunction.AddInput p : prepared) {
+                        p.add(positionOffset, groupIds);
+                    }
+                    end();
                 }
 
                 @Override

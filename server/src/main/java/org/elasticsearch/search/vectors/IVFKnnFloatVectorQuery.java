@@ -35,6 +35,12 @@ public class IVFKnnFloatVectorQuery extends AbstractIVFKnnVectorQuery {
      */
     public IVFKnnFloatVectorQuery(String field, float[] query, int k, Query filter, int nProbe) {
         super(field, nProbe, k, filter);
+        if (k < 1) {
+            throw new IllegalArgumentException("k must be at least 1, got: " + k);
+        }
+        if (nProbe < 1) {
+            throw new IllegalArgumentException("nProbe must be at least 1, got: " + nProbe);
+        }
         this.query = query;
     }
 

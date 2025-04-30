@@ -53,6 +53,7 @@ import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.monitor.jvm.JvmInfo;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.telemetry.Measurement;
 import org.elasticsearch.telemetry.TestTelemetryPlugin;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.disruption.ServiceDisruptionScheme;
@@ -90,6 +91,7 @@ import static co.elastic.elasticsearch.stateless.autoscaling.memory.MemoryMetric
 import static co.elastic.elasticsearch.stateless.autoscaling.memory.MemoryMetricsService.ADAPTIVE_SHARD_MEMORY_OVERHEAD;
 import static co.elastic.elasticsearch.stateless.autoscaling.memory.MemoryMetricsService.FIXED_SHARD_MEMORY_OVERHEAD_DEFAULT;
 import static co.elastic.elasticsearch.stateless.autoscaling.memory.MemoryMetricsService.FIXED_SHARD_MEMORY_OVERHEAD_SETTING;
+import static co.elastic.elasticsearch.stateless.autoscaling.memory.MemoryMetricsService.INDEXING_MEMORY_MINIMUM_HEAP_REQUIRED_TO_ACCEPT_LARGE_OPERATIONS_METRIC_NAME;
 import static co.elastic.elasticsearch.stateless.autoscaling.memory.MemoryMetricsService.INDEXING_OPERATIONS_MEMORY_REQUIREMENTS_ENABLED_SETTING;
 import static co.elastic.elasticsearch.stateless.autoscaling.memory.MemoryMetricsService.INDEXING_OPERATIONS_MEMORY_REQUIREMENTS_VALIDITY_SETTING;
 import static co.elastic.elasticsearch.stateless.autoscaling.memory.ShardsMappingSizeCollector.PUBLISHING_FREQUENCY_SETTING;
@@ -1379,6 +1381,58 @@ public class AutoscalingMemoryMetricsIT extends AbstractStatelessIntegTestCase {
             var memoryMetricsAfter = getMemoryMetrics();
             assertThat(memoryMetricsAfter.quality(), equalTo(MetricQuality.EXACT));
             assertThat(memoryMetricsAfter.nodeMemoryInBytes(), equalTo(memoryMetricsBefore.nodeMemoryInBytes()));
+        });
+    }
+
+    public void testIndexingOperationsMemoryRequirementsArePublishedThroughAPM() throws Exception {
+        startMasterAndIndexNode(
+            Settings.builder()
+                .put(INDEXING_OPERATIONS_MEMORY_REQUIREMENTS_VALIDITY_SETTING.getKey(), TimeValue.timeValueSeconds(2))
+                .put(IndexingPressure.MAX_OPERATION_SIZE.getKey(), "1%")
+                .build()
+        );
+        createIndex(INDEX_NAME, indexSettings(1, 0).build());
+        ensureGreen(INDEX_NAME);
+        indexDocs(INDEX_NAME, randomIntBetween(10, 20));
+
+        var currentHeapSize = JvmInfo.jvmInfo().getMem().getHeapMax().getBytes();
+        var maxOperationSize = (int) (currentHeapSize * 0.01);
+
+        var plugin = findPlugin(internalCluster().getMasterName(), TestTelemetryPlugin.class);
+        var latestAPMMetricSample = new AtomicLong(0);
+        assertBusy(() -> {
+            plugin.collect();
+            var measurements = plugin.getLongGaugeMeasurement(INDEXING_MEMORY_MINIMUM_HEAP_REQUIRED_TO_ACCEPT_LARGE_OPERATIONS_METRIC_NAME);
+            assertThat(measurements.size(), equalTo(1));
+            assertThat(measurements.get(0).getLong(), is(greaterThan(0L)));
+            latestAPMMetricSample.set(measurements.get(0).getLong());
+        });
+        plugin.resetMeter();
+
+        var bulkRequest = client().prepareBulk()
+            .add(client().prepareIndex(INDEX_NAME).setSource("field", randomUnicodeOfLength(maxOperationSize + 1)));
+        var bulkResponse = bulkRequest.get();
+        assertThat(bulkResponse.hasFailures(), is(true));
+
+        // After the rejection, a new memory metric is published
+        assertBusy(() -> {
+            plugin.resetMeter();
+            plugin.collect();
+            List<Measurement> measurements = plugin.getLongGaugeMeasurement(
+                INDEXING_MEMORY_MINIMUM_HEAP_REQUIRED_TO_ACCEPT_LARGE_OPERATIONS_METRIC_NAME
+            );
+            assertThat(measurements.size(), equalTo(1));
+            assertThat(measurements.get(0).getLong(), is(greaterThan(latestAPMMetricSample.get())));
+        });
+
+        // After INDEXING_OPERATIONS_MEMORY_REQUIREMENTS_VALIDITY_SETTING the sample is stale and the APM metric is not published anymore
+        assertBusy(() -> {
+            plugin.resetMeter();
+            plugin.collect();
+            List<Measurement> measurements = plugin.getLongGaugeMeasurement(
+                INDEXING_MEMORY_MINIMUM_HEAP_REQUIRED_TO_ACCEPT_LARGE_OPERATIONS_METRIC_NAME
+            );
+            assertThat(measurements.size(), equalTo(0));
         });
     }
 

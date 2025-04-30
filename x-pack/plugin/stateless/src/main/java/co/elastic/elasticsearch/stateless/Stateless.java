@@ -613,7 +613,8 @@ public class Stateless extends Plugin
         var memoryMetricsService = new MemoryMetricsService(
             threadPool::relativeTimeInNanos,
             clusterService.getClusterSettings(),
-            projectType
+            projectType,
+            services.telemetryProvider().getMeterRegistry()
         );
         clusterService.addListener(memoryMetricsService);
         components.add(memoryMetricsService);

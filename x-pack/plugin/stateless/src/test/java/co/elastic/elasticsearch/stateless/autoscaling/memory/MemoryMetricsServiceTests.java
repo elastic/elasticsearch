@@ -43,6 +43,7 @@ import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.AutoscalingMissedIndicesUpdateException;
+import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.MockLog;
 import org.elasticsearch.threadpool.TestThreadPool;
@@ -109,7 +110,12 @@ public class MemoryMetricsServiceTests extends ESTestCase {
 
     @Before
     public void init() {
-        service = new MemoryMetricsService(System::nanoTime, CLUSTER_SETTINGS, ProjectType.ELASTICSEARCH_GENERAL_PURPOSE);
+        service = new MemoryMetricsService(
+            System::nanoTime,
+            CLUSTER_SETTINGS,
+            ProjectType.ELASTICSEARCH_GENERAL_PURPOSE,
+            MeterRegistry.NOOP
+        );
     }
 
     public void testReduceFinalIndexMappingSize() {
@@ -213,7 +219,8 @@ public class MemoryMetricsServiceTests extends ESTestCase {
         MemoryMetricsService customService = new MemoryMetricsService(
             () -> currentTime,
             CLUSTER_SETTINGS,
-            ProjectType.ELASTICSEARCH_GENERAL_PURPOSE
+            ProjectType.ELASTICSEARCH_GENERAL_PURPOSE,
+            MeterRegistry.NOOP
         );
 
         long updateTime = currentTime - TimeUnit.MINUTES.toNanos(5) - TimeUnit.SECONDS.toNanos(1);
@@ -618,7 +625,7 @@ public class MemoryMetricsServiceTests extends ESTestCase {
     public void testIndexingMemoryRequirements() {
         var fakeClock = new AtomicLong();
         var projectType = randomFrom(ProjectType.values());
-        service = new MemoryMetricsService(fakeClock::get, CLUSTER_SETTINGS, projectType);
+        service = new MemoryMetricsService(fakeClock::get, CLUSTER_SETTINGS, projectType, MeterRegistry.NOOP);
         final var indexingTierMemoryMetricsBeforeIndexRequirements = service.getIndexingTierMemoryMetrics();
 
         assertThat(indexingTierMemoryMetricsBeforeIndexRequirements, is(equalTo(service.getSearchTierMemoryMetrics())));
@@ -666,7 +673,7 @@ public class MemoryMetricsServiceTests extends ESTestCase {
         var node0EphemeralId = node0.getEphemeralId();
         var node1 = DiscoveryNodeUtils.create("node1");
         var node1EphemeralId = node1.getEphemeralId();
-        service = new MemoryMetricsService(fakeClock::get, CLUSTER_SETTINGS, randomFrom(ProjectType.values()));
+        service = new MemoryMetricsService(fakeClock::get, CLUSTER_SETTINGS, randomFrom(ProjectType.values()), MeterRegistry.NOOP);
 
         assertThat(service.mergeMemoryEstimation(), equalTo(0L));
 
@@ -756,7 +763,7 @@ public class MemoryMetricsServiceTests extends ESTestCase {
         var node0 = DiscoveryNodeUtils.create("node0");
         var node0EphemeralId = node0.getEphemeralId();
         var node1 = DiscoveryNodeUtils.create("node1");
-        service = new MemoryMetricsService(fakeClock::get, CLUSTER_SETTINGS, randomFrom(ProjectType.values()));
+        service = new MemoryMetricsService(fakeClock::get, CLUSTER_SETTINGS, randomFrom(ProjectType.values()), MeterRegistry.NOOP);
         final var clusterState1 = ClusterState.builder(new ClusterName("test"))
             .nodes(DiscoveryNodes.builder().add(node0).add(node1).localNodeId("node1").masterNodeId("node1"))
             .version(randomLongBetween(0, 1000))

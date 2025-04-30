@@ -37,6 +37,8 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.AutoscalingMissedIndicesUpdateException;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
+import org.elasticsearch.telemetry.metric.LongWithAttributes;
+import org.elasticsearch.telemetry.metric.MeterRegistry;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -92,6 +94,8 @@ public class MemoryMetricsService implements ClusterStateListener {
         Setting.Property.NodeScope,
         Setting.Property.Dynamic
     );
+    public static final String INDEXING_MEMORY_MINIMUM_HEAP_REQUIRED_TO_ACCEPT_LARGE_OPERATIONS_METRIC_NAME =
+        "es.autoscaling.indexing.memory.heap_required_large_operations.current";
 
     // We clean up a node's reported max merge when the node leaves the cluster. In order to ensure a node's reported max merges are
     // consumed in the correct sequence, we rely on keeping a sequence no of the last reported value to be able to reject out of order
@@ -147,7 +151,12 @@ public class MemoryMetricsService implements ClusterStateListener {
     private volatile boolean mergeMemoryEstimateEnabled;
     private final Map<String, ShardMergeMemoryEstimatePublication> maxShardMergeMemoryEstimatePerNode = new ConcurrentHashMap<>();
 
-    public MemoryMetricsService(LongSupplier relativeTimeInNanosSupplier, ClusterSettings clusterSettings, ProjectType projectType) {
+    public MemoryMetricsService(
+        LongSupplier relativeTimeInNanosSupplier,
+        ClusterSettings clusterSettings,
+        ProjectType projectType,
+        MeterRegistry meterRegistry
+    ) {
         this.relativeTimeInNanosSupplier = relativeTimeInNanosSupplier;
         this.projectType = projectType;
         clusterSettings.initializeAndWatch(
@@ -162,6 +171,23 @@ public class MemoryMetricsService implements ClusterStateListener {
         clusterSettings.initializeAndWatch(STALE_METRICS_CHECK_INTERVAL_SETTING, value -> staleMetricsCheckInterval = value);
         clusterSettings.initializeAndWatch(FIXED_SHARD_MEMORY_OVERHEAD_SETTING, value -> fixedShardMemoryOverhead = value);
         clusterSettings.initializeAndWatch(MERGE_MEMORY_ESTIMATE_ENABLED_SETTING, value -> mergeMemoryEstimateEnabled = value);
+        setupMetrics(meterRegistry);
+    }
+
+    private void setupMetrics(MeterRegistry meterRegistry) {
+        meterRegistry.registerLongsGauge(
+            INDEXING_MEMORY_MINIMUM_HEAP_REQUIRED_TO_ACCEPT_LARGE_OPERATIONS_METRIC_NAME,
+            "Minimum heap required to accept large indexing operations",
+            "bytes",
+            () -> {
+                var latestIndexingOperationsMemoryRequirements = indexingOperationsHeapMemoryRequirementsRef.get();
+                if (latestIndexingOperationsMemoryRequirements == null
+                    || latestIndexingOperationsMemoryRequirements.validUntil() < relativeTimeInNanos()) {
+                    return List.of();
+                }
+                return List.of(new LongWithAttributes(latestIndexingOperationsMemoryRequirements.minimumRequiredHeapInBytes()));
+            }
+        );
     }
 
     public MemoryMetrics getSearchTierMemoryMetrics() {
@@ -383,6 +409,7 @@ public class MemoryMetricsService implements ClusterStateListener {
     public void clusterChanged(ClusterChangedEvent event) {
         if (event.localNodeMaster() == false || event.state().blocks().hasGlobalBlock(GatewayService.STATE_NOT_RECOVERED_BLOCK)) {
             shardMemoryMetrics.clear();
+            indexingOperationsHeapMemoryRequirementsRef.set(null);
             maxShardMergeMemoryEstimatePerNode.clear();
             initialized = false;
             // Set the cluster state to unknown so we don't ignore valid updates that arrive during our next promotion

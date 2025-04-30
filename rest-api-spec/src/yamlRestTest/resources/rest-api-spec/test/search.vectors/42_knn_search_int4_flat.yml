@@ -495,3 +495,14 @@ setup:
   - match: { hits.hits.0._score: $rescore_score0 }
   - match: { hits.hits.1._score: $rescore_score1 }
   - match: { hits.hits.2._score: $rescore_score2 }
+
+---
+"no default oversample value":
+  - requires:
+      cluster_features: ["mapper.dense_vector.default_oversample_value_for_bbq"]
+      reason: "Needs default_oversample_value_for_bbq feature"
+  - do:
+      indices.get_mapping:
+        index: int4_flat
+
+  - not_exists: int4_flat.mappings.properties.vector.index_options.rescore_vector

@@ -90,7 +90,7 @@ public class PushQueriesIT extends ESRestTestCase {
     private void testPushQuery(String value, String esqlQuery, String luceneQuery, boolean filterInCompute, boolean found)
         throws IOException {
         indexValue(value);
-        String differentValue = randomValueOtherThan(value, () -> randomAlphaOfLength(value.length()));
+        String differentValue = randomValueOtherThan(value, () -> randomAlphaOfLength(value.length() == 0 ? 1 : value.length()));
 
         String replacedQuery = esqlQuery.replaceAll("%value", value).replaceAll("%different_value", differentValue);
         RestEsqlTestCase.RequestObjectBuilder builder = requestObjectBuilder().query(replacedQuery + "\n| KEEP test");

@@ -42,7 +42,6 @@ import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
-import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -60,6 +59,7 @@ import org.elasticsearch.xpack.esql.parser.ParsingException;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.physical.AggregateExec;
+import org.elasticsearch.xpack.esql.plan.physical.DissectExec;
 import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec;
 import org.elasticsearch.xpack.esql.plan.physical.EsStatsQueryExec;
 import org.elasticsearch.xpack.esql.plan.physical.EsStatsQueryExec.Stat;
@@ -1872,15 +1872,14 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
 
     /**
      * LimitExec[1000[INTEGER]]
-     * \_ExchangeExec[[!alias_integer, boolean{f}#4, byte{f}#5, constant_keyword-foo{f}#6, date{f}#7, date_nanos{f}#8, double{f}#9,
-     *   float{f}#10, half_float{f}#11, integer{f}#13, ip{f}#14, keyword{f}#15, long{f}#16, scaled_float{f}#12, !semantic_text,
-     *   short{f}#18, text{f}#19, unsigned_long{f}#17, version{f}#20, wildcard{f}#21], false]
-     *   \_ProjectExec[[!alias_integer, boolean{f}#4, byte{f}#5, constant_keyword-foo{r}#6, date{f}#7, date_nanos{f}#8, double{f}#9,
-     *     float{f}#10, half_float{f}#11, integer{f}#13, ip{f}#14, keyword{f}#15, long{f}#16, scaled_float{f}#12,
-     *     !semantic_text, short{f}#18, text{f}#19, unsigned_long{f}#17, version{f}#20, wildcard{f}#21]]
-     *     \_FieldExtractExec[!alias_integer, boolean{f}#4, byte{f}#5, date{f}#7, ]
-     *       \_EvalExec[[[66 6f 6f][KEYWORD] AS constant_keyword-foo]]
-     *         \_EsQueryExec[test], indexMode[standard], query[][_doc{f}#23], limit[1000], sort[] estimatedRowSize[412]
+     * \_ExchangeExec[[!alias_integer, boolean{f}#415, byte{f}#416, constant_keyword-foo{f}#417, date{f}#418, date_nanos{f}#419,
+     *   double{f}#420, float{f}#421, half_float{f}#422, integer{f}#424, ip{f}#425, keyword{f}#426, long{f}#427, scaled_float{f}#423,
+     *   !semantic_text, short{f}#429, text{f}#430, unsigned_long{f}#428, version{f}#431, wildcard{f}#432], false]
+     *   \_ProjectExec[[!alias_integer, boolean{f}#415, byte{f}#416, constant_keyword-foo{f}#417, date{f}#418, date_nanos{f}#419,
+     *     double{f}#420, float{f}#421, half_float{f}#422, integer{f}#424, ip{f}#425, keyword{f}#426, long{f}#427, scaled_float{f}#423,
+     *     !semantic_text, short{f}#429, text{f}#430, unsigned_long{f}#428, version{f}#431, wildcard{f}#432]]
+     *     \_FieldExtractExec[!alias_integer, boolean{f}#415, byte{f}#416, consta..]
+     *       \_EsQueryExec[test], indexMode[standard], query[][_doc{f}#434], limit[1000], sort[] estimatedRowSize[412]
      */
     public void testConstantKeywordWithMatchingFilter() {
         String queryText = """
@@ -1894,11 +1893,9 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
         var exchange = as(limit.child(), ExchangeExec.class);
         var project = as(exchange.child(), ProjectExec.class);
         var field = as(project.child(), FieldExtractExec.class);
-        var eval = as(field.child(), EvalExec.class);
-        var query = as(eval.child(), EsQueryExec.class);
+        var query = as(field.child(), EsQueryExec.class);
         assertThat(as(query.limit(), Literal.class).value(), is(1000));
         assertNull(query.query());
-        assertFalse(field.attributesToExtract().stream().map(NamedExpression::name).anyMatch(x -> x.equals("constant_keyword-foo")));
     }
 
     /**
@@ -1925,21 +1922,14 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
 
     /**
      * LimitExec[1000[INTEGER]]
-     * \_ExchangeExec[[!alias_integer, boolean{f}#6, byte{f}#7, constant_keyword-foo{r}#25, date{f}#9, date_nanos{f}#10, double{f}#1
-     *   1, float{f}#12, half_float{f}#13, integer{f}#15, ip{f}#16, keyword{f}#17, long{f}#18, scaled_float{f}#14,
-     *   !semantic_text, short{f}#20, text{f}#21, unsigned_long{f}#19, version{f}#22, wildcard{f}#23], false]
-     *   \_ProjectExec[[!alias_integer, boolean{f}#6, byte{f}#7, constant_keyword-foo{r}#25, date{f}#9, date_nanos{f}#10, double{f}#1
-     *     1, float{f}#12, half_float{f}#13, integer{f}#15, ip{f}#16, keyword{f}#17, long{f}#18, scaled_float{f}#14,
-     *     !semantic_text, short{f}#20, text{f}#21, unsigned_long{f}#19, version{f}#22, wildcard{f}#23]]
-     *     \_LimitExec[1000[INTEGER]]
-     *       \_FilterExec[constant_keyword-foo{r}#25 == [66 6f 6f][KEYWORD]]
-     *         \_MvExpandExec[constant_keyword-foo{f}#8,constant_keyword-foo{r}#25]
-     *           \_ProjectExec[[!alias_integer, boolean{f}#6, byte{f}#7, constant_keyword-foo{r}#8, date{f}#9, date_nanos{f}#10,
-     *           double{f}#11, float{f}#12, half_float{f}#13, integer{f}#15, ip{f}#16, keyword{f}#17, long{f}#18, scaled_float{f}#14,
-     *           !semantic_text, short{f}#20, text{f}#21, unsigned_long{f}#19, version{f}#22, wildcard{f}#23]]
-     *             \_FieldExtractExec[!alias_integer, boolean{f}#6, byte{f}#7, date{f}#9, ..]
-     *               \_EvalExec[[[66 6f 6f][KEYWORD] AS constant_keyword-foo]]
-     *                 \_EsQueryExec[test], indexMode[standard], query[][_doc{f}#26], limit[], sort[] estimatedRowSize[412]
+     * \_ExchangeExec[[!alias_integer, boolean{f}#6, byte{f}#7, constant_keyword-foo{r}#25, date{f}#9, date_nanos{f}#10, double{f}#1...
+     *   \_ProjectExec[[!alias_integer, boolean{f}#6, byte{f}#7, constant_keyword-foo{r}#25, date{f}#9, date_nanos{f}#10, double{f}#1...
+     *     \_FieldExtractExec[!alias_integer, boolean{f}#6, byte{f}#7, date{f}#9,
+     *       \_LimitExec[1000[INTEGER]]
+     *         \_FilterExec[constant_keyword-foo{r}#25 == [66 6f 6f][KEYWORD]]
+     *           \_MvExpandExec[constant_keyword-foo{f}#8,constant_keyword-foo{r}#25]
+     *             \_FieldExtractExec[constant_keyword-foo{f}#8]
+     *               \_EsQueryExec[test], indexMode[standard], query[][_doc{f}#26], limit[], sort[] estimatedRowSize[412]
      */
     public void testConstantKeywordExpandFilter() {
         String queryText = """
@@ -1953,15 +1943,38 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
         var limit = as(plan, LimitExec.class);
         var exchange = as(limit.child(), ExchangeExec.class);
         var project = as(exchange.child(), ProjectExec.class);
-        var limit2 = as(project.child(), LimitExec.class);
+        var fieldExtract = as(project.child(), FieldExtractExec.class);
+        var limit2 = as(fieldExtract.child(), LimitExec.class);
         var filter = as(limit2.child(), FilterExec.class);
         var expand = as(filter.child(), MvExpandExec.class);
-        var project2 = as(expand.child(), ProjectExec.class);
-        var field = as(project2.child(), FieldExtractExec.class);
-        var eval = as(field.child(), EvalExec.class);
-        var query = as(eval.child(), EsQueryExec.class);
+        var field = as(expand.child(), FieldExtractExec.class); // MV_EXPAND is not optimized yet (it doesn't accept literals)
+        as(field.child(), EsQueryExec.class);
+    }
+
+    /**
+     * DissectExec[constant_keyword-foo{f}#8,Parser[pattern=%{bar}, appendSeparator=, ...
+     * \_LimitExec[1000[INTEGER]]
+     *   \_ExchangeExec[[!alias_integer, boolean{f}#6, byte{f}#7, constant_keyword-foo{f}#8, date{f}#9, date_nanos{f}#10, double{f}#11...
+     *     \_ProjectExec[[!alias_integer, boolean{f}#6, byte{f}#7, constant_keyword-foo{f}#8, date{f}#9, date_nanos{f}#10, double{f}#11...
+     *       \_FieldExtractExec[!alias_integer, boolean{f}#6, byte{f}#7, constant_k..]
+     *         \_EsQueryExec[test], indexMode[standard], query[][_doc{f}#25], limit[1000], sort[] estimatedRowSize[462]
+     */
+    public void testConstantKeywordDissectFilter() {
+        String queryText = """
+            from test
+            | dissect `constant_keyword-foo` "%{bar}"
+            | where `constant_keyword-foo` == "foo"
+            """;
+        var analyzer = makeAnalyzer("mapping-all-types.json");
+        var plan = plannerOptimizer.plan(queryText, CONSTANT_K_STATS, analyzer);
+
+        var dissect = as(plan, DissectExec.class);
+        var limit = as(dissect.child(), LimitExec.class);
+        var exchange = as(limit.child(), ExchangeExec.class);
+        var project = as(exchange.child(), ProjectExec.class);
+        var field = as(project.child(), FieldExtractExec.class);
+        var query = as(field.child(), EsQueryExec.class);
         assertNull(query.query());
-        assertFalse(field.attributesToExtract().stream().map(NamedExpression::name).anyMatch(x -> x.equals("constant_keyword-foo")));
     }
 
     private QueryBuilder wrapWithSingleQuery(String query, QueryBuilder inner, String fieldName, Source source) {

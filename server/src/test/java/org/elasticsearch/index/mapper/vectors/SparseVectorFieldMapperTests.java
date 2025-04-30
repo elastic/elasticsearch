@@ -151,7 +151,9 @@ public class SparseVectorFieldMapperTests extends MapperTestCase {
     public void testWithIndexOptionsPrune() throws Exception {
         DocumentMapper mapper = createDocumentMapper(fieldMapping(this::mappingWithIndexOptionsPrune));
         String expectedMapping =
-            "{\"_doc\":{\"properties\":{\"field\":{\"type\":\"sparse_vector\",\"index_options\":{\"prune\":true,\"pruning_config\":{\"tokens_freq_ratio_threshold\":5.0,\"tokens_weight_threshold\":0.4}}}}}}";
+            "{\"_doc\":{\"properties\":{\"field\":{\"type\":\"sparse_vector\",\"index_options\":"
+            + "{\"prune\":true,\"pruning_config\":{\"tokens_freq_ratio_threshold\":5.0,\"tokens_weight_threshold\":0.4}}"
+            +"}}}}";
         assertEquals(expectedMapping, mapper.mappingSource().toString());
 
         ParsedDocument doc1 = mapper.parse(source(this::writeField));

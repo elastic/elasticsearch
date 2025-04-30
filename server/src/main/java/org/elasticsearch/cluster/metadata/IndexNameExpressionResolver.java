@@ -1154,7 +1154,9 @@ public class IndexNameExpressionResolver {
                     if (requiredAliases == null) {
                         requiredAliases = new ArrayList<>(aliasesForDataStream.size());
                     }
-                    String alias = isData ? dataStreamAlias.getName() : dataStreamAlias.getName() + "::failures";
+                    String alias = isData
+                        ? dataStreamAlias.getName()
+                        : combineSelector(dataStreamAlias.getName(), IndexComponentSelector.FAILURES);
                     requiredAliases.add(alias);
                 } else {
                     // we have a non-required alias for this data stream so no need to check further

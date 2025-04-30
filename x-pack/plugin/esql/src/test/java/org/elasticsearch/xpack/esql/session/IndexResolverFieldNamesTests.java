@@ -267,7 +267,9 @@ public class IndexResolverFieldNamesTests extends ESTestCase {
             | dissect full_name "%{a} %{b}"
             | sort emp_no asc
             | keep full_name, a, b
-            | limit 3""", Set.of("first_name", "first_name.*", "last_name", "last_name.*", "emp_no", "emp_no.*"));
+            | limit 3""",
+            Set.of("emp_no", "first_name", "last_name", "full_name", "last_name.*", "first_name.*", "full_name.*", "emp_no.*")
+        );
     }
 
     public void testDissectExpression() {
@@ -691,7 +693,9 @@ public class IndexResolverFieldNamesTests extends ESTestCase {
             | grok full_name "%{WORD:a} %{WORD:b}"
             | sort emp_no asc
             | keep full_name, a, b
-            | limit 3""", Set.of("first_name", "first_name.*", "last_name", "last_name.*", "emp_no", "emp_no.*"));
+            | limit 3""",
+            Set.of("emp_no", "first_name", "last_name", "full_name", "last_name.*", "first_name.*", "full_name.*", "emp_no.*")
+        );
     }
 
     public void testGrokExpression() {
@@ -710,7 +714,7 @@ public class IndexResolverFieldNamesTests extends ESTestCase {
             | grok full_name "%{WORD:a} %{WORD:b}"
             | sort a asc
             | keep full_name, a, b
-            | limit 3""", Set.of("first_name", "first_name.*", "last_name", "last_name.*"));
+            | limit 3""", Set.of("first_name", "last_name", "full_name", "last_name.*", "first_name.*", "full_name.*"));
     }
 
     public void testGrokStats() {
@@ -720,7 +724,7 @@ public class IndexResolverFieldNamesTests extends ESTestCase {
             | grok x "%{WORD:a} %{WORD:b}"
             | stats n = max(emp_no) by a
             | keep a, n
-            | sort a asc""", Set.of("gender", "gender.*", "emp_no", "emp_no.*"));
+            | sort a asc""", Set.of("emp_no", "gender", "x", "x.*", "gender.*", "emp_no.*"));
     }
 
     public void testNullOnePattern() {
@@ -1339,6 +1343,18 @@ public class IndexResolverFieldNamesTests extends ESTestCase {
             | dissect first_name "%{first_name} %{more}"
             | keep emp_no, first_name, more""", Set.of());
         assertThat(fieldNames, equalTo(Set.of("emp_no", "emp_no.*", "first_name", "first_name.*")));
+    }
+
+    public void testAvoidGrokAttributesRemoval() {
+        Set<String> fieldNames = fieldNames("""
+            from message_types
+            | eval type = 1
+            | lookup join message_types_lookup on message
+            | drop  message
+            | grok type "%{WORD:b}"
+            | stats x = max(b)
+            | keep x""", Set.of());
+        assertThat(fieldNames, equalTo(Set.of("message", "x", "type", "x.*", "message.*", "type.*")));
     }
 
     public void testEnrichOnDefaultField() {

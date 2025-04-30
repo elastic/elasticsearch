@@ -34,6 +34,7 @@ public class Netty4TcpChannel implements TcpChannel {
     private final ListenableFuture<Void> closeContext = new ListenableFuture<>();
     private final ChannelStats stats = new ChannelStats();
     private final boolean rstOnClose;
+    private volatile Exception channelError = null;
 
     Netty4TcpChannel(Channel channel, boolean isServer, String profile, boolean rstOnClose, ChannelFuture connectFuture) {
         this.channel = channel;
@@ -41,8 +42,17 @@ public class Netty4TcpChannel implements TcpChannel {
         this.profile = profile;
         this.connectContext = new ListenableFuture<>();
         this.rstOnClose = rstOnClose;
-        addListener(this.channel.closeFuture(), closeContext);
         addListener(connectFuture, connectContext);
+        // The netty closeFuture is programmed to never return an exception.
+        // This listener takes close-causing exceptions reported during the
+        // channel lifetime, and reports them to the closeListener.
+        addListener(this.channel.closeFuture(), ActionListener.running(() -> {
+            if (channelError != null) {
+                closeContext.onFailure(channelError);
+            } else {
+                closeContext.onResponse(null);
+            }
+        }));
     }
 
     @Override
@@ -93,6 +103,11 @@ public class Netty4TcpChannel implements TcpChannel {
     @Override
     public void addConnectListener(ActionListener<Void> listener) {
         connectContext.addListener(listener);
+    }
+
+    @Override
+    public void onException(Exception e) {
+        channelError = e;
     }
 
     @Override

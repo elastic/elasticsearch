@@ -67,6 +67,13 @@ public interface TcpChannel extends CloseableChannel {
     void addConnectListener(ActionListener<Void> listener);
 
     /**
+     * Report an exception on this channel
+     *
+     * @param e the exception
+     */
+    void onException(Exception e);
+
+    /**
      * Returns stats about this channel
      */
     ChannelStats getChannelStats();

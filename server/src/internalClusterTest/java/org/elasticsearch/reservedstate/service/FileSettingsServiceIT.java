@@ -35,15 +35,16 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
-import java.util.List;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.stream.Stream;
 
 import static org.elasticsearch.health.HealthStatus.YELLOW;
 import static org.elasticsearch.indices.recovery.RecoverySettings.INDICES_RECOVERY_MAX_BYTES_PER_SEC_SETTING;
 import static org.elasticsearch.node.Node.INITIAL_STATE_TIMEOUT_SETTING;
+import static org.elasticsearch.test.NodeRoles.dataNode;
 import static org.elasticsearch.test.NodeRoles.dataOnlyNode;
 import static org.elasticsearch.test.NodeRoles.masterNode;
 import static org.hamcrest.Matchers.allOf;
@@ -502,7 +503,19 @@ public class FileSettingsServiceIT extends ESIntegTestCase {
         assertClusterStateSaveOK(savedClusterState.v1(), savedClusterState.v2(), "43mb");
     }
 
-    public void testHealthIndicator() throws Exception {
+    public void testHealthIndicatorWithSingleNode() throws Exception {
+        internalCluster().setBootstrapMasterNodeIndex(0);
+        logger.info("--> start the node");
+        String nodeName = internalCluster().startNode((dataNode()));
+        FileSettingsService masterFileSettingsService = internalCluster().getInstance(FileSettingsService.class, nodeName);
+        assertBusy(() -> assertTrue(masterFileSettingsService.watching()));
+
+        ensureStableCluster(1);
+
+        testHealthIndicatorOnError(nodeName, nodeName);
+    }
+
+    public void testHealthIndicatorWithSeparateHealthNode() throws Exception {
         internalCluster().setBootstrapMasterNodeIndex(0);
         logger.info("--> start a data node to act as the health node");
         String healthNode = internalCluster().startNode(
@@ -518,7 +531,14 @@ public class FileSettingsServiceIT extends ESIntegTestCase {
 
         ensureStableCluster(2);
 
-        // Initially, all is well
+        testHealthIndicatorOnError(masterNode, healthNode);
+    }
+
+    /**
+     * {@code masterNode} and {@code healthNode} can be the same node.
+     */
+    private void testHealthIndicatorOnError(String masterNode, String healthNode) throws Exception {
+        logger.info("--> ensure all is well before the error");
         assertBusy(() -> {
             FetchHealthInfoCacheAction.Response healthNodeResponse = client().execute(
                 FetchHealthInfoCacheAction.INSTANCE,
@@ -545,7 +565,7 @@ public class FileSettingsServiceIT extends ESIntegTestCase {
                 healthNodeResponse.getHealthInfo().fileSettingsHealthInfo().failureStreak()
             );
 
-            for (var node : List.of(masterNode, healthNode)) {
+            for (var node : Stream.of(masterNode, healthNode).distinct().toList()) {
                 GetHealthAction.Response getHealthResponse = client(node).execute(
                     GetHealthAction.INSTANCE,
                     new GetHealthAction.Request(false, 123)

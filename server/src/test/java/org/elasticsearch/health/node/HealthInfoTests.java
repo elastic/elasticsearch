@@ -35,9 +35,7 @@ public class HealthInfoTests extends AbstractWireSerializingTestCase<HealthInfo>
             diskInfoByNode,
             randomBoolean() ? randomDslHealthInfo() : null,
             repositoriesInfoByNode,
-            randomBoolean()
-                ? FileSettingsHealthInfo.INDETERMINATE
-                : mutateFileSettingsHealthInfo(FileSettingsHealthInfo.INDETERMINATE)
+            randomBoolean() ? FileSettingsHealthInfo.INDETERMINATE : mutateFileSettingsHealthInfo(FileSettingsHealthInfo.INDETERMINATE)
         );
     }
 

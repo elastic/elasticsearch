@@ -7,8 +7,6 @@
 
 package org.elasticsearch.xpack.searchbusinessrules;
 
-import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.plugins.ExtensiblePlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.SearchPlugin;
@@ -19,7 +17,6 @@ import org.elasticsearch.xpack.searchbusinessrules.retriever.PinnedRetrieverBuil
 
 import java.util.List;
 
-import static java.util.Collections.emptyList;
 import static java.util.Collections.singletonList;
 
 public class SearchBusinessRules extends Plugin implements SearchPlugin, ExtensiblePlugin {
@@ -31,10 +28,7 @@ public class SearchBusinessRules extends Plugin implements SearchPlugin, Extensi
 
     @Override
     public List<RetrieverSpec<?>> getRetrievers() {
-        if (TransportVersion.current().onOrAfter(TransportVersions.PINNED_RETRIEVER)) {
-            return singletonList(new RetrieverSpec<>(new ParseField(PinnedRetrieverBuilder.NAME), PinnedRetrieverBuilder::fromXContent));
-        }
-        return emptyList();
+        return singletonList(new RetrieverSpec<>(new ParseField(PinnedRetrieverBuilder.NAME), PinnedRetrieverBuilder::fromXContent));
     }
 
 }

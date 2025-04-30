@@ -211,6 +211,13 @@ public abstract class MapperServiceTestCase extends FieldTypeTestCase {
         return createMapperService(version, getIndexSettings(), () -> true, mapping);
     }
 
+    protected final MapperService createMapperService(IndexVersion indexVersion, Settings settings, XContentBuilder mappings)
+        throws IOException {
+        MapperService mapperService = createMapperService(indexVersion, settings, () -> true, mappings);
+        merge(mapperService, mappings);
+        return mapperService;
+    }
+
     /**
      * Create a {@link MapperService} like we would for an index.
      */

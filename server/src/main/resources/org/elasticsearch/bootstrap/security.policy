@@ -32,6 +32,10 @@ grant codeBase "${codebase.elasticsearch}" {
 
   // for plugin api dynamic settings instances
   permission java.lang.RuntimePermission "accessClassInPackage.jdk.internal.reflect";
+
+  // For vector off-heap statistics, remove in Lucene 10.3
+  permission java.lang.RuntimePermission "accessDeclaredMembers";
+  permission java.lang.reflect.ReflectPermission "suppressAccessChecks";
 };
 
 //// Very special jar permissions:

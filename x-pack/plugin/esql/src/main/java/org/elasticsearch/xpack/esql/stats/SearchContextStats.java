@@ -292,6 +292,24 @@ public class SearchContextStats implements SearchStats {
         return false;
     }
 
+    @Override
+    public boolean canUseEqualityOnSyntheticSourceDelegate(String name, String value) {
+        for (SearchExecutionContext ctx : contexts) {
+            MappedFieldType type = ctx.getFieldType(name);
+            if (type == null) {
+                return false;
+            }
+            if (type instanceof TextFieldMapper.TextFieldType t) {
+                if (t.canUseSyntheticSourceDelegateForQueryingEquality(value) == false) {
+                    return false;
+                }
+            } else {
+                return false;
+            }
+        }
+        return true;
+    }
+
     private interface DocCountTester {
         Boolean test(LeafReader leafReader) throws IOException;
     }

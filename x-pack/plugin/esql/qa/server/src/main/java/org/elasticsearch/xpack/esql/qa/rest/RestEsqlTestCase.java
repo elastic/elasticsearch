@@ -131,7 +131,7 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
         private Boolean includeCCSMetadata = null;
 
         private CheckedConsumer<XContentBuilder, IOException> filter;
-        private Boolean allPartialResults = null;
+        private Boolean allowPartialResults = null;
 
         public RequestObjectBuilder() throws IOException {
             this(randomFrom(XContentType.values()));
@@ -178,6 +178,14 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
             return this;
         }
 
+        /**
+         * Allow sending pragmas even in non-snapshot builds.
+         */
+        public RequestObjectBuilder pragmasOk() throws IOException {
+            builder.field("accept_pragma_risks", true);
+            return this;
+        }
+
         Boolean keepOnCompletion() {
             return keepOnCompletion;
         }
@@ -209,9 +217,13 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
             return this;
         }
 
-        public RequestObjectBuilder allPartialResults(boolean allPartialResults) {
-            this.allPartialResults = allPartialResults;
+        public RequestObjectBuilder allowPartialResults(boolean allowPartialResults) {
+            this.allowPartialResults = allowPartialResults;
             return this;
+        }
+
+        public Boolean allowPartialResults() {
+            return allowPartialResults;
         }
 
         public RequestObjectBuilder build() throws IOException {
@@ -1235,7 +1247,8 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
         return runEsqlAsync(requestObject, randomBoolean(), new AssertWarnings.NoWarnings());
     }
 
-    static Map<String, Object> runEsql(RequestObjectBuilder requestObject, AssertWarnings assertWarnings, Mode mode) throws IOException {
+    public static Map<String, Object> runEsql(RequestObjectBuilder requestObject, AssertWarnings assertWarnings, Mode mode)
+        throws IOException {
         if (mode == ASYNC) {
             return runEsqlAsync(requestObject, randomBoolean(), assertWarnings);
         } else {
@@ -1375,8 +1388,8 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
         requestObject.build();
         Request request = prepareRequest(mode);
         String mediaType = attachBody(requestObject, request);
-        if (requestObject.allPartialResults != null) {
-            request.addParameter("allow_partial_results", String.valueOf(requestObject.allPartialResults));
+        if (requestObject.allowPartialResults != null) {
+            request.addParameter("allow_partial_results", String.valueOf(requestObject.allowPartialResults));
         }
 
         RequestOptions.Builder options = request.getOptions().toBuilder();

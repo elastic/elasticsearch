@@ -10,7 +10,9 @@ import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.Node;
 import org.elasticsearch.xpack.esql.core.util.ReflectionUtils;
 import org.elasticsearch.xpack.esql.optimizer.LogicalOptimizerContext;
+import org.elasticsearch.xpack.esql.plan.logical.Drop;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
+import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.rule.ParameterizedRule;
@@ -64,10 +66,17 @@ public final class OptimizerRules {
 
         protected abstract Expression rule(E e, LogicalOptimizerContext ctx);
 
+        /**
+         * Defines if a node should be visited or not.
+         * Allows to skip nodes that are not applicable for the rule even if they contain expressions.
+         * By default that skips FROM, LIMIT, PROJECT, KEEP and DROP but this list could be extended or replaced in subclasses.
+         */
         protected boolean shouldVisit(Node<?> node) {
             return switch (node) {
-                case EsRelation esr -> false;
-                case Project p -> false;// this covers both keep and project
+                case EsRelation relation -> false;
+                case Project project -> false;// this covers both keep and project
+                case Drop drop -> false;
+                case Limit limit -> false;
                 default -> true;
             };
         }

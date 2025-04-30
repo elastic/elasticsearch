@@ -301,7 +301,6 @@ public final class TimeSeriesBlockHash extends BlockHash {
 
         BytesRefVector toVector() {
             BytesRefVector vector = blockFactory.newBytesRefArrayVector(array, count);
-            blockFactory.adjustBreaker(vector.ramBytesUsed() - array.bigArraysRamBytesUsed());
             array = null;
             return vector;
         }

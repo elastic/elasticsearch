@@ -108,7 +108,7 @@ public class TimestampComparator extends FieldComparator<Long> {
                 primaryFieldSkipper = null;
             }
 
-            if (timestampSkipper.maxValue() < bottom) {
+            if (timestampSkipper == null || timestampSkipper.maxValue() < bottom) {
                 this.competitiveIterator = DocIdSetIterator.empty();
             } else {
                 this.competitiveIterator = DocIdSetIterator.all(maxDoc);

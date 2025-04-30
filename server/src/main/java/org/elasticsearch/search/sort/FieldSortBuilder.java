@@ -380,7 +380,9 @@ public final class FieldSortBuilder extends SortBuilder<FieldSortBuilder> {
             // (typically we default to Lucene's sort fields and enabling a custom sort field for timestamp field mapper fails,
             // because index sorting uses this as well. Index sorting doesn't support custom sort fields. Need to fix this)
             var indexMode = context.getIndexSettings().getMode();
+            boolean sortOnTimestamp = context.getIndexSettings().getIndexSortConfig().hasSortOnField(DataStream.TIMESTAMP_FIELD_NAME);
             if (DataStream.TIMESTAMP_FIELD_NAME.equals(fieldName)
+                && sortOnTimestamp
                 && (indexMode == IndexMode.LOGSDB || indexMode == IndexMode.TIME_SERIES)) {
                 field = new SortField(getFieldName(), new IndexFieldData.XFieldComparatorSource(missing, localSortMode(), nested) {
                     @Override

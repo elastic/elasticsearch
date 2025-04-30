@@ -21,11 +21,6 @@ import java.util.function.Supplier;
 public interface ShardSearchLoadRateStats {
 
     /**
-     * The implementation of this interface that was loaded via SPI.
-     */
-    ShardSearchLoadRateStats SPI_IMPLEMENTATION = getSpiImplementation();
-
-    /**
      * Computes the search load rate based on the provided shard-level search statistics.
      *
      * @param stats the search statistics for the shard, typically including metrics like query count, latency, etc.
@@ -61,16 +56,30 @@ public interface ShardSearchLoadRateStats {
     }
 
     /**
-     * Loads an implementation of {@link ShardSearchLoadRateStats} using Java's Service Provider Interface (SPI).
+     * Loads the first available {@link ShardSearchLoadRateStats} implementation via Java's Service Provider Interface (SPI)
+     * and initializes it with the provided settings and time provider.
      * <p>
-     * If no implementation is found on the classpath, a default {@link NoOpShardSearchLoadRateStats}
-     * is returned as a fallback. This ensures the application can safely proceed even when no SPI
-     * provider is explicitly registered.
+     * If no SPI implementation is found on the classpath, a {@link NoOpShardSearchLoadRateStats} is returned as a fallback.
      *
-     * @return an implementation of {@code ShardSearchLoadRateStats}, or a no-op fallback if none is found
+     * @param settings     the configuration settings used to initialize the service
+     * @param timeProvider a supplier of the current time, typically in milliseconds or nanoseconds
+     * @return a fully initialized {@code ShardSearchLoadRateStats} implementation, or a no-op fallback if none is found
      */
-    private static ShardSearchLoadRateStats getSpiImplementation() {
-        ServiceLoader<ShardSearchLoadRateStats> loader = ServiceLoader.load(ShardSearchLoadRateStats.class);
-        return loader.findFirst().orElse(new NoOpShardSearchLoadRateStats());
+    static ShardSearchLoadRateStats getSpiImplementation(SearchStatsSettings settings, Supplier<Long> timeProvider) {
+        return LoaderHolder.LOADER.findFirst()
+            .map(impl -> {
+                impl.init(settings, timeProvider);
+                return impl;
+            })
+            .orElseGet(NoOpShardSearchLoadRateStats::new);
+    }
+
+
+    /**
+     * Internal holder class for lazy, thread-safe, and cached access to the {@link ServiceLoader}.
+     */
+    class LoaderHolder {
+        private static final ServiceLoader<ShardSearchLoadRateStats> LOADER =
+            ServiceLoader.load(ShardSearchLoadRateStats.class);
     }
 }

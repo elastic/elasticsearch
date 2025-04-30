@@ -369,7 +369,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             CollectionUtils.appendToCopyNoNullElements(listeners, internalIndexingStats, indexingFailuresDebugListener),
             logger
         );
-        this.searchLoadRateStats = ShardSearchLoadRateStats.SPI_IMPLEMENTATION;
+        this.searchLoadRateStats = ShardSearchLoadRateStats.getSpiImplementation(searchStatsSettings, System::currentTimeMillis);
         this.bulkOperationListener = new ShardBulkStats();
         this.globalCheckpointSyncer = globalCheckpointSyncer;
         this.retentionLeaseSyncer = Objects.requireNonNull(retentionLeaseSyncer);

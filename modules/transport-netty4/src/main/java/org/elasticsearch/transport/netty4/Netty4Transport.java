@@ -28,6 +28,7 @@ import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.network.NetworkService;
@@ -281,8 +282,8 @@ public class Netty4Transport extends TcpTransport {
             rstOnClose,
             connectFuture
         );
+        addClosedExceptionLogger(nettyChannel);
         channel.attr(CHANNEL_KEY).set(nettyChannel);
-
         return nettyChannel;
     }
 
@@ -312,7 +313,6 @@ public class Netty4Transport extends TcpTransport {
 
         @Override
         protected void initChannel(Channel ch) throws Exception {
-            addClosedExceptionLogger(ch);
             assert ch instanceof Netty4NioSocketChannel;
             NetUtils.tryEnsureReasonableKeepAliveConfig(((Netty4NioSocketChannel) ch).javaChannel());
             setupPipeline(ch, false);
@@ -320,6 +320,12 @@ public class Netty4Transport extends TcpTransport {
 
         @Override
         public void exceptionCaught(ChannelHandlerContext ctx, Throwable cause) throws Exception {
+            Netty4TcpChannel channel = ctx.channel().attr(CHANNEL_KEY).get();
+            if (cause instanceof Error) {
+                channel.onException(new Exception(cause));
+            } else {
+                channel.onException((Exception) cause);
+            }
             ExceptionsHelper.maybeDieOnAnotherThread(cause);
             super.exceptionCaught(ctx, cause);
         }
@@ -337,10 +343,10 @@ public class Netty4Transport extends TcpTransport {
 
         @Override
         protected void initChannel(Channel ch) throws Exception {
-            addClosedExceptionLogger(ch);
             assert ch instanceof Netty4NioSocketChannel;
             NetUtils.tryEnsureReasonableKeepAliveConfig(((Netty4NioSocketChannel) ch).javaChannel());
             Netty4TcpChannel nettyTcpChannel = new Netty4TcpChannel(ch, true, name, rstOnClose, ch.newSucceededFuture());
+            addClosedExceptionLogger(nettyTcpChannel);
             ch.attr(CHANNEL_KEY).set(nettyTcpChannel);
             setupPipeline(ch, isRemoteClusterServerChannel);
             serverAcceptedChannel(nettyTcpChannel);
@@ -348,6 +354,12 @@ public class Netty4Transport extends TcpTransport {
 
         @Override
         public void exceptionCaught(ChannelHandlerContext ctx, Throwable cause) throws Exception {
+            Netty4TcpChannel channel = ctx.channel().attr(CHANNEL_KEY).get();
+            if (cause instanceof Error) {
+                channel.onException(new Exception(cause));
+            } else {
+                channel.onException((Exception) cause);
+            }
             ExceptionsHelper.maybeDieOnAnotherThread(cause);
             super.exceptionCaught(ctx, cause);
         }
@@ -383,12 +395,12 @@ public class Netty4Transport extends TcpTransport {
         );
     }
 
-    private static void addClosedExceptionLogger(Channel channel) {
-        Netty4Utils.addListener(channel.closeFuture(), channelFuture -> {
-            if (channelFuture.isSuccess() == false && logger.isDebugEnabled()) {
-                logger.debug(format("exception while closing channel: %s", channelFuture.channel()), channelFuture.cause());
+    private static void addClosedExceptionLogger(Netty4TcpChannel channel) {
+        channel.addCloseListener(ActionListener.wrap((ignored) -> {}, (e) -> {
+            if (logger.isDebugEnabled()) {
+                logger.debug(format("exception while closing channel: %s", channel), e);
             }
-        });
+        }));
     }
 
     @ChannelHandler.Sharable

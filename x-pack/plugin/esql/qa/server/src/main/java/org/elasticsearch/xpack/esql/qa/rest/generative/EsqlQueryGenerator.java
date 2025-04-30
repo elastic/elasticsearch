@@ -226,6 +226,8 @@ public class EsqlQueryGenerator {
     private static String randomName(List<Column> previousOutput) {
         String result = randomRawName(previousOutput);
         if (result.isEmpty() // bug https://github.com/elastic/elasticsearch/issues/125870, we'll manage it as an error later
+            || result.contains("<")
+            || result.contains(">")
             || (randomBoolean() && result.contains("*") == false)) {
             result = "`" + result + "`";
         }

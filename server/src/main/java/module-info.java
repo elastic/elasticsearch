@@ -406,6 +406,7 @@ module org.elasticsearch.server {
 
     provides org.elasticsearch.xcontent.ErrorOnUnknown with org.elasticsearch.common.xcontent.SuggestingErrorOnUnknown;
     provides org.elasticsearch.xcontent.XContentBuilderExtension with org.elasticsearch.common.xcontent.XContentElasticsearchExtension;
+
     provides org.elasticsearch.cli.CliToolProvider
         with
             org.elasticsearch.cluster.coordination.NodeToolCliProvider,
@@ -435,6 +436,7 @@ module org.elasticsearch.server {
     uses org.elasticsearch.plugins.internal.SettingsExtension;
     uses RestExtension;
     uses org.elasticsearch.action.admin.cluster.node.info.ComponentVersionNumber;
+    uses org.elasticsearch.index.search.stats.ShardSearchLoadRateStats;
 
     provides org.apache.lucene.codecs.PostingsFormat
         with

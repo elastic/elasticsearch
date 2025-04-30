@@ -9,19 +9,16 @@
 
 package org.elasticsearch.index.search.stats;
 
-import java.util.function.Supplier;
-
 /**
- * A no-op implementation of {@link ShardSearchLoadRateStatsService} that always returns
+ * A no-op implementation of {@link ShardSearchLoadRateStats} that always returns
  * a default {@link SearchLoadRate} with zero values.
  * <p>
  * This implementation is useful as a fallback or default when no meaningful search load tracking
  * is needed, such as in testing environments or when load tracking is disabled.
  */
-public class NoOpShardSearchLoadRateStats implements ShardSearchLoadRateStatsService {
+public class NoOpShardSearchLoadRateStats implements ShardSearchLoadRateStats {
 
-    private NoOpShardSearchLoadRateStats(SearchStatsSettings settings, Supplier<Long> timeProvider) {
-    }
+    public NoOpShardSearchLoadRateStats() {}
 
     /**
      * Returns a {@link SearchLoadRate} instance with all values set to zero,
@@ -32,6 +29,6 @@ public class NoOpShardSearchLoadRateStats implements ShardSearchLoadRateStatsSer
      */
     @Override
     public SearchLoadRate getSearchLoadRate(SearchStats.Stats stats) {
-        return new SearchLoadRate(0, 0, 0.0);
+        return SearchLoadRate.NO_OP;
     }
 }

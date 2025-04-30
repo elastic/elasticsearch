@@ -9,6 +9,7 @@
 
 package org.elasticsearch.index.search.stats;
 
+import java.util.ServiceLoader;
 import java.util.function.Supplier;
 
 /**
@@ -17,7 +18,12 @@ import java.util.function.Supplier;
  * Implementations of this interface provide a way to compute an exponentially weighted moving rate
  * (EWMRate) of search load based on shard-level statistics.
  */
-public interface ShardSearchLoadRateStatsService {
+public interface ShardSearchLoadRateStats {
+
+    /**
+     * The implementation of this interface that was loaded via SPI.
+     */
+    ShardSearchLoadRateStats SPI_IMPLEMENTATION = getSpiImplementation();
 
     /**
      * Computes the search load rate based on the provided shard-level search statistics.
@@ -26,6 +32,17 @@ public interface ShardSearchLoadRateStatsService {
      * @return the {@link SearchLoadRate} representing the current estimated load on the shard
      */
     SearchLoadRate getSearchLoadRate(SearchStats.Stats stats);
+
+    /**
+     * Initializes the service with the given settings and a time provider.
+     * <p>
+     * This method is a no-op by default and is intended to be optionally overridden by implementations
+     * that require setup based on configuration or time-based logic.
+     *
+     * @param settings the search stats settings used to configure the service
+     * @param timeProvider a supplier of the current time (typically in milliseconds or nanoseconds)
+     */
+    default void init(SearchStatsSettings settings, Supplier<Long> timeProvider) {}
 
     /**
      * Represents the rate of search load using an exponentially weighted moving rate (EWMRate).
@@ -41,5 +58,19 @@ public interface ShardSearchLoadRateStatsService {
          * All values are set to zero.
          */
         public static final SearchLoadRate NO_OP = new SearchLoadRate(0,0,0.0);
+    }
+
+    /**
+     * Loads an implementation of {@link ShardSearchLoadRateStats} using Java's Service Provider Interface (SPI).
+     * <p>
+     * If no implementation is found on the classpath, a default {@link NoOpShardSearchLoadRateStats}
+     * is returned as a fallback. This ensures the application can safely proceed even when no SPI
+     * provider is explicitly registered.
+     *
+     * @return an implementation of {@code ShardSearchLoadRateStats}, or a no-op fallback if none is found
+     */
+    private static ShardSearchLoadRateStats getSpiImplementation() {
+        ServiceLoader<ShardSearchLoadRateStats> loader = ServiceLoader.load(ShardSearchLoadRateStats.class);
+        return loader.findFirst().orElse(new NoOpShardSearchLoadRateStats());
     }
 }

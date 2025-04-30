@@ -379,7 +379,7 @@ setup:
 ---
 "pinned retriever error case - null inner query":
   - do:
-      catch: /illegal_argument_exception.+reason=\[underlying query\] must not be null for pinned retriever/
+      catch: /illegal_argument_exception.+reason=pinned retriever requires retriever with associated query/
       search:
         index: test-index1
         body:

@@ -157,14 +157,13 @@ public final class PinnedRetrieverBuilder extends CompoundRetrieverBuilder<Pinne
 
     /**
      * Creates a PinnedQueryBuilder with the appropriate pinned documents.
-     * Prioritizes docs over ids if both are present.
      *
      * @param baseQuery the base query to pin documents to
      * @return a PinnedQueryBuilder
      * @throws IllegalArgumentException if baseQuery is null
      */
     private QueryBuilder createPinnedQuery(QueryBuilder baseQuery) {
-        Objects.requireNonNull(baseQuery, "Underlying query cannot be null for pinned retriever");
+        Objects.requireNonNull(baseQuery, "pinned retriever requires retriever with associated query");
 
         if (docs != null && docs.isEmpty() == false) {
             return new PinnedQueryBuilder(baseQuery, docs.toArray(new SpecifiedDocument[0]));
@@ -177,7 +176,7 @@ public final class PinnedRetrieverBuilder extends CompoundRetrieverBuilder<Pinne
         validateSort(source);
         QueryBuilder underlyingQuery = source.query();
         if (underlyingQuery == null) {
-            throw new IllegalArgumentException("[underlying query] must not be null for pinned retriever");
+            throw new IllegalArgumentException("pinned retriever requires retriever with associated query");
         }
         source.query(createPinnedQuery(underlyingQuery));
         return source;

@@ -36,7 +36,6 @@ public class UpgradeWithOldIndexSettingsIT extends ParameterizedFullClusterResta
         .version(getOldClusterTestVersion())
         .nodes(2)
         .setting("xpack.security.enabled", "false")
-        .feature(FeatureFlag.FAILURE_STORE_ENABLED)
         .apply(() -> clusterConfig)
         .build();
 

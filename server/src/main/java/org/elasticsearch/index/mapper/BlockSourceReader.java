@@ -326,7 +326,7 @@ public abstract class BlockSourceReader implements BlockLoader.RowStrideReader {
 
         @Override
         protected String name() {
-            return "Floats";
+            return "DenseVectors";
         }
     }
 
@@ -342,7 +342,7 @@ public abstract class BlockSourceReader implements BlockLoader.RowStrideReader {
 
         @Override
         public String toString() {
-            return "BlockSourceReader.Floats";
+            return "BlockSourceReader.DenseVectors";
         }
     }
 

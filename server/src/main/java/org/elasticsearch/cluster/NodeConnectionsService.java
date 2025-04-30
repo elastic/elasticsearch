@@ -99,11 +99,13 @@ public class NodeConnectionsService extends AbstractLifecycleComponent {
         }
 
         final List<Runnable> runnables = new ArrayList<>(discoveryNodes.getSize());
+        final List<DiscoveryNode> nodes = new ArrayList<>(discoveryNodes.getSize());
         try (var refs = new RefCountingRunnable(onCompletion)) {
             synchronized (mutex) {
                 // Ugly hack: when https://github.com/elastic/elasticsearch/issues/94946 is fixed, just iterate over discoveryNodes here
                 for (final Iterator<DiscoveryNode> iterator = discoveryNodes.mastersFirstStream().iterator(); iterator.hasNext();) {
                     final DiscoveryNode discoveryNode = iterator.next();
+                    nodes.add(discoveryNode);
                     ConnectionTarget connectionTarget = targetsByNode.get(discoveryNode);
                     final boolean isNewNode = connectionTarget == null;
                     if (isNewNode) {
@@ -120,6 +122,7 @@ public class NodeConnectionsService extends AbstractLifecycleComponent {
                         runnables.add(connectionTarget.connect(null));
                     }
                 }
+                transportService.retainConnectionHistory(nodes);
             }
         }
         runnables.forEach(Runnable::run);

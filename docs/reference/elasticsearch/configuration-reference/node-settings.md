@@ -55,9 +55,7 @@ $$$coordinating-only-node$$$If If you set `node.roles` to an empty array (`node.
 If you set `node.roles`, ensure you specify every node role your cluster needs. Every cluster requires the following node roles:
 
 * `master`
-*
-
-    `data_content` and `data_hot`<br> OR<br> `data`
+* `data_content` and `data_hot` OR `data`
 
 
 Some {{stack}} features also require specific node roles:

@@ -227,9 +227,9 @@ public abstract class FullTextFunction extends Function
             );
             checkFullTextFunctionsParents(condition, failures);
         } else {
-            plan.forEachExpression(FullTextFunction.class, ftf -> {
+            /*plan.forEachExpression(FullTextFunction.class, ftf -> {
                 failures.add(fail(ftf, "[{}] {} is only supported in WHERE commands", ftf.functionName(), ftf.functionType()));
-            });
+            });*/
         }
     }
 

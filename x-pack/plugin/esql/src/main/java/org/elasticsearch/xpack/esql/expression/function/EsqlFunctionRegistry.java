@@ -446,8 +446,8 @@ public class EsqlFunctionRegistry {
                 def(Rate.class, Rate::withUnresolvedTimestamp, "rate"),
                 def(MaxOverTime.class, uni(MaxOverTime::new), "max_over_time"),
                 def(AvgOverTime.class, uni(AvgOverTime::new), "avg_over_time"),
-                def(ChickenScore.class, uni(ChickenScore::new), "chicken_score"),
                 def(LastOverTime.class, LastOverTime::withUnresolvedTimestamp, "last_over_time"),
+                def(ChickenScore.class, uni(ChickenScore::new), "chicken_score"),
                 def(Term.class, bi(Term::new), "term") } };
     }
 

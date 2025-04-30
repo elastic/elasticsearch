@@ -105,7 +105,8 @@ public class IngestMetricsServiceTests extends ESTestCase {
                     MemoryMetricsService.MERGE_MEMORY_ESTIMATE_ENABLED_SETTING
                 )
             ),
-            ProjectType.ELASTICSEARCH_GENERAL_PURPOSE
+            ProjectType.ELASTICSEARCH_GENERAL_PURPOSE,
+            MeterRegistry.NOOP
         );
     }
 

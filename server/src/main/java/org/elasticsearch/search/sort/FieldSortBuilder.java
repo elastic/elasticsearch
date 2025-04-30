@@ -15,7 +15,6 @@ import org.apache.lucene.index.MultiTerms;
 import org.apache.lucene.index.PointValues;
 import org.apache.lucene.index.Terms;
 import org.apache.lucene.search.FieldComparator;
-import org.apache.lucene.search.FieldComparatorSource;
 import org.apache.lucene.search.Pruning;
 import org.apache.lucene.search.SortField;
 import org.elasticsearch.ElasticsearchParseException;
@@ -27,6 +26,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.time.DateMathParser;
 import org.elasticsearch.common.time.DateUtils;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSortConfig;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldData.XFieldComparatorSource.Nested;
@@ -379,11 +379,29 @@ public final class FieldSortBuilder extends SortBuilder<FieldSortBuilder> {
             // TODO: HACK to wire up the special timestamp comparator
             // (typically we default to Lucene's sort fields and enabling a custom sort field for timestamp field mapper fails,
             // because index sorting uses this as well. Index sorting doesn't support custom sort fields. Need to fix this)
-            if (DataStream.TIMESTAMP_FIELD_NAME.equals(fieldName)) {
-                field = new SortField(getFieldName(), new FieldComparatorSource() {
+            var indexMode = context.getIndexSettings().getMode();
+            if (DataStream.TIMESTAMP_FIELD_NAME.equals(fieldName)
+                && (indexMode == IndexMode.LOGSDB || indexMode == IndexMode.TIME_SERIES)) {
+                field = new SortField(getFieldName(), new IndexFieldData.XFieldComparatorSource(missing, localSortMode(), nested) {
                     @Override
                     public FieldComparator<?> newComparator(String fieldname, int numHits, Pruning pruning, boolean reversed) {
                         return new TimestampComparator(numHits, reversed);
+                    }
+
+                    @Override
+                    public SortField.Type reducedType() {
+                        return SortField.Type.LONG;
+                    }
+
+                    @Override
+                    public BucketedSort newBucketedSort(
+                        BigArrays bigArrays,
+                        SortOrder sortOrder,
+                        DocValueFormat format,
+                        int bucketSize,
+                        BucketedSort.ExtraData extra
+                    ) {
+                        throw new UnsupportedOperationException("not yet implemented");
                     }
                 }, reverse);
             } else {

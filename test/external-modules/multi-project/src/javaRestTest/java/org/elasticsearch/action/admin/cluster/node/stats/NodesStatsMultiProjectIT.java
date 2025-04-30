@@ -10,6 +10,7 @@
 package org.elasticsearch.action.admin.cluster.node.stats;
 
 import org.elasticsearch.client.Request;
+import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.SecureString;
@@ -57,22 +58,43 @@ public class NodesStatsMultiProjectIT extends MultiProjectRestTestCase {
         return Settings.builder().put(ThreadContext.PREFIX + ".Authorization", token).build();
     }
 
+    @Override
+    protected void deleteProject(String projectId) throws IOException {
+        for (String pipelineId : getPipelineIds(projectId)) {
+            client().performRequest(setRequestProjectId(new Request("DELETE", "/_ingest/pipeline/" + pipelineId), projectId));
+        }
+        super.deleteProject(projectId);
+    }
+
+    private static Set<String> getPipelineIds(String projectId) throws IOException {
+        try {
+            return responseAsMap(client().performRequest(setRequestProjectId(new Request("GET", "/_ingest/pipeline"), projectId))).keySet();
+        } catch (ResponseException e) {
+            assertThat(e.getResponse().getStatusLine().getStatusCode(), equalTo(404)); // expected if there are no pipelines
+            return Set.of();
+        }
+    }
+
+    // WARNING: The total count in the ingest stats is not reset as part of tear-down, so we need to accumulate the expected value across
+    // test methods using mutable static state.
+    private static int expectedTotalCountForIngestStats = 0;
+
     public void testIndicesStats_returnsStatsFromAllProjectsWithProjectIdPrefix() throws IOException {
         createProject("project-1");
         createProject("project-2");
         createProject("project-3");
         // Create and write data into a number of indices.
         // Some of the index names are used only in one project, some in two projects, some in all three.
-        int numDocs1only = createPopulatedIndex("project-1", "my-index-project-1-only");
-        int numDocs2only = createPopulatedIndex("project-2", "my-index-project-2-only");
-        int numDocs3only = createPopulatedIndex("project-3", "my-index-project-3-only");
+        int numDocs1Only = createPopulatedIndex("project-1", "my-index-project-1-only");
+        int numDocs2Only = createPopulatedIndex("project-2", "my-index-project-2-only");
+        int numDocs3Only = createPopulatedIndex("project-3", "my-index-project-3-only");
         int numDocs1Of1And2 = createPopulatedIndex("project-1", "my-index-projects-1-and-2");
         int numDocs2Of1And2 = createPopulatedIndex("project-2", "my-index-projects-1-and-2");
         int numDocs2Of2And3 = createPopulatedIndex("project-2", "my-index-projects-2-and-3");
         int numDocs3Of2And3 = createPopulatedIndex("project-3", "my-index-projects-2-and-3");
-        int numDocs1all = createPopulatedIndex("project-1", "my-index-all-projects");
-        int numDocs2all = createPopulatedIndex("project-2", "my-index-all-projects");
-        int numDocs3all = createPopulatedIndex("project-3", "my-index-all-projects");
+        int numDocs1All = createPopulatedIndex("project-1", "my-index-all-projects");
+        int numDocs2All = createPopulatedIndex("project-2", "my-index-all-projects");
+        int numDocs3All = createPopulatedIndex("project-3", "my-index-all-projects");
 
         String nodeId = findNodeId();
 
@@ -81,8 +103,8 @@ public class NodesStatsMultiProjectIT extends MultiProjectRestTestCase {
         assertThat(
             totalCount,
             equalTo(
-                numDocs1only + numDocs2only + numDocs3only + numDocs1Of1And2 + numDocs2Of1And2 + numDocs2Of2And3 + numDocs3Of2And3
-                    + numDocs1all + numDocs2all + numDocs3all
+                numDocs1Only + numDocs2Only + numDocs3Only + numDocs1Of1And2 + numDocs2Of1And2 + numDocs2Of2And3 + numDocs3Of2And3
+                    + numDocs1All + numDocs2All + numDocs3All
             )
         );
 
@@ -105,17 +127,10 @@ public class NodesStatsMultiProjectIT extends MultiProjectRestTestCase {
             "project-3/my-index-all-projects"
         );
         assertThat(indexStats.keySet(), equalTo(expectedProjectIdAndIndexNames));
-        // ...and assert that the docs counts are correct:
-        assertThat(ObjectPath.<Integer>evaluate(indexStats, "project-1/my-index-project-1-only.docs.count"), equalTo(numDocs1only));
-        assertThat(ObjectPath.<Integer>evaluate(indexStats, "project-2/my-index-project-2-only.docs.count"), equalTo(numDocs2only));
-        assertThat(ObjectPath.<Integer>evaluate(indexStats, "project-3/my-index-project-3-only.docs.count"), equalTo(numDocs3only));
-        assertThat(ObjectPath.<Integer>evaluate(indexStats, "project-1/my-index-projects-1-and-2.docs.count"), equalTo(numDocs1Of1And2));
-        assertThat(ObjectPath.<Integer>evaluate(indexStats, "project-2/my-index-projects-1-and-2.docs.count"), equalTo(numDocs2Of1And2));
-        assertThat(ObjectPath.<Integer>evaluate(indexStats, "project-2/my-index-projects-2-and-3.docs.count"), equalTo(numDocs2Of2And3));
-        assertThat(ObjectPath.<Integer>evaluate(indexStats, "project-3/my-index-projects-2-and-3.docs.count"), equalTo(numDocs3Of2And3));
-        assertThat(ObjectPath.<Integer>evaluate(indexStats, "project-1/my-index-all-projects.docs.count"), equalTo(numDocs1all));
-        assertThat(ObjectPath.<Integer>evaluate(indexStats, "project-2/my-index-all-projects.docs.count"), equalTo(numDocs2all));
-        assertThat(ObjectPath.<Integer>evaluate(indexStats, "project-3/my-index-all-projects.docs.count"), equalTo(numDocs3all));
+        // ...and assert that the docs counts are correct for some of the indices:
+        assertThat(ObjectPath.evaluate(indexStats, "project-1/my-index-project-1-only.docs.count"), equalTo(numDocs1Only));
+        assertThat(ObjectPath.evaluate(indexStats, "project-2/my-index-projects-2-and-3.docs.count"), equalTo(numDocs2Of2And3));
+        assertThat(ObjectPath.evaluate(indexStats, "project-3/my-index-all-projects.docs.count"), equalTo(numDocs3All));
 
         // Get indices stats at shard level...
         Map<String, Object> shardStats = ObjectPath.evaluate(
@@ -124,11 +139,11 @@ public class NodesStatsMultiProjectIT extends MultiProjectRestTestCase {
         );
         // ...assert that all the indices are present, prefixed by their project IDs...
         assertThat(shardStats.keySet(), equalTo(expectedProjectIdAndIndexNames));
-        // ...assert that the entry for the first index has exactly one entry (for its single shards)...
+        // ...assert that the entry for the first index has exactly one entry (for its single shard)...
         List<Map<String, Object>> index1ShardStats = ObjectPath.evaluate(shardStats, "project-1/my-index-project-1-only");
         assertThat(index1ShardStats, hasSize(1));
         // ...and assert that that is shard 0 and that the doc count is correct:
-        assertThat(ObjectPath.<Integer>evaluate(index1ShardStats.getFirst(), "0.docs.count"), equalTo(numDocs1only));
+        assertThat(ObjectPath.evaluate(index1ShardStats.getFirst(), "0.docs.count"), equalTo(numDocs1Only));
     }
 
     public void testIndicesStats_omitsProjectIdPrefixForDefaultProject() throws IOException {
@@ -146,10 +161,10 @@ public class NodesStatsMultiProjectIT extends MultiProjectRestTestCase {
         // ...assert that all the indices are present, *without* the project ID prefix because they are on the default project...
         Set<String> expectedProjectIdAndIndexNames = Set.of("my-index-1", "my-index-2", "my-index-3");
         assertThat(indexStats.keySet(), equalTo(expectedProjectIdAndIndexNames));
-        // ...and, for the first three indices, assert that the docs counts are correct:
-        assertThat(ObjectPath.<Integer>evaluate(indexStats, "my-index-1.docs.count"), equalTo(numDocs1));
-        assertThat(ObjectPath.<Integer>evaluate(indexStats, "my-index-2.docs.count"), equalTo(numDocs2));
-        assertThat(ObjectPath.<Integer>evaluate(indexStats, "my-index-3.docs.count"), equalTo(numDocs3));
+        // ...and assert that the docs counts are correct:
+        assertThat(ObjectPath.evaluate(indexStats, "my-index-1.docs.count"), equalTo(numDocs1));
+        assertThat(ObjectPath.evaluate(indexStats, "my-index-2.docs.count"), equalTo(numDocs2));
+        assertThat(ObjectPath.evaluate(indexStats, "my-index-3.docs.count"), equalTo(numDocs3));
 
         // Get indices stats at shard level...
         Map<String, Object> shardStats = ObjectPath.evaluate(
@@ -162,7 +177,7 @@ public class NodesStatsMultiProjectIT extends MultiProjectRestTestCase {
         List<Map<String, Object>> index1ShardStats = ObjectPath.evaluate(shardStats, "my-index-1");
         assertThat(index1ShardStats, hasSize(1));
         // ...and assert that that is shard 0 and that the doc count is correct:
-        assertThat(ObjectPath.<Integer>evaluate(index1ShardStats.getFirst(), "0.docs.count"), equalTo(numDocs1));
+        assertThat(ObjectPath.evaluate(index1ShardStats.getFirst(), "0.docs.count"), equalTo(numDocs1));
     }
 
     public void testIngestStats_returnsStatsFromAllProjectsWithProjectIdPrefix() throws IOException {
@@ -171,28 +186,24 @@ public class NodesStatsMultiProjectIT extends MultiProjectRestTestCase {
         createProject("project-3");
         // Create and run data through a number of indices.
         // Some of the pipeline names are used only in one project, some in two projects, some in all three.
-        int numDocs1only = createAndUsePipeline("project-1", "my-pipeline-project-1-only");
-        int numDocs2only = createAndUsePipeline("project-2", "my-pipeline-project-2-only");
-        int numDocs3only = createAndUsePipeline("project-3", "my-pipeline-project-3-only");
+        int numDocs1Only = createAndUsePipeline("project-1", "my-pipeline-project-1-only");
+        int numDocs2Only = createAndUsePipeline("project-2", "my-pipeline-project-2-only");
+        int numDocs3Only = createAndUsePipeline("project-3", "my-pipeline-project-3-only");
         int numDocs1Of1And2 = createAndUsePipeline("project-1", "my-pipeline-projects-1-and-2");
         int numDocs2Of1And2 = createAndUsePipeline("project-2", "my-pipeline-projects-1-and-2");
         int numDocs2Of2And3 = createAndUsePipeline("project-2", "my-pipeline-projects-2-and-3");
         int numDocs3Of2And3 = createAndUsePipeline("project-3", "my-pipeline-projects-2-and-3");
-        int numDocs1all = createAndUsePipeline("project-1", "my-pipeline-all-projects");
-        int numDocs2all = createAndUsePipeline("project-2", "my-pipeline-all-projects");
-        int numDocs3all = createAndUsePipeline("project-3", "my-pipeline-all-projects");
+        int numDocs1All = createAndUsePipeline("project-1", "my-pipeline-all-projects");
+        int numDocs2All = createAndUsePipeline("project-2", "my-pipeline-all-projects");
+        int numDocs3All = createAndUsePipeline("project-3", "my-pipeline-all-projects");
 
         // Get ingest stats...
         Map<String, Object> ingestStats = ObjectPath.evaluate(getAsMap("/_nodes/stats/ingest"), "nodes." + findNodeId() + ".ingest");
-        // ...assert that the total count is correct...
-        assertThat(
-            ObjectPath.evaluate(ingestStats, "total.count"),
-            equalTo(
-                numDocs1only + numDocs2only + numDocs3only + numDocs1Of1And2 + numDocs2Of1And2 + numDocs2Of2And3 + numDocs3Of2And3
-                    + numDocs1all + numDocs2all + numDocs3all
-            )
-        );
-        // ...assert that all the pipelines are present, prefixed by their project IDs... TODO also counts
+        // ...assert that the total count is correct (see warning at expectedTotalCountForIngestStats definition above)...
+        expectedTotalCountForIngestStats += numDocs1Only + numDocs2Only + numDocs3Only + numDocs1Of1And2 + numDocs2Of1And2 + numDocs2Of2And3
+            + numDocs3Of2And3 + numDocs1All + numDocs2All + numDocs3All;
+        assertThat(ObjectPath.evaluate(ingestStats, "total.count"), equalTo(expectedTotalCountForIngestStats));
+        // ...assert that all the pipelines are present, prefixed by their project IDs...
         Map<String, Object> pipelineStats = ObjectPath.evaluate(ingestStats, "pipelines");
         assertThat(
             pipelineStats.keySet(),
@@ -209,6 +220,30 @@ public class NodesStatsMultiProjectIT extends MultiProjectRestTestCase {
                 "project-3/my-pipeline-all-projects"
             )
         );
+        // ...assert that the pipeline doc counts are for some of the pipelines correct...
+        assertThat(ObjectPath.evaluate(pipelineStats, "project-1/my-pipeline-project-1-only.count"), equalTo(numDocs1Only));
+        assertThat(ObjectPath.evaluate(pipelineStats, "project-2/my-pipeline-projects-2-and-3.count"), equalTo(numDocs2Of2And3));
+        assertThat(ObjectPath.evaluate(pipelineStats, "project-3/my-pipeline-all-projects.count"), equalTo(numDocs3All));
+        // ...and that the processors are correct with the correct counts:
+        // (the counts for the lowercase processors should be halved because it has an if condition which triggers half the time)
+        Map<String, Object> processorStatsPipeline1Only = extractMergedProcessorStats(
+            pipelineStats,
+            "project-1/my-pipeline-project-1-only"
+        );
+        assertThat(ObjectPath.evaluate(processorStatsPipeline1Only, "set.stats.count"), equalTo(numDocs1Only));
+        assertThat(ObjectPath.evaluate(processorStatsPipeline1Only, "lowercase.stats.count"), equalTo(numDocs1Only / 2));
+        Map<String, Object> processorStatsPipeline2Of2And3 = extractMergedProcessorStats(
+            pipelineStats,
+            "project-2/my-pipeline-projects-2-and-3"
+        );
+        assertThat(ObjectPath.evaluate(processorStatsPipeline2Of2And3, "set.stats.count"), equalTo(numDocs2Of2And3));
+        assertThat(ObjectPath.evaluate(processorStatsPipeline2Of2And3, "lowercase.stats.count"), equalTo(numDocs2Of2And3 / 2));
+        Map<String, Object> processorStatsPipeline3All = extractMergedProcessorStats(
+            pipelineStats,
+            "project-3/my-pipeline-all-projects"
+        );
+        assertThat(ObjectPath.evaluate(processorStatsPipeline3All, "set.stats.count"), equalTo(numDocs3All));
+        assertThat(ObjectPath.evaluate(processorStatsPipeline3All, "lowercase.stats.count"), equalTo(numDocs3All / 2));
     }
 
     public void testIngestStats_omitsProjectIdPrefixForDefaultProject() throws IOException {
@@ -218,8 +253,9 @@ public class NodesStatsMultiProjectIT extends MultiProjectRestTestCase {
 
         // Get ingest stats...
         Map<String, Object> ingestStats = ObjectPath.evaluate(getAsMap("/_nodes/stats/ingest"), "nodes." + findNodeId() + ".ingest");
-        // ...assert that the total count is correct...
-        assertThat(ObjectPath.evaluate(ingestStats, "total.count"), equalTo(numDocs1 + numDocs2 + numDocs3));
+        // ...assert that the total count is correct (see warning at expectedTotalCountForIngestStats definition above)...
+        expectedTotalCountForIngestStats += numDocs1 + numDocs2 + numDocs3;
+        assertThat(ObjectPath.evaluate(ingestStats, "total.count"), equalTo(expectedTotalCountForIngestStats));
         // ...and that the pipelines are correct with the correct counts...
         Map<String, Object> pipelineStats = ObjectPath.evaluate(ingestStats, "pipelines");
         assertThat(pipelineStats.keySet(), containsInAnyOrder("my-pipeline-1", "my-pipeline-2", "my-pipeline-3"));
@@ -228,13 +264,13 @@ public class NodesStatsMultiProjectIT extends MultiProjectRestTestCase {
         assertThat(ObjectPath.evaluate(pipelineStats, "my-pipeline-3.count"), equalTo(numDocs3));
         // ...and that the processors are correct with the correct counts:
         // (the counts for the lowercase processors should be halved because it has an if condition which triggers half the time)
-        Map<String, Object> processorStatsPipeline1 = mergeMaps(ObjectPath.evaluate(pipelineStats, "my-pipeline-1.processors"));
+        Map<String, Object> processorStatsPipeline1 = extractMergedProcessorStats(pipelineStats, "my-pipeline-1");
         assertThat(ObjectPath.evaluate(processorStatsPipeline1, "set.stats.count"), equalTo(numDocs1));
         assertThat(ObjectPath.evaluate(processorStatsPipeline1, "lowercase.stats.count"), equalTo(numDocs1 / 2));
-        Map<String, Object> processorStatsPipeline2 = mergeMaps(ObjectPath.evaluate(pipelineStats, "my-pipeline-2.processors"));
+        Map<String, Object> processorStatsPipeline2 = extractMergedProcessorStats(pipelineStats, "my-pipeline-2");
         assertThat(ObjectPath.evaluate(processorStatsPipeline2, "set.stats.count"), equalTo(numDocs2));
         assertThat(ObjectPath.evaluate(processorStatsPipeline2, "lowercase.stats.count"), equalTo(numDocs2 / 2));
-        Map<String, Object> processorStatsPipeline3 = mergeMaps(ObjectPath.evaluate(pipelineStats, "my-pipeline-3.processors"));
+        Map<String, Object> processorStatsPipeline3 = extractMergedProcessorStats(pipelineStats, "my-pipeline-3");
         assertThat(ObjectPath.evaluate(processorStatsPipeline3, "set.stats.count"), equalTo(numDocs3));
         assertThat(ObjectPath.evaluate(processorStatsPipeline3, "lowercase.stats.count"), equalTo(numDocs3 / 2));
     }
@@ -302,9 +338,14 @@ public class NodesStatsMultiProjectIT extends MultiProjectRestTestCase {
         return ObjectPath.<Map<String, Object>>evaluate(getAsMap("/_nodes"), "nodes").keySet().stream().findAny().orElseThrow();
     }
 
-    private static Map<String, Object> mergeMaps(List<Map<String, Object>> maps) {
+    /**
+     * Given the map of all the stats for all the pipelines, extracts the processor stats for the given pipeline ID. The list of maps is
+     * merged into a single map.
+     */
+    private static Map<String, Object> extractMergedProcessorStats(Map<String, Object> pipelineStats, String pipelineId)
+        throws IOException {
         Map<String, Object> merged = new HashMap<>();
-        maps.forEach(merged::putAll);
+        ObjectPath.<List<Map<String, Object>>>evaluate(pipelineStats, pipelineId + ".processors").forEach(merged::putAll);
         return merged;
     }
 }

@@ -167,7 +167,7 @@ public class NodeService implements Closeable {
     public NodeStats stats(
         CommonStatsFlags indices,
         boolean includeShardsStats,
-        boolean includeProjectIdsIfMultiProject,
+        boolean includeProjectIdsIfMultiProject, // TODO: Either rename this or get rid of it
         boolean os,
         boolean process,
         boolean jvm,
@@ -200,7 +200,7 @@ public class NodeService implements Closeable {
             circuitBreaker ? circuitBreakerService.stats() : null,
             script ? scriptService.stats() : null,
             discoveryStats ? coordinator.stats() : null,
-            ingest ? ingestService.stats() : null,
+            ingest ? ingestService.stats(includeProjectIdsIfMultiProject) : null,
             adaptiveSelection ? responseCollectorService.getAdaptiveStats(searchTransportService.getPendingSearchRequests()) : null,
             scriptCache ? scriptService.cacheStats() : null,
             indexingPressure ? this.indexingPressure.stats() : null,

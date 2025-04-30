@@ -9,6 +9,7 @@
 
 package org.elasticsearch.ingest;
 
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.test.ESTestCase;
 
@@ -41,10 +42,11 @@ public class IngestStatsTests extends ESTestCase {
 
     public void testProcessorNameAndTypeIdentitySerialization() throws IOException {
         IngestStats.Builder builder = new IngestStats.Builder();
-        builder.addPipelineMetrics("pipeline_id", new IngestPipelineMetric());
-        builder.addProcessorMetrics("pipeline_id", "set", "set", new IngestMetric());
-        builder.addProcessorMetrics("pipeline_id", "set:foo", "set", new IngestMetric());
-        builder.addProcessorMetrics("pipeline_id", "set:bar", "set", new IngestMetric());
+        ProjectId projectId = randomProjectIdOrDefault();
+        builder.addPipelineMetrics(projectId, "pipeline_id", new IngestPipelineMetric());
+        builder.addProcessorMetrics(projectId, "pipeline_id", "set", "set", new IngestMetric());
+        builder.addProcessorMetrics(projectId, "pipeline_id", "set:foo", "set", new IngestMetric());
+        builder.addProcessorMetrics(projectId, "pipeline_id", "set:bar", "set", new IngestMetric());
         builder.addTotalMetrics(new IngestMetric());
 
         IngestStats serializedStats = serialize(builder.build());

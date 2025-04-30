@@ -10,6 +10,8 @@
 package org.elasticsearch.ingest;
 
 import org.elasticsearch.TransportVersions;
+import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -72,10 +74,13 @@ public record IngestStats(Stats totalStats, List<PipelineStat> pipelineStats, Ma
         var processorStats = Maps.<String, List<ProcessorStat>>newMapWithExpectedSize(size);
 
         for (var i = 0; i < size; i++) {
+            ProjectId projectId = in.getTransportVersion().onOrAfter(TransportVersions.NODES_STATS_SUPPORTS_MULTI_PROJECT)
+                ? ProjectId.readFrom(in)
+                : Metadata.DEFAULT_PROJECT_ID;
             var pipelineId = in.readString();
             var pipelineStat = readStats(in);
             var byteStat = in.getTransportVersion().onOrAfter(TransportVersions.V_8_15_0) ? readByteStats(in) : ByteStats.IDENTITY;
-            pipelineStats.add(new PipelineStat(pipelineId, pipelineStat, byteStat));
+            pipelineStats.add(new PipelineStat(projectId, pipelineId, pipelineStat, byteStat));
             int processorsSize = in.readVInt();
             var processorStatsPerPipeline = new ArrayList<ProcessorStat>(processorsSize);
             for (var j = 0; j < processorsSize; j++) {
@@ -98,6 +103,9 @@ public record IngestStats(Stats totalStats, List<PipelineStat> pipelineStats, Ma
         totalStats.writeTo(out);
         out.writeVInt(pipelineStats.size());
         for (PipelineStat pipelineStat : pipelineStats) {
+            if (out.getTransportVersion().onOrAfter(TransportVersions.NODES_STATS_SUPPORTS_MULTI_PROJECT)) {
+                pipelineStat.projectId().writeTo(out);
+            }
             out.writeString(pipelineStat.pipelineId());
             pipelineStat.stats().writeTo(out);
             if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_15_0)) {
@@ -134,7 +142,10 @@ public record IngestStats(Stats totalStats, List<PipelineStat> pipelineStats, Ma
                 pipelineStat -> Iterators.concat(
 
                     Iterators.single((builder, params) -> {
-                        builder.startObject(pipelineStat.pipelineId());
+                        String key = pipelineStat.projectId().equals(Metadata.DEFAULT_PROJECT_ID)
+                            ? pipelineStat.pipelineId()
+                            : pipelineStat.projectId() + "/" + pipelineStat.pipelineId();
+                        builder.startObject(key);
                         pipelineStat.stats().toXContent(builder, params);
                         pipelineStat.byteStats().toXContent(builder, params);
                         builder.startArray("processors");
@@ -234,7 +245,7 @@ public record IngestStats(Stats totalStats, List<PipelineStat> pipelineStats, Ma
     static class Builder {
         private Stats totalStats = null;
         private final List<PipelineStat> pipelineStats = new ArrayList<>();
-        private final Map<String, List<ProcessorStat>> processorStats = new HashMap<>();
+        private final Map<ProjectId, Map<String, List<ProcessorStat>>> processorStats = new HashMap<>();
 
         Builder addTotalMetrics(IngestMetric totalMetric) {
             assert totalStats == null;
@@ -242,15 +253,22 @@ public record IngestStats(Stats totalStats, List<PipelineStat> pipelineStats, Ma
             return this;
         }
 
-        Builder addPipelineMetrics(String pipelineId, IngestPipelineMetric ingestPipelineMetrics) {
+        Builder addPipelineMetrics(ProjectId projectId, String pipelineId, IngestPipelineMetric ingestPipelineMetrics) {
             this.pipelineStats.add(
-                new PipelineStat(pipelineId, ingestPipelineMetrics.createStats(), ingestPipelineMetrics.createByteStats())
+                new PipelineStat(projectId, pipelineId, ingestPipelineMetrics.createStats(), ingestPipelineMetrics.createByteStats())
             );
             return this;
         }
 
-        Builder addProcessorMetrics(String pipelineId, String processorName, String processorType, IngestMetric metric) {
-            this.processorStats.computeIfAbsent(pipelineId, k -> new ArrayList<>())
+        Builder addProcessorMetrics(
+            ProjectId projectId,
+            String pipelineId,
+            String processorName,
+            String processorType,
+            IngestMetric metric
+        ) {
+            this.processorStats.computeIfAbsent(projectId, k -> new HashMap<>())
+                .computeIfAbsent(pipelineId, k -> new ArrayList<>())
                 .add(new ProcessorStat(processorName, processorType, metric.createStats()));
             return this;
         }
@@ -263,23 +281,27 @@ public record IngestStats(Stats totalStats, List<PipelineStat> pipelineStats, Ma
     /**
      * Container for pipeline stats.
      */
-    public record PipelineStat(String pipelineId, Stats stats, ByteStats byteStats) {
+    public record PipelineStat(ProjectId projectId, String pipelineId, Stats stats, ByteStats byteStats) {
         static List<PipelineStat> merge(List<PipelineStat> first, List<PipelineStat> second) {
-            var totalsPerPipeline = new HashMap<String, PipelineStat>();
+            record MergeKey(ProjectId projectId, String pipelineId) {}
 
-            first.forEach(ps -> totalsPerPipeline.merge(ps.pipelineId, ps, PipelineStat::merge));
-            second.forEach(ps -> totalsPerPipeline.merge(ps.pipelineId, ps, PipelineStat::merge));
+            var totalsPerPipeline = new HashMap<MergeKey, PipelineStat>();
+
+            first.forEach(ps -> totalsPerPipeline.merge(new MergeKey(ps.projectId, ps.pipelineId), ps, PipelineStat::merge));
+            second.forEach(ps -> totalsPerPipeline.merge(new MergeKey(ps.projectId, ps.pipelineId), ps, PipelineStat::merge));
 
             return totalsPerPipeline.entrySet()
                 .stream()
-                .map(v -> new PipelineStat(v.getKey(), v.getValue().stats, v.getValue().byteStats))
+                .map(v -> new PipelineStat(v.getKey().projectId(), v.getKey().pipelineId(), v.getValue().stats, v.getValue().byteStats))
                 .sorted(PIPELINE_STAT_COMPARATOR)
                 .toList();
         }
 
         private static PipelineStat merge(PipelineStat first, PipelineStat second) {
+            assert first.projectId.equals(second.projectId) : "Can only merge stats from the same project";
             assert first.pipelineId.equals(second.pipelineId) : "Can only merge stats from the same pipeline";
             return new PipelineStat(
+                first.projectId,
                 first.pipelineId,
                 Stats.merge(first.stats, second.stats),
                 ByteStats.merge(first.byteStats, second.byteStats)

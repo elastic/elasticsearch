@@ -1246,21 +1246,24 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
 
     // Don't use default project id
     @FixForMultiProject
-    public IngestStats stats() {
+    public IngestStats stats(boolean multiProject) {
         IngestStats.Builder statsBuilder = new IngestStats.Builder();
         statsBuilder.addTotalMetrics(totalMetrics);
-        pipelines.getOrDefault(Metadata.DEFAULT_PROJECT_ID, ImmutableOpenMap.of()).forEach((id, holder) -> {
-            Pipeline pipeline = holder.pipeline;
-            CompoundProcessor rootProcessor = pipeline.getCompoundProcessor();
-            statsBuilder.addPipelineMetrics(id, pipeline.getMetrics());
-            List<Tuple<Processor, IngestMetric>> processorMetrics = new ArrayList<>();
-            collectProcessorMetrics(rootProcessor, processorMetrics);
-            processorMetrics.forEach(t -> {
-                Processor processor = t.v1();
-                IngestMetric processorMetric = t.v2();
-                statsBuilder.addProcessorMetrics(id, getProcessorName(processor), processor.getType(), processorMetric);
+        Set<ProjectId> projectIds = multiProject ? pipelines.keySet() : Set.of(Metadata.DEFAULT_PROJECT_ID);
+        for (ProjectId projectId : projectIds) {
+            pipelines.getOrDefault(projectId, ImmutableOpenMap.of()).forEach((id, holder) -> {
+                Pipeline pipeline = holder.pipeline;
+                CompoundProcessor rootProcessor = pipeline.getCompoundProcessor();
+                statsBuilder.addPipelineMetrics(projectId, id, pipeline.getMetrics());
+                List<Tuple<Processor, IngestMetric>> processorMetrics = new ArrayList<>();
+                collectProcessorMetrics(rootProcessor, processorMetrics);
+                processorMetrics.forEach(t -> {
+                    Processor processor = t.v1();
+                    IngestMetric processorMetric = t.v2();
+                    statsBuilder.addProcessorMetrics(projectId, id, getProcessorName(processor), processor.getType(), processorMetric);
+                });
             });
-        });
+        }
         return statsBuilder.build();
     }
 

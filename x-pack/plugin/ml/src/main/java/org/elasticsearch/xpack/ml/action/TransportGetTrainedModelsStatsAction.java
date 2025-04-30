@@ -21,12 +21,14 @@ import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.common.metrics.CounterMetric;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.core.FixForMultiProject;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
@@ -435,6 +437,7 @@ public class TransportGetTrainedModelsStatsAction extends TransportAction<
         return new IngestStats(accumulator.build(), filteredPipelineStats, filteredProcessorStats);
     }
 
+    @FixForMultiProject // don't use default project
     private static IngestStats mergeStats(List<IngestStats> ingestStatsList) {
 
         Map<String, PipelineStatsAccumulator> pipelineStatsAcc = Maps.newLinkedHashMapWithExpectedSize(ingestStatsList.size());
@@ -464,7 +467,12 @@ public class TransportGetTrainedModelsStatsAction extends TransportAction<
         List<IngestStats.PipelineStat> pipelineStatList = new ArrayList<>(pipelineStatsAcc.size());
         pipelineStatsAcc.forEach(
             (pipelineId, accumulator) -> pipelineStatList.add(
-                new IngestStats.PipelineStat(pipelineId, accumulator.buildStats(), accumulator.buildByteStats())
+                new IngestStats.PipelineStat(
+                    Metadata.DEFAULT_PROJECT_ID,
+                    pipelineId,
+                    accumulator.buildStats(),
+                    accumulator.buildByteStats()
+                )
             )
         );
 

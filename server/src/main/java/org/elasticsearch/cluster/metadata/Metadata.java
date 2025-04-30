@@ -2529,9 +2529,9 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, Ch
             assert parent == null
                 || parent.getIndices().stream().anyMatch(index -> indexMetadata.getIndex().getName().equals(index.getName()))
                 || (parent.getFailureComponent()
-                        .getIndices()
-                        .stream()
-                        .anyMatch(index -> indexMetadata.getIndex().getName().equals(index.getName())))
+                    .getIndices()
+                    .stream()
+                    .anyMatch(index -> indexMetadata.getIndex().getName().equals(index.getName())))
                 : "Expected data stream [" + parent.getName() + "] to contain index " + indexMetadata.getIndex();
             return true;
         }

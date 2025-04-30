@@ -148,26 +148,6 @@ public class HashAggregationOperator implements Operator {
                 long aggStart;
 
                 @Override
-                public void add(int positionOffset, IntBlock groupIds) {
-                    IntVector groupIdsVector = groupIds.asVector();
-                    if (groupIdsVector != null) {
-                        add(positionOffset, groupIdsVector);
-                    } else {
-                        startAggEndHash();
-                        for (GroupingAggregatorFunction.AddInput p : prepared) {
-                            p.add(positionOffset, groupIds);
-                        }
-                        end();
-                    }
-                }
-
-                @Override
-                public void add(int positionOffset, IntVectorBlock groupIds) {
-                    IntVector groupIdsVector = groupIds.asVector();
-                    add(positionOffset, groupIdsVector);
-                }
-
-                @Override
                 public void add(int positionOffset, IntArrayBlock groupIds) {
                     startAggEndHash();
                     for (GroupingAggregatorFunction.AddInput p : prepared) {

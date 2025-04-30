@@ -748,7 +748,7 @@ public class NodeMetrics extends AbstractLifecycleComponent {
         return nodeService.stats(
             flags,
             true,
-            false,
+            true,
             false,
             false,
             true,

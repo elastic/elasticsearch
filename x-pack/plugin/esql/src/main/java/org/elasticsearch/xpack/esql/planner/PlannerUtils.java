@@ -157,16 +157,6 @@ public class PlannerUtils {
         return indices.toArray(String[]::new);
     }
 
-    public static boolean requireTimeSeriesSource(PhysicalPlan plan) {
-        return plan.anyMatch(p -> {
-            if (p instanceof FragmentExec f) {
-                return f.fragment().anyMatch(l -> l instanceof EsRelation s && s.indexMode() == IndexMode.TIME_SERIES);
-            } else {
-                return false;
-            }
-        });
-    }
-
     private static void forEachRelation(PhysicalPlan plan, Consumer<EsRelation> action) {
         plan.forEachDown(FragmentExec.class, f -> f.fragment().forEachDown(EsRelation.class, r -> {
             if (r.indexMode() != IndexMode.LOOKUP) {

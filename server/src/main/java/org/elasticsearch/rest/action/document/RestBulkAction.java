@@ -18,7 +18,6 @@ import org.elasticsearch.action.bulk.BulkShardRequest;
 import org.elasticsearch.action.bulk.IncrementalBulkService;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.client.internal.node.NodeClient;
-import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.bytes.CompositeBytesReference;
 import org.elasticsearch.common.bytes.ReleasableBytesReference;
@@ -71,7 +70,7 @@ public class RestBulkAction extends BaseRestHandler {
     public RestBulkAction(Settings settings, IncrementalBulkService bulkHandler) {
         this.allowExplicitIndex = MULTI_ALLOW_EXPLICIT_INDEX.get(settings);
         this.bulkHandler = bulkHandler;
-        this.capabilities = DataStream.isFailureStoreFeatureFlagEnabled() ? Set.of(FAILURE_STORE_STATUS_CAPABILITY) : Set.of();
+        this.capabilities = Set.of(FAILURE_STORE_STATUS_CAPABILITY);
     }
 
     @Override

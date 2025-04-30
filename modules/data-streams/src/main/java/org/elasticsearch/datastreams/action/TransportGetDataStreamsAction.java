@@ -169,8 +169,7 @@ public class TransportGetDataStreamsAction extends TransportMasterNodeReadAction
         for (DataStream dataStream : dataStreams) {
             // For this action, we are returning whether the failure store is effectively enabled, either in metadata or by cluster setting.
             // Users can use the get data stream options API to find out whether it is explicitly enabled in metadata.
-            boolean failureStoreEffectivelyEnabled = DataStream.isFailureStoreFeatureFlagEnabled()
-                && dataStream.isFailureStoreEffectivelyEnabled(dataStreamFailureStoreSettings);
+            boolean failureStoreEffectivelyEnabled = dataStream.isFailureStoreEffectivelyEnabled(dataStreamFailureStoreSettings);
             final String indexTemplate;
             boolean indexTemplatePreferIlmValue = true;
             String ilmPolicyName = null;
@@ -208,7 +207,7 @@ public class TransportGetDataStreamsAction extends TransportMasterNodeReadAction
             Map<Index, IndexProperties> backingIndicesSettingsValues = new HashMap<>();
             Metadata metadata = state.getMetadata();
             collectIndexSettingsValues(dataStream, backingIndicesSettingsValues, metadata, dataStream.getIndices());
-            if (DataStream.isFailureStoreFeatureFlagEnabled() && dataStream.getFailureIndices().isEmpty() == false) {
+            if (dataStream.getFailureIndices().isEmpty() == false) {
                 collectIndexSettingsValues(dataStream, backingIndicesSettingsValues, metadata, dataStream.getFailureIndices());
             }
 

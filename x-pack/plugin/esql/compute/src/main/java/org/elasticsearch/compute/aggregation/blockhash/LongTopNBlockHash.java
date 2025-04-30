@@ -87,12 +87,12 @@ public final class LongTopNBlockHash extends BlockHash {
         LongVector vector = castBlock.asVector();
         if (vector == null) {
             try (IntBlock groupIds = add(castBlock)) {
-                addInput.add(0, groupIds);
+                addInput.addSpecific(0, groupIds);
             }
             return;
         }
         try (IntBlock groupIds = add(vector)) {
-            addInput.add(0, groupIds);
+            addInput.addSpecific(0, groupIds);
         }
     }
 

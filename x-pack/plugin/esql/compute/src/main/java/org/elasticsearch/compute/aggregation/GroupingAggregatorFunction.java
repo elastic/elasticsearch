@@ -89,6 +89,26 @@ public interface GroupingAggregatorFunction extends Releasable {
         }
 
         /**
+         * Calls an {@code add()} implementation given the specific {@code groupIds} block type.
+         */
+        default void addSpecific(int positionOffset, IntBlock groupIds) {
+            switch (groupIds) {
+                case IntVectorBlock b:
+                    add(positionOffset, b);
+                    break;
+                case IntArrayBlock b:
+                    add(positionOffset, b);
+                    break;
+                case IntBigArrayBlock b:
+                    add(positionOffset, b);
+                    break;
+                default:
+                    add(positionOffset, groupIds);
+                    break;
+            }
+        }
+
+        /**
          * Send a batch of group ids to the aggregator. The {@code groupIds}
          * may be offset from the start of the block to allow for sending chunks
          * of group ids.

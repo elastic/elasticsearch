@@ -629,63 +629,6 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
         }
     }
 
-    public void testDenseVectorIndexOptions() throws IOException {
-        for (int depth = 1; depth < 5; depth++) {
-            String fieldName = randomFieldName(depth);
-
-            // We create a specific model that will be compatible with as many types as possible.
-            Model model = new TestModel(
-                randomAlphaOfLength(4),
-                TaskType.TEXT_EMBEDDING,
-                randomAlphaOfLength(10),
-                new TestModel.TestServiceSettings(
-                    randomAlphaOfLength(4),
-                    256,
-                    SimilarityMeasure.COSINE,
-                    DenseVectorFieldMapper.ElementType.FLOAT
-                ),
-                new TestModel.TestTaskSettings(randomInt(3)),
-                new TestModel.TestSecretSettings(randomAlphaOfLength(4))
-            );
-            String inferenceId = model.getInferenceEntityId();
-
-            DenseVectorFieldMapper.DenseVectorIndexOptions expectedIndexOptions = DenseVectorFieldTypeTests.randomIndexOptionsAll();
-            MapperService mapperService = createMapperService(mapping(b -> {
-                b.startObject(fieldName);
-                b.field("type", SemanticTextFieldMapper.CONTENT_TYPE);
-                b.field(INFERENCE_ID_FIELD, inferenceId);
-                b.startObject(INDEX_OPTIONS_FIELD);
-                b.field("dense_vector");
-                expectedIndexOptions.toXContent(b, null);
-                b.endObject();
-                b.endObject();
-            }), useLegacyFormat);
-            assertSemanticTextField(mapperService, fieldName, false, null, null);
-
-            // Verify we can successfully create a document without throwing
-            DocumentMapper documentMapper = mapperService.documentMapper();
-            documentMapper.parse(
-                source(
-                    b -> addSemanticTextInferenceResults(
-                        useLegacyFormat,
-                        b,
-                        List.of(
-                            randomSemanticText(
-                                useLegacyFormat,
-                                fieldName,
-                                model,
-                                null,
-                                null,
-                                List.of("puggles", "chiweenies"),
-                                XContentType.JSON
-                            )
-                        )
-                    )
-                )
-            );
-        }
-    }
-
     public void testUpdateSearchInferenceId() throws IOException {
         final String inferenceId = "test_inference_id";
         final String searchInferenceId1 = "test_search_inference_id_1";

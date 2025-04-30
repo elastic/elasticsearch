@@ -117,8 +117,10 @@ public class TransportShardSearchLoadStatsAction extends TransportBroadcastByNod
      * Returns the factory used to construct the final response from individual shard responses.
      */
     @Override
-    protected ResponseFactory<ShardSearchLoadStatsResponse, ShardSearchLoadStats> getResponseFactory(Request request,
-                                                                                                     ClusterState clusterState) {
+    protected ResponseFactory<ShardSearchLoadStatsResponse, ShardSearchLoadStats> getResponseFactory(
+        Request request,
+        ClusterState clusterState
+    ) {
         return (totalShards, successfulShards, failedShards, responses, shardFailures) -> new ShardSearchLoadStatsResponse(
             responses.toArray(new ShardSearchLoadStats[0]),
             totalShards,

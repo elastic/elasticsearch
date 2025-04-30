@@ -34,7 +34,7 @@ public class ShardSearchLoadRateStatsTests extends ESTestCase {
         when(mockHalfLife.millis()).thenReturn(1000L);
         AtomicLong fakeClock = new AtomicLong(1_000_000L);
         shardStats = null;
-        //shardStats = new NoOpShardSearchLoadRateStats(mockSettings, fakeClock::get);
+        // shardStats = new NoOpShardSearchLoadRateStats(mockSettings, fakeClock::get);
     }
 
     public void testZeroDeltaReturnsZeroRate() {

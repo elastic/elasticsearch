@@ -41,6 +41,7 @@ public class SearchStatsSettingsTests extends ESTestCase {
         );
         assertThat(settings.getRecentReadLoadHalfLifeForNewShards(), equalTo(TimeValue.timeValueHours(2)));
     }
+
     /**
      * Test updating the recent read load half-life setting.
      */

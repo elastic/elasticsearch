@@ -468,7 +468,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         final GlobalCheckpointSyncer globalCheckpointSyncer,
         final RetentionLeaseSyncer retentionLeaseSyncer,
         final ShardSearchLoadRateProvider shardSearchLoadRateProvider
-        ) throws IOException {
+    ) throws IOException {
         Objects.requireNonNull(retentionLeaseSyncer);
         /*
          * TODO: we execute this in parallel but it's a synced method. Yet, we might

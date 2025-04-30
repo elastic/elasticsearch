@@ -120,8 +120,12 @@ public class IndicesLifecycleListenerSingleNodeTests extends ESSingleNodeTestCas
             newRouting = newRouting.moveToUnassigned(unassignedInfo)
                 .updateUnassigned(unassignedInfo, RecoverySource.EmptyStoreRecoverySource.INSTANCE);
             newRouting = ShardRoutingHelper.initialize(newRouting, nodeId);
-            IndexShard shard = index.createShard(newRouting, IndexShardTestCase.NOOP_GCP_SYNCER, RetentionLeaseSyncer.EMPTY,
-                ShardSearchLoadRateProvider.DEFAULT);
+            IndexShard shard = index.createShard(
+                newRouting,
+                IndexShardTestCase.NOOP_GCP_SYNCER,
+                RetentionLeaseSyncer.EMPTY,
+                ShardSearchLoadRateProvider.DEFAULT
+            );
             IndexShardTestCase.updateRoutingEntry(shard, newRouting);
             assertEquals(5, counter.get());
             final DiscoveryNode localNode = DiscoveryNodeUtils.builder("foo").roles(emptySet()).build();

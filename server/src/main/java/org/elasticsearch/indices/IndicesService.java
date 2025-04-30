@@ -119,7 +119,6 @@ import org.elasticsearch.index.refresh.RefreshStats;
 import org.elasticsearch.index.search.stats.SearchStats;
 import org.elasticsearch.index.search.stats.SearchStatsSettings;
 import org.elasticsearch.index.search.stats.ShardSearchLoadRateProvider;
-import org.elasticsearch.index.search.stats.ShardSearchLoadRateService;
 import org.elasticsearch.index.seqno.RetentionLeaseStats;
 import org.elasticsearch.index.seqno.RetentionLeaseSyncer;
 import org.elasticsearch.index.seqno.SeqNoStats;
@@ -947,10 +946,15 @@ public class IndicesService extends AbstractLifecycleComponent
 
         ShardSearchLoadRateProvider shardSearchLoadRateProvider = pluginsService.loadSingletonServiceProvider(
             ShardSearchLoadRateProvider.class,
-            () -> ShardSearchLoadRateProvider.DEFAULT);
+            () -> ShardSearchLoadRateProvider.DEFAULT
+        );
 
-        IndexShard indexShard = indexService.createShard(shardRouting, globalCheckpointSyncer, retentionLeaseSyncer,
-            shardSearchLoadRateProvider);
+        IndexShard indexShard = indexService.createShard(
+            shardRouting,
+            globalCheckpointSyncer,
+            retentionLeaseSyncer,
+            shardSearchLoadRateProvider
+        );
         indexShard.addShardFailureCallback(onShardFailure);
         indexShard.startRecovery(
             recoveryState,

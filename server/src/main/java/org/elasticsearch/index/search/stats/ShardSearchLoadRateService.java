@@ -47,8 +47,6 @@ public interface ShardSearchLoadRateService {
          * A static no-op instance representing a default or zeroed state of {@code SearchLoadRate}.
          * All numeric values are initialized to zero.
          */
-        public static final SearchLoadRate NO_OP = new SearchLoadRate(0,0,0.0);
+        public static final SearchLoadRate NO_OP = new SearchLoadRate(0, 0, 0.0);
     }
 }
-
-

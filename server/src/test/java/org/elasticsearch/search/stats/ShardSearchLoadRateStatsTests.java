@@ -11,8 +11,8 @@ package org.elasticsearch.search.stats;
 
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.search.stats.SearchStats;
-import org.elasticsearch.index.search.stats.SearchStatsSettings;
-import org.elasticsearch.index.search.stats.ShardSearchLoadRateStats;
+import org.elasticsearch.index.search.stats.multi.SearchStatsSettings;
+import org.elasticsearch.index.search.stats.multi.ShardSearchLoadRateStats;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;
 

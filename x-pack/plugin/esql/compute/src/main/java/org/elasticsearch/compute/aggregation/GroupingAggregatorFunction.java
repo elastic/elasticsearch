@@ -8,8 +8,11 @@
 package org.elasticsearch.compute.aggregation;
 
 import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.compute.data.IntArrayBlock;
+import org.elasticsearch.compute.data.IntBigArrayBlock;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.IntVector;
+import org.elasticsearch.compute.data.IntVectorBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.data.Vector;
 import org.elasticsearch.core.Releasable;
@@ -54,6 +57,36 @@ public interface GroupingAggregatorFunction extends Releasable {
          *                 or multivalued
          */
         void add(int positionOffset, IntBlock groupIds);
+
+        /**
+         * Implementation of {@link #add(int, IntBlock)} for a specific type of block.
+         * <p>
+         *     If not implemented, defaults to the generic implementation.
+         * </p>
+         */
+        default void add(int positionOffset, IntArrayBlock groupIds) {
+            add(positionOffset, (IntBlock) groupIds);
+        }
+
+        /**
+         * Implementation of {@link #add(int, IntBlock)} for a specific type of block.
+         * <p>
+         *     If not implemented, defaults to the generic implementation.
+         * </p>
+         */
+        default void add(int positionOffset, IntVectorBlock groupIds) {
+            add(positionOffset, (IntBlock) groupIds);
+        }
+
+        /**
+         * Implementation of {@link #add(int, IntBlock)} for a specific type of block.
+         * <p>
+         *     If not implemented, defaults to the generic implementation.
+         * </p>
+         */
+        default void add(int positionOffset, IntBigArrayBlock groupIds) {
+            add(positionOffset, (IntBlock) groupIds);
+        }
 
         /**
          * Send a batch of group ids to the aggregator. The {@code groupIds}

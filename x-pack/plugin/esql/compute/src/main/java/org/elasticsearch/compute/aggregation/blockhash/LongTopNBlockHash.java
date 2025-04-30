@@ -229,9 +229,7 @@ public final class LongTopNBlockHash extends BlockHash {
             acceptValue(v);
         }
 
-        // TODO: Count how many values were denied, to try to reduce the size of the block. Check the same for add(block)
-
-        // Create a vector with the groups
+        // Create a block with the groups
         try (var builder = blockFactory.newIntBlockBuilder(positions)) {
             for (int i = 0; i < positions; i++) {
                 long v = vector.getLong(i);

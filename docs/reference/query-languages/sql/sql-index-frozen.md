@@ -5,7 +5,7 @@ mapped_pages:
 
 # Frozen Indices [sql-index-frozen]
 
-By default, Elasticsearch SQL doesn’t search [frozen indices](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-indices-unfreeze). To search frozen indices, use one of the following features:
+By default, Elasticsearch SQL doesn’t search frozen indices. To search frozen indices, use one of the following features:
 
 dedicated configuration parameter
 :   Set to `true` properties `index_include_frozen` in the [SQL search API](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-sql-query) or `index.include.frozen` in the drivers to include frozen indices.

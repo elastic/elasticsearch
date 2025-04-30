@@ -888,7 +888,12 @@ public class EsqlCapabilities {
          * {@link org.elasticsearch.compute.lucene.LuceneQueryEvaluator} rewrites the query before executing it in Lucene. This
          * provides support for KQL in a STATS ... BY command that uses a KQL query for filter, for example.
          */
-        LUCENE_QUERY_EVALUATOR_QUERY_REWRITE;
+        LUCENE_QUERY_EVALUATOR_QUERY_REWRITE,
+
+        /**
+         * Guards a bug fix matching {@code TO_LOWER(f) == ""}.
+         */
+        TO_LOWER_EMPTY_STRING;
 
         private final boolean enabled;
 

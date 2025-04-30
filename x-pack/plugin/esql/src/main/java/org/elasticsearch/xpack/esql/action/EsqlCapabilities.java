@@ -1049,7 +1049,12 @@ public class EsqlCapabilities {
         /**
          * The {@code _query} API now gives a cast recommendation if multiple types are found in certain instances.
          */
-        SUGGESTED_CAST;
+        SUGGESTED_CAST,
+
+        /**
+         * Guards a bug fix matching {@code TO_LOWER(f) == ""}.
+         */
+        TO_LOWER_EMPTY_STRING;
 
         private final boolean enabled;
 

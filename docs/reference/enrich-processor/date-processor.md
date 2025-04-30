@@ -79,7 +79,7 @@ The `timezone` and `locale` processor parameters are templated. This means that 
 
 ### Example dealing with short timezone abbreviations safely [date-processor-short-timezone-example]
 
-In the example below, the `message` field in the input is expected to be a string formed of a local date-time in `yyyyMMddHHmmss` format, a timezone abbreviated to one of `PST`, `CET`, or `JST` representing Pacific, Central European, or Japan time, and a payload. This field is split up using a `grok` processor, then the timezones are converted into full names using a `script` processor, then the date-time is parsed using a `date` processor, and finally the unwanted fields are discarded using a `drop` processor.
+In the example below, the `message` field in the input is expected to be a string formed of a local date-time in `yyyyMMddHHmmss` format, a timezone abbreviated to one of `PST`, `CET`, or `JST` representing Pacific, Central European, or Japan time, and a payload. This field is split up using a `grok` processor, then the timezones are converted into full names using a `script` processor, then the date-time is parsed using a `date` processor, and finally the unwanted fields are discarded using a `remove` processor.
 
 ```js
 {

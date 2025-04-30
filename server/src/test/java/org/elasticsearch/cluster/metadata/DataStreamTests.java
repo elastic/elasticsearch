@@ -2654,6 +2654,26 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
         assertThat(dataStream.getEffectiveSettings(projectMetadataBuilder.build()), equalTo(templateSettings));
     }
 
+    public void testGetEffectiveSettingsComponentTemplateSettingsOnly() {
+        // We only have settings from a component template, so we expect to get those back
+        DataStream dataStream = createDataStream(Settings.EMPTY);
+        Settings templateSettings = Settings.EMPTY;
+        Template.Builder indexTemplateBuilder = Template.builder().settings(templateSettings);
+        ComposableIndexTemplate indexTemplate = ComposableIndexTemplate.builder()
+            .indexPatterns(List.of(dataStream.getName()))
+            .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate())
+            .template(indexTemplateBuilder)
+            .componentTemplates(List.of("component-template-1"))
+            .build();
+        Settings componentSettings = randomSettings();
+        Template.Builder componentTemplateBuilder = Template.builder().settings(componentSettings);
+        ComponentTemplate componentTemplate1 = new ComponentTemplate(componentTemplateBuilder.build(), null, null, null);
+        ProjectMetadata.Builder projectMetadataBuilder = ProjectMetadata.builder(randomProjectIdOrDefault())
+            .indexTemplates(Map.of(dataStream.getName(), indexTemplate))
+            .componentTemplates(Map.of("component-template-1", componentTemplate1));
+        assertThat(dataStream.getEffectiveSettings(projectMetadataBuilder.build()), equalTo(componentSettings));
+    }
+
     public void testGetEffectiveSettingsDataStreamSettingsOnly() {
         // We only have settings from the data stream, so we expect to get those back
         Settings dataStreamSettings = randomSettings();

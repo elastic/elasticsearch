@@ -57,7 +57,6 @@ import org.elasticsearch.test.client.NoOpNodeClient;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.junit.After;
-import org.junit.Assume;
 import org.junit.Before;
 
 import java.io.IOException;
@@ -387,8 +386,6 @@ public class BulkOperationTests extends ESTestCase {
      * A bulk operation to a data stream with a failure store enabled should redirect any shard level failures to the failure store.
      */
     public void testFailingEntireShardRedirectsToFailureStore() throws Exception {
-        Assume.assumeTrue(DataStream.isFailureStoreFeatureFlagEnabled());
-
         // Requests that go to two separate shards
         BulkRequest bulkRequest = new BulkRequest();
         bulkRequest.add(new IndexRequest(fsDataStreamName).id("1").source(Map.of("key", "val")).opType(DocWriteRequest.OpType.CREATE));
@@ -414,8 +411,6 @@ public class BulkOperationTests extends ESTestCase {
      * failure store.
      */
     public void testFailingDocumentRedirectsToFailureStore() throws Exception {
-        Assume.assumeTrue(DataStream.isFailureStoreFeatureFlagEnabled());
-
         // Requests that go to two separate shards
         BulkRequest bulkRequest = new BulkRequest();
         bulkRequest.add(new IndexRequest(fsDataStreamName).id("1").source(Map.of("key", "val")).opType(DocWriteRequest.OpType.CREATE));
@@ -441,8 +436,6 @@ public class BulkOperationTests extends ESTestCase {
      * failure store if the failure store node feature is not on every node in the cluster
      */
     public void testFailingDocumentIgnoredByFailureStoreWhenFeatureIsDisabled() throws Exception {
-        Assume.assumeTrue(DataStream.isFailureStoreFeatureFlagEnabled());
-
         // Requests that go to two separate shards
         BulkRequest bulkRequest = new BulkRequest();
         bulkRequest.add(new IndexRequest(fsDataStreamName).id("1").source(Map.of("key", "val")).opType(DocWriteRequest.OpType.CREATE));
@@ -476,8 +469,6 @@ public class BulkOperationTests extends ESTestCase {
     }
 
     public void testFailingDocumentRedirectsToFailureStoreWhenEnabledByClusterSetting() {
-        Assume.assumeTrue(DataStream.isFailureStoreFeatureFlagEnabled());
-
         BulkRequest bulkRequest = new BulkRequest();
         bulkRequest.add(
             new IndexRequest(fsBySettingsDataStreamName).id("1").source(Map.of("key", "val")).opType(DocWriteRequest.OpType.CREATE)
@@ -533,8 +524,6 @@ public class BulkOperationTests extends ESTestCase {
      * a shard-level failure while writing to the failure store indices.
      */
     public void testFailureStoreShardFailureRejectsDocument() throws Exception {
-        Assume.assumeTrue(DataStream.isFailureStoreFeatureFlagEnabled());
-
         // Requests that go to two separate shards
         BulkRequest bulkRequest = new BulkRequest();
         bulkRequest.add(new IndexRequest(fsDataStreamName).id("1").source(Map.of("key", "val")).opType(DocWriteRequest.OpType.CREATE));
@@ -573,8 +562,6 @@ public class BulkOperationTests extends ESTestCase {
      * instead will simply report its original failure in the response, with the conversion failure present as a suppressed exception.
      */
     public void testFailedDocumentCanNotBeConvertedFails() throws Exception {
-        Assume.assumeTrue(DataStream.isFailureStoreFeatureFlagEnabled());
-
         // Requests that go to two separate shards
         BulkRequest bulkRequest = new BulkRequest();
         bulkRequest.add(new IndexRequest(fsDataStreamName).id("1").source(Map.of("key", "val")).opType(DocWriteRequest.OpType.CREATE));
@@ -609,8 +596,6 @@ public class BulkOperationTests extends ESTestCase {
      * returns an unblocked cluster, the redirection of failure documents should proceed and not return early.
      */
     public void testRetryableBlockAcceptsFailureStoreDocument() throws Exception {
-        Assume.assumeTrue(DataStream.isFailureStoreFeatureFlagEnabled());
-
         // Requests that go to two separate shards
         BulkRequest bulkRequest = new BulkRequest();
         bulkRequest.add(new IndexRequest(fsDataStreamName).id("1").source(Map.of("key", "val")).opType(DocWriteRequest.OpType.CREATE));
@@ -702,8 +687,6 @@ public class BulkOperationTests extends ESTestCase {
      * non-retryable block when the redirected documents would be sent to the shard-level action.
      */
     public void testBlockedClusterRejectsFailureStoreDocument() throws Exception {
-        Assume.assumeTrue(DataStream.isFailureStoreFeatureFlagEnabled());
-
         // Requests that go to two separate shards
         BulkRequest bulkRequest = new BulkRequest();
         bulkRequest.add(new IndexRequest(fsDataStreamName).id("1").source(Map.of("key", "val")).opType(DocWriteRequest.OpType.CREATE));
@@ -755,8 +738,6 @@ public class BulkOperationTests extends ESTestCase {
      * retryable block to clear when the redirected documents would be sent to the shard-level action.
      */
     public void testOperationTimeoutRejectsFailureStoreDocument() throws Exception {
-        Assume.assumeTrue(DataStream.isFailureStoreFeatureFlagEnabled());
-
         // Requests that go to two separate shards
         BulkRequest bulkRequest = new BulkRequest();
         bulkRequest.add(new IndexRequest(fsDataStreamName).id("1").source(Map.of("key", "val")).opType(DocWriteRequest.OpType.CREATE));
@@ -816,8 +797,6 @@ public class BulkOperationTests extends ESTestCase {
      * for a retryable block to clear when the redirected documents would be sent to the shard-level action.
      */
     public void testNodeClosureRejectsFailureStoreDocument() {
-        Assume.assumeTrue(DataStream.isFailureStoreFeatureFlagEnabled());
-
         // Requests that go to two separate shards
         BulkRequest bulkRequest = new BulkRequest();
         bulkRequest.add(new IndexRequest(fsDataStreamName).id("1").source(Map.of("key", "val")).opType(DocWriteRequest.OpType.CREATE));
@@ -861,8 +840,6 @@ public class BulkOperationTests extends ESTestCase {
      * rollover, it first needs to roll over the failure store and then redirect the failure to the <i>new</i> failure index.
      */
     public void testLazilyRollingOverFailureStore() throws Exception {
-        Assume.assumeTrue(DataStream.isFailureStoreFeatureFlagEnabled());
-
         // Requests that go to two separate shards
         BulkRequest bulkRequest = new BulkRequest();
         bulkRequest.add(
@@ -920,8 +897,6 @@ public class BulkOperationTests extends ESTestCase {
      * should be added to the list of suppressed causes in the <code>BulkItemResponse</code>.
      */
     public void testFailureWhileRollingOverFailureStore() throws Exception {
-        Assume.assumeTrue(DataStream.isFailureStoreFeatureFlagEnabled());
-
         // Requests that go to two separate shards
         BulkRequest bulkRequest = new BulkRequest();
         bulkRequest.add(

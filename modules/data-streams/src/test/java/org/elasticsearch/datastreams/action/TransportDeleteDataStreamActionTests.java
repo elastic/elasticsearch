@@ -27,7 +27,6 @@ import org.elasticsearch.snapshots.Snapshot;
 import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.snapshots.SnapshotInProgressException;
 import org.elasticsearch.test.ESTestCase;
-import org.junit.Assume;
 
 import java.util.Collections;
 import java.util.List;
@@ -58,8 +57,6 @@ public class TransportDeleteDataStreamActionTests extends ESTestCase {
     }
 
     public void testDeleteDataStreamWithFailureStore() {
-        Assume.assumeTrue(DataStream.isFailureStoreFeatureFlagEnabled());
-
         final String dataStreamName = "my-data-stream";
         final List<String> otherIndices = randomSubsetOf(List.of("foo", "bar", "baz"));
 

@@ -52,16 +52,14 @@ public class DataStreamUsageTransportAction extends XPackUsageFeatureTransportAc
         long failureIndicesCounter = 0;
         for (DataStream ds : dataStreams.values()) {
             backingIndicesCounter += ds.getIndices().size();
-            if (DataStream.isFailureStoreFeatureFlagEnabled()) {
-                if (ds.isFailureStoreExplicitlyEnabled()) {
-                    failureStoreExplicitlyEnabledCounter++;
-                }
-                if (ds.isFailureStoreEffectivelyEnabled(dataStreamFailureStoreSettings)) {
-                    failureStoreEffectivelyEnabledCounter++;
-                }
-                if (ds.getFailureIndices().isEmpty() == false) {
-                    failureIndicesCounter += ds.getFailureIndices().size();
-                }
+            if (ds.isFailureStoreExplicitlyEnabled()) {
+                failureStoreExplicitlyEnabledCounter++;
+            }
+            if (ds.isFailureStoreEffectivelyEnabled(dataStreamFailureStoreSettings)) {
+                failureStoreEffectivelyEnabledCounter++;
+            }
+            if (ds.getFailureIndices().isEmpty() == false) {
+                failureIndicesCounter += ds.getFailureIndices().size();
             }
         }
         final DataStreamFeatureSetUsage.DataStreamStats stats = new DataStreamFeatureSetUsage.DataStreamStats(

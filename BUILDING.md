@@ -144,7 +144,7 @@ To wire this registered cluster into a `TestClusterAware` task (e.g. `RestIntegT
 Additional integration tests for a certain Elasticsearch modules that are specific to certain cluster configuration can be declared in a separate so called `qa` subproject of your module.
 
 The benefit of a dedicated project for these tests are:
-- `qa` projects are dedicated two specific use-cases and easier to maintain
+- `qa` projects are dedicated to specific use-cases and easier to maintain
 - It keeps the specific test logic separated from the common test logic.
 - You can run those tests in parallel to other projects of the build.
 

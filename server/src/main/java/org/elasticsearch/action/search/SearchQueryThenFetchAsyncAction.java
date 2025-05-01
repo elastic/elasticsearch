@@ -603,7 +603,7 @@ public class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<S
 
     public static boolean connectionSupportsBatchedExecution(Transport.Connection connection) {
         return connection.getTransportVersion().onOrAfter(TransportVersions.BATCHED_QUERY_PHASE_VERSION)
-            || connection.getNode().getVersionInformation().nodeVersion().onOrAfter(Version.V_9_1_0);
+            && connection.getNode().getVersionInformation().nodeVersion().onOrAfter(Version.V_9_1_0);
     }
 
     private void executeWithoutBatching(CanMatchPreFilterSearchPhase.SendingTarget targetNode, NodeQueryRequest request) {

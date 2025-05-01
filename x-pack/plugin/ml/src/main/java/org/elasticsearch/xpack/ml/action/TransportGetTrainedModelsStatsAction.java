@@ -419,6 +419,7 @@ public class TransportGetTrainedModelsStatsAction extends TransportAction<
         NodesStatsRequest nodesStatsRequest = new NodesStatsRequest(ingestNodes).clear()
             .addMetric(NodesStatsRequestParameters.Metric.INGEST);
         nodesStatsRequest.setIncludeShardsStats(false);
+        nodesStatsRequest.setIncludeProjectIdsIfMultiProject(true); // okay 'cos we filter below
         nodesStatsRequest.setParentTask(parentTaskId);
         return nodesStatsRequest;
     }
@@ -432,6 +433,7 @@ public class TransportGetTrainedModelsStatsAction extends TransportAction<
         filteredProcessorStats.keySet().retainAll(pipelineIds);
         List<IngestStats.PipelineStat> filteredPipelineStats = fullNodeStats.pipelineStats()
             .stream()
+            .filter(pipelineStat -> pipelineStat.projectId().equals(ProjectId.DEFAULT))
             .filter(pipelineStat -> pipelineIds.contains(pipelineStat.pipelineId()))
             .collect(Collectors.toList());
         IngestStatsAccumulator accumulator = new IngestStatsAccumulator();

@@ -45,6 +45,7 @@ import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperBuilderContext;
 import org.elasticsearch.index.mapper.MapperMergeContext;
+import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.mapper.MappingParserContext;
 import org.elasticsearch.index.mapper.NestedObjectMapper;
@@ -204,6 +205,7 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
 
         private final Parameter<Map<String, String>> meta = Parameter.metaParam();
 
+        private MinimalServiceSettings resolvedModelSettings;
         private Function<MapperBuilderContext, ObjectMapper> inferenceFieldBuilder;
 
         public static Builder from(SemanticTextFieldMapper mapper) {
@@ -283,29 +285,38 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
                 throw new IllegalArgumentException(CONTENT_TYPE + " field [" + leafName() + "] does not support multi-fields");
             }
 
-            if (modelSettings.get() == null) {
+            if (context.getMergeReason() != MapperService.MergeReason.MAPPING_RECOVERY && modelSettings.get() == null) {
                 try {
-                    var resolvedModelSettings = modelRegistry.getMinimalServiceSettings(inferenceId.get());
+                    /*
+                     * If the model is not already set and we are not in a recovery scenario, resolve it using the registry.
+                     * Note: We do not set the model in the mapping at this stage. Instead, the model will be added through
+                     * a mapping update during the first ingestion.
+                     * This approach allows mappings to reference inference endpoints that may not yet exist.
+                     * The only requirement is that the referenced inference endpoint must be available at the time of ingestion.
+                     */
+                    resolvedModelSettings = modelRegistry.getMinimalServiceSettings(inferenceId.get());
                     if (resolvedModelSettings != null) {
-                        modelSettings.setValue(resolvedModelSettings);
+                        validateServiceSettings(resolvedModelSettings, null);
                     }
                 } catch (ResourceNotFoundException exc) {
-                    // We allow the inference ID to be unregistered at this point.
-                    // This will delay the creation of sub-fields, so indexing and querying for this field won't work
-                    // until the corresponding inference endpoint is created.
+                    /* We allow the inference ID to be unregistered at this point.
+                     * This will delay the creation of sub-fields, so indexing and querying for this field won't work
+                     * until the corresponding inference endpoint is created.
+                     */
+                    logger.warn(
+                        "The field [{}] references an unknown inference ID [{}]. "
+                            + "Indexing and querying this field will not work correctly until the corresponding "
+                            + "inference endpoint is created.",
+                        leafName(),
+                        inferenceId.get()
+                    );
                 }
+            } else {
+                resolvedModelSettings = modelSettings.get();
             }
 
             if (modelSettings.get() != null) {
-                validateServiceSettings(modelSettings.get());
-            } else {
-                logger.warn(
-                    "The field [{}] references an unknown inference ID [{}]. "
-                        + "Indexing and querying this field will not work correctly until the corresponding "
-                        + "inference endpoint is created.",
-                    leafName(),
-                    inferenceId.get()
-                );
+                validateServiceSettings(modelSettings.get(), resolvedModelSettings);
             }
 
             final String fullName = context.buildFullName(leafName());
@@ -333,7 +344,7 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
             );
         }
 
-        private void validateServiceSettings(MinimalServiceSettings settings) {
+        private void validateServiceSettings(MinimalServiceSettings settings, MinimalServiceSettings resolved) {
             switch (settings.taskType()) {
                 case SPARSE_EMBEDDING, TEXT_EMBEDDING -> {
                 }
@@ -346,6 +357,17 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
                         + SPARSE_EMBEDDING
                         + ", got "
                         + settings.taskType().name()
+                );
+            }
+
+            if (resolved != null && settings.canMergeWith(resolved) == false) {
+                throw new IllegalArgumentException(
+                    "Mismatch between provided and registered inference model settings. "
+                        + "Provided: ["
+                        + settings
+                        + "], Expected: ["
+                        + resolved
+                        + "]."
                 );
             }
         }

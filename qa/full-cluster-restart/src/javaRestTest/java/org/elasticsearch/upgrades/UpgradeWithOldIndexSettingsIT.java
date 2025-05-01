@@ -16,7 +16,6 @@ import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
-import org.elasticsearch.test.cluster.FeatureFlag;
 import org.elasticsearch.test.cluster.local.LocalClusterConfigProvider;
 import org.elasticsearch.test.cluster.local.distribution.DistributionType;
 import org.junit.ClassRule;
@@ -36,7 +35,6 @@ public class UpgradeWithOldIndexSettingsIT extends ParameterizedFullClusterResta
         .version(getOldClusterTestVersion())
         .nodes(2)
         .setting("xpack.security.enabled", "false")
-        .feature(FeatureFlag.FAILURE_STORE_ENABLED)
         .apply(() -> clusterConfig)
         .build();
 

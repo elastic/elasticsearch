@@ -15,17 +15,17 @@ import org.elasticsearch.index.mapper.BlockLoader;
 
 import java.util.List;
 
-public class ResultBuilderForComposite implements ResultBuilder {
+public class ResultBuilderForAggregateMetricDouble implements ResultBuilder {
 
     private final AggregateMetricDoubleBlockBuilder builder;
 
-    ResultBuilderForComposite(BlockFactory blockFactory, int positions) {
+    ResultBuilderForAggregateMetricDouble(BlockFactory blockFactory, int positions) {
         this.builder = blockFactory.newAggregateMetricDoubleBlockBuilder(positions);
     }
 
     @Override
     public void decodeKey(BytesRef keys) {
-        throw new AssertionError("Composite Block can't be a key");
+        throw new AssertionError("AggregateMetricDoubleBlock can't be a key");
     }
 
     @Override
@@ -51,7 +51,7 @@ public class ResultBuilderForComposite implements ResultBuilder {
 
     @Override
     public String toString() {
-        return "ValueExtractorForComposite";
+        return "ValueExtractorForAggregateMetricDouble";
     }
 
     @Override

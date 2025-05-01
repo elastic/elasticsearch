@@ -353,11 +353,22 @@
   - match: { indices.dense_vector.value_count: 8 }
   - is_false: indices.dense_vector.off_heap
 
+  # ensure indices are cleaned up
+  - do:
+      indices.delete:
+        index: test1
+  - do:
+      indices.delete:
+        index: test2
+  - do:
+      indices.refresh: { }
+
 ---
 "Sparse vector stats":
   - requires:
       cluster_features: [ "gte_v8.15.0" ]
       reason: "sparse vector stats added in 8.15"
+
   - do:
       indices.create:
         index: test1
@@ -375,7 +386,7 @@
 
   - do:
       indices.create:
-        index: test3
+        index: test2
         body:
           settings:
             number_of_replicas: 0
@@ -424,7 +435,7 @@
 
   - do:
       index:
-        index: test3
+        index: test2
         id: "1"
         body:
           vector:
@@ -438,7 +449,7 @@
 
   - do:
       index:
-        index: test3
+        index: test2
         id: "2"
         body:
           vector:

@@ -10,6 +10,7 @@ import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.support.ActionFilters;
+import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ESTestCase;
@@ -26,6 +27,8 @@ import org.elasticsearch.xpack.core.security.user.ElasticUser;
 import org.elasticsearch.xpack.core.security.user.KibanaUser;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.security.authc.esnative.NativeUsersStore;
+import org.elasticsearch.xpack.security.authc.file.FileUserPasswdStore;
+import org.mockito.Mockito;
 
 import java.util.Collections;
 import java.util.Locale;
@@ -56,6 +59,7 @@ public class TransportChangePasswordActionTests extends ESTestCase {
             .build();
         AnonymousUser anonymousUser = new AnonymousUser(settings);
         NativeUsersStore usersStore = mock(NativeUsersStore.class);
+        FileUserPasswdStore fileUserPasswdStore = mock(FileUserPasswdStore.class);
         TransportService transportService = new TransportService(
             Settings.EMPTY,
             mock(Transport.class),
@@ -69,7 +73,8 @@ public class TransportChangePasswordActionTests extends ESTestCase {
             settings,
             transportService,
             mock(ActionFilters.class),
-            usersStore
+            usersStore,
+            fileUserPasswdStore
         );
         // Request will fail before the request hashing algorithm is checked, but we use the same algorithm as in settings for consistency
         ChangePasswordRequest request = new ChangePasswordRequest();
@@ -96,6 +101,56 @@ public class TransportChangePasswordActionTests extends ESTestCase {
         verifyNoMoreInteractions(usersStore);
     }
 
+    public void testFileRealmUser() {
+        final Hasher hasher = getFastStoredHashAlgoForTests();
+        Settings settings = Settings.builder()
+            .put(AnonymousUser.ROLES_SETTING.getKey(), "superuser")
+            .put(XPackSettings.PASSWORD_HASHING_ALGORITHM.getKey(), hasher.name())
+            .build();
+        ElasticUser elasticUser = new ElasticUser(true);
+        NativeUsersStore usersStore = mock(NativeUsersStore.class);
+        FileUserPasswdStore fileUserPasswdStore = mock(FileUserPasswdStore.class);
+        TransportService transportService = new TransportService(
+            Settings.EMPTY,
+            mock(Transport.class),
+            mock(ThreadPool.class),
+            TransportService.NOOP_TRANSPORT_INTERCEPTOR,
+            x -> null,
+            null,
+            Collections.emptySet()
+        );
+        TransportChangePasswordAction action = new TransportChangePasswordAction(
+            settings,
+            transportService,
+            mock(ActionFilters.class),
+            usersStore,
+            fileUserPasswdStore
+        );
+        Mockito.when(fileUserPasswdStore.userExists(Mockito.eq(elasticUser.principal()))).thenReturn(true);
+        ChangePasswordRequest request = new ChangePasswordRequest();
+        request.username(elasticUser.principal());
+        request.passwordHash(hasher.hash(SecuritySettingsSourceField.TEST_PASSWORD_SECURE_STRING));
+
+        final AtomicReference<Throwable> throwableRef = new AtomicReference<>();
+        final AtomicReference<ActionResponse.Empty> responseRef = new AtomicReference<>();
+        action.doExecute(mock(Task.class), request, new ActionListener<>() {
+            @Override
+            public void onResponse(ActionResponse.Empty changePasswordResponse) {
+                responseRef.set(changePasswordResponse);
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                throwableRef.set(e);
+            }
+        });
+
+        assertThat(responseRef.get(), is(nullValue()));
+        assertThat(throwableRef.get(), instanceOf(ValidationException.class));
+        assertThat(throwableRef.get().getMessage(), containsString("is file-based and cannot be managed via this API"));
+        verifyNoMoreInteractions(usersStore);
+    }
+
     public void testValidUser() {
         testValidUser(randomFrom(new ElasticUser(true), new KibanaUser(true), new User("joe")));
     }
@@ -107,6 +162,7 @@ public class TransportChangePasswordActionTests extends ESTestCase {
     private void testValidUser(User user) {
         final Hasher hasher = getFastStoredHashAlgoForTests();
         NativeUsersStore usersStore = mock(NativeUsersStore.class);
+        FileUserPasswdStore fileUserPasswdStore = mock(FileUserPasswdStore.class);
         ChangePasswordRequest request = new ChangePasswordRequest();
         request.username(user.principal());
         request.passwordHash(hasher.hash(SecuritySettingsSourceField.TEST_PASSWORD_SECURE_STRING));
@@ -132,7 +188,8 @@ public class TransportChangePasswordActionTests extends ESTestCase {
             passwordHashingSettings,
             transportService,
             mock(ActionFilters.class),
-            usersStore
+            usersStore,
+            fileUserPasswdStore
         );
         final AtomicReference<Throwable> throwableRef = new AtomicReference<>();
         final AtomicReference<ActionResponse.Empty> responseRef = new AtomicReference<>();
@@ -157,6 +214,7 @@ public class TransportChangePasswordActionTests extends ESTestCase {
     public void testWithPasswordThatsNotAHash() {
         final User user = randomFrom(new ElasticUser(true), new KibanaUser(true), new User("joe"));
         NativeUsersStore usersStore = mock(NativeUsersStore.class);
+        FileUserPasswdStore fileUserPasswdStore = mock(FileUserPasswdStore.class);
         ChangePasswordRequest request = new ChangePasswordRequest();
         request.username(user.principal());
         request.passwordHash(randomAlphaOfLengthBetween(14, 20).toCharArray());
@@ -177,7 +235,8 @@ public class TransportChangePasswordActionTests extends ESTestCase {
             passwordHashingSettings,
             transportService,
             mock(ActionFilters.class),
-            usersStore
+            usersStore,
+            fileUserPasswdStore
         );
         action.doExecute(mock(Task.class), request, new ActionListener<>() {
             @Override
@@ -204,6 +263,7 @@ public class TransportChangePasswordActionTests extends ESTestCase {
         final User user = randomFrom(new ElasticUser(true), new KibanaUser(true), new User("joe"));
         final Hasher hasher = getFastStoredHashAlgoForTests();
         NativeUsersStore usersStore = mock(NativeUsersStore.class);
+        FileUserPasswdStore fileUserPasswdStore = mock(FileUserPasswdStore.class);
         ChangePasswordRequest request = new ChangePasswordRequest();
         request.username(user.principal());
         request.passwordHash(hasher.hash(SecuritySettingsSourceField.TEST_PASSWORD_SECURE_STRING));
@@ -235,7 +295,8 @@ public class TransportChangePasswordActionTests extends ESTestCase {
             passwordHashingSettings,
             transportService,
             mock(ActionFilters.class),
-            usersStore
+            usersStore,
+            fileUserPasswdStore
         );
         action.doExecute(mock(Task.class), request, new ActionListener<>() {
             @Override
@@ -259,6 +320,7 @@ public class TransportChangePasswordActionTests extends ESTestCase {
         final Hasher hasher = getFastStoredHashAlgoForTests();
         final User user = randomFrom(new ElasticUser(true), new KibanaUser(true), new User("joe"));
         NativeUsersStore usersStore = mock(NativeUsersStore.class);
+        FileUserPasswdStore fileUserPasswdStore = mock(FileUserPasswdStore.class);
         ChangePasswordRequest request = new ChangePasswordRequest();
         request.username(user.principal());
         request.passwordHash(hasher.hash(SecuritySettingsSourceField.TEST_PASSWORD_SECURE_STRING));
@@ -285,7 +347,8 @@ public class TransportChangePasswordActionTests extends ESTestCase {
             passwordHashingSettings,
             transportService,
             mock(ActionFilters.class),
-            usersStore
+            usersStore,
+            fileUserPasswdStore
         );
         final AtomicReference<Throwable> throwableRef = new AtomicReference<>();
         final AtomicReference<ActionResponse.Empty> responseRef = new AtomicReference<>();

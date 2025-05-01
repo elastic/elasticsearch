@@ -209,7 +209,9 @@ final class InternalIndexingStats implements IndexingOperationListener {
         ) {
             final long totalIndexingTimeInNanos = indexMetric.sum();
             final long totalIndexingTimeSinceShardStartedInNanos = totalIndexingTimeInNanos - indexingTimeBeforeShardStartedInNanos;
-            // This is different from indexing time as it also includes the
+            // This is different from indexing time as it also includes the time taken to write indexing buffers to disk
+            // on the same thread as the indexing thread. This happens when we are running low on memory and want to push
+            // back on indexing, see IndexingMemoryController#writePendingIndexingBuffers()
             final long totalIndexingExecutionTimeInNanos = totalIndexingTimeInNanos + writeIndexingBufferTime.sum();
             final long totalIndexingExecutionTimeSinceShardStartedInNanos = totalIndexingExecutionTimeInNanos
                 - indexingLoadBeforeShardStartedInNanos;

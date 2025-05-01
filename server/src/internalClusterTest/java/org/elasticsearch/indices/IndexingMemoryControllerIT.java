@@ -119,12 +119,14 @@ public class IndexingMemoryControllerIT extends ESSingleNodeTestCase {
      * @see org.elasticsearch.indices.IndexingMemoryController.
      * This test verifies that we update the stats that capture the combined time for indexing + writing the
      * indexing buffers.
+     * Note that the small indices.memory.index_buffer_size setting is required for this test to work.
      */
     public void testIndexingUpdatesRelevantStats() throws Exception {
-        IndexService indexService = createIndex("index", indexSettings(1, 0).put("index.refresh_interval", -1).build());
+        IndexService indexService = createIndex("index", indexSettings(1, 0).
+            put("index.refresh_interval", -1).build());
         IndexShard shard = indexService.getShard(0);
         for (int i = 0; i < 100; i++) {
-            prepareIndex("index").setId(Integer.toString(i)).setSource("field", "value").get();
+            prepareIndex("index").setSource("field", randomUnicodeOfCodepointLengthBetween(1, 25)).get();
         }
         assertThat(
             shard.indexingStats().getTotal().getTotalIndexingExecutionTimeInMillis(),

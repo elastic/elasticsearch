@@ -22,6 +22,7 @@ import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.Mapping;
 import org.elasticsearch.index.mapper.RootObjectMapper;
 import org.elasticsearch.index.mapper.vectors.SparseVectorFieldMapper;
+import org.elasticsearch.index.mapper.vectors.TokenPruningConfig;
 import org.elasticsearch.index.query.AbstractQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryRewriteContext;
@@ -431,11 +432,11 @@ public class SparseVectorQueryBuilder extends AbstractQueryBuilder<SparseVectorQ
 
         Boolean indexOptionsPrune = indexOptions.getPrune();
 
-        SparseVectorFieldMapper.PruningConfig indexPruningConfig = indexOptions.getPruningConfig();
+        TokenPruningConfig indexPruningConfig = indexOptions.getPruningConfig();
         TokenPruningConfig indexTokenPruningConfig = indexPruningConfig != null
             ? new TokenPruningConfig(
-                indexPruningConfig.getTokensFreqRatioThresholdOrDefault(),
-                indexPruningConfig.getTokensWeightThresholdOrDefault(),
+                indexPruningConfig.getTokensFreqRatioThreshold(),
+                indexPruningConfig.getTokensWeightThreshold(),
                 false
             )
             : null;

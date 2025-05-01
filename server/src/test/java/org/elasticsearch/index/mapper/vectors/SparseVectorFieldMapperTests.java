@@ -72,8 +72,8 @@ public class SparseVectorFieldMapperTests extends MapperTestCase {
         b.startObject("index_options");
         b.field("prune", true);
         b.startObject("pruning_config");
-        b.field("tokens_freq_ratio_threshold", SparseVectorFieldMapper.PruningConfig.DEFAULT_TOKENS_FREQ_RATIO_THRESHOLD);
-        b.field("tokens_weight_threshold", SparseVectorFieldMapper.PruningConfig.DEFAULT_TOKENS_WEIGHT_THRESHOLD);
+        b.field("tokens_freq_ratio_threshold", TokenPruningConfig.DEFAULT_TOKENS_FREQ_RATIO_THRESHOLD);
+        b.field("tokens_weight_threshold", TokenPruningConfig.DEFAULT_TOKENS_WEIGHT_THRESHOLD);
         b.endObject();
         b.endObject();
     }

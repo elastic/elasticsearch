@@ -119,7 +119,11 @@ public class SparseVectorFieldMapper extends FieldMapper {
             if (buildIndexOptions == null) {
                 buildIndexOptions = new IndexOptions(
                     true,
-                    new PruningConfig(PruningConfig.DEFAULT_TOKENS_FREQ_RATIO_THRESHOLD, PruningConfig.DEFAULT_TOKENS_WEIGHT_THRESHOLD)
+                    new TokenPruningConfig(
+                        TokenPruningConfig.DEFAULT_TOKENS_FREQ_RATIO_THRESHOLD,
+                        TokenPruningConfig.DEFAULT_TOKENS_WEIGHT_THRESHOLD,
+                        false
+                    )
                 );
             }
 
@@ -154,7 +158,7 @@ public class SparseVectorFieldMapper extends FieldMapper {
         Map<String, Object> indexOptionsMap = XContentMapValues.nodeMapValue(propNode, SPARSE_VECTOR_INDEX_OPTIONS);
 
         Boolean prune = IndexOptions.parseIndexOptionsPruneValue(indexOptionsMap);
-        PruningConfig pruningConfig = IndexOptions.parseIndexOptionsPruningConfig(prune, indexOptionsMap);
+        TokenPruningConfig pruningConfig = IndexOptions.parseIndexOptionsPruningConfig(prune, indexOptionsMap);
 
         if (prune == null && pruningConfig == null) {
             return getDefaultIndexOptions(context);
@@ -452,9 +456,9 @@ public class SparseVectorFieldMapper extends FieldMapper {
         public static final String PRUNING_CONFIG_FIELD_NAME = "pruning_config";
 
         final Boolean prune;
-        final PruningConfig pruningConfig;
+        final TokenPruningConfig pruningConfig;
 
-        IndexOptions(@Nullable Boolean prune, @Nullable PruningConfig pruningConfig) {
+        IndexOptions(@Nullable Boolean prune, @Nullable TokenPruningConfig pruningConfig) {
             this.prune = prune;
             this.pruningConfig = pruningConfig;
         }
@@ -463,7 +467,7 @@ public class SparseVectorFieldMapper extends FieldMapper {
             return prune;
         }
 
-        public PruningConfig getPruningConfig() {
+        public TokenPruningConfig getPruningConfig() {
             return pruningConfig;
         }
 
@@ -513,7 +517,7 @@ public class SparseVectorFieldMapper extends FieldMapper {
             return ((Boolean) shouldPrune);
         }
 
-        public static PruningConfig parseIndexOptionsPruningConfig(Boolean prune, Map<String, Object> indexOptionsMap) {
+        public static TokenPruningConfig parseIndexOptionsPruningConfig(Boolean prune, Map<String, Object> indexOptionsMap) {
             Object pruningConfiguration = indexOptionsMap.remove(IndexOptions.PRUNING_CONFIG_FIELD_NAME);
             if (pruningConfiguration == null) {
                 return null;
@@ -526,10 +530,13 @@ public class SparseVectorFieldMapper extends FieldMapper {
                 throw new MapperParsingException("[index_options] field [pruning_config] should not be set if [prune] is false");
             }
 
-            return PruningConfig.parsePruningConfig(pruningConfiguration);
+            Map<String, Object> pruningConfigurationMap = XContentMapValues.nodeMapValue(pruningConfiguration, PRUNING_CONFIG_FIELD_NAME);
+
+            return TokenPruningConfig.parseFromMap(pruningConfigurationMap);
         }
     }
 
+    /*
     public static class PruningConfig implements ToXContent {
         public static final String TOKENS_FREQ_RATIO_THRESHOLD_FIELD_NAME = "tokens_freq_ratio_threshold";
         public static final String TOKENS_WEIGHT_THRESHOLD_FIELD_NAME = "tokens_weight_threshold";
@@ -670,4 +677,5 @@ public class SparseVectorFieldMapper extends FieldMapper {
             return tokensFreqRatioThreshold;
         }
     }
+     */
 }

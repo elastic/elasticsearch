@@ -13,6 +13,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.DeterministicTaskQueue;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.engine.ThreadPoolMergeScheduler.MergeTask;
 import org.elasticsearch.index.engine.ThreadPoolMergeScheduler.Schedule;
 import org.elasticsearch.test.ESTestCase;
@@ -450,7 +451,7 @@ public class ThreadPoolMergeExecutorServiceTests extends ESTestCase {
                     assertThat(threadPoolMergeExecutorService.getRunningMergeTasks().size(), is(mergeExecutorThreadCount));
                     // with the other merge tasks enqueued
                     assertThat(
-                        threadPoolMergeExecutorService.getQueuedMergeTasks().size(),
+                        threadPoolMergeExecutorService.getMergeTasksQueueLength(),
                         is(totalMergeTasksCount - mergeExecutorThreadCount - finalCompletedTasksCount)
                     );
                     // also check thread-pool stats for the same
@@ -470,7 +471,7 @@ public class ThreadPoolMergeExecutorServiceTests extends ESTestCase {
                     // there are fewer available merges than available threads
                     assertThat(threadPoolMergeExecutorService.getRunningMergeTasks().size(), is(finalRemainingMergeTasksCount));
                     // no more merges enqueued
-                    assertThat(threadPoolMergeExecutorService.getQueuedMergeTasks().size(), is(0));
+                    assertThat(threadPoolMergeExecutorService.getMergeTasksQueueLength(), is(0));
                     // also check thread-pool stats for the same
                     assertThat(threadPoolExecutor.getActiveCount(), is(finalRemainingMergeTasksCount));
                     assertThat(threadPoolExecutor.getQueue().size(), is(0));
@@ -518,7 +519,7 @@ public class ThreadPoolMergeExecutorServiceTests extends ESTestCase {
                     assertThat(threadPoolExecutor.getActiveCount(), is(backloggedMergeTasksList.size()));
                     assertThat(threadPoolExecutor.getQueue().size(), is(0));
                 }
-                assertThat(threadPoolMergeExecutorService.getQueuedMergeTasks().size(), is(0));
+                assertThat(threadPoolMergeExecutorService.getMergeTasksQueueLength(), is(0));
             });
             // re-enqueue backlogged merge tasks
             for (MergeTask backloggedMergeTask : backloggedMergeTasksList) {
@@ -666,7 +667,8 @@ public class ThreadPoolMergeExecutorServiceTests extends ESTestCase {
                 threadPool,
                 randomBoolean()
                     ? Settings.EMPTY
-                    : Settings.builder().put(ThreadPoolMergeScheduler.USE_THREAD_POOL_MERGE_SCHEDULER_SETTING.getKey(), true).build()
+                    : Settings.builder().put(ThreadPoolMergeScheduler.USE_THREAD_POOL_MERGE_SCHEDULER_SETTING.getKey(), true).build(),
+                mock(NodeEnvironment.class)
             );
         assertNotNull(threadPoolMergeExecutorService);
         assertTrue(threadPoolMergeExecutorService.allDone());

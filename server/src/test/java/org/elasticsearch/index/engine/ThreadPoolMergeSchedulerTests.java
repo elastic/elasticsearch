@@ -455,7 +455,7 @@ public class ThreadPoolMergeSchedulerTests extends ESTestCase {
                         // also check the same for the thread-pool executor
                         assertThat(threadPoolMergeExecutorService.getRunningMergeTasks().size(), is(mergeSchedulerMaxThreadCount));
                         // queued merge tasks do not include backlogged merges
-                        assertThat(threadPoolMergeExecutorService.getQueuedMergeTasks().size(), is(0));
+                        assertThat(threadPoolMergeExecutorService.getMergeTasksQueueLength().size(), is(0));
                         // also check thread-pool stats for the same
                         // there are active thread-pool threads waiting for the backlogged merge tasks to be re-enqueued
                         int activeMergeThreads = Math.min(mergeCount - finalCompletedMergesCount, mergeExecutorThreadCount);
@@ -476,7 +476,7 @@ public class ThreadPoolMergeSchedulerTests extends ESTestCase {
                         // also check thread-pool executor for the same
                         assertThat(threadPoolMergeExecutorService.getRunningMergeTasks().size(), is(finalRemainingMergesCount));
                         // no more backlogged merges
-                        assertThat(threadPoolMergeExecutorService.getQueuedMergeTasks().size(), is(0));
+                        assertThat(threadPoolMergeExecutorService.getMergeTasksQueueLength().size(), is(0));
                         // also check thread-pool stats for the same
                         assertThat(threadPoolExecutor.getActiveCount(), is(finalRemainingMergesCount));
                         assertThat(threadPoolExecutor.getQueue().size(), is(0));

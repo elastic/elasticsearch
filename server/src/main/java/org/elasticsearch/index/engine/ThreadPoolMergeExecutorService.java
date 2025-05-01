@@ -33,7 +33,6 @@ import java.util.Map;
 import java.util.PriorityQueue;
 import java.util.Set;
 import java.util.concurrent.ExecutorService;
-import java.util.concurrent.PriorityBlockingQueue;
 import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
@@ -348,6 +347,10 @@ public class ThreadPoolMergeExecutorService implements Closeable {
         public void run() {
             FsInfo.Path leastAvailablePath = null;
             IOException fsInfoException = null;
+            if (dataPaths == null) {
+                LOGGER.warn("Cannot read filesystem info because data path is not set in the env");
+                return;
+            }
             for (NodeEnvironment.DataPath dataPath : dataPaths) {
                 try {
                     FsInfo.Path fsInfo = getFSInfo(dataPath); // uncached
@@ -450,6 +453,10 @@ public class ThreadPoolMergeExecutorService implements Closeable {
         boolean isEmpty() {
             return priorityQueue.isEmpty();
         }
+
+        int size() {
+            return priorityQueue.size();
+        }
     }
 
     @Override
@@ -525,8 +532,8 @@ public class ThreadPoolMergeExecutorService implements Closeable {
     }
 
     // exposed for tests
-    PriorityBlockingQueue<MergeTask> getQueuedMergeTasks() {
-        return queuedMergeTasks;
+    int getMergeTasksQueueLength() {
+        return queuedMergeTasks.size();
     }
 
     // exposed for tests and stats

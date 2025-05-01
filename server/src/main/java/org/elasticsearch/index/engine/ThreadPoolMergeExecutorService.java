@@ -30,13 +30,17 @@ import java.util.Comparator;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.PriorityQueue;
 import java.util.Set;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.PriorityBlockingQueue;
 import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.locks.Condition;
+import java.util.concurrent.locks.ReentrantLock;
 import java.util.function.LongUnaryOperator;
+import java.util.function.ToLongFunction;
 
 import static org.elasticsearch.index.engine.ThreadPoolMergeScheduler.Schedule.ABORT;
 import static org.elasticsearch.index.engine.ThreadPoolMergeScheduler.Schedule.BACKLOG;
@@ -150,9 +154,9 @@ public class ThreadPoolMergeExecutorService implements Closeable {
      * The merge tasks that are waiting execution. This does NOT include backlogged or currently executing merge tasks.
      * For instance, this can be empty while there are backlogged merge tasks awaiting re-enqueuing.
      */
-    private final PriorityBlockingQueue<MergeTask> queuedMergeTasks = new PriorityBlockingQueue<>(
-        64,
-        Comparator.comparingLong(MergeTask::estimatedMergeSize)
+    private final PriorityBlockingQueueWithMaxLimit<MergeTask> queuedMergeTasks = new PriorityBlockingQueueWithMaxLimit<>(
+        MergeTask::estimatedMergeSize,
+        Long.MAX_VALUE
     );
     /**
      * The set of all merge tasks currently being executed by merge threads from the pool.
@@ -172,7 +176,6 @@ public class ThreadPoolMergeExecutorService implements Closeable {
     private final int concurrentMergesFloorLimitForThrottling;
     private final int concurrentMergesCeilLimitForThrottling;
     private final AtomicLong leastAvailableDiskSpaceBytes;
-    private final NodeEnvironment.DataPath[] dataPaths;
     private final Scheduler.Cancellable diskSpaceMonitor;
 
     public static @Nullable ThreadPoolMergeExecutorService maybeCreateThreadPoolMergeExecutorService(
@@ -195,7 +198,6 @@ public class ThreadPoolMergeExecutorService implements Closeable {
         this.concurrentMergesCeilLimitForThrottling = maxConcurrentMerges * 2;
         assert concurrentMergesFloorLimitForThrottling <= concurrentMergesCeilLimitForThrottling;
         this.leastAvailableDiskSpaceBytes = new AtomicLong();
-        this.dataPaths = nodeEnvironment.dataPaths();
         this.diskSpaceMonitor = threadPool.scheduleWithFixedDelay(
             new DiskSpaceMonitor(INDICES_MERGE_DISK_HIGH_WATERMARK_SETTING.get(settings),
                     INDICES_MERGE_DISK_HIGH_MAX_HEADROOM_SETTING.get(settings), nodeEnvironment.dataPaths()),
@@ -328,7 +330,6 @@ public class ThreadPoolMergeExecutorService implements Closeable {
     }
 
     class DiskSpaceMonitor implements Runnable {
-
         private final RelativeByteSizeValue highStageWatermark;
         private final ByteSizeValue highStageMaxHeadroom;
         private final NodeEnvironment.DataPath[] dataPaths;
@@ -373,13 +374,12 @@ public class ThreadPoolMergeExecutorService implements Closeable {
             for (MergeTask mergeTask : runningMergeTasks) {
                 leastAvailableDiskSpaceBytes -= mergeTask.estimatedRemainingMergeSize();
             }
-            // also subtract the configured headroom space
+            // also subtract the configured free disk space threshold
             leastAvailableDiskSpaceBytes -= getFreeBytesThreshold(leastAvailablePath.getTotal(), highStageWatermark, highStageMaxHeadroom)
                 .getBytes();
-            // this is the maximum disk space available for a new merge task
-            leastAvailableDiskSpaceBytes = Math.max(0L, leastAvailableDiskSpaceBytes);
-            // TODO update the priority queue
-            ThreadPoolMergeExecutorService.this.leastAvailableDiskSpaceBytes.set(leastAvailableDiskSpaceBytes);
+            // the rest is the maximum disk space available for a new merge task
+            long maxMergeSizeLimit = Math.max(0L, leastAvailableDiskSpaceBytes);
+            queuedMergeTasks.updateMaxPriorityLimit(maxMergeSizeLimit);
         }
 
         private static ByteSizeValue getFreeBytesThreshold(
@@ -393,6 +393,62 @@ public class ThreadPoolMergeExecutorService implements Closeable {
                 return watermark.getAbsolute();
             }
             return ByteSizeValue.subtract(total, watermark.calculateValue(total, maxHeadroom));
+        }
+    }
+
+    static class PriorityBlockingQueueWithMaxLimit<E> {
+        private final ToLongFunction<? super E> priorityFunction;
+        private final PriorityQueue<E> priorityQueue;
+        private final ReentrantLock lock;
+        private final Condition elementAvailable;
+        private long maxPriorityLimit;
+
+        PriorityBlockingQueueWithMaxLimit(ToLongFunction<? super E> priorityFunction, long maxPriorityLimit) {
+            this.priorityFunction = priorityFunction;
+            this.priorityQueue = new PriorityQueue<E>(64, Comparator.comparingLong(priorityFunction));
+            this.lock = new ReentrantLock();
+            this.elementAvailable = lock.newCondition();
+            this.maxPriorityLimit = maxPriorityLimit;
+        }
+
+        boolean add(E e) {
+            final ReentrantLock lock = this.lock;
+            lock.lock();
+            try {
+                priorityQueue.offer(e);
+                elementAvailable.signal();
+            } finally {
+                lock.unlock();
+            }
+            return true;
+        }
+
+        E take() throws InterruptedException {
+            final ReentrantLock lock = this.lock;
+            lock.lockInterruptibly();
+            E peek;
+            try {
+                while ((peek = priorityQueue.peek()) == null || priorityFunction.applyAsLong(peek) > maxPriorityLimit)
+                    elementAvailable.await();
+                return priorityQueue.poll();
+            } finally {
+                lock.unlock();
+            }
+        }
+
+        void updateMaxPriorityLimit(long maxPriorityLimit) {
+            final ReentrantLock lock = this.lock;
+            lock.lock();
+            try {
+                this.maxPriorityLimit = maxPriorityLimit;
+                elementAvailable.signalAll();
+            } finally {
+                lock.unlock();
+            }
+        }
+
+        boolean isEmpty() {
+            return priorityQueue.isEmpty();
         }
     }
 

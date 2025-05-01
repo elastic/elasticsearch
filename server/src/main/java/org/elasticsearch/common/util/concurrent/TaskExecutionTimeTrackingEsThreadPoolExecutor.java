@@ -162,6 +162,7 @@ public final class TaskExecutionTimeTrackingEsThreadPoolExecutor extends EsThrea
         final TimedRunnable timedRunnable = (TimedRunnable) super.unwrap(r);
         timedRunnable.beforeExecute();
         final long taskQueueLatency = timedRunnable.getQueueTimeNanos();
+        assert taskQueueLatency >= 0;
         queueLatencyMillisHistogram.addObservation(TimeUnit.NANOSECONDS.toMillis(taskQueueLatency));
     }
 

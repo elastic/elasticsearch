@@ -84,7 +84,6 @@ import java.util.Set;
 import static org.apache.lucene.index.IndexWriter.MAX_TERM_LENGTH;
 import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.index.IndexSettings.IGNORE_ABOVE_SETTING;
-import static org.elasticsearch.index.IndexSettings.USE_DOC_VALUES_SKIPPER;
 import static org.elasticsearch.index.mapper.FieldArrayContext.getOffsetsFieldName;
 
 /**
@@ -215,7 +214,7 @@ public final class KeywordFieldMapper extends FieldMapper {
                 mappingParserContext.getIndexSettings().getIndexVersionCreated(),
                 mappingParserContext.getIndexSettings().getMode(),
                 mappingParserContext.getIndexSettings().getIndexSortConfig(),
-                USE_DOC_VALUES_SKIPPER.get(mappingParserContext.getSettings()),
+                mappingParserContext.getIndexSettings().useDocValuesSkipper(),
                 mappingParserContext.getIndexSettings().sourceKeepMode()
             );
         }

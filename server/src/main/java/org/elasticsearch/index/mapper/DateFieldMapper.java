@@ -465,7 +465,7 @@ public final class DateFieldMapper extends FieldMapper {
             c.getIndexSettings().getMode(),
             c.getIndexSettings().getIndexSortConfig(),
             c.indexVersionCreated(),
-            IndexSettings.USE_DOC_VALUES_SKIPPER.get(c.getSettings())
+            c.getIndexSettings().useDocValuesSkipper()
         );
     });
 
@@ -480,7 +480,7 @@ public final class DateFieldMapper extends FieldMapper {
             c.getIndexSettings().getMode(),
             c.getIndexSettings().getIndexSortConfig(),
             c.indexVersionCreated(),
-            IndexSettings.USE_DOC_VALUES_SKIPPER.get(c.getSettings())
+            c.getIndexSettings().useDocValuesSkipper()
         );
     });
 

@@ -1095,7 +1095,9 @@ public final class IndexSettings {
         recoverySourceEnabled = RecoverySettings.INDICES_RECOVERY_SOURCE_ENABLED_SETTING.get(nodeSettings);
         recoverySourceSyntheticEnabled = DiscoveryNode.isStateless(nodeSettings) == false
             && scopedSettings.get(RECOVERY_USE_SYNTHETIC_SOURCE_SETTING);
-        useDocValuesSkipper = DOC_VALUES_SKIPPER && scopedSettings.get(USE_DOC_VALUES_SKIPPER);
+        useDocValuesSkipper = DOC_VALUES_SKIPPER
+            && scopedSettings.get(USE_DOC_VALUES_SKIPPER)
+            && version.onOrAfter(IndexVersions.ENABLE_TSID_HOSTNAME_TIMESTAMP_DOC_VALUES_SKIPPERS_WITH_FF);
         if (recoverySourceSyntheticEnabled) {
             if (DiscoveryNode.isStateless(settings)) {
                 throw new IllegalArgumentException("synthetic recovery source is only allowed in stateful");

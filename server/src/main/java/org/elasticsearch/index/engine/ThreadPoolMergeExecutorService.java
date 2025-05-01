@@ -51,10 +51,10 @@ import static org.elasticsearch.monitor.fs.FsProbe.getFSInfo;
 public class ThreadPoolMergeExecutorService implements Closeable {
     /** How frequently we check disk usage (default: 5 seconds). */
     public static final Setting<TimeValue> INDICES_MERGE_DISK_CHECK_INTERVAL_SETTING = Setting.timeSetting(
-            "indices.merge.disk.check_interval",
-            TimeValue.timeValueSeconds(5),
-            TimeValue.MINUS_ONE,
-            Setting.Property.NodeScope
+        "indices.merge.disk.check_interval",
+        TimeValue.timeValueSeconds(5),
+        TimeValue.MINUS_ONE,
+        Setting.Property.NodeScope
     );
     public static final Setting<RelativeByteSizeValue> INDICES_MERGE_DISK_HIGH_WATERMARK_SETTING = new Setting<>(
         "indices.merge.disk.watermark.high",
@@ -201,8 +201,11 @@ public class ThreadPoolMergeExecutorService implements Closeable {
         assert concurrentMergesFloorLimitForThrottling <= concurrentMergesCeilLimitForThrottling;
         this.leastAvailableDiskSpaceBytes = new AtomicLong();
         this.diskSpaceMonitor = threadPool.scheduleWithFixedDelay(
-            new DiskSpaceMonitor(INDICES_MERGE_DISK_HIGH_WATERMARK_SETTING.get(settings),
-                    INDICES_MERGE_DISK_HIGH_MAX_HEADROOM_SETTING.get(settings), nodeEnvironment.dataPaths()),
+            new DiskSpaceMonitor(
+                INDICES_MERGE_DISK_HIGH_WATERMARK_SETTING.get(settings),
+                INDICES_MERGE_DISK_HIGH_MAX_HEADROOM_SETTING.get(settings),
+                nodeEnvironment.dataPaths()
+            ),
             INDICES_MERGE_DISK_CHECK_INTERVAL_SETTING.get(settings),
             threadPool.generic()
         );

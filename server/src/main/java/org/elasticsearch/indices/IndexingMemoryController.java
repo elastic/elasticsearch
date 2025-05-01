@@ -213,7 +213,7 @@ public class IndexingMemoryController implements IndexingOperationListener, Clos
             long startTime = System.nanoTime();
             shard.writeIndexingBuffer();
             long took = System.nanoTime() - startTime;
-            shard.writeIndexBuffersOnIndexThreads(took);
+            shard.addWriteIndexBuffersToIndexThreadsTime(took);
             wrotePendingIndexingBuffer = true;
         }
         return wrotePendingIndexingBuffer;

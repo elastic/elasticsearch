@@ -56,7 +56,7 @@ public final class OutboundHandler {
     private final StatsTracker statsTracker;
     private final ThreadPool threadPool;
     private final Recycler<BytesRef> recycler;
-    private final ExponentialBucketHistogram handlingTimeTracker;
+    private final ExponentialBucketHistogram handlingTimeMillisHistogram;
     private final boolean rstOnClose;
 
     private volatile long slowLogThresholdMs = Long.MAX_VALUE;
@@ -69,7 +69,7 @@ public final class OutboundHandler {
         StatsTracker statsTracker,
         ThreadPool threadPool,
         Recycler<BytesRef> recycler,
-        ExponentialBucketHistogram handlingTimeTracker,
+        ExponentialBucketHistogram handlingTimeMillisHistogram,
         boolean rstOnClose
     ) {
         this.nodeName = nodeName;
@@ -77,7 +77,7 @@ public final class OutboundHandler {
         this.statsTracker = statsTracker;
         this.threadPool = threadPool;
         this.recycler = recycler;
-        this.handlingTimeTracker = handlingTimeTracker;
+        this.handlingTimeMillisHistogram = handlingTimeMillisHistogram;
         this.rstOnClose = rstOnClose;
     }
 
@@ -414,7 +414,7 @@ public final class OutboundHandler {
                     final long logThreshold = slowLogThresholdMs;
                     if (logThreshold > 0) {
                         final long took = threadPool.rawRelativeTimeInMillis() - startTime;
-                        handlingTimeTracker.addObservation(took);
+                        handlingTimeMillisHistogram.addObservation(took);
                         if (took > logThreshold) {
                             logger.warn(
                                 "sending transport message [{}] of size [{}] on [{}] took [{}ms] which is above the warn "

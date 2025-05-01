@@ -80,7 +80,7 @@ public class HttpRouteStatsTracker {
 
     private final StatsTracker requestStats = new StatsTracker();
     private final StatsTracker responseStats = new StatsTracker();
-    private final ExponentialBucketHistogram responseTimeTracker = new ExponentialBucketHistogram();
+    private final ExponentialBucketHistogram responseTimeMillisHistogram = new ExponentialBucketHistogram();
 
     public void addRequestStats(int contentLength) {
         requestStats.addStats(contentLength);
@@ -91,7 +91,7 @@ public class HttpRouteStatsTracker {
     }
 
     public void addResponseTime(long timeMillis) {
-        responseTimeTracker.addObservation(timeMillis);
+        responseTimeMillisHistogram.addObservation(timeMillis);
     }
 
     public HttpRouteStats getStats() {
@@ -102,7 +102,7 @@ public class HttpRouteStatsTracker {
             responseStats.count().longValue(),
             responseStats.totalSize().longValue(),
             responseStats.getHistogram(),
-            responseTimeTracker.getHistogram()
+            responseTimeMillisHistogram.getHistogram()
         );
     }
 }

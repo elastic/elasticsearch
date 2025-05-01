@@ -46,7 +46,7 @@ public class InboundHandler {
     private final TransportKeepAlive keepAlive;
     private final Transport.ResponseHandlers responseHandlers;
     private final Transport.RequestHandlers requestHandlers;
-    private final ExponentialBucketHistogram handlingTimeTracker;
+    private final ExponentialBucketHistogram handlingTimeMillisHistogram;
     private final boolean ignoreDeserializationErrors;
 
     private volatile TransportMessageListener messageListener = TransportMessageListener.NOOP_LISTENER;
@@ -61,7 +61,7 @@ public class InboundHandler {
         TransportKeepAlive keepAlive,
         Transport.RequestHandlers requestHandlers,
         Transport.ResponseHandlers responseHandlers,
-        ExponentialBucketHistogram handlingTimeTracker,
+        ExponentialBucketHistogram handlingTimeMillisHistogram,
         boolean ignoreDeserializationErrors
     ) {
         this.threadPool = threadPool;
@@ -71,7 +71,7 @@ public class InboundHandler {
         this.keepAlive = keepAlive;
         this.requestHandlers = requestHandlers;
         this.responseHandlers = responseHandlers;
-        this.handlingTimeTracker = handlingTimeTracker;
+        this.handlingTimeMillisHistogram = handlingTimeMillisHistogram;
         this.ignoreDeserializationErrors = ignoreDeserializationErrors;
     }
 
@@ -127,7 +127,7 @@ public class InboundHandler {
             }
         } finally {
             final long took = threadPool.rawRelativeTimeInMillis() - startTime;
-            handlingTimeTracker.addObservation(took);
+            handlingTimeMillisHistogram.addObservation(took);
             final long logThreshold = slowLogThresholdMs;
             if (logThreshold > 0 && took > logThreshold) {
                 logSlowMessage(message, took, logThreshold, responseHandler);

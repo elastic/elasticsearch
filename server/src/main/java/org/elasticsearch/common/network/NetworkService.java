@@ -86,15 +86,15 @@ public final class NetworkService {
     }
 
     private final List<CustomNameResolver> customNameResolvers;
-    private final ExponentialBucketHistogram handlingTimeTracker = new ExponentialBucketHistogram();
+    private final ExponentialBucketHistogram handlingTimeMillisHistogram = new ExponentialBucketHistogram();
     private final ThreadWatchdog threadWatchdog = new ThreadWatchdog();
 
     public NetworkService(List<CustomNameResolver> customNameResolvers) {
         this.customNameResolvers = Objects.requireNonNull(customNameResolvers, "customNameResolvers must be non null");
     }
 
-    public ExponentialBucketHistogram getHandlingTimeTracker() {
-        return handlingTimeTracker;
+    public ExponentialBucketHistogram getHandlingTimeMillisHistogram() {
+        return handlingTimeMillisHistogram;
     }
 
     public ThreadWatchdog getThreadWatchdog() {

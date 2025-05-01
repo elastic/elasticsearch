@@ -128,7 +128,7 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
 
     private final TransportHandshaker handshaker;
     private final TransportKeepAlive keepAlive;
-    private final ExponentialBucketHistogram outboundHandlingTimeTracker = new ExponentialBucketHistogram();
+    private final ExponentialBucketHistogram outboundHandlingTimeMillisHistogram = new ExponentialBucketHistogram();
     private final OutboundHandler outboundHandler;
     private final InboundHandler inboundHandler;
     private final ResponseHandlers responseHandlers = new ResponseHandlers();
@@ -162,7 +162,7 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
             statsTracker,
             threadPool,
             recycler,
-            outboundHandlingTimeTracker,
+            outboundHandlingTimeMillisHistogram,
             rstOnClose
         );
 
@@ -193,7 +193,7 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
             keepAlive,
             requestHandlers,
             responseHandlers,
-            networkService.getHandlingTimeTracker(),
+            networkService.getHandlingTimeMillisHistogram(),
             ignoreDeserializationErrors
         );
     }
@@ -996,8 +996,8 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
             bytesRead,
             messagesSent,
             bytesWritten,
-            networkService.getHandlingTimeTracker().getHistogram(),
-            outboundHandlingTimeTracker.getHistogram(),
+            networkService.getHandlingTimeMillisHistogram().getHistogram(),
+            outboundHandlingTimeMillisHistogram.getHistogram(),
             requestHandlers.getStats()
         );
     }

@@ -208,6 +208,7 @@ public class TransportVersions {
     public static final TransportVersion BATCHED_QUERY_PHASE_VERSION_BACKPORT_8_X = def(8_841_0_19);
     public static final TransportVersion SEARCH_INCREMENTAL_TOP_DOCS_NULL_BACKPORT_8_19 = def(8_841_0_20);
     public static final TransportVersion ML_INFERENCE_SAGEMAKER_8_19 = def(8_841_0_21);
+    public static final TransportVersion PINNED_RETRIEVER = def(8_841_0_22);
 
     /*
      * STOP! READ THIS FIRST! No, really,

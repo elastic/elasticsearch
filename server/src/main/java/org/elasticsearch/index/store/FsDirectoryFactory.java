@@ -20,12 +20,14 @@ import org.apache.lucene.store.LockFactory;
 import org.apache.lucene.store.MMapDirectory;
 import org.apache.lucene.store.NIOFSDirectory;
 import org.apache.lucene.store.NativeFSLockFactory;
+import org.apache.lucene.store.ReadAdvice;
 import org.apache.lucene.store.SimpleFSLockFactory;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.StandardIOBehaviorHint;
 import org.elasticsearch.index.codec.vectors.es818.DirectIOIndexInputSupplier;
 import org.elasticsearch.index.shard.ShardPath;
 import org.elasticsearch.logging.LogManager;
@@ -36,6 +38,7 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.HashSet;
+import java.util.Optional;
 import java.util.OptionalLong;
 import java.util.Set;
 import java.util.function.BiPredicate;
@@ -75,12 +78,12 @@ public class FsDirectoryFactory implements IndexStorePlugin.DirectoryFactory {
                 // Use Lucene defaults
                 final FSDirectory primaryDirectory = FSDirectory.open(location, lockFactory);
                 if (primaryDirectory instanceof MMapDirectory mMapDirectory) {
-                    return new HybridDirectory(lockFactory, setPreload(mMapDirectory, preLoadExtensions));
+                    return new HybridDirectory(lockFactory, setMMapFunctions(mMapDirectory, preLoadExtensions));
                 } else {
                     return primaryDirectory;
                 }
             case MMAPFS:
-                return setPreload(new MMapDirectory(location, lockFactory), preLoadExtensions);
+                return setMMapFunctions(new MMapDirectory(location, lockFactory), preLoadExtensions);
             case SIMPLEFS:
             case NIOFS:
                 return new NIOFSDirectory(location, lockFactory);
@@ -89,10 +92,18 @@ public class FsDirectoryFactory implements IndexStorePlugin.DirectoryFactory {
         }
     }
 
+    private static Optional<ReadAdvice> overrideReadAdvice(String name, IOContext context) {
+        if (context.hints().contains(StandardIOBehaviorHint.INSTANCE)) {
+            return Optional.of(ReadAdvice.NORMAL);
+        }
+        return Optional.empty();
+    }
+
     /** Sets the preload, if any, on the given directory based on the extensions. Returns the same directory instance. */
     // visibility and extensibility for testing
-    public MMapDirectory setPreload(MMapDirectory mMapDirectory, Set<String> preLoadExtensions) {
+    public MMapDirectory setMMapFunctions(MMapDirectory mMapDirectory, Set<String> preLoadExtensions) {
         mMapDirectory.setPreload(getPreloadFunc(preLoadExtensions));
+        mMapDirectory.setReadAdviceOverride(FsDirectoryFactory::overrideReadAdvice);
         return mMapDirectory;
     }
 

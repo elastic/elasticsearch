@@ -88,7 +88,7 @@ public class FsDirectoryFactoryTests extends ESTestCase {
         final Map<MMapDirectory, BiPredicate<String, IOContext>> preLoadFuncMap = new HashMap<>();
 
         @Override
-        public MMapDirectory setPreload(MMapDirectory mMapDirectory, Set<String> preLoadExtensions) {
+        public MMapDirectory setMMapFunctions(MMapDirectory mMapDirectory, Set<String> preLoadExtensions) {
             var preLoadFunc = FsDirectoryFactory.getPreloadFunc(preLoadExtensions);
             mMapDirectory.setPreload(preLoadFunc);
             preLoadFuncMap.put(mMapDirectory, preLoadFunc);

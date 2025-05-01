@@ -9,7 +9,6 @@
 
 package org.elasticsearch.xcontent.support;
 
-import org.elasticsearch.core.BaseText;
 import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.core.Nullable;
@@ -18,6 +17,7 @@ import org.elasticsearch.xcontent.DeprecationHandler;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentParseException;
 import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentString;
 
 import java.io.IOException;
 import java.math.BigDecimal;
@@ -260,16 +260,16 @@ public abstract class AbstractXContentParser implements XContentParser {
     }
 
     @Override
-    public BaseText optimizedText() throws IOException {
-        return new BaseText(text());
+    public XContentString xContentText() throws IOException {
+        return new XContentString(text());
     }
 
     @Override
-    public final BaseText optimizedTextOrNull() throws IOException {
+    public final XContentString xContentTextOrNull() throws IOException {
         if (currentToken() == Token.VALUE_NULL) {
             return null;
         }
-        return optimizedText();
+        return xContentText();
     }
 
     @Override

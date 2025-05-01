@@ -11,14 +11,17 @@ package org.elasticsearch.common.text;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.core.BaseText;
 import org.elasticsearch.xcontent.ToXContentFragment;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 
-public final class Text extends BaseText implements Comparable<Text>, ToXContentFragment {
+/**
+ * Both {@link String} and {@link BytesReference} representation of the text. Starts with one of those, and if
+ * the other is requests, caches the other one in a local reference so no additional conversion will be needed.
+ */
+public final class Text implements Comparable<Text>, ToXContentFragment {
 
     public static final Text[] EMPTY_ARRAY = new Text[0];
 
@@ -33,14 +36,23 @@ public final class Text extends BaseText implements Comparable<Text>, ToXContent
         return texts;
     }
 
+    private BytesReference bytes;
+    private String text;
     private int hash;
 
     public Text(BytesReference bytes) {
-        super(bytes);
+        this.bytes = bytes;
     }
 
     public Text(String text) {
-        super(text);
+        this.text = text;
+    }
+
+    /**
+     * Whether a {@link BytesReference} view of the data is already materialized.
+     */
+    public boolean hasBytes() {
+        return bytes != null;
     }
 
     /**
@@ -48,9 +60,28 @@ public final class Text extends BaseText implements Comparable<Text>, ToXContent
      */
     public BytesReference bytes() {
         if (bytes == null) {
-            bytes = new BytesArray(string().getBytes(StandardCharsets.UTF_8));
+            bytes = new BytesArray(text.getBytes(StandardCharsets.UTF_8));
         }
-        return (BytesReference) bytes;
+        return bytes;
+    }
+
+    /**
+     * Whether a {@link String} view of the data is already materialized.
+     */
+    public boolean hasString() {
+        return text != null;
+    }
+
+    /**
+     * Returns a {@link String} view of the data.
+     */
+    public String string() {
+        return text == null ? bytes.utf8ToString() : text;
+    }
+
+    @Override
+    public String toString() {
+        return string();
     }
 
     @Override

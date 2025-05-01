@@ -9,7 +9,6 @@
 
 package org.elasticsearch.xcontent;
 
-import org.elasticsearch.core.BaseText;
 import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.core.RestApiVersion;
 
@@ -101,12 +100,12 @@ public abstract class FilterXContentParser implements XContentParser {
         return delegate().textOrNull();
     }
 
-    public BaseText optimizedText() throws IOException {
-        return delegate().optimizedText();
+    public XContentString xContentText() throws IOException {
+        return delegate().xContentText();
     }
 
-    public BaseText optimizedTextOrNull() throws IOException {
-        return delegate().optimizedTextOrNull();
+    public XContentString xContentTextOrNull() throws IOException {
+        return delegate().xContentTextOrNull();
     }
 
     @Override

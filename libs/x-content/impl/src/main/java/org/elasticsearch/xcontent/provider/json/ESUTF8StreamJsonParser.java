@@ -16,8 +16,7 @@ import com.fasterxml.jackson.core.io.IOContext;
 import com.fasterxml.jackson.core.json.UTF8StreamJsonParser;
 import com.fasterxml.jackson.core.sym.ByteQuadsCanonicalizer;
 
-import org.elasticsearch.core.BaseText;
-import org.elasticsearch.core.bytes.BaseBytesArray;
+import org.elasticsearch.xcontent.XContentString;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -45,20 +44,20 @@ public class ESUTF8StreamJsonParser extends UTF8StreamJsonParser {
      * This is only a best-effort attempt; if there is some reason the bytes cannot be retrieved, this method will return null.
      * Currently, this is only implemented for ascii-only strings that do not contain escaped characters.
      */
-    public BaseText getValueAsText() throws IOException {
+    public XContentString getValueAsByteRef() throws IOException {
         if (_currToken == JsonToken.VALUE_STRING && _tokenIncomplete) {
             if (stringEnd > 0) {
                 final int len = stringEnd - 1 - _inputPtr;
                 // For now, we can use `len` for `charCount` because we only support ascii-encoded unescaped strings,
                 // which means each character uses exactly 1 byte.
-                return new BaseText(new BaseBytesArray(_inputBuffer, _inputPtr, len), len);
+                return new XContentString(new XContentString.ByteRef(_inputBuffer, _inputPtr, len), len);
             }
-            return _finishAndReturnText();
+            return _finishAndReturnByteRef();
         }
         return null;
     }
 
-    protected BaseText _finishAndReturnText() throws IOException {
+    protected XContentString _finishAndReturnByteRef() throws IOException {
         int ptr = _inputPtr;
         if (ptr >= _inputEnd) {
             _loadMoreGuaranteed();
@@ -77,7 +76,7 @@ public class ESUTF8StreamJsonParser extends UTF8StreamJsonParser {
                     final int len = ptr - startPtr;
                     // For now, we can use `len` for `charCount` because we only support ascii-encoded unescaped strings,
                     // which means each character uses exactly 1 byte.
-                    return new BaseText(new BaseBytesArray(inputBuffer, startPtr, len), len);
+                    return new XContentString(new XContentString.ByteRef(inputBuffer, startPtr, len), len);
                 }
                 return null;
             }

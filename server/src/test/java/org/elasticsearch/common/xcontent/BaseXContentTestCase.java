@@ -390,7 +390,7 @@ public abstract class BaseXContentTestCase extends ESTestCase {
         }
     }
 
-    public void testOptimizedText() throws Exception {
+    public void testXContentString() throws Exception {
         final BytesReference random = new BytesArray(randomBytes());
         XContentBuilder builder = builder().startObject().field("text", new Text(random)).endObject();
 
@@ -399,7 +399,11 @@ public abstract class BaseXContentTestCase extends ESTestCase {
             assertSame(Token.FIELD_NAME, parser.nextToken());
             assertEquals("text", parser.currentName());
             assertTrue(parser.nextToken().isValue());
-            assertThat(BytesReference.fromBase(parser.optimizedText().bytes()), equalTo(random));
+            var valueRef = parser.xContentText().getBytes();
+            assertThat(
+                Arrays.copyOfRange(valueRef.bytes(), valueRef.offset(), valueRef.offset() + valueRef.length()),
+                equalTo(BytesReference.toBytes(random))
+            );
             assertSame(Token.END_OBJECT, parser.nextToken());
             assertNull(parser.nextToken());
         }

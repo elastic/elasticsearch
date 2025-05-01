@@ -34,13 +34,10 @@ import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.CompiledAutomaton;
 import org.apache.lucene.util.automaton.CompiledAutomaton.AUTOMATON_TYPE;
 import org.apache.lucene.util.automaton.Operations;
-import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.search.AutomatonQueries;
-import org.elasticsearch.common.text.Text;
 import org.elasticsearch.common.unit.Fuzziness;
-import org.elasticsearch.core.BaseText;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSortConfig;
@@ -71,6 +68,7 @@ import org.elasticsearch.search.runtime.StringScriptFieldTermQuery;
 import org.elasticsearch.search.runtime.StringScriptFieldWildcardQuery;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentString;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -1109,16 +1107,16 @@ public final class KeywordFieldMapper extends FieldMapper {
     }
 
     protected void parseCreateField(DocumentParserContext context) throws IOException {
-        var value = context.parser().optimizedTextOrNull();
+        var value = context.parser().xContentTextOrNull();
 
         if (value == null && fieldType().nullValue != null) {
-            value = new Text(fieldType().nullValue);
+            value = new XContentString(fieldType().nullValue);
         }
 
         boolean indexed = indexValue(context, value);
         if (offsetsFieldName != null && context.isImmediateParentAnArray() && context.canAddIgnoredField()) {
             if (indexed) {
-                context.getOffSetContext().recordOffset(offsetsFieldName, value.string());
+                context.getOffSetContext().recordOffset(offsetsFieldName, value.getString());
             } else if (value == null) {
                 context.getOffSetContext().recordNull(offsetsFieldName);
             }
@@ -1136,10 +1134,10 @@ public final class KeywordFieldMapper extends FieldMapper {
     }
 
     private boolean indexValue(DocumentParserContext context, String value) {
-        return indexValue(context, new Text(value));
+        return indexValue(context, new XContentString(value));
     }
 
-    private boolean indexValue(DocumentParserContext context, BaseText value) {
+    private boolean indexValue(DocumentParserContext context, XContentString value) {
         if (value == null) {
             return false;
         }
@@ -1153,17 +1151,19 @@ public final class KeywordFieldMapper extends FieldMapper {
             context.addIgnoredField(fullPath());
             if (isSyntheticSource) {
                 // Save a copy of the field so synthetic source can load it
-                context.doc().add(new StoredField(originalName(), BytesReference.fromBase(value.bytes()).toBytesRef()));
+                var encoded = value.getBytes();
+                context.doc().add(new StoredField(originalName(), new BytesRef(encoded.bytes(), encoded.offset(), encoded.length())));
             }
             return false;
         }
 
         if (fieldType().normalizer() != Lucene.KEYWORD_ANALYZER) {
-            String normalizedString = normalizeValue(fieldType().normalizer(), fullPath(), value.string());
-            value = new Text(normalizedString);
+            String normalizedString = normalizeValue(fieldType().normalizer(), fullPath(), value.getString());
+            value = new XContentString(normalizedString);
         }
 
-        BytesRef binaryValue = BytesReference.fromBase(value.bytes()).toBytesRef();
+        var encoded = value.getBytes();
+        BytesRef binaryValue = new BytesRef(encoded.bytes(), encoded.offset(), encoded.length());
 
         if (fieldType().isDimension()) {
             context.getRoutingFields().addString(fieldType().name(), binaryValue);

@@ -9,7 +9,6 @@
 
 package org.elasticsearch.test.rest.yaml;
 
-import org.elasticsearch.core.BaseText;
 import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.RestApiVersion;
@@ -17,6 +16,7 @@ import org.elasticsearch.xcontent.DeprecationHandler;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentLocation;
 import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentString;
 import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
@@ -145,13 +145,13 @@ public class ParameterizableYamlXContentParser implements XContentParser {
     }
 
     @Override
-    public BaseText optimizedText() throws IOException {
-        return delegate.optimizedText();
+    public XContentString xContentText() throws IOException {
+        return delegate.xContentText();
     }
 
     @Override
-    public BaseText optimizedTextOrNull() throws IOException {
-        return delegate.optimizedTextOrNull();
+    public XContentString xContentTextOrNull() throws IOException {
+        return delegate.xContentTextOrNull();
     }
 
     @Override

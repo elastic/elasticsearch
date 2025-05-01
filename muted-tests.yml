@@ -444,6 +444,9 @@ tests:
 - class: org.elasticsearch.xpack.inference.action.filter.ShardBulkInferenceActionFilterIT
   method: testRestart {p0=false p1=true}
   issue: https://github.com/elastic/elasticsearch/issues/127594
+- class: org.elasticsearch.xpack.inference.action.filter.ShardBulkInferenceActionFilterIT
+  method: testRestart {p0=true p1=true}
+  issue: https://github.com/elastic/elasticsearch/issues/127595
 
 # Examples:
 #

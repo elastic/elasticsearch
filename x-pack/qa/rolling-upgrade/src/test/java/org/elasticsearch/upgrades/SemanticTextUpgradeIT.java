@@ -17,11 +17,15 @@ import org.elasticsearch.client.Response;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.mapper.InferenceMetadataFieldsMapper;
+import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
+import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapperTestUtils;
 import org.elasticsearch.index.query.NestedQueryBuilder;
+import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.search.fetch.subphase.highlight.HighlightBuilder;
+import org.elasticsearch.search.vectors.KnnVectorQueryBuilder;
 import org.elasticsearch.test.rest.ObjectPath;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
@@ -108,8 +112,12 @@ public class SemanticTextUpgradeIT extends AbstractUpgradeTestCase {
 
     private void performIndexQueryHighlightOps() throws IOException {
         indexDoc("doc_2", List.of("another test value"));
-        ObjectPath queryObjectPath = semanticQuery(SPARSE_FIELD, "test value", 3);
-        assertQueryResponse(queryObjectPath, SPARSE_FIELD);
+
+        ObjectPath sparseQueryObjectPath = semanticQuery(SPARSE_FIELD, SPARSE_MODEL, "test value", 3);
+        assertQueryResponse(sparseQueryObjectPath, SPARSE_FIELD);
+
+        ObjectPath denseQueryObjectPath = semanticQuery(DENSE_FIELD, DENSE_MODEL, "test value", 3);
+        assertQueryResponse(denseQueryObjectPath, DENSE_FIELD);
     }
 
     private String getIndexName() {
@@ -153,21 +161,40 @@ public class SemanticTextUpgradeIT extends AbstractUpgradeTestCase {
         assertOK(response);
     }
 
-    private ObjectPath semanticQuery(String field, String query, Integer numOfHighlightFragments) throws IOException {
+    private ObjectPath semanticQuery(String field, Model fieldModel, String query, Integer numOfHighlightFragments) throws IOException {
         // We can't perform a real semantic query because that requires performing inference, so instead we perform an equivalent nested
         // query
-        List<WeightedToken> weightedTokens = Arrays.stream(query.split("\\s")).map(t -> new WeightedToken(t, 1.0f)).toList();
-        SparseVectorQueryBuilder sparseVectorQueryBuilder = new SparseVectorQueryBuilder(
-            SemanticTextField.getEmbeddingsFieldName(field),
-            weightedTokens,
-            null,
-            null,
-            null,
-            null
-        );
+        final String embeddingsFieldName = SemanticTextField.getEmbeddingsFieldName(field);
+        final QueryBuilder innerQueryBuilder = switch (fieldModel.getTaskType()) {
+            case SPARSE_EMBEDDING -> {
+                List<WeightedToken> weightedTokens = Arrays.stream(query.split("\\s")).map(t -> new WeightedToken(t, 1.0f)).toList();
+                yield new SparseVectorQueryBuilder(embeddingsFieldName, weightedTokens, null, null, null, null);
+            }
+            case TEXT_EMBEDDING -> {
+                DenseVectorFieldMapper.ElementType elementType = fieldModel.getServiceSettings().elementType();
+                int embeddingLength = DenseVectorFieldMapperTestUtils.getEmbeddingLength(
+                    elementType,
+                    fieldModel.getServiceSettings().dimensions()
+                );
+
+                // Create a query vector with a value of 1 for each dimension, which will effectively act as a pass-through for the document
+                // vector
+                float[] queryVector = new float[embeddingLength];
+                if (elementType == DenseVectorFieldMapper.ElementType.BIT) {
+                    Arrays.fill(queryVector, -128.0f);
+                } else {
+                    Arrays.fill(queryVector, 1.0f);
+                }
+
+                // TODO: Don't hard-code K
+                yield new KnnVectorQueryBuilder(embeddingsFieldName, queryVector, 10, null, null, null);
+            }
+            default -> throw new UnsupportedOperationException("Unhandled task type [" + fieldModel.getTaskType() + "]");
+        };
+
         NestedQueryBuilder nestedQueryBuilder = new NestedQueryBuilder(
             SemanticTextField.getChunksFieldName(field),
-            sparseVectorQueryBuilder,
+            innerQueryBuilder,
             ScoreMode.Max
         );
 

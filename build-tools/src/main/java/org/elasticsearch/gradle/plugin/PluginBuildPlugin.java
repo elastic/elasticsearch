@@ -19,8 +19,11 @@ import org.gradle.api.provider.Provider;
 import org.gradle.api.provider.ProviderFactory;
 import org.gradle.api.tasks.SourceSet;
 import org.gradle.api.tasks.SourceSetContainer;
+import org.gradle.jvm.tasks.Jar;
 
 import javax.inject.Inject;
+
+import static java.util.stream.Collectors.toList;
 
 /**
  * Encapsulates build configuration for an Elasticsearch plugin.
@@ -58,8 +61,8 @@ public class PluginBuildPlugin implements Plugin<Project> {
         SourceSetContainer sourceSets = project.getExtensions().getByType(SourceSetContainer.class);
 
         var testBuildInfoTask = project.getTasks().register("generateTestBuildInfo", GenerateTestBuildInfoTask.class, task -> {
-            var pluginProperties = project.getTasks().getByName("pluginProperties");
-            task.getDescriptorFile().set(pluginProperties.getOutputs().getFiles().getSingleFile());
+            var pluginProperties = project.getTasks().withType(GeneratePluginPropertiesTask.class).named("pluginProperties");
+            task.getDescriptorFile().set(pluginProperties.flatMap(GeneratePluginPropertiesTask::getOutputFile));
             var propertiesExtension = project.getExtensions().getByType(PluginPropertiesExtension.class);
             task.getComponentName().set(providerFactory.provider(propertiesExtension::getName));
             var policy = project.getLayout().getProjectDirectory().file("src/main/plugin-metadata/entitlement-policy.yaml");
@@ -80,10 +83,15 @@ public class PluginBuildPlugin implements Plugin<Project> {
             task.getOutputDirectory().set(directory);
         });
 
-
         sourceSets.named(SourceSet.TEST_SOURCE_SET_NAME).configure(sourceSet -> {
             sourceSet.getResources().srcDir(testBuildInfoTask);
         });
+
+        // TODO: get the jar task
+        // TODO: configure on this task
+        // TODO: task.from()
+        //project.getLogger().lifecycle(
+        //    "HELLO: " + project.getTasks().withType(Jar.class).getByName("jar").getArchiveFile().get().getAsFile().getAbsolutePath());
     }
 
 }

@@ -68,9 +68,11 @@ public abstract class GenerateTestBuildInfoTask extends DefaultTask {
             writer.write(getComponentName().get());
             writer.write("\",\n");
 
-            writer.write("    \"descriptor\": \"");
-            writer.write(getDescriptorFile().getAsFile().get().getAbsolutePath());
-            writer.write("\",\n");
+            if (getDescriptorFile().isPresent()) {
+                writer.write("    \"descriptor\": \"");
+                writer.write(getDescriptorFile().getAsFile().get().getAbsolutePath());
+                writer.write("\",\n");
+            }
 
             if (getPolicyFile().isPresent()) {
                 writer.write("    \"policy\": \"");

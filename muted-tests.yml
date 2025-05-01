@@ -435,6 +435,18 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecIT
   method: test {union_types.MultiIndexSortIpStringEval ASYNC}
   issue: https://github.com/elastic/elasticsearch/issues/127537
+- class: org.elasticsearch.xpack.inference.action.filter.ShardBulkInferenceActionFilterIT
+  method: testRestart {p0=false p1=false}
+  issue: https://github.com/elastic/elasticsearch/issues/127592
+- class: org.elasticsearch.xpack.inference.action.filter.ShardBulkInferenceActionFilterIT
+  method: testRestart {p0=true p1=false}
+  issue: https://github.com/elastic/elasticsearch/issues/127593
+- class: org.elasticsearch.xpack.inference.action.filter.ShardBulkInferenceActionFilterIT
+  method: testRestart {p0=false p1=true}
+  issue: https://github.com/elastic/elasticsearch/issues/127594
+- class: org.elasticsearch.xpack.inference.action.filter.ShardBulkInferenceActionFilterIT
+  method: testRestart {p0=true p1=true}
+  issue: https://github.com/elastic/elasticsearch/issues/127595
 
 # Examples:
 #

@@ -37,7 +37,6 @@ public class CoreWithMultipleProjectsClientYamlTestSuiteIT extends MultipleProje
         .module("test-multi-project")
         .module("lang-mustache")
         .module("parent-join")
-        .setting("test.multi_project.enabled", "true")
         .setting("xpack.security.enabled", "true")
         .setting("xpack.watcher.enabled", "false")
         .setting("xpack.ml.enabled", "false")

@@ -591,9 +591,9 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 boolean groupingResolved = Resolvables.resolved(groupings);
                 int size = groupingResolved ? aggregates.size() : aggregates.size() - groupings.size();
                 for (int i = 0; i < aggregates.size(); i++) {
-                    NamedExpression agg = aggregates.get(i);
+                    NamedExpression maybeResolvedAgg = aggregates.get(i);
                     if (i < size) { // Skip resolving references to groupings in the aggregations if the groupings are not resolved yet.
-                        agg = (NamedExpression) agg.transformUp(UnresolvedAttribute.class, ua -> {
+                        maybeResolvedAgg = (NamedExpression) maybeResolvedAgg.transformUp(UnresolvedAttribute.class, ua -> {
                             Expression ne = ua;
                             Attribute maybeResolved = maybeResolveAttribute(ua, resolvedList);
                             // An item in aggregations can reference to groupings explicitly, if groupings are not resolved yet and
@@ -607,7 +607,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                             return ne;
                         });
                     }
-                    newAggregates.add(agg);
+                    newAggregates.add(maybeResolvedAgg);
                 }
 
                 // TODO: remove this when Stats interface is removed

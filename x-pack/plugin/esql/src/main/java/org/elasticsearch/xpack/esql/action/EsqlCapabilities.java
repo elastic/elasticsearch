@@ -1049,7 +1049,12 @@ public class EsqlCapabilities {
         /**
          * The {@code _query} API now gives a cast recommendation if multiple types are found in certain instances.
          */
-        SUGGESTED_CAST;
+        SUGGESTED_CAST,
+
+        /**
+         * Resolve groupings before resolving references to groupings in the aggregations.
+         */
+        RESOLVE_GROUPINGS_BEFORE_RESOLVING_REFERENCES_TO_GROUPINGS_IN_AGGREGATIONS;
 
         private final boolean enabled;
 

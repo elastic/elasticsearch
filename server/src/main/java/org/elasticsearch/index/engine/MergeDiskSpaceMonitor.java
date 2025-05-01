@@ -12,6 +12,7 @@ package org.elasticsearch.index.engine;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.RelativeByteSizeValue;
+import org.elasticsearch.core.TimeValue;
 
 import java.util.Iterator;
 import java.util.List;
@@ -100,6 +101,14 @@ public class MergeDiskSpaceMonitor {
         },
         Setting.Property.Dynamic,
         Setting.Property.NodeScope
+    );
+
+    /** How frequently we check disk usage (default: 5 seconds). */
+    public static final Setting<TimeValue> INDICES_MERGE_DISK_CHECK_INTERVAL_SETTING = Setting.timeSetting(
+            "indices.merge.disk.check_interval",
+            TimeValue.timeValueSeconds(5),
+            TimeValue.MINUS_ONE,
+            Setting.Property.NodeScope
     );
 
 }

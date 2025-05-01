@@ -9,14 +9,25 @@
 
 package org.elasticsearch.index.engine;
 
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.unit.RelativeByteSizeValue;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.engine.ThreadPoolMergeScheduler.MergeTask;
+import org.elasticsearch.monitor.fs.FsInfo;
+import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.ThreadPool;
 
+import java.io.Closeable;
+import java.io.IOException;
 import java.util.Comparator;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.PriorityBlockingQueue;
@@ -28,8 +39,93 @@ import java.util.function.LongUnaryOperator;
 import static org.elasticsearch.index.engine.ThreadPoolMergeScheduler.Schedule.ABORT;
 import static org.elasticsearch.index.engine.ThreadPoolMergeScheduler.Schedule.BACKLOG;
 import static org.elasticsearch.index.engine.ThreadPoolMergeScheduler.Schedule.RUN;
+import static org.elasticsearch.index.engine.ThreadPoolMergeScheduler.USE_THREAD_POOL_MERGE_SCHEDULER_SETTING;
+import static org.elasticsearch.monitor.fs.FsProbe.getFSInfo;
 
-public class ThreadPoolMergeExecutorService {
+public class ThreadPoolMergeExecutorService implements Closeable {
+    /** How frequently we check disk usage (default: 5 seconds). */
+    public static final Setting<TimeValue> INDICES_MERGE_DISK_CHECK_INTERVAL_SETTING = Setting.timeSetting(
+            "indices.merge.disk.check_interval",
+            TimeValue.timeValueSeconds(5),
+            TimeValue.MINUS_ONE,
+            Setting.Property.NodeScope
+    );
+    public static final Setting<RelativeByteSizeValue> INDICES_MERGE_DISK_HIGH_WATERMARK_SETTING = new Setting<>(
+        "indices.merge.disk.watermark.high",
+        "96%",
+        (s) -> RelativeByteSizeValue.parseRelativeByteSizeValue(s, "indices.merge.disk.watermark.high"),
+        new Setting.Validator<>() {
+            @Override
+            public void validate(RelativeByteSizeValue value) {}
+
+            @Override
+            public void validate(RelativeByteSizeValue value, Map<Setting<?>, Object> settings, boolean isPresent) {
+                if (isPresent && settings.get(USE_THREAD_POOL_MERGE_SCHEDULER_SETTING).equals(Boolean.FALSE)) {
+                    throw new IllegalArgumentException(
+                        "indices merge watermark setting is only effective when ["
+                            + USE_THREAD_POOL_MERGE_SCHEDULER_SETTING.getKey()
+                            + "] is set to [true]"
+                    );
+                }
+            }
+
+            @Override
+            public Iterator<Setting<?>> settings() {
+                List<Setting<?>> res = List.of(INDICES_MERGE_DISK_HIGH_WATERMARK_SETTING, USE_THREAD_POOL_MERGE_SCHEDULER_SETTING);
+                return res.iterator();
+            }
+        },
+        Setting.Property.NodeScope
+    );
+    public static final Setting<ByteSizeValue> INDICES_MERGE_DISK_HIGH_MAX_HEADROOM_SETTING = new Setting<>(
+        "indices.merge.disk.watermark.high.max_headroom",
+        (settings) -> {
+            if (INDICES_MERGE_DISK_HIGH_WATERMARK_SETTING.exists(settings)) {
+                return "-1";
+            } else {
+                return "40GB";
+            }
+        },
+        (s) -> ByteSizeValue.parseBytesSizeValue(s, "indices.merge.disk.watermark.high.max_headroom"),
+        new Setting.Validator<>() {
+            @Override
+            public void validate(ByteSizeValue value) {}
+
+            @Override
+            public void validate(final ByteSizeValue value, final Map<Setting<?>, Object> settings, boolean isPresent) {
+                if (isPresent) {
+                    if (value.equals(ByteSizeValue.MINUS_ONE)) {
+                        throw new IllegalArgumentException("setting a headroom value to less than 0 is not supported");
+                    }
+                    if (settings.get(USE_THREAD_POOL_MERGE_SCHEDULER_SETTING).equals(Boolean.FALSE)) {
+                        throw new IllegalArgumentException(
+                            "indices merge max headroom setting is only effective when ["
+                                + USE_THREAD_POOL_MERGE_SCHEDULER_SETTING.getKey()
+                                + "] is set to [true]"
+                        );
+                    }
+                }
+                final ByteSizeValue highHeadroom = (ByteSizeValue) settings.get(INDICES_MERGE_DISK_HIGH_MAX_HEADROOM_SETTING);
+                final RelativeByteSizeValue highWatermark = (RelativeByteSizeValue) settings.get(INDICES_MERGE_DISK_HIGH_WATERMARK_SETTING);
+                if (highWatermark.isAbsolute() && highHeadroom.equals(ByteSizeValue.MINUS_ONE) == false) {
+                    throw new IllegalArgumentException(
+                        "indices merge max headroom setting is set, but disk watermark value is not a relative value"
+                    );
+                }
+            }
+
+            @Override
+            public Iterator<Setting<?>> settings() {
+                List<Setting<?>> res = List.of(
+                    INDICES_MERGE_DISK_HIGH_WATERMARK_SETTING,
+                    INDICES_MERGE_DISK_HIGH_MAX_HEADROOM_SETTING,
+                    USE_THREAD_POOL_MERGE_SCHEDULER_SETTING
+                );
+                return res.iterator();
+            }
+        },
+        Setting.Property.NodeScope
+    );
     /**
      * Floor for IO write rate limit of individual merge tasks (we will never go any lower than this)
      */
@@ -72,25 +168,37 @@ public class ThreadPoolMergeExecutorService {
     private final int maxConcurrentMerges;
     private final int concurrentMergesFloorLimitForThrottling;
     private final int concurrentMergesCeilLimitForThrottling;
+    private final AtomicLong leastAvailableDiskSpaceBytes;
+    private final NodeEnvironment.DataPath[] dataPaths;
+    private final Scheduler.Cancellable diskSpaceMonitor;
 
     public static @Nullable ThreadPoolMergeExecutorService maybeCreateThreadPoolMergeExecutorService(
         ThreadPool threadPool,
-        Settings settings
+        Settings settings,
+        NodeEnvironment nodeEnvironment
     ) {
         if (ThreadPoolMergeScheduler.USE_THREAD_POOL_MERGE_SCHEDULER_SETTING.get(settings)) {
-            return new ThreadPoolMergeExecutorService(threadPool);
+            return new ThreadPoolMergeExecutorService(threadPool, settings, nodeEnvironment);
         } else {
             return null;
         }
     }
 
-    private ThreadPoolMergeExecutorService(ThreadPool threadPool) {
+    private ThreadPoolMergeExecutorService(ThreadPool threadPool, Settings settings, NodeEnvironment nodeEnvironment) {
         this.executorService = threadPool.executor(ThreadPool.Names.MERGE);
         this.maxConcurrentMerges = threadPool.info(ThreadPool.Names.MERGE).getMax();
         // the intent here is to throttle down whenever we submit a task and no other task is running
         this.concurrentMergesFloorLimitForThrottling = 2;
         this.concurrentMergesCeilLimitForThrottling = maxConcurrentMerges * 2;
         assert concurrentMergesFloorLimitForThrottling <= concurrentMergesCeilLimitForThrottling;
+        this.leastAvailableDiskSpaceBytes = new AtomicLong();
+        this.dataPaths = nodeEnvironment.dataPaths();
+        this.diskSpaceMonitor = threadPool.scheduleWithFixedDelay(
+            new DiskSpaceMonitor(INDICES_MERGE_DISK_HIGH_WATERMARK_SETTING.get(settings),
+                    INDICES_MERGE_DISK_HIGH_MAX_HEADROOM_SETTING.get(settings)),
+            INDICES_MERGE_DISK_CHECK_INTERVAL_SETTING.get(settings),
+            threadPool.generic()
+        );
     }
 
     boolean submitMergeTask(MergeTask mergeTask) {
@@ -216,6 +324,62 @@ public class ThreadPoolMergeExecutorService {
         }
     }
 
+    private class DiskSpaceMonitor implements Runnable {
+
+        private final RelativeByteSizeValue highStageWatermark;
+        private final ByteSizeValue highStageMaxHeadroom;
+
+        DiskSpaceMonitor(RelativeByteSizeValue highStageWatermark, ByteSizeValue highStageMaxHeadroom) {
+            this.highStageWatermark = highStageWatermark;
+            this.highStageMaxHeadroom = highStageMaxHeadroom;
+        }
+
+        @Override
+        public void run() {
+            FsInfo.Path leastAvailablePath = null;
+            for (int i = 0; i < ThreadPoolMergeExecutorService.this.dataPaths.length; i++) {
+                try {
+                    FsInfo.Path fsInfo = getFSInfo(ThreadPoolMergeExecutorService.this.dataPaths[i]); // uncached
+                    if (leastAvailablePath == null || leastAvailablePath.getAvailable().getBytes() > fsInfo.getAvailable().getBytes()) {
+                        leastAvailablePath = fsInfo;
+                    }
+                } catch (IOException e) {
+                    // TODO log
+                    throw new RuntimeException(e);
+                }
+            }
+            // TODO log if leastAvailablePath is null
+            // subtract disk space that's already "reserved" for running merges
+            long leastAvailableDiskSpaceBytes = leastAvailablePath.getAvailable().getBytes();
+            for (MergeTask mergeTask : runningMergeTasks) {
+                leastAvailableDiskSpaceBytes -= mergeTask.estimatedRemainingMergeSize();
+            }
+            // subtract the headroom space
+            leastAvailableDiskSpaceBytes -= getFreeBytesThreshold(leastAvailablePath.getTotal(), highStageWatermark, highStageMaxHeadroom)
+                .getBytes();
+            leastAvailableDiskSpaceBytes = Math.max(0L, leastAvailableDiskSpaceBytes);
+            // the maximum disk space a new merge can use
+            ThreadPoolMergeExecutorService.this.leastAvailableDiskSpaceBytes.set(leastAvailableDiskSpaceBytes);
+        }
+
+        private static ByteSizeValue getFreeBytesThreshold(ByteSizeValue total, RelativeByteSizeValue watermark, ByteSizeValue maxHeadroom) {
+            // If bytes are given, they can be readily returned as free bytes. If percentages are given, we need to calculate the free bytes.
+            if (watermark.isAbsolute()) {
+                return watermark.getAbsolute();
+            }
+            return ByteSizeValue.subtract(total, watermark.calculateValue(total, maxHeadroom));
+        }
+    }
+
+    @Override
+    public void close() throws IOException {
+        diskSpaceMonitor.cancel();
+    }
+
+    public boolean usingMaxTargetIORateBytesPerSec() {
+        return MAX_IO_RATE.getBytes() == targetIORateBytesPerSec.get();
+    }
+
     private static long newTargetIORateBytesPerSec(
         long currentTargetIORateBytesPerSec,
         int currentlySubmittedIOThrottledMergeTasks,
@@ -272,10 +436,6 @@ public class ThreadPoolMergeExecutorService {
         interface UpdateConsumer {
             void accept(long prev, long next);
         }
-    }
-
-    public boolean usingMaxTargetIORateBytesPerSec() {
-        return MAX_IO_RATE.getBytes() == targetIORateBytesPerSec.get();
     }
 
     // exposed for tests

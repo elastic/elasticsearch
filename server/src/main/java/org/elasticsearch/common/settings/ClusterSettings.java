@@ -632,6 +632,7 @@ public final class ClusterSettings extends AbstractScopedSettings {
         ThreadPoolMergeScheduler.USE_THREAD_POOL_MERGE_SCHEDULER_SETTING,
         MergeDiskSpaceMonitor.INDICES_MERGE_DISK_HIGH_WATERMARK_SETTING,
         MergeDiskSpaceMonitor.INDICES_MERGE_DISK_HIGH_MAX_HEADROOM_SETTING,
+        MergeDiskSpaceMonitor.INDICES_MERGE_DISK_CHECK_INTERVAL_SETTING,
         TransportService.ENABLE_STACK_OVERFLOW_AVOIDANCE,
         DataStreamGlobalRetentionSettings.DATA_STREAMS_DEFAULT_RETENTION_SETTING,
         DataStreamGlobalRetentionSettings.DATA_STREAMS_MAX_RETENTION_SETTING,

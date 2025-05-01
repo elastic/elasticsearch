@@ -54,6 +54,15 @@ public class SemanticTextUpgradeIT extends AbstractUpgradeTestCase {
     private static final String SPARSE_FIELD = "sparse_field";
     private static final String DENSE_FIELD = "dense_field";
 
+    private static final String DOC_1_ID = "doc_1";
+    private static final String DOC_2_ID = "doc_2";
+    private static final Map<String, List<String>> DOC_VALUES = Map.of(
+        DOC_1_ID,
+        List.of("a test value", "with multiple test values"),
+        DOC_2_ID,
+        List.of("another test value")
+    );
+
     private static Model SPARSE_MODEL;
     private static Model DENSE_MODEL;
 
@@ -107,11 +116,11 @@ public class SemanticTextUpgradeIT extends AbstractUpgradeTestCase {
         );
         assertThat(response.isAcknowledged(), equalTo(true));
 
-        indexDoc("doc_1", List.of("a test value", "with multiple test values"));
+        indexDoc(DOC_1_ID, DOC_VALUES.get(DOC_1_ID));
     }
 
     private void performIndexQueryHighlightOps() throws IOException {
-        indexDoc("doc_2", List.of("another test value"));
+        indexDoc(DOC_2_ID, DOC_VALUES.get(DOC_2_ID));
 
         ObjectPath sparseQueryObjectPath = semanticQuery(SPARSE_FIELD, SPARSE_MODEL, "test value", 3);
         assertQueryResponse(sparseQueryObjectPath, SPARSE_FIELD);
@@ -186,8 +195,7 @@ public class SemanticTextUpgradeIT extends AbstractUpgradeTestCase {
                     Arrays.fill(queryVector, 1.0f);
                 }
 
-                // TODO: Don't hard-code K
-                yield new KnnVectorQueryBuilder(embeddingsFieldName, queryVector, 10, null, null, null);
+                yield new KnnVectorQueryBuilder(embeddingsFieldName, queryVector, DOC_VALUES.size(), null, null, null);
             }
             default -> throw new UnsupportedOperationException("Unhandled task type [" + fieldModel.getTaskType() + "]");
         };
@@ -221,13 +229,6 @@ public class SemanticTextUpgradeIT extends AbstractUpgradeTestCase {
 
     @SuppressWarnings("unchecked")
     private static void assertQueryResponse(ObjectPath queryObjectPath, String field) throws IOException {
-        final Map<String, List<String>> expectedHighlights = Map.of(
-            "doc_1",
-            List.of("a test value", "with multiple test values"),
-            "doc_2",
-            List.of("another test value")
-        );
-
         assertThat(queryObjectPath.evaluate("hits.total.value"), equalTo(2));
         assertThat(queryObjectPath.evaluateArraySize("hits.hits"), equalTo(2));
 
@@ -241,11 +242,11 @@ public class SemanticTextUpgradeIT extends AbstractUpgradeTestCase {
             assertThat(id, notNullValue());
             docIds.add(id);
 
-            List<String> expectedHighlight = expectedHighlights.get(id);
+            List<String> expectedHighlight = DOC_VALUES.get(id);
             assertThat(expectedHighlight, notNullValue());
             assertThat(((Map<String, Object>) hitMap.get("highlight")).get(field), equalTo(expectedHighlight));
         }
 
-        assertThat(docIds, equalTo(Set.of("doc_1", "doc_2")));
+        assertThat(docIds, equalTo(Set.of(DOC_1_ID, DOC_2_ID)));
     }
 }

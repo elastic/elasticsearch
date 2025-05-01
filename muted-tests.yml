@@ -429,24 +429,24 @@ tests:
 - class: org.elasticsearch.xpack.esql.heap_attack.HeapAttackIT
   method: testLookupExplosionNoFetch
   issue: https://github.com/elastic/elasticsearch/issues/127365
-- class: org.elasticsearch.action.admin.cluster.state.TransportClusterStateActionDisruptionIT
-  method: testNonLocalRequestAlwaysFindsMasterAndWaitsForMetadata
-  issue: https://github.com/elastic/elasticsearch/issues/127422
-- class: org.elasticsearch.xpack.esql.qa.single_node.PushQueriesIT
-  method: testPushCaseInsensitiveEqualityOnDefaults
-  issue: https://github.com/elastic/elasticsearch/issues/127431
-- class: org.elasticsearch.action.admin.cluster.state.TransportClusterStateActionDisruptionIT
-  method: testLocalRequestAlwaysSucceeds
-  issue: https://github.com/elastic/elasticsearch/issues/127423
-- class: org.elasticsearch.action.admin.cluster.state.TransportClusterStateActionDisruptionIT
-  method: testLocalRequestWaitsForMetadata
-  issue: https://github.com/elastic/elasticsearch/issues/127466
 - class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeIT
   method: test
   issue: https://github.com/elastic/elasticsearch/issues/127536
 - class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecIT
   method: test {union_types.MultiIndexSortIpStringEval ASYNC}
   issue: https://github.com/elastic/elasticsearch/issues/127537
+- class: org.elasticsearch.xpack.inference.action.filter.ShardBulkInferenceActionFilterIT
+  method: testRestart {p0=false p1=false}
+  issue: https://github.com/elastic/elasticsearch/issues/127592
+- class: org.elasticsearch.xpack.inference.action.filter.ShardBulkInferenceActionFilterIT
+  method: testRestart {p0=true p1=false}
+  issue: https://github.com/elastic/elasticsearch/issues/127593
+- class: org.elasticsearch.xpack.inference.action.filter.ShardBulkInferenceActionFilterIT
+  method: testRestart {p0=false p1=true}
+  issue: https://github.com/elastic/elasticsearch/issues/127594
+- class: org.elasticsearch.xpack.inference.action.filter.ShardBulkInferenceActionFilterIT
+  method: testRestart {p0=true p1=true}
+  issue: https://github.com/elastic/elasticsearch/issues/127595
 
 # Examples:
 #

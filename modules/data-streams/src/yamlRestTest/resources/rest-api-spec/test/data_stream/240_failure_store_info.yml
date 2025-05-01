@@ -22,7 +22,6 @@ setup:
                   type: date
                 count:
                   type: long
-            lifecycle: {}
             data_stream_options:
               failure_store:
                 enabled: true
@@ -44,7 +43,6 @@ setup:
                   type: date
                 count:
                   type: long
-            lifecycle: {}
           data_stream: { }
 
   - do:
@@ -161,10 +159,13 @@ teardown:
   - is_true: acknowledged
 
   - do:
-      indices.put_data_lifecycle:
+      indices.put_data_stream_options:
         name: "fs-data-stream"
         body:
-          enabled: false
+          failure_store:
+            enabled: true
+            lifecycle:
+              enabled: false
 
   - is_true: acknowledged
 

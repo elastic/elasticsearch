@@ -100,12 +100,12 @@ public abstract class FilterXContentParser implements XContentParser {
         return delegate().textOrNull();
     }
 
-    public XContentString xContentText() throws IOException {
-        return delegate().xContentText();
+    public Text optimizedText() throws IOException {
+        return delegate().optimizedText();
     }
 
-    public XContentString xContentTextOrNull() throws IOException {
-        return delegate().xContentTextOrNull();
+    public Text optimizedTextOrNull() throws IOException {
+        return delegate().optimizedTextOrNull();
     }
 
     @Override

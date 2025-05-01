@@ -145,13 +145,13 @@ public class ParameterizableYamlXContentParser implements XContentParser {
     }
 
     @Override
-    public XContentString xContentText() throws IOException {
-        return delegate.xContentText();
+    public XContentString optimizedText() throws IOException {
+        return delegate.optimizedText();
     }
 
     @Override
-    public XContentString xContentTextOrNull() throws IOException {
-        return delegate.xContentTextOrNull();
+    public XContentString optimizedTextOrNull() throws IOException {
+        return delegate.optimizedTextOrNull();
     }
 
     @Override

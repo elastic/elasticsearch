@@ -400,11 +400,8 @@ public abstract class BaseXContentTestCase extends ESTestCase {
             assertSame(Token.FIELD_NAME, parser.nextToken());
             assertEquals("text", parser.currentName());
             assertTrue(parser.nextToken().isValue());
-            var valueRef = parser.xContentText().getBytes();
-            assertThat(
-                Arrays.copyOfRange(valueRef.bytes(), valueRef.offset(), valueRef.offset() + valueRef.length()),
-                equalTo(Arrays.copyOfRange(random.array(), random.arrayOffset() + random.position(), random.limit()))
-            );
+            var valueRef = parser.optimizedText().bytes();
+            assertThat(valueRef, equalTo(random));
             assertSame(Token.END_OBJECT, parser.nextToken());
             assertNull(parser.nextToken());
         }

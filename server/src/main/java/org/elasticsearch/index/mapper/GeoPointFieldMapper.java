@@ -54,10 +54,10 @@ import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.search.runtime.GeoPointScriptFieldDistanceFeatureQuery;
 import org.elasticsearch.xcontent.CopyingXContentParser;
 import org.elasticsearch.xcontent.FilterXContentParserWrapper;
+import org.elasticsearch.xcontent.Text;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
-import org.elasticsearch.xcontent.XContentString;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -329,8 +329,8 @@ public class GeoPointFieldMapper extends AbstractPointGeometryFieldMapper<GeoPoi
         }
 
         @Override
-        public XContentString xContentTextOrNull() throws IOException {
-            return new XContentString(value);
+        public Text optimizedTextOrNull() throws IOException {
+            return new Text(value);
         }
 
         @Override

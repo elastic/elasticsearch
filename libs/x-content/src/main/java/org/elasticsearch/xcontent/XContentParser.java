@@ -109,9 +109,9 @@ public interface XContentParser extends Closeable {
 
     String textOrNull() throws IOException;
 
-    XContentString xContentText() throws IOException;
+    Text optimizedText() throws IOException;
 
-    XContentString xContentTextOrNull() throws IOException;
+    Text optimizedTextOrNull() throws IOException;
 
     CharBuffer charBufferOrNull() throws IOException;
 

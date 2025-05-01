@@ -17,13 +17,12 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xcontent.XContentString;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.hamcrest.Matchers;
 
 import java.io.IOException;
+import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
-import java.util.Arrays;
 
 public class ESUTF8StreamJsonParserTests extends ESTestCase {
 
@@ -36,25 +35,24 @@ public class ESUTF8StreamJsonParserTests extends ESTestCase {
         test.accept((ESUTF8StreamJsonParser) parser);
     }
 
-    private void assertTextRef(XContentString.ByteRef textRef, String expectedValue) {
-        var data = Arrays.copyOfRange(textRef.bytes(), textRef.offset(), textRef.offset() + textRef.length());
-        assertThat(data, Matchers.equalTo(StandardCharsets.UTF_8.encode(expectedValue).array()));
+    private void assertTextRef(ByteBuffer textRef, String expectedValue) {
+        assertThat(textRef, Matchers.equalTo(StandardCharsets.UTF_8.encode(expectedValue)));
     }
 
-    public void testGetValueAsByteRef() throws IOException {
+    public void testGetValueAsText() throws IOException {
         testParseJson("{\"foo\": \"bar\"}", parser -> {
             assertThat(parser.nextToken(), Matchers.equalTo(JsonToken.START_OBJECT));
             assertThat(parser.nextFieldName(), Matchers.equalTo("foo"));
             assertThat(parser.nextValue(), Matchers.equalTo(JsonToken.VALUE_STRING));
 
-            XContentString.ByteRef textRef = parser.getValueAsByteRef().getBytes();
+            ByteBuffer textRef = parser.getValueAsText().bytes();
             assertThat(textRef, Matchers.notNullValue());
-            assertThat(textRef.offset(), Matchers.equalTo(9));
-            assertThat(textRef.length(), Matchers.equalTo(3));
+            assertThat(textRef.arrayOffset() + textRef.position(), Matchers.equalTo(9));
+            assertThat(textRef.limit(), Matchers.equalTo(12));
             assertTextRef(textRef, "bar");
 
             assertThat(parser.getValueAsString(), Matchers.equalTo("bar"));
-            assertThat(parser.getValueAsByteRef(), Matchers.nullValue());
+            assertThat(parser.getValueAsText(), Matchers.nullValue());
 
             assertThat(parser.nextToken(), Matchers.equalTo(JsonToken.END_OBJECT));
         });
@@ -64,7 +62,7 @@ public class ESUTF8StreamJsonParserTests extends ESTestCase {
             assertThat(parser.nextFieldName(), Matchers.equalTo("foo"));
             assertThat(parser.nextValue(), Matchers.equalTo(JsonToken.VALUE_STRING));
 
-            assertThat(parser.getValueAsByteRef(), Matchers.nullValue());
+            assertThat(parser.getValueAsText(), Matchers.nullValue());
             assertThat(parser.getValueAsString(), Matchers.equalTo("bar\"baz\""));
         });
 
@@ -73,7 +71,7 @@ public class ESUTF8StreamJsonParserTests extends ESTestCase {
             assertThat(parser.nextFieldName(), Matchers.equalTo("foo"));
             assertThat(parser.nextValue(), Matchers.equalTo(JsonToken.VALUE_STRING));
 
-            assertThat(parser.getValueAsByteRef(), Matchers.nullValue());
+            assertThat(parser.getValueAsText(), Matchers.nullValue());
             assertThat(parser.getValueAsString(), Matchers.equalTo("bår"));
         });
 
@@ -84,28 +82,28 @@ public class ESUTF8StreamJsonParserTests extends ESTestCase {
 
             assertThat(parser.nextValue(), Matchers.equalTo(JsonToken.VALUE_STRING));
             {
-                XContentString.ByteRef textRef = parser.getValueAsByteRef().getBytes();
+                ByteBuffer textRef = parser.getValueAsText().bytes();
                 assertThat(textRef, Matchers.notNullValue());
-                assertThat(textRef.offset(), Matchers.equalTo(10));
-                assertThat(textRef.length(), Matchers.equalTo(5));
+                assertThat(textRef.arrayOffset() + textRef.position(), Matchers.equalTo(10));
+                assertThat(textRef.limit(), Matchers.equalTo(15));
                 assertTextRef(textRef, "lorem");
             }
 
             assertThat(parser.nextValue(), Matchers.equalTo(JsonToken.VALUE_STRING));
             {
-                XContentString.ByteRef textRef = parser.getValueAsByteRef().getBytes();
+                ByteBuffer textRef = parser.getValueAsText().bytes();
                 assertThat(textRef, Matchers.notNullValue());
-                assertThat(textRef.offset(), Matchers.equalTo(19));
-                assertThat(textRef.length(), Matchers.equalTo(5));
+                assertThat(textRef.arrayOffset() + textRef.position(), Matchers.equalTo(19));
+                assertThat(textRef.limit(), Matchers.equalTo(24));
                 assertTextRef(textRef, "ipsum");
             }
 
             assertThat(parser.nextValue(), Matchers.equalTo(JsonToken.VALUE_STRING));
             {
-                XContentString.ByteRef textRef = parser.getValueAsByteRef().getBytes();
+                ByteBuffer textRef = parser.getValueAsText().bytes();
                 assertThat(textRef, Matchers.notNullValue());
-                assertThat(textRef.offset(), Matchers.equalTo(28));
-                assertThat(textRef.length(), Matchers.equalTo(5));
+                assertThat(textRef.arrayOffset() + textRef.position(), Matchers.equalTo(28));
+                assertThat(textRef.limit(), Matchers.equalTo(33));
                 assertTextRef(textRef, "dolor");
             }
 
@@ -151,9 +149,9 @@ public class ESUTF8StreamJsonParserTests extends ESTestCase {
 
                 String currVal = values[i];
                 if (validForTextRef(currVal)) {
-                    assertTextRef(parser.getValueAsByteRef().getBytes(), currVal);
+                    assertTextRef(parser.getValueAsText().bytes(), currVal);
                 } else {
-                    assertThat(parser.getValueAsByteRef(), Matchers.nullValue());
+                    assertThat(parser.getValueAsText(), Matchers.nullValue());
                     assertThat(parser.getValueAsString(), Matchers.equalTo(currVal));
                 }
             }

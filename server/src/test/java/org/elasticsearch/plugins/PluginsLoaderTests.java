@@ -39,7 +39,6 @@ import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 
-@ESTestCase.WithoutSecurityManager
 @LuceneTestCase.SuppressFileSystems(value = "ExtrasFS")
 public class PluginsLoaderTests extends ESTestCase {
 

@@ -174,11 +174,6 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         new Batch<>(
             "Resolution",
             new ResolveRefs(),
-            /*
-             * ImplicitCasting must be before ResolveRefs. Because a reference is created for a Bucket in Aggregate's aggregates,
-             * resolving this reference before implicit casting may cause this reference to have customMessage=true, it prevents further
-             * attempts to resolve this reference.
-             */
             new ImplicitCasting(),
             new ResolveUnionTypes()  // Must be after ResolveRefs, so union types can be found
         ),

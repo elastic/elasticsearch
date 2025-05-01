@@ -20,4 +20,5 @@ tasks.withType(StandaloneRestIntegTestTask).configureEach {
 
 tasks.named("javaRestTest").configure {
   enabled = buildParams.snapshotBuild
+  systemProperty "tests.multi_project.enabled", true
 }

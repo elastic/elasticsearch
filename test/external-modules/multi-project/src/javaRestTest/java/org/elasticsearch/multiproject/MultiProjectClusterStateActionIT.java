@@ -26,7 +26,6 @@ public class MultiProjectClusterStateActionIT extends MultiProjectRestTestCase {
     @ClassRule
     public static ElasticsearchCluster CLUSTER = ElasticsearchCluster.local()
         .distribution(DistributionType.DEFAULT)
-        .setting("test.multi_project.enabled", "true")
         .setting("xpack.security.http.ssl.enabled", "false")
         .setting("xpack.security.enabled", "false")
         .build();

@@ -6,9 +6,9 @@ dependencies {
 
 tasks.named('javaRestTest') {
   usesDefaultDistribution("to be triaged")
-  it.onlyIf("snapshot build") { buildParams.snapshotBuild }
+//  it.onlyIf("snapshot build") { buildParams.snapshotBuild }
 }
 
 tasks.withType(Test).configureEach {
-  it.systemProperty "test.multi_project.enabled", true
+  it.systemProperty "tests.multi_project.enabled", true
 }

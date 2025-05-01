@@ -17,7 +17,6 @@ dependencies {
   clusterModules project(xpackModule('ilm'))
   clusterModules project(xpackModule('mapper-constant-keyword'))
   clusterModules project(xpackModule('wildcard'))
-  clusterModules project(':test:external-modules:test-multi-project')
   restTestConfig project(path: ':modules:data-streams', configuration: "basicRestSpecs")
   restTestConfig project(path: ':modules:ingest-common', configuration: "basicRestSpecs")
   restTestConfig project(path: ':modules:reindex', configuration: "basicRestSpecs")
@@ -82,5 +81,5 @@ tasks.named("yamlRestTest").configure {
     blacklist += [];
   }
   systemProperty 'tests.rest.blacklist', blacklist.join(',')
-  systemProperty "test.multi_project.enabled", true
+  systemProperty "tests.multi_project.enabled", true
 }

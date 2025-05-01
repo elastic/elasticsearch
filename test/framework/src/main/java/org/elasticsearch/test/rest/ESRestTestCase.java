@@ -369,7 +369,7 @@ public abstract class ESRestTestCase extends ESTestCase {
         // The active project-id is slightly longer, and has a fixed prefix so that it's easier to pick in error messages etc.
         activeProject = "active00" + randomAlphaOfLength(8).toLowerCase(Locale.ROOT);
         extraProjects = randomSet(1, 3, () -> randomAlphaOfLength(12).toLowerCase(Locale.ROOT));
-        multiProjectEnabled = Boolean.parseBoolean(System.getProperty("test.multi_project.enabled"));
+        multiProjectEnabled = Boolean.parseBoolean(System.getProperty("tests.multi_project.enabled"));
     }
 
     @Before

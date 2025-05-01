@@ -14,7 +14,7 @@ public class MultiProjectEnabledClusterConfigProvider implements LocalClusterCon
     @Override
     public void apply(LocalClusterSpecBuilder<?> builder) {
         if (isMultiProjectEnabled()) {
-            builder.setting("test.multi_project.enabled", "true");
+            builder.setting("test.multi_project.enabled", "true").module("test-multi-project");
         }
     }
 

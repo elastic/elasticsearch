@@ -2514,7 +2514,7 @@ public final class InternalTestCluster extends TestCluster {
                 NodeStats stats = nodeService.stats(
                     flags,
                     false,
-                        false,
+                    false,
                     false,
                     false,
                     false,

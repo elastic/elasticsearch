@@ -107,7 +107,7 @@ public class DiskHealthTracker extends HealthTracker<DiskHealthInfo> {
         NodeStats nodeStats = nodeService.stats(
             CommonStatsFlags.NONE,
             false,
-                false,
+            false,
             false,
             false,
             false,

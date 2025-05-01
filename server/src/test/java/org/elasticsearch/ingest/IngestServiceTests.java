@@ -3407,7 +3407,7 @@ public class IngestServiceTests extends ESTestCase {
     }
 
     private void assertProcessorStats(int processor, IngestStats stats, String pipelineId, long count, long failed, long time) {
-        //TODO: Fix to not use default
+        // TODO: Fix to not use default
         assertStats(stats.processorStats().get(ProjectId.DEFAULT).get(pipelineId).get(processor).stats(), count, failed, time);
     }
 

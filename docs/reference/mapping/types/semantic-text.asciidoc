@@ -81,7 +81,7 @@ PUT my-index-000003
 ==== Parameters for `semantic_text` fields
 
 `inference_id`::
-(Required, string)
+(Optional, string)
 {infer-cap} endpoint that will be used to generate embeddings for the field.
 By default, `.elser-2-elasticsearch` is used.
 This parameter cannot be updated.

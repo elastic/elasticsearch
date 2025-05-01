@@ -36,8 +36,10 @@ import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.inference.results.StreamingChatCompletionResults;
 import org.elasticsearch.xpack.core.inference.results.StreamingUnifiedChatCompletionResults;
+import org.elasticsearch.xpack.core.inference.results.TextEmbeddingFloatResults;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.Iterator;
@@ -59,7 +61,11 @@ public class TestStreamingCompletionServiceExtension implements InferenceService
         private static final String NAME = "streaming_completion_test_service";
         private static final Set<TaskType> supportedStreamingTasks = Set.of(TaskType.COMPLETION, TaskType.CHAT_COMPLETION);
 
-        private static final EnumSet<TaskType> supportedTaskTypes = EnumSet.of(TaskType.COMPLETION, TaskType.CHAT_COMPLETION);
+        private static final EnumSet<TaskType> supportedTaskTypes = EnumSet.of(
+            TaskType.COMPLETION,
+            TaskType.CHAT_COMPLETION,
+            TaskType.SPARSE_EMBEDDING
+        );
 
         public TestInferenceService(InferenceServiceExtension.InferenceServiceFactoryContext context) {}
 
@@ -115,7 +121,21 @@ public class TestStreamingCompletionServiceExtension implements InferenceService
             ActionListener<InferenceServiceResults> listener
         ) {
             switch (model.getConfigurations().getTaskType()) {
-                case COMPLETION -> listener.onResponse(makeResults(input));
+                case COMPLETION -> listener.onResponse(makeChatCompletionResults(input));
+                case SPARSE_EMBEDDING -> {
+                    if (stream) {
+                        listener.onFailure(
+                            new ElasticsearchStatusException(
+                                TaskType.unsupportedTaskTypeErrorMsg(model.getConfigurations().getTaskType(), name()),
+                                RestStatus.BAD_REQUEST
+                            )
+                        );
+                    } else {
+                        // Return text embedding results when creating a sparse_embedding inference endpoint to allow creation validation to
+                        // pass. This is required to test that streaming fails for a sparse_embedding endpoint.
+                        listener.onResponse(makeTextEmbeddingResults(input));
+                    }
+                }
                 default -> listener.onFailure(
                     new ElasticsearchStatusException(
                         TaskType.unsupportedTaskTypeErrorMsg(model.getConfigurations().getTaskType(), name()),
@@ -143,7 +163,7 @@ public class TestStreamingCompletionServiceExtension implements InferenceService
             }
         }
 
-        private StreamingChatCompletionResults makeResults(List<String> input) {
+        private StreamingChatCompletionResults makeChatCompletionResults(List<String> input) {
             var responseIter = input.stream().map(s -> s.toUpperCase(Locale.ROOT)).iterator();
             return new StreamingChatCompletionResults(subscriber -> {
                 subscriber.onSubscribe(new Flow.Subscription() {
@@ -160,6 +180,18 @@ public class TestStreamingCompletionServiceExtension implements InferenceService
                     public void cancel() {}
                 });
             });
+        }
+
+        private TextEmbeddingFloatResults makeTextEmbeddingResults(List<String> input) {
+            var embeddings = new ArrayList<TextEmbeddingFloatResults.Embedding>();
+            for (int i = 0; i < input.size(); i++) {
+                var values = new float[5];
+                for (int j = 0; j < 5; j++) {
+                    values[j] = random.nextFloat();
+                }
+                embeddings.add(new TextEmbeddingFloatResults.Embedding(values));
+            }
+            return new TextEmbeddingFloatResults(embeddings);
         }
 
         private InferenceServiceResults.Result completionChunk(String delta) {

@@ -82,7 +82,7 @@ public class SingleFeatureMigrationResult implements SimpleDiffable<SingleFeatur
      * Gets the name of the specific index where the migration failure occurred, if the migration failed.
      */
     @Nullable
-    public String getFailedIndexName() {
+    public String getFailedResourceName() {
         return failedIndexName;
     }
 

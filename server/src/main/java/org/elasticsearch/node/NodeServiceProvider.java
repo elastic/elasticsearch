@@ -9,6 +9,7 @@
 
 package org.elasticsearch.node;
 
+import org.elasticsearch.action.search.OnlinePrewarmingService;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.ClusterInfoService;
 import org.elasticsearch.cluster.InternalClusterInfoService;
@@ -121,7 +122,8 @@ class NodeServiceProvider {
         FetchPhase fetchPhase,
         CircuitBreakerService circuitBreakerService,
         ExecutorSelector executorSelector,
-        Tracer tracer
+        Tracer tracer,
+        OnlinePrewarmingService onlinePrewarmingService
     ) {
         return new SearchService(
             clusterService,
@@ -132,7 +134,8 @@ class NodeServiceProvider {
             fetchPhase,
             circuitBreakerService,
             executorSelector,
-            tracer
+            tracer,
+            onlinePrewarmingService
         );
     }
 

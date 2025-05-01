@@ -13,7 +13,7 @@ The `elasticsearch-certutil` command simplifies the creation of certificates for
 ```shell
 bin/elasticsearch-certutil
 (
-(ca [--ca-dn <name>] [--days <n>] [--pem])
+(ca [--ca-dn <name>] [--keyusage <key_usages>] [--days <n>] [--pem])
 
 | (cert ([--ca <file_path>] | [--ca-cert <file_path> --ca-key <file_path>])
 [--ca-dn <name>] [--ca-pass <password>] [--days <n>]
@@ -104,6 +104,9 @@ The `http` mode guides you through the process of generating certificates for us
 
 `--ca-pass <password>`
 :   Specifies the password for an existing CA private key or the generated CA private key. This parameter is only applicable to the `cert` parameter
+
+`--keyusage <key_usages>`
+:   Specifies a comma-separated list of key usage restrictions (as per RFC 5280) that are used for the generated CA certificate. The default value is `keyCertSign,cRLSign`. This parameter may only be used with the `ca` parameter.
 
 `--days <n>`
 :   Specifies an integer value that represents the number of days the generated certificates are valid. The default value is `1095`. This parameter cannot be used with the `csr` or `http` parameters.

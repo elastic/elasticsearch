@@ -8,22 +8,17 @@
 package org.elasticsearch.xpack.inference.services;
 
 import org.elasticsearch.ElasticsearchStatusException;
-import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.inference.InferenceService;
 import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.rest.RestStatus;
-import org.elasticsearch.xpack.core.inference.action.InferenceAction;
-import org.elasticsearch.xpack.core.inference.results.TextEmbeddingFloatResults;
-import org.elasticsearch.xpack.core.inference.results.TextEmbeddingResults;
 import org.elasticsearch.xpack.core.ml.inference.assignment.AdaptiveAllocationsSettings;
 import org.elasticsearch.xpack.inference.services.settings.ApiKeySecrets;
 
@@ -722,53 +717,6 @@ public final class ServiceUtils {
             RestStatus.INTERNAL_SERVER_ERROR
         );
     }
-
-    /**
-     * Evaluate the model and return the text embedding size
-     * @param model Should be a text embedding model
-     * @param service The inference service
-     * @param listener Size listener
-     */
-    public static void getEmbeddingSize(Model model, InferenceService service, ActionListener<Integer> listener) {
-        assert model.getTaskType() == TaskType.TEXT_EMBEDDING;
-
-        service.infer(
-            model,
-            null,
-            null,
-            null,
-            List.of(TEST_EMBEDDING_INPUT),
-            false,
-            Map.of(),
-            InputType.INTERNAL_INGEST,
-            InferenceAction.Request.DEFAULT_TIMEOUT,
-            listener.delegateFailureAndWrap((delegate, r) -> {
-                if (r instanceof TextEmbeddingResults<?> embeddingResults) {
-                    try {
-                        delegate.onResponse(embeddingResults.getFirstEmbeddingSize());
-                    } catch (Exception e) {
-                        delegate.onFailure(
-                            new ElasticsearchStatusException("Could not determine embedding size", RestStatus.BAD_REQUEST, e)
-                        );
-                    }
-                } else {
-                    delegate.onFailure(
-                        new ElasticsearchStatusException(
-                            "Could not determine embedding size. "
-                                + "Expected a result of type ["
-                                + TextEmbeddingFloatResults.NAME
-                                + "] got ["
-                                + r.getWriteableName()
-                                + "]",
-                            RestStatus.BAD_REQUEST
-                        )
-                    );
-                }
-            })
-        );
-    }
-
-    private static final String TEST_EMBEDDING_INPUT = "how big";
 
     public static SecureString apiKey(@Nullable ApiKeySecrets secrets) {
         // To avoid a possible null pointer throughout the code we'll create a noop api key of an empty array

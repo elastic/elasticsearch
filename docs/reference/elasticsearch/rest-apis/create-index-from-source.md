@@ -1,7 +1,9 @@
 ---
 navigation_title: "Create index from source"
 mapped_pages:
-  - https://www.elastic.co/guide/en/elasticsearch/reference/master/indices-create-index-from-source.html
+  - https://www.elastic.co/guide/en/elasticsearch/reference/current/indices-create-index-from-source.html
+  # That link will 404 until 8.18 is current
+  # (see https://www.elastic.co/guide/en/elasticsearch/reference/8.18/indices-create-index-from-source.html)
 applies_to:
   stack: all
 ---

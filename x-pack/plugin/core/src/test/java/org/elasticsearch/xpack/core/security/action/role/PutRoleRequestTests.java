@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.core.security.action.role;
 
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.WriteRequest;
-import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor.ApplicationResourcePrivileges;
 import org.elasticsearch.xpack.core.security.authz.permission.RemoteClusterPermissionGroup;
@@ -50,7 +49,6 @@ public class PutRoleRequestTests extends ESTestCase {
     }
 
     public void testValidationErrorWithFailureStorePrivilegeInRemoteIndices() {
-        assumeTrue("requires failure store feature", DataStream.isFailureStoreFeatureFlagEnabled());
         final PutRoleRequest request = new PutRoleRequest();
         request.name(randomAlphaOfLengthBetween(4, 9));
         request.addRemoteIndex(

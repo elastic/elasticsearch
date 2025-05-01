@@ -92,7 +92,7 @@ public class ExplainDataStreamLifecycleIT extends ESIntegTestCase {
 
     public void testExplainLifecycle() throws Exception {
         // empty lifecycle contains the default rollover
-        DataStreamLifecycle.Template lifecycle = DataStreamLifecycle.Template.DEFAULT;
+        DataStreamLifecycle.Template lifecycle = DataStreamLifecycle.Template.DATA_DEFAULT;
 
         putComposableIndexTemplate("id1", null, List.of("metrics-foo*"), null, null, lifecycle);
         String dataStreamName = "metrics-foo";
@@ -264,8 +264,8 @@ public class ExplainDataStreamLifecycleIT extends ESIntegTestCase {
             List.of("metrics-foo*"),
             null,
             null,
-            DataStreamLifecycle.Template.DEFAULT,
-            new DataStreamOptions.Template(new DataStreamFailureStore.Template(true))
+            null,
+            new DataStreamOptions.Template(DataStreamFailureStore.builder().enabled(true).buildTemplate())
         );
         String dataStreamName = "metrics-foo";
         CreateDataStreamAction.Request createDataStreamRequest = new CreateDataStreamAction.Request(
@@ -354,26 +354,30 @@ public class ExplainDataStreamLifecycleIT extends ESIntegTestCase {
             ).actionGet();
             assertThat(response.getIndices().size(), is(1));
             for (ExplainIndexDataStreamLifecycle explainIndex : response.getIndices()) {
-                assertThat(explainIndex.isManagedByLifecycle(), is(true));
-                assertThat(explainIndex.getIndexCreationDate(), notNullValue());
-                assertThat(explainIndex.getLifecycle(), notNullValue());
-                assertThat(explainIndex.getLifecycle().dataRetention(), nullValue());
-
-                if (internalCluster().numDataNodes() > 1) {
-                    // If the number of nodes is 1 then the cluster will be yellow so forcemerge will report an error if it has run
-                    assertThat(explainIndex.getError(), nullValue());
-                }
-
-                if (explainIndex.getIndex().equals(firstGenerationIndex)) {
-                    // first generation index was rolled over
-                    assertThat(explainIndex.getRolloverDate(), notNullValue());
-                    assertThat(explainIndex.getTimeSinceRollover(System::currentTimeMillis), notNullValue());
-                    assertThat(explainIndex.getGenerationTime(System::currentTimeMillis), notNullValue());
+                if (explainIndex.getIndex().startsWith(DataStream.BACKING_INDEX_PREFIX)) {
+                    assertThat(explainIndex.isManagedByLifecycle(), is(false));
                 } else {
-                    // the write index has not been rolled over yet
-                    assertThat(explainIndex.getRolloverDate(), nullValue());
-                    assertThat(explainIndex.getTimeSinceRollover(System::currentTimeMillis), nullValue());
-                    assertThat(explainIndex.getGenerationTime(System::currentTimeMillis), nullValue());
+                    assertThat(explainIndex.isManagedByLifecycle(), is(true));
+                    assertThat(explainIndex.getIndexCreationDate(), notNullValue());
+                    assertThat(explainIndex.getLifecycle(), notNullValue());
+                    assertThat(explainIndex.getLifecycle().dataRetention(), nullValue());
+
+                    if (internalCluster().numDataNodes() > 1) {
+                        // If the number of nodes is 1 then the cluster will be yellow so forcemerge will report an error if it has run
+                        assertThat(explainIndex.getError(), nullValue());
+                    }
+
+                    if (explainIndex.getIndex().equals(firstGenerationIndex)) {
+                        // first generation index was rolled over
+                        assertThat(explainIndex.getRolloverDate(), notNullValue());
+                        assertThat(explainIndex.getTimeSinceRollover(System::currentTimeMillis), notNullValue());
+                        assertThat(explainIndex.getGenerationTime(System::currentTimeMillis), notNullValue());
+                    } else {
+                        // the write index has not been rolled over yet
+                        assertThat(explainIndex.getRolloverDate(), nullValue());
+                        assertThat(explainIndex.getTimeSinceRollover(System::currentTimeMillis), nullValue());
+                        assertThat(explainIndex.getGenerationTime(System::currentTimeMillis), nullValue());
+                    }
                 }
             }
         }
@@ -381,7 +385,7 @@ public class ExplainDataStreamLifecycleIT extends ESIntegTestCase {
 
     public void testExplainLifecycleForIndicesWithErrors() throws Exception {
         // empty lifecycle contains the default rollover
-        DataStreamLifecycle.Template lifecycle = DataStreamLifecycle.Template.DEFAULT;
+        DataStreamLifecycle.Template lifecycle = DataStreamLifecycle.Template.DATA_DEFAULT;
 
         putComposableIndexTemplate(
             "id1",
@@ -400,7 +404,7 @@ public class ExplainDataStreamLifecycleIT extends ESIntegTestCase {
             null,
             null,
             lifecycle,
-            new DataStreamOptions.Template(new DataStreamFailureStore.Template(true))
+            new DataStreamOptions.Template(DataStreamFailureStore.builder().enabled(true).buildTemplate())
         );
         String dataStreamName = "metrics-foo";
         CreateDataStreamAction.Request createDataStreamRequest = new CreateDataStreamAction.Request(
@@ -501,7 +505,7 @@ public class ExplainDataStreamLifecycleIT extends ESIntegTestCase {
             List.of("metrics-foo*"),
             null,
             null,
-            DataStreamLifecycle.builder().enabled(false).buildTemplate()
+            DataStreamLifecycle.dataLifecycleBuilder().enabled(false).buildTemplate()
         );
         CreateDataStreamAction.Request createDataStreamRequest = new CreateDataStreamAction.Request(
             TEST_REQUEST_TIMEOUT,

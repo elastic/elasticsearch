@@ -47,9 +47,9 @@ import org.elasticsearch.indices.cluster.IndicesClusterStateService;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.AbstractTransportRequest;
 import org.elasticsearch.transport.TransportChannel;
 import org.elasticsearch.transport.TransportException;
-import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportRequestHandler;
 import org.elasticsearch.transport.TransportResponse;
 import org.elasticsearch.transport.TransportResponseHandler;
@@ -462,7 +462,7 @@ public final class IndicesStore implements ClusterStateListener, Closeable {
 
     }
 
-    private static class ShardActiveRequest extends TransportRequest {
+    private static class ShardActiveRequest extends AbstractTransportRequest {
         private final TimeValue timeout;
         private final ClusterName clusterName;
         private final String indexUUID;

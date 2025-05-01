@@ -203,8 +203,7 @@ public class TaskExecutionTimeTrackingEsThreadPoolExecutorTests extends ESTestCa
             List<Measurement> measurements = meterRegistry.getRecorder()
                 .getMeasurements(
                     InstrumentType.LONG_GAUGE,
-                    ThreadPool.THREAD_POOL_METRIC_PREFIX + threadPoolName
-                        + TaskExecutionTimeTrackingEsThreadPoolExecutor.THREAD_POOL_METRIC_NAME_QUEUE_TIME
+                    ThreadPool.THREAD_POOL_METRIC_PREFIX + threadPoolName + ThreadPool.THREAD_POOL_METRIC_NAME_QUEUE_TIME
                 );
             assertThat(measurements, hasSize(3));
             // we have to use greater than or equal to because the actual delay might be higher than what we imposed

@@ -31,9 +31,9 @@ import org.elasticsearch.xpack.inference.external.http.sender.EmbeddingsInput;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSender;
 import org.elasticsearch.xpack.inference.external.http.sender.Sender;
 import org.elasticsearch.xpack.inference.external.http.sender.TruncatingRequestManager;
-import org.elasticsearch.xpack.inference.external.request.openai.OpenAiEmbeddingsRequest;
 import org.elasticsearch.xpack.inference.logging.ThrottlerManager;
 import org.elasticsearch.xpack.inference.services.ServiceComponentsTests;
+import org.elasticsearch.xpack.inference.services.openai.request.OpenAiEmbeddingsRequest;
 import org.junit.After;
 import org.junit.Before;
 

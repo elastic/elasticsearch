@@ -8,9 +8,11 @@
 package org.elasticsearch.xpack.esql.planner;
 
 import org.elasticsearch.cluster.ClusterName;
+import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.compute.Describable;
 import org.elasticsearch.compute.aggregation.AggregatorMode;
 import org.elasticsearch.compute.data.Block;
@@ -30,13 +32,13 @@ import org.elasticsearch.compute.operator.FilterOperator.FilterOperatorFactory;
 import org.elasticsearch.compute.operator.LimitOperator;
 import org.elasticsearch.compute.operator.LocalSourceOperator;
 import org.elasticsearch.compute.operator.LocalSourceOperator.LocalSourceFactory;
-import org.elasticsearch.compute.operator.MergeOperator;
 import org.elasticsearch.compute.operator.MvExpandOperator;
 import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.compute.operator.Operator.OperatorFactory;
 import org.elasticsearch.compute.operator.OutputOperator.OutputOperatorFactory;
 import org.elasticsearch.compute.operator.RowInTableLookupOperator;
 import org.elasticsearch.compute.operator.RrfScoreEvalOperator;
+import org.elasticsearch.compute.operator.SampleOperator;
 import org.elasticsearch.compute.operator.ScoreOperator;
 import org.elasticsearch.compute.operator.ShowOperator;
 import org.elasticsearch.compute.operator.SinkOperator;
@@ -66,6 +68,7 @@ import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
+import org.elasticsearch.xpack.esql.core.expression.Foldables;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.expression.NameId;
@@ -102,13 +105,14 @@ import org.elasticsearch.xpack.esql.plan.physical.HashJoinExec;
 import org.elasticsearch.xpack.esql.plan.physical.LimitExec;
 import org.elasticsearch.xpack.esql.plan.physical.LocalSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.LookupJoinExec;
-import org.elasticsearch.xpack.esql.plan.physical.MergeExec;
 import org.elasticsearch.xpack.esql.plan.physical.MvExpandExec;
 import org.elasticsearch.xpack.esql.plan.physical.OutputExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.plan.physical.ProjectExec;
 import org.elasticsearch.xpack.esql.plan.physical.RrfScoreEvalExec;
+import org.elasticsearch.xpack.esql.plan.physical.SampleExec;
 import org.elasticsearch.xpack.esql.plan.physical.ShowExec;
+import org.elasticsearch.xpack.esql.plan.physical.TimeSeriesSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.TopNExec;
 import org.elasticsearch.xpack.esql.plan.physical.inference.RerankExec;
 import org.elasticsearch.xpack.esql.planner.EsPhysicalOperationProviders.ShardContext;
@@ -117,9 +121,6 @@ import org.elasticsearch.xpack.esql.score.ScoreMapper;
 import org.elasticsearch.xpack.esql.session.Configuration;
 
 import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -257,6 +258,8 @@ public class LocalExecutionPlanner {
             return planRerank(rerank, context);
         } else if (node instanceof ChangePointExec changePoint) {
             return planChangePoint(changePoint, context);
+        } else if (node instanceof SampleExec Sample) {
+            return planSample(Sample, context);
         }
         // source nodes
         else if (node instanceof EsQueryExec esQuery) {
@@ -269,6 +272,8 @@ public class LocalExecutionPlanner {
             return planShow(show);
         } else if (node instanceof ExchangeSourceExec exchangeSource) {
             return planExchangeSource(exchangeSource, context);
+        } else if (node instanceof TimeSeriesSourceExec ts) {
+            return planTimeSeriesNode(ts, context);
         }
         // lookups and joins
         else if (node instanceof EnrichExec enrich) {
@@ -283,8 +288,6 @@ public class LocalExecutionPlanner {
             return planOutput(outputExec, context);
         } else if (node instanceof ExchangeSinkExec exchangeSink) {
             return planExchangeSink(exchangeSink, context);
-        } else if (node instanceof MergeExec mergeExec) {
-            return planMerge(mergeExec, context);
         } else if (node instanceof RrfScoreEvalExec rrf) {
             return planRrfScoreEvalExec(rrf, context);
         }
@@ -326,6 +329,10 @@ public class LocalExecutionPlanner {
 
     private PhysicalOperation planEsQueryNode(EsQueryExec esQueryExec, LocalExecutionPlannerContext context) {
         return physicalOperationProviders.sourcePhysicalOperation(esQueryExec, context);
+    }
+
+    private PhysicalOperation planTimeSeriesNode(TimeSeriesSourceExec esQueryExec, LocalExecutionPlannerContext context) {
+        return physicalOperationProviders.timeSeriesSourceOperation(esQueryExec, context);
     }
 
     private PhysicalOperation planEsStats(EsStatsQueryExec statsQuery, LocalExecutionPlannerContext context) {
@@ -501,8 +508,8 @@ public class LocalExecutionPlanner {
         Layout.Builder layoutBuilder = source.layout.builder();
         List<Attribute> extractedFields = grok.extractedFields();
         layoutBuilder.append(extractedFields);
-        Map<String, Integer> fieldToPos = new HashMap<>(extractedFields.size());
-        Map<String, ElementType> fieldToType = new HashMap<>(extractedFields.size());
+        Map<String, Integer> fieldToPos = Maps.newHashMapWithExpectedSize(extractedFields.size());
+        Map<String, ElementType> fieldToType = Maps.newHashMapWithExpectedSize(extractedFields.size());
         ElementType[] types = new ElementType[extractedFields.size()];
         List<Attribute> extractedFieldsFromPattern = grok.pattern().extractedFields();
         for (int i = 0; i < extractedFields.size(); i++) {
@@ -559,7 +566,8 @@ public class LocalExecutionPlanner {
     private PhysicalOperation planRerank(RerankExec rerank, LocalExecutionPlannerContext context) {
         PhysicalOperation source = plan(rerank.child(), context);
 
-        Map<ColumnInfoImpl, EvalOperator.ExpressionEvaluator.Factory> rerankFieldsEvaluatorSuppliers = new LinkedHashMap<>();
+        Map<ColumnInfoImpl, EvalOperator.ExpressionEvaluator.Factory> rerankFieldsEvaluatorSuppliers = Maps
+            .newLinkedHashMapWithExpectedSize(rerank.rerankFields().size());
 
         for (var rerankField : rerank.rerankFields()) {
             rerankFieldsEvaluatorSuppliers.put(
@@ -734,31 +742,13 @@ public class LocalExecutionPlanner {
         List<Integer> projectionList = new ArrayList<>(projections.size());
 
         Layout.Builder layout = new Layout.Builder();
-        Map<Integer, Layout.ChannelSet> inputChannelToOutputIds = new HashMap<>();
-        for (int index = 0, size = projections.size(); index < size; index++) {
-            NamedExpression ne = projections.get(index);
-
-            NameId inputId = null;
-            if (ne instanceof Alias a) {
-                inputId = ((NamedExpression) a.child()).id();
-            } else {
-                inputId = ne.id();
-            }
+        for (NamedExpression ne : projections) {
+            NameId inputId = ne instanceof Alias a ? ((NamedExpression) a.child()).id() : ne.id();
             Layout.ChannelAndType input = source.layout.get(inputId);
             if (input == null) {
                 throw new IllegalStateException("can't find input for [" + ne + "]");
             }
-            Layout.ChannelSet channelSet = inputChannelToOutputIds.get(input.channel());
-            if (channelSet == null) {
-                channelSet = new Layout.ChannelSet(new HashSet<>(), input.type());
-                channelSet.nameIds().add(ne.id());
-                layout.append(channelSet);
-            } else {
-                channelSet.nameIds().add(ne.id());
-            }
-            if (channelSet.type() != input.type()) {
-                throw new IllegalArgumentException("type mismatch for aliases");
-            }
+            layout.append(ne);
             projectionList.add(input.channel());
         }
 
@@ -823,11 +813,11 @@ public class LocalExecutionPlanner {
         );
     }
 
-    private PhysicalOperation planMerge(MergeExec mergeExec, LocalExecutionPlannerContext context) {
-        Layout.Builder layout = new Layout.Builder();
-        layout.append(mergeExec.output());
-        MergeOperator.BlockSuppliers suppliers = () -> mergeExec.suppliers().stream().map(s -> s.get()).toList();
-        return PhysicalOperation.fromSource(new MergeOperator.MergeOperatorFactory(suppliers), layout.build());
+    private PhysicalOperation planSample(SampleExec rsx, LocalExecutionPlannerContext context) {
+        PhysicalOperation source = plan(rsx.child(), context);
+        var probability = (double) Foldables.valueOf(context.foldCtx(), rsx.probability());
+        var seed = rsx.seed() != null ? (int) Foldables.valueOf(context.foldCtx(), rsx.seed()) : Randomness.get().nextInt();
+        return source.with(new SampleOperator.Factory(probability, seed), source.layout);
     }
 
     /**

@@ -25,6 +25,7 @@ dependencies {
 
   internalClusterTestImplementation project(path: ':modules:lang-painless')
   internalClusterTestImplementation project(path: ':modules:lang-painless:spi')
+  internalClusterTestImplementation project(path: ':modules:mapper-extras')
 }
 
 addQaCheckDependencies(project)

@@ -47,6 +47,8 @@ import java.util.TreeMap;
 import java.util.function.IntFunction;
 import java.util.function.Supplier;
 
+import static org.elasticsearch.TransportVersions.ESQL_DOCUMENTS_FOUND_AND_VALUES_LOADED;
+
 /**
  * Operator that extracts doc_values from a Lucene index out of pages that have been produced by {@link LuceneSourceOperator}
  * and outputs them to a new column.
@@ -105,7 +107,7 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingOperator {
      */
     public record FieldInfo(String name, ElementType type, IntFunction<BlockLoader> blockLoader) {}
 
-    public record ShardContext(IndexReader reader, Supplier<SourceLoader> newSourceLoader) {}
+    public record ShardContext(IndexReader reader, Supplier<SourceLoader> newSourceLoader, double storedFieldsSequentialProportion) {}
 
     private final FieldWork[] fields;
     private final List<ShardContext> shardContexts;
@@ -113,6 +115,7 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingOperator {
     private final BlockFactory blockFactory;
 
     private final Map<String, Integer> readersBuilt = new TreeMap<>();
+    private long valuesLoaded;
 
     int lastShard = -1;
     int lastSegment = -1;
@@ -165,6 +168,9 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingOperator {
                 }
             }
             success = true;
+            for (Block b : blocks) {
+                valuesLoaded += b.getTotalValueCount();
+            }
             return page.appendBlocks(blocks);
         } catch (IOException e) {
             throw new UncheckedIOException(e);
@@ -220,9 +226,8 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingOperator {
         positionFieldWork(shard, segment, firstDoc);
         StoredFieldsSpec storedFieldsSpec = StoredFieldsSpec.NO_REQUIREMENTS;
         List<RowStrideReaderWork> rowStrideReaders = new ArrayList<>(fields.length);
-        ComputeBlockLoaderFactory loaderBlockFactory = new ComputeBlockLoaderFactory(blockFactory, docs.count());
         LeafReaderContext ctx = ctx(shard, segment);
-        try {
+        try (ComputeBlockLoaderFactory loaderBlockFactory = new ComputeBlockLoaderFactory(blockFactory, docs.count())) {
             for (int f = 0; f < fields.length; f++) {
                 FieldWork field = fields[f];
                 BlockLoader.ColumnAtATimeReader columnAtATime = field.columnAtATime(ctx);
@@ -242,8 +247,9 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingOperator {
             }
 
             SourceLoader sourceLoader = null;
+            ShardContext shardContext = shardContexts.get(shard);
             if (storedFieldsSpec.requiresSource()) {
-                sourceLoader = shardContexts.get(shard).newSourceLoader.get();
+                sourceLoader = shardContext.newSourceLoader.get();
                 storedFieldsSpec = storedFieldsSpec.merge(new StoredFieldsSpec(true, false, sourceLoader.requiredStoredFields()));
             }
 
@@ -256,7 +262,7 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingOperator {
                 );
             }
             StoredFieldLoader storedFieldLoader;
-            if (useSequentialStoredFieldsReader(docs)) {
+            if (useSequentialStoredFieldsReader(docs, shardContext.storedFieldsSequentialProportion())) {
                 storedFieldLoader = StoredFieldLoader.fromSpecSequential(storedFieldsSpec);
                 trackStoredFields(storedFieldsSpec, true);
             } else {
@@ -345,27 +351,28 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingOperator {
                 builders[f] = new Block.Builder[shardContexts.size()];
                 converters[f] = new BlockLoader[shardContexts.size()];
             }
-            ComputeBlockLoaderFactory loaderBlockFactory = new ComputeBlockLoaderFactory(blockFactory, docs.getPositionCount());
-            int p = forwards[0];
-            int shard = shards.getInt(p);
-            int segment = segments.getInt(p);
-            int firstDoc = docs.getInt(p);
-            positionFieldWork(shard, segment, firstDoc);
-            LeafReaderContext ctx = ctx(shard, segment);
-            fieldsMoved(ctx, shard);
-            verifyBuilders(loaderBlockFactory, shard);
-            read(firstDoc, shard);
-            for (int i = 1; i < forwards.length; i++) {
-                p = forwards[i];
-                shard = shards.getInt(p);
-                segment = segments.getInt(p);
-                boolean changedSegment = positionFieldWorkDocGuarteedAscending(shard, segment);
-                if (changedSegment) {
-                    ctx = ctx(shard, segment);
-                    fieldsMoved(ctx, shard);
-                }
+            try (ComputeBlockLoaderFactory loaderBlockFactory = new ComputeBlockLoaderFactory(blockFactory, docs.getPositionCount())) {
+                int p = forwards[0];
+                int shard = shards.getInt(p);
+                int segment = segments.getInt(p);
+                int firstDoc = docs.getInt(p);
+                positionFieldWork(shard, segment, firstDoc);
+                LeafReaderContext ctx = ctx(shard, segment);
+                fieldsMoved(ctx, shard);
                 verifyBuilders(loaderBlockFactory, shard);
-                read(docs.getInt(p), shard);
+                read(firstDoc, shard);
+                for (int i = 1; i < forwards.length; i++) {
+                    p = forwards[i];
+                    shard = shards.getInt(p);
+                    segment = segments.getInt(p);
+                    boolean changedSegment = positionFieldWorkDocGuarteedAscending(shard, segment);
+                    if (changedSegment) {
+                        ctx = ctx(shard, segment);
+                        fieldsMoved(ctx, shard);
+                    }
+                    verifyBuilders(loaderBlockFactory, shard);
+                    read(docs.getInt(p), shard);
+                }
             }
             for (int f = 0; f < target.length; f++) {
                 for (int s = 0; s < shardContexts.size(); s++) {
@@ -432,9 +439,13 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingOperator {
      * Is it more efficient to use a sequential stored field reader
      * when reading stored fields for the documents contained in {@code docIds}?
      */
-    private boolean useSequentialStoredFieldsReader(BlockLoader.Docs docs) {
+    private boolean useSequentialStoredFieldsReader(BlockLoader.Docs docs, double storedFieldsSequentialProportion) {
         int count = docs.count();
-        return count >= SEQUENTIAL_BOUNDARY && docs.get(count - 1) - docs.get(0) == count - 1;
+        if (count < SEQUENTIAL_BOUNDARY) {
+            return false;
+        }
+        int range = docs.get(count - 1) - docs.get(0);
+        return range * storedFieldsSequentialProportion <= count;
     }
 
     private void trackStoredFields(StoredFieldsSpec spec, boolean sequential) {
@@ -547,7 +558,7 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingOperator {
 
     @Override
     protected Status status(long processNanos, int pagesProcessed, long rowsReceived, long rowsEmitted) {
-        return new Status(new TreeMap<>(readersBuilt), processNanos, pagesProcessed, rowsReceived, rowsEmitted);
+        return new Status(new TreeMap<>(readersBuilt), processNanos, pagesProcessed, rowsReceived, rowsEmitted, valuesLoaded);
     }
 
     public static class Status extends AbstractPageMappingOperator.Status {
@@ -558,21 +569,34 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingOperator {
         );
 
         private final Map<String, Integer> readersBuilt;
+        private final long valuesLoaded;
 
-        Status(Map<String, Integer> readersBuilt, long processNanos, int pagesProcessed, long rowsReceived, long rowsEmitted) {
+        Status(
+            Map<String, Integer> readersBuilt,
+            long processNanos,
+            int pagesProcessed,
+            long rowsReceived,
+            long rowsEmitted,
+            long valuesLoaded
+        ) {
             super(processNanos, pagesProcessed, rowsReceived, rowsEmitted);
             this.readersBuilt = readersBuilt;
+            this.valuesLoaded = valuesLoaded;
         }
 
         Status(StreamInput in) throws IOException {
             super(in);
             readersBuilt = in.readOrderedMap(StreamInput::readString, StreamInput::readVInt);
+            valuesLoaded = in.getTransportVersion().onOrAfter(ESQL_DOCUMENTS_FOUND_AND_VALUES_LOADED) ? in.readVLong() : 0;
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
             out.writeMap(readersBuilt, StreamOutput::writeVInt);
+            if (out.getTransportVersion().onOrAfter(ESQL_DOCUMENTS_FOUND_AND_VALUES_LOADED)) {
+                out.writeVLong(valuesLoaded);
+            }
         }
 
         @Override
@@ -585,6 +609,11 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingOperator {
         }
 
         @Override
+        public long valuesLoaded() {
+            return valuesLoaded;
+        }
+
+        @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
             builder.startObject("readers_built");
@@ -592,6 +621,7 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingOperator {
                 builder.field(e.getKey(), e.getValue());
             }
             builder.endObject();
+            builder.field("values_loaded", valuesLoaded);
             innerToXContent(builder);
             return builder.endObject();
         }
@@ -600,12 +630,12 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingOperator {
         public boolean equals(Object o) {
             if (super.equals(o) == false) return false;
             Status status = (Status) o;
-            return readersBuilt.equals(status.readersBuilt);
+            return readersBuilt.equals(status.readersBuilt) && valuesLoaded == status.valuesLoaded;
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(super.hashCode(), readersBuilt);
+            return Objects.hash(super.hashCode(), readersBuilt, valuesLoaded);
         }
 
         @Override
@@ -614,14 +644,42 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingOperator {
         }
     }
 
-    private static class ComputeBlockLoaderFactory implements BlockLoader.BlockFactory {
-        private final BlockFactory factory;
+    private static class ComputeBlockLoaderFactory extends DelegatingBlockLoaderFactory implements Releasable {
         private final int pageSize;
         private Block nullBlock;
 
         private ComputeBlockLoaderFactory(BlockFactory factory, int pageSize) {
-            this.factory = factory;
+            super(factory);
             this.pageSize = pageSize;
+        }
+
+        @Override
+        public Block constantNulls() {
+            if (nullBlock == null) {
+                nullBlock = factory.newConstantNullBlock(pageSize);
+            }
+            nullBlock.incRef();
+            return nullBlock;
+        }
+
+        @Override
+        public void close() {
+            if (nullBlock != null) {
+                nullBlock.close();
+            }
+        }
+
+        @Override
+        public BytesRefBlock constantBytes(BytesRef value) {
+            return factory.newConstantBytesRefBlockWith(value, pageSize);
+        }
+    }
+
+    public abstract static class DelegatingBlockLoaderFactory implements BlockLoader.BlockFactory {
+        protected final BlockFactory factory;
+
+        protected DelegatingBlockLoaderFactory(BlockFactory factory) {
+            this.factory = factory;
         }
 
         @Override
@@ -680,21 +738,6 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingOperator {
         }
 
         @Override
-        public Block constantNulls() {
-            if (nullBlock == null) {
-                nullBlock = factory.newConstantNullBlock(pageSize);
-            } else {
-                nullBlock.incRef();
-            }
-            return nullBlock;
-        }
-
-        @Override
-        public BytesRefBlock constantBytes(BytesRef value) {
-            return factory.newConstantBytesRefBlockWith(value, pageSize);
-        }
-
-        @Override
         public BlockLoader.SingletonOrdinalsBuilder singletonOrdinalsBuilder(SortedDocValues ordinals, int count) {
             return new SingletonOrdinalsBuilder(factory, ordinals, count);
         }
@@ -704,6 +747,4 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingOperator {
             return factory.newAggregateMetricDoubleBlockBuilder(count);
         }
     }
-
-    // TODO tests that mix source loaded fields and doc values in the same block
 }

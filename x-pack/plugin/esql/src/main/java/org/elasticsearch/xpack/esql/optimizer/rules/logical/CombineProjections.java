@@ -15,7 +15,8 @@ import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
-import org.elasticsearch.xpack.esql.expression.function.grouping.Categorize;
+import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
+import org.elasticsearch.xpack.esql.expression.function.grouping.GroupingFunction;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
@@ -67,11 +68,11 @@ public final class CombineProjections extends OptimizerRules.OptimizerRule<Unary
                 for (Expression grouping : groupings) {
                     if (grouping instanceof Attribute attribute) {
                         groupingAttrs.add(attribute);
-                    } else if (grouping instanceof Alias as && as.child() instanceof Categorize) {
+                    } else if (grouping instanceof Alias as && as.child() instanceof GroupingFunction.NonEvaluatableGroupingFunction) {
                         groupingAttrs.add(as);
                     } else {
                         // After applying ReplaceAggregateNestedExpressionWithEval,
-                        // groupings (except Categorize) can only contain attributes.
+                        // evaluatable groupings can only contain attributes.
                         throw new EsqlIllegalArgumentException("Expected an Attribute, got {}", grouping);
                     }
                 }
@@ -117,7 +118,7 @@ public final class CombineProjections extends OptimizerRules.OptimizerRule<Unary
         // collect named expressions declaration in the lower list
         AttributeMap.Builder<NamedExpression> namedExpressionsBuilder = AttributeMap.builder();
         // while also collecting the alias map for resolving the source (f1 = 1, f2 = f1, etc..)
-        AttributeMap.Builder<Expression> aliasesBuilder = AttributeMap.builder();
+        AttributeMap.Builder<Expression> aliasesBuilder = AttributeMap.builder(lower.size());
         for (NamedExpression ne : lower) {
             // record the alias
             aliasesBuilder.put(ne.toAttribute(), Alias.unwrap(ne));
@@ -126,9 +127,11 @@ public final class CombineProjections extends OptimizerRules.OptimizerRule<Unary
             if (ne instanceof Alias as) {
                 Expression child = as.child();
                 namedExpressionsBuilder.put(ne.toAttribute(), as.replaceChild(aliasesBuilder.build().resolve(child, child)));
+            } else if (ne instanceof ReferenceAttribute ra) {
+                namedExpressionsBuilder.put(ra, ra);
             }
         }
-        List<NamedExpression> replaced = new ArrayList<>();
+        List<NamedExpression> replaced = new ArrayList<>(upper.size());
         var namedExpressions = namedExpressionsBuilder.build();
 
         // replace any matching attribute with a lower alias (if there's a match)
@@ -145,7 +148,8 @@ public final class CombineProjections extends OptimizerRules.OptimizerRule<Unary
         List<? extends NamedExpression> lowerProjections
     ) {
         assert upperGroupings.size() <= 1
-            || upperGroupings.stream().anyMatch(group -> group.anyMatch(expr -> expr instanceof Categorize)) == false
+            || upperGroupings.stream()
+                .anyMatch(group -> group.anyMatch(expr -> expr instanceof GroupingFunction.NonEvaluatableGroupingFunction)) == false
             : "CombineProjections only tested with a single CATEGORIZE with no additional groups";
         // Collect the alias map for resolving the source (f1 = 1, f2 = f1, etc..)
         AttributeMap.Builder<Attribute> aliasesBuilder = AttributeMap.builder();
@@ -159,10 +163,10 @@ public final class CombineProjections extends OptimizerRules.OptimizerRule<Unary
         // Propagate any renames from the lower projection into the upper groupings.
         // This can lead to duplicates: e.g.
         // | EVAL x = y | STATS ... BY x, y
-        // All substitutions happen before; groupings must be attributes at this point except for CATEGORIZE which will be an alias like
-        // `c = CATEGORIZE(attribute)`.
+        // All substitutions happen before; groupings must be attributes at this point except for non-evaluatable groupings which will be
+        // an alias like `c = CATEGORIZE(attribute)`.
         // Therefore, it is correct to deduplicate based on simple equality (based on names) instead of name ids (Set vs. AttributeSet).
-        // TODO: The deduplication based on simple equality will be insufficient in case of multiple CATEGORIZEs, e.g. for
+        // TODO: The deduplication based on simple equality will be insufficient in case of multiple non-evaluatable groupings, e.g. for
         // `| EVAL x = y | STATS ... BY CATEGORIZE(x), CATEGORIZE(y)`. That will require semantic equality instead.
         LinkedHashSet<NamedExpression> resolvedGroupings = new LinkedHashSet<>();
         for (NamedExpression ne : upperGroupings) {

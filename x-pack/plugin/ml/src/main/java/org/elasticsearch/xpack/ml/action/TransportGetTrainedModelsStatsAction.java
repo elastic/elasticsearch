@@ -419,7 +419,6 @@ public class TransportGetTrainedModelsStatsAction extends TransportAction<
         NodesStatsRequest nodesStatsRequest = new NodesStatsRequest(ingestNodes).clear()
             .addMetric(NodesStatsRequestParameters.Metric.INGEST);
         nodesStatsRequest.setIncludeShardsStats(false);
-        nodesStatsRequest.setIncludeProjectIdsIfMultiProject(true); // okay 'cos we filter below
         nodesStatsRequest.setParentTask(parentTaskId);
         return nodesStatsRequest;
     }

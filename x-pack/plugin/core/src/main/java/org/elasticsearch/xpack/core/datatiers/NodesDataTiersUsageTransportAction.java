@@ -103,7 +103,7 @@ public class NodesDataTiersUsageTransportAction extends TransportNodesAction<
         assert task instanceof CancellableTask;
 
         DiscoveryNode localNode = clusterService.localNode();
-        NodeIndicesStats nodeIndicesStats = indicesService.stats(STATS_FLAGS, true, true);
+        NodeIndicesStats nodeIndicesStats = indicesService.stats(STATS_FLAGS, true);
         ClusterState state = clusterService.state();
         RoutingNode routingNode = state.getRoutingNodes().node(localNode.getId());
         Map<String, NodeDataTiersUsage.UsageStats> usageStatsByTier = aggregateStats(routingNode, state.metadata(), nodeIndicesStats);

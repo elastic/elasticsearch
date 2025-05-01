@@ -244,7 +244,6 @@ public class TransportClusterStatsAction extends TransportNodesAction<
             true,
             true,
             true,
-            true,
             false,
             true,
             false,

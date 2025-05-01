@@ -468,7 +468,7 @@ public class IndicesService extends AbstractLifecycleComponent
         return closeLatch.await(timeout, timeUnit);
     }
 
-    public NodeIndicesStats stats(CommonStatsFlags flags, boolean includeShardsStats, boolean includeProjectIdsIfMultiProject) {
+    public NodeIndicesStats stats(CommonStatsFlags flags, boolean includeShardsStats) {
         CommonStats commonStats = new CommonStats(flags);
         // the cumulative statistics also account for shards that are no longer on this node, which is tracked by oldShardsStats
         for (Flag flag : flags.getFlags()) {
@@ -488,7 +488,7 @@ public class IndicesService extends AbstractLifecycleComponent
             commonStats,
             statsByIndex(this, flags),
             statsByShard(this, flags),
-            (includeProjectIdsIfMultiProject && projectResolver.supportsMultipleProjects()) ? projectsByIndex() : null,
+            projectsByIndex(),
             includeShardsStats
         );
     }

@@ -92,10 +92,9 @@ public class NodeIndicesStats implements Writeable, ChunkedToXContent {
         }
 
         if (in.getTransportVersion().onOrAfter(TransportVersions.NODES_STATS_SUPPORTS_MULTI_PROJECT)) {
-            boolean hasProjectsByIndex = in.readBoolean();
-            projectsByIndex = hasProjectsByIndex ? in.readMap(Index::new, ProjectId::readFrom) : null;
+            projectsByIndex = in.readMap(Index::new, ProjectId::readFrom);
         } else {
-            projectsByIndex = null;
+            projectsByIndex = Map.of();
         }
     }
 
@@ -107,7 +106,7 @@ public class NodeIndicesStats implements Writeable, ChunkedToXContent {
         CommonStats oldStats,
         Map<Index, CommonStats> statsByIndex,
         Map<Index, List<IndexShardStats>> statsByShard,
-        @Nullable Map<Index, ProjectId> projectsByIndex,
+        Map<Index, ProjectId> projectsByIndex,
         boolean includeShardsStats
     ) {
         if (includeShardsStats) {
@@ -245,10 +244,7 @@ public class NodeIndicesStats implements Writeable, ChunkedToXContent {
             out.writeMap(statsByIndex);
         }
         if (out.getTransportVersion().onOrAfter(TransportVersions.NODES_STATS_SUPPORTS_MULTI_PROJECT)) {
-            out.writeBoolean(projectsByIndex != null);
-            if (projectsByIndex != null) {
-                out.writeMap(projectsByIndex);
-            }
+            out.writeMap(projectsByIndex);
         }
     }
 
@@ -260,7 +256,7 @@ public class NodeIndicesStats implements Writeable, ChunkedToXContent {
         return stats.equals(that.stats)
             && statsByShard.equals(that.statsByShard)
             && statsByIndex.equals(that.statsByIndex)
-            && Objects.equals(projectsByIndex, that.projectsByIndex);
+            && projectsByIndex.equals(that.projectsByIndex);
     }
 
     @Override
@@ -317,7 +313,7 @@ public class NodeIndicesStats implements Writeable, ChunkedToXContent {
     }
 
     private String xContentKey(Index index) {
-        if (projectsByIndex == null) {
+        if (projectsByIndex.isEmpty()) { // mapping is not available if this instance came from an older node
             return index.getName();
         }
         ProjectId projectId = projectsByIndex.get(index);

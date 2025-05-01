@@ -83,9 +83,6 @@ public class RestNodesStatsAction extends BaseRestHandler {
         // level parameter validation
         nodesStatsRequest.setIncludeShardsStats(NodeStatsLevel.of(request, NodeStatsLevel.NODE) != NodeStatsLevel.NODE);
 
-        // In multi-project systems, this API should include the project IDs in the response where relevant:
-        nodesStatsRequest.setIncludeProjectIdsIfMultiProject(true);
-
         if (metricNames.size() == 1 && metricNames.contains("_all")) {
             if (request.hasParam("index_metric")) {
                 throw new IllegalArgumentException(

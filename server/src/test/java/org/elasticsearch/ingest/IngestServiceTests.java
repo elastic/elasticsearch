@@ -2122,7 +2122,7 @@ public class IngestServiceTests extends ESTestCase {
 
         {
             // all zeroes since nothing has executed
-            final IngestStats ingestStats = ingestService.stats(false);
+            final IngestStats ingestStats = ingestService.stats();
             assertThat(ingestStats.pipelineStats().size(), equalTo(0));
             assertStats(ingestStats.totalStats(), 0, 0, 0);
         }
@@ -2147,7 +2147,7 @@ public class IngestServiceTests extends ESTestCase {
         pipelineToReturn[0] = ingestService.getPipeline(projectId, "_id3");
 
         {
-            final IngestStats ingestStats = ingestService.stats(false);
+            final IngestStats ingestStats = ingestService.stats();
             assertThat(ingestStats.pipelineStats().size(), equalTo(3));
 
             // total
@@ -2180,7 +2180,7 @@ public class IngestServiceTests extends ESTestCase {
         );
 
         {
-            final IngestStats ingestStats = ingestService.stats(false);
+            final IngestStats ingestStats = ingestService.stats();
             assertThat(ingestStats.pipelineStats().size(), equalTo(3));
 
             // total
@@ -2223,7 +2223,7 @@ public class IngestServiceTests extends ESTestCase {
         map.put("drop", new DropProcessor.Factory());
         IngestService ingestService = createWithProcessors(map);
 
-        final IngestStats initialStats = ingestService.stats(false);
+        final IngestStats initialStats = ingestService.stats();
         assertThat(initialStats.pipelineStats().size(), equalTo(0));
         assertStats(initialStats.totalStats(), 0, 0, 0);
 
@@ -2262,7 +2262,7 @@ public class IngestServiceTests extends ESTestCase {
             completionHandler,
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
-        final IngestStats afterFirstRequestStats = ingestService.stats(false);
+        final IngestStats afterFirstRequestStats = ingestService.stats();
         var endSize1 = indexRequest.ramBytesUsed();
         assertThat(afterFirstRequestStats.pipelineStats().size(), equalTo(2));
 
@@ -2291,7 +2291,7 @@ public class IngestServiceTests extends ESTestCase {
             completionHandler,
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
-        final IngestStats afterSecondRequestStats = ingestService.stats(false);
+        final IngestStats afterSecondRequestStats = ingestService.stats();
         var endSize2 = indexRequest.ramBytesUsed();
         assertThat(afterSecondRequestStats.pipelineStats().size(), equalTo(2));
         // total
@@ -2321,7 +2321,7 @@ public class IngestServiceTests extends ESTestCase {
             completionHandler,
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
-        final IngestStats afterThirdRequestStats = ingestService.stats(false);
+        final IngestStats afterThirdRequestStats = ingestService.stats();
         endSize1 += indexRequest.ramBytesUsed();
         assertThat(afterThirdRequestStats.pipelineStats().size(), equalTo(2));
         // total
@@ -2356,7 +2356,7 @@ public class IngestServiceTests extends ESTestCase {
             completionHandler,
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
-        final IngestStats afterForthRequestStats = ingestService.stats(false);
+        final IngestStats afterForthRequestStats = ingestService.stats();
         endSize1 += indexRequest.ramBytesUsed();
         assertThat(afterForthRequestStats.pipelineStats().size(), equalTo(2));
         // total
@@ -2387,7 +2387,7 @@ public class IngestServiceTests extends ESTestCase {
             completionHandler,
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
-        final IngestStats afterFifthRequestStats = ingestService.stats(false);
+        final IngestStats afterFifthRequestStats = ingestService.stats();
         assertThat(afterFifthRequestStats.pipelineStats().size(), equalTo(3));
         // total
         assertStats(afterFifthRequestStats.totalStats(), 5, 0, 0);

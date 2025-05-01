@@ -39,7 +39,6 @@ import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
-import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.MetadataCreateIndexService;
 import org.elasticsearch.cluster.metadata.MetadataIndexTemplateService;
 import org.elasticsearch.cluster.metadata.ProjectId;
@@ -1244,13 +1243,10 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
         });
     }
 
-    // Don't use default project id
-    @FixForMultiProject
-    public IngestStats stats(boolean multiProject) {
+    public IngestStats stats() {
         IngestStats.Builder statsBuilder = new IngestStats.Builder();
         statsBuilder.addTotalMetrics(totalMetrics);
-        Set<ProjectId> projectIds = multiProject ? pipelines.keySet() : Set.of(Metadata.DEFAULT_PROJECT_ID);
-        for (ProjectId projectId : projectIds) {
+        for (ProjectId projectId : pipelines.keySet()) {
             pipelines.getOrDefault(projectId, ImmutableOpenMap.of()).forEach((id, holder) -> {
                 Pipeline pipeline = holder.pipeline;
                 CompoundProcessor rootProcessor = pipeline.getCompoundProcessor();

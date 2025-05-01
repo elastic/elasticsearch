@@ -160,13 +160,6 @@ public class NodesStatsRequest extends BaseNodesRequest {
         nodesStatsRequestParameters.setIncludeShardsStats(includeShardsStats);
     }
 
-    /**
-     * Sets whether to include the project IDs in the {@link NodeStats} if this ES instance is multi-project.
-     */
-    public void setIncludeProjectIdsIfMultiProject(boolean includeProjectIdsIfMultiProject) {
-        nodesStatsRequestParameters.setIncludeProjectIdsIfMultiProject(includeProjectIdsIfMultiProject);
-    }
-
     public NodesStatsRequestParameters getNodesStatsRequestParameters() {
         return nodesStatsRequestParameters;
     }

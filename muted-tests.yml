@@ -417,9 +417,6 @@ tests:
 - class: org.elasticsearch.geometry.utils.SpatialEnvelopeVisitorTests
   method: testVisitGeoPointsWrapping
   issue: https://github.com/elastic/elasticsearch/issues/123425
-- class: org.elasticsearch.xpack.esql.action.CrossClusterQueryWithFiltersIT
-  method: testTimestampFilterFromQuery
-  issue: https://github.com/elastic/elasticsearch/issues/127332
 - class: org.elasticsearch.xpack.remotecluster.CrossClusterEsqlRCS2EnrichUnavailableRemotesIT
   method: testEsqlEnrichWithSkipUnavailable
   issue: https://github.com/elastic/elasticsearch/issues/127368

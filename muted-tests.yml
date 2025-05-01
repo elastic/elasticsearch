@@ -399,9 +399,6 @@ tests:
 - class: org.elasticsearch.packaging.test.DockerTests
   method: test024InstallPluginFromArchiveUsingConfigFile
   issue: https://github.com/elastic/elasticsearch/issues/126936
-- class: org.elasticsearch.search.aggregations.bucket.FiltersIT
-  method: testSimpleWithFilterQuery
-  issue: https://github.com/elastic/elasticsearch/issues/127099
 - class: org.elasticsearch.xpack.esql.qa.multi_node.EsqlSpecIT
   method: test {rerank.Reranker before a limit ASYNC}
   issue: https://github.com/elastic/elasticsearch/issues/127051
@@ -429,15 +426,27 @@ tests:
 - class: org.elasticsearch.xpack.esql.heap_attack.HeapAttackIT
   method: testLookupExplosionNoFetch
   issue: https://github.com/elastic/elasticsearch/issues/127365
-- class: org.elasticsearch.xpack.esql.qa.single_node.PushQueriesIT
-  method: testPushCaseInsensitiveEqualityOnDefaults
-  issue: https://github.com/elastic/elasticsearch/issues/127431
 - class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeIT
   method: test
   issue: https://github.com/elastic/elasticsearch/issues/127536
 - class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecIT
   method: test {union_types.MultiIndexSortIpStringEval ASYNC}
   issue: https://github.com/elastic/elasticsearch/issues/127537
+- class: org.elasticsearch.xpack.inference.action.filter.ShardBulkInferenceActionFilterIT
+  method: testRestart {p0=false p1=false}
+  issue: https://github.com/elastic/elasticsearch/issues/127592
+- class: org.elasticsearch.xpack.inference.action.filter.ShardBulkInferenceActionFilterIT
+  method: testRestart {p0=true p1=false}
+  issue: https://github.com/elastic/elasticsearch/issues/127593
+- class: org.elasticsearch.xpack.inference.action.filter.ShardBulkInferenceActionFilterIT
+  method: testRestart {p0=false p1=true}
+  issue: https://github.com/elastic/elasticsearch/issues/127594
+- class: org.elasticsearch.xpack.inference.action.filter.ShardBulkInferenceActionFilterIT
+  method: testRestart {p0=true p1=true}
+  issue: https://github.com/elastic/elasticsearch/issues/127595
+- class: org.elasticsearch.cluster.routing.allocation.decider.DiskThresholdDeciderIT
+  method: testRestoreSnapshotAllocationDoesNotExceedWatermarkWithMultipleRestores
+  issue: https://github.com/elastic/elasticsearch/issues/127286
 
 # Examples:
 #

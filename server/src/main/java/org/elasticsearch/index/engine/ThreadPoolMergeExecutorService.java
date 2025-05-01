@@ -480,10 +480,6 @@ public class ThreadPoolMergeExecutorService implements Closeable {
         diskSpaceMonitor.cancel();
     }
 
-    public boolean usingMaxTargetIORateBytesPerSec() {
-        return MAX_IO_RATE.getBytes() == targetIORateBytesPerSec.get();
-    }
-
     private static long newTargetIORateBytesPerSec(
         long currentTargetIORateBytesPerSec,
         int currentlySubmittedIOThrottledMergeTasks,

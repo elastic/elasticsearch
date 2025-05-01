@@ -19,6 +19,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.mapper.InferenceMetadataFieldsMapper;
 import org.elasticsearch.index.query.NestedQueryBuilder;
 import org.elasticsearch.inference.Model;
+import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.search.fetch.subphase.highlight.HighlightBuilder;
 import org.elasticsearch.test.rest.ObjectPath;
@@ -46,15 +47,19 @@ import static org.hamcrest.CoreMatchers.notNullValue;
 
 public class SemanticTextUpgradeIT extends AbstractUpgradeTestCase {
     private static final String INDEX_BASE_NAME = "semantic_text_test_index";
-    private static final String SEMANTIC_TEXT_FIELD = "semantic_field";
+    private static final String SPARSE_FIELD = "sparse_field";
+    private static final String DENSE_FIELD = "dense_field";
 
     private static Model SPARSE_MODEL;
+    private static Model DENSE_MODEL;
 
     private final boolean useLegacyFormat;
 
     @BeforeClass
     public static void beforeClass() {
         SPARSE_MODEL = TestModel.createRandomInstance(TaskType.SPARSE_EMBEDDING);
+        // Exclude dot product because we are not producing unit length vectors
+        DENSE_MODEL = TestModel.createRandomInstance(TaskType.TEXT_EMBEDDING, List.of(SimilarityMeasure.DOT_PRODUCT));
     }
 
     public SemanticTextUpgradeIT(boolean useLegacyFormat) {
@@ -82,10 +87,14 @@ public class SemanticTextUpgradeIT extends AbstractUpgradeTestCase {
                 "%s": {
                   "type": "semantic_text",
                   "inference_id": "%s"
+                },
+                "%s": {
+                  "type": "semantic_text",
+                  "inference_id": "%s"
                 }
               }
             }
-            """, SEMANTIC_TEXT_FIELD, SPARSE_MODEL.getInferenceEntityId());
+            """, SPARSE_FIELD, SPARSE_MODEL.getInferenceEntityId(), DENSE_FIELD, DENSE_MODEL.getInferenceEntityId());
 
         CreateIndexResponse response = createIndex(
             indexName,
@@ -99,8 +108,8 @@ public class SemanticTextUpgradeIT extends AbstractUpgradeTestCase {
 
     private void performIndexQueryHighlightOps() throws IOException {
         indexDoc("doc_2", List.of("another test value"));
-        ObjectPath queryObjectPath = semanticQuery("test value", 3);
-        assertQueryResponse(queryObjectPath);
+        ObjectPath queryObjectPath = semanticQuery(SPARSE_FIELD, "test value", 3);
+        assertQueryResponse(queryObjectPath, SPARSE_FIELD);
     }
 
     private String getIndexName() {
@@ -109,10 +118,18 @@ public class SemanticTextUpgradeIT extends AbstractUpgradeTestCase {
 
     private void indexDoc(String id, List<String> semanticTextFieldValue) throws IOException {
         final String indexName = getIndexName();
-        final SemanticTextField semanticTextField = randomSemanticText(
+        final SemanticTextField sparseFieldValue = randomSemanticText(
             useLegacyFormat,
-            SEMANTIC_TEXT_FIELD,
+            SPARSE_FIELD,
             SPARSE_MODEL,
+            null,
+            semanticTextFieldValue,
+            XContentType.JSON
+        );
+        final SemanticTextField denseFieldValue = randomSemanticText(
+            useLegacyFormat,
+            DENSE_FIELD,
+            DENSE_MODEL,
             null,
             semanticTextFieldValue,
             XContentType.JSON
@@ -121,9 +138,10 @@ public class SemanticTextUpgradeIT extends AbstractUpgradeTestCase {
         XContentBuilder builder = XContentFactory.jsonBuilder();
         builder.startObject();
         if (useLegacyFormat == false) {
-            builder.field(semanticTextField.fieldName(), semanticTextFieldValue);
+            builder.field(sparseFieldValue.fieldName(), semanticTextFieldValue);
+            builder.field(denseFieldValue.fieldName(), semanticTextFieldValue);
         }
-        addSemanticTextInferenceResults(useLegacyFormat, builder, List.of(semanticTextField));
+        addSemanticTextInferenceResults(useLegacyFormat, builder, List.of(sparseFieldValue, denseFieldValue));
         builder.endObject();
 
         RequestOptions requestOptions = RequestOptions.DEFAULT.toBuilder().addParameter("refresh", "true").build();
@@ -135,12 +153,12 @@ public class SemanticTextUpgradeIT extends AbstractUpgradeTestCase {
         assertOK(response);
     }
 
-    private ObjectPath semanticQuery(String query, Integer numOfHighlightFragments) throws IOException {
+    private ObjectPath semanticQuery(String field, String query, Integer numOfHighlightFragments) throws IOException {
         // We can't perform a real semantic query because that requires performing inference, so instead we perform an equivalent nested
         // query
         List<WeightedToken> weightedTokens = Arrays.stream(query.split("\\s")).map(t -> new WeightedToken(t, 1.0f)).toList();
         SparseVectorQueryBuilder sparseVectorQueryBuilder = new SparseVectorQueryBuilder(
-            SemanticTextField.getEmbeddingsFieldName(SEMANTIC_TEXT_FIELD),
+            SemanticTextField.getEmbeddingsFieldName(field),
             weightedTokens,
             null,
             null,
@@ -148,7 +166,7 @@ public class SemanticTextUpgradeIT extends AbstractUpgradeTestCase {
             null
         );
         NestedQueryBuilder nestedQueryBuilder = new NestedQueryBuilder(
-            SemanticTextField.getChunksFieldName(SEMANTIC_TEXT_FIELD),
+            SemanticTextField.getChunksFieldName(field),
             sparseVectorQueryBuilder,
             ScoreMode.Max
         );
@@ -157,7 +175,7 @@ public class SemanticTextUpgradeIT extends AbstractUpgradeTestCase {
         builder.startObject();
         builder.field("query", nestedQueryBuilder);
         if (numOfHighlightFragments != null) {
-            HighlightBuilder.Field highlightField = new HighlightBuilder.Field(SEMANTIC_TEXT_FIELD);
+            HighlightBuilder.Field highlightField = new HighlightBuilder.Field(field);
             highlightField.numOfFragments(numOfHighlightFragments);
 
             HighlightBuilder highlightBuilder = new HighlightBuilder();
@@ -175,7 +193,7 @@ public class SemanticTextUpgradeIT extends AbstractUpgradeTestCase {
     }
 
     @SuppressWarnings("unchecked")
-    private static void assertQueryResponse(ObjectPath queryObjectPath) throws IOException {
+    private static void assertQueryResponse(ObjectPath queryObjectPath, String field) throws IOException {
         final Map<String, List<String>> expectedHighlights = Map.of(
             "doc_1",
             List.of("a test value", "with multiple test values"),
@@ -198,7 +216,7 @@ public class SemanticTextUpgradeIT extends AbstractUpgradeTestCase {
 
             List<String> expectedHighlight = expectedHighlights.get(id);
             assertThat(expectedHighlight, notNullValue());
-            assertThat(((Map<String, Object>) hitMap.get("highlight")).get(SEMANTIC_TEXT_FIELD), equalTo(expectedHighlight));
+            assertThat(((Map<String, Object>) hitMap.get("highlight")).get(field), equalTo(expectedHighlight));
         }
 
         assertThat(docIds, equalTo(Set.of("doc_1", "doc_2")));

@@ -46,7 +46,6 @@ import java.util.Set;
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextFieldMapperTests.addSemanticTextInferenceResults;
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextFieldTests.randomSemanticText;
 import static org.hamcrest.CoreMatchers.equalTo;
-import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.hamcrest.CoreMatchers.notNullValue;
 
 public class SemanticTextUpgradeIT extends AbstractUpgradeTestCase {
@@ -123,10 +122,10 @@ public class SemanticTextUpgradeIT extends AbstractUpgradeTestCase {
         indexDoc(DOC_2_ID, DOC_VALUES.get(DOC_2_ID));
 
         ObjectPath sparseQueryObjectPath = semanticQuery(SPARSE_FIELD, SPARSE_MODEL, "test value", 3);
-        assertQueryResponse(sparseQueryObjectPath, SPARSE_FIELD);
+        assertQueryResponseWithHighlights(sparseQueryObjectPath, SPARSE_FIELD);
 
         ObjectPath denseQueryObjectPath = semanticQuery(DENSE_FIELD, DENSE_MODEL, "test value", 3);
-        assertQueryResponse(denseQueryObjectPath, DENSE_FIELD);
+        assertQueryResponseWithHighlights(denseQueryObjectPath, DENSE_FIELD);
     }
 
     private String getIndexName() {
@@ -227,24 +226,20 @@ public class SemanticTextUpgradeIT extends AbstractUpgradeTestCase {
         return assertOKAndCreateObjectPath(response);
     }
 
-    @SuppressWarnings("unchecked")
-    private static void assertQueryResponse(ObjectPath queryObjectPath, String field) throws IOException {
+    private static void assertQueryResponseWithHighlights(ObjectPath queryObjectPath, String field) throws IOException {
         assertThat(queryObjectPath.evaluate("hits.total.value"), equalTo(2));
         assertThat(queryObjectPath.evaluateArraySize("hits.hits"), equalTo(2));
 
         Set<String> docIds = new HashSet<>();
-        List<Object> hits = queryObjectPath.evaluate("hits.hits");
-        for (Object hit : hits) {
-            assertThat(hit, instanceOf(Map.class));
-            Map<String, Object> hitMap = (Map<String, Object>) hit;
-
-            String id = (String) hitMap.get("_id");
+        List<Map<String, Object>> hits = queryObjectPath.evaluate("hits.hits");
+        for (Map<String, Object> hit : hits) {
+            String id = ObjectPath.evaluate(hit, "_id");
             assertThat(id, notNullValue());
             docIds.add(id);
 
             List<String> expectedHighlight = DOC_VALUES.get(id);
             assertThat(expectedHighlight, notNullValue());
-            assertThat(((Map<String, Object>) hitMap.get("highlight")).get(field), equalTo(expectedHighlight));
+            assertThat(ObjectPath.evaluate(hit, "highlight." + field), equalTo(expectedHighlight));
         }
 
         assertThat(docIds, equalTo(Set.of(DOC_1_ID, DOC_2_ID)));

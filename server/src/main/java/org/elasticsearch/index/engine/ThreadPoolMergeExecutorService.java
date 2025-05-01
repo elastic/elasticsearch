@@ -9,6 +9,8 @@
 
 package org.elasticsearch.index.engine;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -138,6 +140,7 @@ public class ThreadPoolMergeExecutorService implements Closeable {
      * Initial value for IO write rate limit of individual merge tasks when doAutoIOThrottle is true
      */
     static final ByteSizeValue START_IO_RATE = ByteSizeValue.ofMb(20L);
+    private static final Logger LOGGER = LogManager.getLogger(ThreadPoolMergeExecutorService.class);
     /**
      * Total number of submitted merge tasks that support IO auto throttling and that have not yet been run (or aborted).
      * This includes merge tasks that are currently running and that are backlogged (by their respective merge schedulers).
@@ -195,7 +198,7 @@ public class ThreadPoolMergeExecutorService implements Closeable {
         this.dataPaths = nodeEnvironment.dataPaths();
         this.diskSpaceMonitor = threadPool.scheduleWithFixedDelay(
             new DiskSpaceMonitor(INDICES_MERGE_DISK_HIGH_WATERMARK_SETTING.get(settings),
-                    INDICES_MERGE_DISK_HIGH_MAX_HEADROOM_SETTING.get(settings)),
+                    INDICES_MERGE_DISK_HIGH_MAX_HEADROOM_SETTING.get(settings), nodeEnvironment.dataPaths()),
             INDICES_MERGE_DISK_CHECK_INTERVAL_SETTING.get(settings),
             threadPool.generic()
         );
@@ -324,46 +327,68 @@ public class ThreadPoolMergeExecutorService implements Closeable {
         }
     }
 
-    private class DiskSpaceMonitor implements Runnable {
+    class DiskSpaceMonitor implements Runnable {
 
         private final RelativeByteSizeValue highStageWatermark;
         private final ByteSizeValue highStageMaxHeadroom;
+        private final NodeEnvironment.DataPath[] dataPaths;
 
-        DiskSpaceMonitor(RelativeByteSizeValue highStageWatermark, ByteSizeValue highStageMaxHeadroom) {
+        DiskSpaceMonitor(
+            RelativeByteSizeValue highStageWatermark,
+            ByteSizeValue highStageMaxHeadroom,
+            NodeEnvironment.DataPath[] dataPaths
+        ) {
             this.highStageWatermark = highStageWatermark;
             this.highStageMaxHeadroom = highStageMaxHeadroom;
+            this.dataPaths = dataPaths;
         }
 
         @Override
         public void run() {
             FsInfo.Path leastAvailablePath = null;
-            for (int i = 0; i < ThreadPoolMergeExecutorService.this.dataPaths.length; i++) {
+            IOException fsInfoException = null;
+            for (NodeEnvironment.DataPath dataPath : dataPaths) {
                 try {
-                    FsInfo.Path fsInfo = getFSInfo(ThreadPoolMergeExecutorService.this.dataPaths[i]); // uncached
+                    FsInfo.Path fsInfo = getFSInfo(dataPath); // uncached
                     if (leastAvailablePath == null || leastAvailablePath.getAvailable().getBytes() > fsInfo.getAvailable().getBytes()) {
                         leastAvailablePath = fsInfo;
                     }
                 } catch (IOException e) {
-                    // TODO log
-                    throw new RuntimeException(e);
+                    if (fsInfoException == null) {
+                        fsInfoException = e;
+                    } else {
+                        fsInfoException.addSuppressed(e);
+                    }
                 }
             }
-            // TODO log if leastAvailablePath is null
-            // subtract disk space that's already "reserved" for running merges
+            if (fsInfoException != null) {
+                LOGGER.warn("unexpected exception reading filesystem info", fsInfoException);
+            }
+            if (leastAvailablePath == null) {
+                LOGGER.error("Cannot read filesystem info");
+                return;
+            }
+            // subtract disk space that already running merges are expected to fill
             long leastAvailableDiskSpaceBytes = leastAvailablePath.getAvailable().getBytes();
             for (MergeTask mergeTask : runningMergeTasks) {
                 leastAvailableDiskSpaceBytes -= mergeTask.estimatedRemainingMergeSize();
             }
-            // subtract the headroom space
+            // also subtract the configured headroom space
             leastAvailableDiskSpaceBytes -= getFreeBytesThreshold(leastAvailablePath.getTotal(), highStageWatermark, highStageMaxHeadroom)
                 .getBytes();
+            // this is the maximum disk space available for a new merge task
             leastAvailableDiskSpaceBytes = Math.max(0L, leastAvailableDiskSpaceBytes);
-            // the maximum disk space a new merge can use
+            // TODO update the priority queue
             ThreadPoolMergeExecutorService.this.leastAvailableDiskSpaceBytes.set(leastAvailableDiskSpaceBytes);
         }
 
-        private static ByteSizeValue getFreeBytesThreshold(ByteSizeValue total, RelativeByteSizeValue watermark, ByteSizeValue maxHeadroom) {
-            // If bytes are given, they can be readily returned as free bytes. If percentages are given, we need to calculate the free bytes.
+        private static ByteSizeValue getFreeBytesThreshold(
+            ByteSizeValue total,
+            RelativeByteSizeValue watermark,
+            ByteSizeValue maxHeadroom
+        ) {
+            // If bytes are given, they can be readily returned as free bytes. If percentages are given, we need to calculate the free
+            // bytes.
             if (watermark.isAbsolute()) {
                 return watermark.getAbsolute();
             }

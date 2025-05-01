@@ -950,7 +950,13 @@ public class Metadata implements Diffable<Metadata>, ChunkedToXContent {
                     RESERVED_DIFF_VALUE_READER
                 );
 
-                singleProject = new ProjectMetadata.ProjectMetadataDiff(indices, templates, projectCustoms, DiffableUtils.emptyDiff());
+                singleProject = new ProjectMetadata.ProjectMetadataDiff(
+                    indices,
+                    templates,
+                    projectCustoms,
+                    DiffableUtils.emptyDiff(),
+                    Settings.EMPTY_DIFF
+                );
                 multiProject = null;
             } else {
                 fromNodeBeforeMultiProjectsSupport = false;

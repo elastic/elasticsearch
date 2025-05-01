@@ -24,8 +24,6 @@ import java.net.URISyntaxException;
 import java.util.List;
 import java.util.Objects;
 
-import static org.elasticsearch.xpack.inference.services.cohere.request.CohereUtils.inputTypeToString;
-
 public class CohereV2EmbeddingsRequest extends CohereRequest {
 
     private final List<String> input;
@@ -57,10 +55,14 @@ public class CohereV2EmbeddingsRequest extends CohereRequest {
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
-        builder.field(CohereUtils.MODEL_FIELD, getModelId());
         builder.field(CohereUtils.TEXTS_FIELD, input);
-        // TODO merge input type from task settings InputType.isSpecified(inputType)
-        builder.field(CohereUtils.INPUT_TYPE_FIELD, inputTypeToString(inputType));
+        builder.field(CohereUtils.MODEL_FIELD, getModelId());
+        // prefer the root level inputType over task settings input type
+        if (InputType.isSpecified(inputType)) {
+            builder.field(CohereUtils.INPUT_TYPE_FIELD, CohereUtils.inputTypeToString(inputType));
+        } else if (InputType.isSpecified(taskSettings.getInputType())) {
+            builder.field(CohereUtils.INPUT_TYPE_FIELD, CohereUtils.inputTypeToString(taskSettings.getInputType()));
+        }
         builder.field(CohereUtils.EMBEDDING_TYPES_FIELD, List.of(embeddingType.toRequestString()));
         if (taskSettings.getTruncation() != null) {
             builder.field(CohereServiceFields.TRUNCATE, taskSettings.getTruncation());

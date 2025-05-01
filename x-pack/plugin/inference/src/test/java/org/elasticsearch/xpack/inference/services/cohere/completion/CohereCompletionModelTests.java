@@ -24,12 +24,11 @@ public class CohereCompletionModelTests extends ESTestCase {
     public void testCreateModel_AlwaysWithEmptyTaskSettings() {
         var model = new CohereCompletionModel(
             "inference_id",
-            new HashMap<>(Map.of("model", "cohere completion model")),
+            new HashMap<>(Map.of("model_id", "cohere completion model")),
             null,
             ConfigurationParseContext.PERSISTENT
         );
 
-        assertThat(model.uri(), is("TODO"));
         assertThat(model.getTaskSettings(), is(EmptyTaskSettings.INSTANCE));
         assertThat(model.getServiceSettings().modelId(), is("cohere completion model"));
     }

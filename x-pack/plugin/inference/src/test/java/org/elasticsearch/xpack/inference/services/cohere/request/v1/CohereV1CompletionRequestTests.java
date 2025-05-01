@@ -47,7 +47,11 @@ public class CohereV1CompletionRequestTests extends ESTestCase {
     }
 
     public void testCreateRequest_ModelDefined() throws IOException {
-        var request = new CohereV1CompletionRequest(List.of("abc"), CohereCompletionModelTests.createModel("url", "secret", "model"), false);
+        var request = new CohereV1CompletionRequest(
+            List.of("abc"),
+            CohereCompletionModelTests.createModel("url", "secret", "model"),
+            false
+        );
 
         var httpRequest = request.createHttpRequest();
         assertThat(httpRequest.httpRequestBase(), instanceOf(HttpPost.class));
@@ -63,25 +67,33 @@ public class CohereV1CompletionRequestTests extends ESTestCase {
         assertThat(requestMap, is(Map.of("message", "abc", "model", "model")));
     }
 
-    public void testDefaultUrl() throws IOException {
+    public void testDefaultUrl() {
         var request = new CohereV1CompletionRequest(List.of("abc"), CohereCompletionModelTests.createModel(null, "secret", null), false);
 
         var httpRequest = request.createHttpRequest();
         assertThat(httpRequest.httpRequestBase(), instanceOf(HttpPost.class));
         var httpPost = (HttpPost) httpRequest.httpRequestBase();
 
-        assertThat(httpPost.getURI().toString(), is("TODO"));
+        assertThat(httpPost.getURI().toString(), is("https://api.cohere.ai/v1/chat"));
     }
 
     public void testTruncate_ReturnsSameInstance() {
-        var request = new CohereV1CompletionRequest(List.of("abc"), CohereCompletionModelTests.createModel("url", "secret", "model"), false);
+        var request = new CohereV1CompletionRequest(
+            List.of("abc"),
+            CohereCompletionModelTests.createModel("url", "secret", "model"),
+            false
+        );
         var truncatedRequest = request.truncate();
 
         assertThat(truncatedRequest, sameInstance(request));
     }
 
     public void testTruncationInfo_ReturnsNull() {
-        var request = new CohereV1CompletionRequest(List.of("abc"), CohereCompletionModelTests.createModel("url", "secret", "model"), false);
+        var request = new CohereV1CompletionRequest(
+            List.of("abc"),
+            CohereCompletionModelTests.createModel("url", "secret", "model"),
+            false
+        );
 
         assertNull(request.getTruncationInfo());
     }

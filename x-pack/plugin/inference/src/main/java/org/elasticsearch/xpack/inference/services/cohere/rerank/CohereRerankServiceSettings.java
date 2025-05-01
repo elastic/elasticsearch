@@ -104,6 +104,7 @@ public class CohereRerankServiceSettings extends FilteredXContentObject implemen
         }
     }
 
+    @Override
     public URI uri() {
         return uri;
     }

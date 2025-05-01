@@ -27,10 +27,6 @@ public class QueryAndDocsInputs extends InferenceInputs {
     private final Boolean returnDocuments;
     private final Integer topN;
 
-    public QueryAndDocsInputs(String query, List<String> chunks) {
-        this(query, chunks, null, null, false);
-    }
-
     public QueryAndDocsInputs(
         String query,
         List<String> chunks,

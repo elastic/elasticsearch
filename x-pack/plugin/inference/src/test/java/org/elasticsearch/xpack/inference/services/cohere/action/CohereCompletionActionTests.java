@@ -24,13 +24,11 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
 import org.elasticsearch.xpack.inference.external.action.ExecutableAction;
-import org.elasticsearch.xpack.inference.external.action.SingleInputSenderExecutableAction;
 import org.elasticsearch.xpack.inference.external.http.HttpClientManager;
 import org.elasticsearch.xpack.inference.external.http.sender.ChatCompletionInput;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSenderTests;
 import org.elasticsearch.xpack.inference.external.http.sender.Sender;
 import org.elasticsearch.xpack.inference.logging.ThrottlerManager;
-import org.elasticsearch.xpack.inference.services.cohere.CohereCompletionRequestManager;
 import org.elasticsearch.xpack.inference.services.cohere.completion.CohereCompletionModelTests;
 import org.elasticsearch.xpack.inference.services.cohere.request.CohereUtils;
 import org.junit.After;
@@ -44,9 +42,9 @@ import java.util.concurrent.TimeUnit;
 import static org.elasticsearch.xpack.core.inference.results.ChatCompletionResultsTests.buildExpectationCompletion;
 import static org.elasticsearch.xpack.inference.Utils.inferenceUtilityPool;
 import static org.elasticsearch.xpack.inference.Utils.mockClusterServiceEmpty;
-import static org.elasticsearch.xpack.inference.external.action.ActionUtils.constructFailedToSendRequestMessage;
 import static org.elasticsearch.xpack.inference.external.http.Utils.entityAsMap;
 import static org.elasticsearch.xpack.inference.external.http.Utils.getUrl;
+import static org.elasticsearch.xpack.inference.services.ServiceComponentsTests.createWithEmptySettings;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
@@ -341,9 +339,8 @@ public class CohereCompletionActionTests extends ESTestCase {
     }
 
     private ExecutableAction createAction(String url, String apiKey, @Nullable String modelName, Sender sender) {
+        var actionCreator = new CohereActionCreator(sender, createWithEmptySettings(threadPool));
         var model = CohereCompletionModelTests.createModel(url, apiKey, modelName);
-        var requestManager = CohereCompletionRequestManager.of(model, threadPool);
-        var failedToSendRequestErrorMessage = constructFailedToSendRequestMessage("Cohere completion");
-        return new SingleInputSenderExecutableAction(sender, requestManager, failedToSendRequestErrorMessage, "Cohere completion");
+        return actionCreator.create(model, Map.of());
     }
 }

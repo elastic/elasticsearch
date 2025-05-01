@@ -20,7 +20,6 @@ import org.elasticsearch.xpack.inference.services.cohere.CohereService;
 import org.elasticsearch.xpack.inference.services.cohere.action.CohereActionVisitor;
 import org.elasticsearch.xpack.inference.services.settings.DefaultSecretSettings;
 
-import java.net.URI;
 import java.util.Map;
 
 public class CohereCompletionModel extends CohereModel {
@@ -72,10 +71,5 @@ public class CohereCompletionModel extends CohereModel {
     @Override
     public ExecutableAction accept(CohereActionVisitor visitor, Map<String, Object> taskSettings) {
         return visitor.create(this, taskSettings);
-    }
-
-    @Override
-    public URI uri() {
-        return getServiceSettings().uri();
     }
 }

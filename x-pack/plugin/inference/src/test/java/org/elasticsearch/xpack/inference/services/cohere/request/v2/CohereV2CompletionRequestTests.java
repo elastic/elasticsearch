@@ -16,7 +16,6 @@ import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.inference.services.cohere.completion.CohereCompletionModelTests;
 import org.elasticsearch.xpack.inference.services.cohere.request.CohereUtils;
-import org.elasticsearch.xpack.inference.services.cohere.request.v1.CohereV1CompletionRequest;
 import org.hamcrest.CoreMatchers;
 
 import java.io.IOException;
@@ -41,23 +40,27 @@ public class CohereV2CompletionRequestTests extends ESTestCase {
 
         var httpPost = (HttpPost) httpRequest.httpRequestBase();
 
-        assertThat(httpPost.getURI().toString(), is("url"));
+        assertThat(httpPost.getURI().toString(), is("https://api.cohere.ai/v2/chat"));
         assertThat(httpPost.getLastHeader(HttpHeaders.CONTENT_TYPE).getValue(), is(XContentType.JSON.mediaType()));
         assertThat(httpPost.getLastHeader(HttpHeaders.AUTHORIZATION).getValue(), is("Bearer secret"));
         assertThat(httpPost.getLastHeader(CohereUtils.REQUEST_SOURCE_HEADER).getValue(), is(CohereUtils.ELASTIC_REQUEST_SOURCE));
 
         var requestMap = entityAsMap(httpPost.getEntity().getContent());
-        assertThat(requestMap, is(Map.of("message", "abc", "model", "required model id")));
+        assertThat(requestMap, is(Map.of("message", "abc", "model", "required model id", "stream", false)));
     }
 
-    public void testDefaultUrl() throws IOException {
-        var request = new CohereV1CompletionRequest(List.of("abc"), CohereCompletionModelTests.createModel(null, "secret", null), false);
+    public void testDefaultUrl() {
+        var request = new CohereV2CompletionRequest(
+            List.of("abc"),
+            CohereCompletionModelTests.createModel(null, "secret", "model id"),
+            false
+        );
 
         var httpRequest = request.createHttpRequest();
         assertThat(httpRequest.httpRequestBase(), instanceOf(HttpPost.class));
         var httpPost = (HttpPost) httpRequest.httpRequestBase();
 
-        assertThat(httpPost.getURI().toString(), is("TODO"));
+        assertThat(httpPost.getURI().toString(), is("https://api.cohere.ai/v2/chat"));
     }
 
     public void testXContents() throws IOException {
@@ -71,6 +74,6 @@ public class CohereV2CompletionRequestTests extends ESTestCase {
         String xContentResult = Strings.toString(builder);
 
         assertThat(xContentResult, CoreMatchers.is("""
-            {"message":"some input","model":"model"}"""));
+            {"message":"some input","model":"model","stream":false}"""));
     }
 }

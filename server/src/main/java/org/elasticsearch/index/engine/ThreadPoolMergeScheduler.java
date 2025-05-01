@@ -65,11 +65,13 @@ public class ThreadPoolMergeScheduler extends MergeScheduler implements Elastics
     private final AtomicLong doneMergeTaskCount = new AtomicLong();
     private final CountDownLatch closedWithNoRunningMerges = new CountDownLatch(1);
     private volatile boolean closed = false;
+    private final MergeMemoryEstimateProvider mergeMemoryEstimateProvider;
 
     public ThreadPoolMergeScheduler(
         ShardId shardId,
         IndexSettings indexSettings,
-        ThreadPoolMergeExecutorService threadPoolMergeExecutorService
+        ThreadPoolMergeExecutorService threadPoolMergeExecutorService,
+        MergeMemoryEstimateProvider mergeMemoryEstimateProvider
     ) {
         this.shardId = shardId;
         this.config = indexSettings.getMergeSchedulerConfig();
@@ -81,6 +83,7 @@ public class ThreadPoolMergeScheduler extends MergeScheduler implements Elastics
                 : Double.POSITIVE_INFINITY
         );
         this.threadPoolMergeExecutorService = threadPoolMergeExecutorService;
+        this.mergeMemoryEstimateProvider = mergeMemoryEstimateProvider;
     }
 
     @Override
@@ -176,11 +179,13 @@ public class ThreadPoolMergeScheduler extends MergeScheduler implements Elastics
         // forced merges, as well as merges triggered when closing a shard, always run un-IO-throttled
         boolean isAutoThrottle = mergeTrigger != MergeTrigger.CLOSING && merge.getStoreMergeInfo().mergeMaxNumSegments() == -1;
         // IO throttling cannot be toggled for existing merge tasks, only new merge tasks pick up the updated IO throttling setting
+        long estimateMergeMemoryBytes = mergeMemoryEstimateProvider.estimateMergeMemoryBytes(merge);
         return new MergeTask(
             mergeSource,
             merge,
             isAutoThrottle && config.isAutoThrottle(),
-            "Lucene Merge Task #" + submittedMergeTaskCount.incrementAndGet() + " for shard " + shardId
+            "Lucene Merge Task #" + submittedMergeTaskCount.incrementAndGet() + " for shard " + shardId,
+            estimateMergeMemoryBytes
         );
     }
 
@@ -312,14 +317,22 @@ public class ThreadPoolMergeScheduler extends MergeScheduler implements Elastics
         private final OnGoingMerge onGoingMerge;
         private final MergeRateLimiter rateLimiter;
         private final boolean supportsIOThrottling;
+        private final long mergeMemoryEstimateBytes;
 
-        MergeTask(MergeSource mergeSource, MergePolicy.OneMerge merge, boolean supportsIOThrottling, String name) {
+        MergeTask(
+            MergeSource mergeSource,
+            MergePolicy.OneMerge merge,
+            boolean supportsIOThrottling,
+            String name,
+            long mergeMemoryEstimateBytes
+        ) {
             this.name = name;
             this.mergeStartTimeNS = new AtomicLong();
             this.mergeSource = mergeSource;
             this.onGoingMerge = new OnGoingMerge(merge);
             this.rateLimiter = new MergeRateLimiter(merge.getMergeProgress());
             this.supportsIOThrottling = supportsIOThrottling;
+            this.mergeMemoryEstimateBytes = mergeMemoryEstimateBytes;
         }
 
         Schedule schedule() {
@@ -451,6 +464,14 @@ public class ThreadPoolMergeScheduler extends MergeScheduler implements Elastics
 
         long estimatedRemainingMergeSize() {
             return Math.max(0L, estimatedMergeSize() - rateLimiter.getTotalBytesWritten());
+        }
+
+        public long getMergeMemoryEstimateBytes() {
+            return mergeMemoryEstimateBytes;
+        }
+
+        public OnGoingMerge getOnGoingMerge() {
+            return onGoingMerge;
         }
 
         @Override

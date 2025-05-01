@@ -333,8 +333,11 @@ public final class ObjectParser<Value, Context> extends AbstractObjectParser<Val
 
     private static void throwMissingRequiredFields(List<String[]> requiredFields) {
         final StringBuilder message = new StringBuilder();
-        for (String[] fields : requiredFields) {
-            message.append("Required one of fields ").append(Arrays.toString(fields)).append(", but none were specified. ");
+        for (int i = 0; i < requiredFields.size(); i++) {
+            if (i > 0) {
+                message.append(" ");
+            }
+            message.append("Required one of fields ").append(Arrays.toString(requiredFields.get(i))).append(", but none were specified.");
         }
         throw new IllegalArgumentException(message.toString());
     }

@@ -3405,6 +3405,8 @@ public class AnalyzerTests extends ESTestCase {
     }
 
     public void testRandomSampleProbability() {
+        assumeTrue("requires SAMPLE capability", EsqlCapabilities.Cap.SAMPLE.isEnabled());
+
         var e = expectThrows(VerificationException.class, () -> analyze("FROM test | SAMPLE 1."));
         assertThat(e.getMessage(), containsString("RandomSampling probability must be strictly between 0.0 and 1.0, was [1.0]"));
 
@@ -3609,6 +3611,19 @@ public class AnalyzerTests extends ESTestCase {
             assertThat(rerank.rerankFields().get(2), equalTo(alias("yearRenamed", yearAttribute)));
 
             assertThat(rerank.scoreAttribute(), equalTo(getAttributeByName(relation.output(), MetadataAttribute.SCORE)));
+        }
+
+        {
+            // Unnamed field.
+            try {
+                LogicalPlan plan = analyze("""
+                    FROM books METADATA _score
+                    | WHERE title:"food"
+                    | RERANK "food" ON title, SUBSTRING(description, 0, 100), yearRenamed=year WITH `reranking-inference-id`
+                    """, "mapping-books.json");
+            } catch (ParsingException ex) {
+                assertThat(ex.getMessage(), containsString("line 3:36: mismatched input '(' expecting {'=', ',', '.', 'with'}"));
+            }
         }
 
         {

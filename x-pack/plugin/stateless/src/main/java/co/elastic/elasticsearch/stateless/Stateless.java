@@ -106,6 +106,7 @@ import co.elastic.elasticsearch.stateless.recovery.RemoveRefreshClusterBlockServ
 import co.elastic.elasticsearch.stateless.recovery.TransportRegisterCommitForRecoveryAction;
 import co.elastic.elasticsearch.stateless.recovery.TransportSendRecoveryCommitRegistrationAction;
 import co.elastic.elasticsearch.stateless.recovery.TransportStatelessPrimaryRelocationAction;
+import co.elastic.elasticsearch.stateless.recovery.TransportStatelessUnpromotableRelocationAction;
 import co.elastic.elasticsearch.stateless.recovery.metering.RecoveryMetricsCollector;
 import co.elastic.elasticsearch.stateless.reshard.MetadataReshardIndexService;
 import co.elastic.elasticsearch.stateless.reshard.SplitTargetService;
@@ -202,6 +203,7 @@ import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.breaker.HierarchyCircuitBreakerService;
 import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.indices.recovery.StatelessPrimaryRelocationAction;
+import org.elasticsearch.indices.recovery.StatelessUnpromotableRelocationAction;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.monitor.os.OsProbe;
@@ -427,7 +429,8 @@ public class Stateless extends Plugin
             new ActionHandler(TransportUpdateReplicasAction.TYPE, TransportUpdateReplicasAction.class),
             new ActionHandler(TransportUpdateSplitStateAction.TYPE, TransportUpdateSplitStateAction.class),
             new ActionHandler(TransportReshardSplitAction.TYPE, TransportReshardSplitAction.class),
-            new ActionHandler(TransportReshardAction.TYPE, TransportReshardAction.class)
+            new ActionHandler(TransportReshardAction.TYPE, TransportReshardAction.class),
+            new ActionHandler(StatelessUnpromotableRelocationAction.TYPE, TransportStatelessUnpromotableRelocationAction.class)
         );
     }
 
@@ -1098,7 +1101,9 @@ public class Stateless extends Plugin
             StatelessBalancingWeightsFactory.INDEXING_TIER_SHARD_BALANCE_FACTOR_SETTING,
             StatelessBalancingWeightsFactory.SEARCH_TIER_SHARD_BALANCE_FACTOR_SETTING,
             StatelessBalancingWeightsFactory.INDEXING_TIER_WRITE_LOAD_BALANCE_FACTOR_SETTING,
-            StatelessBalancingWeightsFactory.SEARCH_TIER_WRITE_LOAD_BALANCE_FACTOR_SETTING
+            StatelessBalancingWeightsFactory.SEARCH_TIER_WRITE_LOAD_BALANCE_FACTOR_SETTING,
+            TransportStatelessUnpromotableRelocationAction.START_HANDOFF_CLUSTER_STATE_CONVERGENCE_TIMEOUT_SETTING,
+            TransportStatelessUnpromotableRelocationAction.START_HANDOFF_REQUEST_TIMEOUT_SETTING
         );
     }
 

@@ -41,6 +41,9 @@ final class TimestampIterator extends DocIdSetIterator {
         this.primaryFieldSkipper = primaryFieldSkipper;
         this.minTimestamp = minTimestamp;
         this.maxTimestamp = maxTimestamp;
+
+        timestampFieldUpTo = timestampSkipper.maxDocID(0);
+        primaryFieldUpTo = primaryFieldSkipper.maxDocID(0);
     }
 
     @Override

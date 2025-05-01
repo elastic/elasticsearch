@@ -7,33 +7,24 @@
 
 package org.elasticsearch.compute.operator.topn;
 
-import org.elasticsearch.compute.data.AggregateMetricDoubleBlockBuilder;
-import org.elasticsearch.compute.data.CompositeBlock;
+import org.elasticsearch.compute.data.AggregateMetricDoubleBlock;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.operator.BreakingBytesRefBuilder;
 
 import java.util.List;
 
-public class ValueExtractorForComposite implements ValueExtractor {
-    private final CompositeBlock block;
+public class ValueExtractorForAggregateMetricDouble implements ValueExtractor {
+    private final AggregateMetricDoubleBlock block;
 
-    ValueExtractorForComposite(TopNEncoder encoder, CompositeBlock block) {
+    ValueExtractorForAggregateMetricDouble(TopNEncoder encoder, AggregateMetricDoubleBlock block) {
         assert encoder == TopNEncoder.DEFAULT_UNSORTABLE;
         this.block = block;
     }
 
     @Override
     public void writeValue(BreakingBytesRefBuilder values, int position) {
-        if (block.getBlockCount() != AggregateMetricDoubleBlockBuilder.Metric.values().length) {
-            throw new UnsupportedOperationException("Composite Blocks for non-aggregate-metric-doubles do not have value extractors");
-        }
-        for (AggregateMetricDoubleBlockBuilder.Metric metric : List.of(
-            AggregateMetricDoubleBlockBuilder.Metric.MIN,
-            AggregateMetricDoubleBlockBuilder.Metric.MAX,
-            AggregateMetricDoubleBlockBuilder.Metric.SUM
-        )) {
-            DoubleBlock doubleBlock = block.getBlock(metric.getIndex());
+        for (DoubleBlock doubleBlock : List.of(block.minBlock(), block.maxBlock(), block.sumBlock())) {
             if (doubleBlock.isNull(position)) {
                 TopNEncoder.DEFAULT_UNSORTABLE.encodeBoolean(false, values);
             } else {
@@ -41,7 +32,7 @@ public class ValueExtractorForComposite implements ValueExtractor {
                 TopNEncoder.DEFAULT_UNSORTABLE.encodeDouble(doubleBlock.getDouble(position), values);
             }
         }
-        IntBlock intBlock = block.getBlock(AggregateMetricDoubleBlockBuilder.Metric.COUNT.getIndex());
+        IntBlock intBlock = block.countBlock();
         if (intBlock.isNull(position)) {
             TopNEncoder.DEFAULT_UNSORTABLE.encodeBoolean(false, values);
         } else {
@@ -52,6 +43,6 @@ public class ValueExtractorForComposite implements ValueExtractor {
 
     @Override
     public String toString() {
-        return "ValueExtractorForComposite";
+        return "ValueExtractorForAggregateMetricDouble";
     }
 }

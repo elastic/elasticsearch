@@ -434,11 +434,7 @@ public class SparseVectorQueryBuilder extends AbstractQueryBuilder<SparseVectorQ
 
         TokenPruningConfig indexPruningConfig = indexOptions.getPruningConfig();
         TokenPruningConfig indexTokenPruningConfig = indexPruningConfig != null
-            ? new TokenPruningConfig(
-                indexPruningConfig.getTokensFreqRatioThreshold(),
-                indexPruningConfig.getTokensWeightThreshold(),
-                false
-            )
+            ? new TokenPruningConfig(indexPruningConfig.getTokensFreqRatioThreshold(), indexPruningConfig.getTokensWeightThreshold(), false)
             : null;
 
         return new IndexFieldPruningSettings(indexOptionsPrune, indexTokenPruningConfig);

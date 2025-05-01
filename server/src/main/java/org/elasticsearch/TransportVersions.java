@@ -230,7 +230,9 @@ public class TransportVersions {
     public static final TransportVersion SETTINGS_IN_DATA_STREAMS = def(9_064_0_00);
     public static final TransportVersion INTRODUCE_FAILURES_LIFECYCLE = def(9_065_0_00);
     public static final TransportVersion PROJECT_METADATA_SETTINGS = def(9_066_00_0);
-    public static final TransportVersion WRITE_LOAD_INCLUDES_BUFFER_WRITES = def(9_067_00_0);
+    public static final TransportVersion AGGREGATE_METRIC_DOUBLE_BLOCK = def(9_067_00_0);
+    public static final TransportVersion PINNED_RETRIEVER = def(9_068_0_00);
+    public static final TransportVersion WRITE_LOAD_INCLUDES_BUFFER_WRITES = def(9_069_00_0);
 
     /*
      * STOP! READ THIS FIRST! No, really,

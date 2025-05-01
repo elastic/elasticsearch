@@ -253,7 +253,7 @@ public final class SearchHits implements Writeable, ChunkedToXContent, RefCounte
         }
     }
 
-    void writeAndRelease(StreamOutput out) throws IOException {
+    public void writeAndRelease(StreamOutput out) throws IOException {
         boolean released = refCounted.decRef();
         assert released;
         writeHeader(out);
@@ -261,10 +261,10 @@ public final class SearchHits implements Writeable, ChunkedToXContent, RefCounte
         out.writeVInt(hits.length);
         for (int i = 0; i < hits.length; i++) {
             var h = hits[i];
+            hits[i] = null;
             assert h != null;
             h.writeTo(out);
             h.decRef();
-            hits[i] = null;
         }
         writeFooter(out);
     }

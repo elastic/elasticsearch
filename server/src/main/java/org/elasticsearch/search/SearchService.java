@@ -1199,7 +1199,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                         return fetchResult;
                     }
                     fetchResult.contextId.writeTo(networkBuffer);
-                    fetchResult.consumeHits().writeAndRelease(networkBuffer);
+                    fetchResult.consumeHits(networkBuffer);
                     networkBuffer.writeOptionalWriteable(fetchResult.profileResult());
                     return new BytesTransportResponse(new ReleasableBytesReference(networkBuffer.bytes(), networkBuffer));
                 } catch (Exception e) {

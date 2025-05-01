@@ -19,12 +19,30 @@ package co.elastic.elasticsearch.stateless.recovery;
 
 import co.elastic.elasticsearch.stateless.AbstractStatelessIntegTestCase;
 
+import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.cluster.coordination.Coordinator;
 import org.elasticsearch.cluster.coordination.stateless.StoreHeartbeatService;
+import org.elasticsearch.cluster.metadata.ProjectId;
+import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.indices.IndicesService;
+import org.elasticsearch.test.disruption.SlowClusterStateProcessing;
+import org.elasticsearch.test.transport.MockTransportService;
+import org.elasticsearch.transport.TransportChannel;
+import org.elasticsearch.transport.TransportResponse;
 
+import java.util.concurrent.CountDownLatch;
+
+import static co.elastic.elasticsearch.stateless.recovery.TransportStatelessUnpromotableRelocationAction.START_HANDOFF_ACTION_NAME;
 import static org.elasticsearch.cluster.coordination.stateless.StoreHeartbeatService.HEARTBEAT_FREQUENCY;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
+import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 
 public class SearchShardRelocationIT extends AbstractStatelessIntegTestCase {
@@ -58,5 +76,298 @@ public class SearchShardRelocationIT extends AbstractStatelessIntegTestCase {
         ensureGreen(indexName);
         assertThat(internalCluster().nodesInclude(indexName), not(hasItem(searchNodeCurrent)));
         assertThat(internalCluster().nodesInclude(indexName), hasItem(searchNodeNext));
+    }
+
+    public void testUnpromotableRelocationsDoHandoff() {
+        startMasterAndIndexNode();
+        var searchNode1 = startSearchNode();
+        var indexName = randomIdentifier();
+
+        // The handoff is only sent during relocations
+        MockTransportService.getInstance(searchNode1).addSendBehavior((connection, requestId, action, request, options) -> {
+            assertThat(request, is(not(equalTo(START_HANDOFF_ACTION_NAME))));
+            connection.sendRequest(requestId, action, request, options);
+        });
+        createIndex(indexName, 1, 1);
+        ensureGreen(indexName);
+
+        var searchNode2 = startSearchNode();
+
+        var startHandOffSent = new CountDownLatch(1);
+        MockTransportService.getInstance(searchNode2).addSendBehavior((connection, requestId, action, request, options) -> {
+            if (action.equals(START_HANDOFF_ACTION_NAME)) {
+                startHandOffSent.countDown();
+                assertThat(connection.getNode().getName(), is(equalTo(searchNode1)));
+            }
+            connection.sendRequest(requestId, action, request, options);
+        });
+
+        updateIndexSettings(Settings.builder().put("index.routing.allocation.exclude._name", searchNode1));
+        safeAwait(startHandOffSent);
+        ensureGreen(indexName);
+    }
+
+    public void testUnpromotableRelocationHandoffFailuresDoNotFailTheShardRelocation() {
+        startMasterAndIndexNode();
+        var searchNode1 = startSearchNode();
+        var indexName = randomIdentifier();
+        createIndex(indexName, 1, 1);
+        ensureGreen(indexName);
+
+        var searchNode2 = startSearchNode();
+
+        var handoffFailedLatch = new CountDownLatch(1);
+        MockTransportService.getInstance(searchNode1)
+            .addRequestHandlingBehavior(START_HANDOFF_ACTION_NAME, (handler, request, channel, task) -> {
+                channel.sendResponse(new ElasticsearchException("Boom"));
+                handoffFailedLatch.countDown();
+            });
+
+        updateIndexSettings(Settings.builder().put("index.routing.allocation.exclude._name", searchNode1));
+        safeAwait(handoffFailedLatch);
+        ensureGreen(indexName);
+
+        assertThatUnpromotableShardIsStartedInNode(indexName, searchNode2);
+    }
+
+    public void testUnpromotableRelocationHandoffWaitsUntilClusterStateConverges() {
+        startMasterAndIndexNode(
+            Settings.builder().put(Coordinator.PUBLISH_TIMEOUT_SETTING.getKey(), TimeValue.timeValueMillis(500)).build()
+        );
+        var searchNode1 = startSearchNode();
+        var indexName = randomIdentifier();
+        createIndex(indexName, 1, 1);
+        ensureGreen(indexName);
+
+        var searchNode2 = startSearchNode();
+
+        var handoffReceived = new CountDownLatch(1);
+        var handoffFinished = new CountDownLatch(1);
+        MockTransportService.getInstance(searchNode1)
+            .addRequestHandlingBehavior(START_HANDOFF_ACTION_NAME, (handler, request, channel, task) -> {
+                handoffReceived.countDown();
+                handler.messageReceived(request, new TransportChannel() {
+                    @Override
+                    public String getProfileName() {
+                        return channel.getProfileName();
+                    }
+
+                    @Override
+                    public void sendResponse(TransportResponse response) {
+                        channel.sendResponse(response);
+                        handoffFinished.countDown();
+                    }
+
+                    @Override
+                    public void sendResponse(Exception exception) {
+                        assert false : exception;
+                    }
+                }, task);
+            });
+
+        var slowClusterStateProcessingDisruption = new SlowClusterStateProcessing(searchNode1, random(), 0, 0, 2000, 3000);
+        setDisruptionScheme(slowClusterStateProcessingDisruption);
+        slowClusterStateProcessingDisruption.startDisrupting();
+
+        updateIndexSettings(Settings.builder().put("index.routing.allocation.exclude._name", searchNode1));
+        safeAwait(handoffReceived);
+        assertThat(handoffFinished.getCount(), is(equalTo(1L)));
+
+        var clusterState = client().admin().cluster().prepareState(TEST_REQUEST_TIMEOUT).get().getState();
+        var initializingUnpromotableShards = clusterState.routingTable(ProjectId.DEFAULT)
+            .index(indexName)
+            .shard(0)
+            .assignedUnpromotableShards()
+            .stream()
+            .filter(ShardRouting::initializing)
+            .toList();
+        assertThat(initializingUnpromotableShards, hasSize(1));
+        assertThat(
+            initializingUnpromotableShards.get(0).currentNodeId(),
+            is(equalTo(clusterState.nodes().resolveNode(searchNode2).getId()))
+        );
+
+        slowClusterStateProcessingDisruption.stopDisrupting();
+        safeAwait(handoffFinished);
+        ensureGreen(indexName);
+
+        assertThatUnpromotableShardIsStartedInNode(indexName, searchNode2);
+    }
+
+    public void testUnpromotableRelocationHandoffFailsIfTargetAllocationIdChanges() throws Exception {
+        startMasterAndIndexNode();
+        var searchNode1 = startSearchNode();
+        var indexName = randomIdentifier();
+        createIndex(indexName, 1, 1);
+        ensureGreen(indexName);
+
+        var searchNode2 = startSearchNode();
+
+        var startHandoffReceived = new CountDownLatch(1);
+        var handoffBlocked = new CountDownLatch(1);
+        var handoffFailedSent = new CountDownLatch(1);
+        MockTransportService.getInstance(searchNode1)
+            .addRequestHandlingBehavior(START_HANDOFF_ACTION_NAME, (handler, request, channel, task) -> {
+                startHandoffReceived.countDown();
+                safeAwait(handoffBlocked);
+                handler.messageReceived(request, new TransportChannel() {
+                    @Override
+                    public String getProfileName() {
+                        return channel.getProfileName();
+                    }
+
+                    @Override
+                    public void sendResponse(TransportResponse response) {
+                        assert false : "Unexpected response " + response;
+                    }
+
+                    @Override
+                    public void sendResponse(Exception exception) {
+                        assertThat(exception.getMessage(), containsString("Invalid relocation state:"));
+                        channel.sendResponse(exception);
+                        handoffFailedSent.countDown();
+                    }
+                }, task);
+            });
+
+        updateIndexSettings(Settings.builder().put("index.routing.allocation.exclude._name", searchNode1));
+        safeAwait(startHandoffReceived);
+
+        var clusterService = internalCluster().getInstance(ClusterService.class, searchNode1);
+        var recoveringAllocationIdChangedLatch = new CountDownLatch(1);
+        if (randomBoolean()) {
+            clusterService.addListener(event -> {
+                if (event.nodesRemoved()) {
+                    recoveringAllocationIdChangedLatch.countDown();
+                }
+            });
+        } else {
+            clusterService.addListener(event -> {
+                if (event.routingTableChanged()) {
+                    recoveringAllocationIdChangedLatch.countDown();
+                }
+            });
+            var indicesService = internalCluster().getInstance(IndicesService.class, searchNode2);
+            var shard = indicesService.indexServiceSafe(resolveIndex(indexName)).getShard(0);
+            shard.failShard("test", new RuntimeException("boom"));
+        }
+
+        internalCluster().stopNode(searchNode2);
+
+        safeAwait(recoveringAllocationIdChangedLatch);
+        handoffBlocked.countDown();
+        safeAwait(handoffFailedSent);
+
+        ensureGreen(indexName);
+        assertThatUnpromotableShardIsStartedInNode(indexName, searchNode1);
+    }
+
+    public void testUnpromotableRelocationHandoffTimeoutDoesNotFailRelocation() {
+        var nodeSettings = Settings.builder()
+            .put(
+                TransportStatelessUnpromotableRelocationAction.START_HANDOFF_REQUEST_TIMEOUT_SETTING.getKey(),
+                TimeValue.timeValueSeconds(1)
+            )
+            .build();
+        startMasterAndIndexNode(nodeSettings);
+        var searchNode1 = startSearchNode(nodeSettings);
+        var indexName = randomIdentifier();
+        createIndex(indexName, 1, 1);
+        ensureGreen(indexName);
+
+        var searchNode2 = startSearchNode(nodeSettings);
+
+        var startHandoffSent = new CountDownLatch(1);
+        var handoffBlocked = new CountDownLatch(1);
+        MockTransportService.getInstance(searchNode1)
+            .addRequestHandlingBehavior(START_HANDOFF_ACTION_NAME, (handler, request, channel, task) -> {
+                startHandoffSent.countDown();
+                safeAwait(handoffBlocked);
+                handler.messageReceived(request, channel, task);
+            });
+
+        updateIndexSettings(Settings.builder().put("index.routing.allocation.exclude._name", searchNode1));
+        safeAwait(startHandoffSent);
+        ensureGreen(indexName);
+        assertThatUnpromotableShardIsStartedInNode(indexName, searchNode2);
+        handoffBlocked.countDown();
+    }
+
+    public void testUnpromotableRelocationHandoffClusterStateConvergenceTimeoutDoesNotFailRelocation() throws Exception {
+        var nodeSettings = Settings.builder()
+            .put(
+                TransportStatelessUnpromotableRelocationAction.START_HANDOFF_CLUSTER_STATE_CONVERGENCE_TIMEOUT_SETTING.getKey(),
+                TimeValue.timeValueMillis(200)
+            )
+            .put(Coordinator.PUBLISH_TIMEOUT_SETTING.getKey(), TimeValue.timeValueSeconds(1))
+            .build();
+        var indexNode = startMasterAndIndexNode(nodeSettings);
+        var searchNode1 = startSearchNode(nodeSettings);
+        var indexName = randomIdentifier();
+        createIndex(indexName, 1, 1);
+        ensureGreen(indexName);
+
+        var searchNode2 = startSearchNode(nodeSettings);
+        ensureStableCluster(3);
+
+        MockTransportService.getInstance(searchNode1)
+            .addRequestHandlingBehavior(
+                START_HANDOFF_ACTION_NAME,
+                (handler, request, channel, task) -> handler.messageReceived(request, new TransportChannel() {
+                    @Override
+                    public String getProfileName() {
+                        return channel.getProfileName();
+                    }
+
+                    @Override
+                    public void sendResponse(TransportResponse response) {
+                        assert false : "Unexpected response " + response;
+                    }
+
+                    @Override
+                    public void sendResponse(Exception exception) {
+                        assertThat(exception.getMessage(), containsString("Cluster state convergence timed out"));
+                        channel.sendResponse(exception);
+                    }
+                }, task)
+            );
+
+        // We cannot use a regular cluster disruption such as SlowClusterStateProcessing because it blocks the applier thread
+        // and the cluster state observer timeouts are scheduled through that thread, therefore they won't be executed until
+        // we stop the disruption.
+        var blockApplyCommitInSearchNode1Latch = new CountDownLatch(1);
+        var applyCommitSentToSearchNode1Latch = new CountDownLatch(1);
+        MockTransportService.getInstance(searchNode1)
+            .addRequestHandlingBehavior(Coordinator.COMMIT_STATE_ACTION_NAME, (handler, request, channel, task) -> {
+                applyCommitSentToSearchNode1Latch.countDown();
+                safeAwait(blockApplyCommitInSearchNode1Latch);
+                handler.messageReceived(request, channel, task);
+            });
+
+        // Since we're delaying the commit cluster state requests we should wait for the response later on once we unblock these requests
+        var updateSettingsRequest = client(indexNode).admin()
+            .indices()
+            .prepareUpdateSettings(indexName)
+            .setSettings(Settings.builder().put("index.routing.allocation.exclude._name", searchNode1))
+            .execute();
+
+        ensureGreen(indexName);
+        safeAwait(applyCommitSentToSearchNode1Latch);
+        assertThatUnpromotableShardIsStartedInNode(indexName, searchNode2);
+        blockApplyCommitInSearchNode1Latch.countDown();
+        assertAcked(updateSettingsRequest.get());
+    }
+
+    private static void assertThatUnpromotableShardIsStartedInNode(String indexName, String nodeName) {
+        var clusterState = client().admin().cluster().prepareState(TEST_REQUEST_TIMEOUT).get().getState();
+        var nodeId = clusterState.nodes().resolveNode(nodeName).getId();
+
+        var unpromotableShards = clusterState.routingTable(ProjectId.DEFAULT).index(indexName).shard(0).unpromotableShards();
+        assertThat(unpromotableShards, hasSize(1));
+        var unpromotableShardRouting = unpromotableShards.get(0);
+
+        assertThat(unpromotableShardRouting.started(), is(true));
+        assertThat(unpromotableShardRouting.relocating(), is(false));
+        assertThat(unpromotableShardRouting.currentNodeId(), is(equalTo(nodeId)));
     }
 }

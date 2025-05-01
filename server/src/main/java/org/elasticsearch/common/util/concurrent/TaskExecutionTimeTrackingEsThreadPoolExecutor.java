@@ -44,7 +44,7 @@ public final class TaskExecutionTimeTrackingEsThreadPoolExecutor extends EsThrea
     private final boolean trackOngoingTasks;
     // The set of currently running tasks and the timestamp of when they started execution in the Executor.
     private final Map<Runnable, Long> ongoingTasks = new ConcurrentHashMap<>();
-    private final ExponentialBucketHistogram queueLatencyHistogram = new ExponentialBucketHistogram();
+    private final ExponentialBucketHistogram queueLatencyMillisHistogram = new ExponentialBucketHistogram();
 
     TaskExecutionTimeTrackingEsThreadPoolExecutor(
         String name,
@@ -74,12 +74,12 @@ public final class TaskExecutionTimeTrackingEsThreadPoolExecutor extends EsThrea
                 List<LongWithAttributes> metricValues = Arrays.stream(LATENCY_PERCENTILES_TO_REPORT)
                     .mapToObj(
                         percentile -> new LongWithAttributes(
-                            queueLatencyHistogram.getPercentile(percentile / 100f),
+                            queueLatencyMillisHistogram.getPercentile(percentile / 100f),
                             Map.of("percentile", String.valueOf(percentile))
                         )
                     )
                     .toList();
-                queueLatencyHistogram.clear();
+                queueLatencyMillisHistogram.clear();
                 return metricValues;
             }
         );
@@ -131,7 +131,7 @@ public final class TaskExecutionTimeTrackingEsThreadPoolExecutor extends EsThrea
         final TimedRunnable timedRunnable = (TimedRunnable) super.unwrap(r);
         timedRunnable.beforeExecute();
         final long taskQueueLatency = timedRunnable.getQueueTimeNanos();
-        queueLatencyHistogram.addObservation(TimeUnit.NANOSECONDS.toMillis(taskQueueLatency));
+        queueLatencyMillisHistogram.addObservation(TimeUnit.NANOSECONDS.toMillis(taskQueueLatency));
     }
 
     @Override

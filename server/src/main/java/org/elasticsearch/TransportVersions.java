@@ -162,6 +162,7 @@ public class TransportVersions {
     public static final TransportVersion AMAZON_BEDROCK_TASK_SETTINGS_8_19 = def(8_841_0_17);
     public static final TransportVersion BATCHED_QUERY_PHASE_VERSION_BACKPORT_8_X = def(8_841_0_19);
     public static final TransportVersion SEARCH_INCREMENTAL_TOP_DOCS_NULL_BACKPORT_8_19 = def(8_841_0_20);
+    public static final TransportVersion ML_INFERENCE_SAGEMAKER_8_19 = def(8_841_0_21);
     public static final TransportVersion V_9_0_0 = def(9_000_0_09);
     public static final TransportVersion INITIAL_ELASTICSEARCH_9_0_1 = def(9_000_0_10);
     public static final TransportVersion COHERE_BIT_EMBEDDING_TYPE_SUPPORT_ADDED = def(9_001_0_00);
@@ -232,6 +233,7 @@ public class TransportVersions {
     public static final TransportVersion PROJECT_METADATA_SETTINGS = def(9_066_00_0);
     public static final TransportVersion AGGREGATE_METRIC_DOUBLE_BLOCK = def(9_067_00_0);
     public static final TransportVersion PINNED_RETRIEVER = def(9_068_0_00);
+    public static final TransportVersion ML_INFERENCE_SAGEMAKER = def(9_069_0_00);
 
     /*
      * STOP! READ THIS FIRST! No, really,

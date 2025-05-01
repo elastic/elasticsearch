@@ -125,6 +125,7 @@ public class IndexingMemoryControllerIT extends ESSingleNodeTestCase {
         IndexService indexService = createIndex("index", indexSettings(1, 0).put("index.refresh_interval", -1).build());
         IndexShard shard = indexService.getShard(0);
         prepareIndex("index").setSource("field", randomUnicodeOfCodepointLengthBetween(10, 25)).get();
+        // Check that
         assertThat(shard.indexingStats().getTotal().getTotalIndexingExecutionTimeInMillis(), greaterThan(0L));
         assertThat(
             shard.indexingStats().getTotal().getTotalIndexingExecutionTimeInMillis(),

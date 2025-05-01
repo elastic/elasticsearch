@@ -46,7 +46,8 @@ public class IndexingStats implements Writeable, ToXContentFragment {
         private long throttleTimeInMillis;
         private boolean isThrottled;
         private long totalIndexingTimeSinceShardStartedInNanos;
-        // This is different from totalIndexingTimeSinceShardStartedInNanos, as it also includes the time taken to write indexing buffers to disk
+        // This is different from totalIndexingTimeSinceShardStartedInNanos, as it also includes the time taken to write indexing buffers to
+        // disk
         // on the same thread as the indexing thread. This happens when we are running low on memory and want to push
         // back on indexing, see IndexingMemoryController#writePendingIndexingBuffers()
         private long totalIndexingExecutionTimeSinceShardStartedInNanos;

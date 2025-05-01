@@ -81,6 +81,7 @@ public class ExponentialBucketHistogram {
         final long[] snapshot = getHistogram();
         final long totalCount = Arrays.stream(snapshot).sum();
         long percentileIndex = (long) Math.ceil(totalCount * percentile);
+        // Find which bucket has the Nth percentile value and return the upper bound value.
         for (int i = 0; i < BUCKET_COUNT; i++) {
             percentileIndex -= snapshot[i];
             if (percentileIndex <= 0) {

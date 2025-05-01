@@ -3241,8 +3241,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     /**
      * Increment relevant stats when indexing buffers are written to disk using indexing threads,
      * in order to apply back-pressure on indexing.
-     * @param tookInNanos  time it took to write the index buffers for this shard (in ns)
-     * @see IndexingMemoryController@writePendingIndexingBuffers() 
+     * @param tookInNanos  time it took to write the indexing buffers for this shard (in ns)
+     * @see IndexingMemoryController#writePendingIndexingBuffers()
      */
     public void addWriteIndexBuffersToIndexThreadsTime(long tookInNanos) {
         internalIndexingStats.writeIndexingBuffersTime(tookInNanos);

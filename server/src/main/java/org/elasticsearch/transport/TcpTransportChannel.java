@@ -79,6 +79,11 @@ public final class TcpTransportChannel implements TransportChannel {
     }
 
     @Override
+    public Compression.Scheme compressionScheme() {
+        return compressionScheme;
+    }
+
+    @Override
     public TransportVersion getVersion() {
         return version;
     }

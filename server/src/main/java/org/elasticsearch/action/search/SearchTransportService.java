@@ -21,6 +21,7 @@ import org.elasticsearch.action.support.ChannelActionListener;
 import org.elasticsearch.client.internal.OriginSettingClient;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.common.io.stream.RecyclerBytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -52,6 +53,7 @@ import org.elasticsearch.transport.AbstractTransportRequest;
 import org.elasticsearch.transport.RemoteClusterService;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportActionProxy;
+import org.elasticsearch.transport.TransportChannel;
 import org.elasticsearch.transport.TransportException;
 import org.elasticsearch.transport.TransportRequestHandler;
 import org.elasticsearch.transport.TransportRequestOptions;
@@ -487,7 +489,7 @@ public class SearchTransportService {
             (request, channel, task) -> searchService.executeFetchPhase(
                 request,
                 (SearchShardTask) task,
-                TransportService.DIRECT_RESPONSE_PROFILE.equals(channel.getProfileName()) ? null : transportService.newNetworkBytesStream(),
+                maybeGetNetworkBuffer(transportService, channel),
                 new ChannelActionListener<>(channel)
             )
         );
@@ -507,7 +509,7 @@ public class SearchTransportService {
             .executeFetchPhase(
                 request,
                 (SearchShardTask) task,
-                TransportService.DIRECT_RESPONSE_PROFILE.equals(channel.getProfileName()) ? null : transportService.newNetworkBytesStream(),
+                maybeGetNetworkBuffer(transportService, channel),
                 new ChannelActionListener<>(channel)
             );
         transportService.registerRequestHandler(
@@ -535,6 +537,12 @@ public class SearchTransportService {
             (request, channel, task) -> searchService.canMatch(request, new ChannelActionListener<>(channel))
         );
         TransportActionProxy.registerProxyAction(transportService, QUERY_CAN_MATCH_NODE_NAME, true, CanMatchNodeResponse::new);
+    }
+
+    private static RecyclerBytesStreamOutput maybeGetNetworkBuffer(TransportService transportService, TransportChannel channel) {
+        return TransportService.DIRECT_RESPONSE_PROFILE.equals(channel.getProfileName()) || channel.compressionScheme() != null
+            ? null
+            : transportService.newNetworkBytesStream();
     }
 
     private static Executor buildFreeContextExecutor(TransportService transportService) {

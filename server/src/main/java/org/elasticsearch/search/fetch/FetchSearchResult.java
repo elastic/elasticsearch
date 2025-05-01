@@ -9,7 +9,6 @@
 
 package org.elasticsearch.search.fetch;
 
-import org.elasticsearch.common.io.stream.RecyclerBytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.RefCounted;
@@ -84,7 +83,7 @@ public final class FetchSearchResult extends SearchPhaseResult {
         return hits;
     }
 
-    public void consumeHits(RecyclerBytesStreamOutput out) throws IOException {
+    public void consumeHits(StreamOutput out) throws IOException {
         var hits = this.hits;
         this.hits = null;
         hits.writeAndRelease(out);

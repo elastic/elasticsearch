@@ -530,6 +530,11 @@ public class TransportActionProxyTests extends ESTestCase {
         }
 
         @Override
+        public Compression.Scheme compressionScheme() {
+            return in.compressionScheme();
+        }
+
+        @Override
         public TransportVersion getVersion() {
             return in.getVersion();
         }

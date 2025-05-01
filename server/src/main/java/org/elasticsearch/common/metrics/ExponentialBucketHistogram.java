@@ -41,6 +41,7 @@ public class ExponentialBucketHistogram {
         }
     }
 
+    // We add an extra bucket to track values greater (up Long.MAX_VALUE) than the defined bucket bounds
     public static final int BUCKET_COUNT = getBucketUpperBounds().length + 1;
 
     private static final long LAST_BUCKET_LOWER_BOUND = getBucketUpperBounds()[BUCKET_COUNT - 2];

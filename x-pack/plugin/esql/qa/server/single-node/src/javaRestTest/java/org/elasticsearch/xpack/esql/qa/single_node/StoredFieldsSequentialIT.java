@@ -184,7 +184,7 @@ public class StoredFieldsSequentialIT extends ESRestTestCase {
         bulk.addParameter("refresh", "");
         StringBuilder b = new StringBuilder();
         for (int i = 0; i < 1000; i++) {
-            b.append(String.format("""
+            b.append(String.format(Locale.ROOT, """
                 {"create":{"_index":"test"}}
                 {"test":"test%03d", "i": %d}
                 """, i, i));

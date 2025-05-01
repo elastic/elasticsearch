@@ -102,7 +102,7 @@ public class CachedBlobContainerIndexInput extends MetadataCachingIndexInput {
 
     @Override
     protected void readWithoutBlobCache(ByteBuffer b) throws Exception {
-        ensureContext(ctx -> ctx != CACHE_WARMING_CONTEXT);
+        ensureContext(ctx -> ctx.hints().contains(StandardIOBehaviorHint.INSTANCE) == false);
         final long position = getAbsolutePosition();
         final int length = b.remaining();
 
@@ -139,7 +139,7 @@ public class CachedBlobContainerIndexInput extends MetadataCachingIndexInput {
      * or {@code -1} if the prewarming was cancelled
      */
     public long prefetchPart(final int part, Supplier<Boolean> isCancelled) throws IOException {
-        ensureContext(ctx -> ctx == CACHE_WARMING_CONTEXT);
+        ensureContext(ctx -> ctx.hints().contains(StandardIOBehaviorHint.INSTANCE));
         if (part >= fileInfo.numberOfParts()) {
             throw new IllegalArgumentException("Unexpected part number [" + part + "]");
         }

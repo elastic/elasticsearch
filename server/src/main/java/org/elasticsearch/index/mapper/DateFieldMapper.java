@@ -740,8 +740,12 @@ public final class DateFieldMapper extends FieldMapper {
                 parser = forcedDateParser;
             }
             return dateRangeQuery(lowerTerm, upperTerm, includeLower, includeUpper, timeZone, parser, context, resolution, (l, u) -> {
-                var indexMode = context.getIndexSettings().getMode();
+                var indexSettings = context.getIndexSettings();
+                var indexMode = indexSettings.getMode();
+                boolean sortOnTimestamp = indexSettings.getIndexSortConfig().hasSortOnField(DataStream.TIMESTAMP_FIELD_NAME);
                 if ((indexMode == IndexMode.TIME_SERIES || indexMode == IndexMode.LOGSDB)
+                    && sortOnTimestamp
+                    && indexSettings.useDocValuesSkipper()
                     && name().equals(DataStream.TIMESTAMP_FIELD_NAME)) {
                     return new TimestampQuery(l, u);
                 }

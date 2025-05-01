@@ -1052,6 +1052,11 @@ public class EsqlCapabilities {
         SUGGESTED_CAST,
 
         /**
+         * Guards a bug fix matching {@code TO_LOWER(f) == ""}.
+         */
+        TO_LOWER_EMPTY_STRING,
+
+        /**
          * Resolve groupings before resolving references to groupings in the aggregations.
          */
         RESOLVE_GROUPINGS_BEFORE_RESOLVING_REFERENCES_TO_GROUPINGS_IN_AGGREGATIONS;

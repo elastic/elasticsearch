@@ -416,6 +416,7 @@ public class AutoscalingSearchLoadMetricsIT extends AbstractStatelessIntegTestCa
 
         internalCluster().stopCurrentMasterNode();
 
+        ensureStableCluster(3);
         assertBusy(() -> {
             var loadsAfterSearch = getNodeSearchLoad();
             assertThat(loadsAfterSearch.size(), equalTo(1));
@@ -468,6 +469,7 @@ public class AutoscalingSearchLoadMetricsIT extends AbstractStatelessIntegTestCa
         safeAwait(firstNonZeroPublishSearchLoadLatch);
         internalCluster().stopCurrentMasterNode();
 
+        ensureStableCluster(3);
         assertBusy(() -> {
             List<NodeSearchLoadSnapshot> loadsAfterSearch = getNodeSearchLoad();
             assertThat(loadsAfterSearch.size(), equalTo(1));
@@ -506,6 +508,7 @@ public class AutoscalingSearchLoadMetricsIT extends AbstractStatelessIntegTestCa
 
         internalCluster().restartNode(masterNode);
 
+        ensureStableCluster(3);
         // After the master node is restarted the index load is re-populated from the search node
         assertBusy(() -> {
             var loadsAfterSearch = getNodeSearchLoad();

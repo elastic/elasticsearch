@@ -46,7 +46,7 @@ import static org.elasticsearch.xpack.inference.services.ServiceUtils.invalidMod
 
 public class SageMakerService implements InferenceService {
     public static final String NAME = "sagemaker";
-    private static final int DEFAULT_BATCH_SIZE = 2048;
+    private static final int DEFAULT_BATCH_SIZE = 256;
     private final SageMakerModelBuilder modelBuilder;
     private final SageMakerClient client;
     private final SageMakerSchemas schemas;

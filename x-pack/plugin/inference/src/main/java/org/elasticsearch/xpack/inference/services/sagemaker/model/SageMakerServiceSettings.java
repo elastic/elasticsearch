@@ -213,7 +213,7 @@ record SageMakerServiceSettings(
             Map.entry(
                 API,
                 new SettingsConfiguration.Builder(supportedTaskTypes).setDescription("The API format that your SageMaker Endpoint expects.")
-                    .setLabel("Api")
+                    .setLabel("API")
                     .setRequired(true)
                     .setSensitive(false)
                     .setUpdatable(false)

@@ -48,6 +48,7 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Flow;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.xpack.inference.InferencePlugin.UTILITY_THREAD_POOL_NAME;
@@ -123,7 +124,7 @@ public class SageMakerClient implements Closeable {
         } else {
             ExceptionsHelper.maybeError(t).ifPresent(ExceptionsHelper::maybeDieOnAnotherThread);
             log.atWarn().withThrowable(t).log("Unknown failure calling SageMaker.");
-            listener.onFailure(new RuntimeException("Unknown failure calling SageMaker."));
+            listener.onFailure(new RuntimeException("Unknown failure calling SageMaker.", t));
         }
         return null; // Void
     }
@@ -218,9 +219,14 @@ public class SageMakerClient implements Closeable {
         private static final Logger log = LogManager.getLogger(SageMakerStreamingResponseProcessor.class);
         private final AtomicReference<Tuple<Flow.Publisher<ResponseStream>, Flow.Subscriber<? super ResponseStream>>> holder =
             new AtomicReference<>(null);
+        private final AtomicBoolean subscribeCalledOnce = new AtomicBoolean(false);
 
         @Override
         public void subscribe(Flow.Subscriber<? super ResponseStream> subscriber) {
+            if (subscribeCalledOnce.compareAndSet(false, true) == false) {
+                subscriber.onError(new IllegalStateException("Subscriber already set."));
+                return;
+            }
             if (holder.compareAndSet(null, Tuple.tuple(null, subscriber)) == false) {
                 log.debug("Subscriber connecting to publisher.");
                 var publisher = holder.getAndSet(null).v1();

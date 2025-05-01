@@ -516,7 +516,7 @@ public class SparseVectorFieldMapper extends FieldMapper {
         public static PruningConfig parseIndexOptionsPruningConfig(Boolean prune, Map<String, Object> indexOptionsMap) {
             Object pruningConfiguration = indexOptionsMap.remove(IndexOptions.PRUNING_CONFIG_FIELD_NAME);
             if (pruningConfiguration == null) {
-                return new PruningConfig(PruningConfig.DEFAULT_TOKENS_FREQ_RATIO_THRESHOLD, PruningConfig.DEFAULT_TOKENS_WEIGHT_THRESHOLD);
+                return null;
             }
             if ((pruningConfiguration instanceof Map) == false) {
                 throw new MapperParsingException("[index_options] field [pruning_config] should be a map");

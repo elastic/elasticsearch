@@ -163,7 +163,7 @@ public class IndexVersions {
     public static final IndexVersion UPGRADE_TO_LUCENE_10_2_1 = def(9_023_00_0, Version.LUCENE_10_2_1);
     public static final IndexVersion DEFAULT_OVERSAMPLE_VALUE_FOR_BBQ = def(9_024_0_00, Version.LUCENE_10_2_1);
     public static final IndexVersion SEMANTIC_TEXT_DEFAULTS_TO_BBQ = def(9_025_0_00, Version.LUCENE_10_2_1);
-    
+
     public static final IndexVersion UPGRADE_TO_LUCENE_10_3_0 = def(9_050_00_0, Version.LUCENE_10_3_0);
     /*
      * STOP! READ THIS FIRST! No, really,

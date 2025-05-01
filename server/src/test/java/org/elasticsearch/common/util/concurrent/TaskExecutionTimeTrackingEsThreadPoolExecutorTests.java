@@ -177,12 +177,26 @@ public class TaskExecutionTimeTrackingEsThreadPoolExecutorTests extends ESTestCa
         try {
             final var barrier = new CyclicBarrier(2);
             final ExponentialBucketHistogram expectedHistogram = new ExponentialBucketHistogram();
+
+            /*
+             * The thread pool has a single thread, so we submit a task that will occupy that thread
+             * and cause subsequent tasks to be queued
+             */
             Future<?> runningTask = executor.submit(() -> {
                 safeAwait(barrier);
                 safeAwait(barrier);
             });
-            safeAwait(barrier); // wait till first task starts
-            expectedHistogram.addObservation(0L); // first task should not be delayed
+            safeAwait(barrier); // wait till the first task starts
+            expectedHistogram.addObservation(0L); // the first task should not be delayed
+
+            /*
+             *  On each iteration we submit a task - which will be queued because of the
+             *  currently running task, pause for some random interval, then unblock the
+             *  new task by releasing the currently running task. This gives us a lower
+             *  bound for the real delays (the real delays will be greater than or equal
+             *  to the synthetic delays we add, i.e. each percentile should be >= our
+             *  expected values)
+             */
             for (int i = 0; i < 10; i++) {
                 Future<?> waitingTask = executor.submit(() -> {
                     safeAwait(barrier);
@@ -190,13 +204,13 @@ public class TaskExecutionTimeTrackingEsThreadPoolExecutorTests extends ESTestCa
                 });
                 final long delayTimeMs = randomLongBetween(1, 50);
                 safeSleep(delayTimeMs);
-                safeAwait(barrier); // let running task complete
-                safeAwait(barrier); // wait for next task to start
+                safeAwait(barrier); // let the running task complete
+                safeAwait(barrier); // wait for the next task to start
                 safeGet(runningTask); // ensure previous task is complete
                 expectedHistogram.addObservation(delayTimeMs);
                 runningTask = waitingTask;
             }
-            safeAwait(barrier); // let last task finish
+            safeAwait(barrier); // let the last task finish
             safeGet(runningTask);
             meterRegistry.getRecorder().collect();
 

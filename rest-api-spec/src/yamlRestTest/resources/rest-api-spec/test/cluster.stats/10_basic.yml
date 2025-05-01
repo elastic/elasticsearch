@@ -1,3 +1,15 @@
+
+---
+teardown:
+  # ensure indices are cleaned up after each test
+  # mainly for the sparse vector tests
+  - do:
+      indices.delete:
+        index: ["test1", "test2"]
+        ignore: 404
+  - do:
+      indices.refresh: { }
+
 ---
 "cluster stats test":
   - do:
@@ -352,16 +364,6 @@
   - match: { indices.docs.deleted: 0 }
   - match: { indices.dense_vector.value_count: 8 }
   - is_false: indices.dense_vector.off_heap
-
-  # ensure indices are cleaned up
-  - do:
-      indices.delete:
-        index: test1
-  - do:
-      indices.delete:
-        index: test2
-  - do:
-      indices.refresh: { }
 
 ---
 "Sparse vector stats":

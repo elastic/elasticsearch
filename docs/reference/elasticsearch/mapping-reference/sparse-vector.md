@@ -36,7 +36,7 @@ PUT my-index
           "prune": true,
           "pruning_config": {
             "tokens_freq_ratio_threshold": 5,
-            "tokens_weight_threshold: 0.4
+            "tokens_weight_threshold": 0.4
           }
         }
       }
@@ -66,7 +66,7 @@ Parameters for `index_options` are:
 :   (Optional, boolean) [preview] Whether to perform pruning, omitting the non-significant tokens from the query to improve query performance. If `prune` is true but the `pruning_config` is not specified, pruning will occur but default values will be used. Default: true.
 
 `pruning_config`
-:   (Optional, object) [preview] Optional pruning configuration. If enabled, this will omit non-significant tokens from the query in order to improve query performance. This is only used if `prune` is set to `true`. If `prune` is set to `true` but `pruning_config` is not specified, default values will be used.
+:   (Optional, object) [preview] Optional pruning configuration. If enabled, this will omit non-significant tokens from the query in order to improve query performance. This is only used if `prune` is set to `true`. If `prune` is set to `true` but `pruning_config` is not specified, default values will be used. If `prune` is set to false, an exception will occur.
 
     Parameters for `pruning_config` include:
 

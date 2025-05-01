@@ -63,7 +63,7 @@ public class ExponentialBucketHistogram {
      * @return An array of frequencies of handling times in buckets with upper bounds as returned by {@link #getBucketUpperBounds()}, plus
      *         an extra bucket for handling times longer than the longest upper bound.
      */
-    public long[] getHistogram() {
+    public long[] getSnapshot() {
         final long[] histogram = new long[BUCKET_COUNT];
         for (int i = 0; i < BUCKET_COUNT; i++) {
             histogram[i] = buckets[i].longValue();
@@ -79,7 +79,7 @@ public class ExponentialBucketHistogram {
      */
     public long getPercentile(float percentile) {
         assert percentile >= 0 && percentile <= 1;
-        final long[] snapshot = getHistogram();
+        final long[] snapshot = getSnapshot();
         final long totalCount = Arrays.stream(snapshot).sum();
         long percentileIndex = (long) Math.ceil(totalCount * percentile);
         // Find which bucket has the Nth percentile value and return the upper bound value.

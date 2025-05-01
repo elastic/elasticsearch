@@ -102,7 +102,7 @@ public class HttpRouteStatsTracker {
             responseStats.count().longValue(),
             responseStats.totalSize().longValue(),
             responseStats.getHistogram(),
-            responseTimeMillisHistogram.getHistogram()
+            responseTimeMillisHistogram.getSnapshot()
         );
     }
 }

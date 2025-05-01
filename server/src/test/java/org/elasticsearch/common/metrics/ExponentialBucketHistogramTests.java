@@ -18,46 +18,46 @@ import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 
 public class ExponentialBucketHistogramTests extends ESTestCase {
 
-    public void testHistogram() {
+    public void testSnapshot() {
         final ExponentialBucketHistogram histogram = new ExponentialBucketHistogram();
 
-        assertArrayEquals(new long[] { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 }, histogram.getHistogram());
+        assertArrayEquals(new long[] { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 }, histogram.getSnapshot());
 
         histogram.addObservation(0L);
-        assertArrayEquals(new long[] { 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 }, histogram.getHistogram());
+        assertArrayEquals(new long[] { 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 }, histogram.getSnapshot());
 
         histogram.addObservation(1L);
-        assertArrayEquals(new long[] { 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 }, histogram.getHistogram());
+        assertArrayEquals(new long[] { 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 }, histogram.getSnapshot());
 
         histogram.addObservation(2L);
-        assertArrayEquals(new long[] { 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 }, histogram.getHistogram());
+        assertArrayEquals(new long[] { 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 }, histogram.getSnapshot());
 
         histogram.addObservation(3L);
-        assertArrayEquals(new long[] { 1, 1, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 }, histogram.getHistogram());
+        assertArrayEquals(new long[] { 1, 1, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 }, histogram.getSnapshot());
 
         histogram.addObservation(4L);
-        assertArrayEquals(new long[] { 1, 1, 2, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 }, histogram.getHistogram());
+        assertArrayEquals(new long[] { 1, 1, 2, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 }, histogram.getSnapshot());
 
         histogram.addObservation(127L);
-        assertArrayEquals(new long[] { 1, 1, 2, 1, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 }, histogram.getHistogram());
+        assertArrayEquals(new long[] { 1, 1, 2, 1, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 }, histogram.getSnapshot());
 
         histogram.addObservation(128L);
-        assertArrayEquals(new long[] { 1, 1, 2, 1, 0, 0, 0, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0 }, histogram.getHistogram());
+        assertArrayEquals(new long[] { 1, 1, 2, 1, 0, 0, 0, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0 }, histogram.getSnapshot());
 
         histogram.addObservation(65535L);
-        assertArrayEquals(new long[] { 1, 1, 2, 1, 0, 0, 0, 1, 1, 0, 0, 0, 0, 0, 0, 0, 1, 0 }, histogram.getHistogram());
+        assertArrayEquals(new long[] { 1, 1, 2, 1, 0, 0, 0, 1, 1, 0, 0, 0, 0, 0, 0, 0, 1, 0 }, histogram.getSnapshot());
 
         histogram.addObservation(65536L);
-        assertArrayEquals(new long[] { 1, 1, 2, 1, 0, 0, 0, 1, 1, 0, 0, 0, 0, 0, 0, 0, 1, 1 }, histogram.getHistogram());
+        assertArrayEquals(new long[] { 1, 1, 2, 1, 0, 0, 0, 1, 1, 0, 0, 0, 0, 0, 0, 0, 1, 1 }, histogram.getSnapshot());
 
         histogram.addObservation(Long.MAX_VALUE);
-        assertArrayEquals(new long[] { 1, 1, 2, 1, 0, 0, 0, 1, 1, 0, 0, 0, 0, 0, 0, 0, 1, 2 }, histogram.getHistogram());
+        assertArrayEquals(new long[] { 1, 1, 2, 1, 0, 0, 0, 1, 1, 0, 0, 0, 0, 0, 0, 0, 1, 2 }, histogram.getSnapshot());
 
         histogram.addObservation(randomLongBetween(65536L, Long.MAX_VALUE));
-        assertArrayEquals(new long[] { 1, 1, 2, 1, 0, 0, 0, 1, 1, 0, 0, 0, 0, 0, 0, 0, 1, 3 }, histogram.getHistogram());
+        assertArrayEquals(new long[] { 1, 1, 2, 1, 0, 0, 0, 1, 1, 0, 0, 0, 0, 0, 0, 0, 1, 3 }, histogram.getSnapshot());
 
         histogram.addObservation(randomLongBetween(Long.MIN_VALUE, 0L));
-        assertArrayEquals(new long[] { 2, 1, 2, 1, 0, 0, 0, 1, 1, 0, 0, 0, 0, 0, 0, 0, 1, 3 }, histogram.getHistogram());
+        assertArrayEquals(new long[] { 2, 1, 2, 1, 0, 0, 0, 1, 1, 0, 0, 0, 0, 0, 0, 0, 1, 3 }, histogram.getSnapshot());
     }
 
     public void testHistogramRandom() {
@@ -73,7 +73,7 @@ public class ExponentialBucketHistogramTests extends ESTestCase {
             histogram.addObservation(between(lowerBound, upperBound));
         }
 
-        assertArrayEquals(expectedCounts, histogram.getHistogram());
+        assertArrayEquals(expectedCounts, histogram.getSnapshot());
     }
 
     public void testBoundsConsistency() {

@@ -1,0 +1,6 @@
+pr: 126409
+summary: System data streams are not being upgraded in the feature migration API
+area: Infra/Core
+type: bug
+issues:
+  - 122949

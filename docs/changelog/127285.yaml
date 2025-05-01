@@ -1,0 +1,5 @@
+pr: 127285
+summary: Restore model registry validation for the semantic text field
+area: Search
+type: enhancement
+issues: []

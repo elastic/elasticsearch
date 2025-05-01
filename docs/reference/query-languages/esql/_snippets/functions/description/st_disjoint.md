@@ -2,5 +2,5 @@
 
 **Description**
 
-Returns whether the two geometries or geometry columns are disjoint. This is the inverse of the [ST_INTERSECTS](/reference/query-languages/esql/esql-functions-operators.md#esql-st_intersects) function. In mathematical terms: ST_Disjoint(A, B) ⇔ A ⋂ B = ∅
+Returns whether the two geometries or geometry columns are disjoint. This is the inverse of the [ST_INTERSECTS](/reference/query-languages/esql/functions-operators/spatial-functions.md#esql-st_intersects) function. In mathematical terms: ST_Disjoint(A, B) ⇔ A ⋂ B = ∅
 

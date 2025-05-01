@@ -93,8 +93,8 @@ public class MockedRequestActionBasedRerankerIT extends AbstractRerankerIT {
     public static class RerankerServicePlugin extends Plugin implements ActionPlugin {
 
         @Override
-        public Collection<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {
-            return List.of(new ActionHandler<>(TEST_RERANKING_ACTION_TYPE, TestRerankingTransportAction.class));
+        public Collection<ActionHandler> getActions() {
+            return List.of(new ActionHandler(TEST_RERANKING_ACTION_TYPE, TestRerankingTransportAction.class));
         }
     }
 

@@ -1153,6 +1153,7 @@ public class SystemResourceSnapshotIT extends AbstractSnapshotIntegTestCase {
                             .build(),
                         Map.of(),
                         List.of("product"),
+                        "product",
                         ExecutorNames.DEFAULT_SYSTEM_DATA_STREAM_THREAD_POOLS
                     )
                 );
@@ -1192,6 +1193,7 @@ public class SystemResourceSnapshotIT extends AbstractSnapshotIntegTestCase {
                             .build(),
                         Map.of(),
                         List.of("product"),
+                        "product",
                         ExecutorNames.DEFAULT_SYSTEM_DATA_STREAM_THREAD_POOLS
                     )
                 );
@@ -1231,6 +1233,7 @@ public class SystemResourceSnapshotIT extends AbstractSnapshotIntegTestCase {
                             .build(),
                         Map.of(),
                         List.of("product"),
+                        "product",
                         ExecutorNames.DEFAULT_SYSTEM_DATA_STREAM_THREAD_POOLS
                     )
                 );
@@ -1299,6 +1302,7 @@ public class SystemResourceSnapshotIT extends AbstractSnapshotIntegTestCase {
                             .build(),
                         Map.of(),
                         List.of("product"),
+                        "product",
                         ExecutorNames.DEFAULT_SYSTEM_DATA_STREAM_THREAD_POOLS
                     )
                 );

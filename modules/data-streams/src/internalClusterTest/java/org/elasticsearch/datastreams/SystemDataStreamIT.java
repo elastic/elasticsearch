@@ -24,6 +24,9 @@ import org.elasticsearch.client.RestClient;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate.DataStreamTemplate;
+import org.elasticsearch.cluster.metadata.DataStream;
+import org.elasticsearch.cluster.metadata.DataStreamFailureStore;
+import org.elasticsearch.cluster.metadata.DataStreamOptions;
 import org.elasticsearch.cluster.metadata.Template;
 import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.project.TestProjectResolvers;
@@ -33,6 +36,8 @@ import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.index.mapper.DateFieldMapper;
+import org.elasticsearch.index.mapper.extras.MapperExtrasPlugin;
 import org.elasticsearch.indices.ExecutorNames;
 import org.elasticsearch.indices.SystemDataStreamDescriptor;
 import org.elasticsearch.indices.SystemDataStreamDescriptor.Type;
@@ -48,12 +53,15 @@ import java.io.UncheckedIOException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.cluster.metadata.MetadataIndexTemplateService.DEFAULT_TIMESTAMP_FIELD;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.startsWith;
 
 public class SystemDataStreamIT extends ESIntegTestCase {
 
@@ -62,6 +70,7 @@ public class SystemDataStreamIT extends ESIntegTestCase {
         List<Class<? extends Plugin>> plugins = new ArrayList<>(super.nodePlugins());
         plugins.add(DataStreamsPlugin.class);
         plugins.add(TestSystemDataStreamPlugin.class);
+        plugins.add(MapperExtrasPlugin.class);
         return plugins;
     }
 
@@ -166,6 +175,63 @@ public class SystemDataStreamIT extends ESIntegTestCase {
                 false
             );
             assertThat(map.get("data_stream_count"), equalTo(1));
+        }
+    }
+
+    public void testSystemDataStreamWithFailureStore() throws Exception {
+        String dataStreamName = ".test-failure-store";
+        RequestOptions productHeader = RequestOptions.DEFAULT.toBuilder().addHeader("X-elastic-product-origin", "product").build();
+        try (RestClient restClient = createRestClient()) {
+            Request indexRequest = new Request("POST", "/" + dataStreamName + "/_doc");
+            indexRequest.setOptions(productHeader);
+            String value = DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.formatMillis(System.currentTimeMillis());
+            indexRequest.setJsonEntity(
+                String.format(Locale.ROOT, "{\"%s\":\"%s\",\"count\":\"not-a-number\"}", DEFAULT_TIMESTAMP_FIELD, value)
+            );
+
+            Response indexResponse = restClient.performRequest(indexRequest);
+            assertThat(indexResponse.getStatusLine().getStatusCode(), is(201));
+            Map<String, Object> responseMap = XContentHelper.convertToMap(
+                XContentType.JSON.xContent(),
+                EntityUtils.toString(indexResponse.getEntity()),
+                false
+            );
+            assertThat(responseMap.get("result"), equalTo("created"));
+            assertThat((String) responseMap.get("_index"), startsWith(DataStream.FAILURE_STORE_PREFIX));
+            assertThat(responseMap.get("failure_store"), equalTo("used"));
+
+            // Rollover
+            Request rolloverRequest = new Request("POST", "/" + dataStreamName + "::failures/_rollover");
+            rolloverRequest.setOptions(productHeader);
+            Response rolloverResponse = restClient.performRequest(rolloverRequest);
+            assertThat(rolloverResponse.getStatusLine().getStatusCode(), is(200));
+            responseMap = XContentHelper.convertToMap(
+                XContentType.JSON.xContent(),
+                EntityUtils.toString(rolloverResponse.getEntity()),
+                false
+            );
+            assertThat(responseMap.get("acknowledged"), equalTo(true));
+            assertThat(responseMap.get("rolled_over"), equalTo(true));
+            assertThat((String) responseMap.get("new_index"), startsWith(DataStream.FAILURE_STORE_PREFIX));
+
+            // Edit data stream options
+            Request editOptionsRequest = new Request("PUT", "/_data_stream/" + dataStreamName + "/_options");
+            editOptionsRequest.setJsonEntity("{\"failure_store\":{\"enabled\":\"false\"}}");
+            editOptionsRequest.setOptions(productHeader);
+            Response editOptionsResponse = restClient.performRequest(editOptionsRequest);
+            assertThat(editOptionsResponse.getStatusLine().getStatusCode(), is(200));
+            responseMap = XContentHelper.convertToMap(
+                XContentType.JSON.xContent(),
+                EntityUtils.toString(editOptionsResponse.getEntity()),
+                false
+            );
+            assertThat(responseMap.get("acknowledged"), equalTo(true));
+
+            // delete
+            Request deleteRequest = new Request("DELETE", "/_data_stream/" + dataStreamName);
+            deleteRequest.setOptions(productHeader);
+            Response deleteResponse = restClient.performRequest(deleteRequest);
+            assertThat(deleteResponse.getStatusLine().getStatusCode(), is(200));
         }
     }
 
@@ -326,6 +392,37 @@ public class SystemDataStreamIT extends ESIntegTestCase {
                             .build(),
                         Map.of(),
                         List.of("product"),
+                        "product",
+                        ExecutorNames.DEFAULT_SYSTEM_DATA_STREAM_THREAD_POOLS
+                    ),
+                    new SystemDataStreamDescriptor(
+                        ".test-failure-store",
+                        "system data stream test with failure store",
+                        Type.EXTERNAL,
+                        ComposableIndexTemplate.builder()
+                            .indexPatterns(List.of(".test-failure-store"))
+                            .template(
+                                Template.builder()
+                                    .mappings(new CompressedXContent("""
+                                        {
+                                            "properties": {
+                                              "@timestamp" : {
+                                                "type": "date"
+                                              },
+                                              "count": {
+                                                "type": "long"
+                                              }
+                                            }
+                                        }"""))
+                                    .dataStreamOptions(
+                                        new DataStreamOptions.Template(DataStreamFailureStore.builder().enabled(true).buildTemplate())
+                                    )
+                            )
+                            .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate())
+                            .build(),
+                        Map.of(),
+                        List.of("product"),
+                        "product",
                         ExecutorNames.DEFAULT_SYSTEM_DATA_STREAM_THREAD_POOLS
                     )
                 );

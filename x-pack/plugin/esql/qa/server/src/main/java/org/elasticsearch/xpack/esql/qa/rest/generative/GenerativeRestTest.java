@@ -25,6 +25,7 @@ import java.util.stream.Collectors;
 
 import static org.elasticsearch.xpack.esql.CsvTestsDataLoader.CSV_DATASET_MAP;
 import static org.elasticsearch.xpack.esql.CsvTestsDataLoader.ENRICH_POLICIES;
+import static org.elasticsearch.xpack.esql.CsvTestsDataLoader.availableDatasetsForEs;
 import static org.elasticsearch.xpack.esql.CsvTestsDataLoader.loadDataSetIntoEs;
 
 public abstract class GenerativeRestTest extends ESRestTestCase {
@@ -36,7 +37,7 @@ public abstract class GenerativeRestTest extends ESRestTestCase {
         "Reference \\[.*\\] is ambiguous",
         "Cannot use field \\[.*\\] due to ambiguities",
         "cannot sort on .*",
-        "argument of \\[count_distinct\\(.*\\)\\] must",
+        "argument of \\[count.*\\] must",
         "Cannot use field \\[.*\\] with unsupported type \\[.*_range\\]",
         "Unbounded sort not supported yet",
         "The field names are too complex to process", // field_caps problem
@@ -49,13 +50,12 @@ public abstract class GenerativeRestTest extends ESRestTestCase {
         // Awaiting fixes
         "Unknown column \\[<all-fields-projected>\\]", // https://github.com/elastic/elasticsearch/issues/121741,
         "Plan \\[ProjectExec\\[\\[<no-fields>.* optimized incorrectly due to missing references", // https://github.com/elastic/elasticsearch/issues/125866
-        "only supports KEYWORD or TEXT values, found expression", // https://github.com/elastic/elasticsearch/issues/126017
-        "token recognition error at: '``", // https://github.com/elastic/elasticsearch/issues/125870
-        "Unknown column \\[.*\\]", // https://github.com/elastic/elasticsearch/issues/126026
-        "Expected \\[.*\\] but was \\[.*\\]", // https://github.com/elastic/elasticsearch/issues/126030
-        "trying to encode an unsupported data type value for TopN", // still https://github.com/elastic/elasticsearch/issues/126030 probably
-        "Block cannot be cast to", // https://github.com/elastic/elasticsearch/issues/126036
+        "token recognition error at: ", // https://github.com/elastic/elasticsearch/issues/125870
+                                        // https://github.com/elastic/elasticsearch/issues/127167
         "optimized incorrectly due to missing references", // https://github.com/elastic/elasticsearch/issues/116781
+        "No matches found for pattern", // https://github.com/elastic/elasticsearch/issues/126418
+        "Unknown column", // https://github.com/elastic/elasticsearch/issues/127467
+        "only supports KEYWORD or TEXT values", // https://github.com/elastic/elasticsearch/issues/127468
         "The incoming YAML document exceeds the limit:" // still to investigate, but it seems to be specific to the test framework
     );
 
@@ -85,7 +85,7 @@ public abstract class GenerativeRestTest extends ESRestTestCase {
         }
     }
 
-    public void test() {
+    public void test() throws IOException {
         List<String> indices = availableIndices();
         List<LookupIdx> lookupIndices = lookupIndices();
         List<CsvTestsDataLoader.EnrichConfig> policies = availableEnrichPolicies();
@@ -142,14 +142,11 @@ public abstract class GenerativeRestTest extends ESRestTestCase {
         return cols.stream().map(x -> new EsqlQueryGenerator.Column(x.get("name"), x.get("type"))).collect(Collectors.toList());
     }
 
-    private List<String> availableIndices() {
-        return new ArrayList<>(
-            CSV_DATASET_MAP.entrySet()
-                .stream()
-                .filter(x -> x.getValue().requiresInferenceEndpoint() == false)
-                .map(Map.Entry::getKey)
-                .toList()
-        );
+    private List<String> availableIndices() throws IOException {
+        return availableDatasetsForEs(client(), true, supportsSourceFieldMapping()).stream()
+            .filter(x -> x.requiresInferenceEndpoint() == false)
+            .map(x -> x.indexName())
+            .toList();
     }
 
     record LookupIdx(String idxName, String key, String keyType) {}

@@ -28,6 +28,7 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunction;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.FilteredExpression;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Rate;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.TimeSeriesAggregateFunction;
 import org.elasticsearch.xpack.esql.expression.function.grouping.Categorize;
 import org.elasticsearch.xpack.esql.expression.function.grouping.GroupingFunction;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
@@ -223,8 +224,8 @@ public class Aggregate extends UnaryPlan implements PostAnalysisVerificationAwar
             aggregates.forEach(a -> checkRateAggregates(a, 0, failures));
         } else {
             forEachExpression(
-                Rate.class,
-                r -> failures.add(fail(r, "the rate aggregate[{}] can only be used with the TS command", r.sourceText()))
+                TimeSeriesAggregateFunction.class,
+                r -> failures.add(fail(r, "time_series aggregate[{}] can only be used with the TS command", r.sourceText()))
             );
         }
         checkCategorizeGrouping(failures);
@@ -370,7 +371,7 @@ public class Aggregate extends UnaryPlan implements PostAnalysisVerificationAwar
         if (e instanceof AggregateFunction af) {
             af.field().forEachDown(AggregateFunction.class, f -> {
                 // rate aggregate is allowed to be inside another aggregate
-                if (f instanceof Rate == false) {
+                if (f instanceof TimeSeriesAggregateFunction == false) {
                     failures.add(fail(f, "nested aggregations [{}] not allowed inside other aggregations [{}]", f, af));
                 }
             });

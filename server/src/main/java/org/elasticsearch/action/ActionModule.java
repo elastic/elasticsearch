@@ -443,7 +443,7 @@ public class ActionModule extends AbstractModule {
     private final ClusterSettings clusterSettings;
     private final SettingsFilter settingsFilter;
     private final List<ActionPlugin> actionPlugins;
-    private final Map<String, ActionHandler<?, ?>> actions;
+    private final Map<String, ActionHandler> actions;
     private final ActionFilters actionFilters;
     private final IncrementalBulkService bulkService;
     private final ProjectIdResolver projectIdResolver;
@@ -605,18 +605,18 @@ public class ActionModule extends AbstractModule {
         }
     }
 
-    public Map<String, ActionHandler<?, ?>> getActions() {
+    public Map<String, ActionHandler> getActions() {
         return actions;
     }
 
-    static Map<String, ActionHandler<?, ?>> setupActions(List<ActionPlugin> actionPlugins) {
+    static Map<String, ActionHandler> setupActions(List<ActionPlugin> actionPlugins) {
         // Subclass NamedRegistry for easy registration
-        class ActionRegistry extends NamedRegistry<ActionHandler<?, ?>> {
+        class ActionRegistry extends NamedRegistry<ActionHandler> {
             ActionRegistry() {
                 super("action");
             }
 
-            public void register(ActionHandler<?, ?> handler) {
+            public void register(ActionHandler handler) {
                 register(handler.getAction().name(), handler);
             }
 
@@ -624,7 +624,7 @@ public class ActionModule extends AbstractModule {
                 ActionType<Response> action,
                 Class<? extends TransportAction<Request, Response>> transportAction
             ) {
-                register(new ActionHandler<>(action, transportAction));
+                register(new ActionHandler(action, transportAction));
             }
         }
         ActionRegistry actions = new ActionRegistry();
@@ -1053,7 +1053,7 @@ public class ActionModule extends AbstractModule {
             ActionType.class,
             TransportAction.class
         );
-        for (ActionHandler<?, ?> action : actions.values()) {
+        for (ActionHandler action : actions.values()) {
             // bind the action as eager singleton, so the map binder one will reuse it
             bind(action.getTransportAction()).asEagerSingleton();
             transportActionsBinder.addBinding(action.getAction()).to(action.getTransportAction()).asEagerSingleton();

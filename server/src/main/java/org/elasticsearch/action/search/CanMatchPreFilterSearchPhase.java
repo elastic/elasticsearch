@@ -76,6 +76,9 @@ final class CanMatchPreFilterSearchPhase {
     private final FixedBitSet possibleMatches;
     private final MinAndMax<?>[] minAndMaxes;
     private int numPossibleMatches;
+    // True if the initiating action to this can_match run is doing batched query phase execution.
+    // If batched query phase execution is in use, then there is no need to physically send can_match requests to other nodes
+    // and only the coordinating coordinator can_match logic will run.
     private final boolean batchQueryPhase;
 
     private CanMatchPreFilterSearchPhase(
@@ -299,7 +302,9 @@ final class CanMatchPreFilterSearchPhase {
 
                 if (entry.getKey().nodeId == null) {
                     // no target node: just mark the requests as failed
-                    failAll(shardLevelRequests, null);
+                    for (CanMatchNodeRequest.Shard shard : shardLevelRequests) {
+                        onOperationFailed(shard.getShardRequestIndex(), null);
+                    }
                     continue;
                 }
 
@@ -307,19 +312,20 @@ final class CanMatchPreFilterSearchPhase {
                 try {
                     var connection = nodeIdToConnection.apply(sendingTarget.clusterAlias, sendingTarget.nodeId);
                     if (batchQueryPhase && SearchQueryThenFetchAsyncAction.connectionSupportsBatchedExecution(connection)) {
-                        failAll(shardLevelRequests, null);
+                        for (CanMatchNodeRequest.Shard shard : shardLevelRequests) {
+                            final int idx = shard.getShardRequestIndex();
+                            CanMatchShardResponse shardResponse = new CanMatchShardResponse(true, null);
+                            shardResponse.setShardIndex(idx);
+                            onOperation(idx, shardResponse);
+                        }
                     } else {
                         bwcSendCanMatchRequest(connection, canMatchNodeRequest, shardLevelRequests);
                     }
                 } catch (Exception e) {
-                    failAll(shardLevelRequests, e);
+                    for (CanMatchNodeRequest.Shard shard : shardLevelRequests) {
+                        onOperationFailed(shard.getShardRequestIndex(), e);
+                    }
                 }
-            }
-        }
-
-        private void failAll(List<CanMatchNodeRequest.Shard> shardLevelRequests, Exception e) {
-            for (CanMatchNodeRequest.Shard shard : shardLevelRequests) {
-                onOperationFailed(shard.getShardRequestIndex(), e);
             }
         }
 

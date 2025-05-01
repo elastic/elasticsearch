@@ -229,11 +229,14 @@ public class S3ServiceTests extends ESTestCase {
             mock(ResourceWatcherService.class),
             () -> Region.of("es-test-region")
         );
-        String servername = randomIdentifier() + ".ignore";
+        final String endpointWithoutScheme = randomIdentifier() + ".ignore";
         S3Client s3Client = s3Service.buildClient(
-            S3ClientSettings.getClientSettings(Settings.builder().put("s3.client.test-client.endpoint", servername).build(), "test-client"),
+            S3ClientSettings.getClientSettings(
+                Settings.builder().put("s3.client.test-client.endpoint", endpointWithoutScheme).build(),
+                "test-client"
+            ),
             mock(SdkHttpClient.class)
         );
-        assertThat(s3Client.serviceClientConfiguration().endpointOverride().get(), equalTo(URI.create("https://" + servername)));
+        assertThat(s3Client.serviceClientConfiguration().endpointOverride().get(), equalTo(URI.create("https://" + endpointWithoutScheme)));
     }
 }

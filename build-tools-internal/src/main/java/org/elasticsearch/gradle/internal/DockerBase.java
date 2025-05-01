@@ -38,7 +38,7 @@ public enum DockerBase {
         "docker.elastic.co/wolfi/chainguard-base-fips:sha256-ebfc3f1d7dba992231747a2e05ad1b859843e81b5e676ad342859d7cf9e425a7",
         "-cloud-ess-fips",
         "apk"
-    ),
+    );
 
     private final String image;
     private final String suffix;

@@ -38,7 +38,8 @@ import static org.elasticsearch.xpack.esql.qa.rest.RestEsqlTestCase.requestObjec
 import static org.elasticsearch.xpack.esql.qa.rest.RestEsqlTestCase.runEsql;
 import static org.elasticsearch.xpack.esql.qa.single_node.RestEsqlIT.commonProfile;
 import static org.elasticsearch.xpack.esql.qa.single_node.RestEsqlIT.fixTypesOnProfile;
-import static org.hamcrest.Matchers.*;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.instanceOf;
 
 /**
  * Tests for {@code index.esql.stored_fields_sequential_proportion} which controls
@@ -184,7 +185,7 @@ public class StoredFieldsSequentialIT extends ESRestTestCase {
         bulk.addParameter("refresh", "");
         StringBuilder b = new StringBuilder();
         for (int i = 0; i < 1000; i++) {
-            b.append(String.format("""
+            b.append(String.format(Locale.ROOT, """
                 {"create":{"_index":"test"}}
                 {"test":"test%03d", "i": %d}
                 """, i, i));

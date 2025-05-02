@@ -18,11 +18,19 @@ To give you insight into what deprecated features you’re using, {{es}}:
 <%
 for(bundle in changelogBundles) {
     def version = bundle.version
-    def versionWithoutSeparator = bundle.versionWithoutSeparator
+    def versionForIds = bundle.version.toString().equals('9.0.0') ? bundle.versionWithoutSeparator : bundle.version
     def changelogsByTypeByArea = bundle.changelogsByTypeByArea
     def unqualifiedVersion = bundle.unqualifiedVersion
+    def coming = !bundle.bundle.released
+
+    if (coming) {
+        print "\n"
+        print "```{applies_to}\n"
+        print "stack: coming ${version}\n"
+        print "```"
+    }
 %>
-## ${unqualifiedVersion} [elasticsearch-${versionWithoutSeparator}-deprecations]
+## ${unqualifiedVersion} [elasticsearch-${versionForIds}-deprecations]
 <%
     if (!changelogsByTypeByArea['deprecation']) {
         print "\nNo deprecations in this version.\n"

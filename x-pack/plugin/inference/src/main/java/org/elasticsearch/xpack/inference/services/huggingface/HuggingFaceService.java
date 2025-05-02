@@ -56,7 +56,7 @@ import static org.elasticsearch.xpack.inference.services.ServiceUtils.createInva
 
 /**
  * This class is responsible for managing the Hugging Face inference service.
- * It handles the creation of models, chunked inference, and unified completion inference.
+ * It manages model creation, as well as chunked, non-chunked, and unified completion inference.
  */
 public class HuggingFaceService extends HuggingFaceBaseService {
     public static final String NAME = "hugging_face";

@@ -201,9 +201,10 @@ ext.dockerBuildContext = { Architecture architecture, DockerBase base ->
         from projectDir.resolve("src/docker/config")
       }
     }
-    from(projectDir.resolve("src/docker/Dockerfile")) {
+    from(projectDir.resolve("src/docker/${base.dockerfile}")) {
       expand(varExpansions)
       filter SquashNewlinesFilter
+      rename base.dockerfile, "Dockerfile"
     }
   }
 }

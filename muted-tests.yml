@@ -444,6 +444,9 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.multi_node.EsqlSpecIT
   method: test {rerank.Reranker using another sort order ASYNC}
   issue: https://github.com/elastic/elasticsearch/issues/127638
+- class: org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapperTests
+  method: testRescoreVectorOldIndexVersion
+  issue: https://github.com/elastic/elasticsearch/issues/127657
 
 # Examples:
 #

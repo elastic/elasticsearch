@@ -1057,6 +1057,11 @@ public class EsqlCapabilities {
         TO_LOWER_EMPTY_STRING,
 
         /**
+         * Support min_over_time aggregation that gets evaluated per time-series
+         */
+        MIN_OVER_TIME(Build.current().isSnapshot()),
+
+        /**
          * Support first_over_time aggregation that gets evaluated per time-series
          */
         FIRST_OVER_TIME(Build.current().isSnapshot()),

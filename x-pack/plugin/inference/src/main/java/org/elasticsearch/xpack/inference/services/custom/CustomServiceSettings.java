@@ -197,7 +197,7 @@ public class CustomServiceSettings extends FilteredXContentObject implements Ser
 
     @Override
     public String modelId() {
-        // returning null because the model id is embedded in the url
+        // returning null because the model id is embedded in the url or the request body
         return null;
     }
 

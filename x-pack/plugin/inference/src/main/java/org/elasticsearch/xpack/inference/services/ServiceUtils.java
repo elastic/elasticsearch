@@ -214,7 +214,6 @@ public final class ServiceUtils {
     }
 
     public static ElasticsearchStatusException unknownSettingsError(Map<String, Object> config, String field, String scope) {
-        // TODO map as JSON
         return new ElasticsearchStatusException(
             "Model configuration contains unknown settings [{}] while parsing field [{}] for settings [{}]",
             RestStatus.BAD_REQUEST,
@@ -546,15 +545,15 @@ public final class ServiceUtils {
 
             var firstElement = listEntry.get(0);
             var secondElement = listEntry.get(1);
-            validateTuple(firstElement, settingName, scope, "the first element", tuplesIndex, validationException);
-            validateTuple(secondElement, settingName, scope, "the second element", tuplesIndex, validationException);
+            validateString(firstElement, settingName, scope, "the first element", tuplesIndex, validationException);
+            validateString(secondElement, settingName, scope, "the second element", tuplesIndex, validationException);
             tuples.add(new Tuple<>((String) firstElement, (String) secondElement));
         }
 
         return tuples;
     }
 
-    private static void validateTuple(
+    private static void validateString(
         Object tupleValue,
         String settingName,
         String scope,

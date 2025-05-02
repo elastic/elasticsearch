@@ -19,15 +19,12 @@ import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.http.MockResponse;
 import org.elasticsearch.test.http.MockWebServer;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
-import org.elasticsearch.xpack.core.inference.results.TextEmbeddingFloatResults;
 import org.elasticsearch.xpack.inference.external.http.HttpClientManager;
 import org.elasticsearch.xpack.inference.logging.ThrottlerManager;
 import org.elasticsearch.xpack.inference.services.custom.CustomModel;
-import org.elasticsearch.xpack.inference.services.custom.response.TextEmbeddingResponseParser;
 import org.junit.After;
 import org.junit.Assume;
 import org.junit.Before;
@@ -45,12 +42,18 @@ import static org.elasticsearch.xpack.inference.Utils.getPersistedConfigMap;
 import static org.elasticsearch.xpack.inference.Utils.getRequestConfigMap;
 import static org.elasticsearch.xpack.inference.Utils.inferenceUtilityPool;
 import static org.elasticsearch.xpack.inference.Utils.mockClusterServiceEmpty;
-import static org.elasticsearch.xpack.inference.external.http.Utils.getUrl;
 import static org.hamcrest.Matchers.containsString;
-import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.mockito.Mockito.mock;
 
+/**
+ * Base class for testing inference services.
+ * <p>
+ * This class provides common unit tests for inference services, such as testing the model creation, and calling the infer method.
+ *
+ * To use this class, extend it and pass the constructor a configuration.
+ * </p>
+ */
 public abstract class AbstractServiceTests extends ESTestCase {
 
     protected final MockWebServer webServer = new MockWebServer();
@@ -124,8 +127,6 @@ public abstract class AbstractServiceTests extends ESTestCase {
         protected abstract Map<String, Object> createTaskSettingsMap();
 
         protected abstract Map<String, Object> createSecretSettingsMap();
-
-        protected abstract CustomModel createEmbeddingModel(TextEmbeddingResponseParser embeddingResponseParser, String url);
 
         protected abstract void assertModel(Model model, TaskType taskType);
 
@@ -431,62 +432,6 @@ public abstract class AbstractServiceTests extends ESTestCase {
             var model = service.parsePersistedConfigWithSecrets("id", parseConfigTestConfig.taskType, config.config(), config.secrets());
 
             parseConfigTestConfig.assertModel(model, TaskType.TEXT_EMBEDDING);
-        }
-    }
-
-    // infer tests
-
-    public void testInfer_SendsRequest() throws IOException {
-        try (var service = testConfiguration.commonConfig.createService(threadPool, clientManager)) {
-            String responseJson = """
-                {
-                  "object": "list",
-                  "data": [
-                      {
-                          "object": "embedding",
-                          "index": 0,
-                          "embedding": [
-                              0.0123,
-                              -0.0123
-                          ]
-                      }
-                  ],
-                  "model": "text-embedding-ada-002-v2",
-                  "usage": {
-                      "prompt_tokens": 8,
-                      "total_tokens": 8
-                  }
-                }
-                """;
-
-            webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
-
-            var model = testConfiguration.commonConfig.createEmbeddingModel(
-                new TextEmbeddingResponseParser("$.data[*].embedding"),
-                getUrl(webServer)
-            );
-            PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-            service.infer(
-                model,
-                null,
-                null,
-                null,
-                List.of("test input"),
-                false,
-                new HashMap<>(),
-                InputType.INTERNAL_SEARCH,
-                InferenceAction.Request.DEFAULT_TIMEOUT,
-                listener
-            );
-
-            InferenceServiceResults results = listener.actionGet(TIMEOUT);
-            assertThat(results, instanceOf(TextEmbeddingFloatResults.class));
-
-            var embeddingResults = (TextEmbeddingFloatResults) results;
-            assertThat(
-                embeddingResults.embeddings(),
-                is(List.of(new TextEmbeddingFloatResults.Embedding(new float[] { 0.0123F, -0.0123F })))
-            );
         }
     }
 

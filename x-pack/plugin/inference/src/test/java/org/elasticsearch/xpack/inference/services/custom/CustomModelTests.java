@@ -25,13 +25,12 @@ import java.util.Map;
 import static org.hamcrest.Matchers.is;
 
 public class CustomModelTests extends ESTestCase {
-    public static String taskSettingsKey = "test_taskSettings_key";
-    public static String taskSettingsValue = "test_taskSettings_value";
+    private static final String taskSettingsKey = "test_taskSettings_key";
+    private static final String taskSettingsValue = "test_taskSettings_value";
 
-    public static String secretSettingsKey = "test_secret_key";
-    public static SerializableSecureString secretSettingsValue = new SerializableSecureString("test_secret_value");
-    public static String url = "http://www.abc.com";
-    public static String path = "/endpoint";
+    private static final String secretSettingsKey = "test_secret_key";
+    private static final SerializableSecureString secretSettingsValue = new SerializableSecureString("test_secret_value");
+    private static final String url = "http://www.abc.com";
 
     public void testOverride_DoesNotModifiedFields_TaskSettingsIsEmpty() {
         var model = createModel(

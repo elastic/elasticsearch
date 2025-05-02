@@ -18,7 +18,7 @@ import org.elasticsearch.xpack.inference.external.request.Request;
 import org.elasticsearch.xpack.inference.services.custom.response.ErrorResponseParser;
 
 /**
- * Defines how to handle various errors returned from the custom integration.
+ * Defines how to handle various response types returned from the custom integration.
  */
 public class CustomResponseHandler extends BaseResponseHandler {
     public CustomResponseHandler(String requestType, ResponseParser parseFunction, ErrorResponseParser errorParser) {

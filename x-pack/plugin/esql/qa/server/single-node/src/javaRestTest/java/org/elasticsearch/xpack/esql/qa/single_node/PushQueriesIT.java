@@ -53,7 +53,7 @@ public class PushQueriesIT extends ESRestTestCase {
         testPushQuery(value, """
             FROM test
             | WHERE test == "%value"
-            """, "*:*", true, true);
+            """, "#test.keyword:%value -_ignored:test.keyword", false, true);
     }
 
     public void testPushEqualityOnDefaultsTooBigToPush() throws IOException {
@@ -69,7 +69,7 @@ public class PushQueriesIT extends ESRestTestCase {
         testPushQuery(value, """
             FROM test
             | WHERE test != "%different_value"
-            """, "*:*", true, true);
+            """, "(-test.keyword:%different_value #*:*) _ignored:test.keyword", true, true);
     }
 
     public void testPushInequalityOnDefaultsTooBigToPush() throws IOException {

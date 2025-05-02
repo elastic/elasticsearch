@@ -7,21 +7,28 @@
 
 package org.elasticsearch.xpack.esql.capabilities;
 
+import org.elasticsearch.compute.lucene.LuceneTopNSourceOperator;
+import org.elasticsearch.compute.operator.FilterOperator;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.querydsl.query.Query;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.LucenePushdownPredicates;
 import org.elasticsearch.xpack.esql.planner.TranslatorHandler;
 
 /**
- * Expressions implementing this interface can get called on data nodes to provide an Elasticsearch/Lucene query.
+ * Expressions implementing this interface are asked provide an
+ * Elasticsearch/Lucene query on the as part of the data node optimizations.
  */
 public interface TranslationAware {
     /**
-     * Indicates whether the expression can be translated or not.
-     * Usually checks whether the expression arguments are actual fields that exist in Lucene.
+     * Can this instance be translated or not? Usually checks whether the
+     * expression arguments are actual fields that exist in Lucene. See {@link Translatable}
+     * for precisely what can be signaled from this method.
      */
     Translatable translatable(LucenePushdownPredicates pushdownPredicates);
 
+    /**
+     * Is an {@link Expression} translatable?
+     */
     static TranslationAware.Translatable translatable(Expression exp, LucenePushdownPredicates lucenePushdownPredicates) {
         if (exp instanceof TranslationAware aware) {
             return aware.translatable(lucenePushdownPredicates);
@@ -50,9 +57,44 @@ public interface TranslationAware {
         Expression singleValueField();
     }
 
+    /**
+     * How is this expression translatable?
+     */
     enum Translatable {
+        /**
+         * Not translatable at all. Calling {@link TranslationAware#asQuery} is an error.
+         * The expression will stay in the query plan and be filtered via a {@link FilterOperator}.
+         * Imagine {@code kwd == "a"} when {@code kwd} is configured without a search index.
+         */
         NO(FinishedTranslatable.NO),
+        /**
+         * Entirely translatable into a lucene query. Calling {@link TranslationAware#asQuery}
+         * will produce a query that matches all documents matching this expression and
+         * <strong>only</strong> documents matching this expression. Imagine {@code kwd == "a"}
+         * when {@code kwd} has a search index and doc values - which is the
+         * default configuration. This will entirely remove the clause from the
+         * {@code WHERE}, removing the entire {@link FilterOperator} if it's empty. Sometimes
+         * this allows us to push the entire top-n operation to lucene with
+         * a {@link LuceneTopNSourceOperator}.
+         */
         YES(FinishedTranslatable.YES),
+        /**
+         * Translation requires a recheck. Calling {@link TranslationAware#asQuery} will
+         * produce a query that matches all documents matching this expression but might
+         * match more documents that do not match the expression. This will cause us to
+         * push a query to lucene <strong>and</strong> keep the query in the query plan,
+         * rechecking it via a {@link FilterOperator}. This can never push the entire
+         * top-n to Lucene, but it's still quite a lot better than the full scan from
+         * {@link #NO}.
+         * <p>
+         *     Imagine {@code kwd == "a"} where {@code kwd} has a search index but doesn't
+         *     have doc values. In that case we can find candidate matches in lucene but
+         *     can't tell if those docs are single-valued. If they are multivalued they'll
+         *     still match the query but won't match the expression. Thus, the double-checking.
+         *     <strong>Technically</strong> we could just check for single-valued-ness in
+         *     this case, but it's simpler to
+         * </p>
+         */
         RECHECK(FinishedTranslatable.RECHECK),
         YES_BUT_RECHECK_NEGATED(FinishedTranslatable.YES);
 

@@ -12,6 +12,7 @@ package org.elasticsearch.action.admin.cluster.stats;
 import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
 import org.elasticsearch.action.admin.cluster.node.info.PluginsAndModules;
 import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.network.NetworkModule;
@@ -709,37 +710,45 @@ public class ClusterStatsNodes implements ToXContentFragment {
         final SortedMap<String, long[]> stats;
 
         IngestStats(final List<NodeStats> nodeStats) {
-            Set<String> pipelineIds = new HashSet<>();
+            Map<ProjectId, Set<String>> pipelineIdsByProject = new HashMap<>();
             SortedMap<String, long[]> stats = new TreeMap<>();
             for (NodeStats nodeStat : nodeStats) {
                 if (nodeStat.getIngestStats() != null) {
-                    for (Map.Entry<String, List<org.elasticsearch.ingest.IngestStats.ProcessorStat>> processorStats : nodeStat
-                        .getIngestStats()
-                        .processorStats()
-                        .entrySet()) {
-                        pipelineIds.add(processorStats.getKey());
-                        for (org.elasticsearch.ingest.IngestStats.ProcessorStat stat : processorStats.getValue()) {
-                            stats.compute(stat.type(), (k, v) -> {
-                                org.elasticsearch.ingest.IngestStats.Stats nodeIngestStats = stat.stats();
-                                if (v == null) {
-                                    return new long[] {
-                                        nodeIngestStats.ingestCount(),
-                                        nodeIngestStats.ingestFailedCount(),
-                                        nodeIngestStats.ingestCurrent(),
-                                        nodeIngestStats.ingestTimeInMillis() };
-                                } else {
-                                    v[0] += nodeIngestStats.ingestCount();
-                                    v[1] += nodeIngestStats.ingestFailedCount();
-                                    v[2] += nodeIngestStats.ingestCurrent();
-                                    v[3] += nodeIngestStats.ingestTimeInMillis();
-                                    return v;
-                                }
-                            });
+                    for (Map.Entry<
+                        ProjectId,
+                        Map<String, List<org.elasticsearch.ingest.IngestStats.ProcessorStat>>> processorStatsForProject : nodeStat
+                            .getIngestStats()
+                            .processorStats()
+                            .entrySet()) {
+                        ProjectId projectId = processorStatsForProject.getKey();
+                        for (Map.Entry<
+                            String,
+                            List<org.elasticsearch.ingest.IngestStats.ProcessorStat>> processorStats : processorStatsForProject.getValue()
+                                .entrySet()) {
+                            pipelineIdsByProject.computeIfAbsent(projectId, k -> new HashSet<>()).add(processorStats.getKey());
+                            for (org.elasticsearch.ingest.IngestStats.ProcessorStat stat : processorStats.getValue()) {
+                                stats.compute(stat.type(), (k, v) -> {
+                                    org.elasticsearch.ingest.IngestStats.Stats nodeIngestStats = stat.stats();
+                                    if (v == null) {
+                                        return new long[] {
+                                            nodeIngestStats.ingestCount(),
+                                            nodeIngestStats.ingestFailedCount(),
+                                            nodeIngestStats.ingestCurrent(),
+                                            nodeIngestStats.ingestTimeInMillis() };
+                                    } else {
+                                        v[0] += nodeIngestStats.ingestCount();
+                                        v[1] += nodeIngestStats.ingestFailedCount();
+                                        v[2] += nodeIngestStats.ingestCurrent();
+                                        v[3] += nodeIngestStats.ingestTimeInMillis();
+                                        return v;
+                                    }
+                                });
+                            }
                         }
                     }
                 }
             }
-            this.pipelineCount = pipelineIds.size();
+            this.pipelineCount = pipelineIdsByProject.values().stream().mapToInt(Set::size).sum();
             this.stats = Collections.unmodifiableSortedMap(stats);
         }
 

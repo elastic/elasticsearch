@@ -75,8 +75,9 @@ public record DataStreamFailureStore(@Nullable Boolean enabled, @Nullable DataSt
         this(
             in.readOptionalBoolean(),
             in.getTransportVersion().onOrAfter(TransportVersions.INTRODUCE_FAILURES_LIFECYCLE)
-                ? in.readOptionalWriteable(DataStreamLifecycle::new)
-                : null
+                || in.getTransportVersion().isPatchFrom(TransportVersions.INTRODUCE_FAILURES_LIFECYCLE_BACKPORT_8_19)
+                    ? in.readOptionalWriteable(DataStreamLifecycle::new)
+                    : null
         );
     }
 
@@ -87,7 +88,8 @@ public record DataStreamFailureStore(@Nullable Boolean enabled, @Nullable DataSt
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeOptionalBoolean(enabled);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.INTRODUCE_FAILURES_LIFECYCLE)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersions.INTRODUCE_FAILURES_LIFECYCLE)
+            || out.getTransportVersion().isPatchFrom(TransportVersions.INTRODUCE_FAILURES_LIFECYCLE_BACKPORT_8_19)) {
             out.writeOptionalWriteable(lifecycle);
         }
     }
@@ -167,7 +169,8 @@ public record DataStreamFailureStore(@Nullable Boolean enabled, @Nullable DataSt
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             ResettableValue.write(out, enabled, StreamOutput::writeBoolean);
-            if (out.getTransportVersion().onOrAfter(TransportVersions.INTRODUCE_FAILURES_LIFECYCLE)) {
+            if (out.getTransportVersion().onOrAfter(TransportVersions.INTRODUCE_FAILURES_LIFECYCLE)
+                || out.getTransportVersion().isPatchFrom(TransportVersions.INTRODUCE_FAILURES_LIFECYCLE_BACKPORT_8_19)) {
                 ResettableValue.write(out, lifecycle, (o, v) -> v.writeTo(o));
             }
         }
@@ -175,7 +178,8 @@ public record DataStreamFailureStore(@Nullable Boolean enabled, @Nullable DataSt
         public static Template read(StreamInput in) throws IOException {
             ResettableValue<Boolean> enabled = ResettableValue.read(in, StreamInput::readBoolean);
             ResettableValue<DataStreamLifecycle.Template> lifecycle = ResettableValue.undefined();
-            if (in.getTransportVersion().onOrAfter(TransportVersions.INTRODUCE_FAILURES_LIFECYCLE)) {
+            if (in.getTransportVersion().onOrAfter(TransportVersions.INTRODUCE_FAILURES_LIFECYCLE)
+                || in.getTransportVersion().isPatchFrom(TransportVersions.INTRODUCE_FAILURES_LIFECYCLE_BACKPORT_8_19)) {
                 lifecycle = ResettableValue.read(in, DataStreamLifecycle.Template::read);
             }
             return new Template(enabled, lifecycle);

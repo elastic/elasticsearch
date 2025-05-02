@@ -76,6 +76,6 @@ public class PinnedRankDoc extends RankDoc {
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.PINNED_RETRIEVER;
+        return TransportVersions.PINNED_RETRIEVER_8_19;
     }
 }

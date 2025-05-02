@@ -25,7 +25,7 @@ import java.util.Objects;
 import static org.elasticsearch.xpack.inference.external.request.RequestUtils.createAuthBearerHeader;
 
 /**
- * This class is responsible for creating a request to the Hugging Face API for chat completions.
+ * This class is responsible for creating Hugging Face chat completions HTTP requests.
  * It handles the preparation of the HTTP request with the necessary headers and body.
  */
 public class HuggingFaceUnifiedChatCompletionRequest implements Request {

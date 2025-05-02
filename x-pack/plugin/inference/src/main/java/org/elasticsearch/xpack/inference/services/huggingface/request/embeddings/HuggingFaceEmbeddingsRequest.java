@@ -25,7 +25,7 @@ import java.util.Objects;
 import static org.elasticsearch.xpack.inference.external.request.RequestUtils.createAuthBearerHeader;
 
 /**
- * This class is responsible for creating a request to the Hugging Face API for embeddings.
+ * This class is responsible for creating Hugging Face embeddings HTTP requests.
  * It handles the truncation of input data and prepares the HTTP request with the necessary headers and body.
  */
 public class HuggingFaceEmbeddingsRequest implements Request {

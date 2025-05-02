@@ -57,16 +57,17 @@ public class SampleLongAggregatorFunctionTests extends AggregatorFunctionTestCas
         // Sample from the numbers 0...99.
         int N = 100;
         Aggregator.Factory aggregatorFactory = aggregatorFunction().aggregatorFactory(AggregatorMode.SINGLE, List.of(0));
-        AggregationOperator.AggregationOperatorFactory operatorFactory =
-            new AggregationOperator.AggregationOperatorFactory(List.of(aggregatorFactory), AggregatorMode.SINGLE);
+        AggregationOperator.AggregationOperatorFactory operatorFactory = new AggregationOperator.AggregationOperatorFactory(
+            List.of(aggregatorFactory),
+            AggregatorMode.SINGLE
+        );
 
         // Repeat 1000x, count how often each number is sampled.
         int[] sampledCounts = new int[N];
         for (int iteration = 0; iteration < 1000; iteration++) {
-            List<Page> input = CannedSourceOperator.collectPages(new SequenceLongBlockSourceOperator(
-                driverContext().blockFactory(),
-                LongStream.range(0, N)
-            ));
+            List<Page> input = CannedSourceOperator.collectPages(
+                new SequenceLongBlockSourceOperator(driverContext().blockFactory(), LongStream.range(0, N))
+            );
             List<Page> results = drive(operatorFactory.get(driverContext()), input.iterator(), driverContext());
             for (Page page : results) {
                 LongBlock block = page.getBlock(0);

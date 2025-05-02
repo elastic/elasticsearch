@@ -650,6 +650,11 @@ public class EsqlCapabilities {
         MATCH_FUNCTION,
 
         /**
+         * MATCH PHRASE function
+         */
+        MATCH_PHRASE_FUNCTION(Build.current().isSnapshot()),
+
+        /**
          * KQL function
          */
         KQL_FUNCTION,

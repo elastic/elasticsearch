@@ -55,6 +55,15 @@ public enum ZeroTermsQueryOption implements Writeable {
         throw new ElasticsearchException("unknown serialized type [" + ord + "]");
     }
 
+    public static ZeroTermsQueryOption readFromString(String input) {
+        for (ZeroTermsQueryOption zeroTermsQuery : ZeroTermsQueryOption.values()) {
+            if (zeroTermsQuery.name().equalsIgnoreCase(input)) {
+                return zeroTermsQuery;
+            }
+        }
+        throw new ElasticsearchException("unknown serialized type [" + input + "]");
+    }
+
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeVInt(this.ordinal);

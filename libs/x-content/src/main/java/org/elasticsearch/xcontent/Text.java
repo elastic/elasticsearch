@@ -16,7 +16,7 @@ import java.nio.charset.StandardCharsets;
  * Both {@link String} and {@link ByteBuffer} representation of the text. Starts with one of those, and if
  * the other is requests, caches the other one in a local reference so no additional conversion will be needed.
  */
-public final class Text implements Comparable<Text>, ToXContentFragment {
+public final class Text implements XContentString, Comparable<Text>, ToXContentFragment {
 
     public static final Text[] EMPTY_ARRAY = new Text[0];
 
@@ -56,9 +56,7 @@ public final class Text implements Comparable<Text>, ToXContentFragment {
         return bytes != null;
     }
 
-    /**
-     * Returns a {@link ByteBuffer} view of the data.
-     */
+    @Override
     public ByteBuffer bytes() {
         if (bytes == null) {
             bytes = StandardCharsets.UTF_8.encode(text);
@@ -73,9 +71,7 @@ public final class Text implements Comparable<Text>, ToXContentFragment {
         return text != null;
     }
 
-    /**
-     * Returns a {@link String} view of the data.
-     */
+    @Override
     public String string() {
         if (text == null) {
             text = StandardCharsets.UTF_8.decode(bytes).toString();
@@ -83,9 +79,7 @@ public final class Text implements Comparable<Text>, ToXContentFragment {
         return text;
     }
 
-    /**
-     * Returns the number of characters in the represented string
-     */
+    @Override
     public int length() {
         if (length < 0) {
             length = string().length();

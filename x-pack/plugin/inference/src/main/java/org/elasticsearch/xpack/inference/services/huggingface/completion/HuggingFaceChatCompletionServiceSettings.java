@@ -178,7 +178,7 @@ public class HuggingFaceChatCompletionServiceSettings extends FilteredXContentOb
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.V_8_14_0;
+        return TransportVersions.ML_INFERENCE_HUGGING_FACE;
     }
 
     @Override
@@ -186,10 +186,7 @@ public class HuggingFaceChatCompletionServiceSettings extends FilteredXContentOb
         out.writeOptionalString(modelId);
         out.writeString(uri.toString());
         out.writeOptionalVInt(maxInputTokens);
-
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_15_0)) {
-            rateLimitSettings.writeTo(out);
-        }
+        rateLimitSettings.writeTo(out);
     }
 
     @Override

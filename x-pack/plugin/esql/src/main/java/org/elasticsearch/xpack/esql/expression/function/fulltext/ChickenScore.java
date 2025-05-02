@@ -27,7 +27,7 @@ import org.elasticsearch.xpack.esql.score.ScoreMapper;
 import java.io.IOException;
 import java.util.List;
 
-public class ChickenScore  extends Function implements EvaluatorMapper {
+public class ChickenScore extends Function implements EvaluatorMapper {
 
     @FunctionInfo(
         returnType = "double",
@@ -37,11 +37,7 @@ public class ChickenScore  extends Function implements EvaluatorMapper {
     )
     public ChickenScore(
         Source source,
-        @Param(
-            name = "query",
-            type = { "keyword", "text" },
-            description = "full text function."
-        ) Expression scorableQuery
+        @Param(name = "query", type = { "keyword", "text" }, description = "full text function.") Expression scorableQuery
     ) {
         this(source, List.of(scorableQuery));
     }
@@ -86,7 +82,8 @@ public class ChickenScore  extends Function implements EvaluatorMapper {
     }
 
     private record ChickenScorerEvaluatorFactory(ScoreOperator.ExpressionScorer.Factory scoreFactory)
-        implements EvalOperator.ExpressionEvaluator.Factory {
+        implements
+            EvalOperator.ExpressionEvaluator.Factory {
 
         @Override
         public EvalOperator.ExpressionEvaluator get(DriverContext context) {

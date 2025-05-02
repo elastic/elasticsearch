@@ -44,7 +44,7 @@ public final class InnerHitsContext {
         this.innerHits = new HashMap<>();
     }
 
-    InnerHitsContext(Map<String, InnerHitSubContext> innerHits) {
+    public InnerHitsContext(Map<String, InnerHitSubContext> innerHits) {
         this.innerHits = Objects.requireNonNull(innerHits);
     }
 

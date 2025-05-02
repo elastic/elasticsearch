@@ -229,7 +229,7 @@ class TopHitsAggregator extends MetricsAggregator {
         for (Map.Entry<String, InnerHitsContext.InnerHitSubContext> entry : subSearchContext.innerHits().getInnerHits().entrySet()) {
             innerHits.put(entry.getKey(), entry.getValue().clone());
         }
-        InnerHitsContext innerHitsContext = new InnerHitsContext();
+        InnerHitsContext innerHitsContext = new InnerHitsContext(innerHits);
 
         SubSearchContext fetchSubSearchContext = new SubSearchContext(subSearchContext) {
             @Override

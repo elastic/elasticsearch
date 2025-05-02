@@ -368,9 +368,17 @@ public class MetadataDataStreamsService {
         @Nullable DataStreamOptions dataStreamOptions
     ) {
         ProjectMetadata.Builder builder = ProjectMetadata.builder(project);
+        boolean onlyInternalDataStreams = true;
         for (var dataStreamName : dataStreamNames) {
             var dataStream = validateDataStream(project, dataStreamName);
             builder.put(dataStream.copy().setDataStreamOptions(dataStreamOptions).build());
+            onlyInternalDataStreams = onlyInternalDataStreams && dataStream.isInternal();
+        }
+        if (dataStreamOptions != null && dataStreamOptions.failureStore() != null && dataStreamOptions.failureStore().lifecycle() != null) {
+            // We don't issue any warnings if all data streams are internal data streams
+            dataStreamOptions.failureStore()
+                .lifecycle()
+                .addWarningHeaderIfDataRetentionNotEffective(globalRetentionSettings.get(), onlyInternalDataStreams);
         }
         return builder.build();
     }

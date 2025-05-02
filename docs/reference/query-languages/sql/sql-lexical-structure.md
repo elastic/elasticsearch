@@ -3,7 +3,7 @@ mapped_pages:
   - https://www.elastic.co/guide/en/elasticsearch/reference/current/sql-lexical-structure.html
 ---
 
-# Lexical Structure [sql-lexical-structure]
+# Lexical structure [sql-lexical-structure]
 
 This section covers the major lexical structure of SQL, which for the most part, is going to resemble that of ANSI SQL itself hence why low-levels details are not discussed in depth.
 

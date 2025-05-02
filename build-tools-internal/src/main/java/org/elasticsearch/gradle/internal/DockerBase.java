@@ -13,10 +13,10 @@ package org.elasticsearch.gradle.internal;
  * This class models the different Docker base images that are used to build Docker distributions of Elasticsearch.
  */
 public enum DockerBase {
-    DEFAULT("ubuntu:20.04", "", "apt-get"),
+    DEFAULT("ubuntu:20.04", "", "apt-get", "Dockerfile"),
 
     // "latest" here is intentional, since the image name specifies "8"
-    UBI("docker.elastic.co/ubi8/ubi-minimal:latest", "-ubi8", "microdnf"),
+    UBI("docker.elastic.co/ubi8/ubi-minimal:latest", "-ubi8", "microdnf", "Dockerfile"),
 
     // The Iron Bank base image is UBI (albeit hardened), but we are required to parameterize the Docker build
     IRON_BANK("${BASE_REGISTRY}/${BASE_IMAGE}:${BASE_TAG}", "-ironbank", "yum", "Dockerfile"),
@@ -34,11 +34,13 @@ public enum DockerBase {
 
     // Based on WOLFI above, with more extras. We don't set a base image because
     // we programmatically extend from the wolfi image.
-    CLOUD_ESS(null, "-cloud-ess", "apk"),
+    CLOUD_ESS(null, "-cloud-ess", "apk", "Dockerfile.ess"),
+
     CLOUD_ESS_FIPS(
         "docker.elastic.co/wolfi/chainguard-base-fips:sha256-ebfc3f1d7dba992231747a2e05ad1b859843e81b5e676ad342859d7cf9e425a7",
         "-cloud-ess-fips",
-        "apk"
+        "apk",
+        "Dockerfile.ess-fips"
     );
 
     private final String image;

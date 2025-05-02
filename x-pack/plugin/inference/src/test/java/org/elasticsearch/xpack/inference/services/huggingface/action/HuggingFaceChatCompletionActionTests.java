@@ -129,7 +129,7 @@ public class HuggingFaceChatCompletionActionTests extends ESTestCase {
             MockRequest request = webServer.requests().getFirst();
 
             assertNull(request.getUri().getQuery());
-            assertThat(request.getHeader(HttpHeaders.CONTENT_TYPE), equalTo(XContentType.JSON.mediaType()));
+            assertThat(request.getHeader(HttpHeaders.CONTENT_TYPE), equalTo(XContentType.JSON.mediaTypeWithoutParameters()));
             assertThat(request.getHeader(HttpHeaders.AUTHORIZATION), equalTo("Bearer secret"));
 
             var requestMap = entityAsMap(request.getBody());

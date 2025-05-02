@@ -54,7 +54,7 @@ public class HuggingFaceUnifiedChatCompletionRequest implements Request {
         );
         httpPost.setEntity(byteEntity);
 
-        httpPost.setHeader(HttpHeaders.CONTENT_TYPE, XContentType.JSON.mediaType());
+        httpPost.setHeader(HttpHeaders.CONTENT_TYPE, XContentType.JSON.mediaTypeWithoutParameters());
         httpPost.setHeader(createAuthBearerHeader(model.apiKey()));
 
         return new HttpRequest(httpPost, getInferenceEntityId());

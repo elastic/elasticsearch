@@ -176,7 +176,7 @@ public class DataStreamGlobalRetentionSettingsTests extends ESTestCase {
         clusterSettings.applySettings(newValidSettings);
         assertThat(dataStreamGlobalRetentionSettings.getDefaultRetention(true), equalTo(TimeValue.timeValueDays(90)));
         assertThat(
-            dataStreamGlobalRetentionSettings.getDefaultRetention(true),
+            dataStreamGlobalRetentionSettings.get(true),
             equalTo(DataStreamGlobalRetention.create(null, TimeValue.timeValueDays(30)))
         );
     }

@@ -57,6 +57,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
+import static java.util.Objects.requireNonNull;
+
 /**
  * Global information on indices stats running on a specific node.
  */
@@ -110,11 +112,11 @@ public class NodeIndicesStats implements Writeable, ChunkedToXContent {
         boolean includeShardsStats
     ) {
         if (includeShardsStats) {
-            this.statsByShard = Objects.requireNonNull(statsByShard);
+            this.statsByShard = requireNonNull(statsByShard);
         } else {
             this.statsByShard = EMPTY_STATS_BY_SHARD;
         }
-        this.statsByIndex = Objects.requireNonNull(statsByIndex);
+        this.statsByIndex = requireNonNull(statsByIndex);
 
         // make a total common stats from old ones and current ones
         this.stats = oldStats;
@@ -128,7 +130,7 @@ public class NodeIndicesStats implements Writeable, ChunkedToXContent {
         for (CommonStats indexStats : statsByIndex.values()) {
             stats.add(indexStats);
         }
-        this.projectsByIndex = projectsByIndex;
+        this.projectsByIndex = requireNonNull(projectsByIndex);
     }
 
     @Nullable

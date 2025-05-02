@@ -687,14 +687,14 @@ public class NodeStatsTests extends ESTestCase {
 
             ShardId shardId = new ShardId(indexTest, 0);
             ShardStats shardStat = createShardStats(shardId);
-            IndexShardStats shardStats = new IndexShardStats(shardId, new ShardStats[] { shardStat });
+            IndexShardStats shardStats = new IndexShardStats(shardId, new ShardStats[]{shardStat});
             Map<Index, List<IndexShardStats>> statsByShard = new HashMap<>();
             List<IndexShardStats> indexShardStats = new ArrayList<>();
             indexShardStats.add(shardStats);
             statsByShard.put(indexTest, indexShardStats);
 
             CommonStats oldStats = new CommonStats(CommonStatsFlags.ALL);
-            Map<Index, ProjectId> projectsByIndex = randomBoolean() ? Map.of(indexTest, randomProjectIdOrDefault()) : null;
+            Map<Index, ProjectId> projectsByIndex = Map.of(indexTest, randomProjectIdOrDefault());
             nodeIndicesStats = new NodeIndicesStats(oldStats, statsByIndex, statsByShard, projectsByIndex, true);
         }
         OsStats osStats = null;
@@ -729,12 +729,12 @@ public class NodeStatsTests extends ESTestCase {
         }
         ProcessStats processStats = frequently()
             ? new ProcessStats(
-                randomNonNegativeLong(),
-                randomNonNegativeLong(),
-                randomNonNegativeLong(),
-                new ProcessStats.Cpu(randomShort(), randomNonNegativeLong()),
-                new ProcessStats.Mem(randomNonNegativeLong())
-            )
+            randomNonNegativeLong(),
+            randomNonNegativeLong(),
+            randomNonNegativeLong(),
+            new ProcessStats.Cpu(randomShort(), randomNonNegativeLong()),
+            new ProcessStats.Mem(randomNonNegativeLong())
+        )
             : null;
         JvmStats jvmStats = null;
         if (frequently()) {
@@ -777,21 +777,21 @@ public class NodeStatsTests extends ESTestCase {
             JvmStats.Classes classes = new JvmStats.Classes(randomNonNegativeLong(), randomNonNegativeLong(), randomNonNegativeLong());
             jvmStats = frequently()
                 ? new JvmStats(
+                randomNonNegativeLong(),
+                randomNonNegativeLong(),
+                new JvmStats.Mem(
                     randomNonNegativeLong(),
                     randomNonNegativeLong(),
-                    new JvmStats.Mem(
-                        randomNonNegativeLong(),
-                        randomNonNegativeLong(),
-                        randomNonNegativeLong(),
-                        randomNonNegativeLong(),
-                        randomNonNegativeLong(),
-                        memoryPools
-                    ),
-                    threads,
-                    garbageCollectors,
-                    randomBoolean() ? Collections.emptyList() : bufferPoolList,
-                    classes
-                )
+                    randomNonNegativeLong(),
+                    randomNonNegativeLong(),
+                    randomNonNegativeLong(),
+                    memoryPools
+                ),
+                threads,
+                garbageCollectors,
+                randomBoolean() ? Collections.emptyList() : bufferPoolList,
+                classes
+            )
                 : null;
         }
         ThreadPoolStats threadPoolStats = null;
@@ -808,16 +808,16 @@ public class NodeStatsTests extends ESTestCase {
                 FsInfo.DeviceStats previousDeviceStats = randomBoolean()
                     ? null
                     : new FsInfo.DeviceStats(
-                        randomInt(),
-                        randomInt(),
-                        randomAlphaOfLengthBetween(3, 10),
-                        randomNonNegativeLong(),
-                        randomNonNegativeLong(),
-                        randomNonNegativeLong(),
-                        randomNonNegativeLong(),
-                        randomNonNegativeLong(),
-                        null
-                    );
+                    randomInt(),
+                    randomInt(),
+                    randomAlphaOfLengthBetween(3, 10),
+                    randomNonNegativeLong(),
+                    randomNonNegativeLong(),
+                    randomNonNegativeLong(),
+                    randomNonNegativeLong(),
+                    randomNonNegativeLong(),
+                    null
+                );
                 deviceStatsArray[i] = new FsInfo.DeviceStats(
                     randomInt(),
                     randomInt(),
@@ -846,16 +846,16 @@ public class NodeStatsTests extends ESTestCase {
         }
         TransportStats transportStats = frequently()
             ? new TransportStats(
-                randomNonNegativeLong(),
-                randomNonNegativeLong(),
-                randomNonNegativeLong(),
-                randomNonNegativeLong(),
-                randomNonNegativeLong(),
-                randomNonNegativeLong(),
-                IntStream.range(0, HandlingTimeTracker.BUCKET_COUNT).mapToLong(i -> randomNonNegativeLong()).toArray(),
-                IntStream.range(0, HandlingTimeTracker.BUCKET_COUNT).mapToLong(i -> randomNonNegativeLong()).toArray(),
-                Map.of("test-action", new TransportActionStats(1, 2, new long[29], 3, 4, new long[29]))
-            )
+            randomNonNegativeLong(),
+            randomNonNegativeLong(),
+            randomNonNegativeLong(),
+            randomNonNegativeLong(),
+            randomNonNegativeLong(),
+            randomNonNegativeLong(),
+            IntStream.range(0, HandlingTimeTracker.BUCKET_COUNT).mapToLong(i -> randomNonNegativeLong()).toArray(),
+            IntStream.range(0, HandlingTimeTracker.BUCKET_COUNT).mapToLong(i -> randomNonNegativeLong()).toArray(),
+            Map.of("test-action", new TransportActionStats(1, 2, new long[29], 3, 4, new long[29]))
+        )
             : null;
         HttpStats httpStats = null;
         if (frequently()) {
@@ -923,47 +923,47 @@ public class NodeStatsTests extends ESTestCase {
 
         DiscoveryStats discoveryStats = frequently()
             ? new DiscoveryStats(
-                randomBoolean() ? new PendingClusterStateStats(randomInt(), randomInt(), randomInt()) : null,
-                randomBoolean()
-                    ? new PublishClusterStateStats(
-                        randomNonNegativeLong(),
-                        randomNonNegativeLong(),
-                        randomNonNegativeLong(),
-                        new ClusterStateSerializationStats(
-                            randomNonNegativeLong(),
-                            randomNonNegativeLong(),
-                            randomNonNegativeLong(),
-                            randomNonNegativeLong(),
-                            randomNonNegativeLong(),
-                            randomNonNegativeLong()
-                        )
-                    )
-                    : null,
-                randomBoolean()
-                    ? new ClusterStateUpdateStats(
-                        randomNonNegativeLong(),
-                        randomNonNegativeLong(),
-                        randomNonNegativeLong(),
-                        randomNonNegativeLong(),
-                        randomNonNegativeLong(),
-                        randomNonNegativeLong(),
-                        randomNonNegativeLong(),
-                        randomNonNegativeLong(),
-                        randomNonNegativeLong(),
-                        randomNonNegativeLong(),
-                        randomNonNegativeLong(),
-                        randomNonNegativeLong(),
-                        randomNonNegativeLong(),
-                        randomNonNegativeLong(),
-                        randomNonNegativeLong(),
-                        randomNonNegativeLong(),
-                        randomNonNegativeLong(),
-                        randomNonNegativeLong(),
-                        randomNonNegativeLong()
-                    )
-                    : null,
-                timeTrackerStats
+            randomBoolean() ? new PendingClusterStateStats(randomInt(), randomInt(), randomInt()) : null,
+            randomBoolean()
+                ? new PublishClusterStateStats(
+                randomNonNegativeLong(),
+                randomNonNegativeLong(),
+                randomNonNegativeLong(),
+                new ClusterStateSerializationStats(
+                    randomNonNegativeLong(),
+                    randomNonNegativeLong(),
+                    randomNonNegativeLong(),
+                    randomNonNegativeLong(),
+                    randomNonNegativeLong(),
+                    randomNonNegativeLong()
+                )
             )
+                : null,
+            randomBoolean()
+                ? new ClusterStateUpdateStats(
+                randomNonNegativeLong(),
+                randomNonNegativeLong(),
+                randomNonNegativeLong(),
+                randomNonNegativeLong(),
+                randomNonNegativeLong(),
+                randomNonNegativeLong(),
+                randomNonNegativeLong(),
+                randomNonNegativeLong(),
+                randomNonNegativeLong(),
+                randomNonNegativeLong(),
+                randomNonNegativeLong(),
+                randomNonNegativeLong(),
+                randomNonNegativeLong(),
+                randomNonNegativeLong(),
+                randomNonNegativeLong(),
+                randomNonNegativeLong(),
+                randomNonNegativeLong(),
+                randomNonNegativeLong(),
+                randomNonNegativeLong()
+            )
+                : null,
+            timeTrackerStats
+        )
             : null;
         IngestStats ingestStats = null;
         if (frequently()) {

@@ -344,7 +344,8 @@ public class DataStreamLifecycle implements SimpleDiffable<DataStreamLifecycle>,
             }
             out.writeBoolean(enabled());
         }
-        if (out.getTransportVersion().onOrAfter(TransportVersions.INTRODUCE_FAILURES_LIFECYCLE)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersions.INTRODUCE_FAILURES_LIFECYCLE)
+            || out.getTransportVersion().isPatchFrom(TransportVersions.INTRODUCE_FAILURES_LIFECYCLE_BACKPORT_8_19)) {
             lifecycleType.writeTo(out);
         }
     }
@@ -373,8 +374,9 @@ public class DataStreamLifecycle implements SimpleDiffable<DataStreamLifecycle>,
             enabled = true;
         }
         lifecycleType = in.getTransportVersion().onOrAfter(TransportVersions.INTRODUCE_FAILURES_LIFECYCLE)
-            ? LifecycleType.read(in)
-            : LifecycleType.DATA;
+            || in.getTransportVersion().isPatchFrom(TransportVersions.INTRODUCE_FAILURES_LIFECYCLE_BACKPORT_8_19)
+                ? LifecycleType.read(in)
+                : LifecycleType.DATA;
     }
 
     /**
@@ -737,7 +739,8 @@ public class DataStreamLifecycle implements SimpleDiffable<DataStreamLifecycle>,
                 }
                 out.writeBoolean(enabled);
             }
-            if (out.getTransportVersion().onOrAfter(TransportVersions.INTRODUCE_FAILURES_LIFECYCLE)) {
+            if (out.getTransportVersion().onOrAfter(TransportVersions.INTRODUCE_FAILURES_LIFECYCLE)
+                || out.getTransportVersion().isPatchFrom(TransportVersions.INTRODUCE_FAILURES_LIFECYCLE_BACKPORT_8_19)) {
                 lifecycleType.writeTo(out);
             }
         }
@@ -800,8 +803,9 @@ public class DataStreamLifecycle implements SimpleDiffable<DataStreamLifecycle>,
                 enabled = in.readBoolean();
             }
             var lifecycleTarget = in.getTransportVersion().onOrAfter(TransportVersions.INTRODUCE_FAILURES_LIFECYCLE)
-                ? LifecycleType.read(in)
-                : LifecycleType.DATA;
+                || in.getTransportVersion().isPatchFrom(TransportVersions.INTRODUCE_FAILURES_LIFECYCLE_BACKPORT_8_19)
+                    ? LifecycleType.read(in)
+                    : LifecycleType.DATA;
             return new Template(lifecycleTarget, enabled, dataRetention, downsampling);
         }
 

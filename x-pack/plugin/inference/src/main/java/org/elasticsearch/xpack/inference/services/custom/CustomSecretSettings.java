@@ -95,9 +95,7 @@ public class CustomSecretSettings implements SecretSettings {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeMap(secretParameters, (streamOutput, v) -> {
-            v.writeTo(streamOutput);
-        });
+        out.writeMap(secretParameters, (streamOutput, v) -> { v.writeTo(streamOutput); });
     }
 
     @Override

@@ -32,9 +32,7 @@ public class QueryParametersTests extends AbstractBWCWireSerializationTestCase<Q
     }
 
     public void testFromMap() {
-        Map<String, Object> params = new HashMap<>(
-            Map.of(QueryParameters.QUERY_PARAMETERS, List.of(List.of("test_key", "test_value")))
-        );
+        Map<String, Object> params = new HashMap<>(Map.of(QueryParameters.QUERY_PARAMETERS, List.of(List.of("test_key", "test_value"))));
 
         assertThat(
             QueryParameters.fromMap(params, new ValidationException()),

@@ -80,10 +80,7 @@ public class CustomRequestManagerTests extends ESTestCase {
         var manager = CustomRequestManager.of(model, threadPool);
         manager.execute(new EmbeddingsInput(List.of("abc", "123"), null, null), mock(RequestSender.class), () -> false, listener);
 
-        var exception = expectThrows(
-            ElasticsearchStatusException.class,
-            () -> listener.actionGet(TimeValue.timeValueSeconds(30))
-        );
+        var exception = expectThrows(ElasticsearchStatusException.class, () -> listener.actionGet(TimeValue.timeValueSeconds(30)));
 
         assertThat(exception.getMessage(), is("Failed to construct the custom service request"));
         assertThat(exception.getCause().getMessage(), is("Failed to build URI, error: Illegal character in path at index 0: ^"));

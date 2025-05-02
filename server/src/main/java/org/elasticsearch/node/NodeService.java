@@ -161,9 +161,6 @@ public class NodeService implements Closeable {
         return versions;
     }
 
-    // TODO: Go through the callers of this to check whether there are any cases where we don't want to do the multi-project things
-    // That includes figuring out all the callers of TransportNodesStatsAction, TransportClusterStatsAction, and so on
-    // I think that it may change the behaviour of _cluster/stats for ingest, but in a good way - should add a test for that
     public NodeStats stats(
         CommonStatsFlags indices,
         boolean includeShardsStats,

@@ -196,7 +196,7 @@ public record IngestStats(
         return totals;
     }
 
-    static Map<String, List<ProcessorStat>> innerMerge(Map<String, List<ProcessorStat>> first, Map<String, List<ProcessorStat>> second) {
+    private static Map<String, List<ProcessorStat>> innerMerge(Map<String, List<ProcessorStat>> first, Map<String, List<ProcessorStat>> second) {
         var totalsPerPipelineProcessor = new HashMap<String, List<ProcessorStat>>();
 
         first.forEach((pipelineId, stats) -> totalsPerPipelineProcessor.merge(pipelineId, stats, ProcessorStat::merge));

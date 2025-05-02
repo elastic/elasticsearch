@@ -99,12 +99,7 @@ public class HuggingFaceChatCompletionServiceSettings extends FilteredXContentOb
     public HuggingFaceChatCompletionServiceSettings(StreamInput in) throws IOException {
         this.modelId = in.readOptionalString();
         this.uri = createUri(in.readString());
-
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_15_0)) {
-            this.rateLimitSettings = new RateLimitSettings(in);
-        } else {
-            this.rateLimitSettings = DEFAULT_RATE_LIMIT_SETTINGS;
-        }
+        this.rateLimitSettings = new RateLimitSettings(in);
     }
 
     @Override

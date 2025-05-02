@@ -110,17 +110,13 @@ setup:
 ---
 unsupported:
   - requires:
-      cluster_features: ["gte_v8.13.0"]
-      reason: "Latest types supported in ESQL as of 8.13.0"
-
-  - requires:
-      test_runner_features: [ capabilities ]
+      test_runner_features: [capabilities, contains]
       capabilities:
         - method: POST
           path: /_query
-          parameters: [ ]
-          capabilities: [ aggregate_metric_double_rendering ]
-      reason: "support for rendering aggregate_metric_double type"
+          parameters: []
+          capabilities: [REPORT_ORIGINAL_TYPES]
+      reason: "uses original_type"
 
   - do:
       allowed_warnings_regex:
@@ -132,10 +128,13 @@ unsupported:
 
   - match: { columns.0.name: aggregate_metric_double }
   - match: { columns.0.type: aggregate_metric_double }
+  - is_false: columns.0.original_types
   - match: { columns.1.name: binary }
   - match: { columns.1.type: unsupported }
+  - match: { columns.1.original_types: [binary] }
   - match: { columns.2.name: completion }
   - match: { columns.2.type: unsupported }
+  - match: { columns.2.original_types: [completion] }
   - match: { columns.3.name: date_nanos }
   - match: { columns.3.type: date_nanos }
   - match: { columns.4.name: date_range }
@@ -228,10 +227,13 @@ unsupported:
           query: 'from test | limit 0'
   - match: { columns.0.name: aggregate_metric_double }
   - match: { columns.0.type: aggregate_metric_double }
+  - is_false: columns.0.original_types
   - match: { columns.1.name: binary }
   - match: { columns.1.type: unsupported }
+  - match: { columns.1.original_types: [binary] }
   - match: { columns.2.name: completion }
   - match: { columns.2.type: unsupported }
+  - match: { columns.2.original_types: [completion] }
   - match: { columns.3.name: date_nanos }
   - match: { columns.3.type: date_nanos }
   - match: { columns.4.name: date_range }

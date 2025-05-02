@@ -793,11 +793,8 @@ public class StatementParserTests extends AbstractStatementParserTests {
         expectError("FROM \"foo\"bar\"", ": token recognition error at: '\"'");
         expectError("FROM \"foo\"\"bar\"", ": extraneous input '\"bar\"' expecting <EOF>");
 
-        expectError("FROM \"\"\"foo\"\"\"bar\"\"\"", ": mismatched input 'bar' expecting {<EOF>, '|', ',', OPENING_BRACKET, 'metadata'}");
-        expectError(
-            "FROM \"\"\"foo\"\"\"\"\"\"bar\"\"\"",
-            ": mismatched input '\"bar\"' expecting {<EOF>, '|', ',', OPENING_BRACKET, 'metadata'}"
-        );
+        expectError("FROM \"\"\"foo\"\"\"bar\"\"\"", ": mismatched input 'bar' expecting {<EOF>, '|', ',', '[', 'metadata'}");
+        expectError("FROM \"\"\"foo\"\"\"\"\"\"bar\"\"\"", ": mismatched input '\"bar\"' expecting {<EOF>, '|', ',', '[', 'metadata'}");
     }
 
     public void testInvalidQuotingAsMetricsIndexPattern() {
@@ -1087,7 +1084,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
         expectError("show info metadata _index", "line 1:11: token recognition error at: 'm'");
         expectError(
             "explain [from foo] metadata _index",
-            "line 1:20: mismatched input 'metadata' expecting {'|', ',', OPENING_BRACKET, ']', 'metadata'}"
+            "line 1:20: mismatched input 'metadata' expecting {'|', ',', '[', ']', 'metadata'}"
         );
     }
 
@@ -3044,7 +3041,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
         String map = "{\"option1\":\"string\", \"option2\":1}";
 
         Map<String, String> commands = Map.ofEntries(
-            Map.entry("from {}", "line 1:7: mismatched input '\"option1\"' expecting {<EOF>, '|', ',', OPENING_BRACKET, 'metadata'}"),
+            Map.entry("from {}", "line 1:7: mismatched input '\"option1\"' expecting {<EOF>, '|', ',', '[', 'metadata'}"),
             Map.entry("row x = {}", "line 1:9: extraneous input '{' expecting {QUOTED_STRING, INTEGER_LITERAL"),
             Map.entry("eval x = {}", "line 1:22: extraneous input '{' expecting {QUOTED_STRING, INTEGER_LITERAL"),
             Map.entry("where x > {}", "line 1:23: no viable alternative at input 'x > {'"),
@@ -3950,5 +3947,20 @@ public class StatementParserTests extends AbstractStatementParserTests {
         for (String q : queries) {
             expectError(q, "Invalid query");
         }
+    }
+
+    // [ and ( are used to trigger a double mode causing their symbol name (instead of text) to be used in error reporting
+    // this test checks that their are properly replaced in the error message
+    public void testPreserveParanthesis() {
+        // test for (
+        expectError("row a = 1 not in", "line 1:17: mismatched input '<EOF>' expecting '('");
+        expectError("row a = 1 | where a not in", "line 1:27: mismatched input '<EOF>' expecting '('");
+        expectError("row a = 1 | where a not in (1", "line 1:30: mismatched input '<EOF>' expecting {',', ')'}");
+        expectError("row a = 1 | where a not in [1", "line 1:28: missing '(' at '['");
+        expectError("row a = 1 | where a not in 123", "line 1:28: missing '(' at '123'");
+        // test for [
+        expectError("explain", "line 1:8: mismatched input '<EOF>' expecting '['");
+        expectError("explain ]", "line 1:9: token recognition error at: ']'");
+        expectError("explain [row x = 1", "line 1:19: missing ']' at '<EOF>'");
     }
 }

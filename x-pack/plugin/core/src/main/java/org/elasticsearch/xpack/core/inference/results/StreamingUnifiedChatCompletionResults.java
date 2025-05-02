@@ -35,9 +35,7 @@ import static org.elasticsearch.xpack.core.inference.DequeUtils.readDeque;
 /**
  * Chat Completion results that only contain a Flow.Publisher.
  */
-public record StreamingUnifiedChatCompletionResults(Flow.Publisher<Results> publisher)
-    implements
-        InferenceServiceResults {
+public record StreamingUnifiedChatCompletionResults(Flow.Publisher<Results> publisher) implements InferenceServiceResults {
 
     public static final String NAME = "chat_completion_chunk";
     public static final String MODEL_FIELD = "model";

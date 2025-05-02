@@ -213,10 +213,10 @@ public class StreamingUnifiedChatCompletionResultsTests extends AbstractWireSeri
             downstream.onSubscribe(new Flow.Subscription() {
                 @Override
                 public void request(long n) {
-                    if(completed.compareAndSet(false, true)) {
+                    if (completed.compareAndSet(false, true)) {
                         downstream.onNext(new StreamingUnifiedChatCompletionResults.Results(results));
                     } else {
-                    downstream.onComplete();
+                        downstream.onComplete();
                     }
                 }
 
@@ -232,7 +232,7 @@ public class StreamingUnifiedChatCompletionResultsTests extends AbstractWireSeri
         streamingResults.publisher().subscribe(new Flow.Subscriber<>() {
             @Override
             public void onSubscribe(Flow.Subscription subscription) {
-                if(upstream.compareAndSet(null, subscription) == false) {
+                if (upstream.compareAndSet(null, subscription) == false) {
                     fail("Upstream already set?!");
                 }
                 subscription.request(1);
@@ -243,7 +243,7 @@ public class StreamingUnifiedChatCompletionResultsTests extends AbstractWireSeri
                 assertNotNull(item);
                 counter.incrementAndGet();
                 var sub = upstream.get();
-                if(sub != null) {
+                if (sub != null) {
                     sub.request(1);
                 } else {
                     fail("Upstream not yet set?!");
@@ -256,8 +256,7 @@ public class StreamingUnifiedChatCompletionResultsTests extends AbstractWireSeri
             }
 
             @Override
-            public void onComplete() {
-            }
+            public void onComplete() {}
         });
         assertThat(counter.get(), equalTo(2));
     }

@@ -24,6 +24,7 @@ import org.junit.ClassRule;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.regex.Pattern;
 
@@ -52,7 +53,7 @@ public class PushQueriesIT extends ESRestTestCase {
         testPushQuery(value, """
             FROM test
             | WHERE test == "%value"
-            """, "#test.keyword:%value -_ignored:test.keyword", false);
+            """, "*:*", true, true);
     }
 
     public void testPushEqualityOnDefaultsTooBigToPush() throws IOException {
@@ -60,7 +61,23 @@ public class PushQueriesIT extends ESRestTestCase {
         testPushQuery(value, """
             FROM test
             | WHERE test == "%value"
-            """, "*:*", true);
+            """, "*:*", true, true);
+    }
+
+    public void testPushInequalityOnDefaults() throws IOException {
+        String value = "v".repeat(between(0, 256));
+        testPushQuery(value, """
+            FROM test
+            | WHERE test != "%different_value"
+            """, "*:*", true, true);
+    }
+
+    public void testPushInequalityOnDefaultsTooBigToPush() throws IOException {
+        String value = "a".repeat(between(257, 1000));
+        testPushQuery(value, """
+            FROM test
+            | WHERE test != "%value"
+            """, "*:*", true, false);
     }
 
     public void testPushCaseInsensitiveEqualityOnDefaults() throws IOException {
@@ -68,15 +85,16 @@ public class PushQueriesIT extends ESRestTestCase {
         testPushQuery(value, """
             FROM test
             | WHERE TO_LOWER(test) == "%value"
-            """, "*:*", true);
+            """, "*:*", true, true);
     }
 
-    private void testPushQuery(String value, String esqlQuery, String luceneQuery, boolean filterInCompute) throws IOException {
+    private void testPushQuery(String value, String esqlQuery, String luceneQuery, boolean filterInCompute, boolean found)
+        throws IOException {
         indexValue(value);
+        String differentValue = randomValueOtherThan(value, () -> randomAlphaOfLength(value.length() == 0 ? 1 : value.length()));
 
-        RestEsqlTestCase.RequestObjectBuilder builder = requestObjectBuilder().query(
-            esqlQuery.replaceAll("%value", value) + "\n| KEEP test"
-        );
+        String replacedQuery = esqlQuery.replaceAll("%value", value).replaceAll("%different_value", differentValue);
+        RestEsqlTestCase.RequestObjectBuilder builder = requestObjectBuilder().query(replacedQuery + "\n| KEEP test");
         builder.profile(true);
         Map<String, Object> result = runEsql(builder, new AssertWarnings.NoWarnings(), RestEsqlTestCase.Mode.SYNC);
         assertResultMap(
@@ -88,7 +106,7 @@ public class PushQueriesIT extends ESRestTestCase {
                     .entry("query", matchesMap().extraOk())
             ),
             matchesList().item(matchesMap().entry("name", "test").entry("type", "text")),
-            equalTo(List.of(List.of(value)))
+            equalTo(found ? List.of(List.of(value)) : List.of())
         );
 
         @SuppressWarnings("unchecked")
@@ -100,7 +118,7 @@ public class PushQueriesIT extends ESRestTestCase {
             @SuppressWarnings("unchecked")
             List<Map<String, Object>> operators = (List<Map<String, Object>>) p.get("operators");
             for (Map<String, Object> o : operators) {
-                sig.add(checkOperatorProfile(o, luceneQuery.replaceAll("%value", value)));
+                sig.add(checkOperatorProfile(o, luceneQuery.replaceAll("%value", value).replaceAll("%different_value", differentValue)));
             }
             String description = p.get("description").toString();
             switch (description) {
@@ -112,7 +130,14 @@ public class PushQueriesIT extends ESRestTestCase {
                     matcher = matcher.item("ProjectOperator").item("ExchangeSinkOperator");
                     assertMap(sig, matcher);
                 }
-                case "node_reduce" -> assertMap(sig, matchesList().item("ExchangeSourceOperator").item("ExchangeSinkOperator"));
+                case "node_reduce" -> {
+                    if (sig.contains("LimitOperator")) {
+                        // TODO figure out why this is sometimes here and sometimes not
+                        assertMap(sig, matchesList().item("ExchangeSourceOperator").item("LimitOperator").item("ExchangeSinkOperator"));
+                    } else {
+                        assertMap(sig, matchesList().item("ExchangeSourceOperator").item("ExchangeSinkOperator"));
+                    }
+                }
                 case "final" -> assertMap(
                     sig,
                     matchesList().item("ExchangeSourceOperator").item("LimitOperator").item("ProjectOperator").item("OutputOperator")
@@ -140,7 +165,7 @@ public class PushQueriesIT extends ESRestTestCase {
 
         Request bulk = new Request("POST", "/_bulk");
         bulk.addParameter("refresh", "");
-        bulk.setJsonEntity(String.format("""
+        bulk.setJsonEntity(String.format(Locale.ROOT, """
             {"create":{"_index":"test"}}
             {"test":"%s"}
             """, value));

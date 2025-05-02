@@ -201,7 +201,7 @@ POST /places/_search?size=0
 }
 ```
 
-::::{admonition} Using `geo_centroid` as a sub-aggregation of `geohash_grid`
+::::{admonition} Using geo_centroid as a sub-aggregation of geohash_grid
 :class: warning
 
 The [`geohash_grid`](/reference/aggregations/search-aggregations-bucket-geohashgrid-aggregation.md) aggregation places documents, not individual geopoints, into buckets. If a document’s `geo_point` field contains [multiple values](/reference/elasticsearch/mapping-reference/array.md), the document could be assigned to multiple buckets, even if one or more of its geopoints are outside the bucket boundaries.

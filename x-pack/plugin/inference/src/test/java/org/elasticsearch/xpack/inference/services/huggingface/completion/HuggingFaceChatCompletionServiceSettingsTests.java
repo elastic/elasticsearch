@@ -11,6 +11,7 @@ import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentType;
@@ -192,9 +193,17 @@ public class HuggingFaceChatCompletionServiceSettingsTests extends AbstractBWCWi
         XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
         serviceSettings.toXContent(builder, null);
         String xContentResult = Strings.toString(builder);
+        var expected = XContentHelper.stripWhitespace("""
+            {
+                "model_id": "some model",
+                "url": "https://www.elastic.co",
+                "rate_limit": {
+                    "requests_per_minute": 2
+                }
+            }
+            """);
 
-        assertThat(xContentResult, is("""
-            {"model_id":"some model","url":"https://www.elastic.co","rate_limit":{"requests_per_minute":2}}"""));
+        assertThat(xContentResult, is(expected));
     }
 
     public void testToXContent_DoesNotWriteOptionalValues_DefaultRateLimit() throws IOException {
@@ -206,9 +215,15 @@ public class HuggingFaceChatCompletionServiceSettingsTests extends AbstractBWCWi
         XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
         serviceSettings.toXContent(builder, null);
         String xContentResult = Strings.toString(builder);
-
-        assertThat(xContentResult, is("""
-            {"url":"https://www.elastic.co","rate_limit":{"requests_per_minute":3000}}"""));
+        var expected = XContentHelper.stripWhitespace("""
+            {
+                "url": "https://www.elastic.co",
+                "rate_limit": {
+                    "requests_per_minute": 3000
+                }
+            }
+            """);
+        assertThat(xContentResult, is(expected));
     }
 
     @Override

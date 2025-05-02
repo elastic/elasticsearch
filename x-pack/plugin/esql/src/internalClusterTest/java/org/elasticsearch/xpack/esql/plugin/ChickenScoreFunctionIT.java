@@ -28,6 +28,22 @@ public class ChickenScoreFunctionIT extends AbstractEsqlIntegTestCase {
         createAndPopulateIndex();
     }
 
+    public void testSimpleWhereMatch() {
+        var query = """
+            FROM test METADATA _score
+            | WHERE match(content, "brown")
+            | WHERE match(content, "fox")
+            | KEEP id, _score
+            | SORT id
+            """;
+
+        try (var resp = run(query)) {
+            assertColumnNames(resp.columns(), List.of("id", "_score"));
+            assertColumnTypes(resp.columns(), List.of("integer", "double"));
+            assertValues(resp.values(), List.of(List.of(1, 1.4274532794952393), List.of(6, 1.1248724460601807)));
+        }
+    }
+
     public void testSimpleChickenScoreWithWhereMatch() {
         var query = """
             FROM test METADATA _score
@@ -40,21 +56,55 @@ public class ChickenScoreFunctionIT extends AbstractEsqlIntegTestCase {
         try (var resp = run(query)) {
             assertColumnNames(resp.columns(), List.of("id", "_score", "first_score"));
             assertColumnTypes(resp.columns(), List.of("integer", "double", "double"));
-            assertValues(resp.values(), List.of(List.of(1, 1.156558871269226, 0.2708943784236908), List.of(6, 0.9114001989364624, 0.21347221732139587)));
+            assertValues(resp.values(), List.of(List.of(1, 1.156558871269226, 0.2708943784236908),
+                List.of(6, 0.9114001989364624, 0.21347221732139587)));
+        }
+    }
+
+    public void testSimpleChickenScoreAlone() {
+        var query = """
+            FROM test METADATA _score
+            | EVAL first_score = chicken_score(match(content, "brown"))
+            | KEEP id, _score, first_score
+            | SORT id
+            """;
+
+        try (var resp = run(query)) {
+            assertColumnNames(resp.columns(), List.of("id", "_score", "first_score"));
+            assertColumnTypes(resp.columns(), List.of("integer", "double", "double"));
+            assertValues(resp.values(), List.of(List.of(1, 0.2708943784236908, 0.2708943784236908),
+                List.of(6, 0.21347221732139587, 0.21347221732139587)));
+        }
+    }
+
+    public void testSimpleMatchScoreCopy() {
+        var query = """
+            FROM test METADATA _score
+            | WHERE match(content, "fox")
+            | EVAL first_score = _score
+            | KEEP id, _score, first_score
+            | SORT id
+            """;
+
+        try (var resp = run(query)) {
+            assertColumnNames(resp.columns(), List.of("id", "_score", "first_score"));
+            assertColumnTypes(resp.columns(), List.of("integer", "double", "double"));
+            assertValues(resp.values(), List.of(List.of(1, 1.156558871269226, 1.156558871269226),
+                List.of(6, 0.9114001989364624, 0.9114001989364624)));
         }
     }
 
     public void testSimpleEvalScoreWithWhereMatch() {
         var query = """
             FROM test METADATA _score
-            | EVAL first_matching = match(content, "brown")
+            | EVAL first_score = match(content, "brown")
             | WHERE match(content, "fox")
             | KEEP id, _score, first_score
             | SORT id
             """;
 
         try (var resp = run(query)) {
-            assertColumnNames(resp.columns(), List.of("id", "_score", "first_matching"));
+            assertColumnNames(resp.columns(), List.of("id", "_score", "first_score"));
             assertColumnTypes(resp.columns(), List.of("integer", "double", "boolean"));
             assertValues(resp.values(), List.of(List.of(1, 1.156558871269226, true), List.of(6, 0.9114001989364624, true)));
         }

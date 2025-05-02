@@ -1042,7 +1042,7 @@ public class EsqlCapabilities {
         LAST_OVER_TIME(Build.current().isSnapshot()),
 
         /**
-         * chicken_score ES|QL function
+         * chicken_score function
          */
         CHICKEN_SCORE(Build.current().isSnapshot()),
 

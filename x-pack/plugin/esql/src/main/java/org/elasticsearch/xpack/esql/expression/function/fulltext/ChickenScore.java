@@ -29,7 +29,6 @@ import java.util.List;
 
 public class ChickenScore  extends Function implements EvaluatorMapper {
 
-
     @FunctionInfo(
         returnType = "double",
         preview = true,
@@ -76,18 +75,14 @@ public class ChickenScore  extends Function implements EvaluatorMapper {
 
         ScoreOperator.ExpressionScorer.Factory scorerFactory = ScoreMapper.toScorer(children().getFirst(), toEvaluator.shardContexts());
 
-        return new EvalOperator.ExpressionEvaluator.Factory() {
-            @Override
-            public EvalOperator.ExpressionEvaluator get(DriverContext driverContext) {
-                return new ChickenScorerEvaluatorFactory(scorerFactory).get(driverContext);
-            }
-        };
+        return driverContext -> new ChickenScorerEvaluatorFactory(scorerFactory).get(driverContext);
 
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-
+        source().writeTo(out);
+        out.writeNamedWriteableCollection(this.children());
     }
 
     private record ChickenScorerEvaluatorFactory(ScoreOperator.ExpressionScorer.Factory scoreFactory)
@@ -97,14 +92,15 @@ public class ChickenScore  extends Function implements EvaluatorMapper {
         public EvalOperator.ExpressionEvaluator get(DriverContext context) {
             return new EvalOperator.ExpressionEvaluator() {
 
+                private final ScoreOperator.ExpressionScorer scorer = scoreFactory.get(context);
+
                 @Override
                 public void close() {
-
+                    scorer.close();
                 }
 
                 @Override
                 public Block eval(Page page) {
-                    ScoreOperator.ExpressionScorer scorer = scoreFactory.get(context);
                     return scorer.score(page);
                 }
             };

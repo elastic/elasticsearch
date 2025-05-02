@@ -15,7 +15,6 @@ import org.elasticsearch.xpack.inference.services.huggingface.completion.Hugging
 import org.elasticsearch.xpack.inference.services.huggingface.request.completion.HuggingFaceUnifiedChatCompletionRequest;
 
 import java.io.IOException;
-import java.net.URISyntaxException;
 import java.util.List;
 import java.util.Map;
 
@@ -27,7 +26,7 @@ import static org.hamcrest.Matchers.is;
 public class HuggingFaceUnifiedChatCompletionRequestTests extends ESTestCase {
 
     public void testCreateRequest_WithStreaming() throws IOException {
-        var request = createRequest("url", "secret", "abcd", "model", true);
+        var request = createRequest("url", "secret", randomAlphaOfLength(15), "model", true);
         var httpRequest = request.createHttpRequest();
 
         assertThat(httpRequest.httpRequestBase(), instanceOf(HttpPost.class));
@@ -37,8 +36,9 @@ public class HuggingFaceUnifiedChatCompletionRequestTests extends ESTestCase {
         assertThat(requestMap.get("stream"), is(true));
     }
 
-    public void testTruncate_DoesNotReduceInputTextSize() throws URISyntaxException, IOException {
-        var request = createRequest("url", "secret", "abcd", "model", true);
+    public void testTruncate_DoesNotReduceInputTextSize() throws IOException {
+        String input = randomAlphaOfLength(5);
+        var request = createRequest("url", "secret", input, "model", true);
         var truncatedRequest = request.truncate();
         assertThat(request.getURI().toString(), is("url"));
 
@@ -50,7 +50,7 @@ public class HuggingFaceUnifiedChatCompletionRequestTests extends ESTestCase {
         assertThat(requestMap, aMapWithSize(5));
 
         // We do not truncate for Hugging Face chat completions
-        assertThat(requestMap.get("messages"), is(List.of(Map.of("role", "user", "content", "abcd"))));
+        assertThat(requestMap.get("messages"), is(List.of(Map.of("role", "user", "content", input))));
         assertThat(requestMap.get("model"), is("model"));
         assertThat(requestMap.get("n"), is(1));
         assertTrue((Boolean) requestMap.get("stream"));
@@ -58,7 +58,7 @@ public class HuggingFaceUnifiedChatCompletionRequestTests extends ESTestCase {
     }
 
     public void testTruncationInfo_ReturnsNull() {
-        var request = createRequest("url", "secret", "abcd", "model", true);
+        var request = createRequest("url", "secret", randomAlphaOfLength(5), "model", true);
         assertNull(request.getTruncationInfo());
     }
 

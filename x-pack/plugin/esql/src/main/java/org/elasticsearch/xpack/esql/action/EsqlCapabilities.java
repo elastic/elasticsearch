@@ -142,6 +142,11 @@ public class EsqlCapabilities {
         AGG_TOP_STRING_SUPPORT,
 
         /**
+         * Expand the {@code VALUES} agg to cover spatial types.
+         */
+        AGG_VALUES_SPATIAL,
+
+        /**
          * {@code CASE} properly handling multivalue conditions.
          */
         CASE_MV,

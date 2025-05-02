@@ -24,6 +24,7 @@ import co.elastic.elasticsearch.stateless.commits.HollowShardsService;
 import co.elastic.elasticsearch.stateless.commits.StatelessCommitService;
 import co.elastic.elasticsearch.stateless.commits.StatelessCompoundCommit;
 import co.elastic.elasticsearch.stateless.commits.VirtualBatchedCompoundCommit;
+import co.elastic.elasticsearch.stateless.engine.HollowIndexEngine;
 import co.elastic.elasticsearch.stateless.engine.IndexEngine;
 import co.elastic.elasticsearch.stateless.engine.MergeMetrics;
 import co.elastic.elasticsearch.stateless.engine.PrimaryTermAndGeneration;
@@ -120,9 +121,11 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcke
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0, numClientNodes = 0)
@@ -1004,5 +1007,32 @@ public abstract class AbstractStatelessIntegTestCase extends ESIntegTestCase {
             .put(IndexingMemoryController.SHARD_MEMORY_INTERVAL_TIME_SETTING.getKey(), TimeValue.timeValueHours(1L))
             .put(IndexingDiskController.INDEXING_DISK_INTERVAL_TIME_SETTING.getKey(), TimeValue.MINUS_ONE)
             .build();
+    }
+
+    protected void hollowShards(String indexName, int numberOfShards, String indexNodeA, String indexNodeB) throws Exception {
+        var hollowShardsServiceA = internalCluster().getInstance(HollowShardsService.class, indexNodeA);
+        for (int i = 0; i < numberOfShards; i++) {
+            var indexShard = findIndexShard(resolveIndex(indexName), 0);
+            assertThat(indexShard.getEngineOrNull(), instanceOf(IndexEngine.class));
+            var indexEngine = (IndexEngine) indexShard.getEngineOrNull();
+            assertFalse(indexEngine.isLastCommitHollow());
+            assertBusy(() -> assertTrue(hollowShardsServiceA.isHollowableIndexShard(indexShard)));
+        }
+
+        logger.debug("--> relocating {} hollowable shards from {} to {}", numberOfShards, indexNodeA, indexNodeB);
+        updateIndexSettings(Settings.builder().put("index.routing.allocation.exclude._name", indexNodeA), indexName);
+        assertBusy(() -> {
+            var nodes = internalCluster().nodesInclude(indexName);
+            assertThat(nodes, not(hasItem(indexNodeA)));
+            assertThat(nodes, hasItem(indexNodeB));
+        });
+        ensureGreen(indexName);
+
+        var hollowShardsServiceB = internalCluster().getInstance(HollowShardsService.class, indexNodeB);
+        for (int i = 0; i < numberOfShards; i++) {
+            var indexShard = findIndexShard(resolveIndex(indexName), i);
+            assertThat(indexShard.getEngineOrNull(), instanceOf(HollowIndexEngine.class));
+            hollowShardsServiceB.ensureHollowShard(indexShard.shardId(), true);
+        }
     }
 }

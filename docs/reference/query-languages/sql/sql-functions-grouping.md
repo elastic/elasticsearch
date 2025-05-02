@@ -3,7 +3,7 @@ mapped_pages:
   - https://www.elastic.co/guide/en/elasticsearch/reference/current/sql-functions-grouping.html
 ---
 
-# Grouping Functions [sql-functions-grouping]
+# Grouping functions [sql-functions-grouping]
 
 Functions for creating special *grouping*s (also known as *bucketing*); as such these need to be used as part of the [grouping](/reference/query-languages/sql/sql-syntax-select.md#sql-syntax-group-by).
 

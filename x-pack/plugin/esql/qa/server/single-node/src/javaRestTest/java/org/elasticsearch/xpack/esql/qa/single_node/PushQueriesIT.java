@@ -15,6 +15,7 @@ import org.elasticsearch.test.ListMatcher;
 import org.elasticsearch.test.MapMatcher;
 import org.elasticsearch.test.TestClustersThreadFilter;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
+import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.esql.AssertWarnings;
@@ -62,6 +63,15 @@ public class PushQueriesIT extends ESRestTestCase {
             FROM test
             | WHERE test == "%value"
             """, "*:*", true, true);
+    }
+
+    public void testPushEqualityOnDefaultsOrTooBig() throws IOException {
+        String value = "v".repeat(between(0, 256));
+        String tooBig = "a".repeat(between(257, 1000));
+        testPushQuery(value, """
+            FROM test
+            | WHERE test == "%value" OR test == "%tooBig"
+            """.replace("%tooBig", tooBig), "#test.keyword:%value -_ignored:test.keyword", false, true);
     }
 
     public void testPushInequalityOnDefaults() throws IOException {

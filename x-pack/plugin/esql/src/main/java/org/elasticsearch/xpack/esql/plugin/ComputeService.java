@@ -561,7 +561,7 @@ public class ComputeService {
                 contexts
             );
 
-            LOGGER.debug("Received physical plan:\n{}", plan);
+            LOGGER.error("Received physical plan:\n{}", plan);
 
             plan = PlannerUtils.localPlan(context.searchExecutionContexts(), context.configuration(), context.foldCtx(), plan);
             // the planner will also set the driver parallelism in LocalExecutionPlanner.LocalExecutionPlan (used down below)

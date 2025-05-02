@@ -96,6 +96,11 @@ public interface TranslationAware {
          * </p>
          */
         RECHECK(FinishedTranslatable.RECHECK),
+        /**
+         * The same as {@link #YES}, but if this expression is negated it turns into {@link #RECHECK}.
+         * This comes up when pushing {@code NOT(text == "a")} to {@code text.keyword} which can
+         * have ignored fields.
+         */
         YES_BUT_RECHECK_NEGATED(FinishedTranslatable.YES);
 
         private final FinishedTranslatable finish;
@@ -104,6 +109,10 @@ public interface TranslationAware {
             this.finish = finish;
         }
 
+        /**
+         * Translate into a {@link FinishedTranslatable} which never
+         * includes {@link #YES_BUT_RECHECK_NEGATED}.
+         */
         public FinishedTranslatable finish() {
             return finish;
         }
@@ -115,7 +124,10 @@ public interface TranslationAware {
             return this;
         }
 
-        public Translatable and(Translatable rhs) {
+        /**
+         * Merge two {@link TranslationAware#translatable} results.
+         */
+        public Translatable merge(Translatable rhs) {
             return switch (this) {
                 case NO -> NO;
                 case YES -> switch (rhs) {
@@ -139,8 +151,17 @@ public interface TranslationAware {
     }
 
     enum FinishedTranslatable {
+        /**
+         * See {@link Translatable#YES}.
+         */
         YES,
+        /**
+         * See {@link Translatable#NO}.
+         */
         NO,
+        /**
+         * See {@link Translatable#RECHECK}.
+         */
         RECHECK;
     }
 }

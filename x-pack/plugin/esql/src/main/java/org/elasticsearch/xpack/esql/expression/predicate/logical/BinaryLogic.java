@@ -83,7 +83,7 @@ public abstract class BinaryLogic extends BinaryOperator<Boolean, Boolean, Boole
 
     @Override
     public Translatable translatable(LucenePushdownPredicates pushdownPredicates) {
-        return TranslationAware.translatable(left(), pushdownPredicates).and(TranslationAware.translatable(right(), pushdownPredicates));
+        return TranslationAware.translatable(left(), pushdownPredicates).merge(TranslationAware.translatable(right(), pushdownPredicates));
     }
 
     @Override

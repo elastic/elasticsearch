@@ -642,7 +642,7 @@ public class NodeEnvironmentTests extends ESTestCase {
         int last = Version.CURRENT.minimumCompatibilityVersion().minor;
         int old = prev - 1;
 
-        assumeTrue("The current compatibility rules are active only from 9.x onward", prev >= 7);
+        assumeTrue("The current compatibility rules are active only from 8.x onward", prev >= 7);
         assertEquals(Version.CURRENT.major - 1, prev);
 
         assertEquals(

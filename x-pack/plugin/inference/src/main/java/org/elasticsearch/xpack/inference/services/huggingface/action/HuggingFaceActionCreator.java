@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.inference.services.huggingface.action;
 
+import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.xpack.inference.external.action.ExecutableAction;
 import org.elasticsearch.xpack.inference.external.action.SenderExecutableAction;
 import org.elasticsearch.xpack.inference.external.action.SingleInputSenderExecutableAction;
@@ -38,8 +39,6 @@ public class HuggingFaceActionCreator implements HuggingFaceActionVisitor {
 
     public static final String COMPLETION_ERROR_PREFIX = "Hugging Face completions";
     static final String USER_ROLE = "user";
-    private static final String FAILED_TO_SEND_REQUEST_ERROR_MESSAGE =
-        "Failed to send Hugging Face %s request from inference entity id [%s]";
     static final ResponseHandler COMPLETION_HANDLER = new OpenAiChatCompletionResponseHandler(
         "hugging face completion",
         OpenAiChatCompletionResponseEntity::fromResponse
@@ -64,7 +63,7 @@ public class HuggingFaceActionCreator implements HuggingFaceActionVisitor {
             serviceComponents.truncator(),
             serviceComponents.threadPool()
         );
-        var errorMessage = format(FAILED_TO_SEND_REQUEST_ERROR_MESSAGE, "text embeddings", model.getInferenceEntityId());
+        var errorMessage = buildErrorMessage(TaskType.TEXT_EMBEDDING, model.getInferenceEntityId());
         return new SenderExecutableAction(sender, requestCreator, errorMessage);
     }
 
@@ -77,7 +76,7 @@ public class HuggingFaceActionCreator implements HuggingFaceActionVisitor {
             serviceComponents.truncator(),
             serviceComponents.threadPool()
         );
-        var errorMessage = format(FAILED_TO_SEND_REQUEST_ERROR_MESSAGE, "ELSER", model.getInferenceEntityId());
+        var errorMessage = buildErrorMessage(TaskType.SPARSE_EMBEDDING, model.getInferenceEntityId());
         return new SenderExecutableAction(sender, requestCreator, errorMessage);
     }
 
@@ -91,7 +90,11 @@ public class HuggingFaceActionCreator implements HuggingFaceActionVisitor {
             ChatCompletionInput.class
         );
 
-        var errorMessage = format(FAILED_TO_SEND_REQUEST_ERROR_MESSAGE, "COMPLETION", model.getInferenceEntityId());
+        var errorMessage = buildErrorMessage(TaskType.COMPLETION, model.getInferenceEntityId());
         return new SingleInputSenderExecutableAction(sender, manager, errorMessage, COMPLETION_ERROR_PREFIX);
+    }
+
+    public static String buildErrorMessage(TaskType requestType, String inferenceId) {
+        return format("Failed to send Hugging Face %s request from inference entity id [%s]", requestType.toString(), inferenceId);
     }
 }

@@ -210,6 +210,7 @@ public class TransportVersions {
     public static final TransportVersion ML_INFERENCE_SAGEMAKER_8_19 = def(8_841_0_21);
     public static final TransportVersion ESQL_REPORT_ORIGINAL_TYPES_BACKPORT_8_19 = def(8_841_0_22);
     public static final TransportVersion PINNED_RETRIEVER_8_19 = def(8_841_0_23);
+    public static final TransportVersion ESQL_AGGREGATE_METRIC_DOUBLE_BLOCK_8_19 = def(8_841_0_24);
 
     /*
      * STOP! READ THIS FIRST! No, really,

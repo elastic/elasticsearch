@@ -2733,8 +2733,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         return indexEventListener;
     }
 
-    /** Asks this shard to throttle indexing to one thread. If {@link IndexingMemoryController#PAUSE_INDEXING_ON_THROTTLE}
-     * setting is set to true, throttling will pause indexing completely.
+    /** Activate throttling for this shard. If {@link IndexingMemoryController#PAUSE_INDEXING_ON_THROTTLE}
+     * setting is set to true, throttling will pause indexing completely. Otherwise, indexing will be throttled to one thread.
      */
     public void activateThrottling() {
         try {
@@ -2742,10 +2742,6 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         } catch (AlreadyClosedException ex) {
             // ignore
         }
-    }
-
-    public void pauseIndexing() {
-
     }
 
     public void deactivateThrottling() {

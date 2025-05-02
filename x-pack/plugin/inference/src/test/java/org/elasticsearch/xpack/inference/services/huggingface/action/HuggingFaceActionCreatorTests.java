@@ -115,14 +115,14 @@ public class HuggingFaceActionCreatorTests extends ESTestCase {
             );
 
             assertThat(webServer.requests(), hasSize(1));
-            assertNull(webServer.requests().getFirst().getUri().getQuery());
+            assertNull(webServer.requests().get(0).getUri().getQuery());
             assertThat(
-                webServer.requests().getFirst().getHeader(HttpHeaders.CONTENT_TYPE),
+                webServer.requests().get(0).getHeader(HttpHeaders.CONTENT_TYPE),
                 equalTo(XContentType.JSON.mediaTypeWithoutParameters())
             );
-            assertThat(webServer.requests().getFirst().getHeader(HttpHeaders.AUTHORIZATION), equalTo("Bearer secret"));
+            assertThat(webServer.requests().get(0).getHeader(HttpHeaders.AUTHORIZATION), equalTo("Bearer secret"));
 
-            var requestMap = entityAsMap(webServer.requests().getFirst().getBody());
+            var requestMap = entityAsMap(webServer.requests().get(0).getBody());
             assertThat(requestMap.size(), is(1));
             assertThat(requestMap.get("inputs"), instanceOf(List.class));
             var inputList = (List<String>) requestMap.get("inputs");
@@ -181,14 +181,14 @@ public class HuggingFaceActionCreatorTests extends ESTestCase {
             );
 
             assertThat(webServer.requests(), hasSize(1));
-            assertNull(webServer.requests().getFirst().getUri().getQuery());
+            assertNull(webServer.requests().get(0).getUri().getQuery());
             assertThat(
-                webServer.requests().getFirst().getHeader(HttpHeaders.CONTENT_TYPE),
+                webServer.requests().get(0).getHeader(HttpHeaders.CONTENT_TYPE),
                 equalTo(XContentType.JSON.mediaTypeWithoutParameters())
             );
-            assertThat(webServer.requests().getFirst().getHeader(HttpHeaders.AUTHORIZATION), equalTo("Bearer secret"));
+            assertThat(webServer.requests().get(0).getHeader(HttpHeaders.AUTHORIZATION), equalTo("Bearer secret"));
 
-            var requestMap = entityAsMap(webServer.requests().getFirst().getBody());
+            var requestMap = entityAsMap(webServer.requests().get(0).getBody());
             assertThat(requestMap.size(), is(1));
             assertThat(requestMap.get("inputs"), instanceOf(List.class));
             var inputList = (List<String>) requestMap.get("inputs");
@@ -231,14 +231,14 @@ public class HuggingFaceActionCreatorTests extends ESTestCase {
             assertThat(result.asMap(), is(TextEmbeddingFloatResultsTests.buildExpectationFloat(List.of(new float[] { -0.0123F, 0.123F }))));
 
             assertThat(webServer.requests(), hasSize(1));
-            assertNull(webServer.requests().getFirst().getUri().getQuery());
+            assertNull(webServer.requests().get(0).getUri().getQuery());
             assertThat(
-                webServer.requests().getFirst().getHeader(HttpHeaders.CONTENT_TYPE),
+                webServer.requests().get(0).getHeader(HttpHeaders.CONTENT_TYPE),
                 equalTo(XContentType.JSON.mediaTypeWithoutParameters())
             );
-            assertThat(webServer.requests().getFirst().getHeader(HttpHeaders.AUTHORIZATION), equalTo("Bearer secret"));
+            assertThat(webServer.requests().get(0).getHeader(HttpHeaders.AUTHORIZATION), equalTo("Bearer secret"));
 
-            var requestMap = entityAsMap(webServer.requests().getFirst().getBody());
+            var requestMap = entityAsMap(webServer.requests().get(0).getBody());
             assertThat(requestMap.size(), is(1));
             assertThat(requestMap.get("inputs"), instanceOf(List.class));
             var inputList = (List<String>) requestMap.get("inputs");
@@ -295,14 +295,14 @@ public class HuggingFaceActionCreatorTests extends ESTestCase {
             );
 
             assertThat(webServer.requests(), hasSize(1));
-            assertNull(webServer.requests().getFirst().getUri().getQuery());
+            assertNull(webServer.requests().get(0).getUri().getQuery());
             assertThat(
-                webServer.requests().getFirst().getHeader(HttpHeaders.CONTENT_TYPE),
+                webServer.requests().get(0).getHeader(HttpHeaders.CONTENT_TYPE),
                 equalTo(XContentType.JSON.mediaTypeWithoutParameters())
             );
-            assertThat(webServer.requests().getFirst().getHeader(HttpHeaders.AUTHORIZATION), equalTo("Bearer secret"));
+            assertThat(webServer.requests().get(0).getHeader(HttpHeaders.AUTHORIZATION), equalTo("Bearer secret"));
 
-            var requestMap = entityAsMap(webServer.requests().getFirst().getBody());
+            var requestMap = entityAsMap(webServer.requests().get(0).getBody());
             assertThat(requestMap.size(), is(1));
             assertThat(requestMap.get("inputs"), instanceOf(List.class));
             var inputList = (List<String>) requestMap.get("inputs");
@@ -353,14 +353,14 @@ public class HuggingFaceActionCreatorTests extends ESTestCase {
 
             assertThat(webServer.requests(), hasSize(2));
             {
-                assertNull(webServer.requests().getFirst().getUri().getQuery());
+                assertNull(webServer.requests().get(0).getUri().getQuery());
                 assertThat(
-                    webServer.requests().getFirst().getHeader(HttpHeaders.CONTENT_TYPE),
+                    webServer.requests().get(0).getHeader(HttpHeaders.CONTENT_TYPE),
                     equalTo(XContentType.JSON.mediaTypeWithoutParameters())
                 );
-                assertThat(webServer.requests().getFirst().getHeader(HttpHeaders.AUTHORIZATION), equalTo("Bearer secret"));
+                assertThat(webServer.requests().get(0).getHeader(HttpHeaders.AUTHORIZATION), equalTo("Bearer secret"));
 
-                var initialRequestAsMap = entityAsMap(webServer.requests().getFirst().getBody());
+                var initialRequestAsMap = entityAsMap(webServer.requests().get(0).getBody());
                 var initialInputs = initialRequestAsMap.get("inputs");
                 assertThat(initialInputs, is(List.of("abcd")));
             }
@@ -415,14 +415,14 @@ public class HuggingFaceActionCreatorTests extends ESTestCase {
 
             assertThat(webServer.requests(), hasSize(1));
 
-            assertNull(webServer.requests().getFirst().getUri().getQuery());
+            assertNull(webServer.requests().get(0).getUri().getQuery());
             assertThat(
-                webServer.requests().getFirst().getHeader(HttpHeaders.CONTENT_TYPE),
+                webServer.requests().get(0).getHeader(HttpHeaders.CONTENT_TYPE),
                 equalTo(XContentType.JSON.mediaTypeWithoutParameters())
             );
-            assertThat(webServer.requests().getFirst().getHeader(HttpHeaders.AUTHORIZATION), equalTo("Bearer secret"));
+            assertThat(webServer.requests().get(0).getHeader(HttpHeaders.AUTHORIZATION), equalTo("Bearer secret"));
 
-            var initialRequestAsMap = entityAsMap(webServer.requests().getFirst().getBody());
+            var initialRequestAsMap = entityAsMap(webServer.requests().get(0).getBody());
             var initialInputs = initialRequestAsMap.get("inputs");
             assertThat(initialInputs, is(List.of("123")));
 
@@ -474,14 +474,14 @@ public class HuggingFaceActionCreatorTests extends ESTestCase {
             assertThat(result.asMap(), is(buildExpectationCompletion(List.of("Hello there, how may I assist you today?"))));
 
             assertThat(webServer.requests(), hasSize(1));
-            assertNull(webServer.requests().getFirst().getUri().getQuery());
+            assertNull(webServer.requests().get(0).getUri().getQuery());
             assertThat(
-                webServer.requests().getFirst().getHeader(HttpHeaders.CONTENT_TYPE),
+                webServer.requests().get(0).getHeader(HttpHeaders.CONTENT_TYPE),
                 equalTo(XContentType.JSON.mediaTypeWithoutParameters())
             );
-            assertThat(webServer.requests().getFirst().getHeader(HttpHeaders.AUTHORIZATION), equalTo("Bearer secret"));
+            assertThat(webServer.requests().get(0).getHeader(HttpHeaders.AUTHORIZATION), equalTo("Bearer secret"));
 
-            var requestMap = entityAsMap(webServer.requests().getFirst().getBody());
+            var requestMap = entityAsMap(webServer.requests().get(0).getBody());
             assertThat(requestMap.size(), is(4));
             assertThat(requestMap.get("messages"), is(List.of(Map.of("role", "user", "content", "Hello"))));
             assertThat(requestMap.get("model"), is("model"));
@@ -525,14 +525,14 @@ public class HuggingFaceActionCreatorTests extends ESTestCase {
             );
 
             assertThat(webServer.requests(), hasSize(1));
-            assertNull(webServer.requests().getFirst().getUri().getQuery());
+            assertNull(webServer.requests().get(0).getUri().getQuery());
             assertThat(
-                webServer.requests().getFirst().getHeader(HttpHeaders.CONTENT_TYPE),
+                webServer.requests().get(0).getHeader(HttpHeaders.CONTENT_TYPE),
                 equalTo(XContentType.JSON.mediaTypeWithoutParameters())
             );
-            assertThat(webServer.requests().getFirst().getHeader(HttpHeaders.AUTHORIZATION), equalTo("Bearer secret"));
+            assertThat(webServer.requests().get(0).getHeader(HttpHeaders.AUTHORIZATION), equalTo("Bearer secret"));
 
-            var requestMap = entityAsMap(webServer.requests().getFirst().getBody());
+            var requestMap = entityAsMap(webServer.requests().get(0).getBody());
             assertThat(requestMap.size(), is(4));
             assertThat(requestMap.get("messages"), is(List.of(Map.of("role", "user", "content", "Hello"))));
             assertThat(requestMap.get("model"), is("model"));

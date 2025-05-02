@@ -44,7 +44,6 @@ import java.util.stream.Stream;
 import static org.elasticsearch.health.HealthStatus.YELLOW;
 import static org.elasticsearch.indices.recovery.RecoverySettings.INDICES_RECOVERY_MAX_BYTES_PER_SEC_SETTING;
 import static org.elasticsearch.node.Node.INITIAL_STATE_TIMEOUT_SETTING;
-import static org.elasticsearch.test.NodeRoles.dataNode;
 import static org.elasticsearch.test.NodeRoles.dataOnlyNode;
 import static org.elasticsearch.test.NodeRoles.masterNode;
 import static org.hamcrest.Matchers.allOf;
@@ -139,6 +138,11 @@ public class FileSettingsServiceIT extends ESIntegTestCase {
 
     public static void writeJSONFile(String node, String json, Logger logger, Long version) throws Exception {
         FileSettingsService fileSettingsService = internalCluster().getInstance(FileSettingsService.class, node);
+        writeJSONFile(node, json, logger, version, fileSettingsService.watchedFile());
+    }
+
+    public static void writeJSONFile(String node, String json, Logger logger, Long version, Path targetPath) throws Exception {
+        FileSettingsService fileSettingsService = internalCluster().getInstance(FileSettingsService.class, node);
 
         Files.createDirectories(fileSettingsService.watchedFileDir());
         Path tempFilePath = createTempFile();
@@ -152,8 +156,8 @@ public class FileSettingsServiceIT extends ESIntegTestCase {
         do {
             try {
                 // this can fail on Windows because of timing
-                Files.move(tempFilePath, fileSettingsService.watchedFile(), StandardCopyOption.ATOMIC_MOVE);
-                logger.info("--> after writing JSON config to node {} with path {}", node, tempFilePath);
+                Files.move(tempFilePath, targetPath, StandardCopyOption.ATOMIC_MOVE);
+                logger.info("--> after writing JSON config to node {} with path {}", node, targetPath);
                 return;
             } catch (IOException e) {
                 logger.info("--> retrying writing a settings file [{}]", retryCount);
@@ -501,6 +505,57 @@ public class FileSettingsServiceIT extends ESIntegTestCase {
         writeJSONFile(internalCluster().getMasterName(), testJSON43mb, logger, versionCounter.incrementAndGet());
 
         assertClusterStateSaveOK(savedClusterState.v1(), savedClusterState.v2(), "43mb");
+    }
+
+    public void testSymlinkUpdateTriggerReload() throws Exception {
+        internalCluster().setBootstrapMasterNodeIndex(0);
+        logger.info("--> start data node / non master node");
+        String dataNode = internalCluster().startNode(Settings.builder().put(dataOnlyNode()).put("discovery.initial_state_timeout", "1s"));
+        FileSettingsService dataFileSettingsService = internalCluster().getInstance(FileSettingsService.class, dataNode);
+
+        assertFalse(dataFileSettingsService.watching());
+
+        logger.info("--> start master node");
+        final String masterNode = internalCluster().startMasterOnlyNode();
+        assertMasterNode(internalCluster().nonMasterClient(), masterNode);
+        {
+            var savedClusterState = setupClusterStateListener(masterNode);
+
+            FileSettingsService masterFileSettingsService = internalCluster().getInstance(FileSettingsService.class, masterNode);
+
+            assertBusy(() -> assertTrue(masterFileSettingsService.watching()));
+            assertFalse(dataFileSettingsService.watching());
+
+            // Create the settings.json as a symlink to simulate k8 setup
+            // settings.json -> ..data/settings.json
+            // ..data -> ..TIMESTAMP_TEMP_FOLDER_1
+            createK8sLikeSymlinks(masterNode);
+            assertClusterStateSaveOK(savedClusterState.v1(), savedClusterState.v2(), "50mb");
+        }
+        {
+            var savedClusterState = setupClusterStateListener(masterNode);
+            // Update ..data symlink to ..data -> ..TIMESTAMP_TEMP_FOLDER_2 to simulate kubernetes secret update
+            updateSymlinks(masterNode, testJSON43mb);
+            assertClusterStateSaveOK(savedClusterState.v1(), savedClusterState.v2(), "43mb");
+        }
+    }
+
+    public Path createK8sLikeSymlinks(String node) throws Exception {
+        FileSettingsService fileSettingsService = internalCluster().getInstance(FileSettingsService.class, node);
+        Path baseDir = fileSettingsService.watchedFileDir();
+        var fileDir = Files.createDirectories(baseDir.resolve("..TIMESTAMP_TEMP_FOLDER_1"));
+        writeJSONFile(node, testJSON, logger, versionCounter.incrementAndGet(), fileDir.resolve("settings.json"));
+        var dataDir = Files.createSymbolicLink(baseDir.resolve("..data"), fileDir.getFileName());
+        return Files.createSymbolicLink(baseDir.resolve("settings.json"), dataDir.getFileName().resolve("settings.json"));
+    }
+
+    public void updateSymlinks(String node, String json) throws Exception {
+        FileSettingsService fileSettingsService = internalCluster().getInstance(FileSettingsService.class, node);
+        Path baseDir = fileSettingsService.watchedFileDir();
+        var fileDir = Files.createDirectories(baseDir.resolve("..TIMESTAMP_TEMP_FOLDER_2"));
+        writeJSONFile(node, json, logger, versionCounter.incrementAndGet(), fileDir.resolve("settings.json"));
+        Files.deleteIfExists(baseDir.resolve("..data"));
+        Files.createSymbolicLink(baseDir.resolve("..data"), fileDir.getFileName());
     }
 
     public void testHealthIndicatorWithSingleNode() throws Exception {

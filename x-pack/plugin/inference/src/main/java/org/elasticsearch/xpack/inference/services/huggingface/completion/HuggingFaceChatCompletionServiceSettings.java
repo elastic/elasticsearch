@@ -144,7 +144,7 @@ public class HuggingFaceChatCompletionServiceSettings extends FilteredXContentOb
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.ML_INFERENCE_HUGGING_FACE;
+        return TransportVersions.ML_INFERENCE_HUGGING_FACE_CHAT_COMPLETION_ADDED;
     }
 
     @Override

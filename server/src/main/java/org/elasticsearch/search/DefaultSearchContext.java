@@ -21,11 +21,13 @@ import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TotalHits;
 import org.apache.lucene.util.NumericUtils;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.cluster.routing.IndexRouting;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexService;
@@ -212,7 +214,7 @@ final class DefaultSearchContext extends SearchContext {
                     minimumDocsPerSlice
                 );
             }
-            releasables.addAll(List.of(engineSearcher, searcher));
+            closeFuture.addListener(ActionListener.releasing(Releasables.wrap(engineSearcher, searcher)));
             this.relativeTimeSupplier = relativeTimeSupplier;
             this.timeout = timeout;
             searchExecutionContext = indexService.newSearchExecutionContext(

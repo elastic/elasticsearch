@@ -2824,7 +2824,6 @@ public class InternalEngine extends Engine {
     @Override
     public void activateThrottling() {
         int count = throttleRequestCount.incrementAndGet();
-        System.out.println("activateThrottling, throttleRequestCount = " + count);
         assert count >= 1 : "invalid post-increment throttleRequestCount=" + count;
         if (count == 1) {
             if (pauseIndexingOnThrottle) {
@@ -2838,7 +2837,6 @@ public class InternalEngine extends Engine {
     @Override
     public void deactivateThrottling() {
         int count = throttleRequestCount.decrementAndGet();
-        System.out.println("deactivateThrottling, throttleRequestCount = " + count);
         assert count >= 0 : "invalid post-decrement throttleRequestCount=" + count;
         if (count == 0) {
             throttle.deactivate();

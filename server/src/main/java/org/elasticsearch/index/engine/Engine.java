@@ -492,7 +492,6 @@ public abstract class Engine implements Closeable {
         public void activatePause() {
             assert lock == NOOP_LOCK : "throttling activated while already active";
             startOfThrottleNS = System.nanoTime();
-            System.out.println("ActivatePause");
             pauseIndexing.setRelease(true);
             lock = pauseLockReference;
         }

@@ -718,7 +718,12 @@ public class ReactiveStorageDeciderService implements AutoscalingDeciderService 
             public void applyMetadata(Metadata.Builder metadataBuilder) {
                 @FixForMultiProject
                 final ProjectId projectId = ProjectId.DEFAULT;
-                applyProjectMetadata(metadataBuilder.getProject(projectId));
+                ProjectMetadata.Builder projectBuilder = metadataBuilder.getProject(projectId);
+                if (projectBuilder == null) {
+                    projectBuilder = ProjectMetadata.builder(projectId);
+                    metadataBuilder.put(projectBuilder);
+                }
+                applyProjectMetadata(projectBuilder);
             }
 
             public void applyProjectMetadata(ProjectMetadata.Builder projectBuilder) {

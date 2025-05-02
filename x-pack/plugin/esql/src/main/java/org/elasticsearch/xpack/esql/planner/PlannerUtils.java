@@ -157,16 +157,6 @@ public class PlannerUtils {
         return indices.toArray(String[]::new);
     }
 
-    public static boolean requireTimeSeriesSource(PhysicalPlan plan) {
-        return plan.anyMatch(p -> {
-            if (p instanceof FragmentExec f) {
-                return f.fragment().anyMatch(l -> l instanceof EsRelation s && s.indexMode() == IndexMode.TIME_SERIES);
-            } else {
-                return false;
-            }
-        });
-    }
-
     private static void forEachRelation(PhysicalPlan plan, Consumer<EsRelation> action) {
         plan.forEachDown(FragmentExec.class, f -> f.fragment().forEachDown(EsRelation.class, r -> {
             if (r.indexMode() != IndexMode.LOOKUP) {
@@ -308,7 +298,8 @@ public class PlannerUtils {
             case TSID_DATA_TYPE -> ElementType.BYTES_REF;
             case GEO_POINT, CARTESIAN_POINT -> fieldExtractPreference == DOC_VALUES ? ElementType.LONG : ElementType.BYTES_REF;
             case GEO_SHAPE, CARTESIAN_SHAPE -> fieldExtractPreference == EXTRACT_SPATIAL_BOUNDS ? ElementType.INT : ElementType.BYTES_REF;
-            case PARTIAL_AGG, AGGREGATE_METRIC_DOUBLE -> ElementType.COMPOSITE;
+            case PARTIAL_AGG -> ElementType.COMPOSITE;
+            case AGGREGATE_METRIC_DOUBLE -> ElementType.AGGREGATE_METRIC_DOUBLE;
             case SHORT, BYTE, DATE_PERIOD, TIME_DURATION, OBJECT, FLOAT, HALF_FLOAT, SCALED_FLOAT -> throw EsqlIllegalArgumentException
                 .illegalDataType(dataType);
         };

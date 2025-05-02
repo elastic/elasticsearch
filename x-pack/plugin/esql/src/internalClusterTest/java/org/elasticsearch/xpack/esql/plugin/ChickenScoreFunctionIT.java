@@ -53,8 +53,10 @@ public class ChickenScoreFunctionIT extends AbstractEsqlIntegTestCase {
         try (var resp = run(query)) {
             assertColumnNames(resp.columns(), List.of("id", "_score", "first_score"));
             assertColumnTypes(resp.columns(), List.of("integer", "double", "double"));
-            assertValues(resp.values(), List.of(List.of(1, 1.156558871269226, 0.2708943784236908),
-                List.of(6, 0.9114001989364624, 0.21347221732139587)));
+            assertValues(
+                resp.values(),
+                List.of(List.of(1, 1.156558871269226, 0.2708943784236908), List.of(6, 0.9114001989364624, 0.21347221732139587))
+            );
         }
     }
 
@@ -69,9 +71,17 @@ public class ChickenScoreFunctionIT extends AbstractEsqlIntegTestCase {
         try (var resp = run(query)) {
             assertColumnNames(resp.columns(), List.of("id", "_score", "first_score"));
             assertColumnTypes(resp.columns(), List.of("integer", "double", "double"));
-            assertValues(resp.values(), List.of(List.of(1, 0.0, 0.2708943784236908), List.of(2, 0.0, 0.2708943784236908),
-                List.of(3, 0.0, 0.2708943784236908), List.of(4, 0.0, 0.19301524758338928), List.of(5, 0.0, 0.0),
-                List.of(6, 0.0, 0.21347221732139587)));
+            assertValues(
+                resp.values(),
+                List.of(
+                    List.of(1, 0.0, 0.2708943784236908),
+                    List.of(2, 0.0, 0.2708943784236908),
+                    List.of(3, 0.0, 0.2708943784236908),
+                    List.of(4, 0.0, 0.19301524758338928),
+                    List.of(5, 0.0, 0.0),
+                    List.of(6, 0.0, 0.21347221732139587)
+                )
+            );
         }
     }
 
@@ -87,8 +97,10 @@ public class ChickenScoreFunctionIT extends AbstractEsqlIntegTestCase {
         try (var resp = run(query)) {
             assertColumnNames(resp.columns(), List.of("id", "_score", "first_score"));
             assertColumnTypes(resp.columns(), List.of("integer", "double", "double"));
-            assertValues(resp.values(), List.of(List.of(1, 1.156558871269226, 1.156558871269226),
-                List.of(6, 0.9114001989364624, 0.9114001989364624)));
+            assertValues(
+                resp.values(),
+                List.of(List.of(1, 1.156558871269226, 1.156558871269226), List.of(6, 0.9114001989364624, 0.9114001989364624))
+            );
         }
     }
 

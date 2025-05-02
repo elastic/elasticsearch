@@ -901,7 +901,6 @@ public class ElasticsearchNode implements TestClusterConfiguration {
             }
         }
         LOGGER.info("Running `{}` in `{}` for {} env: {}", command, workingDir, this, environment);
-        LOGGER.info("In case of node failure, check {} logs available at: {}", this.name, confPathLogs);
         Process esProcess;
         try {
             esProcess = processBuilder.start();

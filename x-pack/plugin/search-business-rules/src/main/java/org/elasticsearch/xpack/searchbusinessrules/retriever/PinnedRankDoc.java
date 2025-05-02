@@ -76,6 +76,11 @@ public class PinnedRankDoc extends RankDoc {
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.PINNED_RETRIEVER;
+        throw new IllegalStateException("not used");
+    }
+
+    @Override
+    public boolean supportsVersion(TransportVersion version) {
+        return version.onOrAfter(TransportVersions.PINNED_RETRIEVER) || version.isPatchFrom(TransportVersions.PINNED_RETRIEVER_8_19);
     }
 }

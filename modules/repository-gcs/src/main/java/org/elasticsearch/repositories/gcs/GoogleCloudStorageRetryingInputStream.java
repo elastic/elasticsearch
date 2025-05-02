@@ -124,7 +124,7 @@ class GoogleCloudStorageRetryingInputStream extends InputStream {
                                 + blobId.getName()
                                 + "] generation ["
                                 + lastGeneration
-                                + "] unavailable on resume: "
+                                + "] unavailable on resume (contents changed, or object deleted): "
                                 + storageException.getMessage()
                         )
                     );
@@ -150,12 +150,12 @@ class GoogleCloudStorageRetryingInputStream extends InputStream {
     }
 
     private Long parseGenerationHeader(HttpResponse response) {
-        final Object generationHeader = response.getHeaders().get("x-goog-generation");
-        if (generationHeader instanceof String generationHeaderString) {
+        final String generationHeader = response.getHeaders().getFirstHeaderStringValue("x-goog-generation");
+        if (generationHeader != null) {
             try {
-                return Long.parseLong(generationHeaderString);
+                return Long.parseLong(generationHeader);
             } catch (NumberFormatException e) {
-                assert false : "Unexpected value for x-goog-generation header: " + generationHeaderString;
+                assert false : "Unexpected value for x-goog-generation header: " + generationHeader;
                 return null;
             }
         }
@@ -248,7 +248,6 @@ class GoogleCloudStorageRetryingInputStream extends InputStream {
         }
     }
 
-    // TODO: check that object did not change when stream is reopened (e.g. based on etag)
     private void reopenStreamOrFail(StorageException e) throws IOException {
         if (attempt >= maxAttempts) {
             throw addSuppressedExceptions(e);

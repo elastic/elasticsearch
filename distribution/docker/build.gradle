@@ -361,24 +361,14 @@ void addTransformDockerContextTask(Architecture architecture, DockerBase base) {
     String distributionFolderName = "elasticsearch-${VersionProperties.elasticsearch}"
 
     from(tarTree("${project.buildDir}/distributions/${archiveName}.tar.gz")) {
-      if (base != DockerBase.IRON_BANK && base != DockerBase.DEFAULT) {
+
+      if (base != DockerBase.IRON_BANK) {
         // iron bank always needs a COPY with the tarball file path
         eachFile { FileCopyDetails details ->
           if (details.name.equals("Dockerfile")) {
             filter { String contents ->
               return contents.replaceAll('^RUN curl.*artifacts-no-kpi.*$', "COPY $distributionFolderName .")
                 .replaceAll('^RUN tar -zxf /tmp/elasticsearch.tar.gz --strip-components=1$', "")
-            }
-          }
-        }
-      }
-      if (base == DockerBase.DEFAULT) {
-        // iron bank always needs a COPY with the tarball file path
-        eachFile { FileCopyDetails details ->
-          if (details.name.equals("Dockerfile")) {
-            filter { String contents ->
-              return contents.replaceAll('^RUN *.*artifacts-no-kpi.*$', "COPY $distributionFolderName .")
-                .replaceAll('^RUN tar -zxf /tmp/elasticsearch.tar.gz --strip-components=1 &&', "RUN ")
             }
           }
         }

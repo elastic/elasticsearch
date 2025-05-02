@@ -238,3 +238,21 @@ max_cost:double | cluster:keyword | time_bucket:datetime
 12.0            | qa              | 2024-05-10T00:08:00.000Z
 11.875          | qa              | 2024-05-10T00:21:00.000Z
 ;
+
+max_of_first_over_time
+required_capability: metrics_command
+required_capability: first_over_time
+TS k8s | STATS max_cost=max(first_over_time(network.cost)) BY cluster, time_bucket = bucket(@timestamp,1minute) | SORT max_cost DESC, time_bucket DESC, cluster | LIMIT 10;
+
+max_cost:double | cluster:keyword | time_bucket:datetime    
+11.875          | qa              | 2024-05-10T00:09:00.000Z
+11.5            | staging         | 2024-05-10T00:16:00.000Z
+11.25           | prod            | 2024-05-10T00:14:00.000Z
+11.25           | staging         | 2024-05-10T00:02:00.000Z
+10.875          | qa              | 2024-05-10T00:22:00.000Z
+10.0            | staging         | 2024-05-10T00:11:00.000Z
+9.375           | qa              | 2024-05-10T00:20:00.000Z
+9.25            | staging         | 2024-05-10T00:03:00.000Z
+8.375           | staging         | 2024-05-10T00:20:00.000Z
+8.125           | qa              | 2024-05-10T00:06:00.000Z
+;

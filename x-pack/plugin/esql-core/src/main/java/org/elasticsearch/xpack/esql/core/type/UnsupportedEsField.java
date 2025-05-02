@@ -45,7 +45,8 @@ public class UnsupportedEsField extends EsField {
     }
 
     private static List<String> readOriginalTypes(StreamInput in) throws IOException {
-        if (in.getTransportVersion().onOrAfter(TransportVersions.ESQL_REPORT_ORIGINAL_TYPES)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersions.ESQL_REPORT_ORIGINAL_TYPES)
+            || in.getTransportVersion().isPatchFrom(TransportVersions.ESQL_REPORT_ORIGINAL_TYPES_BACKPORT_8_19)) {
             return in.readCollectionAsList(i -> ((PlanStreamInput) i).readCachedString());
         } else {
             return List.of(readCachedStringWithVersionCheck(in).split(","));
@@ -55,7 +56,8 @@ public class UnsupportedEsField extends EsField {
     @Override
     public void writeContent(StreamOutput out) throws IOException {
         writeCachedStringWithVersionCheck(out, getName());
-        if (out.getTransportVersion().onOrAfter(TransportVersions.ESQL_REPORT_ORIGINAL_TYPES)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersions.ESQL_REPORT_ORIGINAL_TYPES)
+            || out.getTransportVersion().isPatchFrom(TransportVersions.ESQL_REPORT_ORIGINAL_TYPES_BACKPORT_8_19)) {
             out.writeCollection(getOriginalTypes(), (o, s) -> ((PlanStreamOutput) o).writeCachedString(s));
         } else {
             writeCachedStringWithVersionCheck(out, String.join(",", getOriginalTypes()));

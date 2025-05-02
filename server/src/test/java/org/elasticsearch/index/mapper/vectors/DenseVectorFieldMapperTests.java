@@ -906,8 +906,12 @@ public class DenseVectorFieldMapperTests extends MapperTestCase {
     public void testRescoreVectorOldIndexVersion() {
         IndexVersion incompatibleVersion = IndexVersionUtils.randomVersionBetween(
             random(),
-            IndexVersionUtils.getLowestReadCompatibleVersion(),
-            IndexVersionUtils.getPreviousVersion(DenseVectorFieldMapper.ADD_RESCORE_PARAMS_TO_QUANTIZED_VECTORS)
+            IndexVersionUtils.randomVersionBetween(
+                random(),
+                IndexVersionUtils.getLowestReadCompatibleVersion(),
+                IndexVersionUtils.getPreviousVersion(IndexVersions.ADD_RESCORE_PARAMS_TO_QUANTIZED_VECTORS_BACKPORT_8_X)
+            ),
+            IndexVersionUtils.getPreviousVersion(IndexVersions.ADD_RESCORE_PARAMS_TO_QUANTIZED_VECTORS)
         );
         for (String indexType : List.of("int8_hnsw", "int8_flat", "int4_hnsw", "int4_flat", "bbq_hnsw", "bbq_flat")) {
             expectThrows(

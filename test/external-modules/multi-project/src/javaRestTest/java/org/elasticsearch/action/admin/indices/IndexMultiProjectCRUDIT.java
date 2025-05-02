@@ -45,6 +45,8 @@ public class IndexMultiProjectCRUDIT extends MultiProjectRestTestCase {
     private static ElasticsearchCluster createCluster() {
         LocalClusterSpecBuilder<ElasticsearchCluster> clusterBuilder = ElasticsearchCluster.local()
             .nodes(NODE_NUM)
+            .module("test-multi-project")
+            .setting("test.multi_project.enabled", "true")
             .setting("xpack.security.enabled", "false") // TODO multi-project: make this test suite work with Security enabled
             .setting("xpack.ml.enabled", "false"); // TODO multi-project: make this test suite work with ML enabled
         return clusterBuilder.build();

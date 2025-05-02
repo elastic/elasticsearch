@@ -521,7 +521,7 @@ public class HuggingFaceActionCreatorTests extends ESTestCase {
             var thrownException = expectThrows(ElasticsearchException.class, () -> listener.actionGet(TIMEOUT));
             assertThat(
                 thrownException.getMessage(),
-                is("Failed to send Hugging Face completion request from inference entity id " + "[model]. Cause: Required [choices]")
+                is("Failed to send Hugging Face completion request from inference entity id " + "[id]. Cause: Required [choices]")
             );
 
             assertThat(webServer.requests(), hasSize(1));

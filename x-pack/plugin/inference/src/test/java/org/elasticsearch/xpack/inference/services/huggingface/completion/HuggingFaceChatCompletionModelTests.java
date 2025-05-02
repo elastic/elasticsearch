@@ -27,7 +27,7 @@ public class HuggingFaceChatCompletionModelTests extends ESTestCase {
 
     public static HuggingFaceChatCompletionModel createCompletionModel(String url, String apiKey, String modelId) {
         return new HuggingFaceChatCompletionModel(
-            modelId,
+            "id",
             TaskType.COMPLETION,
             "service",
             new HuggingFaceChatCompletionServiceSettings(modelId, url, null, null),
@@ -37,7 +37,7 @@ public class HuggingFaceChatCompletionModelTests extends ESTestCase {
 
     public static HuggingFaceChatCompletionModel createChatCompletionModel(String url, String apiKey, String modelId) {
         return new HuggingFaceChatCompletionModel(
-            modelId,
+            "id",
             TaskType.CHAT_COMPLETION,
             "service",
             new HuggingFaceChatCompletionServiceSettings(modelId, url, null, null),
@@ -45,7 +45,7 @@ public class HuggingFaceChatCompletionModelTests extends ESTestCase {
         );
     }
 
-    public void testOverrideWith_UnifiedCompletionRequest_OverridesModelId() {
+    public void testOverrideWith_UnifiedCompletionRequest_OverridesExistingModelId() {
         var model = createCompletionModel("url", "api_key", "model_name");
         var request = new UnifiedCompletionRequest(
             List.of(new UnifiedCompletionRequest.Message(new UnifiedCompletionRequest.ContentString("hello"), "role", null, null)),
@@ -61,6 +61,42 @@ public class HuggingFaceChatCompletionModelTests extends ESTestCase {
         var overriddenModel = HuggingFaceChatCompletionModel.of(model, request);
 
         assertThat(overriddenModel.getServiceSettings().modelId(), is("different_model"));
+    }
+
+    public void testOverrideWith_UnifiedCompletionRequest_OverridesNullModelId() {
+        var model = createCompletionModel("url", "api_key", null);
+        var request = new UnifiedCompletionRequest(
+            List.of(new UnifiedCompletionRequest.Message(new UnifiedCompletionRequest.ContentString("hello"), "role", null, null)),
+            "different_model",
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+        );
+
+        var overriddenModel = HuggingFaceChatCompletionModel.of(model, request);
+
+        assertThat(overriddenModel.getServiceSettings().modelId(), is("different_model"));
+    }
+
+    public void testOverrideWith_UnifiedCompletionRequest_KeepsNullIfNoModelIdProvided() {
+        var model = createCompletionModel("url", "api_key", null);
+        var request = new UnifiedCompletionRequest(
+            List.of(new UnifiedCompletionRequest.Message(new UnifiedCompletionRequest.ContentString("hello"), "role", null, null)),
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+        );
+
+        var overriddenModel = HuggingFaceChatCompletionModel.of(model, request);
+
+        assertNull(overriddenModel.getServiceSettings().modelId());
     }
 
     public void testOverrideWith_UnifiedCompletionRequest_UsesModelFields_WhenRequestDoesNotOverride() {

@@ -386,7 +386,7 @@ public class HuggingFaceServiceTests extends ESTestCase {
                             {\
                             "error":{\
                             "code":"model_not_found",\
-                            "message":"Received an unsuccessful status code for request from inference entity id [model] status \
+                            "message":"Received an unsuccessful status code for request from inference entity id [id] status \
                             [404]. Error message: [The model `gpt-4awero` does not exist or you do not have access to it.]",\
                             "type":"invalid_request_error"\
                             }}"""));
@@ -409,7 +409,7 @@ public class HuggingFaceServiceTests extends ESTestCase {
         testStreamError("""
             {\
             "error":{\
-            "message":"Received an error response for request from inference entity id [model]. Error message: \
+            "message":"Received an error response for request from inference entity id [id]. Error message: \
             [Timed out waiting for more data]",\
             "type":"timeout"\
             }}""");
@@ -532,7 +532,7 @@ public class HuggingFaceServiceTests extends ESTestCase {
         assertThat(
             e.getMessage(),
             equalTo(
-                "Received an authentication error status code for request from inference entity id [model] status [401]. "
+                "Received an authentication error status code for request from inference entity id [id] status [401]. "
                     + "Error message: [You didn't provide an API key...]"
             )
         );

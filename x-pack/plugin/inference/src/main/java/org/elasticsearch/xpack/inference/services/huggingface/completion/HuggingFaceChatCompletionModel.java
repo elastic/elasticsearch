@@ -19,14 +19,22 @@ import org.elasticsearch.xpack.inference.services.huggingface.action.HuggingFace
 import org.elasticsearch.xpack.inference.services.settings.DefaultSecretSettings;
 
 import java.util.Map;
-import java.util.Objects;
 
 public class HuggingFaceChatCompletionModel extends HuggingFaceModel {
 
+    /**
+     * Creates a new {@link HuggingFaceChatCompletionModel} by copying properties from an existing model,
+     * replacing the {@code modelId} in the service settings with the one from the given {@link UnifiedCompletionRequest},
+     * if present. If the request does not specify a model ID, the original value is retained.
+     *
+     * @param model   the original model to copy from
+     * @param request the request potentially containing an overridden model ID
+     * @return a new {@link HuggingFaceChatCompletionModel} with updated service settings
+     */
     public static HuggingFaceChatCompletionModel of(HuggingFaceChatCompletionModel model, UnifiedCompletionRequest request) {
         var originalModelServiceSettings = model.getServiceSettings();
         var overriddenServiceSettings = new HuggingFaceChatCompletionServiceSettings(
-            Objects.requireNonNullElse(request.model(), originalModelServiceSettings.modelId()),
+            request.model() != null ? request.model() : originalModelServiceSettings.modelId(),
             originalModelServiceSettings.uri(),
             originalModelServiceSettings.maxInputTokens(),
             originalModelServiceSettings.rateLimitSettings()

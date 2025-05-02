@@ -774,7 +774,7 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
     private static ProjectMetadata projectForSnapshot(SnapshotsInProgress.Entry snapshot, ProjectMetadata project) {
         final ProjectMetadata.Builder builder;
         if (snapshot.includeGlobalState() == false) {
-            // Remove global state from the cluster state
+            // Create a new project state that only includes the index data
             builder = ProjectMetadata.builder(project.id());
             for (IndexId index : snapshot.indices().values()) {
                 final IndexMetadata indexMetadata = project.index(index.getName());

@@ -49,6 +49,7 @@ spotless {
     /*
      * Generated files go here.
      */
+    toggleOffOn('begin generated imports', 'end generated imports')
     targetExclude "src/main/generated/**/*.java"
   }
 }

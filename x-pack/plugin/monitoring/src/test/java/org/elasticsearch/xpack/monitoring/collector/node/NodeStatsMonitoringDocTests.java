@@ -348,6 +348,9 @@ public class NodeStatsMonitoringDocTests extends BaseFilteredMonitoringDocTestCa
             false,
             ++iota,
             no,
+            no,
+            no,
+            no,
             no
         );
         indicesCommonStats.getIndexing().add(new IndexingStats(indexingStats));

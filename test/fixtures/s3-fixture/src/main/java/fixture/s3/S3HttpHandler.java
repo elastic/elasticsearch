@@ -19,14 +19,12 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.bytes.CompositeBytesReference;
 import org.elasticsearch.common.hash.MessageDigests;
 import org.elasticsearch.common.io.Streams;
-import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.rest.RestStatus;
-import org.elasticsearch.rest.RestUtils;
 import org.elasticsearch.test.fixture.HttpHeaderParser;
 
 import java.io.IOException;
@@ -34,7 +32,6 @@ import java.io.InputStreamReader;
 import java.io.PrintStream;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
@@ -42,6 +39,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
@@ -51,6 +49,10 @@ import java.util.regex.Pattern;
 import javax.xml.parsers.DocumentBuilderFactory;
 
 import static java.nio.charset.StandardCharsets.UTF_8;
+import static org.elasticsearch.test.fixture.HttpHeaderParser.parseRangeHeader;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertNull;
 import static org.w3c.dom.Node.ELEMENT_NODE;
 
 /**
@@ -62,8 +64,8 @@ public class S3HttpHandler implements HttpHandler {
     private static final Logger logger = LogManager.getLogger(S3HttpHandler.class);
 
     private final String bucket;
-    private final String path;
-    private final String basePrefix;
+    private final String basePath;
+    private final String bucketAndBasePath;
 
     private final ConcurrentMap<String, BytesReference> blobs = new ConcurrentHashMap<>();
     private final ConcurrentMap<String, MultipartUpload> uploads = new ConcurrentHashMap<>();
@@ -74,38 +76,38 @@ public class S3HttpHandler implements HttpHandler {
 
     public S3HttpHandler(final String bucket, @Nullable final String basePath) {
         this.bucket = Objects.requireNonNull(bucket);
-        this.basePrefix = Objects.requireNonNullElse(basePath, "");
-        this.path = bucket + (basePath != null && basePath.isEmpty() == false ? "/" + basePath : "");
+        this.basePath = Objects.requireNonNullElse(basePath, "");
+        this.bucketAndBasePath = bucket + (Strings.hasText(basePath) ? "/" + basePath : "");
     }
+
+    /**
+     * Requests using these HTTP methods never have a request body (this is checked in the handler).
+     */
+    private static final Set<String> METHODS_HAVING_NO_REQUEST_BODY = Set.of("GET", "HEAD", "DELETE");
 
     @Override
     public void handle(final HttpExchange exchange) throws IOException {
         // Remove custom query parameters before processing the request. This simulates how S3 ignores them.
         // https://docs.aws.amazon.com/AmazonS3/latest/userguide/LogFormat.html#LogFormatCustom
-        final RequestComponents requestComponents = parseRequestComponents(
-            exchange.getRequestMethod() + " " + exchange.getRequestURI().toString()
-        );
-        final String request = requestComponents.request();
-        onCustomQueryParameters(requestComponents.customQueryParameters);
+        final S3Request request = parseRequest(exchange);
 
-        if (request.startsWith("GET") || request.startsWith("HEAD") || request.startsWith("DELETE")) {
+        if (METHODS_HAVING_NO_REQUEST_BODY.contains(request.method())) {
             int read = exchange.getRequestBody().read();
             assert read == -1 : "Request body should have been empty but saw [" + read + "]";
         }
-        try {
-            if (Regex.simpleMatch("HEAD /" + path + "/*", request)) {
-                final BytesReference blob = blobs.get(requestComponents.path);
+
+        try (exchange) {
+            if (request.isHeadObjectRequest()) {
+                final BytesReference blob = blobs.get(request.path());
                 if (blob == null) {
                     exchange.sendResponseHeaders(RestStatus.NOT_FOUND.getStatus(), -1);
                 } else {
                     exchange.sendResponseHeaders(RestStatus.OK.getStatus(), -1);
                 }
-            } else if (isListMultipartUploadsRequest(request)) {
-                assert request.contains("prefix=" + basePrefix) : basePrefix + " vs " + request;
+            } else if (request.isListMultipartUploadsRequest()) {
 
-                final Map<String, String> params = new HashMap<>();
-                RestUtils.decodeQueryString(request, request.indexOf('?') + 1, params);
-                final var prefix = params.get("prefix");
+                final var prefix = request.getQueryParamOnce("prefix");
+                assert Objects.requireNonNullElse(prefix, "").contains(basePath) : basePath + " vs " + request;
 
                 final var uploadsList = new StringBuilder();
                 uploadsList.append("<?xml version='1.0' encoding='UTF-8'?>");
@@ -120,9 +122,11 @@ public class S3HttpHandler implements HttpHandler {
                 uploadsList.append("<MaxUploads>10000</MaxUploads>");
                 uploadsList.append("<IsTruncated>false</IsTruncated>");
 
-                for (final var multipartUpload : uploads.values()) {
-                    if (multipartUpload.getPath().startsWith(prefix)) {
-                        multipartUpload.appendXml(uploadsList);
+                synchronized (uploads) {
+                    for (final var multipartUpload : uploads.values()) {
+                        if (multipartUpload.getPath().startsWith(prefix)) {
+                            multipartUpload.appendXml(uploadsList);
+                        }
                     }
                 }
 
@@ -133,10 +137,8 @@ public class S3HttpHandler implements HttpHandler {
                 exchange.sendResponseHeaders(RestStatus.OK.getStatus(), response.length);
                 exchange.getResponseBody().write(response);
 
-            } else if (Regex.simpleMatch("POST /" + path + "/*?uploads", request)) {
-                final var upload = new MultipartUpload(UUIDs.randomBase64UUID(), requestComponents.path.substring(bucket.length() + 2));
-                uploads.put(upload.getUploadId(), upload);
-
+            } else if (request.isInitiateMultipartUploadRequest()) {
+                final var upload = putUpload(request.path().substring(bucket.length() + 2));
                 final var uploadResult = new StringBuilder();
                 uploadResult.append("<?xml version='1.0' encoding='UTF-8'?>");
                 uploadResult.append("<InitiateMultipartUploadResult>");
@@ -150,88 +152,123 @@ public class S3HttpHandler implements HttpHandler {
                 exchange.sendResponseHeaders(RestStatus.OK.getStatus(), response.length);
                 exchange.getResponseBody().write(response);
 
-            } else if (Regex.simpleMatch("PUT /" + path + "/*?uploadId=*&partNumber=*", request)) {
-                final Map<String, String> params = new HashMap<>();
-                RestUtils.decodeQueryString(request, request.indexOf('?') + 1, params);
-
-                final var upload = uploads.get(params.get("uploadId"));
+            } else if (request.isUploadPartRequest()) {
+                final var upload = getUpload(request.getQueryParamOnce("uploadId"));
                 if (upload == null) {
                     exchange.sendResponseHeaders(RestStatus.NOT_FOUND.getStatus(), -1);
                 } else {
-                    final Tuple<String, BytesReference> blob = parseRequestBody(exchange);
-                    upload.addPart(blob.v1(), blob.v2());
-                    exchange.getResponseHeaders().add("ETag", blob.v1());
-                    exchange.sendResponseHeaders(RestStatus.OK.getStatus(), -1);
+                    // CopyPart is UploadPart with an x-amz-copy-source header
+                    final var copySource = copySourceName(exchange);
+                    if (copySource != null) {
+                        var sourceBlob = blobs.get(copySource);
+                        if (sourceBlob == null) {
+                            exchange.sendResponseHeaders(RestStatus.NOT_FOUND.getStatus(), -1);
+                        } else {
+                            var range = parsePartRange(exchange);
+                            int start = Math.toIntExact(range.start());
+                            int len = Math.toIntExact(range.end() - range.start() + 1);
+                            var part = sourceBlob.slice(start, len);
+                            var etag = UUIDs.randomBase64UUID();
+                            upload.addPart(etag, part);
+                            byte[] response = ("""
+                                <?xml version="1.0" encoding="UTF-8"?>
+                                <CopyPartResult>
+                                    <ETag>%s</ETag>
+                                </CopyPartResult>""".formatted(etag)).getBytes(StandardCharsets.UTF_8);
+                            exchange.getResponseHeaders().add("Content-Type", "application/xml");
+                            exchange.sendResponseHeaders(RestStatus.OK.getStatus(), response.length);
+                            exchange.getResponseBody().write(response);
+                        }
+                    } else {
+                        final Tuple<String, BytesReference> blob = parseRequestBody(exchange);
+                        upload.addPart(blob.v1(), blob.v2());
+                        exchange.getResponseHeaders().add("ETag", blob.v1());
+                        exchange.sendResponseHeaders(RestStatus.OK.getStatus(), -1);
+                    }
                 }
 
-            } else if (Regex.simpleMatch("POST /" + path + "/*?uploadId=*", request)) {
-                final Map<String, String> params = new HashMap<>();
-                RestUtils.decodeQueryString(request, request.indexOf('?') + 1, params);
-                final var upload = uploads.remove(params.get("uploadId"));
-                if (upload == null) {
-                    if (Randomness.get().nextBoolean()) {
+            } else if (request.isCompleteMultipartUploadRequest()) {
+                final byte[] responseBody;
+                synchronized (uploads) {
+                    final var upload = removeUpload(request.getQueryParamOnce("uploadId"));
+                    if (upload == null) {
+                        if (Randomness.get().nextBoolean()) {
+                            responseBody = null;
+                        } else {
+                            responseBody = """
+                                <?xml version="1.0" encoding="UTF-8"?>
+                                <Error>
+                                <Code>NoSuchUpload</Code>
+                                <Message>No such upload</Message>
+                                <RequestId>test-request-id</RequestId>
+                                <HostId>test-host-id</HostId>
+                                </Error>""".getBytes(StandardCharsets.UTF_8);
+                        }
+                    } else {
+                        final var blobContents = upload.complete(extractPartEtags(Streams.readFully(exchange.getRequestBody())));
+                        blobs.put(request.path(), blobContents);
+                        responseBody = ("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n"
+                            + "<CompleteMultipartUploadResult>\n"
+                            + "<Bucket>"
+                            + bucket
+                            + "</Bucket>\n"
+                            + "<Key>"
+                            + request.path()
+                            + "</Key>\n"
+                            + "</CompleteMultipartUploadResult>").getBytes(StandardCharsets.UTF_8);
+                    }
+                }
+                if (responseBody == null) {
+                    exchange.sendResponseHeaders(RestStatus.NOT_FOUND.getStatus(), -1);
+                } else {
+                    exchange.getResponseHeaders().add("Content-Type", "application/xml");
+                    exchange.sendResponseHeaders(RestStatus.OK.getStatus(), responseBody.length);
+                    exchange.getResponseBody().write(responseBody);
+                }
+            } else if (request.isAbortMultipartUploadRequest()) {
+                final var upload = removeUpload(request.getQueryParamOnce("uploadId"));
+                exchange.sendResponseHeaders((upload == null ? RestStatus.NOT_FOUND : RestStatus.NO_CONTENT).getStatus(), -1);
+
+            } else if (request.isPutObjectRequest()) {
+                // a copy request is a put request with an X-amz-copy-source header
+                final var copySource = copySourceName(exchange);
+                if (copySource != null) {
+                    var sourceBlob = blobs.get(copySource);
+                    if (sourceBlob == null) {
                         exchange.sendResponseHeaders(RestStatus.NOT_FOUND.getStatus(), -1);
                     } else {
+                        blobs.put(request.path(), sourceBlob);
+
                         byte[] response = ("""
                             <?xml version="1.0" encoding="UTF-8"?>
-                            <Error>
-                            <Code>NoSuchUpload</Code>
-                            <Message>No such upload</Message>
-                            <RequestId>test-request-id</RequestId>
-                            <HostId>test-host-id</HostId>
-                            </Error>""").getBytes(StandardCharsets.UTF_8);
+                            <CopyObjectResult></CopyObjectResult>""").getBytes(StandardCharsets.UTF_8);
                         exchange.getResponseHeaders().add("Content-Type", "application/xml");
                         exchange.sendResponseHeaders(RestStatus.OK.getStatus(), response.length);
                         exchange.getResponseBody().write(response);
                     }
                 } else {
-                    final var blobContents = upload.complete(extractPartEtags(Streams.readFully(exchange.getRequestBody())));
-                    blobs.put(requestComponents.path, blobContents);
-
-                    byte[] response = ("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n"
-                        + "<CompleteMultipartUploadResult>\n"
-                        + "<Bucket>"
-                        + bucket
-                        + "</Bucket>\n"
-                        + "<Key>"
-                        + requestComponents.path
-                        + "</Key>\n"
-                        + "</CompleteMultipartUploadResult>").getBytes(StandardCharsets.UTF_8);
-                    exchange.getResponseHeaders().add("Content-Type", "application/xml");
-                    exchange.sendResponseHeaders(RestStatus.OK.getStatus(), response.length);
-                    exchange.getResponseBody().write(response);
-                }
-            } else if (Regex.simpleMatch("DELETE /" + path + "/*?uploadId=*", request)) {
-                final Map<String, String> params = new HashMap<>();
-                RestUtils.decodeQueryString(request, request.indexOf('?') + 1, params);
-                final var upload = uploads.remove(params.get("uploadId"));
-                exchange.sendResponseHeaders((upload == null ? RestStatus.NOT_FOUND : RestStatus.NO_CONTENT).getStatus(), -1);
-
-            } else if (Regex.simpleMatch("PUT /" + path + "/*", request)) {
-                final Tuple<String, BytesReference> blob = parseRequestBody(exchange);
-                blobs.put(requestComponents.uri(), blob.v2());
-                exchange.getResponseHeaders().add("ETag", blob.v1());
-                exchange.sendResponseHeaders(RestStatus.OK.getStatus(), -1);
-
-            } else if (Regex.simpleMatch("GET /" + bucket + "/?prefix=*", request)) {
-                final Map<String, String> params = new HashMap<>();
-                RestUtils.decodeQueryString(request, request.indexOf('?') + 1, params);
-                if (params.get("list-type") != null) {
-                    throw new AssertionError("Test must be adapted for GET Bucket (List Objects) Version 2");
+                    final Tuple<String, BytesReference> blob = parseRequestBody(exchange);
+                    blobs.put(request.path(), blob.v2());
+                    exchange.getResponseHeaders().add("ETag", blob.v1());
+                    exchange.sendResponseHeaders(RestStatus.OK.getStatus(), -1);
                 }
 
+            } else if (request.isListObjectsRequest()) {
                 final StringBuilder list = new StringBuilder();
                 list.append("<?xml version=\"1.0\" encoding=\"UTF-8\"?>");
                 list.append("<ListBucketResult>");
-                final String prefix = params.get("prefix");
+                final String prefix = request.getOptionalQueryParam("prefix").orElse(null);
                 if (prefix != null) {
                     list.append("<Prefix>").append(prefix).append("</Prefix>");
                 }
                 final Set<String> commonPrefixes = new HashSet<>();
-                final String delimiter = params.get("delimiter");
+                final String delimiter = request.getOptionalQueryParam("delimiter").orElse(null);
                 if (delimiter != null) {
                     list.append("<Delimiter>").append(delimiter).append("</Delimiter>");
                 }
+                // Would be good to test pagination here (the only real difference between ListObjects and ListObjectsV2) but for now
+                // we return all the results at once.
+                list.append("<IsTruncated>false</IsTruncated>");
                 for (Map.Entry<String, BytesReference> blob : blobs.entrySet()) {
                     if (prefix != null && blob.getKey().startsWith("/" + bucket + "/" + prefix) == false) {
                         continue;
@@ -250,12 +287,9 @@ public class S3HttpHandler implements HttpHandler {
                     list.append("<Size>").append(blob.getValue().length()).append("</Size>");
                     list.append("</Contents>");
                 }
-                if (commonPrefixes.isEmpty() == false) {
-                    list.append("<CommonPrefixes>");
-                    commonPrefixes.forEach(commonPrefix -> list.append("<Prefix>").append(commonPrefix).append("</Prefix>"));
-                    list.append("</CommonPrefixes>");
-
-                }
+                commonPrefixes.forEach(
+                    commonPrefix -> list.append("<CommonPrefixes><Prefix>").append(commonPrefix).append("</Prefix></CommonPrefixes>")
+                );
                 list.append("</ListBucketResult>");
 
                 byte[] response = list.toString().getBytes(StandardCharsets.UTF_8);
@@ -263,8 +297,8 @@ public class S3HttpHandler implements HttpHandler {
                 exchange.sendResponseHeaders(RestStatus.OK.getStatus(), response.length);
                 exchange.getResponseBody().write(response);
 
-            } else if (Regex.simpleMatch("GET /" + path + "/*", request)) {
-                final BytesReference blob = blobs.get(requestComponents.uri());
+            } else if (request.isGetObjectRequest()) {
+                final BytesReference blob = blobs.get(request.path());
                 if (blob == null) {
                     exchange.sendResponseHeaders(RestStatus.NOT_FOUND.getStatus(), -1);
                     return;
@@ -281,7 +315,7 @@ public class S3HttpHandler implements HttpHandler {
                 // requests with a header value like "Range: bytes=start-end" where both {@code start} and {@code end} are always defined
                 // (sometimes to very high value for {@code end}). It would be too tedious to fully support the RFC so S3HttpHandler only
                 // supports when both {@code start} and {@code end} are defined to match the SDK behavior.
-                final HttpHeaderParser.Range range = HttpHeaderParser.parseRangeHeader(rangeHeader);
+                final HttpHeaderParser.Range range = parseRangeHeader(rangeHeader);
                 if (range == null) {
                     throw new AssertionError("Bytes range does not match expected pattern: " + rangeHeader);
                 }
@@ -304,18 +338,18 @@ public class S3HttpHandler implements HttpHandler {
                 exchange.sendResponseHeaders(RestStatus.PARTIAL_CONTENT.getStatus(), responseBlob.length());
                 responseBlob.writeTo(exchange.getResponseBody());
 
-            } else if (Regex.simpleMatch("DELETE /" + path + "/*", request)) {
+            } else if (request.isDeleteObjectRequest()) {
                 int deletions = 0;
                 for (Iterator<Map.Entry<String, BytesReference>> iterator = blobs.entrySet().iterator(); iterator.hasNext();) {
                     Map.Entry<String, BytesReference> blob = iterator.next();
-                    if (blob.getKey().startsWith(requestComponents.uri())) {
+                    if (blob.getKey().startsWith(request.path())) {
                         iterator.remove();
                         deletions++;
                     }
                 }
                 exchange.sendResponseHeaders((deletions > 0 ? RestStatus.OK : RestStatus.NO_CONTENT).getStatus(), -1);
 
-            } else if (Regex.simpleMatch("POST /" + bucket + "/?delete", request)) {
+            } else if (request.isMultiObjectDeleteRequest()) {
                 final String requestBody = Streams.copyToString(new InputStreamReader(exchange.getRequestBody(), UTF_8));
 
                 final StringBuilder deletes = new StringBuilder();
@@ -337,56 +371,17 @@ public class S3HttpHandler implements HttpHandler {
                 exchange.getResponseBody().write(response);
 
             } else {
+                logger.error("unknown request: {}", request);
                 exchange.sendResponseHeaders(RestStatus.INTERNAL_SERVER_ERROR.getStatus(), -1);
             }
-        } finally {
-            exchange.close();
+        } catch (Exception e) {
+            logger.error("exception in request " + request, e);
+            throw e;
         }
-    }
-
-    private boolean isListMultipartUploadsRequest(String request) {
-        return Regex.simpleMatch("GET /" + bucket + "/?uploads&prefix=*", request)
-            || Regex.simpleMatch("GET /" + bucket + "/?uploads&max-uploads=*&prefix=*", request);
     }
 
     public Map<String, BytesReference> blobs() {
         return blobs;
-    }
-
-    protected void onCustomQueryParameters(final Map<String, List<String>> params) {}
-
-    public static RequestComponents parseRequestComponents(final String request) {
-        final int spacePos = request.indexOf(' ');
-        final String method = request.substring(0, spacePos);
-        final String uriString = request.substring(spacePos + 1);
-        final int questsionMarkPos = uriString.indexOf('?');
-        // AWS s3 allows the same custom query parameter to be specified multiple times
-        final Map<String, List<String>> customQueryParameters = new HashMap<>();
-        if (questsionMarkPos == -1) {
-            return new RequestComponents(method, uriString, "", customQueryParameters);
-        } else {
-            final String queryString = uriString.substring(questsionMarkPos + 1);
-            final ArrayList<String> queryParameters = new ArrayList<>();
-            Arrays.stream(Strings.tokenizeToStringArray(queryString, "&")).forEach(param -> {
-                if (param.startsWith("x-")) {
-                    final int equalPos = param.indexOf('=');
-                    customQueryParameters.computeIfAbsent(param.substring(0, equalPos), k -> new ArrayList<>())
-                        .add(param.substring(equalPos + 1));
-                } else {
-                    queryParameters.add(param);
-                }
-            });
-            return new RequestComponents(
-                method,
-                uriString.substring(0, questsionMarkPos),
-                Strings.collectionToDelimitedString(queryParameters, "&"),
-                customQueryParameters
-            );
-        }
-    }
-
-    public static String getRawRequestString(final HttpExchange exchange) {
-        return exchange.getRequestMethod() + " " + exchange.getRequestURI();
     }
 
     private static final Pattern chunkSignaturePattern = Pattern.compile("^([0-9a-z]+);chunk-signature=([^\\r\\n]*)$");
@@ -519,22 +514,208 @@ public class S3HttpHandler implements HttpHandler {
         }
     }
 
-    MultipartUpload getUpload(String uploadId) {
-        return uploads.get(uploadId);
+    @Nullable // if no X-amz-copy-source header present
+    private static String copySourceName(final HttpExchange exchange) {
+        final var copySources = exchange.getRequestHeaders().get("X-amz-copy-source");
+        if (copySources != null) {
+            if (copySources.size() != 1) {
+                throw new AssertionError("multiple X-amz-copy-source headers found: " + copySources);
+            }
+            final var copySource = copySources.get(0);
+            // SDKv1 uses format /bucket/path/blob whereas SDKv2 omits the leading / so we must add it back in
+            return copySource.length() > 0 && copySource.charAt(0) == '/' ? copySource : ("/" + copySource);
+        } else {
+            return null;
+        }
     }
 
-    public record RequestComponents(String method, String path, String query, Map<String, List<String>> customQueryParameters) {
-
-        public String request() {
-            return method + " " + uri();
+    private static HttpHeaderParser.Range parsePartRange(final HttpExchange exchange) {
+        final var sourceRangeHeaders = exchange.getRequestHeaders().get("X-amz-copy-source-range");
+        if (sourceRangeHeaders == null) {
+            throw new IllegalStateException("missing x-amz-copy-source-range header");
         }
+        if (sourceRangeHeaders.size() != 1) {
+            throw new IllegalStateException("expected 1 x-amz-copy-source-range header, found " + sourceRangeHeaders.size());
+        }
+        return parseRangeHeader(sourceRangeHeaders.getFirst());
+    }
 
-        public String uri() {
-            if (query.isEmpty()) {
-                return path;
-            } else {
-                return path + "?" + query;
+    MultipartUpload putUpload(String path) {
+        final var upload = new MultipartUpload(UUIDs.randomBase64UUID(), path);
+        synchronized (uploads) {
+            assertNull("upload " + upload.getUploadId() + " should not exist", uploads.put(upload.getUploadId(), upload));
+            return upload;
+        }
+    }
+
+    MultipartUpload getUpload(String uploadId) {
+        synchronized (uploads) {
+            return uploads.get(uploadId);
+        }
+    }
+
+    MultipartUpload removeUpload(String uploadId) {
+        synchronized (uploads) {
+            return uploads.remove(uploadId);
+        }
+    }
+
+    public S3Request parseRequest(HttpExchange exchange) {
+        final String queryString = exchange.getRequestURI().getQuery();
+        final Map<String, List<String>> queryParameters;
+        if (Strings.hasText(queryString)) {
+            queryParameters = new HashMap<>();
+            for (final String queryPart : queryString.split("&")) {
+                final String paramName, paramValue;
+                final int equalsPos = queryPart.indexOf('=');
+                if (equalsPos == -1) {
+                    paramName = queryPart;
+                    paramValue = null;
+                } else {
+                    paramName = queryPart.substring(0, equalsPos);
+                    paramValue = queryPart.substring(equalsPos + 1);
+                }
+                queryParameters.computeIfAbsent(paramName, ignored -> new ArrayList<>()).add(paramValue);
             }
+        } else {
+            queryParameters = Map.of();
         }
+
+        return new S3Request(exchange.getRequestMethod(), exchange.getRequestURI().getPath(), queryParameters);
+    }
+
+    public class S3Request {
+        private final String method;
+        private final String path;
+        private final Map<String, List<String>> queryParameters;
+
+        public S3Request(String method, String path, Map<String, List<String>> queryParameters) {
+            this.method = method;
+            this.path = path;
+            this.queryParameters = queryParameters;
+        }
+
+        public String method() {
+            return method;
+        }
+
+        public String path() {
+            return path;
+        }
+
+        public Map<String, List<String>> queryParameters() {
+            return queryParameters;
+        }
+
+        @Override
+        public boolean equals(Object obj) {
+            if (obj == this) return true;
+            if (obj == null || obj.getClass() != this.getClass()) return false;
+            var that = (S3Request) obj;
+            return Objects.equals(this.method, that.method)
+                && Objects.equals(this.path, that.path)
+                && Objects.equals(this.queryParameters, that.queryParameters);
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(method, path, queryParameters);
+        }
+
+        @Override
+        public String toString() {
+            return Strings.format("RequestComponents[method=%s, path=%s, queryParameters=%s]", method, path, queryParameters);
+        }
+
+        public boolean hasQueryParamOnce(String name) {
+            final var values = queryParameters.get(name);
+            return values != null && values.size() == 1;
+        }
+
+        public String getQueryParamOnce(String name) {
+            final var values = queryParameters.get(name);
+            assertNotNull(name, values);
+            assertEquals(name + "=" + values, 1, values.size());
+            return values.get(0);
+        }
+
+        public Optional<String> getOptionalQueryParam(String name) {
+            final var values = queryParameters.get(name);
+            if (values == null) {
+                return Optional.empty();
+            }
+            assertEquals(name + "=" + values, 1, values.size());
+            return Optional.of(values.get(0));
+        }
+
+        private boolean isBucketRootPath() {
+            return path.equals("/" + bucket) || path.equals("/" + bucket + "/");
+        }
+
+        private boolean isUnderBucketRootAndBasePath() {
+            return path.startsWith("/" + bucketAndBasePath + "/");
+        }
+
+        public boolean isHeadObjectRequest() {
+            return "HEAD".equals(method) && isUnderBucketRootAndBasePath();
+        }
+
+        public boolean isListMultipartUploadsRequest() {
+            return "GET".equals(method)
+                && isBucketRootPath()
+                && hasQueryParamOnce("uploads")
+                && getQueryParamOnce("uploads") == null
+                && hasQueryParamOnce("prefix");
+        }
+
+        public boolean isInitiateMultipartUploadRequest() {
+            return "POST".equals(method)
+                && isUnderBucketRootAndBasePath()
+                && hasQueryParamOnce("uploads")
+                && getQueryParamOnce("uploads") == null;
+        }
+
+        public boolean isUploadPartRequest() {
+            return "PUT".equals(method)
+                && isUnderBucketRootAndBasePath()
+                && hasQueryParamOnce("uploadId")
+                && getQueryParamOnce("uploadId") != null
+                && hasQueryParamOnce("partNumber");
+        }
+
+        public boolean isCompleteMultipartUploadRequest() {
+            return "POST".equals(method)
+                && isUnderBucketRootAndBasePath()
+                && hasQueryParamOnce("uploadId")
+                && getQueryParamOnce("uploadId") != null;
+        }
+
+        public boolean isAbortMultipartUploadRequest() {
+            return "DELETE".equals(method)
+                && isUnderBucketRootAndBasePath()
+                && hasQueryParamOnce("uploadId")
+                && getQueryParamOnce("uploadId") != null;
+        }
+
+        public boolean isPutObjectRequest() {
+            return "PUT".equals(method) && isUnderBucketRootAndBasePath() && queryParameters.containsKey("uploadId") == false;
+        }
+
+        public boolean isGetObjectRequest() {
+            return "GET".equals(method) && isUnderBucketRootAndBasePath();
+        }
+
+        public boolean isDeleteObjectRequest() {
+            return "DELETE".equals(method) && isUnderBucketRootAndBasePath();
+        }
+
+        public boolean isListObjectsRequest() {
+            return "GET".equals(method) && isBucketRootPath() && hasQueryParamOnce("prefix") && hasQueryParamOnce("uploads") == false;
+        }
+
+        public boolean isMultiObjectDeleteRequest() {
+            return "POST".equals(method) && isBucketRootPath() && hasQueryParamOnce("delete") && getQueryParamOnce("delete") == null;
+        }
+
     }
 }

@@ -47,7 +47,6 @@ public final class SearchShardsResponse extends ActionResponse {
     }
 
     public SearchShardsResponse(StreamInput in) throws IOException {
-        super(in);
         this.groups = in.readCollectionAsList(SearchShardsGroup::new);
         this.nodes = in.readCollectionAsList(DiscoveryNode::new);
         this.aliasFilters = in.readMap(AliasFilter::readFrom);

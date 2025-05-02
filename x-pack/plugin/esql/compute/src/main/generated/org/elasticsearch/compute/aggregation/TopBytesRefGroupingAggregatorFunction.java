@@ -201,8 +201,8 @@ public final class TopBytesRefGroupingAggregatorFunction implements GroupingAggr
 
   @Override
   public void evaluateFinal(Block[] blocks, int offset, IntVector selected,
-      DriverContext driverContext) {
-    blocks[offset] = TopBytesRefAggregator.evaluateFinal(state, selected, driverContext);
+      GroupingAggregatorEvaluationContext evaluatorContext) {
+    blocks[offset] = TopBytesRefAggregator.evaluateFinal(state, selected, evaluatorContext.driverContext());
   }
 
   @Override

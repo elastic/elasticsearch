@@ -1,0 +1,5 @@
+pr: 126051
+summary: Run `TransportGetSettingsAction` on local node
+area: Indices APIs
+type: enhancement
+issues: []

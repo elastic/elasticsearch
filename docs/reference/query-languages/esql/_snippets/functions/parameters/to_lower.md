@@ -3,5 +3,5 @@
 **Parameters**
 
 `str`
-:   String expression. If `null`, the function returns `null`.
+:   String expression. If `null`, the function returns `null`. The input can be a single- or multi-valued column or an expression.
 

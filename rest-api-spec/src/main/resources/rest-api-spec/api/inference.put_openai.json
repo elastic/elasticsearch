@@ -1,0 +1,35 @@
+{
+  "inference.put_openai": {
+    "documentation": {
+      "url": "https://www.elastic.co/guide/en/elasticsearch/reference/current/infer-service-openai.html",
+      "description": "Configure an OpenAI inference endpoint"
+    },
+    "stability": "stable",
+    "visibility": "public",
+    "headers": {
+      "accept": ["application/json"],
+      "content_type": ["application/json"]
+    },
+    "url": {
+      "paths": [
+        {
+          "path": "/_inference/{task_type}/{openai_inference_id}",
+          "methods": ["PUT"],
+          "parts": {
+            "task_type": {
+              "type": "string",
+              "description": "The task type"
+            },
+            "openai_inference_id": {
+              "type": "string",
+              "description": "The inference ID"
+            }
+          }
+        }
+      ]
+    },
+    "body": {
+      "description": "The inference endpoint's task and service settings"
+    }
+  }
+}

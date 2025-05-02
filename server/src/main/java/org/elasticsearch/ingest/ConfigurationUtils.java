@@ -543,15 +543,35 @@ public final class ConfigurationUtils {
                 Script script = new Script(ScriptType.INLINE, DEFAULT_TEMPLATE_LANG, propertyValue, Map.of());
                 return scriptService.compile(script, TemplateScript.CONTEXT);
             } else {
-                return (params) -> new TemplateScript(params) {
-                    @Override
-                    public String execute() {
-                        return propertyValue;
-                    }
-                };
+                return new ConstantTemplateScriptFactory(propertyValue);
             }
         } catch (Exception e) {
             throw ConfigurationUtils.newConfigurationException(processorType, processorTag, propertyName, e);
+        }
+    }
+
+    /**
+     * A 'template script' that ignores the model to which it is applied and just always returns a constant String.
+     * <p>
+     * Having a separate named class for this allows for some hot code paths to pre-apply the 'template script' statically,
+     * rather than bothering to invoke it per-document. Note that this is probably only useful if something expensive
+     * is being done with the result of calling the script, and the code can then avoid doing that thing per-document.
+     */
+    public static class ConstantTemplateScriptFactory implements TemplateScript.Factory {
+        final TemplateScript script;
+
+        private ConstantTemplateScriptFactory(String value) {
+            this.script = new TemplateScript(Map.of()) {
+                @Override
+                public String execute() {
+                    return value;
+                }
+            };
+        }
+
+        @Override
+        public TemplateScript newInstance(Map<String, Object> params) {
+            return script;
         }
     }
 

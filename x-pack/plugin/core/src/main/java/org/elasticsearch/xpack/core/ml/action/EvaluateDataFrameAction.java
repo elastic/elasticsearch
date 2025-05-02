@@ -192,7 +192,6 @@ public class EvaluateDataFrameAction extends ActionType<EvaluateDataFrameAction.
         private final List<EvaluationMetricResult> metrics;
 
         public Response(StreamInput in) throws IOException {
-            super(in);
             this.evaluationName = in.readString();
             this.metrics = in.readNamedWriteableCollectionAsList(EvaluationMetricResult.class);
         }

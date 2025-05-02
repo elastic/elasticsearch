@@ -171,6 +171,7 @@ public class TumblingWindow implements Executable {
     private void tumbleWindow(int currentStage, ActionListener<Payload> listener) {
         if (allowPartialSequenceResults == false && shardFailures.isEmpty() == false) {
             doPayload(listener);
+            return;
         }
         if (currentStage > matcher.firstPositiveStage && matcher.hasCandidates() == false) {
             if (restartWindowFromTailQuery) {

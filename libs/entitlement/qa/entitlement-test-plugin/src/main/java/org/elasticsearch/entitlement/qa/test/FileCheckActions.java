@@ -12,6 +12,7 @@ package org.elasticsearch.entitlement.qa.test;
 import org.elasticsearch.core.CheckedRunnable;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.entitlement.qa.entitled.EntitledActions;
+import org.elasticsearch.env.Environment;
 
 import java.io.File;
 import java.io.FileDescriptor;
@@ -22,9 +23,11 @@ import java.io.FileReader;
 import java.io.FileWriter;
 import java.io.IOException;
 import java.io.RandomAccessFile;
+import java.net.URISyntaxException;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.security.GeneralSecurityException;
@@ -35,12 +38,15 @@ import java.util.logging.FileHandler;
 import java.util.zip.ZipException;
 import java.util.zip.ZipFile;
 
+import javax.imageio.stream.FileImageInputStream;
+
 import static java.nio.charset.Charset.defaultCharset;
 import static java.nio.file.StandardOpenOption.CREATE;
 import static java.nio.file.StandardOpenOption.WRITE;
 import static java.util.zip.ZipFile.OPEN_DELETE;
 import static java.util.zip.ZipFile.OPEN_READ;
 import static org.elasticsearch.entitlement.qa.entitled.EntitledActions.createTempFileForWrite;
+import static org.elasticsearch.entitlement.qa.test.EntitlementTest.ExpectedAccess.ALWAYS_ALLOWED;
 import static org.elasticsearch.entitlement.qa.test.EntitlementTest.ExpectedAccess.ALWAYS_DENIED;
 import static org.elasticsearch.entitlement.qa.test.EntitlementTest.ExpectedAccess.PLUGINS;
 
@@ -93,15 +99,13 @@ class FileCheckActions {
 
     @EntitlementTest(expectedAccess = PLUGINS)
     static void fileDelete() throws IOException {
-        Path toDelete = readWriteDir().resolve("to_delete");
-        EntitledActions.createFile(toDelete);
+        var toDelete = EntitledActions.createTempFileForWrite();
         toDelete.toFile().delete();
     }
 
     @EntitlementTest(expectedAccess = PLUGINS)
     static void fileDeleteOnExit() throws IOException {
-        Path toDelete = readWriteDir().resolve("to_delete_on_exit");
-        EntitledActions.createFile(toDelete);
+        var toDelete = EntitledActions.createTempFileForWrite();
         toDelete.toFile().deleteOnExit();
     }
 
@@ -174,9 +178,10 @@ class FileCheckActions {
 
     @EntitlementTest(expectedAccess = PLUGINS)
     static void fileRenameTo() throws IOException {
-        Path toRename = readWriteDir().resolve("to_rename");
+        var dir = EntitledActions.createTempDirectoryForWrite();
+        Path toRename = dir.resolve("to_rename");
         EntitledActions.createFile(toRename);
-        toRename.toFile().renameTo(readWriteDir().resolve("renamed").toFile());
+        toRename.toFile().renameTo(dir.resolve("renamed").toFile());
     }
 
     @EntitlementTest(expectedAccess = PLUGINS)
@@ -206,8 +211,7 @@ class FileCheckActions {
 
     @EntitlementTest(expectedAccess = PLUGINS)
     static void fileSetReadOnly() throws IOException {
-        Path readOnly = readWriteDir().resolve("read_only");
-        EntitledActions.createFile(readOnly);
+        Path readOnly = EntitledActions.createTempFileForWrite();
         readOnly.toFile().setReadOnly();
     }
 
@@ -561,6 +565,38 @@ class FileCheckActions {
         // an overload distinct from ofFile with no OpenOptions, and so it needs its
         // own instrumentation and its own test.
         HttpResponse.BodySubscribers.ofFile(readFile(), CREATE, WRITE);
+    }
+
+    @EntitlementTest(expectedAccess = ALWAYS_ALLOWED)
+    static void readAccessConfigDirectory(Environment environment) {
+        Files.exists(environment.configDir());
+    }
+
+    @EntitlementTest(expectedAccess = ALWAYS_DENIED)
+    static void writeAccessConfigDirectory(Environment environment) throws IOException {
+        var file = environment.configDir().resolve("to_create");
+        Files.createFile(file);
+    }
+
+    @EntitlementTest(expectedAccess = ALWAYS_ALLOWED)
+    static void readAccessSourcePath() throws URISyntaxException {
+        var sourcePath = Paths.get(EntitlementTestPlugin.class.getProtectionDomain().getCodeSource().getLocation().toURI());
+        Files.exists(sourcePath);
+    }
+
+    @EntitlementTest(expectedAccess = ALWAYS_DENIED)
+    static void writeAccessSourcePath() throws IOException, URISyntaxException {
+        var sourcePath = Paths.get(EntitlementTestPlugin.class.getProtectionDomain().getCodeSource().getLocation().toURI());
+        var file = sourcePath.getParent().resolve("to_create");
+        Files.createFile(file);
+    }
+
+    @EntitlementTest(expectedAccess = ALWAYS_DENIED)
+    static void javaDesktopFileAccess() throws Exception {
+        // Test file access from a java.desktop class. We explicitly exclude that module from the "system modules", so we expect
+        // any sensitive operation from java.desktop to fail.
+        var file = EntitledActions.createTempFileForRead();
+        new FileImageInputStream(file.toFile()).close();
     }
 
     private FileCheckActions() {}

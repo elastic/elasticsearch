@@ -14,6 +14,7 @@ import org.elasticsearch.gradle.ElasticsearchDistributionType;
 import java.util.List;
 
 public class InternalElasticsearchDistributionTypes {
+
     public static final ElasticsearchDistributionType DEB = new DebElasticsearchDistributionType();
     public static final ElasticsearchDistributionType RPM = new RpmElasticsearchDistributionType();
     public static final ElasticsearchDistributionType DOCKER = new DockerElasticsearchDistributionType();
@@ -26,7 +27,7 @@ public class InternalElasticsearchDistributionTypes {
         RPM,
         DOCKER,
         DOCKER_IRONBANK,
-        DOCKER_CLOUD_ESS,
-        DOCKER_WOLFI
+        DOCKER_WOLFI,
+        DOCKER_CLOUD_ESS
     );
 }

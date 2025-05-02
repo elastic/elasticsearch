@@ -1,6 +1,9 @@
 ---
 mapped_pages:
   - https://www.elastic.co/guide/en/elasticsearch/reference/current/recovery.html
+applies_to:
+  deployment:
+    self:
 ---
 
 # Index recovery settings [recovery]
@@ -78,7 +81,7 @@ You can use the following *expert* setting to manage resources for peer recoveri
 ## Recovery settings for managed services [recovery-settings-for-managed-services]
 
 ::::{note}
-{cloud-only}
+{{cloud-only}}
 ::::
 
 

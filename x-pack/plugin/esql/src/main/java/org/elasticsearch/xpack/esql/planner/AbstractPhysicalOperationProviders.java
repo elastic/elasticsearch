@@ -34,6 +34,7 @@ import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
 import org.elasticsearch.xpack.esql.expression.function.grouping.Categorize;
 import org.elasticsearch.xpack.esql.plan.physical.AggregateExec;
 import org.elasticsearch.xpack.esql.plan.physical.ExchangeSourceExec;
+import org.elasticsearch.xpack.esql.plan.physical.TimeSeriesAggregateExec;
 import org.elasticsearch.xpack.esql.planner.LocalExecutionPlanner.LocalExecutionPlannerContext;
 import org.elasticsearch.xpack.esql.planner.LocalExecutionPlanner.PhysicalOperation;
 
@@ -171,8 +172,17 @@ public abstract class AbstractPhysicalOperationProviders implements PhysicalOper
                 true, // grouping
                 s -> aggregatorFactories.add(s.supplier.groupingAggregatorFactory(s.mode, s.channels))
             );
-
-            if (groupSpecs.size() == 1 && groupSpecs.get(0).channel == null) {
+            // time-series aggregation
+            if (aggregateExec instanceof TimeSeriesAggregateExec ts) {
+                operatorFactory = timeSeriesAggregatorOperatorFactory(
+                    ts,
+                    aggregatorMode,
+                    aggregatorFactories,
+                    groupSpecs.stream().map(GroupSpec::toHashGroupSpec).toList(),
+                    context
+                );
+                // ordinal grouping
+            } else if (groupSpecs.size() == 1 && groupSpecs.get(0).channel == null) {
                 operatorFactory = ordinalGroupingOperatorFactory(
                     source,
                     aggregateExec,
@@ -366,6 +376,14 @@ public abstract class AbstractPhysicalOperationProviders implements PhysicalOper
         List<GroupingAggregator.Factory> aggregatorFactories,
         Attribute attrSource,
         ElementType groupType,
+        LocalExecutionPlannerContext context
+    );
+
+    public abstract Operator.OperatorFactory timeSeriesAggregatorOperatorFactory(
+        TimeSeriesAggregateExec ts,
+        AggregatorMode aggregatorMode,
+        List<GroupingAggregator.Factory> aggregatorFactories,
+        List<BlockHash.GroupSpec> groupSpecs,
         LocalExecutionPlannerContext context
     );
 }

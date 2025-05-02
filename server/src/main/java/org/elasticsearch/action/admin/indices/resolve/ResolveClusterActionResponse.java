@@ -39,7 +39,6 @@ public class ResolveClusterActionResponse extends ActionResponse implements ToXC
     }
 
     public ResolveClusterActionResponse(StreamInput in) throws IOException {
-        super(in);
         this.infoMap = in.readImmutableMap(ResolveClusterInfo::new);
     }
 

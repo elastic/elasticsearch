@@ -1,0 +1,131 @@
+//
+// CSV spec for RRF command
+//
+
+simpleRrf
+required_capability: fork
+required_capability: rrf
+required_capability: match_operator_colon
+
+FROM employees METADATA _id, _index, _score
+| FORK ( WHERE emp_no:10001 )
+       ( WHERE emp_no:10002 )
+| RRF
+| EVAL _score = round(_score, 4)
+| KEEP _score, _fork, emp_no
+| SORT _score, _fork, emp_no
+;
+
+_score:double | _fork:keyword | emp_no:integer
+0.0164        | fork1         | 10001
+0.0164        | fork2         | 10002
+;
+
+rrfWithMatchAndScore
+required_capability: fork
+required_capability: rrf
+required_capability: match_operator_colon
+
+FROM books METADATA _id, _index, _score
+| FORK ( WHERE title:"Tolkien" | SORT _score, _id DESC | LIMIT 3 )
+       ( WHERE author:"Tolkien" | SORT _score, _id DESC | LIMIT 3 )
+| RRF
+| EVAL _fork = mv_sort(_fork)
+| EVAL _score = round(_score, 5)
+| KEEP _score, _fork, _id
+;
+
+_score:double | _fork:keyword  | _id:keyword
+0.03279       | [fork1, fork2] | 4
+0.01613       | fork1          | 56
+0.01613       | fork2          | 60
+0.01587       | fork2          | 1
+0.01587       | fork1          | 26
+;
+
+rrfWithDisjunctionAndPostFilter
+required_capability: fork
+required_capability: rrf
+required_capability: match_operator_colon
+
+FROM books METADATA _id, _index, _score
+| FORK ( WHERE title:"Tolkien" OR author:"Tolkien" | SORT _score, _id DESC | LIMIT 3 )
+       ( WHERE author:"Tolkien" | SORT _score, _id DESC | LIMIT 3 )
+| RRF
+| EVAL _fork = mv_sort(_fork)
+| EVAL _score = round(_score, 5)
+| KEEP _score, _fork, _id
+| WHERE _score > 0.014
+;
+
+_score:double | _fork:keyword  | _id:keyword
+0.03252       | [fork1, fork2] | 60
+0.032         | [fork1, fork2] | 1
+0.01639       | fork2          | 4
+0.01587       | fork1          | 40
+;
+
+rrfWithStats
+required_capability: fork
+required_capability: rrf
+required_capability: match_operator_colon
+
+FROM books METADATA _id, _index, _score
+| FORK ( WHERE title:"Tolkien" | SORT _score, _id DESC | LIMIT 3 )
+       ( WHERE author:"Tolkien" | SORT _score, _id DESC | LIMIT 3 )
+       ( WHERE author:"Ursula K. Le Guin" AND title:"short stories" | SORT _score, _id DESC | LIMIT 3)
+| RRF
+| STATS count_fork=COUNT(*) BY _fork
+| SORT _fork
+;
+
+count_fork:long | _fork:keyword
+3               | fork1
+3               | fork2
+1               | fork3
+;
+
+rrfWithMultipleForkBranches
+required_capability: fork
+required_capability: rrf
+required_capability: match_operator_colon
+
+FROM books METADATA _id, _index, _score
+| FORK (WHERE author:"Keith Faulkner" AND qstr("author:Rory or author:Beverlie") | SORT _score, _id DESC | LIMIT 3)
+       (WHERE author:"Ursula K. Le Guin" | SORT _score, _id DESC | LIMIT 3)
+       (WHERE title:"Tolkien" AND author:"Tolkien" AND year > 2000 AND mv_count(author) == 1 | SORT _score, _id DESC | LIMIT 3)
+       (WHERE match(author, "Keith Faulkner") AND match(author, "Rory Tyger") | SORT _score, _id DESC | LIMIT 3)
+| RRF
+| EVAL _fork = mv_sort(_fork)
+| EVAL _score = round(_score, 4)
+| EVAL title = trim(substring(title, 1, 20))
+| KEEP _score, author, title, _fork
+;
+
+_score:double | author:keyword                    | title:keyword        | _fork:keyword
+0.0328        | [Keith Faulkner, Rory Tyger]      | Pop! Went Another Ba | [fork1, fork4]
+0.0164        | J.R.R. Tolkien                    | Letters of J R R Tol | fork3
+0.0164        | Ursula K. Le Guin                 | The wind's twelve qu | fork2
+0.0161        | [Beverlie Manson, Keith Faulkner] | Rainbow's End: A Mag | fork1
+0.0161        | Ursula K. Le Guin                 | The Word For World i | fork2
+0.0159        | Ursula K. Le Guin                 | The Dispossessed     | fork2
+;
+
+rrfWithSemanticSearch
+required_capability: rrf
+required_capability: semantic_text_field_caps
+required_capability: metadata_score
+
+FROM semantic_text METADATA _id, _score, _index
+| FORK ( WHERE semantic_text_field:"something" | SORT _score DESC | LIMIT 2)
+       ( WHERE semantic_text_field:"something else" | SORT _score DESC | LIMIT 2)
+| RRF
+| EVAL _score = round(_score, 4)
+| EVAL _fork = mv_sort(_fork)
+| KEEP _fork, _score, _id, semantic_text_field
+;
+
+_fork:keyword  | _score:double | _id:keyword | semantic_text_field:keyword
+[fork1, fork2] | 0.0328        | 2           | all we have to decide is what to do with the time that is given to us
+[fork1, fork2] | 0.0323        | 3           | be excellent to each other
+;

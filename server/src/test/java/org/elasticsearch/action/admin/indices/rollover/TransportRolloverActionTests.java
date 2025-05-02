@@ -470,19 +470,39 @@ public class TransportRolloverActionTests extends ESTestCase {
             mockMetadataDataStreamService,
             dataStreamAutoShardingService
         );
-        final PlainActionFuture<RolloverResponse> future = new PlainActionFuture<>();
-        RolloverRequest rolloverRequest = new RolloverRequest("logs-ds", null);
-        rolloverRequest.lazy(true);
-        transportRolloverAction.masterOperation(mock(CancellableTask.class), rolloverRequest, stateBefore, future);
-        RolloverResponse rolloverResponse = future.actionGet();
-        assertThat(rolloverResponse.getOldIndex(), equalTo(".ds-logs-ds-000001"));
-        assertThat(rolloverResponse.getNewIndex(), Matchers.startsWith(".ds-logs-ds-"));
-        assertThat(rolloverResponse.getNewIndex(), Matchers.endsWith("-000002"));
-        assertThat(rolloverResponse.isLazy(), equalTo(true));
-        assertThat(rolloverResponse.isDryRun(), equalTo(false));
-        assertThat(rolloverResponse.isRolledOver(), equalTo(false));
-        assertThat(rolloverResponse.getConditionStatus().size(), equalTo(0));
-        assertThat(rolloverResponse.isAcknowledged(), is(true));
+        {
+            // Regular lazy rollover
+            final PlainActionFuture<RolloverResponse> future = new PlainActionFuture<>();
+            RolloverRequest rolloverRequest = new RolloverRequest("logs-ds", null);
+            rolloverRequest.lazy(true);
+            transportRolloverAction.masterOperation(mock(CancellableTask.class), rolloverRequest, stateBefore, future);
+            RolloverResponse rolloverResponse = future.actionGet();
+            assertThat(rolloverResponse.getOldIndex(), equalTo(".ds-logs-ds-000001"));
+            assertThat(rolloverResponse.getNewIndex(), Matchers.startsWith(".ds-logs-ds-"));
+            assertThat(rolloverResponse.getNewIndex(), Matchers.endsWith("-000002"));
+            assertThat(rolloverResponse.isLazy(), equalTo(true));
+            assertThat(rolloverResponse.isDryRun(), equalTo(false));
+            assertThat(rolloverResponse.isRolledOver(), equalTo(false));
+            assertThat(rolloverResponse.getConditionStatus().size(), equalTo(0));
+            assertThat(rolloverResponse.isAcknowledged(), is(true));
+        }
+        {
+            // Dry-run lazy rollover
+            final PlainActionFuture<RolloverResponse> future = new PlainActionFuture<>();
+            RolloverRequest rolloverRequest = new RolloverRequest("logs-ds", null);
+            rolloverRequest.lazy(true);
+            rolloverRequest.dryRun(true);
+            transportRolloverAction.masterOperation(mock(CancellableTask.class), rolloverRequest, stateBefore, future);
+            RolloverResponse rolloverResponse = future.actionGet();
+            assertThat(rolloverResponse.getOldIndex(), equalTo(".ds-logs-ds-000001"));
+            assertThat(rolloverResponse.getNewIndex(), Matchers.startsWith(".ds-logs-ds-"));
+            assertThat(rolloverResponse.getNewIndex(), Matchers.endsWith("-000002"));
+            assertThat(rolloverResponse.isLazy(), equalTo(true));
+            assertThat(rolloverResponse.isDryRun(), equalTo(true));
+            assertThat(rolloverResponse.isRolledOver(), equalTo(false));
+            assertThat(rolloverResponse.getConditionStatus().size(), equalTo(0));
+            assertThat(rolloverResponse.isAcknowledged(), is(false));
+        }
     }
 
     public void testLazyRolloverFails() throws Exception {

@@ -1,0 +1,5 @@
+pr: 126452
+summary: Run `newShardSnapshotTask` tasks concurrently
+area: Snapshot/Restore
+type: bug
+issues: []

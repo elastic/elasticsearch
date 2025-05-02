@@ -58,10 +58,9 @@ public abstract class OracleOpenJdkToolchainResolver extends AbstractCustomJavaT
         }
     }
 
-    record EarlyAccessJdkBuild(JavaLanguageVersion languageVersion) implements JdkBuild {
+    record EarlyAccessJdkBuild(JavaLanguageVersion languageVersion, String buildNumber) implements JdkBuild {
         @Override
         public String url(String os, String arch, String extension) {
-            String buildNumber = resolveBuildNumber(languageVersion.asInt());
             return "https://download.java.net/java/early_access/jdk"
                 + languageVersion.asInt()
                 + "/"
@@ -77,29 +76,6 @@ public abstract class OracleOpenJdkToolchainResolver extends AbstractCustomJavaT
                 + "_bin."
                 + extension;
         }
-
-        private static String resolveBuildNumber(int version) {
-            String buildNumber = System.getProperty("runtime.java." + version + ".build");
-            if (buildNumber != null) {
-                System.out.println("buildNumber = " + buildNumber);
-                return buildNumber;
-            }
-            buildNumber = System.getProperty("runtime.java.build");
-            if (buildNumber != null) {
-                System.out.println("buildNumber2 = " + buildNumber);
-                return buildNumber;
-            }
-
-            switch (version) {
-                case 24:
-                    // latest explicitly found build number for 24
-                    return "29";
-                case 25:
-                    return "3";
-                default:
-                    throw new IllegalArgumentException("Unsupported version " + version);
-            }
-        }
     }
 
     private static final Pattern VERSION_PATTERN = Pattern.compile(
@@ -114,15 +90,20 @@ public abstract class OracleOpenJdkToolchainResolver extends AbstractCustomJavaT
 
     // package private so it can be replaced by tests
     List<JdkBuild> builds = List.of(
-        getBundledJdkBuild(),
-        // release candidate of JDK 24
-        new ReleaseJdkBuild(JavaLanguageVersion.of(24), "download.java.net", "24", "36", "1f9ff9062db4449d8ca828c504ffae90"),
-        new EarlyAccessJdkBuild(JavaLanguageVersion.of(25))
+        getBundledJdkBuild(VersionProperties.getBundledJdkVersion(), VersionProperties.getBundledJdkMajorVersion()),
+        getEarlyAccessBuild(JavaLanguageVersion.of(25), "3")
     );
 
-    private JdkBuild getBundledJdkBuild() {
-        String bundledJdkVersion = VersionProperties.getBundledJdkVersion();
-        JavaLanguageVersion bundledJdkMajorVersion = JavaLanguageVersion.of(VersionProperties.getBundledJdkMajorVersion());
+    static EarlyAccessJdkBuild getEarlyAccessBuild(JavaLanguageVersion languageVersion, String buildNumber) {
+        // first try the unversioned override, then the versioned override which has higher precedence
+        buildNumber = System.getProperty("runtime.java.build", buildNumber);
+        buildNumber = System.getProperty("runtime.java." + languageVersion.asInt() + ".build", buildNumber);
+
+        return new EarlyAccessJdkBuild(languageVersion, buildNumber);
+    }
+
+    static JdkBuild getBundledJdkBuild(String bundledJdkVersion, String bundledJkdMajorVersionString) {
+        JavaLanguageVersion bundledJdkMajorVersion = JavaLanguageVersion.of(bundledJkdMajorVersionString);
         Matcher jdkVersionMatcher = VERSION_PATTERN.matcher(bundledJdkVersion);
         if (jdkVersionMatcher.matches() == false) {
             throw new IllegalStateException("Unable to parse bundled JDK version " + bundledJdkVersion);

@@ -17,22 +17,22 @@ import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import java.util.Map;
-import java.util.stream.Stream;
 
+/**
+ * Verifies that the special network addresses {@code _ec2:*_} work by retrieving information from the IMDS. See {@code discovery-ec2}
+ * plugin docs for more information.
+ */
 public class DiscoveryEc2SpecialNetworkAddressesIT extends DiscoveryEc2NetworkAddressesTestCase {
 
     private final String imdsAddressName;
     private final String elasticsearchAddressName;
-    private final Ec2ImdsVersion imdsVersion;
 
     public DiscoveryEc2SpecialNetworkAddressesIT(
         @Name("imdsAddressName") String imdsAddressName,
-        @Name("elasticsearchAddressName") String elasticsearchAddressName,
-        @Name("imdsVersion") Ec2ImdsVersion imdsVersion
+        @Name("elasticsearchAddressName") String elasticsearchAddressName
     ) {
         this.imdsAddressName = imdsAddressName;
         this.elasticsearchAddressName = elasticsearchAddressName;
-        this.imdsVersion = imdsVersion;
     }
 
     @ParametersFactory
@@ -52,20 +52,13 @@ public class DiscoveryEc2SpecialNetworkAddressesIT extends DiscoveryEc2NetworkAd
             "local-ipv4",
             "_ec2_",
             "local-ipv4"
-        )
-            .entrySet()
-            .stream()
-            .flatMap(
-                addresses -> Stream.of(Ec2ImdsVersion.values())
-                    .map(ec2ImdsVersion -> new Object[] { addresses.getValue(), addresses.getKey(), ec2ImdsVersion })
-            )
-            .toList();
+        ).entrySet().stream().map(addresses -> new Object[] { addresses.getValue(), addresses.getKey() }).toList();
     }
 
     public void testSpecialNetworkAddresses() {
         final var publishAddress = "10.0." + between(0, 255) + "." + between(0, 255);
         Ec2ImdsHttpFixture.runWithFixture(
-            new Ec2ImdsServiceBuilder(imdsVersion).addInstanceAddress(imdsAddressName, publishAddress),
+            new Ec2ImdsServiceBuilder(Ec2ImdsVersion.V2).addInstanceAddress(imdsAddressName, publishAddress),
             imdsFixture -> {
                 try (var ignored = Ec2ImdsHttpFixture.withEc2MetadataServiceEndpointOverride(imdsFixture.getAddress())) {
                     verifyPublishAddress(elasticsearchAddressName, publishAddress);

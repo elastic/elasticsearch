@@ -235,7 +235,7 @@ public class OpenIdConnectAuthenticator {
             // Don't wrap in a new ElasticsearchSecurityException
             listener.onFailure(e);
         } catch (Exception e) {
-            listener.onFailure(new ElasticsearchSecurityException("Failed to consume the OpenID connect response. ", e));
+            listener.onFailure(new ElasticsearchSecurityException("Failed to consume the OpenID connect response.", e));
         }
     }
 
@@ -629,18 +629,20 @@ public class OpenIdConnectAuthenticator {
     /**
      * Handle the Token Response from the OpenID Connect Provider. If successful, extract the (yet not validated) Id Token
      * and access token and call the provided listener.
+     * (Package private for testing purposes)
      */
-    private static void handleTokenResponse(HttpResponse httpResponse, ActionListener<Tuple<AccessToken, JWT>> tokensListener) {
+    static void handleTokenResponse(HttpResponse httpResponse, ActionListener<Tuple<AccessToken, JWT>> tokensListener) {
         try {
             final HttpEntity entity = httpResponse.getEntity();
             final Header encodingHeader = entity.getContentEncoding();
             final Header contentHeader = entity.getContentType();
-            if (ContentType.parse(contentHeader.getValue()).getMimeType().equals("application/json") == false) {
+            final String contentHeaderValue = contentHeader == null ? null : ContentType.parse(contentHeader.getValue()).getMimeType();
+            if (contentHeaderValue == null || contentHeaderValue.equals("application/json") == false) {
                 tokensListener.onFailure(
                     new IllegalStateException(
                         "Unable to parse Token Response. Content type was expected to be "
                             + "[application/json] but was ["
-                            + contentHeader.getValue()
+                            + contentHeaderValue
                             + "]"
                     )
                 );
@@ -688,7 +690,7 @@ public class OpenIdConnectAuthenticator {
         } catch (Exception e) {
             tokensListener.onFailure(
                 new ElasticsearchSecurityException(
-                    "Failed to exchange code for Id Token using the Token Endpoint. " + "Unable to parse Token Response",
+                    "Failed to exchange code for Id Token using the Token Endpoint. Unable to parse Token Response",
                     e
                 )
             );

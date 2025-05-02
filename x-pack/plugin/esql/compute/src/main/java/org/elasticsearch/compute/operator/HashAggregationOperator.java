@@ -16,6 +16,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.compute.Describable;
 import org.elasticsearch.compute.aggregation.AggregatorMode;
 import org.elasticsearch.compute.aggregation.GroupingAggregator;
+import org.elasticsearch.compute.aggregation.GroupingAggregatorEvaluationContext;
 import org.elasticsearch.compute.aggregation.GroupingAggregatorFunction;
 import org.elasticsearch.compute.aggregation.blockhash.BlockHash;
 import org.elasticsearch.compute.data.Block;
@@ -85,7 +86,7 @@ public class HashAggregationOperator implements Operator {
 
     private final List<GroupingAggregator> aggregators;
 
-    private final DriverContext driverContext;
+    protected final DriverContext driverContext;
 
     /**
      * Nanoseconds this operator has spent hashing grouping keys.
@@ -225,9 +226,10 @@ public class HashAggregationOperator implements Operator {
             blocks = new Block[keys.length + Arrays.stream(aggBlockCounts).sum()];
             System.arraycopy(keys, 0, blocks, 0, keys.length);
             int offset = keys.length;
+            var evaluationContext = evaluationContext(keys);
             for (int i = 0; i < aggregators.size(); i++) {
                 var aggregator = aggregators.get(i);
-                aggregator.evaluate(blocks, offset, selected, driverContext);
+                aggregator.evaluate(blocks, offset, selected, evaluationContext);
                 offset += aggBlockCounts[i];
             }
             output = new Page(blocks);
@@ -241,6 +243,10 @@ public class HashAggregationOperator implements Operator {
                 Releasables.closeExpectNoException(blocks);
             }
         }
+    }
+
+    protected GroupingAggregatorEvaluationContext evaluationContext(Block[] keys) {
+        return new GroupingAggregatorEvaluationContext(driverContext);
     }
 
     @Override

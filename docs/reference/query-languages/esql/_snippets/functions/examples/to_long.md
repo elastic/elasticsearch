@@ -11,7 +11,10 @@ ROW str1 = "2147483648", str2 = "2147483648.2", str3 = "foo"
 | --- | --- | --- | --- | --- | --- |
 | 2147483648 | 2147483648.2 | foo | 2147483648 | 2147483648 | null |
 
-Note that in this example, the last conversion of the string isn’t possible. When this happens, the result is a **null** value. In this case a *Warning* header is added to the response. The header will provide information on the source of the failure:
+
+Note that in this example, the last conversion of the string isn’t possible.
+When this happens, the result is a `null` value. In this case a _Warning_ header is added to the response.
+The header will provide information on the source of the failure:
 
 `"Line 1:113: evaluation of [TO_LONG(str3)] failed, treating result as null. Only first 20 failures recorded."`
 

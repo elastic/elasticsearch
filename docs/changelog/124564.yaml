@@ -1,0 +1,5 @@
+pr: 124564
+summary: Restore `TextSimilarityRankBuilder` XContent output
+area: Ranking
+type: bug
+issues: []

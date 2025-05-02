@@ -213,7 +213,7 @@ public class UpdateResponseTests extends ESTestCase {
 
         if (UpdateResponse.GET.equals(currentFieldName)) {
             if (token == XContentParser.Token.START_OBJECT) {
-                context.setGetResult(GetResult.fromXContentEmbedded(parser));
+                context.setGetResult(GetResultTests.parseInstanceFromEmbedded(parser));
             }
         } else {
             BulkItemResponseTests.parseInnerToXContent(parser, context);

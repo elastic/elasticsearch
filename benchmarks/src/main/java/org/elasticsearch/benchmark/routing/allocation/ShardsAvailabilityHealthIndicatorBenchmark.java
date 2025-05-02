@@ -15,6 +15,7 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.cluster.project.DefaultProjectResolver;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.RecoverySource;
@@ -179,7 +180,12 @@ public class ShardsAvailabilityHealthIndicatorBenchmark {
             new TaskManager(Settings.EMPTY, threadPool, Collections.emptySet())
         );
         clusterService.getClusterApplierService().setInitialState(initialClusterState);
-        indicatorService = new ShardsAvailabilityHealthIndicatorService(clusterService, allocationService, new SystemIndices(List.of()));
+        indicatorService = new ShardsAvailabilityHealthIndicatorService(
+            clusterService,
+            allocationService,
+            new SystemIndices(List.of()),
+            DefaultProjectResolver.INSTANCE
+        );
     }
 
     private int toInt(String v) {

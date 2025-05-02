@@ -23,6 +23,7 @@ import org.bouncycastle.asn1.x509.Extensions;
 import org.bouncycastle.asn1.x509.GeneralName;
 import org.bouncycastle.asn1.x509.GeneralNames;
 import org.bouncycastle.asn1.x509.KeyPurposeId;
+import org.bouncycastle.asn1.x509.KeyUsage;
 import org.bouncycastle.pkcs.PKCS10CertificationRequest;
 import org.bouncycastle.pkcs.jcajce.JcaPKCS10CertificationRequest;
 import org.bouncycastle.util.io.pem.PemObject;
@@ -30,6 +31,7 @@ import org.bouncycastle.util.io.pem.PemReader;
 import org.elasticsearch.cli.MockTerminal;
 import org.elasticsearch.cli.ProcessInfo;
 import org.elasticsearch.common.CheckedBiFunction;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.ssl.PemUtils;
 import org.elasticsearch.core.CheckedFunction;
@@ -89,10 +91,12 @@ import javax.security.auth.x500.X500Principal;
 import static org.elasticsearch.test.FileMatchers.isDirectory;
 import static org.elasticsearch.test.FileMatchers.isRegularFile;
 import static org.elasticsearch.test.FileMatchers.pathExists;
+import static org.elasticsearch.xpack.security.cli.CertGenUtilsTests.assertExpectedKeyUsage;
 import static org.elasticsearch.xpack.security.cli.HttpCertificateCommand.guessFileType;
 import static org.hamcrest.Matchers.arrayContainingInAnyOrder;
 import static org.hamcrest.Matchers.arrayWithSize;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.in;
 import static org.hamcrest.Matchers.instanceOf;
@@ -369,21 +373,25 @@ public class HttpCertificateCommandTests extends ESTestCase {
         final String caDN;
         final int caYears;
         final int caKeySize;
+        final List<String> caKeyUsage;
         // randomise whether to change CA defaults.
         if (randomBoolean()) {
             terminal.addTextInput("y"); // Change defaults
             caDN = "CN=" + randomAlphaOfLengthBetween(3, 8);
             caYears = randomIntBetween(1, 3);
             caKeySize = randomFrom(2048, 3072, 4096);
+            caKeyUsage = randomNonEmptySubsetOf(CertGenUtils.KEY_USAGE_MAPPINGS.keySet());
             terminal.addTextInput(caDN);
             terminal.addTextInput(caYears + "y");
             terminal.addTextInput(Integer.toString(caKeySize));
+            terminal.addTextInput(Strings.collectionToCommaDelimitedString(caKeyUsage));
             terminal.addTextInput("n"); // Don't change values
         } else {
             terminal.addTextInput(randomBoolean() ? "n" : ""); // Don't change defaults
             caDN = HttpCertificateCommand.DEFAULT_CA_NAME.toString();
             caYears = HttpCertificateCommand.DEFAULT_CA_VALIDITY.getYears();
             caKeySize = HttpCertificateCommand.DEFAULT_CA_KEY_SIZE;
+            caKeyUsage = HttpCertificateCommand.DEFAULT_CA_KEY_USAGE;
         }
 
         final String caPassword = randomPassword(randomBoolean());
@@ -463,6 +471,7 @@ public class HttpCertificateCommandTests extends ESTestCase {
         verifyCertificate(caCertKey.v1(), caDN.replaceFirst("CN=", ""), caYears, List.of(), List.of());
         assertThat(getRSAKeySize(caCertKey.v1().getPublicKey()), is(caKeySize));
         assertThat(getRSAKeySize(caCertKey.v2()), is(caKeySize));
+        assertExpectedKeyUsage(caCertKey.v1(), caKeyUsage);
 
         assertThat(zipRoot.resolve("elasticsearch"), isDirectory());
 
@@ -486,6 +495,7 @@ public class HttpCertificateCommandTests extends ESTestCase {
             verifyChain(certAndKey.v1(), caCertKey.v1());
             assertThat(getRSAKeySize(certAndKey.v1().getPublicKey()), is(HttpCertificateCommand.DEFAULT_CERT_KEY_SIZE));
             assertThat(getRSAKeySize(certAndKey.v2()), is(HttpCertificateCommand.DEFAULT_CERT_KEY_SIZE));
+            assertExpectedKeyUsage(certAndKey.v1(), HttpCertificateCommand.DEFAULT_CERT_KEY_USAGE);
 
             // Verify the README
             assertThat(readme, containsString(p12Path.getFileName().toString()));
@@ -692,7 +702,10 @@ public class HttpCertificateCommandTests extends ESTestCase {
         // We register 1 extension with the subject alternative names and extended key usage
         final Extensions extensions = Extensions.getInstance(extensionAttributes[0].getAttributeValues()[0]);
         assertThat(extensions, notNullValue());
-        assertThat(extensions.getExtensionOIDs(), arrayWithSize(2));
+        assertThat(
+            extensions.getExtensionOIDs(),
+            arrayContainingInAnyOrder(Extension.subjectAlternativeName, Extension.keyUsage, Extension.extendedKeyUsage)
+        );
 
         final GeneralNames names = GeneralNames.fromExtensions(extensions, Extension.subjectAlternativeName);
         assertThat(names.getNames(), arrayWithSize(hostNames.size() + ipAddresses.size()));
@@ -709,6 +722,9 @@ public class HttpCertificateCommandTests extends ESTestCase {
 
         ExtendedKeyUsage extendedKeyUsage = ExtendedKeyUsage.fromExtensions(extensions);
         assertThat(extendedKeyUsage.getUsages(), arrayContainingInAnyOrder(KeyPurposeId.id_kp_serverAuth));
+
+        KeyUsage keyUsage = KeyUsage.fromExtensions(extensions);
+        assertThat(keyUsage, is(equalTo(new KeyUsage(KeyUsage.digitalSignature | KeyUsage.keyEncipherment))));
     }
 
     private void verifyCertificate(

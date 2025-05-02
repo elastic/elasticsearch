@@ -42,7 +42,6 @@ import org.elasticsearch.test.IndexSettingsModule;
 import org.elasticsearch.test.MockLog;
 import org.elasticsearch.test.NodeRoles;
 import org.elasticsearch.test.junit.annotations.TestLogging;
-import org.hamcrest.Matchers;
 import org.junit.AssumptionViolatedException;
 
 import java.io.IOException;
@@ -641,10 +640,10 @@ public class NodeEnvironmentTests extends ESTestCase {
     public void testGetBestDowngradeVersion() {
         int prev = Version.CURRENT.minimumCompatibilityVersion().major;
         int last = Version.CURRENT.minimumCompatibilityVersion().minor;
-        int old = prev-1;
+        int old = prev - 1;
 
         assumeTrue("The current compatibility rules are active only from 9.x onward", prev >= 7);
-        assertEquals(Version.CURRENT.major-1, prev);
+        assertEquals(Version.CURRENT.major - 1, prev);
 
         assertEquals(
             "From an old major, recommend prev.last",

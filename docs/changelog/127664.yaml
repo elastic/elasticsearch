@@ -1,0 +1,5 @@
+pr: 127664
+summary: Adding support to exclude `semantic_text` subfields
+area: "Mapping, Vector Search, Relevance"
+type: enhancement
+issues: []

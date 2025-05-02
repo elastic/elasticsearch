@@ -22,10 +22,13 @@ import software.amazon.awssdk.regions.Region;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
+import org.elasticsearch.cluster.project.TestProjectResolvers;
 import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.watcher.ResourceWatcherService;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mockito;
@@ -238,9 +241,11 @@ public class AwsS3ServiceImplTests extends ESTestCase {
 
     public void testEndPointAndRegionOverrides() throws IOException {
         try (
+            TestThreadPool threadPool = new TestThreadPool(getTestName());
             S3Service s3Service = new S3Service(
                 mock(Environment.class),
-                Settings.EMPTY,
+                ClusterServiceUtils.createClusterService(threadPool),
+                TestProjectResolvers.DEFAULT_PROJECT_ONLY,
                 mock(ResourceWatcherService.class),
                 () -> Region.of("es-test-region")
             )

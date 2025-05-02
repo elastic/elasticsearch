@@ -22,6 +22,7 @@ import org.apache.http.conn.DnsResolver;
 import org.apache.logging.log4j.Level;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
+import org.elasticsearch.cluster.project.TestProjectResolvers;
 import org.elasticsearch.common.BackoffPolicy;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.blobstore.BlobContainer;
@@ -54,8 +55,10 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.telemetry.InstrumentType;
 import org.elasticsearch.telemetry.Measurement;
 import org.elasticsearch.telemetry.RecordingMeterRegistry;
+import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.MockLog;
+import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.watcher.ResourceWatcherService;
 import org.hamcrest.Matcher;
 import org.junit.After;
@@ -119,6 +122,7 @@ import static org.hamcrest.Matchers.lessThanOrEqualTo;
 public class S3BlobContainerRetriesTests extends AbstractBlobContainerRetriesTestCase {
 
     private static final int MAX_NUMBER_SNAPSHOT_DELETE_RETRIES = 10;
+    private TestThreadPool threadPool;
     private S3Service service;
     private volatile boolean shouldErrorOnDns;
     private RecordingMeterRegistry recordingMeterRegistry;
@@ -126,7 +130,14 @@ public class S3BlobContainerRetriesTests extends AbstractBlobContainerRetriesTes
     @Before
     public void setUp() throws Exception {
         shouldErrorOnDns = false;
-        service = new S3Service(Mockito.mock(Environment.class), Settings.EMPTY, Mockito.mock(ResourceWatcherService.class), () -> null) {
+        threadPool = new TestThreadPool(getTestClass().getName());
+        service = new S3Service(
+            Mockito.mock(Environment.class),
+            ClusterServiceUtils.createClusterService(threadPool),
+            TestProjectResolvers.DEFAULT_PROJECT_ONLY,
+            Mockito.mock(ResourceWatcherService.class),
+            () -> null
+        ) {
             private InetAddress[] resolveHost(String host) throws UnknownHostException {
                 assertEquals("127.0.0.1", host);
                 if (shouldErrorOnDns && randomBoolean() && randomBoolean()) {
@@ -161,6 +172,7 @@ public class S3BlobContainerRetriesTests extends AbstractBlobContainerRetriesTes
     @After
     public void tearDown() throws Exception {
         IOUtils.close(service);
+        threadPool.close();
         super.tearDown();
     }
 
@@ -1307,7 +1319,8 @@ public class S3BlobContainerRetriesTests extends AbstractBlobContainerRetriesTes
 
         service = new S3Service(
             Mockito.mock(Environment.class),
-            Settings.builder().put(STATELESS_ENABLED_SETTING_NAME, "true").build(),
+            ClusterServiceUtils.createClusterService(threadPool, Settings.builder().put(STATELESS_ENABLED_SETTING_NAME, "true").build()),
+            TestProjectResolvers.DEFAULT_PROJECT_ONLY,
             Mockito.mock(ResourceWatcherService.class),
             () -> null
         );

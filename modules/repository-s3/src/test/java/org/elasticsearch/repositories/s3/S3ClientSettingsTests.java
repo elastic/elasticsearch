@@ -13,10 +13,13 @@ import software.amazon.awssdk.auth.credentials.AwsBasicCredentials;
 import software.amazon.awssdk.auth.credentials.AwsSessionCredentials;
 import software.amazon.awssdk.regions.Region;
 
+import org.elasticsearch.cluster.project.TestProjectResolvers;
 import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.watcher.ResourceWatcherService;
 import org.mockito.Mockito;
 
@@ -182,9 +185,11 @@ public class S3ClientSettingsTests extends ESTestCase {
         assertThat(settings.get("other").region, is(randomRegion));
 
         try (
+            TestThreadPool threadPool = new TestThreadPool(getTestName());
             var s3Service = new S3Service(
                 Mockito.mock(Environment.class),
-                Settings.EMPTY,
+                ClusterServiceUtils.createClusterService(threadPool),
+                TestProjectResolvers.DEFAULT_PROJECT_ONLY,
                 Mockito.mock(ResourceWatcherService.class),
                 () -> null
             )

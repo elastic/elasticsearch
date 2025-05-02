@@ -65,7 +65,12 @@ public class GetTrainedModelsStatsActionResponseTests extends AbstractBWCWireSer
             pipelineIds.stream()
                 .map(id -> new IngestStats.PipelineStat(ProjectId.DEFAULT, id, randomStats(), randomByteStats()))
                 .collect(Collectors.toList()),
-            pipelineIds.isEmpty() ? Map.of() : Map.of(ProjectId.DEFAULT, pipelineIds.stream().collect(Collectors.toMap(Function.identity(), v -> randomProcessorStats())))
+            pipelineIds.isEmpty()
+                ? Map.of()
+                : Map.of(
+                    ProjectId.DEFAULT,
+                    pipelineIds.stream().collect(Collectors.toMap(Function.identity(), v -> randomProcessorStats()))
+                )
         );
     }
 
@@ -158,42 +163,42 @@ public class GetTrainedModelsStatsActionResponseTests extends AbstractBWCWireSer
                                 stats.getDeploymentStats() == null
                                     ? null
                                     : new AssignmentStats(
-                                    stats.getDeploymentStats().getModelId(),
-                                    stats.getDeploymentStats().getModelId(),
-                                    stats.getDeploymentStats().getThreadsPerAllocation(),
-                                    stats.getDeploymentStats().getNumberOfAllocations(),
-                                    null,
-                                    stats.getDeploymentStats().getQueueCapacity(),
-                                    null,
-                                    stats.getDeploymentStats().getStartTime(),
-                                    stats.getDeploymentStats()
-                                        .getNodeStats()
-                                        .stream()
-                                        .map(
-                                            nodeStats -> new AssignmentStats.NodeStats(
-                                                nodeStats.getNode(),
-                                                nodeStats.getInferenceCount().orElse(null),
-                                                nodeStats.getAvgInferenceTime().orElse(null),
-                                                null,
-                                                nodeStats.getLastAccess(),
-                                                nodeStats.getPendingCount(),
-                                                0,
-                                                null,
-                                                0,
-                                                0,
-                                                nodeStats.getRoutingState(),
-                                                nodeStats.getStartTime(),
-                                                null,
-                                                null,
-                                                0L,
-                                                0L,
-                                                null,
-                                                null
+                                        stats.getDeploymentStats().getModelId(),
+                                        stats.getDeploymentStats().getModelId(),
+                                        stats.getDeploymentStats().getThreadsPerAllocation(),
+                                        stats.getDeploymentStats().getNumberOfAllocations(),
+                                        null,
+                                        stats.getDeploymentStats().getQueueCapacity(),
+                                        null,
+                                        stats.getDeploymentStats().getStartTime(),
+                                        stats.getDeploymentStats()
+                                            .getNodeStats()
+                                            .stream()
+                                            .map(
+                                                nodeStats -> new AssignmentStats.NodeStats(
+                                                    nodeStats.getNode(),
+                                                    nodeStats.getInferenceCount().orElse(null),
+                                                    nodeStats.getAvgInferenceTime().orElse(null),
+                                                    null,
+                                                    nodeStats.getLastAccess(),
+                                                    nodeStats.getPendingCount(),
+                                                    0,
+                                                    null,
+                                                    0,
+                                                    0,
+                                                    nodeStats.getRoutingState(),
+                                                    nodeStats.getStartTime(),
+                                                    null,
+                                                    null,
+                                                    0L,
+                                                    0L,
+                                                    null,
+                                                    null
+                                                )
                                             )
-                                        )
-                                        .toList(),
-                                    Priority.NORMAL
-                                )
+                                            .toList(),
+                                        Priority.NORMAL
+                                    )
                             )
                         )
                         .toList(),
@@ -232,42 +237,42 @@ public class GetTrainedModelsStatsActionResponseTests extends AbstractBWCWireSer
                                 stats.getDeploymentStats() == null
                                     ? null
                                     : new AssignmentStats(
-                                    stats.getDeploymentStats().getModelId(),
-                                    stats.getDeploymentStats().getModelId(),
-                                    stats.getDeploymentStats().getThreadsPerAllocation(),
-                                    stats.getDeploymentStats().getNumberOfAllocations(),
-                                    null,
-                                    stats.getDeploymentStats().getQueueCapacity(),
-                                    null,
-                                    stats.getDeploymentStats().getStartTime(),
-                                    stats.getDeploymentStats()
-                                        .getNodeStats()
-                                        .stream()
-                                        .map(
-                                            nodeStats -> new AssignmentStats.NodeStats(
-                                                nodeStats.getNode(),
-                                                nodeStats.getInferenceCount().orElse(null),
-                                                nodeStats.getAvgInferenceTime().orElse(null),
-                                                null,
-                                                nodeStats.getLastAccess(),
-                                                nodeStats.getPendingCount(),
-                                                nodeStats.getErrorCount(),
-                                                null,
-                                                nodeStats.getRejectedExecutionCount(),
-                                                nodeStats.getTimeoutCount(),
-                                                nodeStats.getRoutingState(),
-                                                nodeStats.getStartTime(),
-                                                nodeStats.getThreadsPerAllocation(),
-                                                nodeStats.getNumberOfAllocations(),
-                                                0L,
-                                                0L,
-                                                null,
-                                                null
+                                        stats.getDeploymentStats().getModelId(),
+                                        stats.getDeploymentStats().getModelId(),
+                                        stats.getDeploymentStats().getThreadsPerAllocation(),
+                                        stats.getDeploymentStats().getNumberOfAllocations(),
+                                        null,
+                                        stats.getDeploymentStats().getQueueCapacity(),
+                                        null,
+                                        stats.getDeploymentStats().getStartTime(),
+                                        stats.getDeploymentStats()
+                                            .getNodeStats()
+                                            .stream()
+                                            .map(
+                                                nodeStats -> new AssignmentStats.NodeStats(
+                                                    nodeStats.getNode(),
+                                                    nodeStats.getInferenceCount().orElse(null),
+                                                    nodeStats.getAvgInferenceTime().orElse(null),
+                                                    null,
+                                                    nodeStats.getLastAccess(),
+                                                    nodeStats.getPendingCount(),
+                                                    nodeStats.getErrorCount(),
+                                                    null,
+                                                    nodeStats.getRejectedExecutionCount(),
+                                                    nodeStats.getTimeoutCount(),
+                                                    nodeStats.getRoutingState(),
+                                                    nodeStats.getStartTime(),
+                                                    nodeStats.getThreadsPerAllocation(),
+                                                    nodeStats.getNumberOfAllocations(),
+                                                    0L,
+                                                    0L,
+                                                    null,
+                                                    null
+                                                )
                                             )
-                                        )
-                                        .toList(),
-                                    Priority.NORMAL
-                                )
+                                            .toList(),
+                                        Priority.NORMAL
+                                    )
                             )
                         )
                         .toList(),
@@ -306,42 +311,42 @@ public class GetTrainedModelsStatsActionResponseTests extends AbstractBWCWireSer
                                 stats.getDeploymentStats() == null
                                     ? null
                                     : new AssignmentStats(
-                                    stats.getDeploymentStats().getModelId(),
-                                    stats.getDeploymentStats().getModelId(),
-                                    stats.getDeploymentStats().getThreadsPerAllocation(),
-                                    stats.getDeploymentStats().getNumberOfAllocations(),
-                                    null,
-                                    stats.getDeploymentStats().getQueueCapacity(),
-                                    null,
-                                    stats.getDeploymentStats().getStartTime(),
-                                    stats.getDeploymentStats()
-                                        .getNodeStats()
-                                        .stream()
-                                        .map(
-                                            nodeStats -> new AssignmentStats.NodeStats(
-                                                nodeStats.getNode(),
-                                                nodeStats.getInferenceCount().orElse(null),
-                                                nodeStats.getAvgInferenceTime().orElse(null),
-                                                null,
-                                                nodeStats.getLastAccess(),
-                                                nodeStats.getPendingCount(),
-                                                nodeStats.getErrorCount(),
-                                                null,
-                                                nodeStats.getRejectedExecutionCount(),
-                                                nodeStats.getTimeoutCount(),
-                                                nodeStats.getRoutingState(),
-                                                nodeStats.getStartTime(),
-                                                nodeStats.getThreadsPerAllocation(),
-                                                nodeStats.getNumberOfAllocations(),
-                                                nodeStats.getPeakThroughput(),
-                                                nodeStats.getThroughputLastPeriod(),
-                                                nodeStats.getAvgInferenceTimeLastPeriod(),
-                                                null
+                                        stats.getDeploymentStats().getModelId(),
+                                        stats.getDeploymentStats().getModelId(),
+                                        stats.getDeploymentStats().getThreadsPerAllocation(),
+                                        stats.getDeploymentStats().getNumberOfAllocations(),
+                                        null,
+                                        stats.getDeploymentStats().getQueueCapacity(),
+                                        null,
+                                        stats.getDeploymentStats().getStartTime(),
+                                        stats.getDeploymentStats()
+                                            .getNodeStats()
+                                            .stream()
+                                            .map(
+                                                nodeStats -> new AssignmentStats.NodeStats(
+                                                    nodeStats.getNode(),
+                                                    nodeStats.getInferenceCount().orElse(null),
+                                                    nodeStats.getAvgInferenceTime().orElse(null),
+                                                    null,
+                                                    nodeStats.getLastAccess(),
+                                                    nodeStats.getPendingCount(),
+                                                    nodeStats.getErrorCount(),
+                                                    null,
+                                                    nodeStats.getRejectedExecutionCount(),
+                                                    nodeStats.getTimeoutCount(),
+                                                    nodeStats.getRoutingState(),
+                                                    nodeStats.getStartTime(),
+                                                    nodeStats.getThreadsPerAllocation(),
+                                                    nodeStats.getNumberOfAllocations(),
+                                                    nodeStats.getPeakThroughput(),
+                                                    nodeStats.getThroughputLastPeriod(),
+                                                    nodeStats.getAvgInferenceTimeLastPeriod(),
+                                                    null
+                                                )
                                             )
-                                        )
-                                        .toList(),
-                                    Priority.NORMAL
-                                )
+                                            .toList(),
+                                        Priority.NORMAL
+                                    )
                             )
                         )
                         .toList(),
@@ -380,42 +385,42 @@ public class GetTrainedModelsStatsActionResponseTests extends AbstractBWCWireSer
                                 stats.getDeploymentStats() == null
                                     ? null
                                     : new AssignmentStats(
-                                    stats.getDeploymentStats().getModelId(),
-                                    stats.getDeploymentStats().getModelId(),
-                                    stats.getDeploymentStats().getThreadsPerAllocation(),
-                                    stats.getDeploymentStats().getNumberOfAllocations(),
-                                    null,
-                                    stats.getDeploymentStats().getQueueCapacity(),
-                                    stats.getDeploymentStats().getCacheSize(),
-                                    stats.getDeploymentStats().getStartTime(),
-                                    stats.getDeploymentStats()
-                                        .getNodeStats()
-                                        .stream()
-                                        .map(
-                                            nodeStats -> new AssignmentStats.NodeStats(
-                                                nodeStats.getNode(),
-                                                nodeStats.getInferenceCount().orElse(null),
-                                                nodeStats.getAvgInferenceTime().orElse(null),
-                                                null,
-                                                nodeStats.getLastAccess(),
-                                                nodeStats.getPendingCount(),
-                                                nodeStats.getErrorCount(),
-                                                nodeStats.getCacheHitCount().orElse(null),
-                                                nodeStats.getRejectedExecutionCount(),
-                                                nodeStats.getTimeoutCount(),
-                                                nodeStats.getRoutingState(),
-                                                nodeStats.getStartTime(),
-                                                nodeStats.getThreadsPerAllocation(),
-                                                nodeStats.getNumberOfAllocations(),
-                                                nodeStats.getPeakThroughput(),
-                                                nodeStats.getThroughputLastPeriod(),
-                                                nodeStats.getAvgInferenceTimeLastPeriod(),
-                                                nodeStats.getCacheHitCountLastPeriod().orElse(null)
+                                        stats.getDeploymentStats().getModelId(),
+                                        stats.getDeploymentStats().getModelId(),
+                                        stats.getDeploymentStats().getThreadsPerAllocation(),
+                                        stats.getDeploymentStats().getNumberOfAllocations(),
+                                        null,
+                                        stats.getDeploymentStats().getQueueCapacity(),
+                                        stats.getDeploymentStats().getCacheSize(),
+                                        stats.getDeploymentStats().getStartTime(),
+                                        stats.getDeploymentStats()
+                                            .getNodeStats()
+                                            .stream()
+                                            .map(
+                                                nodeStats -> new AssignmentStats.NodeStats(
+                                                    nodeStats.getNode(),
+                                                    nodeStats.getInferenceCount().orElse(null),
+                                                    nodeStats.getAvgInferenceTime().orElse(null),
+                                                    null,
+                                                    nodeStats.getLastAccess(),
+                                                    nodeStats.getPendingCount(),
+                                                    nodeStats.getErrorCount(),
+                                                    nodeStats.getCacheHitCount().orElse(null),
+                                                    nodeStats.getRejectedExecutionCount(),
+                                                    nodeStats.getTimeoutCount(),
+                                                    nodeStats.getRoutingState(),
+                                                    nodeStats.getStartTime(),
+                                                    nodeStats.getThreadsPerAllocation(),
+                                                    nodeStats.getNumberOfAllocations(),
+                                                    nodeStats.getPeakThroughput(),
+                                                    nodeStats.getThroughputLastPeriod(),
+                                                    nodeStats.getAvgInferenceTimeLastPeriod(),
+                                                    nodeStats.getCacheHitCountLastPeriod().orElse(null)
+                                                )
                                             )
-                                        )
-                                        .toList(),
-                                    Priority.NORMAL
-                                )
+                                            .toList(),
+                                        Priority.NORMAL
+                                    )
                             )
                         )
                         .toList(),
@@ -455,42 +460,42 @@ public class GetTrainedModelsStatsActionResponseTests extends AbstractBWCWireSer
                                 stats.getDeploymentStats() == null
                                     ? null
                                     : new AssignmentStats(
-                                    stats.getDeploymentStats().getModelId(),
-                                    stats.getDeploymentStats().getModelId(),
-                                    stats.getDeploymentStats().getThreadsPerAllocation(),
-                                    stats.getDeploymentStats().getNumberOfAllocations(),
-                                    null,
-                                    stats.getDeploymentStats().getQueueCapacity(),
-                                    stats.getDeploymentStats().getCacheSize(),
-                                    stats.getDeploymentStats().getStartTime(),
-                                    stats.getDeploymentStats()
-                                        .getNodeStats()
-                                        .stream()
-                                        .map(
-                                            nodeStats -> new AssignmentStats.NodeStats(
-                                                nodeStats.getNode(),
-                                                nodeStats.getInferenceCount().orElse(null),
-                                                nodeStats.getAvgInferenceTime().orElse(null),
-                                                nodeStats.getAvgInferenceTimeExcludingCacheHit().orElse(null),
-                                                nodeStats.getLastAccess(),
-                                                nodeStats.getPendingCount(),
-                                                nodeStats.getErrorCount(),
-                                                nodeStats.getCacheHitCount().orElse(null),
-                                                nodeStats.getRejectedExecutionCount(),
-                                                nodeStats.getTimeoutCount(),
-                                                nodeStats.getRoutingState(),
-                                                nodeStats.getStartTime(),
-                                                nodeStats.getThreadsPerAllocation(),
-                                                nodeStats.getNumberOfAllocations(),
-                                                nodeStats.getPeakThroughput(),
-                                                nodeStats.getThroughputLastPeriod(),
-                                                nodeStats.getAvgInferenceTimeLastPeriod(),
-                                                nodeStats.getCacheHitCountLastPeriod().orElse(null)
+                                        stats.getDeploymentStats().getModelId(),
+                                        stats.getDeploymentStats().getModelId(),
+                                        stats.getDeploymentStats().getThreadsPerAllocation(),
+                                        stats.getDeploymentStats().getNumberOfAllocations(),
+                                        null,
+                                        stats.getDeploymentStats().getQueueCapacity(),
+                                        stats.getDeploymentStats().getCacheSize(),
+                                        stats.getDeploymentStats().getStartTime(),
+                                        stats.getDeploymentStats()
+                                            .getNodeStats()
+                                            .stream()
+                                            .map(
+                                                nodeStats -> new AssignmentStats.NodeStats(
+                                                    nodeStats.getNode(),
+                                                    nodeStats.getInferenceCount().orElse(null),
+                                                    nodeStats.getAvgInferenceTime().orElse(null),
+                                                    nodeStats.getAvgInferenceTimeExcludingCacheHit().orElse(null),
+                                                    nodeStats.getLastAccess(),
+                                                    nodeStats.getPendingCount(),
+                                                    nodeStats.getErrorCount(),
+                                                    nodeStats.getCacheHitCount().orElse(null),
+                                                    nodeStats.getRejectedExecutionCount(),
+                                                    nodeStats.getTimeoutCount(),
+                                                    nodeStats.getRoutingState(),
+                                                    nodeStats.getStartTime(),
+                                                    nodeStats.getThreadsPerAllocation(),
+                                                    nodeStats.getNumberOfAllocations(),
+                                                    nodeStats.getPeakThroughput(),
+                                                    nodeStats.getThroughputLastPeriod(),
+                                                    nodeStats.getAvgInferenceTimeLastPeriod(),
+                                                    nodeStats.getCacheHitCountLastPeriod().orElse(null)
+                                                )
                                             )
-                                        )
-                                        .toList(),
-                                    Priority.NORMAL
-                                )
+                                            .toList(),
+                                        Priority.NORMAL
+                                    )
                             )
                         )
                         .toList(),
@@ -530,42 +535,42 @@ public class GetTrainedModelsStatsActionResponseTests extends AbstractBWCWireSer
                                 stats.getDeploymentStats() == null
                                     ? null
                                     : new AssignmentStats(
-                                    stats.getDeploymentStats().getModelId(),
-                                    stats.getDeploymentStats().getModelId(),
-                                    stats.getDeploymentStats().getThreadsPerAllocation(),
-                                    stats.getDeploymentStats().getNumberOfAllocations(),
-                                    null,
-                                    stats.getDeploymentStats().getQueueCapacity(),
-                                    stats.getDeploymentStats().getCacheSize(),
-                                    stats.getDeploymentStats().getStartTime(),
-                                    stats.getDeploymentStats()
-                                        .getNodeStats()
-                                        .stream()
-                                        .map(
-                                            nodeStats -> new AssignmentStats.NodeStats(
-                                                nodeStats.getNode(),
-                                                nodeStats.getInferenceCount().orElse(null),
-                                                nodeStats.getAvgInferenceTime().orElse(null),
-                                                nodeStats.getAvgInferenceTimeExcludingCacheHit().orElse(null),
-                                                nodeStats.getLastAccess(),
-                                                nodeStats.getPendingCount(),
-                                                nodeStats.getErrorCount(),
-                                                nodeStats.getCacheHitCount().orElse(null),
-                                                nodeStats.getRejectedExecutionCount(),
-                                                nodeStats.getTimeoutCount(),
-                                                nodeStats.getRoutingState(),
-                                                nodeStats.getStartTime(),
-                                                nodeStats.getThreadsPerAllocation(),
-                                                nodeStats.getNumberOfAllocations(),
-                                                nodeStats.getPeakThroughput(),
-                                                nodeStats.getThroughputLastPeriod(),
-                                                nodeStats.getAvgInferenceTimeLastPeriod(),
-                                                nodeStats.getCacheHitCountLastPeriod().orElse(null)
+                                        stats.getDeploymentStats().getModelId(),
+                                        stats.getDeploymentStats().getModelId(),
+                                        stats.getDeploymentStats().getThreadsPerAllocation(),
+                                        stats.getDeploymentStats().getNumberOfAllocations(),
+                                        null,
+                                        stats.getDeploymentStats().getQueueCapacity(),
+                                        stats.getDeploymentStats().getCacheSize(),
+                                        stats.getDeploymentStats().getStartTime(),
+                                        stats.getDeploymentStats()
+                                            .getNodeStats()
+                                            .stream()
+                                            .map(
+                                                nodeStats -> new AssignmentStats.NodeStats(
+                                                    nodeStats.getNode(),
+                                                    nodeStats.getInferenceCount().orElse(null),
+                                                    nodeStats.getAvgInferenceTime().orElse(null),
+                                                    nodeStats.getAvgInferenceTimeExcludingCacheHit().orElse(null),
+                                                    nodeStats.getLastAccess(),
+                                                    nodeStats.getPendingCount(),
+                                                    nodeStats.getErrorCount(),
+                                                    nodeStats.getCacheHitCount().orElse(null),
+                                                    nodeStats.getRejectedExecutionCount(),
+                                                    nodeStats.getTimeoutCount(),
+                                                    nodeStats.getRoutingState(),
+                                                    nodeStats.getStartTime(),
+                                                    nodeStats.getThreadsPerAllocation(),
+                                                    nodeStats.getNumberOfAllocations(),
+                                                    nodeStats.getPeakThroughput(),
+                                                    nodeStats.getThroughputLastPeriod(),
+                                                    nodeStats.getAvgInferenceTimeLastPeriod(),
+                                                    nodeStats.getCacheHitCountLastPeriod().orElse(null)
+                                                )
                                             )
-                                        )
-                                        .toList(),
-                                    stats.getDeploymentStats().getPriority()
-                                )
+                                            .toList(),
+                                        stats.getDeploymentStats().getPriority()
+                                    )
                             )
                         )
                         .toList(),
@@ -605,42 +610,42 @@ public class GetTrainedModelsStatsActionResponseTests extends AbstractBWCWireSer
                                 stats.getDeploymentStats() == null
                                     ? null
                                     : new AssignmentStats(
-                                    stats.getDeploymentStats().getDeploymentId(),
-                                    stats.getDeploymentStats().getModelId(),
-                                    stats.getDeploymentStats().getThreadsPerAllocation(),
-                                    stats.getDeploymentStats().getNumberOfAllocations(),
-                                    null,
-                                    stats.getDeploymentStats().getQueueCapacity(),
-                                    stats.getDeploymentStats().getCacheSize(),
-                                    stats.getDeploymentStats().getStartTime(),
-                                    stats.getDeploymentStats()
-                                        .getNodeStats()
-                                        .stream()
-                                        .map(
-                                            nodeStats -> new AssignmentStats.NodeStats(
-                                                nodeStats.getNode(),
-                                                nodeStats.getInferenceCount().orElse(null),
-                                                nodeStats.getAvgInferenceTime().orElse(null),
-                                                nodeStats.getAvgInferenceTimeExcludingCacheHit().orElse(null),
-                                                nodeStats.getLastAccess(),
-                                                nodeStats.getPendingCount(),
-                                                nodeStats.getErrorCount(),
-                                                nodeStats.getCacheHitCount().orElse(null),
-                                                nodeStats.getRejectedExecutionCount(),
-                                                nodeStats.getTimeoutCount(),
-                                                nodeStats.getRoutingState(),
-                                                nodeStats.getStartTime(),
-                                                nodeStats.getThreadsPerAllocation(),
-                                                nodeStats.getNumberOfAllocations(),
-                                                nodeStats.getPeakThroughput(),
-                                                nodeStats.getThroughputLastPeriod(),
-                                                nodeStats.getAvgInferenceTimeLastPeriod(),
-                                                nodeStats.getCacheHitCountLastPeriod().orElse(null)
+                                        stats.getDeploymentStats().getDeploymentId(),
+                                        stats.getDeploymentStats().getModelId(),
+                                        stats.getDeploymentStats().getThreadsPerAllocation(),
+                                        stats.getDeploymentStats().getNumberOfAllocations(),
+                                        null,
+                                        stats.getDeploymentStats().getQueueCapacity(),
+                                        stats.getDeploymentStats().getCacheSize(),
+                                        stats.getDeploymentStats().getStartTime(),
+                                        stats.getDeploymentStats()
+                                            .getNodeStats()
+                                            .stream()
+                                            .map(
+                                                nodeStats -> new AssignmentStats.NodeStats(
+                                                    nodeStats.getNode(),
+                                                    nodeStats.getInferenceCount().orElse(null),
+                                                    nodeStats.getAvgInferenceTime().orElse(null),
+                                                    nodeStats.getAvgInferenceTimeExcludingCacheHit().orElse(null),
+                                                    nodeStats.getLastAccess(),
+                                                    nodeStats.getPendingCount(),
+                                                    nodeStats.getErrorCount(),
+                                                    nodeStats.getCacheHitCount().orElse(null),
+                                                    nodeStats.getRejectedExecutionCount(),
+                                                    nodeStats.getTimeoutCount(),
+                                                    nodeStats.getRoutingState(),
+                                                    nodeStats.getStartTime(),
+                                                    nodeStats.getThreadsPerAllocation(),
+                                                    nodeStats.getNumberOfAllocations(),
+                                                    nodeStats.getPeakThroughput(),
+                                                    nodeStats.getThroughputLastPeriod(),
+                                                    nodeStats.getAvgInferenceTimeLastPeriod(),
+                                                    nodeStats.getCacheHitCountLastPeriod().orElse(null)
+                                                )
                                             )
-                                        )
-                                        .toList(),
-                                    stats.getDeploymentStats().getPriority()
-                                )
+                                            .toList(),
+                                        stats.getDeploymentStats().getPriority()
+                                    )
                             )
                         )
                         .toList(),

@@ -130,6 +130,7 @@ public interface TestClusterConfiguration {
 
     default void waitForConditions(
         LinkedHashMap<String, Predicate<TestClusterConfiguration>> waitConditions,
+        String logsPath,
         long startedAtMillis,
         long nodeUpTimeout,
         TimeUnit nodeUpTimeoutUnit,
@@ -142,7 +143,9 @@ public interface TestClusterConfiguration {
             Throwable lastException = null;
             while (System.currentTimeMillis() - startedAtMillis < TimeUnit.MILLISECONDS.convert(nodeUpTimeout, nodeUpTimeoutUnit)) {
                 if (context.isProcessAlive() == false) {
-                    throw new TestClustersException("process was found dead while waiting for " + description + ", " + this);
+                    throw new TestClustersException(
+                        "process was found dead while waiting for " + description + ", " + this + ". Node logs available at: " + logsPath
+                    );
                 }
 
                 try {

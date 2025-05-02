@@ -421,6 +421,11 @@ public class ElasticsearchNode implements TestClusterConfiguration {
         return configFile.getParent();
     }
 
+    @Internal
+    public Path getLogsDir() {
+        return confPathLogs;
+    }
+
     @Override
     @Input
     public boolean isPreserveDataDir() {
@@ -896,6 +901,7 @@ public class ElasticsearchNode implements TestClusterConfiguration {
             }
         }
         LOGGER.info("Running `{}` in `{}` for {} env: {}", command, workingDir, this, environment);
+        LOGGER.info("In case of node failure, check {} logs available at: {}", this.name, confPathLogs);
         Process esProcess;
         try {
             esProcess = processBuilder.start();
@@ -1621,12 +1627,19 @@ public class ElasticsearchNode implements TestClusterConfiguration {
     }
 
     void waitForAllConditions() {
-        waitForConditions(waitConditions, System.currentTimeMillis(), NODE_UP_TIMEOUT_UNIT.toMillis(NODE_UP_TIMEOUT) +
-        // Installing plugins at config time and loading them when nods start requires additional time we need to
-        // account for
-            ADDITIONAL_CONFIG_TIMEOUT_UNIT.toMillis(
-                ADDITIONAL_CONFIG_TIMEOUT * (plugins.size() + keystoreFiles.size() + keystoreSettings.size() + credentials.size())
-            ), TimeUnit.MILLISECONDS, this);
+        waitForConditions(
+            waitConditions,
+            confPathLogs.toString(),
+            System.currentTimeMillis(),
+            NODE_UP_TIMEOUT_UNIT.toMillis(NODE_UP_TIMEOUT) +
+            // Installing plugins at config time and loading them when nods start requires additional time we need to
+            // account for
+                ADDITIONAL_CONFIG_TIMEOUT_UNIT.toMillis(
+                    ADDITIONAL_CONFIG_TIMEOUT * (plugins.size() + keystoreFiles.size() + keystoreSettings.size() + credentials.size())
+                ),
+            TimeUnit.MILLISECONDS,
+            this
+        );
     }
 
     @Override

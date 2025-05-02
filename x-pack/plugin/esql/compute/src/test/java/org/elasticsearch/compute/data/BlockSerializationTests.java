@@ -391,7 +391,7 @@ public class BlockSerializationTests extends SerializationTestCase {
                     origBlock,
                     TransportVersionUtils.randomVersionBetween(
                         random(),
-                        TransportVersions.AGGREGATE_METRIC_DOUBLE_BLOCK,
+                        TransportVersions.ESQL_AGGREGATE_METRIC_DOUBLE_BLOCK,
                         TransportVersion.current()
                     )
                 )

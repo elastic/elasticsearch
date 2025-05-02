@@ -344,7 +344,8 @@ public interface Block extends Accountable, BlockLoader.Block, Writeable, RefCou
      * This should be paired with {@link #readTypedBlock(BlockStreamInput)}
      */
     static void writeTypedBlock(Block block, StreamOutput out) throws IOException {
-        if (out.getTransportVersion().before(TransportVersions.AGGREGATE_METRIC_DOUBLE_BLOCK)
+        if (out.getTransportVersion().before(TransportVersions.ESQL_AGGREGATE_METRIC_DOUBLE_BLOCK)
+            && out.getTransportVersion().isPatchFrom(TransportVersions.ESQL_AGGREGATE_METRIC_DOUBLE_BLOCK_8_19) == false
             && block instanceof AggregateMetricDoubleBlock aggregateMetricDoubleBlock) {
             block = aggregateMetricDoubleBlock.asCompositeBlock();
         }
@@ -359,7 +360,8 @@ public interface Block extends Accountable, BlockLoader.Block, Writeable, RefCou
     static Block readTypedBlock(BlockStreamInput in) throws IOException {
         ElementType elementType = ElementType.readFrom(in);
         Block block = elementType.reader.readBlock(in);
-        if (in.getTransportVersion().before(TransportVersions.AGGREGATE_METRIC_DOUBLE_BLOCK)
+        if (in.getTransportVersion().before(TransportVersions.ESQL_AGGREGATE_METRIC_DOUBLE_BLOCK)
+            && in.getTransportVersion().isPatchFrom(TransportVersions.ESQL_AGGREGATE_METRIC_DOUBLE_BLOCK_8_19) == false
             && block instanceof CompositeBlock compositeBlock) {
             block = AggregateMetricDoubleBlock.fromCompositeBlock(compositeBlock);
         }

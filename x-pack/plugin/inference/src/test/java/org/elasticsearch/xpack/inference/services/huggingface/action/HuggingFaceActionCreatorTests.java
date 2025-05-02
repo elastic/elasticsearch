@@ -27,6 +27,7 @@ import org.elasticsearch.xpack.inference.external.http.HttpClientManager;
 import org.elasticsearch.xpack.inference.external.http.sender.ChatCompletionInput;
 import org.elasticsearch.xpack.inference.external.http.sender.EmbeddingsInput;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSenderTests;
+import org.elasticsearch.xpack.inference.external.http.sender.Sender;
 import org.elasticsearch.xpack.inference.logging.ThrottlerManager;
 import org.elasticsearch.xpack.inference.services.ServiceComponents;
 import org.elasticsearch.xpack.inference.services.huggingface.completion.HuggingFaceChatCompletionModelTests;
@@ -462,31 +463,13 @@ public class HuggingFaceActionCreatorTests extends ESTestCase {
                 """;
             webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
 
-            var model = HuggingFaceChatCompletionModelTests.createCompletionModel(getUrl(webServer), "secret", "model");
-            var actionCreator = new HuggingFaceActionCreator(sender, createWithEmptySettings(threadPool));
-            var action = actionCreator.create(model);
-
-            PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-            action.execute(new ChatCompletionInput(List.of("Hello"), false), InferenceAction.Request.DEFAULT_TIMEOUT, listener);
+            PlainActionFuture<InferenceServiceResults> listener = createChatCompletionFuture(sender, createWithEmptySettings(threadPool));
 
             var result = listener.actionGet(TIMEOUT);
 
             assertThat(result.asMap(), is(buildExpectationCompletion(List.of("Hello there, how may I assist you today?"))));
 
-            assertThat(webServer.requests(), hasSize(1));
-            assertNull(webServer.requests().get(0).getUri().getQuery());
-            assertThat(
-                webServer.requests().get(0).getHeader(HttpHeaders.CONTENT_TYPE),
-                equalTo(XContentType.JSON.mediaTypeWithoutParameters())
-            );
-            assertThat(webServer.requests().get(0).getHeader(HttpHeaders.AUTHORIZATION), equalTo("Bearer secret"));
-
-            var requestMap = entityAsMap(webServer.requests().get(0).getBody());
-            assertThat(requestMap.size(), is(4));
-            assertThat(requestMap.get("messages"), is(List.of(Map.of("role", "user", "content", "Hello"))));
-            assertThat(requestMap.get("model"), is("model"));
-            assertThat(requestMap.get("n"), is(1));
-            assertThat(requestMap.get("stream"), is(false));
+            assertChatCompletionRequest();
         }
     }
 
@@ -508,15 +491,10 @@ public class HuggingFaceActionCreatorTests extends ESTestCase {
                 """;
             webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
 
-            var model = HuggingFaceChatCompletionModelTests.createCompletionModel(getUrl(webServer), "secret", "model");
-            var actionCreator = new HuggingFaceActionCreator(
+            PlainActionFuture<InferenceServiceResults> listener = createChatCompletionFuture(
                 sender,
                 new ServiceComponents(threadPool, mockThrottlerManager(), settings, TruncatorTests.createTruncator())
             );
-            var action = actionCreator.create(model);
-
-            PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-            action.execute(new ChatCompletionInput(List.of("Hello"), false), InferenceAction.Request.DEFAULT_TIMEOUT, listener);
 
             var thrownException = expectThrows(ElasticsearchException.class, () -> listener.actionGet(TIMEOUT));
             assertThat(
@@ -524,20 +502,34 @@ public class HuggingFaceActionCreatorTests extends ESTestCase {
                 is("Failed to send Hugging Face completion request from inference entity id " + "[id]. Cause: Required [choices]")
             );
 
-            assertThat(webServer.requests(), hasSize(1));
-            assertNull(webServer.requests().get(0).getUri().getQuery());
-            assertThat(
-                webServer.requests().get(0).getHeader(HttpHeaders.CONTENT_TYPE),
-                equalTo(XContentType.JSON.mediaTypeWithoutParameters())
-            );
-            assertThat(webServer.requests().get(0).getHeader(HttpHeaders.AUTHORIZATION), equalTo("Bearer secret"));
-
-            var requestMap = entityAsMap(webServer.requests().get(0).getBody());
-            assertThat(requestMap.size(), is(4));
-            assertThat(requestMap.get("messages"), is(List.of(Map.of("role", "user", "content", "Hello"))));
-            assertThat(requestMap.get("model"), is("model"));
-            assertThat(requestMap.get("n"), is(1));
-            assertThat(requestMap.get("stream"), is(false));
+            assertChatCompletionRequest();
         }
+    }
+
+    private PlainActionFuture<InferenceServiceResults> createChatCompletionFuture(Sender sender, ServiceComponents threadPool) {
+        var model = HuggingFaceChatCompletionModelTests.createCompletionModel(getUrl(webServer), "secret", "model");
+        var actionCreator = new HuggingFaceActionCreator(sender, threadPool);
+        var action = actionCreator.create(model);
+
+        PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
+        action.execute(new ChatCompletionInput(List.of("Hello"), false), InferenceAction.Request.DEFAULT_TIMEOUT, listener);
+        return listener;
+    }
+
+    private void assertChatCompletionRequest() throws IOException {
+        assertThat(webServer.requests(), hasSize(1));
+        assertNull(webServer.requests().get(0).getUri().getQuery());
+        assertThat(
+            webServer.requests().get(0).getHeader(HttpHeaders.CONTENT_TYPE),
+            equalTo(XContentType.JSON.mediaTypeWithoutParameters())
+        );
+        assertThat(webServer.requests().get(0).getHeader(HttpHeaders.AUTHORIZATION), equalTo("Bearer secret"));
+
+        var requestMap = entityAsMap(webServer.requests().get(0).getBody());
+        assertThat(requestMap.size(), is(4));
+        assertThat(requestMap.get("messages"), is(List.of(Map.of("role", "user", "content", "Hello"))));
+        assertThat(requestMap.get("model"), is("model"));
+        assertThat(requestMap.get("n"), is(1));
+        assertThat(requestMap.get("stream"), is(false));
     }
 }

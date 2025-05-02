@@ -166,15 +166,16 @@ public class ExplainDataStreamLifecycleAction {
         public Response(StreamInput in) throws IOException {
             this.indices = in.readCollectionAsList(ExplainIndexDataStreamLifecycle::new);
             this.rolloverConfiguration = in.readOptionalWriteable(RolloverConfiguration::new);
-            if (in.getTransportVersion().between(TransportVersions.V_8_14_0, TransportVersions.INTRODUCE_FAILURES_DEFAULT_RETENTION)) {
-                dataGlobalRetention = in.readOptionalWriteable(DataStreamGlobalRetention::read);
-                failureGlobalRetention = dataGlobalRetention;
-            } else if (in.getTransportVersion().onOrAfter(TransportVersions.INTRODUCE_FAILURES_DEFAULT_RETENTION)) {
+            if (in.getTransportVersion().onOrAfter(TransportVersions.INTRODUCE_FAILURES_DEFAULT_RETENTION)
+                || in.getTransportVersion().isPatchFrom(TransportVersions.INTRODUCE_FAILURES_DEFAULT_RETENTION_BACKPORT_8_19)) {
                 var defaultRetention = in.readOptionalTimeValue();
                 var maxRetention = in.readOptionalTimeValue();
                 var defaultFailuresRetention = in.readOptionalTimeValue();
                 dataGlobalRetention = DataStreamGlobalRetention.create(defaultRetention, maxRetention);
                 failureGlobalRetention = DataStreamGlobalRetention.create(defaultFailuresRetention, maxRetention);
+            } else if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_14_0)) {
+                dataGlobalRetention = in.readOptionalWriteable(DataStreamGlobalRetention::read);
+                failureGlobalRetention = dataGlobalRetention;
             } else {
                 dataGlobalRetention = null;
                 failureGlobalRetention = null;
@@ -208,12 +209,14 @@ public class ExplainDataStreamLifecycleAction {
         public void writeTo(StreamOutput out) throws IOException {
             out.writeCollection(indices);
             out.writeOptionalWriteable(rolloverConfiguration);
-            if (out.getTransportVersion().between(TransportVersions.V_8_14_0, TransportVersions.INTRODUCE_FAILURES_DEFAULT_RETENTION)) {
-                out.writeOptionalWriteable(getDataGlobalRetention());
-            } else if (out.getTransportVersion().onOrAfter(TransportVersions.INTRODUCE_FAILURES_DEFAULT_RETENTION)) {
+            if (out.getTransportVersion().onOrAfter(TransportVersions.INTRODUCE_FAILURES_DEFAULT_RETENTION)
+                || out.getTransportVersion().isPatchFrom(TransportVersions.INTRODUCE_FAILURES_DEFAULT_RETENTION_BACKPORT_8_19)) {
                 out.writeOptionalTimeValue(dataGlobalRetention == null ? null : dataGlobalRetention.defaultRetention());
                 out.writeOptionalTimeValue(dataGlobalRetention == null ? null : dataGlobalRetention.maxRetention());
                 out.writeOptionalTimeValue(failureGlobalRetention == null ? null : failureGlobalRetention.defaultRetention());
+            }
+            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_14_0)) {
+                out.writeOptionalWriteable(getDataGlobalRetention());
             }
         }
 

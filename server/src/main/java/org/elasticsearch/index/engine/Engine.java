@@ -9,6 +9,7 @@
 
 package org.elasticsearch.index.engine;
 
+import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.codecs.perfield.PerFieldKnnVectorsFormat;
 import org.apache.lucene.index.ByteVectorValues;
@@ -450,6 +451,7 @@ public abstract class Engine implements Closeable {
      * is enabled
      */
     protected static final class IndexThrottle {
+        private static final Logger logger = LogManager.getLogger(IndexThrottle.class);
         private final CounterMetric throttleTimeMillisMetric = new CounterMetric();
         private volatile long startOfThrottleNS;
         private static final ReleasableLock NOOP_LOCK = new ReleasableLock(new NoOpLock());
@@ -462,21 +464,19 @@ public abstract class Engine implements Closeable {
 
         public Releasable acquireThrottle() {
             if (lock == pauseLockReference) {
-                System.out.println("acquireThrottle pauseLock");
-                // pauseIndexingLock.lock();
-                lock.acquire();
+                pauseLockReference.acquire();
                 try {
                     while (pauseIndexing.getAcquire()) {
-                        System.out.println("Here");
+                        logger.trace("Waiting on pause indexing lock");
                         pauseCondition.await();
                     }
                 } catch (InterruptedException e) {
                     Thread.currentThread().interrupt();
                     throw new RuntimeException(e);
                 } finally {
-                    lock.close();
+                    logger.trace("Acquired pause indexing lock");
                 }
-                return lock;
+                return pauseLockReference;
             } else {
                 return lock.acquire();
             }
@@ -502,16 +502,16 @@ public abstract class Engine implements Closeable {
             assert lock != NOOP_LOCK : "throttling deactivated but not active";
 
             if (lock == pauseLockReference) {
-                // System.out.println("throttle deactivate: here1");
-                pauseIndexing.setRelease(false);
+                logger.trace("Deactivate index throttling pause");
+
                 // Signal the threads that are waiting on pauseCondition
-                pauseIndexingLock.lock();
+                pauseLockReference.acquire();
                 try {
+                    pauseIndexing.setRelease(false);
                     pauseCondition.signalAll();
                 } finally {
-                    pauseIndexingLock.unlock();
+                    pauseLockReference.close();
                 }
-                // System.out.println("throttle deactivate: here2");
             }
             lock = NOOP_LOCK;
 

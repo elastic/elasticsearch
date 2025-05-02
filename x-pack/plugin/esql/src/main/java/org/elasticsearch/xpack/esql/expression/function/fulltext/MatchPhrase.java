@@ -106,10 +106,12 @@ public class MatchPhrase extends FullTextFunction implements OptionalArgument, P
             MatchPhrase can be used on <<text, text>> fields, as well as other field types like keyword, boolean, or date types.
             MatchPhrase is not supported for <<semantic-text, semantic_text>> or numeric types.
 
-            MatchPhrase can use <<esql-function-named-params,function named parameters>> to specify additional options for the match_phrase query.
+            MatchPhrase can use <<esql-function-named-params,function named parameters>> to specify additional options for the
+            match_phrase query.
             All <<match-phrase-field-params,match_phrase query parameters>> are supported.
 
-            For a simplified syntax, you can use the <<esql-match-phrase-operator,match_phrase operator>> `:` operator instead of `MATCH_PHRASE`.
+            For a simplified syntax, you can use the <<esql-match-phrase-operator,match_phrase operator>> `:` operator instead
+            of `MATCH_PHRASE`.
 
             `MATCH_PHRASE` returns true if the provided query matches the row.""",
         examples = {

@@ -28,7 +28,7 @@ public class MatchPhraseQuery extends Query {
     static {
         BUILDER_APPLIERS = Map.ofEntries(
             entry(ANALYZER_FIELD.getPreferredName(), (qb, s) -> qb.analyzer(s.toString())),
-            entry(SLOP_FIELD.getPreferredName(), (qb, i) -> qb.slop((Integer) i)),
+            entry(SLOP_FIELD.getPreferredName(), (qb, s) -> qb.slop(Integer.parseInt(s.toString()))),
             entry(ZERO_TERMS_QUERY_FIELD.getPreferredName(), (qb, s) -> qb.zeroTermsQuery((String) s))
         );
     }

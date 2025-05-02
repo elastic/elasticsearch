@@ -13,7 +13,6 @@ import org.elasticsearch.common.bytes.ReleasableBytesReference;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.core.Releasable;
-import org.elasticsearch.core.Releasables;
 
 /**
  * An bytes stream output that allows providing a {@link BigArrays} instance
@@ -36,7 +35,11 @@ public class ReleasableBytesStreamOutput extends BytesStreamOutput implements Re
 
     @Override
     public void close() {
-        Releasables.close(bytes);
+        var bytes = this.bytes;
+        if (bytes != null) {
+            this.bytes = null;
+            bytes.close();
+        }
     }
 
     @Override

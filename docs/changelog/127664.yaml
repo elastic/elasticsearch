@@ -1,5 +1,5 @@
 pr: 127664
-summary: Adding support to exclude `semantic_text` subfields
-area: "Mapping, Vector Search, Relevance"
+summary: Exclude `semantic_text` subfields from field capabilities API
+area: "Mapping"
 type: enhancement
 issues: []

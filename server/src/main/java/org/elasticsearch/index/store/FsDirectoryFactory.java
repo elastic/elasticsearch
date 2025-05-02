@@ -28,7 +28,7 @@ import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.StandardIOBehaviorHint;
-import org.elasticsearch.index.codec.vectors.es818.DirectIOIndexInputSupplier;
+import org.elasticsearch.index.codec.vectors.es818.DirectIOHint;
 import org.elasticsearch.index.shard.ShardPath;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
@@ -127,7 +127,7 @@ public class FsDirectoryFactory implements IndexStorePlugin.DirectoryFactory {
         return unwrap instanceof HybridDirectory;
     }
 
-    static final class HybridDirectory extends NIOFSDirectory implements DirectIOIndexInputSupplier {
+    static final class HybridDirectory extends NIOFSDirectory {
         private final MMapDirectory delegate;
         private final DirectIODirectory directIODelegate;
 
@@ -154,7 +154,11 @@ public class FsDirectoryFactory implements IndexStorePlugin.DirectoryFactory {
 
         @Override
         public IndexInput openInput(String name, IOContext context) throws IOException {
-            if (useDelegate(name, context)) {
+            if (directIODelegate != null && context.hints().contains(DirectIOHint.INSTANCE)) {
+                ensureOpen();
+                ensureCanRead(name);
+                return directIODelegate.openInput(name, context);
+            } else if (useDelegate(name, context)) {
                 // we need to do these checks on the outer directory since the inner doesn't know about pending deletes
                 ensureOpen();
                 ensureCanRead(name);
@@ -168,18 +172,6 @@ public class FsDirectoryFactory implements IndexStorePlugin.DirectoryFactory {
             } else {
                 return super.openInput(name, context);
             }
-        }
-
-        @Override
-        public IndexInput openInputDirect(String name, IOContext context) throws IOException {
-            if (directIODelegate == null) {
-                return openInput(name, context);
-            }
-            // we need to do these checks on the outer directory since the inner doesn't know about pending deletes
-            ensureOpen();
-            ensureCanRead(name);
-
-            return directIODelegate.openInput(name, context);
         }
 
         @Override

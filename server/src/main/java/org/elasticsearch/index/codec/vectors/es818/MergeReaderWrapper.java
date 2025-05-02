@@ -11,6 +11,7 @@ package org.elasticsearch.index.codec.vectors.es818;
 
 import org.apache.lucene.codecs.hnsw.FlatVectorsReader;
 import org.apache.lucene.index.ByteVectorValues;
+import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.FloatVectorValues;
 import org.apache.lucene.search.KnnCollector;
 import org.apache.lucene.util.Accountable;
@@ -20,6 +21,7 @@ import org.elasticsearch.core.IOUtils;
 
 import java.io.IOException;
 import java.util.Collection;
+import java.util.Map;
 
 class MergeReaderWrapper extends FlatVectorsReader {
 
@@ -58,6 +60,16 @@ class MergeReaderWrapper extends FlatVectorsReader {
     }
 
     @Override
+    public void search(String field, float[] target, KnnCollector knnCollector, Bits acceptDocs) throws IOException {
+        mainReader.search(field, target, knnCollector, acceptDocs);
+    }
+
+    @Override
+    public void search(String field, byte[] target, KnnCollector knnCollector, Bits acceptDocs) throws IOException {
+        mainReader.search(field, target, knnCollector, acceptDocs);
+    }
+
+    @Override
     public FlatVectorsReader getMergeInstance() {
         return mergeReader;
     }
@@ -73,13 +85,8 @@ class MergeReaderWrapper extends FlatVectorsReader {
     }
 
     @Override
-    public void search(String field, float[] target, KnnCollector knnCollector, Bits acceptDocs) throws IOException {
-        mainReader.search(field, target, knnCollector, acceptDocs);
-    }
-
-    @Override
-    public void search(String field, byte[] target, KnnCollector knnCollector, Bits acceptDocs) throws IOException {
-        mainReader.search(field, target, knnCollector, acceptDocs);
+    public Map<String, Long> getOffHeapByteSize(FieldInfo fieldInfo) {
+        return mainReader.getOffHeapByteSize(fieldInfo);
     }
 
     @Override

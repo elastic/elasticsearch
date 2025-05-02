@@ -1,0 +1,5 @@
+pr: 127626
+summary: Make `GoogleCloudStorageRetryingInputStream` request same generation on resume
+area: Snapshot/Restore
+type: enhancement
+issues: []

@@ -2131,7 +2131,7 @@ public class IngestServiceTests extends ESTestCase {
         // n.b. this 'pipeline' processor will always run the '_id3' pipeline, see the mocking/plumbing above and below
         PutPipelineRequest putRequest2 = putJsonPipelineRequest("_id2", "{\"processors\": [{\"pipeline\" : {}}]}");
         PutPipelineRequest putRequest3 = putJsonPipelineRequest("_id3", "{\"processors\": [{\"mock\" : {}}]}");
-        var projectId = randomProjectIdOrDefault();
+        var projectId = randomProjectIdOrDefault(); // TODO PETE should different pipelines be in different projects?
         ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
             .putProjectMetadata(ProjectMetadata.builder(projectId).build())
             .build();
@@ -2226,7 +2226,7 @@ public class IngestServiceTests extends ESTestCase {
         assertStats(initialStats.totalStats(), 0, 0, 0);
 
         PutPipelineRequest putRequest = putJsonPipelineRequest("_id1", "{\"processors\": [{\"mock\" : {}}]}");
-        var projectId = randomProjectIdOrDefault();
+        var projectId = randomProjectIdOrDefault(); // TODO PETE should different pipelines be in different projects?
         ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
             .putProjectMetadata(ProjectMetadata.builder(projectId).build())
             .build();

@@ -13,7 +13,7 @@ grant {
   // required by: com.google.api.client.json.GenericJson#<init>
   permission java.lang.reflect.ReflectPermission "suppressAccessChecks";
   // required to add google certs to the gcs client trustore
-  permission java.lang.RuntimePermission "setFactory";
+  // permission java.lang.RuntimePermission "setFactory";
 
   // gcs client opens socket connections for to access repository
   permission java.net.SocketPermission "*", "connect";

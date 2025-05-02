@@ -32,7 +32,6 @@ public class HuggingFaceChatCompletionServiceSettingsTests extends AbstractWireS
 
     public static final String MODEL_ID = "some model";
     public static final String CORRECT_URL = "https://www.elastic.co";
-    public static final int INPUT_TOKENS = 8192;
     public static final int RATE_LIMIT = 2;
 
     public void testFromMap_AllFields_Success() {
@@ -43,8 +42,6 @@ public class HuggingFaceChatCompletionServiceSettingsTests extends AbstractWireS
                     MODEL_ID,
                     ServiceFields.URL,
                     CORRECT_URL,
-                    ServiceFields.MAX_INPUT_TOKENS,
-                    INPUT_TOKENS,
                     RateLimitSettings.FIELD_NAME,
                     new HashMap<>(Map.of(RateLimitSettings.REQUESTS_PER_MINUTE_FIELD, RATE_LIMIT))
                 )
@@ -58,35 +55,6 @@ public class HuggingFaceChatCompletionServiceSettingsTests extends AbstractWireS
                 new HuggingFaceChatCompletionServiceSettings(
                     MODEL_ID,
                     ServiceUtils.createUri(CORRECT_URL),
-                    INPUT_TOKENS,
-                    new RateLimitSettings(RATE_LIMIT)
-                )
-            )
-        );
-    }
-
-    public void testFromMap_MissingMaxInputTokens_Success() {
-        var serviceSettings = HuggingFaceChatCompletionServiceSettings.fromMap(
-            new HashMap<>(
-                Map.of(
-                    ServiceFields.MODEL_ID,
-                    MODEL_ID,
-                    ServiceFields.URL,
-                    CORRECT_URL,
-                    RateLimitSettings.FIELD_NAME,
-                    new HashMap<>(Map.of(RateLimitSettings.REQUESTS_PER_MINUTE_FIELD, RATE_LIMIT))
-                )
-            ),
-            ConfigurationParseContext.PERSISTENT
-        );
-
-        assertThat(
-            serviceSettings,
-            is(
-                new HuggingFaceChatCompletionServiceSettings(
-                    MODEL_ID,
-                    ServiceUtils.createUri(CORRECT_URL),
-                    null,
                     new RateLimitSettings(RATE_LIMIT)
                 )
             )
@@ -99,8 +67,6 @@ public class HuggingFaceChatCompletionServiceSettingsTests extends AbstractWireS
                 Map.of(
                     ServiceFields.URL,
                     CORRECT_URL,
-                    ServiceFields.MAX_INPUT_TOKENS,
-                    INPUT_TOKENS,
                     RateLimitSettings.FIELD_NAME,
                     new HashMap<>(Map.of(RateLimitSettings.REQUESTS_PER_MINUTE_FIELD, RATE_LIMIT))
                 )
@@ -110,29 +76,17 @@ public class HuggingFaceChatCompletionServiceSettingsTests extends AbstractWireS
 
         assertThat(
             serviceSettings,
-            is(
-                new HuggingFaceChatCompletionServiceSettings(
-                    null,
-                    ServiceUtils.createUri(CORRECT_URL),
-                    INPUT_TOKENS,
-                    new RateLimitSettings(RATE_LIMIT)
-                )
-            )
+            is(new HuggingFaceChatCompletionServiceSettings(null, ServiceUtils.createUri(CORRECT_URL), new RateLimitSettings(RATE_LIMIT)))
         );
     }
 
     public void testFromMap_MissingRateLimit_Success() {
         var serviceSettings = HuggingFaceChatCompletionServiceSettings.fromMap(
-            new HashMap<>(
-                Map.of(ServiceFields.MODEL_ID, MODEL_ID, ServiceFields.URL, CORRECT_URL, ServiceFields.MAX_INPUT_TOKENS, INPUT_TOKENS)
-            ),
+            new HashMap<>(Map.of(ServiceFields.MODEL_ID, MODEL_ID, ServiceFields.URL, CORRECT_URL)),
             ConfigurationParseContext.PERSISTENT
         );
 
-        assertThat(
-            serviceSettings,
-            is(new HuggingFaceChatCompletionServiceSettings(MODEL_ID, ServiceUtils.createUri(CORRECT_URL), INPUT_TOKENS, null))
-        );
+        assertThat(serviceSettings, is(new HuggingFaceChatCompletionServiceSettings(MODEL_ID, ServiceUtils.createUri(CORRECT_URL), null)));
     }
 
     public void testFromMap_MissingUrl_ThrowsException() {
@@ -143,8 +97,6 @@ public class HuggingFaceChatCompletionServiceSettingsTests extends AbstractWireS
                     Map.of(
                         ServiceFields.MODEL_ID,
                         MODEL_ID,
-                        ServiceFields.MAX_INPUT_TOKENS,
-                        INPUT_TOKENS,
                         RateLimitSettings.FIELD_NAME,
                         new HashMap<>(Map.of(RateLimitSettings.REQUESTS_PER_MINUTE_FIELD, RATE_LIMIT))
                     )
@@ -171,8 +123,6 @@ public class HuggingFaceChatCompletionServiceSettingsTests extends AbstractWireS
                         MODEL_ID,
                         ServiceFields.URL,
                         "",
-                        ServiceFields.MAX_INPUT_TOKENS,
-                        INPUT_TOKENS,
                         RateLimitSettings.FIELD_NAME,
                         new HashMap<>(Map.of(RateLimitSettings.REQUESTS_PER_MINUTE_FIELD, RATE_LIMIT))
                     )
@@ -203,8 +153,6 @@ public class HuggingFaceChatCompletionServiceSettingsTests extends AbstractWireS
                         MODEL_ID,
                         ServiceFields.URL,
                         invalidUrl,
-                        ServiceFields.MAX_INPUT_TOKENS,
-                        INPUT_TOKENS,
                         RateLimitSettings.FIELD_NAME,
                         new HashMap<>(Map.of(RateLimitSettings.REQUESTS_PER_MINUTE_FIELD, RATE_LIMIT))
                     )
@@ -233,8 +181,6 @@ public class HuggingFaceChatCompletionServiceSettingsTests extends AbstractWireS
                     MODEL_ID,
                     ServiceFields.URL,
                     CORRECT_URL,
-                    ServiceFields.MAX_INPUT_TOKENS,
-                    INPUT_TOKENS,
                     RateLimitSettings.FIELD_NAME,
                     new HashMap<>(Map.of(RateLimitSettings.REQUESTS_PER_MINUTE_FIELD, RATE_LIMIT))
                 )
@@ -247,7 +193,7 @@ public class HuggingFaceChatCompletionServiceSettingsTests extends AbstractWireS
         String xContentResult = Strings.toString(builder);
 
         assertThat(xContentResult, is("""
-            {"model_id":"some model","url":"https://www.elastic.co","max_input_tokens":8192,"rate_limit":{"requests_per_minute":2}}"""));
+            {"model_id":"some model","url":"https://www.elastic.co","rate_limit":{"requests_per_minute":2}}"""));
     }
 
     public void testToXContent_DoesNotWriteOptionalValues_DefaultRateLimit() throws IOException {
@@ -286,14 +232,8 @@ public class HuggingFaceChatCompletionServiceSettingsTests extends AbstractWireS
 
     private static HuggingFaceChatCompletionServiceSettings createRandom(String url) {
         var modelId = randomAlphaOfLength(8);
-        var maxInputTokens = randomFrom(randomIntBetween(128, 4096), null);
 
-        return new HuggingFaceChatCompletionServiceSettings(
-            modelId,
-            ServiceUtils.createUri(url),
-            maxInputTokens,
-            RateLimitSettingsTests.createRandom()
-        );
+        return new HuggingFaceChatCompletionServiceSettings(modelId, ServiceUtils.createUri(url), RateLimitSettingsTests.createRandom());
     }
 
     public static Map<String, Object> getServiceSettingsMap(String url, String model) {

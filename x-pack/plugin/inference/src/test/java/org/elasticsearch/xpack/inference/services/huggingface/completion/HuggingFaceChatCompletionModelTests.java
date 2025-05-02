@@ -30,7 +30,7 @@ public class HuggingFaceChatCompletionModelTests extends ESTestCase {
             "id",
             TaskType.COMPLETION,
             "service",
-            new HuggingFaceChatCompletionServiceSettings(modelId, url, null, null),
+            new HuggingFaceChatCompletionServiceSettings(modelId, url, null),
             new DefaultSecretSettings(new SecureString(apiKey.toCharArray()))
         );
     }
@@ -40,7 +40,7 @@ public class HuggingFaceChatCompletionModelTests extends ESTestCase {
             "id",
             TaskType.CHAT_COMPLETION,
             "service",
-            new HuggingFaceChatCompletionServiceSettings(modelId, url, null, null),
+            new HuggingFaceChatCompletionServiceSettings(modelId, url, null),
             new DefaultSecretSettings(new SecureString(apiKey.toCharArray()))
         );
     }

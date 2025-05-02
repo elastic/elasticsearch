@@ -27,11 +27,9 @@ import java.net.URI;
 import java.util.Map;
 import java.util.Objects;
 
-import static org.elasticsearch.xpack.inference.services.ServiceFields.MAX_INPUT_TOKENS;
 import static org.elasticsearch.xpack.inference.services.ServiceFields.MODEL_ID;
 import static org.elasticsearch.xpack.inference.services.ServiceFields.URL;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.createUri;
-import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalPositiveInteger;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalString;
 import static org.elasticsearch.xpack.inference.services.huggingface.HuggingFaceServiceSettings.extractUri;
 
@@ -65,13 +63,6 @@ public class HuggingFaceChatCompletionServiceSettings extends FilteredXContentOb
 
         var uri = extractUri(map, URL, validationException);
 
-        Integer maxInputTokens = extractOptionalPositiveInteger(
-            map,
-            MAX_INPUT_TOKENS,
-            ModelConfigurations.SERVICE_SETTINGS,
-            validationException
-        );
-
         RateLimitSettings rateLimitSettings = RateLimitSettings.of(
             map,
             DEFAULT_RATE_LIMIT_SETTINGS,
@@ -83,32 +74,20 @@ public class HuggingFaceChatCompletionServiceSettings extends FilteredXContentOb
         if (validationException.validationErrors().isEmpty() == false) {
             throw validationException;
         }
-        return new HuggingFaceChatCompletionServiceSettings(modelId, uri, maxInputTokens, rateLimitSettings);
+        return new HuggingFaceChatCompletionServiceSettings(modelId, uri, rateLimitSettings);
     }
 
     private final String modelId;
     private final URI uri;
-    private final Integer maxInputTokens;
     private final RateLimitSettings rateLimitSettings;
 
-    public HuggingFaceChatCompletionServiceSettings(
-        @Nullable String modelId,
-        String url,
-        @Nullable Integer maxInputTokens,
-        @Nullable RateLimitSettings rateLimitSettings
-    ) {
-        this(modelId, createUri(url), maxInputTokens, rateLimitSettings);
+    public HuggingFaceChatCompletionServiceSettings(@Nullable String modelId, String url, @Nullable RateLimitSettings rateLimitSettings) {
+        this(modelId, createUri(url), rateLimitSettings);
     }
 
-    public HuggingFaceChatCompletionServiceSettings(
-        @Nullable String modelId,
-        URI uri,
-        @Nullable Integer maxInputTokens,
-        @Nullable RateLimitSettings rateLimitSettings
-    ) {
+    public HuggingFaceChatCompletionServiceSettings(@Nullable String modelId, URI uri, @Nullable RateLimitSettings rateLimitSettings) {
         this.modelId = modelId;
         this.uri = uri;
-        this.maxInputTokens = maxInputTokens;
         this.rateLimitSettings = Objects.requireNonNullElse(rateLimitSettings, DEFAULT_RATE_LIMIT_SETTINGS);
     }
 
@@ -120,7 +99,6 @@ public class HuggingFaceChatCompletionServiceSettings extends FilteredXContentOb
     public HuggingFaceChatCompletionServiceSettings(StreamInput in) throws IOException {
         this.modelId = in.readOptionalString();
         this.uri = createUri(in.readString());
-        this.maxInputTokens = in.readOptionalVInt();
 
         if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_15_0)) {
             this.rateLimitSettings = new RateLimitSettings(in);
@@ -137,10 +115,6 @@ public class HuggingFaceChatCompletionServiceSettings extends FilteredXContentOb
     @Override
     public URI uri() {
         return uri;
-    }
-
-    public Integer maxInputTokens() {
-        return maxInputTokens;
     }
 
     @Override
@@ -163,9 +137,6 @@ public class HuggingFaceChatCompletionServiceSettings extends FilteredXContentOb
             builder.field(MODEL_ID, modelId);
         }
         builder.field(URL, uri.toString());
-        if (maxInputTokens != null) {
-            builder.field(MAX_INPUT_TOKENS, maxInputTokens);
-        }
         rateLimitSettings.toXContent(builder, params);
 
         return builder;
@@ -185,7 +156,6 @@ public class HuggingFaceChatCompletionServiceSettings extends FilteredXContentOb
     public void writeTo(StreamOutput out) throws IOException {
         out.writeOptionalString(modelId);
         out.writeString(uri.toString());
-        out.writeOptionalVInt(maxInputTokens);
         rateLimitSettings.writeTo(out);
     }
 
@@ -196,13 +166,12 @@ public class HuggingFaceChatCompletionServiceSettings extends FilteredXContentOb
         HuggingFaceChatCompletionServiceSettings that = (HuggingFaceChatCompletionServiceSettings) object;
         return Objects.equals(modelId, that.modelId)
             && Objects.equals(uri, that.uri)
-            && Objects.equals(maxInputTokens, that.maxInputTokens)
             && Objects.equals(rateLimitSettings, that.rateLimitSettings);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(modelId, uri, maxInputTokens, rateLimitSettings);
+        return Objects.hash(modelId, uri, rateLimitSettings);
     }
 
 }

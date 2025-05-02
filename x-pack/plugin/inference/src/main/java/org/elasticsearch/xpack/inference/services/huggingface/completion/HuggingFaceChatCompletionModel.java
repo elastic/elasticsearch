@@ -36,7 +36,6 @@ public class HuggingFaceChatCompletionModel extends HuggingFaceModel {
         var overriddenServiceSettings = new HuggingFaceChatCompletionServiceSettings(
             request.model() != null ? request.model() : originalModelServiceSettings.modelId(),
             originalModelServiceSettings.uri(),
-            originalModelServiceSettings.maxInputTokens(),
             originalModelServiceSettings.rateLimitSettings()
         );
 
@@ -98,6 +97,6 @@ public class HuggingFaceChatCompletionModel extends HuggingFaceModel {
 
     @Override
     public Integer getTokenLimit() {
-        return getServiceSettings().maxInputTokens();
+        throw new UnsupportedOperationException("Token Limit for chat completion is sent in request and not retrieved from the model");
     }
 }

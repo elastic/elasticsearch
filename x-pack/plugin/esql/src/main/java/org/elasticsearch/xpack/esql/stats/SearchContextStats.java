@@ -338,6 +338,8 @@ public class SearchContextStats implements SearchStats {
                 } else if (thisVal.equals(val) == false) {
                     return null;
                 }
+            } else {
+                return null;
             }
         }
         return val;

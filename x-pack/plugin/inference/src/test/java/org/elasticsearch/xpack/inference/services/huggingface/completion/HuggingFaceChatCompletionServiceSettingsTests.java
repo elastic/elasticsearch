@@ -7,13 +7,14 @@
 
 package org.elasticsearch.xpack.inference.services.huggingface.completion;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xpack.core.ml.AbstractBWCWireSerializationTestCase;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.ServiceFields;
 import org.elasticsearch.xpack.inference.services.ServiceUtils;
@@ -27,7 +28,7 @@ import java.util.Map;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
 
-public class HuggingFaceChatCompletionServiceSettingsTests extends AbstractWireSerializingTestCase<
+public class HuggingFaceChatCompletionServiceSettingsTests extends AbstractBWCWireSerializationTestCase<
     HuggingFaceChatCompletionServiceSettings> {
 
     public static final String MODEL_ID = "some model";
@@ -224,6 +225,14 @@ public class HuggingFaceChatCompletionServiceSettingsTests extends AbstractWireS
     protected HuggingFaceChatCompletionServiceSettings mutateInstance(HuggingFaceChatCompletionServiceSettings instance)
         throws IOException {
         return randomValueOtherThan(instance, HuggingFaceChatCompletionServiceSettingsTests::createRandomWithNonNullUrl);
+    }
+
+    @Override
+    protected HuggingFaceChatCompletionServiceSettings mutateInstanceForVersion(
+        HuggingFaceChatCompletionServiceSettings instance,
+        TransportVersion version
+    ) {
+        return instance;
     }
 
     private static HuggingFaceChatCompletionServiceSettings createRandomWithNonNullUrl() {

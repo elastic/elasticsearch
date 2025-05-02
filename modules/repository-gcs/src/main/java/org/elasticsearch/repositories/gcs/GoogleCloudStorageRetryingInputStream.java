@@ -158,8 +158,6 @@ class GoogleCloudStorageRetryingInputStream extends InputStream {
                 assert false : "Unexpected value for x-goog-generation header: " + generationHeader;
                 return null;
             }
-        } else {
-            assert false : "X-Goog-Generation header was missing?";
         }
         return null;
     }

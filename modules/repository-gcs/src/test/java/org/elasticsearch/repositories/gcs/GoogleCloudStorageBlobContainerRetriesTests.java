@@ -605,7 +605,12 @@ public class GoogleCloudStorageBlobContainerRetriesTests extends AbstractBlobCon
             String message = assertThrows(NoSuchFileException.class, () -> readFully(inputStream)).getMessage();
             assertThat(
                 message,
-                startsWith("Blob object [" + key + "] generation [1] unavailable on resume (contents changed, or object deleted):")
+                startsWith(
+                    "Blob object ["
+                        + container.path().buildAsString()
+                        + key
+                        + "] generation [1] unavailable on resume (contents changed, or object deleted):"
+                )
             );
         }
     }

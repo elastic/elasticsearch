@@ -34,16 +34,16 @@ public class TextFormatterTests extends ESTestCase {
     static BlockFactory blockFactory = TestBlockFactory.getNonBreakingInstance();
 
     private final List<ColumnInfoImpl> columns = Arrays.asList(
-        new ColumnInfoImpl("foo", "keyword"),
-        new ColumnInfoImpl("bar", "long"),
-        new ColumnInfoImpl("15charwidename!", "double"),
-        new ColumnInfoImpl("null_field1", "integer"),
-        new ColumnInfoImpl("superduperwidename!!!", "double"),
-        new ColumnInfoImpl("baz", "keyword"),
-        new ColumnInfoImpl("date", "date"),
-        new ColumnInfoImpl("location", "geo_point"),
-        new ColumnInfoImpl("location2", "cartesian_point"),
-        new ColumnInfoImpl("null_field2", "keyword")
+        new ColumnInfoImpl("foo", "keyword", null),
+        new ColumnInfoImpl("bar", "long", null),
+        new ColumnInfoImpl("15charwidename!", "double", null),
+        new ColumnInfoImpl("null_field1", "integer", null),
+        new ColumnInfoImpl("superduperwidename!!!", "double", null),
+        new ColumnInfoImpl("baz", "keyword", null),
+        new ColumnInfoImpl("date", "date", null),
+        new ColumnInfoImpl("location", "geo_point", null),
+        new ColumnInfoImpl("location2", "cartesian_point", null),
+        new ColumnInfoImpl("null_field2", "keyword", null)
     );
 
     private static final BytesRefArray geoPoints = new BytesRefArray(2, BigArrays.NON_RECYCLING_INSTANCE);
@@ -213,7 +213,7 @@ public class TextFormatterTests extends ESTestCase {
             getTextBodyContent(
                 new TextFormatter(
                     new EsqlQueryResponse(
-                        List.of(new ColumnInfoImpl("foo", "keyword")),
+                        List.of(new ColumnInfoImpl("foo", "keyword", null)),
                         List.of(
                             new Page(
                                 blockFactory.newBytesRefBlockBuilder(2)

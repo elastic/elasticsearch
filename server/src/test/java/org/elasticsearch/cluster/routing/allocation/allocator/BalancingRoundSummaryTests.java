@@ -27,8 +27,8 @@ public class BalancingRoundSummaryTests extends ESTestCase {
         final var node1BaseWeights = new DesiredBalanceMetrics.NodeWeightStats(10, 20, 30, 40);
         final var node2BaseWeights = new DesiredBalanceMetrics.NodeWeightStats(100, 200, 300, 400);
         final var commonDiff = new BalancingRoundSummary.NodeWeightsDiff(1, 2, 3, 4);
-        final long shardMovesSummary1 = 50;
-        final long shardMovesSummary2 = 150;
+        final var shardMoveCounts1 = new DesiredBalance.ShardMoveCounts(50, 4, 6, 10);
+        final var shardMoveCounts2 = new DesiredBalance.ShardMoveCounts(150, 6, 6, 0);
 
         // Set up a summaries list with two summary entries for a two node cluster
         List<BalancingRoundSummary> summaries = new ArrayList<>();
@@ -40,7 +40,12 @@ public class BalancingRoundSummaryTests extends ESTestCase {
                     NODE_2,
                     new BalancingRoundSummary.NodesWeightsChanges(node2BaseWeights, commonDiff)
                 ),
-                shardMovesSummary1
+                shardMoveCounts1.movements(),
+                shardMoveCounts1.newlyAssigned(),
+                0,
+                0,
+                shardMoveCounts1.newlyUnassigned(),
+                shardMoveCounts1.shutdownInducedMoves()
             )
         );
         summaries.add(
@@ -69,7 +74,12 @@ public class BalancingRoundSummaryTests extends ESTestCase {
                         commonDiff
                     )
                 ),
-                shardMovesSummary2
+                shardMoveCounts2.movements(),
+                shardMoveCounts2.newlyAssigned(),
+                0,
+                0,
+                shardMoveCounts2.newlyUnassigned(),
+                shardMoveCounts2.shutdownInducedMoves()
             )
         );
 
@@ -77,7 +87,13 @@ public class BalancingRoundSummaryTests extends ESTestCase {
         CombinedBalancingRoundSummary combined = BalancingRoundSummary.CombinedBalancingRoundSummary.combine(summaries);
 
         assertEquals(2, combined.numberOfBalancingRounds());
-        assertEquals(shardMovesSummary1 + shardMovesSummary2, combined.numberOfShardMoves());
+        assertEquals(shardMoveCounts1.movements() + shardMoveCounts2.movements(), combined.numberOfShardMoves());
+        assertEquals(shardMoveCounts1.newlyAssigned() + shardMoveCounts2.newlyAssigned(), combined.numNewlyAssignedShards());
+        assertEquals(shardMoveCounts1.newlyUnassigned() + shardMoveCounts2.newlyUnassigned(), combined.numNewlyUnassignedShards());
+        assertEquals(
+            shardMoveCounts1.shutdownInducedMoves() + shardMoveCounts2.shutdownInducedMoves(),
+            combined.numShuttingDownMovedShards()
+        );
         assertEquals(2, combined.nodeNameToWeightChanges().size());
 
         var combinedNode1WeightsChanges = combined.nodeNameToWeightChanges().get(NODE_1);

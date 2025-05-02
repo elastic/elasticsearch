@@ -99,6 +99,10 @@ public class DesiredBalanceComputer {
         Queue<List<MoveAllocationCommand>> pendingDesiredBalanceMoves,
         Predicate<DesiredBalanceInput> isFresh
     ) {
+        // TODO NOMERGE: can I find out which shards must move beforehand?
+        // Ans: no, I don't think so.
+        // Not all shards that cannot remain need to be moved off to satisfy disk threshold, for example.
+
         numComputeCallsSinceLastConverged += 1;
         if (logger.isTraceEnabled()) {
             logger.trace(
@@ -113,19 +117,20 @@ public class DesiredBalanceComputer {
             logger.debug("Recomputing desired balance for [{}]", desiredBalanceInput.index());
         }
 
-        final var routingAllocation = desiredBalanceInput.routingAllocation().mutableCloneForSimulation();
-        final var routingNodes = routingAllocation.routingNodes();
+        final var mutableRoutingAllocation = desiredBalanceInput.routingAllocation().mutableCloneForSimulation();
+        final var routingNodes = mutableRoutingAllocation.routingNodes();
         final var knownNodeIds = routingNodes.getAllNodeIds();
-        final var changes = routingAllocation.changes();
+        final var changes = mutableRoutingAllocation.changes();
         final var ignoredShards = getIgnoredShardsWithDiscardedAllocationStatus(desiredBalanceInput.ignoredShards());
-        final var clusterInfoSimulator = new ClusterInfoSimulator(routingAllocation);
+        final var clusterInfoSimulator = new ClusterInfoSimulator(mutableRoutingAllocation);
         DesiredBalance.ComputationFinishReason finishReason = DesiredBalance.ComputationFinishReason.CONVERGED;
 
         if (routingNodes.size() == 0) {
             return new DesiredBalance(desiredBalanceInput.index(), Map.of(), Map.of(), finishReason);
         }
 
-        // we assume that all ongoing recoveries will complete
+        // Change any intializing shards to started, in our routing table copy.
+        // We presume that all ongoing recoveries will complete.
         for (final var routingNode : routingNodes) {
             for (final var shardRouting : routingNode) {
                 if (shardRouting.initializing()) {
@@ -162,6 +167,7 @@ public class DesiredBalanceComputer {
             shardRoutings.computeIfAbsent(assigned.getKey(), ShardRoutings::new).assigned().addAll(assigned.getValue());
         }
 
+        // Go through each ShardId's unassigned and assigned shard copies
         // we can assume that all possible shards will be allocated/relocated to one of their desired locations
         final var unassignedShardsToInitialize = new HashMap<ShardRouting, LinkedList<String>>();
         for (final var entry : shardRoutings.entrySet()) {
@@ -170,20 +176,24 @@ public class DesiredBalanceComputer {
 
             // treemap (keyed by node ID) so that we are consistent about the order of future relocations
             final var shardsToRelocate = new TreeMap<String, ShardRouting>();
-            final var assignment = previousDesiredBalance.getAssignment(shardId);
+            final var originalShardAssignment = previousDesiredBalance.getAssignment(shardId);
 
             // treeset (ordered by node ID) so that we are consistent about the order of future relocations
-            final var targetNodes = assignment != null ? new TreeSet<>(assignment.nodeIds()) : new TreeSet<String>();
-            targetNodes.retainAll(knownNodeIds);
+            final var targetNodes = originalShardAssignment != null
+                ? new TreeSet<>(originalShardAssignment.nodeIds())
+                : new TreeSet<String>();
+            targetNodes.retainAll(knownNodeIds); // Filter out any nodes that have been removed from the cluster.
 
-            // preserving last known shard location as a starting point to avoid unnecessary relocations
+            // Avoid unnecessary relocations by preserving last known shard location as a starting assignment option.
             for (ShardRouting shardRouting : routings.unassigned()) {
                 var lastAllocatedNodeId = shardRouting.unassignedInfo().lastAllocatedNodeId();
+                // If the last attempt was on a node that is still part of the cluster, add the node as an eligible target.
                 if (knownNodeIds.contains(lastAllocatedNodeId)) {
                     targetNodes.add(lastAllocatedNodeId);
                 }
             }
 
+            // Remove any node from targetNodes that already owns a shard copy, so we're left with targetNodes that can receive a copy.
             for (final var shardRouting : routings.assigned()) {
                 assert shardRouting.started();
                 if (targetNodes.remove(shardRouting.currentNodeId()) == false) {
@@ -204,8 +214,8 @@ public class DesiredBalanceComputer {
                     final var targetNodeId = targetNodesIterator.next();
                     final var targetNode = routingNodes.node(targetNodeId);
                     if (targetNode != null
-                        && routingAllocation.deciders()
-                            .canAllocate(shardRouting, targetNode, routingAllocation)
+                        && mutableRoutingAllocation.deciders()
+                            .canAllocate(shardRouting, targetNode, mutableRoutingAllocation)
                             .type() != Decision.Type.NO) {
                         final var shardToRelocate = routingNodes.relocateShard(shardRouting, targetNodeId, 0L, "computation", changes).v2();
                         clusterInfoSimulator.simulateShardStarted(shardToRelocate);
@@ -235,8 +245,8 @@ public class DesiredBalanceComputer {
                     final var nodeId = nodeIds.removeFirst();
                     final var routingNode = routingNodes.node(nodeId);
                     if (routingNode != null
-                        && routingAllocation.deciders()
-                            .canAllocate(shardRouting, routingNode, routingAllocation)
+                        && mutableRoutingAllocation.deciders()
+                            .canAllocate(shardRouting, routingNode, mutableRoutingAllocation)
                             .type() != Decision.Type.NO) {
                         final var shardToInitialize = unassignedPrimaryIterator.initialize(nodeId, null, 0L, changes);
                         clusterInfoSimulator.simulateShardStarted(shardToInitialize);
@@ -255,8 +265,8 @@ public class DesiredBalanceComputer {
                     final var nodeId = nodeIds.removeFirst();
                     final var routingNode = routingNodes.node(nodeId);
                     if (routingNode != null
-                        && routingAllocation.deciders()
-                            .canAllocate(shardRouting, routingNode, routingAllocation)
+                        && mutableRoutingAllocation.deciders()
+                            .canAllocate(shardRouting, routingNode, mutableRoutingAllocation)
                             .type() != Decision.Type.NO) {
                         final var shardToInitialize = unassignedReplicaIterator.initialize(nodeId, null, 0L, changes);
                         clusterInfoSimulator.simulateShardStarted(shardToInitialize);
@@ -270,7 +280,7 @@ public class DesiredBalanceComputer {
         while ((commands = pendingDesiredBalanceMoves.poll()) != null) {
             for (MoveAllocationCommand command : commands) {
                 try {
-                    command.execute(routingAllocation, false);
+                    command.execute(mutableRoutingAllocation, false);
                 } catch (RuntimeException e) {
                     logger.debug(
                         () -> "move shard ["
@@ -284,7 +294,7 @@ public class DesiredBalanceComputer {
             }
         }
 
-        final int iterationCountReportInterval = computeIterationCountReportInterval(routingAllocation);
+        final int iterationCountReportInterval = computeIterationCountReportInterval(mutableRoutingAllocation);
         final long timeWarningInterval = progressLogInterval.millis();
         final long computationStartedTime = timeProvider.relativeTimeInMillis();
         long nextReportTime = Math.max(lastNotConvergedLogMessageTimeMillis, lastConvergedTimeMillis) + timeWarningInterval;
@@ -307,9 +317,9 @@ public class DesiredBalanceComputer {
                 }
             }
 
-            routingAllocation.setSimulatedClusterInfo(clusterInfoSimulator.getClusterInfo());
+            mutableRoutingAllocation.setSimulatedClusterInfo(clusterInfoSimulator.getClusterInfo());
             logger.trace("running delegate allocator");
-            delegateAllocator.allocate(routingAllocation);
+            delegateAllocator.allocate(mutableRoutingAllocation);
             assert routingNodes.unassigned().isEmpty(); // any unassigned shards should now be ignored
 
             hasChanges = false;

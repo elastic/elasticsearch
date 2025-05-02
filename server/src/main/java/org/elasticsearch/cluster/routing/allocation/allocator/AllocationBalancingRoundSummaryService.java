@@ -89,9 +89,15 @@ public class AllocationBalancingRoundSummaryService {
      * Summarizes the work required to move from an old to new desired balance shard allocation.
      */
     public static BalancingRoundSummary createBalancerRoundSummary(DesiredBalance oldDesiredBalance, DesiredBalance newDesiredBalance) {
+        var changes = DesiredBalance.shardAssignmentChanges(oldDesiredBalance, newDesiredBalance);
         return new BalancingRoundSummary(
             createWeightsSummary(oldDesiredBalance, newDesiredBalance),
-            DesiredBalance.shardMovements(oldDesiredBalance, newDesiredBalance)
+            changes.movements(),
+            changes.newlyAssigned(),
+            0, // TODO: WIP ES-10341
+            0, // TODO: WIP ES-10341
+            changes.newlyUnassigned(),
+            changes.shutdownInducedMoves()
         );
     }
 
@@ -258,7 +264,7 @@ public class AllocationBalancingRoundSummaryService {
     }
 
     /**
-     * Checks that the number of entries in {@link #summaries} matches the given {@code numberOfSummaries}.
+     * Checks that the number of entries in {@link #summaries} matches the given {@code numberOfSummaries} count.
      */
     protected void verifyNumberOfSummaries(int numberOfSummaries) {
         assert numberOfSummaries == summaries.size();

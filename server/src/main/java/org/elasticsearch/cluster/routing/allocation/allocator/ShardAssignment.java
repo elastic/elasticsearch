@@ -47,4 +47,9 @@ public record ShardAssignment(Set<String> nodeIds, int total, int unassigned, in
         }
         return new ShardAssignment(unmodifiableSet(nodeIds), routings.size(), 0, 0);
     }
+
+    @Override
+    public String toString() {
+        return "ShardAssignment{" + "nodeIds=" + nodeIds + ", total=" + total + ", unassigned=" + unassigned + ", ignored=" + ignored + '}';
+    }
 }

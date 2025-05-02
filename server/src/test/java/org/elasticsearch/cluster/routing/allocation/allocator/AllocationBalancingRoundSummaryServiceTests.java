@@ -93,7 +93,7 @@ public class AllocationBalancingRoundSummaryServiceTests extends ESTestCase {
              * Add a summary and check it is not logged.
              */
 
-            service.addBalancerRoundSummary(new BalancingRoundSummary(NODE_NAME_TO_WEIGHT_CHANGES, 50));
+            service.addBalancerRoundSummary(new BalancingRoundSummary(NODE_NAME_TO_WEIGHT_CHANGES, 50, 5, 0, 0, 6, 2));
             service.verifyNumberOfSummaries(0); // when summaries are disabled, summaries are not retained when added.
             mockLog.addExpectation(
                 new MockLog.UnseenEventExpectation(
@@ -118,10 +118,10 @@ public class AllocationBalancingRoundSummaryServiceTests extends ESTestCase {
 
         try (var mockLog = MockLog.capture(AllocationBalancingRoundSummaryService.class)) {
             /**
-             * Add a summary and check the service logs a report on it.
+             * Add a summary and check the service logs report on it.
              */
 
-            service.addBalancerRoundSummary(new BalancingRoundSummary(NODE_NAME_TO_WEIGHT_CHANGES, 50));
+            service.addBalancerRoundSummary(new BalancingRoundSummary(NODE_NAME_TO_WEIGHT_CHANGES, 50, 3, 0, 0, 2, 0));
             service.verifyNumberOfSummaries(1);
             mockLog.addExpectation(
                 new MockLog.SeenEventExpectation(
@@ -141,7 +141,7 @@ public class AllocationBalancingRoundSummaryServiceTests extends ESTestCase {
              * Add a second summary, check for more logging.
              */
 
-            service.addBalancerRoundSummary(new BalancingRoundSummary(NODE_NAME_TO_WEIGHT_CHANGES, 200));
+            service.addBalancerRoundSummary(new BalancingRoundSummary(NODE_NAME_TO_WEIGHT_CHANGES, 200, 9, 0, 0, 0, 0));
             service.verifyNumberOfSummaries(1);
             mockLog.addExpectation(
                 new MockLog.SeenEventExpectation(
@@ -166,8 +166,8 @@ public class AllocationBalancingRoundSummaryServiceTests extends ESTestCase {
         var service = new AllocationBalancingRoundSummaryService(testThreadPool, enabledClusterSettings);
 
         try (var mockLog = MockLog.capture(AllocationBalancingRoundSummaryService.class)) {
-            service.addBalancerRoundSummary(new BalancingRoundSummary(NODE_NAME_TO_WEIGHT_CHANGES, 50));
-            service.addBalancerRoundSummary(new BalancingRoundSummary(NODE_NAME_TO_WEIGHT_CHANGES, 100));
+            service.addBalancerRoundSummary(new BalancingRoundSummary(NODE_NAME_TO_WEIGHT_CHANGES, 50, 0, 0, 0, 0, 0));
+            service.addBalancerRoundSummary(new BalancingRoundSummary(NODE_NAME_TO_WEIGHT_CHANGES, 100, 0, 0, 0, 0, 0));
             service.verifyNumberOfSummaries(2);
             mockLog.addExpectation(
                 new MockLog.SeenEventExpectation(
@@ -196,7 +196,7 @@ public class AllocationBalancingRoundSummaryServiceTests extends ESTestCase {
              * First add some summaries to report, ensuring that the logging is active.
              */
 
-            service.addBalancerRoundSummary(new BalancingRoundSummary(NODE_NAME_TO_WEIGHT_CHANGES, 50));
+            service.addBalancerRoundSummary(new BalancingRoundSummary(NODE_NAME_TO_WEIGHT_CHANGES, 50, 0, 0, 0, 0, 0));
             service.verifyNumberOfSummaries(1);
             mockLog.addExpectation(
                 new MockLog.SeenEventExpectation(
@@ -249,7 +249,7 @@ public class AllocationBalancingRoundSummaryServiceTests extends ESTestCase {
              * summaries waiting to be reported.
              */
 
-            service.addBalancerRoundSummary(new BalancingRoundSummary(NODE_NAME_TO_WEIGHT_CHANGES, 50));
+            service.addBalancerRoundSummary(new BalancingRoundSummary(NODE_NAME_TO_WEIGHT_CHANGES, 50, 0, 0, 0, 0, 0));
             service.verifyNumberOfSummaries(1);
 
             clusterSettings.applySettings(disabledSettingsUpdate);
@@ -259,7 +259,7 @@ public class AllocationBalancingRoundSummaryServiceTests extends ESTestCase {
              * Verify that any additional summaries are not retained, since the service is disabled.
              */
 
-            service.addBalancerRoundSummary(new BalancingRoundSummary(NODE_NAME_TO_WEIGHT_CHANGES, 50));
+            service.addBalancerRoundSummary(new BalancingRoundSummary(NODE_NAME_TO_WEIGHT_CHANGES, 50, 0, 0, 0, 0, 0));
             service.verifyNumberOfSummaries(0);
 
             // Check that the service never logged anything.

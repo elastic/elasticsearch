@@ -19,9 +19,24 @@ import java.util.Map;
  * @param nodeNameToWeightChanges The shard balance weight changes for each node (by name), comparing a previous DesiredBalance shard
  *                                allocation to a new DesiredBalance allocation.
  * @param numberOfShardsToMove The number of shard moves required to move from the previous desired balance to the new one. Does not include
- *                             new (index creation) or removed (index deletion) shard assignements.
+ *                             newly assigned or unassigned shard copies.
+ * @param numNewlyAssignedShards The number of shard copies that are newly assigned to a data node, not moving from another node. New
+ *                               assignment is typically the result of creating an index or increasing the replica count.
+ * @param numDeciderMovedShards TODO
+ * @param numBalancingMovedShards TODO
+ * @param numNewlyUnassignedShards The number of shard copies that are newly assigned. Unassignment could occur from deletion of an index or
+ *                                 unexpected loss of a data node (and failure to reassign elsewhere).
+ * @param numShuttingDownMovedShards A subset of {@link #numberOfShardsToMove} to surface the shard allocation cost of shutting down nodes.
  */
-public record BalancingRoundSummary(Map<String, NodesWeightsChanges> nodeNameToWeightChanges, long numberOfShardsToMove) {
+public record BalancingRoundSummary(
+    Map<String, NodesWeightsChanges> nodeNameToWeightChanges,
+    long numberOfShardsToMove,
+    long numNewlyAssignedShards,
+    long numDeciderMovedShards,
+    long numBalancingMovedShards,
+    long numNewlyUnassignedShards,
+    long numShuttingDownMovedShards
+) {
 
     /**
      * Represents the change in weights for a node going from an old DesiredBalance to a new DesiredBalance
@@ -75,10 +90,20 @@ public record BalancingRoundSummary(Map<String, NodesWeightsChanges> nodeNameToW
     @Override
     public String toString() {
         return "BalancingRoundSummary{"
-            + "nodeNameToWeightChanges"
+            + "nodeNameToWeightChanges="
             + nodeNameToWeightChanges
             + ", numberOfShardsToMove="
             + numberOfShardsToMove
+            + ", numNewlyAssignedShards="
+            + numNewlyAssignedShards
+            + ", numDeciderMovedShards="
+            + numDeciderMovedShards
+            + ", numBalancingMovedShards="
+            + numBalancingMovedShards
+            + ", numNewlyUnassignedShards="
+            + numNewlyUnassignedShards
+            + ", numShuttingDownMovedShards="
+            + numShuttingDownMovedShards
             + '}';
     }
 
@@ -93,16 +118,30 @@ public record BalancingRoundSummary(Map<String, NodesWeightsChanges> nodeNameToW
      * latest desired balance.
      *
      * @param numberOfBalancingRounds How many balancing round summaries are combined in this report.
-     * @param nodeNameToWeightChanges
+     * @param nodeNameToWeightChanges The weight changes per node across the combined summaries.
      * @param numberOfShardMoves The sum of shard moves for each balancing round being combined into a single summary.
      */
     public record CombinedBalancingRoundSummary(
         int numberOfBalancingRounds,
         Map<String, NodesWeightsChanges> nodeNameToWeightChanges,
-        long numberOfShardMoves
+        long numberOfShardMoves,
+        long numNewlyAssignedShards,
+        long numDeciderMovedShards,
+        long numBalancingMovedShards,
+        long numNewlyUnassignedShards,
+        long numShuttingDownMovedShards
     ) {
 
-        public static final CombinedBalancingRoundSummary EMPTY_RESULTS = new CombinedBalancingRoundSummary(0, new HashMap<>(), 0);
+        public static final CombinedBalancingRoundSummary EMPTY_RESULTS = new CombinedBalancingRoundSummary(
+            0,
+            new HashMap<>(),
+            0,
+            0,
+            0,
+            0,
+            0,
+            0
+        );
 
         /**
          * Merges multiple {@link BalancingRoundSummary} summaries into a single {@link CombinedBalancingRoundSummary}.
@@ -118,6 +157,11 @@ public record BalancingRoundSummary(Map<String, NodesWeightsChanges> nodeNameToW
             // Number of shards moves are simply summed across summaries. Each new balancing round is built upon the last one, so it is
             // possible that a shard is reassigned back to a node before it even moves away, and that will still be counted as 2 moves here.
             long numberOfShardMoves = 0;
+            long numNewlyAssignedShards = 0;
+            long numDeciderMovedShards = 0;
+            long numBalancingMovedShards = 0;
+            long numNewlyUnassignedShards = 0;
+            long numShuttingDownMovedShards = 0;
 
             // Total number of summaries that are being combined.
             int numSummaries = 0;
@@ -147,11 +191,44 @@ public record BalancingRoundSummary(Map<String, NodesWeightsChanges> nodeNameToW
 
                 ++numSummaries;
                 numberOfShardMoves += summary.numberOfShardsToMove();
+                numNewlyAssignedShards += summary.numNewlyAssignedShards();
+                numDeciderMovedShards += summary.numDeciderMovedShards();
+                numBalancingMovedShards += summary.numBalancingMovedShards();
+                numNewlyUnassignedShards += summary.numNewlyUnassignedShards();
+                numShuttingDownMovedShards += summary.numShuttingDownMovedShards();
             }
 
-            return new CombinedBalancingRoundSummary(numSummaries, combinedNodeNameToWeightChanges, numberOfShardMoves);
+            return new CombinedBalancingRoundSummary(
+                numSummaries,
+                combinedNodeNameToWeightChanges,
+                numberOfShardMoves,
+                numNewlyAssignedShards,
+                numDeciderMovedShards,
+                numBalancingMovedShards,
+                numNewlyUnassignedShards,
+                numShuttingDownMovedShards
+            );
         }
 
+        @Override
+        public String toString() {
+            return "BalancingRoundSummary{"
+                + "nodeNameToWeightChanges="
+                + nodeNameToWeightChanges
+                + ", numberOfShardMoves="
+                + numberOfShardMoves
+                + ", numNewlyAssignedShards="
+                + numNewlyAssignedShards
+                + ", numDeciderMovedShards="
+                + numDeciderMovedShards
+                + ", numBalancingMovedShards="
+                + numBalancingMovedShards
+                + ", numNewlyUnassignedShards="
+                + numNewlyUnassignedShards
+                + ", numShuttingDownMovedShards="
+                + numShuttingDownMovedShards
+                + '}';
+        }
     }
 
 }

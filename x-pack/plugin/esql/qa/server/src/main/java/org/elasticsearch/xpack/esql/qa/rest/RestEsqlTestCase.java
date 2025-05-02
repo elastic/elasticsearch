@@ -1289,6 +1289,7 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
         String id = (String) json.get("id");
 
         var supportsAsyncHeaders = clusterHasCapability("POST", "/_query", List.of(), List.of("async_query_status_headers")).orElse(false);
+        var supportsSuggestedCast = clusterHasCapability("POST", "/_query", List.of(), List.of("suggested_cast")).orElse(false);
 
         if (id == null) {
             // no id returned from an async call, must have completed immediately and without keep_on_completion
@@ -1334,13 +1335,39 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
 
         // assert initial contents, if any, are the same as async get contents
         if (initialColumns != null) {
-            assertEquals(initialColumns, result.get("columns"));
+            if (supportsSuggestedCast == false) {
+                assertEquals(
+                    removeOriginalTypesAndSuggestedCast(initialColumns),
+                    removeOriginalTypesAndSuggestedCast(result.get("columns"))
+                );
+            } else {
+                assertEquals(initialColumns, result.get("columns"));
+            }
             assertEquals(initialValues, result.get("values"));
         }
 
         assertWarnings(response, assertWarnings);
         assertDeletable(id);
         return removeAsyncProperties(result);
+    }
+
+    private static Object removeOriginalTypesAndSuggestedCast(Object response) {
+        if (response instanceof ArrayList<?> columns) {
+            var newColumns = new ArrayList<>();
+            for (var column : columns) {
+                if (column instanceof Map<?, ?> columnMap) {
+                    var newMap = new HashMap<>(columnMap);
+                    newMap.remove("original_types");
+                    newMap.remove("suggested_cast");
+                    newColumns.add(newMap);
+                } else {
+                    newColumns.add(column);
+                }
+            }
+            return newColumns;
+        } else {
+            return response;
+        }
     }
 
     public void testAsyncGetWithoutContentType() throws IOException {

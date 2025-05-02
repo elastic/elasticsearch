@@ -375,15 +375,15 @@ public class ThreadPoolMergeExecutorServiceTests extends ESTestCase {
         testIORateAdjustedForSubmittedTasks(randomIntBetween(50, 1000), submittedVsExecutedRateOutOf1000, randomIntBetween(5, 50));
     }
 
-    private void testIORateAdjustedForSubmittedTasks(
-        int totalTasksToSubmit,
-        int submittedVsExecutedRateOutOf1000,
-        int initialTasksToSubmit
-    ) throws IOException {
+    private void testIORateAdjustedForSubmittedTasks(int totalTasksToSubmit, int submittedVsExecutedRateOutOf1000, int initialTasksToSubmit)
+        throws IOException {
         DeterministicTaskQueue mergeExecutorTaskQueue = new DeterministicTaskQueue();
         ThreadPool mergeExecutorThreadPool = mergeExecutorTaskQueue.getThreadPool();
-        ThreadPoolMergeExecutorService threadPoolMergeExecutorService = getThreadPoolMergeExecutorService(mergeExecutorThreadPool,
-                Settings.EMPTY, newNodeEnvironment(Settings.EMPTY));
+        ThreadPoolMergeExecutorService threadPoolMergeExecutorService = getThreadPoolMergeExecutorService(
+            mergeExecutorThreadPool,
+            Settings.EMPTY,
+            newNodeEnvironment(Settings.EMPTY)
+        );
         final AtomicInteger currentlySubmittedMergeTaskCount = new AtomicInteger();
         final AtomicLong targetIORateLimit = new AtomicLong(ThreadPoolMergeExecutorService.START_IO_RATE.getBytes());
         final AtomicReference<MergeTask> lastRunTask = new AtomicReference<>();
@@ -527,8 +527,11 @@ public class ThreadPoolMergeExecutorServiceTests extends ESTestCase {
             .put(EsExecutors.NODE_PROCESSORS_SETTING.getKey(), mergeExecutorThreadCount)
             .build();
         try (TestThreadPool testThreadPool = new TestThreadPool("test", settings)) {
-            ThreadPoolMergeExecutorService threadPoolMergeExecutorService = getThreadPoolMergeExecutorService(testThreadPool, settings,
-                    newNodeEnvironment(settings));
+            ThreadPoolMergeExecutorService threadPoolMergeExecutorService = getThreadPoolMergeExecutorService(
+                testThreadPool,
+                settings,
+                newNodeEnvironment(settings)
+            );
             assertThat(threadPoolMergeExecutorService.getMaxConcurrentMerges(), equalTo(mergeExecutorThreadCount));
             int totalMergeTasksCount = randomIntBetween(1, 10);
             ThreadPoolExecutor threadPoolExecutor = (ThreadPoolExecutor) testThreadPool.executor(ThreadPool.Names.MERGE);

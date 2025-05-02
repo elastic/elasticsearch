@@ -156,7 +156,6 @@ public abstract class AbstractServiceTests extends ESTestCase {
         }
     };
 
-
     public void testParseRequestConfig_CreatesAnEmbeddingsModel() throws Exception {
         var parseRequestConfigTestConfig = testConfiguration.commonConfig;
 

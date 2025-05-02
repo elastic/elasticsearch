@@ -156,6 +156,10 @@ public class NodesStatsRequest extends BaseNodesRequest {
         };
     }
 
+    public boolean includeShardsStats() {
+        return nodesStatsRequestParameters.includeShardsStats();
+    }
+
     public void setIncludeShardsStats(boolean includeShardsStats) {
         nodesStatsRequestParameters.setIncludeShardsStats(includeShardsStats);
     }

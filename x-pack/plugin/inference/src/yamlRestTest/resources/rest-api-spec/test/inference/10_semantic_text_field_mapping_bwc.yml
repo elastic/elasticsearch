@@ -307,3 +307,22 @@ setup:
               another_field:
                 type: keyword
 
+---
+"Field caps exclude chunks embedding and text fields":
+  - requires:
+      cluster_features: "gte_v8.16.0"
+      reason: field_caps support for semantic_text added in 8.16.0
+
+  - do:
+      field_caps:
+        include_empty_fields: true
+        index: test-index
+        fields: "*"
+
+  - match: { indices: [ "test-index" ] }
+  - exists: fields.sparse_field
+  - exists: fields.dense_field
+  - not_exists: fields.sparse_field.inference.chunks.embeddings
+  - not_exists: fields.sparse_field.inference.chunks.text
+  - not_exists: fields.dense_field.inference.chunks.embeddings
+  - not_exists: fields.dense_field.inference.chunks.text

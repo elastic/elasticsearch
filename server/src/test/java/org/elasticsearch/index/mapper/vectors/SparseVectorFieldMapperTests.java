@@ -124,7 +124,7 @@ public class SparseVectorFieldMapperTests extends MapperTestCase {
 
     public void testDefaults() throws Exception {
         DocumentMapper mapper = createDocumentMapper(fieldMapping(this::minimalMapping));
-        assertEquals(Strings.toString(fieldMapping(this::mappingWithDefaultIndexOptions)), mapper.mappingSource().toString());
+        assertEquals(Strings.toString(fieldMapping(this::minimalMapping)), mapper.mappingSource().toString());
 
         ParsedDocument doc1 = mapper.parse(source(this::writeField));
 
@@ -150,9 +150,7 @@ public class SparseVectorFieldMapperTests extends MapperTestCase {
 
     public void testWithIndexOptionsPrune() throws Exception {
         DocumentMapper mapper = createDocumentMapper(fieldMapping(this::mappingWithIndexOptionsPrune));
-        String expectedMapping = "{\"_doc\":{\"properties\":{\"field\":{\"type\":\"sparse_vector\",\"index_options\":"
-            + "{\"prune\":true}}}}}";
-        assertEquals(expectedMapping, mapper.mappingSource().toString());
+        assertEquals(Strings.toString(fieldMapping(this::mappingWithIndexOptionsPrune)), mapper.mappingSource().toString());
 
         ParsedDocument doc1 = mapper.parse(source(this::writeField));
 
@@ -176,7 +174,7 @@ public class SparseVectorFieldMapperTests extends MapperTestCase {
         assertTrue(freq1 < freq2);
     }
 
-    public void testWithIndexOptionsPruningConfig() throws Exception {
+    public void testWithIndexOptionsPruningConfigOnly() throws Exception {
         DocumentMapper mapper = createDocumentMapper(fieldMapping(this::mappingWithIndexOptionsPruningConfig));
         assertEquals(Strings.toString(fieldMapping(this::mappingWithIndexOptionsPruningConfig)), mapper.mappingSource().toString());
 

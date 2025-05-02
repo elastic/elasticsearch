@@ -90,6 +90,29 @@ setup:
         wait_for: started
 
 ---
+teardown:
+  - requires:
+      cluster_features: 'sparse_vector_index_options_supported'
+      reason: "sparse_vector token pruning index options added support in 9.1"
+  - skip:
+      features: headers
+
+  # ensure indices are cleaned up after each test
+  # mainly for the sparse vector token pruning tests
+  - do:
+      headers:
+        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
+        Content-Type: application/json
+      indices.delete:
+        index: ["sparse_vector_pruning_test"]
+        ignore: 404
+  - do:
+      headers:
+        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
+        Content-Type: application/json
+      indices.refresh: { }
+
+---
 "Test sparse_vector search":
   - do:
       search:
@@ -510,3 +533,231 @@ setup:
   - match: { hits.hits.0._score: 4.0 }
   - match: { hits.hits.1._id: "parent-foo-bar" }
   - match: { hits.hits.1._score: 2.0 }
+
+---
+"Check sparse_vector token pruning index_options mappings":
+
+  - requires:
+      cluster_features: 'sparse_vector_index_options_supported'
+      reason: "sparse_vector token pruning index options added support in 9.1"
+  - skip:
+      features: headers
+
+  - do:
+      headers:
+        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
+        Content-Type: application/json
+      indices.create:
+        index: sparse_vector_pruning_test
+        body:
+          mappings:
+            properties:
+              text:
+                type: text
+              ml.tokens:
+                type: sparse_vector
+                index_options:
+                  prune: true
+                  pruning_config:
+                    tokens_freq_ratio_threshold: 1.0
+                    tokens_weight_threshold: 0.4
+              embeddings:
+                type: sparse_vector
+
+  - match: { acknowledged: true }
+
+  - do:
+      headers:
+        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
+        Content-Type: application/json
+      indices.get_mapping:
+        index: sparse_vector_pruning_test
+
+  - match: { sparse_vector_pruning_test.mappings.properties.ml.properties.tokens.index_options.prune: true }
+  - match: { sparse_vector_pruning_test.mappings.properties.ml.properties.tokens.index_options.pruning_config.tokens_freq_ratio_threshold: 1.0 }
+  - match: { sparse_vector_pruning_test.mappings.properties.ml.properties.tokens.index_options.pruning_config.tokens_weight_threshold: 0.4 }
+
+---
+"Check sparse_vector token pruning index_options mappings defaults":
+
+  - requires:
+      cluster_features: 'sparse_vector_index_options_supported'
+      reason: "sparse_vector token pruning index options added support in 9.1"
+  - skip:
+      features: headers
+
+  - do:
+      headers:
+        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
+        Content-Type: application/json
+      indices.create:
+        index: sparse_vector_pruning_test
+        body:
+          mappings:
+            properties:
+              text:
+                type: text
+              ml.tokens:
+                type: sparse_vector
+              embeddings:
+                type: sparse_vector
+
+  - match: { acknowledged: true }
+
+  - do:
+      headers:
+        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
+        Content-Type: application/json
+      indices.get_mapping:
+        index: sparse_vector_pruning_test
+
+  - match: { sparse_vector_pruning_test.mappings.properties.ml.properties.tokens.index_options.prune: null }
+  - match: { sparse_vector_pruning_test.mappings.properties.ml.properties.tokens.index_options.pruning_config.tokens_freq_ratio_threshold: null }
+  - match: { sparse_vector_pruning_test.mappings.properties.ml.properties.tokens.index_options.pruning_config.tokens_weight_threshold: null }
+
+---
+"Check sparse_vector token pruning index_options prune default true allow config":
+
+  - requires:
+      cluster_features: 'sparse_vector_index_options_supported'
+      reason: "sparse_vector token pruning index options added support in 9.1"
+  - skip:
+      features: headers
+
+  - do:
+      headers:
+        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
+        Content-Type: application/json
+      indices.create:
+        index: sparse_vector_pruning_test
+        body:
+          mappings:
+            properties:
+              text:
+                type: text
+              ml.tokens:
+                type: sparse_vector
+                index_options:
+                  pruning_config:
+                    tokens_freq_ratio_threshold: 16.5
+                    tokens_weight_threshold: 0.2
+              embeddings:
+                type: sparse_vector
+
+  - match: { acknowledged: true }
+
+  - do:
+      headers:
+        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
+        Content-Type: application/json
+      indices.get_mapping:
+        index: sparse_vector_pruning_test
+
+  - match: { sparse_vector_pruning_test.mappings.properties.ml.properties.tokens.index_options.prune: null }
+  - match: { sparse_vector_pruning_test.mappings.properties.ml.properties.tokens.index_options.pruning_config.tokens_freq_ratio_threshold: 16.5 }
+  - match: { sparse_vector_pruning_test.mappings.properties.ml.properties.tokens.index_options.pruning_config.tokens_weight_threshold: 0.2 }
+
+---
+"Check sparse_vector token pruning index_options prune false do not allow config":
+
+  - requires:
+      cluster_features: 'sparse_vector_index_options_supported'
+      reason: "sparse_vector token pruning index options added support in 9.1"
+  - skip:
+      features: headers
+
+  - do:
+      catch: bad_request
+      headers:
+        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
+        Content-Type: application/json
+      indices.create:
+        index: sparse_vector_pruning_test
+        body:
+          mappings:
+            properties:
+              text:
+                type: text
+              ml.tokens:
+                type: sparse_vector
+                index_options:
+                  prune: false
+                  pruning_config:
+                    tokens_freq_ratio_threshold: 1.0
+                    tokens_weight_threshold: 0.4
+              embeddings:
+                type: sparse_vector
+
+  - match: { status: 400 }
+  - match: { error.type: "mapper_parsing_exception" }
+  - match: { error.reason: "Failed to parse mapping: [index_options] field [pruning_config] should not be set if [prune] is false" }
+
+---
+"Check sparse_vector token pruning index_options tokens freq out of bounds":
+
+  - requires:
+      cluster_features: 'sparse_vector_index_options_supported'
+      reason: "sparse_vector token pruning index options added support in 9.1"
+  - skip:
+      features: headers
+
+  - do:
+      catch: bad_request
+      headers:
+        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
+        Content-Type: application/json
+      indices.create:
+        index: sparse_vector_pruning_test
+        body:
+          mappings:
+            properties:
+              text:
+                type: text
+              ml.tokens:
+                type: sparse_vector
+                index_options:
+                  prune: true
+                  pruning_config:
+                    tokens_freq_ratio_threshold: 101.0
+                    tokens_weight_threshold: 0.4
+              embeddings:
+                type: sparse_vector
+
+  - match: { status: 400 }
+  - match: { error.type: "mapper_parsing_exception" }
+  - match: { error.reason: "Failed to parse mapping: [pruning_config] field [tokens_freq_ratio_threshold] field should be a number between 1 and 100" }
+
+---
+"Check sparse_vector token pruning index_options tokens weight out of bounds":
+
+  - requires:
+      cluster_features: 'sparse_vector_index_options_supported'
+      reason: "sparse_vector token pruning index options added support in 9.1"
+  - skip:
+      features: headers
+
+  - do:
+      catch: bad_request
+      headers:
+        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
+        Content-Type: application/json
+      indices.create:
+        index: sparse_vector_pruning_test
+        body:
+          mappings:
+            properties:
+              text:
+                type: text
+              ml.tokens:
+                type: sparse_vector
+                index_options:
+                  prune: true
+                  pruning_config:
+                    tokens_freq_ratio_threshold: 5.0
+                    tokens_weight_threshold: 3.5
+              embeddings:
+                type: sparse_vector
+
+  - match: { status: 400 }
+  - match: { error.type: "mapper_parsing_exception" }
+  - match: { error.reason: "Failed to parse mapping: [pruning_config] field [tokens_weight_threshold] field should be a number between 0.0 and 1.0" }

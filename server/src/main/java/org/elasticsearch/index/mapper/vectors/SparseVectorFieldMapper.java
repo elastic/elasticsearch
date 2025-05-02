@@ -117,24 +117,10 @@ public class SparseVectorFieldMapper extends FieldMapper {
 
         @Override
         public SparseVectorFieldMapper build(MapperBuilderContext context) {
-            IndexOptions buildIndexOptions = indexOptions.getValue();
-
-            if (buildIndexOptions == null) {
-                buildIndexOptions = new IndexOptions(
-                    true,
-                    new TokenPruningConfig(
-                        TokenPruningConfig.DEFAULT_TOKENS_FREQ_RATIO_THRESHOLD,
-                        TokenPruningConfig.DEFAULT_TOKENS_WEIGHT_THRESHOLD,
-                        false
-                    )
-                );
-            }
-
             return new SparseVectorFieldMapper(
                 leafName(),
-                new SparseVectorFieldType(context.buildFullName(leafName()), stored.getValue(), meta.getValue(), buildIndexOptions),
-                builderParams(this, context),
-                buildIndexOptions
+                new SparseVectorFieldType(context.buildFullName(leafName()), stored.getValue(), meta.getValue(), indexOptions.getValue()),
+                builderParams(this, context)
             );
         }
     }
@@ -158,6 +144,10 @@ public class SparseVectorFieldMapper extends FieldMapper {
     }
 
     private static SparseVectorFieldMapper.IndexOptions parseIndexOptions(MappingParserContext context, Object propNode) {
+        if (propNode == null) {
+            return getDefaultIndexOptions(context);
+        }
+
         Map<String, Object> indexOptionsMap = XContentMapValues.nodeMapValue(propNode, SPARSE_VECTOR_INDEX_OPTIONS);
 
         Boolean prune = IndexOptions.parseIndexOptionsPruneValue(indexOptionsMap);
@@ -196,6 +186,10 @@ public class SparseVectorFieldMapper extends FieldMapper {
         ) {
             super(name, true, isStored, false, TextSearchInfo.SIMPLE_MATCH_ONLY, meta);
             this.indexOptions = indexOptions;
+        }
+
+        public IndexOptions getIndexOptions() {
+            return indexOptions;
         }
 
         @Override
@@ -241,14 +235,9 @@ public class SparseVectorFieldMapper extends FieldMapper {
         }
     }
 
-    private SparseVectorFieldMapper(
-        String simpleName,
-        MappedFieldType mappedFieldType,
-        BuilderParams builderParams,
-        @Nullable IndexOptions indexOptions
-    ) {
+    private SparseVectorFieldMapper(String simpleName, MappedFieldType mappedFieldType, BuilderParams builderParams) {
         super(simpleName, mappedFieldType, builderParams);
-        this.indexOptions = indexOptions;
+        this.indexOptions = ((SparseVectorFieldType) mappedFieldType).getIndexOptions();
     }
 
     @Override
@@ -513,11 +502,11 @@ public class SparseVectorFieldMapper extends FieldMapper {
                 return null;
             }
 
-            if ((shouldPrune instanceof Boolean) == false) {
-                throw new MapperParsingException("[index_options] field [prune] should be true or false");
+            if (shouldPrune instanceof Boolean boolValue) {
+                return boolValue;
             }
 
-            return ((Boolean) shouldPrune);
+            throw new MapperParsingException("[index_options] field [prune] should be true or false");
         }
 
         public static TokenPruningConfig parseIndexOptionsPruningConfig(Boolean prune, Map<String, Object> indexOptionsMap) {
@@ -538,147 +527,4 @@ public class SparseVectorFieldMapper extends FieldMapper {
             return TokenPruningConfig.parseFromMap(pruningConfigurationMap);
         }
     }
-
-    /*
-    public static class PruningConfig implements ToXContent {
-        public static final String TOKENS_FREQ_RATIO_THRESHOLD_FIELD_NAME = "tokens_freq_ratio_threshold";
-        public static final String TOKENS_WEIGHT_THRESHOLD_FIELD_NAME = "tokens_weight_threshold";
-
-        public static float DEFAULT_TOKENS_FREQ_RATIO_THRESHOLD = 5;
-        public static float MIN_TOKENS_FREQ_RATIO_THRESHOLD = 1;
-        public static float MAX_TOKENS_FREQ_RATIO_THRESHOLD = 100;
-
-        public static float DEFAULT_TOKENS_WEIGHT_THRESHOLD = 0.4f;
-        public static float MIN_TOKENS_WEIGHT_THRESHOLD = 0.0f;
-        public static float MAX_TOKENS_WEIGHT_THRESHOLD = 1.0f;
-
-        final Float tokens_freq_ratio_threshold;
-        final Float tokens_weight_threshold;
-
-        PruningConfig(@Nullable Float tokens_freq_ratio_threshold, @Nullable Float tokens_weight_threshold) {
-            this.tokens_freq_ratio_threshold = tokens_freq_ratio_threshold;
-            this.tokens_weight_threshold = tokens_weight_threshold;
-        }
-
-        public float getTokensFreqRatioThresholdOrDefault() {
-            if (tokens_freq_ratio_threshold == null) {
-                return DEFAULT_TOKENS_FREQ_RATIO_THRESHOLD;
-            }
-            return tokens_freq_ratio_threshold;
-        }
-
-        public float getTokensWeightThresholdOrDefault() {
-            if (tokens_weight_threshold == null) {
-                return DEFAULT_TOKENS_WEIGHT_THRESHOLD;
-            }
-            return tokens_weight_threshold;
-        }
-
-        @Override
-        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            builder.startObject();
-            if (tokens_freq_ratio_threshold != null) {
-                builder.field(TOKENS_FREQ_RATIO_THRESHOLD_FIELD_NAME, tokens_freq_ratio_threshold);
-            }
-            if (tokens_weight_threshold != null) {
-                builder.field(TOKENS_WEIGHT_THRESHOLD_FIELD_NAME, tokens_weight_threshold);
-            }
-            builder.endObject();
-            return builder;
-        }
-
-        @Override
-        public final boolean equals(Object other) {
-            if (other == this) {
-                return true;
-            }
-            if (other instanceof PruningConfig otherConfig) {
-                return Objects.equals(tokens_freq_ratio_threshold, otherConfig.tokens_freq_ratio_threshold)
-                    && Objects.equals(tokens_weight_threshold, otherConfig.tokens_weight_threshold);
-            }
-            return false;
-        }
-
-        @Override
-        public final int hashCode() {
-            return Objects.hash(tokens_freq_ratio_threshold, tokens_weight_threshold);
-        }
-
-        public static PruningConfig parsePruningConfig(Object pruningConfiguration) {
-            Map<String, Object> pruningConfigMap = XContentMapValues.nodeMapValue(pruningConfiguration, SPARSE_VECTOR_INDEX_OPTIONS);
-
-            Object mappedTokensFreqRatioThreshold = pruningConfigMap.remove(TOKENS_FREQ_RATIO_THRESHOLD_FIELD_NAME);
-            Object mappedTokensWeightThreshold = pruningConfigMap.remove(TOKENS_WEIGHT_THRESHOLD_FIELD_NAME);
-
-            if (pruningConfigMap.isEmpty() == false) {
-                throw new MapperParsingException("[index_options] field [pruning_config] has unknown fields");
-            }
-
-            Float tokensFreqRatioThreshold = parseTokensFreqRatioThreshold(mappedTokensFreqRatioThreshold);
-            Float tokensWeightThreshold = parseTokensWeightThreshold(mappedTokensWeightThreshold);
-
-            if (tokensFreqRatioThreshold != null || tokensWeightThreshold != null) {
-                return new PruningConfig(tokensFreqRatioThreshold, tokensWeightThreshold);
-            }
-
-            return null;
-        }
-
-        private static Float parseFloatNumberFromObject(Object numberObject) {
-            if (numberObject instanceof Integer intValue) {
-                return (float) intValue;
-            } else if (numberObject instanceof Float floatValue) {
-                return floatValue;
-            } else if (numberObject instanceof Double doubleValue) {
-                return ((Double) numberObject).floatValue();
-            }
-            return null;
-        }
-
-        private static Float parseTokensWeightThreshold(Object mappedTokensWeightThreshold) {
-            if (mappedTokensWeightThreshold == null) {
-                return null;
-            }
-
-            Float tokensWeightThreshold = parseFloatNumberFromObject(mappedTokensWeightThreshold);
-
-            if (tokensWeightThreshold == null) {
-                throw new MapperParsingException(
-                    "[pruning_config] field [tokens_weight_threshold] field should be a number between 0.0 and 1.0"
-                );
-            }
-
-            if (tokensWeightThreshold < PruningConfig.MIN_TOKENS_WEIGHT_THRESHOLD
-                || tokensWeightThreshold > PruningConfig.MAX_TOKENS_WEIGHT_THRESHOLD) {
-                throw new MapperParsingException(
-                    "[pruning_config] field [tokens_weight_threshold] field should be a number between 0.0 and 1.0"
-                );
-            }
-            return tokensWeightThreshold;
-        }
-
-        private static Float parseTokensFreqRatioThreshold(Object mappedTokensFreqRatioThreshold) {
-            if (mappedTokensFreqRatioThreshold == null) {
-                return null;
-            }
-
-            Float tokensFreqRatioThreshold = parseFloatNumberFromObject(mappedTokensFreqRatioThreshold);
-
-            if (tokensFreqRatioThreshold == null) {
-                throw new MapperParsingException(
-                    "[pruning_config] field [tokens_freq_ratio_threshold] field should be a number between 1 and 100"
-                );
-            }
-
-            if (tokensFreqRatioThreshold < PruningConfig.MIN_TOKENS_FREQ_RATIO_THRESHOLD
-                || tokensFreqRatioThreshold > PruningConfig.MAX_TOKENS_FREQ_RATIO_THRESHOLD) {
-                throw new MapperParsingException(
-                    "[pruning_config] field [tokens_freq_ratio_threshold] field should be a number between 1 and 100"
-                );
-            }
-
-            return tokensFreqRatioThreshold;
-        }
-    }
-     */
 }

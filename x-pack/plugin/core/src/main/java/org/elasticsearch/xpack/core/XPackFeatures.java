@@ -12,6 +12,8 @@ import org.elasticsearch.features.NodeFeature;
 
 import java.util.Set;
 
+import static org.elasticsearch.index.mapper.vectors.SparseVectorFieldMapper.SPARSE_VECTOR_INDEX_OPTIONS_FEATURE;
+
 /**
  * Provides the XPack features that this version of the code supports
  */
@@ -19,5 +21,10 @@ public class XPackFeatures implements FeatureSpecification {
     @Override
     public Set<NodeFeature> getFeatures() {
         return Set.of();
+    }
+
+    @Override
+    public Set<NodeFeature> getTestFeatures() {
+        return Set.of(SPARSE_VECTOR_INDEX_OPTIONS_FEATURE);
     }
 }

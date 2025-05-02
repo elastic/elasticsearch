@@ -1,6 +1,6 @@
 pr: 127668
 summary: Fix transport versions
-area: "ES|QL, Data streams, Relevance"
+area: "ES|QL"
 type: bug
 issues:
  - 127667

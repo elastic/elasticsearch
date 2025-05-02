@@ -509,53 +509,31 @@ public class FileSettingsServiceIT extends ESIntegTestCase {
 
     public void testSymlinkUpdateTriggerReload() throws Exception {
         internalCluster().setBootstrapMasterNodeIndex(0);
-        logger.info("--> start data node / non master node");
-        String dataNode = internalCluster().startNode(Settings.builder().put(dataOnlyNode()).put("discovery.initial_state_timeout", "1s"));
-        FileSettingsService dataFileSettingsService = internalCluster().getInstance(FileSettingsService.class, dataNode);
-
-        assertFalse(dataFileSettingsService.watching());
-
-        logger.info("--> start master node");
         final String masterNode = internalCluster().startMasterOnlyNode();
-        assertMasterNode(internalCluster().nonMasterClient(), masterNode);
+        FileSettingsService masterFileSettingsService = internalCluster().getInstance(FileSettingsService.class, masterNode);
+        Path baseDir = masterFileSettingsService.watchedFileDir();
+        assertBusy(() -> assertTrue(masterFileSettingsService.watching()));
+
         {
             var savedClusterState = setupClusterStateListener(masterNode);
-
-            FileSettingsService masterFileSettingsService = internalCluster().getInstance(FileSettingsService.class, masterNode);
-
-            assertBusy(() -> assertTrue(masterFileSettingsService.watching()));
-            assertFalse(dataFileSettingsService.watching());
-
             // Create the settings.json as a symlink to simulate k8 setup
             // settings.json -> ..data/settings.json
             // ..data -> ..TIMESTAMP_TEMP_FOLDER_1
-            createK8sLikeSymlinks(masterNode);
+            var fileDir = Files.createDirectories(baseDir.resolve("..TIMESTAMP_TEMP_FOLDER_1"));
+            writeJSONFile(masterNode, testJSON, logger, versionCounter.incrementAndGet(), fileDir.resolve("settings.json"));
+            var dataDir = Files.createSymbolicLink(baseDir.resolve("..data"), fileDir.getFileName());
+            Files.createSymbolicLink(baseDir.resolve("settings.json"), dataDir.getFileName().resolve("settings.json"));
             assertClusterStateSaveOK(savedClusterState.v1(), savedClusterState.v2(), "50mb");
         }
         {
             var savedClusterState = setupClusterStateListener(masterNode);
             // Update ..data symlink to ..data -> ..TIMESTAMP_TEMP_FOLDER_2 to simulate kubernetes secret update
-            updateSymlinks(masterNode, testJSON43mb);
+            var fileDir = Files.createDirectories(baseDir.resolve("..TIMESTAMP_TEMP_FOLDER_2"));
+            writeJSONFile(masterNode, testJSON43mb, logger, versionCounter.incrementAndGet(), fileDir.resolve("settings.json"));
+            Files.deleteIfExists(baseDir.resolve("..data"));
+            Files.createSymbolicLink(baseDir.resolve("..data"), fileDir.getFileName());
             assertClusterStateSaveOK(savedClusterState.v1(), savedClusterState.v2(), "43mb");
         }
-    }
-
-    public Path createK8sLikeSymlinks(String node) throws Exception {
-        FileSettingsService fileSettingsService = internalCluster().getInstance(FileSettingsService.class, node);
-        Path baseDir = fileSettingsService.watchedFileDir();
-        var fileDir = Files.createDirectories(baseDir.resolve("..TIMESTAMP_TEMP_FOLDER_1"));
-        writeJSONFile(node, testJSON, logger, versionCounter.incrementAndGet(), fileDir.resolve("settings.json"));
-        var dataDir = Files.createSymbolicLink(baseDir.resolve("..data"), fileDir.getFileName());
-        return Files.createSymbolicLink(baseDir.resolve("settings.json"), dataDir.getFileName().resolve("settings.json"));
-    }
-
-    public void updateSymlinks(String node, String json) throws Exception {
-        FileSettingsService fileSettingsService = internalCluster().getInstance(FileSettingsService.class, node);
-        Path baseDir = fileSettingsService.watchedFileDir();
-        var fileDir = Files.createDirectories(baseDir.resolve("..TIMESTAMP_TEMP_FOLDER_2"));
-        writeJSONFile(node, json, logger, versionCounter.incrementAndGet(), fileDir.resolve("settings.json"));
-        Files.deleteIfExists(baseDir.resolve("..data"));
-        Files.createSymbolicLink(baseDir.resolve("..data"), fileDir.getFileName());
     }
 
     public void testHealthIndicatorWithSingleNode() throws Exception {

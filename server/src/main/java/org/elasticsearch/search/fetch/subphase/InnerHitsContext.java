@@ -84,6 +84,14 @@ public final class InnerHitsContext {
             this.context = context;
         }
 
+        public InnerHitSubContext(InnerHitSubContext innerHitSubContext) {
+            super(innerHitSubContext);
+            this.name = innerHitSubContext.name;
+            this.context = innerHitSubContext.context;
+        }
+
+        public abstract InnerHitSubContext copy();
+
         public abstract TopDocsAndMaxScore topDocs(SearchHit hit) throws IOException;
 
         public String getName() {
@@ -142,8 +150,6 @@ public final class InnerHitsContext {
         public void setRootLookup(Source rootSource) {
             this.rootSource = rootSource;
         }
-
-        public abstract InnerHitSubContext clone();
     }
 
     public static void intersect(Weight weight, Weight innerHitQueryWeight, Collector collector, LeafReaderContext ctx) throws IOException {

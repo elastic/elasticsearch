@@ -227,7 +227,7 @@ class TopHitsAggregator extends MetricsAggregator {
 
         Map<String, InnerHitsContext.InnerHitSubContext> innerHits = new HashMap<>();
         for (Map.Entry<String, InnerHitsContext.InnerHitSubContext> entry : subSearchContext.innerHits().getInnerHits().entrySet()) {
-            innerHits.put(entry.getKey(), entry.getValue().clone());
+            innerHits.put(entry.getKey(), entry.getValue().copy());
         }
         InnerHitsContext innerHitsContext = new InnerHitsContext(innerHits);
 

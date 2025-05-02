@@ -408,6 +408,17 @@ public class NestedQueryBuilder extends AbstractQueryBuilder<NestedQueryBuilder>
             this.childObjectMapper = childObjectMapper;
         }
 
+        NestedInnerHitSubContext(NestedInnerHitSubContext nestedInnerHitSubContext) {
+            super(nestedInnerHitSubContext);
+            this.parentObjectMapper = nestedInnerHitSubContext.parentObjectMapper;
+            this.childObjectMapper = nestedInnerHitSubContext.childObjectMapper;
+        }
+
+        @Override
+        public NestedInnerHitSubContext copy() {
+            return new NestedInnerHitSubContext(this);
+        }
+
         @Override
         public void seqNoAndPrimaryTerm(boolean seqNoAndPrimaryTerm) {
             assert seqNoAndPrimaryTerm() == false;
@@ -465,11 +476,6 @@ public class NestedQueryBuilder extends AbstractQueryBuilder<NestedQueryBuilder>
                 }
                 return new TopDocsAndMaxScore(td, maxScore);
             }
-        }
-
-        @Override
-        public NestedInnerHitSubContext clone() {
-            return new NestedInnerHitSubContext(getName(), context, parentObjectMapper, childObjectMapper);
         }
     }
 

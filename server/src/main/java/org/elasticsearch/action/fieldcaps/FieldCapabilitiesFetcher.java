@@ -14,8 +14,11 @@ import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.engine.Engine;
+import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.RuntimeField;
+import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
+import org.elasticsearch.index.mapper.vectors.SparseVectorFieldMapper;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.SearchExecutionContext;
@@ -149,6 +152,18 @@ class FieldCapabilitiesFetcher {
         return new FieldCapabilitiesIndexResponse(shardId.getIndexName(), indexMappingHash, responseMap, true, indexMode);
     }
 
+    /**
+     * Returns true if the field should be excluded from the field capabilities response.
+     * This is used to exclude fields that are not useful for the user, such as
+     * offset_source and inference chunk embeddings.
+     */
+    private static boolean shouldExcludeField(MappedFieldType ft) {
+        return ft.typeName().equals("offset_source")
+            || ((ft instanceof SparseVectorFieldMapper.SparseVectorFieldType
+                || ft instanceof DenseVectorFieldMapper.DenseVectorFieldType
+                || ft instanceof KeywordFieldMapper.KeywordFieldType) && ft.name().contains(".inference.chunks"));
+    }
+
     static Map<String, IndexFieldCapabilities> retrieveFieldCaps(
         SearchExecutionContext context,
         Predicate<String> fieldNameFilter,
@@ -173,7 +188,8 @@ class FieldCapabilitiesFetcher {
             MappedFieldType ft = entry.getValue();
             if ((includeEmptyFields || ft.fieldHasValue(fieldInfos))
                 && (fieldPredicate.test(ft.name()) || context.isMetadataField(ft.name()))
-                && (filter == null || filter.test(ft))) {
+                && (filter == null || filter.test(ft))
+                && shouldExcludeField(ft) == false) {
                 IndexFieldCapabilities fieldCap = new IndexFieldCapabilities(
                     field,
                     ft.familyTypeName(),

@@ -1,7 +1,0 @@
-pr: 127499
-summary: "ESQL: Remove temporary workarounds for resolved bugs"
-area: ES|QL
-type: test
-issues:
-  - 127167
-  - 125870

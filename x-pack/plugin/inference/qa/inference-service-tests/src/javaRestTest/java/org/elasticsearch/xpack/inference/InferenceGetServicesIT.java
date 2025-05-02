@@ -153,7 +153,10 @@ public class InferenceGetServicesIT extends BaseMockEISAuthServerTest {
 
         var providers = providers(services);
 
-        assertThat(providers, containsInAnyOrder(List.of("deepseek", "elastic", "openai", "streaming_completion_test_service", "hugging_face").toArray()));
+        assertThat(
+            providers,
+            containsInAnyOrder(List.of("deepseek", "elastic", "openai", "streaming_completion_test_service", "hugging_face").toArray())
+        );
     }
 
     public void testGetServicesWithSparseEmbeddingTaskType() throws IOException {

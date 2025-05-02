@@ -228,8 +228,7 @@ public class HuggingFaceService extends HuggingFaceBaseService {
 
                 configurationMap.put(
                     URL,
-                    new SettingsConfiguration.Builder(SUPPORTED_TASK_TYPES).setDefaultValue("https://api.openai.com/v1/embeddings")
-                        .setDescription("The URL endpoint to use for the requests.")
+                    new SettingsConfiguration.Builder(SUPPORTED_TASK_TYPES).setDescription("The URL endpoint to use for the requests.")
                         .setLabel("URL")
                         .setRequired(true)
                         .setSensitive(false)

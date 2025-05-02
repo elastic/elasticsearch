@@ -1264,7 +1264,6 @@ public class HuggingFaceServiceTests extends ESTestCase {
                                "supported_task_types": ["text_embedding", "sparse_embedding", "completion", "chat_completion"]
                            },
                            "url": {
-                               "default_value": "https://api.openai.com/v1/embeddings",
                                "description": "The URL endpoint to use for the requests.",
                                "label": "URL",
                                "required": true,

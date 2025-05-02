@@ -169,8 +169,8 @@ public class IngestStatsTests extends ESTestCase {
             assertEquals(IngestStats.merge(first, Map.of()), first);
 
             // it's the same exact reference, in fact
-            assertSame(expected, IngestStats.merge(Map.of(), first).get("pipeline-1"));
-            assertSame(expected, IngestStats.merge(first, Map.of()).get("pipeline-1"));
+            assertSame(expected, IngestStats.merge(Map.of(), first).get(ProjectId.fromId("project-1")).get("pipeline-1"));
+            assertSame(expected, IngestStats.merge(first, Map.of()).get(ProjectId.fromId("project-1")).get("pipeline-1"));
         }
         {
             var expected = randomPipelineProcessorStats();
@@ -188,8 +188,8 @@ public class IngestStatsTests extends ESTestCase {
             assertEquals(IngestStats.merge(first, second), first);
 
             // it's the same exact reference, in fact
-            assertSame(expected, IngestStats.merge(second, first).get("pipeline-1"));
-            assertSame(expected, IngestStats.merge(first, second).get("pipeline-1"));
+            assertSame(expected, IngestStats.merge(second, first).get(ProjectId.fromId("project-1")).get("pipeline-1"));
+            assertSame(expected, IngestStats.merge(first, second).get(ProjectId.fromId("project-1")).get("pipeline-1"));
         }
     }
 
@@ -225,7 +225,7 @@ public class IngestStatsTests extends ESTestCase {
                 ),
                 ProjectId.fromId("project-2"),
                 Map.of(
-                    "pipeline-3",
+                    "pipeline-1",
                     expectedPipelineProcessorStats(
                         first.get(ProjectId.fromId("project-2")).get("pipeline-1"),
                         second.get(ProjectId.fromId("project-2")).get("pipeline-1")

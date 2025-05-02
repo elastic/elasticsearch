@@ -76,10 +76,26 @@ public class ExponentialBucketHistogram {
      *
      * @param percentile The percentile as a fraction (in [0, 1.0])
      * @return A value greater than the specified fraction of values in the histogram
+     * @throws IllegalArgumentException if the requested percentile is invalid
      */
     public long getPercentile(float percentile) {
-        assert percentile >= 0 && percentile <= 1;
-        final long[] snapshot = getSnapshot();
+        return getPercentile(percentile, getSnapshot(), getBucketUpperBounds());
+    }
+
+    /**
+     * Calculate the Nth percentile value
+     *
+     * @param percentile The percentile as a fraction (in [0, 1.0])
+     * @param snapshot An array of frequencies of handling times in buckets with upper bounds as returned by {@link #getBucketUpperBounds()}
+     * @param bucketUpperBounds The upper bounds of the buckets in the histogram, as returned by {@link #getBucketUpperBounds()}
+     * @return A value greater than the specified fraction of values in the histogram
+     * @throws IllegalArgumentException if the requested percentile is invalid
+     */
+    public long getPercentile(float percentile, long[] snapshot, int[] bucketUpperBounds) {
+        assert snapshot.length == BUCKET_COUNT && bucketUpperBounds.length == BUCKET_COUNT - 1;
+        if (percentile < 0 || percentile > 1) {
+            throw new IllegalArgumentException("Requested percentile must be in [0, 1.0], percentile=" + percentile);
+        }
         final long totalCount = Arrays.stream(snapshot).sum();
         long percentileIndex = (long) Math.ceil(totalCount * percentile);
         // Find which bucket has the Nth percentile value and return the upper bound value.
@@ -89,7 +105,7 @@ public class ExponentialBucketHistogram {
                 if (i == snapshot.length - 1) {
                     return Long.MAX_VALUE;
                 } else {
-                    return getBucketUpperBounds()[i];
+                    return bucketUpperBounds[i];
                 }
             }
         }

@@ -90,10 +90,12 @@ public class ExponentialBucketHistogramTests extends ESTestCase {
         for (int i = 0; i < valueCount; i++) {
             histogram.addObservation(i);
         }
+        final long[] snapshot = histogram.getSnapshot();
+        final int[] bucketUpperBounds = ExponentialBucketHistogram.getBucketUpperBounds();
         for (int i = 0; i <= 100; i++) {
             final float percentile = i / 100.0f;
             final long actualPercentile = (long) Math.ceil(valueCount * percentile);
-            final long histogramPercentile = histogram.getPercentile(percentile);
+            final long histogramPercentile = histogram.getPercentile(percentile, snapshot, bucketUpperBounds);
             final String message = Strings.format("%d percentile is %d (actual=%d)", i, histogramPercentile, actualPercentile);
             assertThat(message, histogramPercentile, greaterThanOrEqualTo(actualPercentile));
         }

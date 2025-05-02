@@ -23,16 +23,24 @@ To check for security updates, go to [Security announcements for the Elastic sta
 <%
 for(bundle in changelogBundles) {
     def version = bundle.version
-    def versionWithoutSeparator = bundle.versionWithoutSeparator
+    def versionForIds = bundle.version.toString().equals('9.0.0') ? bundle.versionWithoutSeparator : bundle.version
     def changelogsByTypeByArea = bundle.changelogsByTypeByArea
     def notableHighlights = bundle.notableHighlights
     def nonNotableHighlights = bundle.nonNotableHighlights
     def unqualifiedVersion = bundle.unqualifiedVersion
+    def coming = !bundle.bundle.released
+
+    if (coming) {
+        print "\n"
+        print "```{applies_to}\n"
+        print "stack: coming ${version}\n"
+        print "```"
+    }
 %>
-## ${unqualifiedVersion} [elasticsearch-${versionWithoutSeparator}-release-notes]
+## ${unqualifiedVersion} [elasticsearch-${versionForIds}-release-notes]
 <%
 if (!notableHighlights.isEmpty() || !nonNotableHighlights.isEmpty()) {
-    print "\n### Highlights [elasticsearch-${versionWithoutSeparator}-highlights]\n"
+    print "\n### Highlights [elasticsearch-${versionForIds}-highlights]\n"
 }
 
 for (highlights in [notableHighlights, nonNotableHighlights]) {
@@ -50,7 +58,7 @@ for (changeType in ['features-enhancements', 'fixes', 'regression']) {
         continue;
     }
 %>
-### ${ TYPE_LABELS.getOrDefault(changeType, 'No mapping for TYPE_LABELS[' + changeType + ']') } [elasticsearch-${versionWithoutSeparator}-${changeType}]
+### ${ TYPE_LABELS.getOrDefault(changeType, 'No mapping for TYPE_LABELS[' + changeType + ']') } [elasticsearch-${versionForIds}-${changeType}]
 <% for (team in changelogsByTypeByArea[changeType].keySet()) {
     print "\n${team}:\n";
 

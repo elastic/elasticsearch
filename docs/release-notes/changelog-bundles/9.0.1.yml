@@ -1,9 +1,15 @@
 version: 9.0.1
-generated: 2025-04-28T21:41:06.757953Z
+released: false
+generated: 2025-05-02T19:34:24.151692Z
 changelogs:
   - pr: 125694
     summary: LTR score bounding
     area: Ranking
+    type: bug
+    issues: []
+  - pr: 125922
+    summary: Fix text structure NPE when fields in list have null value
+    area: Machine Learning
     type: bug
     issues: []
   - pr: 126273
@@ -129,4 +135,14 @@ changelogs:
     summary: Updating tika to 2.9.3
     area: Ingest Node
     type: upgrade
+    issues: []
+  - pr: 127414
+    summary: Fix npe when using source confirmed text query against missing field
+    area: Search
+    type: bug
+    issues: []
+  - pr: 127527
+    summary: "No, line noise isn't a valid ip"
+    area: ES|QL
+    type: bug
     issues: []

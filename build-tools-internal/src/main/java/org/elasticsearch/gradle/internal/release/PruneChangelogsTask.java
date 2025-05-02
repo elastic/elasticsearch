@@ -149,7 +149,7 @@ public class PruneChangelogsTask extends DefaultTask {
         final String currentMajorPattern = "v" + version.major() + ".*";
         final String previousMajorPattern = "v" + (version.major() - 1) + ".*";
 
-        return Stream.concat(gitWrapper.listVersions(currentMajorPattern), gitWrapper.listVersions(previousMajorPattern))
+        return gitWrapper.listVersions(previousMajorPattern)
             .filter(v -> v.isBefore(version));
     }
 

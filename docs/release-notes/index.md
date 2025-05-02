@@ -21,9 +21,12 @@ To check for security updates, go to [Security announcements for the Elastic sta
 % ### Fixes [elasticsearch-next-fixes]
 % *
 
-## 9.0.1 [elasticsearch-901-release-notes]
+```{applies_to}
+stack: coming 9.0.1
+```
+## 9.0.1 [elasticsearch-9.0.1-release-notes]
 
-### Features and enhancements [elasticsearch-901-features-enhancements]
+### Features and enhancements [elasticsearch-9.0.1-features-enhancements]
 
 Infra/Core:
 * Validation checks on paths allowed for 'files' entitlements. Restrict the paths we allow access to, forbidding plugins to specify/request entitlements for reading or writing to specific protected directories. [#126852](https://github.com/elastic/elasticsearch/pull/126852)
@@ -37,7 +40,7 @@ Search:
 Security:
 * Add Issuer to failed SAML Signature validation logs when available [#126310](https://github.com/elastic/elasticsearch/pull/126310) (issue: [#111022](https://github.com/elastic/elasticsearch/issues/111022))
 
-### Fixes [elasticsearch-901-fixes]
+### Fixes [elasticsearch-9.0.1-fixes]
 
 Aggregations:
 * Rare terms aggregation false **positive** fix [#126884](https://github.com/elastic/elasticsearch/pull/126884)
@@ -55,6 +58,7 @@ ES|QL:
 * Fix count optimization with pushable union types [#127225](https://github.com/elastic/elasticsearch/pull/127225) (issue: [#127200](https://github.com/elastic/elasticsearch/issues/127200))
 * Fix join masking eval [#126614](https://github.com/elastic/elasticsearch/pull/126614)
 * Fix sneaky bug in single value query [#127146](https://github.com/elastic/elasticsearch/pull/127146)
+* No, line noise isn't a valid ip [#127527](https://github.com/elastic/elasticsearch/pull/127527)
 
 ILM+SLM:
 * Fix equality bug in `WaitForIndexColorStep` [#126605](https://github.com/elastic/elasticsearch/pull/126605)
@@ -69,11 +73,15 @@ Infra/Core:
 
 Machine Learning:
 * Adding missing `onFailure` call for Inference API start model request [#126930](https://github.com/elastic/elasticsearch/pull/126930)
+* Fix text structure NPE when fields in list have null value [#125922](https://github.com/elastic/elasticsearch/pull/125922)
 * Leverage threadpool schedule for inference api to avoid long running thread [#126858](https://github.com/elastic/elasticsearch/pull/126858) (issue: [#126853](https://github.com/elastic/elasticsearch/issues/126853))
 
 Ranking:
 * Fix LTR rescorer with model alias [#126273](https://github.com/elastic/elasticsearch/pull/126273)
 * LTR score bounding [#125694](https://github.com/elastic/elasticsearch/pull/125694)
+
+Search:
+* Fix npe when using source confirmed text query against missing field [#127414](https://github.com/elastic/elasticsearch/pull/127414)
 
 TSDB:
 * Improve resiliency of `UpdateTimeSeriesRangeService` [#126637](https://github.com/elastic/elasticsearch/pull/126637)

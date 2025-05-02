@@ -14,6 +14,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
 import com.fasterxml.jackson.dataformat.yaml.YAMLGenerator;
 
+import org.elasticsearch.gradle.Version;
 import org.gradle.api.DefaultTask;
 import org.gradle.api.file.ConfigurableFileCollection;
 import org.gradle.api.file.Directory;
@@ -28,6 +29,7 @@ import org.gradle.api.tasks.InputDirectory;
 import org.gradle.api.tasks.InputFiles;
 import org.gradle.api.tasks.OutputFile;
 import org.gradle.api.tasks.TaskAction;
+import org.gradle.api.tasks.options.Option;
 import org.gradle.process.ExecOperations;
 
 import java.io.File;
@@ -38,6 +40,7 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.Properties;
 
+import javax.annotation.Nullable;
 import javax.inject.Inject;
 
 import static java.util.stream.Collectors.toList;
@@ -51,6 +54,29 @@ public class BundleChangelogsTask extends DefaultTask {
     private final DirectoryProperty changelogDirectory;
 
     private final GitWrapper gitWrapper;
+
+    @Nullable
+    private String branch;
+    private boolean updateExisting;
+    private boolean finalize;
+
+    @Option(
+        option = "update-existing",
+        description = "Only update entries that are already in the bundle. Useful for updating the bundle after a BC has been cut."
+    )
+    public void setUpdateExisting(boolean updateExisting) {
+        this.updateExisting = updateExisting;
+    }
+
+    @Option(option = "branch", description = "Branch (or other ref) to use for generating the changelog bundle.")
+    public void setBranch(String branch) {
+        this.branch = branch;
+    }
+
+    @Option(option = "finalize", description = "Specify that the bundle is finalized, i.e. that the version has been released.")
+    public void setFinalize(boolean finalize) {
+        this.finalize = finalize;
+    }
 
     private static final ObjectMapper yamlMapper = new ObjectMapper(
         new YAMLFactory().enable(YAMLGenerator.Feature.MINIMIZE_QUOTES)
@@ -72,13 +98,16 @@ public class BundleChangelogsTask extends DefaultTask {
 
     @TaskAction
     public void executeTask() throws IOException {
+        if (branch == null) {
+            throw new IllegalArgumentException("'branch' not specified.");
+        }
+
         final String upstreamRemote = gitWrapper.getUpstream();
 
-        String ref = "9.0-fix-release-notes";
         try {
-            checkoutChangelogs(gitWrapper, upstreamRemote, ref);
+            checkoutChangelogs(gitWrapper, upstreamRemote, branch);
             Properties props = new Properties();
-            props.load(new StringReader(gitWrapper.runCommand("git", "show", ref + ":build-tools-internal/version.properties")));
+            props.load(new StringReader(gitWrapper.runCommand("git", "show", branch + ":build-tools-internal/version.properties")));
             String version = props.getProperty("elasticsearch");
 
             LOGGER.info("Finding changelog files...");
@@ -90,7 +119,27 @@ public class BundleChangelogsTask extends DefaultTask {
                 .sorted(Comparator.comparing(ChangelogEntry::getPr))
                 .collect(toList());
 
-            ChangelogBundle bundle = new ChangelogBundle(version, Instant.now().toString(), entries);
+            ChangelogBundle existingBundle = null;
+
+            if (updateExisting) {
+                var existingBundleFile = new File("docs/release-notes/changelog-bundles/" + version + ".yml");
+                if (existingBundleFile.exists()) {
+                    var bundle = ChangelogBundle.parse(existingBundleFile);
+                    existingBundle = bundle;
+                    entries = entries.stream()
+                        .filter(e -> bundle.changelogs().stream().anyMatch(c -> c.getPr().equals(e.getPr())))
+                        .toList();
+                }
+            }
+
+            var isReleased = false;
+            if (finalize) {
+                isReleased = true;
+            } else if (existingBundle != null) {
+                isReleased = existingBundle.released();
+            }
+
+            ChangelogBundle bundle = new ChangelogBundle(version, isReleased, Instant.now().toString(), entries);
 
             yamlMapper.writeValue(new File("docs/release-notes/changelog-bundles/" + version + ".yml"), bundle);
         } finally {
@@ -102,7 +151,13 @@ public class BundleChangelogsTask extends DefaultTask {
         gitWrapper.updateRemote(upstream);
         // TODO check for changes first
         gitWrapper.runCommand("rm", "-rf", "docs/changelog");
-        gitWrapper.runCommand("git", "checkout", ref, "--", "docs/changelog");
+        var refSpec = upstream + "/" + ref;
+        if (ref.contains("upstream/")) {
+            refSpec = ref.replace("upstream/", upstream + "/");
+        } else if (ref.matches("^[0-9a-f]+$")) {
+            refSpec = ref;
+        }
+        gitWrapper.runCommand("git", "checkout", refSpec, "--", "docs/changelog");
     }
 
     @InputDirectory

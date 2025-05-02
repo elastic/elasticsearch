@@ -1,4 +1,5 @@
 version: 9.0.0
+released: true
 generated: 2025-04-14T18:16:08.465456Z
 changelogs:
   - pr: 90529

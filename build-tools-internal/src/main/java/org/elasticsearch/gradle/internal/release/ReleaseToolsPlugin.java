@@ -73,6 +73,7 @@ public class ReleaseToolsPlugin implements Plugin<Project> {
             task.setChangelogs(yamlFiles);
             task.setChangelogDirectory(changeLogDirectory);
             task.setBundleFile(projectDirectory.file("docs/release-notes/changelogs-" + version.toString() + ".yml"));
+            task.getOutputs().upToDateWhen(o -> false);
         };
 
         final Function<Boolean, Action<GenerateReleaseNotesTask>> configureGenerateTask = shouldConfigureYamlFiles -> task -> {
@@ -97,6 +98,8 @@ public class ReleaseToolsPlugin implements Plugin<Project> {
             task.setDeprecationsFile(projectDirectory.file("docs/release-notes/deprecations.md"));
 
             task.setChangelogBundleDirectory(projectDirectory.dir("docs/release-notes/changelog-bundles"));
+
+            task.getOutputs().upToDateWhen(o -> false);
 
             task.dependsOn(validateChangelogsTask);
         };

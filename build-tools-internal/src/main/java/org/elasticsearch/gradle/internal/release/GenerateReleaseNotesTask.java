@@ -97,15 +97,16 @@ public class GenerateReleaseNotesTask extends DefaultTask {
             .getFiles()
             .stream()
             .map(ChangelogBundle::parse)
-            .sorted(Comparator.comparing(ChangelogBundle::generated).reversed())
+            .sorted(Comparator.comparing(ChangelogBundle::released).reversed().thenComparing(ChangelogBundle::generated).reversed())
             .toList();
 
         // Ensure that each changelog/PR only shows up once, in its earliest release
-        // TODO: This should only be for unreleased/non-final bundles
         var uniquePrs = new HashSet<Integer>();
         for (int i = bundles.size() - 1; i >= 0; i--) {
             var bundle = bundles.get(i);
-            bundle.changelogs().removeAll(bundle.changelogs().stream().filter(c -> uniquePrs.contains(c.getPr())).toList());
+            if (!bundle.released()) {
+                bundle.changelogs().removeAll(bundle.changelogs().stream().filter(c -> uniquePrs.contains(c.getPr())).toList());
+            }
             uniquePrs.addAll(bundle.changelogs().stream().map(ChangelogEntry::getPr).toList());
         }
 
@@ -113,26 +114,6 @@ public class GenerateReleaseNotesTask extends DefaultTask {
         ReleaseNotesGenerator.update(this.releaseNotesTemplate.get().getAsFile(), this.releaseNotesFile.get().getAsFile(), bundles);
         ReleaseNotesGenerator.update(this.breakingChangesTemplate.get().getAsFile(), this.breakingChangesFile.get().getAsFile(), bundles);
         ReleaseNotesGenerator.update(this.deprecationsTemplate.get().getAsFile(), this.deprecationsFile.get().getAsFile(), bundles);
-
-        // Only update breaking changes and deprecations for new minors
-        // if (qualifiedVersion.revision() == 0) {
-        // LOGGER.info("Generating breaking changes / deprecations notes...");
-        // ReleaseNotesGenerator.update(
-        // this.breakingChangesTemplate.get().getAsFile(),
-        // this.breakingChangesFile.get().getAsFile(),
-        // qualifiedVersion,
-        // changelogsByVersion.getOrDefault(qualifiedVersion, Set.of()),
-        // bundles
-        // );
-        //
-        // ReleaseNotesGenerator.update(
-        // this.deprecationsTemplate.get().getAsFile(),
-        // this.deprecationsFile.get().getAsFile(),
-        // qualifiedVersion,
-        // changelogsByVersion.getOrDefault(qualifiedVersion, Set.of()),
-        // bundles
-        // );
-        // }
     }
 
     /**

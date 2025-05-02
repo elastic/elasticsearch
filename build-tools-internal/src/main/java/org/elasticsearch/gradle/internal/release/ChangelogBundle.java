@@ -21,12 +21,16 @@ import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.List;
 
-public record ChangelogBundle(String version, String generated, List<ChangelogEntry> changelogs) {
+public record ChangelogBundle(String version, boolean released, String generated, List<ChangelogEntry> changelogs) {
 
     private static final Logger LOGGER = Logging.getLogger(GenerateReleaseNotesTask.class);
     private static final ObjectMapper yamlMapper = new ObjectMapper(
         new YAMLFactory().enable(YAMLGenerator.Feature.MINIMIZE_QUOTES).disable(YAMLGenerator.Feature.SPLIT_LINES)
     );
+
+    public ChangelogBundle(String version, String generated, List<ChangelogEntry> changelogs) {
+        this(version, false, generated, changelogs);
+    }
 
     public static ChangelogBundle parse(File file) {
         try {

@@ -111,13 +111,15 @@ public class DenseVectorFieldMapper extends FieldMapper {
     public static final NodeFeature INT4_QUANTIZATION = new NodeFeature("mapper.vectors.int4_quantization", true);
     public static final NodeFeature BIT_VECTORS = new NodeFeature("mapper.vectors.bit_vectors", true);
     public static final NodeFeature BBQ_FORMAT = new NodeFeature("mapper.vectors.bbq", true);
+    private static boolean hasRescoreIndexVersion(IndexVersion version) {
+        return version.onOrAfter(IndexVersions.ADD_RESCORE_PARAMS_TO_QUANTIZED_VECTORS);
+    }
 
     public static final IndexVersion MAGNITUDE_STORED_INDEX_VERSION = IndexVersions.V_7_5_0;
     public static final IndexVersion INDEXED_BY_DEFAULT_INDEX_VERSION = IndexVersions.FIRST_DETACHED_INDEX_VERSION;
     public static final IndexVersion NORMALIZE_COSINE = IndexVersions.NORMALIZED_VECTOR_COSINE;
     public static final IndexVersion DEFAULT_TO_INT8 = DEFAULT_DENSE_VECTOR_TO_INT8_HNSW;
     public static final IndexVersion LITTLE_ENDIAN_FLOAT_STORED_INDEX_VERSION = IndexVersions.V_8_9_0;
-    public static final IndexVersion ADD_RESCORE_PARAMS_TO_QUANTIZED_VECTORS = IndexVersions.ADD_RESCORE_PARAMS_TO_QUANTIZED_VECTORS;
 
     public static final NodeFeature RESCORE_VECTOR_QUANTIZED_VECTOR_MAPPING = new NodeFeature("mapper.dense_vector.rescore_vector");
 
@@ -1289,7 +1291,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
                     confidenceInterval = (float) XContentMapValues.nodeDoubleValue(confidenceIntervalNode);
                 }
                 RescoreVector rescoreVector = null;
-                if (indexVersion.onOrAfter(ADD_RESCORE_PARAMS_TO_QUANTIZED_VECTORS)) {
+                if (hasRescoreIndexVersion(indexVersion)) {
                     rescoreVector = RescoreVector.fromIndexOptions(indexOptionsMap);
                 }
                 MappingParser.checkNoRemainingFields(fieldName, indexOptionsMap);
@@ -1324,7 +1326,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
                     confidenceInterval = (float) XContentMapValues.nodeDoubleValue(confidenceIntervalNode);
                 }
                 RescoreVector rescoreVector = null;
-                if (indexVersion.onOrAfter(ADD_RESCORE_PARAMS_TO_QUANTIZED_VECTORS)) {
+                if (hasRescoreIndexVersion(indexVersion)) {
                     rescoreVector = RescoreVector.fromIndexOptions(indexOptionsMap);
                 }
                 MappingParser.checkNoRemainingFields(fieldName, indexOptionsMap);
@@ -1367,7 +1369,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
                     confidenceInterval = (float) XContentMapValues.nodeDoubleValue(confidenceIntervalNode);
                 }
                 RescoreVector rescoreVector = null;
-                if (indexVersion.onOrAfter(ADD_RESCORE_PARAMS_TO_QUANTIZED_VECTORS)) {
+                if (hasRescoreIndexVersion(indexVersion)) {
                     rescoreVector = RescoreVector.fromIndexOptions(indexOptionsMap);
                 }
                 MappingParser.checkNoRemainingFields(fieldName, indexOptionsMap);
@@ -1393,7 +1395,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
                     confidenceInterval = (float) XContentMapValues.nodeDoubleValue(confidenceIntervalNode);
                 }
                 RescoreVector rescoreVector = null;
-                if (indexVersion.onOrAfter(ADD_RESCORE_PARAMS_TO_QUANTIZED_VECTORS)) {
+                if (hasRescoreIndexVersion(indexVersion)) {
                     rescoreVector = RescoreVector.fromIndexOptions(indexOptionsMap);
                 }
                 MappingParser.checkNoRemainingFields(fieldName, indexOptionsMap);
@@ -1424,7 +1426,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
                 int m = XContentMapValues.nodeIntegerValue(mNode);
                 int efConstruction = XContentMapValues.nodeIntegerValue(efConstructionNode);
                 RescoreVector rescoreVector = null;
-                if (indexVersion.onOrAfter(ADD_RESCORE_PARAMS_TO_QUANTIZED_VECTORS)) {
+                if (hasRescoreIndexVersion(indexVersion)) {
                     rescoreVector = RescoreVector.fromIndexOptions(indexOptionsMap);
                 }
                 MappingParser.checkNoRemainingFields(fieldName, indexOptionsMap);
@@ -1445,7 +1447,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
             @Override
             public IndexOptions parseIndexOptions(String fieldName, Map<String, ?> indexOptionsMap, IndexVersion indexVersion) {
                 RescoreVector rescoreVector = null;
-                if (indexVersion.onOrAfter(ADD_RESCORE_PARAMS_TO_QUANTIZED_VECTORS)) {
+                if (hasRescoreIndexVersion(indexVersion)) {
                     rescoreVector = RescoreVector.fromIndexOptions(indexOptionsMap);
                 }
                 MappingParser.checkNoRemainingFields(fieldName, indexOptionsMap);

@@ -65,10 +65,7 @@ public class DefaultIVFVectorsWriter extends IVFVectorsWriter {
         }
         // calculate the centroids
         int maxNumClusters = ((floatVectorValues.size() - 1) / vectorPerCluster) + 1;
-        int desiredClusters = (int) Math.max(maxNumClusters / 16.0, Math.max(Math.sqrt(floatVectorValues.size()), maxNumClusters));
-        if (floatVectorValues.size() / desiredClusters > vectorPerCluster) {
-            desiredClusters = ((floatVectorValues.size() - 1) / vectorPerCluster) + 1;
-        }
+        int desiredClusters = (int) Math.max(Math.sqrt(floatVectorValues.size()), maxNumClusters);
         final KMeans.Results kMeans = KMeans.cluster(
             floatVectorValues,
             desiredClusters,

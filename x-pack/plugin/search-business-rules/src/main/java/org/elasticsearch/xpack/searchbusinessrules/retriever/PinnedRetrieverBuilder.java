@@ -74,7 +74,7 @@ public final class PinnedRetrieverBuilder extends CompoundRetrieverBuilder<Pinne
             return innerRetriever;
         }, RETRIEVER_FIELD);
         PARSER.declareInt(optionalConstructorArg(), RANK_WINDOW_SIZE_FIELD);
-        RetrieverBuilder.declareBaseParserFields(PARSER);
+        RetrieverBuilder.declareBaseParserFields(NAME, PARSER);
     }
 
     public static PinnedRetrieverBuilder fromXContent(XContentParser parser, RetrieverParserContext context) throws IOException {
@@ -194,7 +194,7 @@ public final class PinnedRetrieverBuilder extends CompoundRetrieverBuilder<Pinne
             }
             builder.endArray();
         }
-        builder.field(RETRIEVER_FIELD.getPreferredName(), innerRetrievers.getFirst().retriever());
+        builder.field(RETRIEVER_FIELD.getPreferredName(), innerRetrievers.get(0).retriever());
         builder.field(RANK_WINDOW_SIZE_FIELD.getPreferredName(), rankWindowSize);
     }
 
@@ -206,7 +206,7 @@ public final class PinnedRetrieverBuilder extends CompoundRetrieverBuilder<Pinne
     @Override
     protected RankDoc[] combineInnerRetrieverResults(List<ScoreDoc[]> rankResults, boolean explain) {
         assert rankResults.size() == 1;
-        ScoreDoc[] scoreDocs = rankResults.getFirst();
+        ScoreDoc[] scoreDocs = rankResults.get(0);
         RankDoc[] rankDocs = new RankDoc[scoreDocs.length];
         for (int i = 0; i < scoreDocs.length; i++) {
             ScoreDoc scoreDoc = scoreDocs[i];

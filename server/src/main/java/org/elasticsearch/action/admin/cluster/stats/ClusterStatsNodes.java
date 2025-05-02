@@ -24,7 +24,6 @@ import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.discovery.DiscoveryModule;
 import org.elasticsearch.index.stats.IndexingPressureStats;
-import org.elasticsearch.ingest.IngestStats.ProcessorStat;
 import org.elasticsearch.monitor.fs.FsInfo;
 import org.elasticsearch.monitor.jvm.JvmInfo;
 import org.elasticsearch.monitor.os.OsInfo;
@@ -715,13 +714,19 @@ public class ClusterStatsNodes implements ToXContentFragment {
             SortedMap<String, long[]> stats = new TreeMap<>();
             for (NodeStats nodeStat : nodeStats) {
                 if (nodeStat.getIngestStats() != null) {
-                    for (Map.Entry<ProjectId, Map<String, List<ProcessorStat>>> processorStatsForProject : nodeStat.getIngestStats()
-                        .processorStats()
-                        .entrySet()) {
+                    for (Map.Entry<
+                        ProjectId,
+                        Map<String, List<org.elasticsearch.ingest.IngestStats.ProcessorStat>>> processorStatsForProject : nodeStat
+                            .getIngestStats()
+                            .processorStats()
+                            .entrySet()) {
                         ProjectId projectId = processorStatsForProject.getKey();
-                        for (Map.Entry<String, List<ProcessorStat>> processorStats : processorStatsForProject.getValue().entrySet()) {
+                        for (Map.Entry<
+                            String,
+                            List<org.elasticsearch.ingest.IngestStats.ProcessorStat>> processorStats : processorStatsForProject.getValue()
+                                .entrySet()) {
                             pipelineIdsByProject.computeIfAbsent(projectId, k -> new HashSet<>()).add(processorStats.getKey());
-                            for (ProcessorStat stat : processorStats.getValue()) {
+                            for (org.elasticsearch.ingest.IngestStats.ProcessorStat stat : processorStats.getValue()) {
                                 stats.compute(stat.type(), (k, v) -> {
                                     org.elasticsearch.ingest.IngestStats.Stats nodeIngestStats = stat.stats();
                                     if (v == null) {

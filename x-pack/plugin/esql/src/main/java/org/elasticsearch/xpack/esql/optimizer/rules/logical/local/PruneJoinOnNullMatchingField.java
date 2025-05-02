@@ -38,31 +38,32 @@ public class PruneJoinOnNullMatchingField extends OptimizerRules.OptimizerRule<J
 
     @Override
     protected LogicalPlan rule(Join join) {
+        LogicalPlan plan = join;
         var joinType = join.config().type();
-        if ((joinType == INNER || joinType == LEFT) == false) { // other types will have different replacement logic
-            return join;
-        }
-        AttributeMap.Builder<Expression> attributeMapBuilder = AttributeMap.builder();
-        loop: for (var child = join.left();; child = ((UnaryPlan) child).child()) { // cast is safe as both Project and Eval are UnaryPlans
-            switch (child) {
-                case Project project -> project.projections().forEach(projection -> {
-                    if (projection instanceof Alias alias) {
-                        attributeMapBuilder.put(alias.toAttribute(), alias.child());
+        if (joinType == INNER || joinType == LEFT) { // other types will have different replacement logic
+            AttributeMap.Builder<Expression> attributeMapBuilder = AttributeMap.builder();
+            loop: for (var child = join.left();; child = ((UnaryPlan) child).child()) { // cast is safe as both plans are UnaryPlans
+                switch (child) {
+                    case Project project -> project.projections().forEach(projection -> {
+                        if (projection instanceof Alias alias) {
+                            attributeMapBuilder.put(alias.toAttribute(), alias.child());
+                        }
+                    });
+                    case Eval eval -> eval.fields().forEach(alias -> attributeMapBuilder.put(alias.toAttribute(), alias.child()));
+                    default -> {
+                        break loop;
                     }
-                });
-                case Eval eval -> eval.fields().forEach(alias -> attributeMapBuilder.put(alias.toAttribute(), alias.child()));
-                default -> {
-                    break loop;
+                }
+            }
+            for (var attr : AttributeSet.of(join.config().matchFields())) {
+                var resolved = attributeMapBuilder.build().resolve(attr);
+                if (resolved != null && isGuaranteedNull(resolved)) {
+                    plan = replaceJoin(join);
+                    break;
                 }
             }
         }
-        for (var attr : AttributeSet.of(join.config().matchFields())) {
-            var resolved = attributeMapBuilder.build().resolve(attr);
-            if (resolved != null && isGuaranteedNull(resolved)) {
-                return replaceJoin(join);
-            }
-        }
-        return join;
+        return plan;
     }
 
     private static LogicalPlan replaceJoin(Join join) {

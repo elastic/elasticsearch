@@ -214,8 +214,7 @@ public class ExplainDataStreamLifecycleAction {
                 out.writeOptionalTimeValue(dataGlobalRetention == null ? null : dataGlobalRetention.defaultRetention());
                 out.writeOptionalTimeValue(dataGlobalRetention == null ? null : dataGlobalRetention.maxRetention());
                 out.writeOptionalTimeValue(failureGlobalRetention == null ? null : failureGlobalRetention.defaultRetention());
-            }
-            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_14_0)) {
+            } else if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_14_0)) {
                 out.writeOptionalWriteable(getDataGlobalRetention());
             }
         }

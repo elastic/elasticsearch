@@ -234,23 +234,26 @@ public class IngestStatsTests extends ESTestCase {
             )
         );
     }
-    // TODO
-    // public void testProcessorStatsMergeHeterogeneous() {
-    // // if a pipeline has heterogeneous *non-zero* stats, then we defer to the one with a smaller total ingest count
-    //
-    // var first = Map.of(
-    // "pipeline-1",
-    // List.of(
-    // new IngestStats.ProcessorStat("name-1", "type-1", new IngestStats.Stats(randomLongBetween(1, 100), 0, 0, 0)),
-    // new IngestStats.ProcessorStat("name-2", "type-2", new IngestStats.Stats(randomLongBetween(1, 100), 0, 0, 0))
-    // )
-    // );
-    // var expected = List.of(new IngestStats.ProcessorStat("name-1", "type-1", new IngestStats.Stats(1, 0, 0, 0)));
-    // var second = Map.of("pipeline-1", expected);
-    //
-    // assertEquals(second, IngestStats.merge(first, second));
-    // assertSame(expected, IngestStats.merge(second, first).get("pipeline-1"));
-    // }
+
+    public void testProcessorStatsMergeHeterogeneous() {
+        // if a pipeline has heterogeneous *non-zero* stats, then we defer to the one with a smaller total ingest count
+
+        var first = Map.of(
+            ProjectId.fromId("project-1"),
+            Map.of(
+                "pipeline-1",
+                List.of(
+                    new IngestStats.ProcessorStat("name-1", "type-1", new IngestStats.Stats(randomLongBetween(1, 100), 0, 0, 0)),
+                    new IngestStats.ProcessorStat("name-2", "type-2", new IngestStats.Stats(randomLongBetween(1, 100), 0, 0, 0))
+                )
+            )
+        );
+        var expected = List.of(new IngestStats.ProcessorStat("name-1", "type-1", new IngestStats.Stats(1, 0, 0, 0)));
+        var second = Map.of(ProjectId.fromId("project-1"), Map.of("pipeline-1", expected));
+
+        assertEquals(second, IngestStats.merge(first, second));
+        assertSame(expected, IngestStats.merge(second, first).get(ProjectId.fromId("project-1")).get("pipeline-1"));
+    }
 
     private static List<IngestStats.ProcessorStat> expectedPipelineProcessorStats(
         List<IngestStats.ProcessorStat> first,

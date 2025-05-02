@@ -25,7 +25,7 @@ import org.elasticsearch.compute.operator.topn.DefaultUnsortableTopNEncoder;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.search.sort.SortOrder;
 
-import java.util.concurrent.ThreadLocalRandom;
+import java.util.SplittableRandom;
 
 /**
  * Sample N field values for long.
@@ -127,7 +127,7 @@ class SampleLongAggregator {
 
         public void add(int groupId, long value) {
             try (BreakingBytesRefBuilder builder = new BreakingBytesRefBuilder(breaker, "sample")) {
-                ENCODER.encodeLong(ThreadLocalRandom.current().nextLong(), builder);
+                ENCODER.encodeLong(new SplittableRandom().nextLong(), builder);
                 ENCODER.encodeLong(value, builder);
                 sort.collect(builder.bytesRefView(), groupId);
             }

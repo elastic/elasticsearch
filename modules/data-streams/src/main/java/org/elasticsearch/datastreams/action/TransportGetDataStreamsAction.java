@@ -88,7 +88,7 @@ public class TransportGetDataStreamsAction extends TransportMasterNodeReadAction
             threadPool,
             actionFilters,
             GetDataStreamAction.Request::new,
-            GetDataStreamAction.Response::new,
+            GetDataStreamAction.Response::read,
             transportService.getThreadPool().executor(ThreadPool.Names.MANAGEMENT)
         );
         this.indexNameExpressionResolver = indexNameExpressionResolver;
@@ -287,7 +287,8 @@ public class TransportGetDataStreamsAction extends TransportMasterNodeReadAction
         return new GetDataStreamAction.Response(
             dataStreamInfos,
             request.includeDefaults() ? clusterSettings.get(DataStreamLifecycle.CLUSTER_LIFECYCLE_DEFAULT_ROLLOVER_SETTING) : null,
-            globalRetentionSettings.get()
+            globalRetentionSettings.get(false),
+            globalRetentionSettings.get(true)
         );
     }
 

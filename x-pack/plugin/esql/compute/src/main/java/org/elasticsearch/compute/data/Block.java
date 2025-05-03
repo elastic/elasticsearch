@@ -366,7 +366,7 @@ public interface Block extends Accountable, BlockLoader.Block, Writeable, RefCou
     }
 
     static boolean supportsAggregateMetricDoubleBlock(TransportVersion version) {
-        return version.after(TransportVersions.AGGREGATE_METRIC_DOUBLE_BLOCK)
+        return version.onOrAfter(TransportVersions.AGGREGATE_METRIC_DOUBLE_BLOCK)
             || version.isPatchFrom(TransportVersions.ESQL_AGGREGATE_METRIC_DOUBLE_BLOCK_8_19);
     }
 

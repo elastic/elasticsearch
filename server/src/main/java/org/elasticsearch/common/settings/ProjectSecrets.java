@@ -57,7 +57,7 @@ public class ProjectSecrets extends AbstractNamedDiffable<Metadata.ProjectCustom
     }
 
     public Set<String> getSettingNames() {
-        return settings.getSettingNames();
+        return Collections.unmodifiableSet(settings.getSettingNames());
     }
 
     @Override

@@ -227,6 +227,7 @@ class S3Service extends AbstractLifecycleComponent {
         }
     }
 
+    // visible for tests
     protected AmazonS3Reference buildClientReference(final S3ClientSettings clientSettings) {
         final SdkHttpClient httpClient = buildHttpClient(clientSettings, getCustomDnsResolver());
         Releasable toRelease = httpClient::close;

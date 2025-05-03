@@ -45,14 +45,14 @@ public class S3PerProjectClientManager implements ClusterStateListener {
     private final Settings nodeS3Settings;
     private final Function<S3ClientSettings, AmazonS3Reference> clientBuilder;
     private final Executor executor;
-    // A map of projectId to clients holder. Adding to and removing from the map happen only in the cluster state listener thread.
+    // A map of projectId to clients holder. Adding to and removing from the map happen only in the applier thread.
     private final Map<ProjectId, ClientsHolder> projectClientsHolders;
-    // Listener for tracking ongoing async closing of obsolete clients. Updated only in the cluster state listener thread.
+    // Listener for tracking ongoing async closing of obsolete clients. Updated only in the applier thread.
     private volatile SubscribableListener<Void> clientsCloseListener = null;
 
     S3PerProjectClientManager(Settings settings, Function<S3ClientSettings, AmazonS3Reference> clientBuilder, Executor executor) {
         this.nodeS3Settings = Settings.builder()
-            .put(settings.getByPrefix(S3_SETTING_PREFIX), false) // not use any cluster scoped secrets
+            .put(settings.getByPrefix(S3_SETTING_PREFIX), false) // not rely on any cluster scoped secrets
             .normalizePrefix(S3_SETTING_PREFIX)
             .build();
         this.clientBuilder = clientBuilder;
@@ -72,7 +72,7 @@ public class S3PerProjectClientManager implements ClusterStateListener {
         final List<ClientsHolder> clientsHoldersToClose = new ArrayList<>();
         for (var project : currentProjects.values()) {
             final ProjectSecrets projectSecrets = project.custom(ProjectSecrets.TYPE);
-            // Project secrets can be null when node restarts. It may not have s3 credentials if s3 is not used.
+            // Project secrets can be null when node restarts. It may not have any s3 credentials if s3 is not in use.
             if (projectSecrets == null || projectSecrets.getSettingNames().stream().noneMatch(key -> key.startsWith("s3."))) {
                 // Most likely there won't be any existing client, but attempt to remove it anyway just in case
                 final ClientsHolder removed = projectClientsHolders.remove(project.id());
@@ -126,7 +126,7 @@ public class S3PerProjectClientManager implements ClusterStateListener {
                 clientsHoldersToClose.add(removed);
             }
         }
-        // Close stale clients asynchronously without blocking the cluster state thread
+        // Close stale clients asynchronously without blocking the applier thread
         if (clientsHoldersToClose.isEmpty() == false) {
             final var currentClientsCloseListener = new SubscribableListener<Void>();
             final var previousClientsCloseListener = clientsCloseListener;
@@ -182,7 +182,7 @@ public class S3PerProjectClientManager implements ClusterStateListener {
             currentClientsCloseListener.addListener(ActionListener.running(latch::countDown));
             try {
                 if (latch.await(1, TimeUnit.MINUTES) == false) {
-                    logger.warn("async closing of s3 clients timed out");
+                    logger.warn("Waiting for async closing of s3 clients timed out");
                 }
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();

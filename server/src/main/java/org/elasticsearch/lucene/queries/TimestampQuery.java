@@ -45,6 +45,14 @@ public final class TimestampQuery extends Query {
         this.maxTimestamp = maxTimestamp;
     }
 
+    public long getMinTimestamp() {
+        return minTimestamp;
+    }
+
+    public long getMaxTimestamp() {
+        return maxTimestamp;
+    }
+
     @Override
     public Query rewrite(IndexSearcher indexSearcher) throws IOException {
         if (minTimestamp == Long.MIN_VALUE && maxTimestamp == Long.MAX_VALUE) {

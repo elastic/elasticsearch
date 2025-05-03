@@ -199,6 +199,13 @@ teardown:
 
 ---
 "Get failure store info from cluster setting enabled failure store":
+  - requires:
+      test_runner_features: [ capabilities ]
+      reason: "Default retention for failures was added in 9.1+"
+      capabilities:
+        - method: GET
+          path: /_data_stream/{target}
+          capabilities: [ 'failure_store.lifecycle.default_retention' ]
   - do:
       indices.create_data_stream:
         name: fs-default-data-stream

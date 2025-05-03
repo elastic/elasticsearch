@@ -222,11 +222,12 @@ class S3Service extends AbstractLifecycleComponent {
             // Multi-Project is enabled and we are retrieving a client for the cluster level blobstore
             return client(repositoryMetadata);
         } else {
-            return s3PerProjectClientManager.client(projectId, repositoryMetadata);
+            final String clientName = S3Repository.CLIENT_NAME.get(repositoryMetadata.settings());
+            return s3PerProjectClientManager.client(projectId, clientName);
         }
     }
 
-    private AmazonS3Reference buildClientReference(final S3ClientSettings clientSettings) {
+    protected AmazonS3Reference buildClientReference(final S3ClientSettings clientSettings) {
         final SdkHttpClient httpClient = buildHttpClient(clientSettings, getCustomDnsResolver());
         Releasable toRelease = httpClient::close;
         try {

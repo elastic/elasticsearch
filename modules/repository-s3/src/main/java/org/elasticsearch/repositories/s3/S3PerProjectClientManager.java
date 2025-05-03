@@ -15,7 +15,6 @@ import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
-import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.common.settings.ProjectSecrets;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.Maps;
@@ -41,8 +40,9 @@ import java.util.stream.Collectors;
 public class S3PerProjectClientManager implements ClusterStateListener {
 
     private static final Logger logger = LogManager.getLogger(S3PerProjectClientManager.class);
+    private static final String S3_SETTING_PREFIX = "s3.";
 
-    private final Settings settings;
+    private final Settings nodeS3Settings;
     private final Function<S3ClientSettings, AmazonS3Reference> clientBuilder;
     private final Executor executor;
     // A map of projectId to clients holder. Adding to and removing from the map happen only in the cluster state listener thread.
@@ -51,7 +51,10 @@ public class S3PerProjectClientManager implements ClusterStateListener {
     private volatile SubscribableListener<Void> clientsCloseListener = null;
 
     S3PerProjectClientManager(Settings settings, Function<S3ClientSettings, AmazonS3Reference> clientBuilder, Executor executor) {
-        this.settings = settings;
+        this.nodeS3Settings = Settings.builder()
+            .put(settings.getByPrefix(S3_SETTING_PREFIX), false) // not use any cluster scoped secrets
+            .normalizePrefix(S3_SETTING_PREFIX)
+            .build();
         this.clientBuilder = clientBuilder;
         this.executor = executor;
         this.projectClientsHolders = new ConcurrentHashMap<>();
@@ -66,36 +69,48 @@ public class S3PerProjectClientManager implements ClusterStateListener {
         final Map<ProjectId, ProjectMetadata> currentProjects = event.state().metadata().projects();
 
         final var updatedPerProjectClients = new HashMap<ProjectId, ClientsHolder>();
+        final List<ClientsHolder> clientsHoldersToClose = new ArrayList<>();
         for (var project : currentProjects.values()) {
             final ProjectSecrets projectSecrets = project.custom(ProjectSecrets.TYPE);
-            if (projectSecrets == null) {
-                // This can only happen when a node restarts, it will be processed again when file settings are loaded
+            // Project secrets can be null when node restarts. It may not have s3 credentials if s3 is not used.
+            if (projectSecrets == null || projectSecrets.getSettingNames().stream().noneMatch(key -> key.startsWith("s3."))) {
+                // Most likely there won't be any existing client, but attempt to remove it anyway just in case
+                final ClientsHolder removed = projectClientsHolders.remove(project.id());
+                if (removed != null) {
+                    clientsHoldersToClose.add(removed);
+                }
                 continue;
             }
+
             final Settings currentSettings = Settings.builder()
-                // merge with static settings such as max retries etc, exclude secure settings
+                // merge with static settings such as max retries etc
                 // TODO: We may need to update this if per-project settings decide to support hierarchical overrides
-                .put(settings, false) // do not fallback to cluster scoped secrets
+                .put(nodeS3Settings)
                 .setSecureSettings(projectSecrets.getSettings())
                 .build();
             final Map<String, S3ClientSettings> clientSettings = S3ClientSettings.load(currentSettings)
                 .entrySet()
                 .stream()
-                // Skip project clients that have no credentials configured. This should not happen in serverless since all clients should
-                // have credentials configured. But it is safer to skip them.
+                // Skip project clients that have no credentials configured. This should not happen in serverless.
+                // But it is safer to skip them and is also a more consistent behaviour with the cases when
+                // project secrets are not present.
                 .filter(entry -> entry.getValue().credentials != null)
                 .collect(Collectors.toUnmodifiableMap(Map.Entry::getKey, Map.Entry::getValue));
 
-            // TODO: clientSettings should not be empty, i.e. there should be at least one client configured
-            // Maybe log a warning if it is empty and continue. The project will not have usable client but that is probably ok.
+            if (clientSettings.isEmpty()) {
+                // clientSettings should not be empty, i.e. there should be at least one client configured.
+                // But if it does somehow happen, log a warning and continue. The project will not have usable client but that is ok.
+                logger.warn("Skipping project [{}] with no client settings", project.id());
+                continue;
+            }
 
-            // TODO: Building and comparing the whole S3ClientSettings may be inefficient, we could just compare the relevant secrets
+            // TODO: If performance is an issue, we may consider comparing just the relevant project secrets for new or updated clients
+            // and avoid building the clientSettings
             if (newOrUpdated(project.id(), clientSettings)) {
-                updatedPerProjectClients.put(project.id(), new ClientsHolder(clientSettings));
+                updatedPerProjectClients.put(project.id(), new ClientsHolder(project.id(), clientSettings));
             }
         }
 
-        final List<ClientsHolder> clientsHoldersToClose = new ArrayList<>();
         // Updated projects
         for (var projectId : updatedPerProjectClients.keySet()) {
             final var old = projectClientsHolders.put(projectId, updatedPerProjectClients.get(projectId));
@@ -133,12 +148,12 @@ public class S3PerProjectClientManager implements ClusterStateListener {
         });
     }
 
-    public AmazonS3Reference client(ProjectId projectId, RepositoryMetadata repositoryMetadata) {
+    public AmazonS3Reference client(ProjectId projectId, String clientName) {
+        assert projectId != null && ProjectId.DEFAULT.equals(projectId) == false : projectId;
         final var clientsHolder = projectClientsHolders.get(projectId);
         if (clientsHolder == null) {
-            throw new IllegalArgumentException("project [" + projectId + "] does not exist");
+            throw new IllegalArgumentException("no s3 client is configured for project [" + projectId + "]");
         }
-        final String clientName = S3Repository.CLIENT_NAME.get(repositoryMetadata.settings());
         return clientsHolder.client(clientName);
     }
 
@@ -147,6 +162,7 @@ public class S3PerProjectClientManager implements ClusterStateListener {
      * All clients for the project are closed and will be recreated on next access, also similar to S3Service#releaseCachedClients
      */
     public void releaseProjectClients(ProjectId projectId) {
+        assert projectId != null && ProjectId.DEFAULT.equals(projectId) == false : projectId;
         final var old = projectClientsHolders.get(projectId);
         if (old != null) {
             old.clearCache();
@@ -197,11 +213,13 @@ public class S3PerProjectClientManager implements ClusterStateListener {
      */
     final class ClientsHolder implements Closeable {
         private final AtomicBoolean closed = new AtomicBoolean(false);
+        private final ProjectId projectId;
         private final Map<String, S3ClientSettings> clientSettings;
         // Client name -> client reference
         private volatile Map<String, AmazonS3Reference> clientsCache = Collections.emptyMap();
 
-        ClientsHolder(Map<String, S3ClientSettings> clientSettings) {
+        ClientsHolder(ProjectId projectId, Map<String, S3ClientSettings> clientSettings) {
+            this.projectId = projectId;
             this.clientSettings = clientSettings;
         }
 
@@ -219,7 +237,7 @@ public class S3PerProjectClientManager implements ClusterStateListener {
             }
             final var settings = clientSettings.get(clientName);
             if (settings == null) {
-                throw new IllegalArgumentException("client [" + clientName + "] does not exist");
+                throw new IllegalArgumentException("s3 client [" + clientName + "] does not exist for project [" + projectId + "]");
             }
             synchronized (this) {
                 final var existing = clientsCache.get(clientName);

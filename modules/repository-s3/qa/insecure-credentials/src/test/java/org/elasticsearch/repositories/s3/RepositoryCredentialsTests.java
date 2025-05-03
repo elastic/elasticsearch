@@ -264,7 +264,7 @@ public class RepositoryCredentialsTests extends ESSingleNodeTestCase {
             ProjectResolver projectResolver,
             ResourceWatcherService resourceWatcherService
         ) {
-            return new ProxyS3Service(environment, nodeSettings, resourceWatcherService);
+            return new ProxyS3Service(environment, clusterService, projectResolver, resourceWatcherService);
         }
 
         /**

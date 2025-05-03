@@ -282,7 +282,7 @@ public class ShardBulkInferenceActionFilterIT extends ESIntegTestCase {
             }
             assertFalse(bulkResponse.hasFailures());
         }
-        assertThat(numHits(indexName), equalTo(numHits+ids.size()));
+        assertThat(numHits(indexName), equalTo(numHits + ids.size()));
     }
 
     private int numHits(String indexName) throws Exception {

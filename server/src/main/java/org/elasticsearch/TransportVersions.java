@@ -239,6 +239,7 @@ public class TransportVersions {
     public static final TransportVersion PINNED_RETRIEVER = def(9_068_0_00);
     public static final TransportVersion ML_INFERENCE_SAGEMAKER = def(9_069_0_00);
     public static final TransportVersion WRITE_LOAD_INCLUDES_BUFFER_WRITES = def(9_070_00_0);
+    public static final TransportVersion RANK_DOCS_QUERY_MIN_SCORE = def(9_071_0_00);
 
     /*
      * STOP! READ THIS FIRST! No, really,

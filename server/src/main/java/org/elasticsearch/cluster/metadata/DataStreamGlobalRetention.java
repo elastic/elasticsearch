@@ -23,10 +23,6 @@ import java.io.IOException;
 public record DataStreamGlobalRetention(@Nullable TimeValue defaultRetention, @Nullable TimeValue maxRetention) implements Writeable {
 
     public static final TimeValue MIN_RETENTION_VALUE = TimeValue.timeValueSeconds(10);
-    public static final DataStreamGlobalRetention DEFAULT_FAILURES_CONFIG = new DataStreamGlobalRetention(
-        DataStreamGlobalRetentionSettings.FAILURES_DEFAULT_RETENTION,
-        null
-    );
 
     /**
      * @param defaultRetention the default retention or null if it's undefined
@@ -57,10 +53,6 @@ public record DataStreamGlobalRetention(@Nullable TimeValue defaultRetention, @N
     public static DataStreamGlobalRetention create(@Nullable TimeValue defaultRetention, @Nullable TimeValue maxRetention) {
         if (defaultRetention == null && maxRetention == null) {
             return null;
-        }
-        if (maxRetention == null
-            && DataStreamGlobalRetentionSettings.FAILURES_DEFAULT_RETENTION.getMillis() == defaultRetention.getMillis()) {
-            return DEFAULT_FAILURES_CONFIG;
         }
         return new DataStreamGlobalRetention(defaultRetention, maxRetention);
     }

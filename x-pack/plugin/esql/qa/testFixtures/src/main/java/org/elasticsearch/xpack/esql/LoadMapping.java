@@ -24,6 +24,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.util.Collections;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 
 import static java.util.Collections.emptyMap;
@@ -110,7 +111,7 @@ public class LoadMapping {
                 field = DateEsField.dateEsField(name, properties, docValues);
             } else if (esDataType == UNSUPPORTED) {
                 String type = content.get("type").toString();
-                field = new UnsupportedEsField(name, type, null, properties);
+                field = new UnsupportedEsField(name, List.of(type), null, properties);
                 propagateUnsupportedType(name, type, properties);
             } else {
                 field = new EsField(name, esDataType, properties, docValues);
@@ -165,9 +166,9 @@ public class LoadMapping {
                 UnsupportedEsField u;
                 if (field instanceof UnsupportedEsField) {
                     u = (UnsupportedEsField) field;
-                    u = new UnsupportedEsField(u.getName(), originalType, inherited, u.getProperties());
+                    u = new UnsupportedEsField(u.getName(), List.of(originalType), inherited, u.getProperties());
                 } else {
-                    u = new UnsupportedEsField(field.getName(), originalType, inherited, field.getProperties());
+                    u = new UnsupportedEsField(field.getName(), List.of(originalType), inherited, field.getProperties());
                 }
                 entry.setValue(u);
                 propagateUnsupportedType(inherited, originalType, u.getProperties());

@@ -60,6 +60,7 @@ import java.util.stream.LongStream;
 import static java.util.Comparator.naturalOrder;
 import static java.util.Comparator.reverseOrder;
 import static org.elasticsearch.compute.data.BlockUtils.toJavaObject;
+import static org.elasticsearch.compute.data.ElementType.AGGREGATE_METRIC_DOUBLE;
 import static org.elasticsearch.compute.data.ElementType.BOOLEAN;
 import static org.elasticsearch.compute.data.ElementType.BYTES_REF;
 import static org.elasticsearch.compute.data.ElementType.COMPOSITE;
@@ -520,7 +521,7 @@ public class TopNOperatorTests extends OperatorTestCase {
         encoders.add(DEFAULT_SORTABLE);
 
         for (ElementType e : ElementType.values()) {
-            if (e == ElementType.UNKNOWN || e == COMPOSITE) {
+            if (e == ElementType.UNKNOWN || e == COMPOSITE || e == AGGREGATE_METRIC_DOUBLE) {
                 continue;
             }
             elementTypes.add(e);
@@ -592,7 +593,7 @@ public class TopNOperatorTests extends OperatorTestCase {
 
         for (int type = 0; type < blocksCount; type++) {
             ElementType e = randomFrom(ElementType.values());
-            if (e == ElementType.UNKNOWN || e == COMPOSITE) {
+            if (e == ElementType.UNKNOWN || e == COMPOSITE || e == AGGREGATE_METRIC_DOUBLE) {
                 continue;
             }
             elementTypes.add(e);
@@ -980,7 +981,7 @@ public class TopNOperatorTests extends OperatorTestCase {
 
         for (int type = 0; type < blocksCount; type++) {
             ElementType e = randomValueOtherThanMany(
-                t -> t == ElementType.UNKNOWN || t == ElementType.DOC || t == COMPOSITE,
+                t -> t == ElementType.UNKNOWN || t == ElementType.DOC || t == COMPOSITE || t == AGGREGATE_METRIC_DOUBLE,
                 () -> randomFrom(ElementType.values())
             );
             elementTypes.add(e);

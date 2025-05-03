@@ -196,7 +196,7 @@ public class TimeSeriesIT extends AbstractEsqlIntegTestCase {
             }
         }
         try (var resp = run("METRICS hosts sum(rate(request_count, 1second))")) {
-            assertThat(resp.columns(), equalTo(List.of(new ColumnInfoImpl("sum(rate(request_count, 1second))", "double"))));
+            assertThat(resp.columns(), equalTo(List.of(new ColumnInfoImpl("sum(rate(request_count, 1second))", "double", null))));
             List<List<Object>> values = EsqlTestUtils.getValuesList(resp);
             assertThat(values, hasSize(1));
             assertThat(values.get(0), hasSize(1));
@@ -207,8 +207,8 @@ public class TimeSeriesIT extends AbstractEsqlIntegTestCase {
                 resp.columns(),
                 equalTo(
                     List.of(
-                        new ColumnInfoImpl("max(rate(request_count))", "double"),
-                        new ColumnInfoImpl("min(rate(request_count))", "double")
+                        new ColumnInfoImpl("max(rate(request_count))", "double", null),
+                        new ColumnInfoImpl("min(rate(request_count))", "double", null)
                     )
                 )
             );
@@ -223,9 +223,9 @@ public class TimeSeriesIT extends AbstractEsqlIntegTestCase {
                 resp.columns(),
                 equalTo(
                     List.of(
-                        new ColumnInfoImpl("max(rate(request_count))", "double"),
-                        new ColumnInfoImpl("avg(rate(request_count))", "double"),
-                        new ColumnInfoImpl("max(rate(request_count, 1minute))", "double")
+                        new ColumnInfoImpl("max(rate(request_count))", "double", null),
+                        new ColumnInfoImpl("avg(rate(request_count))", "double", null),
+                        new ColumnInfoImpl("max(rate(request_count, 1minute))", "double", null)
                     )
                 )
             );
@@ -242,8 +242,8 @@ public class TimeSeriesIT extends AbstractEsqlIntegTestCase {
                 resp.columns(),
                 equalTo(
                     List.of(
-                        new ColumnInfoImpl("avg(rate(request_count))", "double"),
-                        new ColumnInfoImpl("avg(rate(request_count, 1second))", "double")
+                        new ColumnInfoImpl("avg(rate(request_count))", "double", null),
+                        new ColumnInfoImpl("avg(rate(request_count, 1second))", "double", null)
                     )
                 )
             );
@@ -259,10 +259,10 @@ public class TimeSeriesIT extends AbstractEsqlIntegTestCase {
                 resp.columns(),
                 equalTo(
                     List.of(
-                        new ColumnInfoImpl("max(rate(request_count))", "double"),
-                        new ColumnInfoImpl("min(rate(request_count))", "double"),
-                        new ColumnInfoImpl("min(cpu)", "double"),
-                        new ColumnInfoImpl("max(cpu)", "double")
+                        new ColumnInfoImpl("max(rate(request_count))", "double", null),
+                        new ColumnInfoImpl("min(rate(request_count))", "double", null),
+                        new ColumnInfoImpl("min(cpu)", "double", null),
+                        new ColumnInfoImpl("max(cpu)", "double", null)
                     )
                 )
             );
@@ -297,7 +297,9 @@ public class TimeSeriesIT extends AbstractEsqlIntegTestCase {
         try (var resp = run("METRICS hosts sum(rate(request_count)) BY cluster | SORT cluster")) {
             assertThat(
                 resp.columns(),
-                equalTo(List.of(new ColumnInfoImpl("sum(rate(request_count))", "double"), new ColumnInfoImpl("cluster", "keyword")))
+                equalTo(
+                    List.of(new ColumnInfoImpl("sum(rate(request_count))", "double", null), new ColumnInfoImpl("cluster", "keyword", null))
+                )
             );
             List<List<Object>> values = EsqlTestUtils.getValuesList(resp);
             assertThat(values, hasSize(bucketToRates.size()));
@@ -312,7 +314,9 @@ public class TimeSeriesIT extends AbstractEsqlIntegTestCase {
         try (var resp = run("METRICS hosts avg(rate(request_count)) BY cluster | SORT cluster")) {
             assertThat(
                 resp.columns(),
-                equalTo(List.of(new ColumnInfoImpl("avg(rate(request_count))", "double"), new ColumnInfoImpl("cluster", "keyword")))
+                equalTo(
+                    List.of(new ColumnInfoImpl("avg(rate(request_count))", "double", null), new ColumnInfoImpl("cluster", "keyword", null))
+                )
             );
             List<List<Object>> values = EsqlTestUtils.getValuesList(resp);
             assertThat(values, hasSize(bucketToRates.size()));
@@ -335,9 +339,9 @@ public class TimeSeriesIT extends AbstractEsqlIntegTestCase {
                 resp.columns(),
                 equalTo(
                     List.of(
-                        new ColumnInfoImpl("avg(rate(request_count, 1minute))", "double"),
-                        new ColumnInfoImpl("avg(rate(request_count))", "double"),
-                        new ColumnInfoImpl("cluster", "keyword")
+                        new ColumnInfoImpl("avg(rate(request_count, 1minute))", "double", null),
+                        new ColumnInfoImpl("avg(rate(request_count))", "double", null),
+                        new ColumnInfoImpl("cluster", "keyword", null)
                     )
                 )
             );
@@ -381,7 +385,7 @@ public class TimeSeriesIT extends AbstractEsqlIntegTestCase {
         try (var resp = run("METRICS hosts sum(rate(request_count)) BY ts=bucket(@timestamp, 1 minute) | SORT ts | LIMIT 5")) {
             assertThat(
                 resp.columns(),
-                equalTo(List.of(new ColumnInfoImpl("sum(rate(request_count))", "double"), new ColumnInfoImpl("ts", "date")))
+                equalTo(List.of(new ColumnInfoImpl("sum(rate(request_count))", "double", null), new ColumnInfoImpl("ts", "date", null)))
             );
             List<List<Object>> values = EsqlTestUtils.getValuesList(resp);
             assertThat(values, hasSize(sortedKeys.size()));
@@ -401,7 +405,7 @@ public class TimeSeriesIT extends AbstractEsqlIntegTestCase {
         try (var resp = run("METRICS hosts avg(rate(request_count)) BY ts=bucket(@timestamp, 1minute) | SORT ts | LIMIT 5")) {
             assertThat(
                 resp.columns(),
-                equalTo(List.of(new ColumnInfoImpl("avg(rate(request_count))", "double"), new ColumnInfoImpl("ts", "date")))
+                equalTo(List.of(new ColumnInfoImpl("avg(rate(request_count))", "double", null), new ColumnInfoImpl("ts", "date", null)))
             );
             List<List<Object>> values = EsqlTestUtils.getValuesList(resp);
             assertThat(values, hasSize(sortedKeys.size()));
@@ -428,9 +432,9 @@ public class TimeSeriesIT extends AbstractEsqlIntegTestCase {
                 resp.columns(),
                 equalTo(
                     List.of(
-                        new ColumnInfoImpl("avg(rate(request_count, 1minute))", "double"),
-                        new ColumnInfoImpl("avg(rate(request_count))", "double"),
-                        new ColumnInfoImpl("ts", "date")
+                        new ColumnInfoImpl("avg(rate(request_count, 1minute))", "double", null),
+                        new ColumnInfoImpl("avg(rate(request_count))", "double", null),
+                        new ColumnInfoImpl("ts", "date", null)
                     )
                 )
             );
@@ -490,9 +494,9 @@ public class TimeSeriesIT extends AbstractEsqlIntegTestCase {
                 resp.columns(),
                 equalTo(
                     List.of(
-                        new ColumnInfoImpl("sum(rate(request_count))", "double"),
-                        new ColumnInfoImpl("ts", "date"),
-                        new ColumnInfoImpl("cluster", "keyword")
+                        new ColumnInfoImpl("sum(rate(request_count))", "double", null),
+                        new ColumnInfoImpl("ts", "date", null),
+                        new ColumnInfoImpl("cluster", "keyword", null)
                     )
                 )
             );
@@ -520,9 +524,9 @@ public class TimeSeriesIT extends AbstractEsqlIntegTestCase {
                 resp.columns(),
                 equalTo(
                     List.of(
-                        new ColumnInfoImpl("avg(rate(request_count))", "double"),
-                        new ColumnInfoImpl("ts", "date"),
-                        new ColumnInfoImpl("cluster", "keyword")
+                        new ColumnInfoImpl("avg(rate(request_count))", "double", null),
+                        new ColumnInfoImpl("ts", "date", null),
+                        new ColumnInfoImpl("cluster", "keyword", null)
                     )
                 )
             );
@@ -551,10 +555,10 @@ public class TimeSeriesIT extends AbstractEsqlIntegTestCase {
                 resp.columns(),
                 equalTo(
                     List.of(
-                        new ColumnInfoImpl("avg(rate(request_count, 1minute))", "double"),
-                        new ColumnInfoImpl("avg(rate(request_count))", "double"),
-                        new ColumnInfoImpl("ts", "date"),
-                        new ColumnInfoImpl("cluster", "keyword")
+                        new ColumnInfoImpl("avg(rate(request_count, 1minute))", "double", null),
+                        new ColumnInfoImpl("avg(rate(request_count))", "double", null),
+                        new ColumnInfoImpl("ts", "date", null),
+                        new ColumnInfoImpl("cluster", "keyword", null)
                     )
                 )
             );
@@ -593,11 +597,11 @@ public class TimeSeriesIT extends AbstractEsqlIntegTestCase {
                 resp.columns(),
                 equalTo(
                     List.of(
-                        new ColumnInfoImpl("avg_rate", "double"),
-                        new ColumnInfoImpl("max(rate(request_count))", "double"),
-                        new ColumnInfoImpl("avg(rate(request_count))", "double"),
-                        new ColumnInfoImpl("ts", "date"),
-                        new ColumnInfoImpl("cluster", "keyword")
+                        new ColumnInfoImpl("avg_rate", "double", null),
+                        new ColumnInfoImpl("max(rate(request_count))", "double", null),
+                        new ColumnInfoImpl("avg(rate(request_count))", "double", null),
+                        new ColumnInfoImpl("ts", "date", null),
+                        new ColumnInfoImpl("cluster", "keyword", null)
                     )
                 )
             );
@@ -630,10 +634,10 @@ public class TimeSeriesIT extends AbstractEsqlIntegTestCase {
                 resp.columns(),
                 equalTo(
                     List.of(
-                        new ColumnInfoImpl("sum(rate(request_count))", "double"),
-                        new ColumnInfoImpl("max(cpu)", "double"),
-                        new ColumnInfoImpl("ts", "date"),
-                        new ColumnInfoImpl("cluster", "keyword")
+                        new ColumnInfoImpl("sum(rate(request_count))", "double", null),
+                        new ColumnInfoImpl("max(cpu)", "double", null),
+                        new ColumnInfoImpl("ts", "date", null),
+                        new ColumnInfoImpl("cluster", "keyword", null)
                     )
                 )
             );
@@ -667,10 +671,10 @@ public class TimeSeriesIT extends AbstractEsqlIntegTestCase {
                 resp.columns(),
                 equalTo(
                     List.of(
-                        new ColumnInfoImpl("sum(rate(request_count))", "double"),
-                        new ColumnInfoImpl("avg(cpu)", "double"),
-                        new ColumnInfoImpl("ts", "date"),
-                        new ColumnInfoImpl("cluster", "keyword")
+                        new ColumnInfoImpl("sum(rate(request_count))", "double", null),
+                        new ColumnInfoImpl("avg(cpu)", "double", null),
+                        new ColumnInfoImpl("ts", "date", null),
+                        new ColumnInfoImpl("cluster", "keyword", null)
                     )
                 )
             );
@@ -716,14 +720,14 @@ public class TimeSeriesIT extends AbstractEsqlIntegTestCase {
             }
         }
         try (var resp = run("METRICS hosts sum(abs(rate(request_count, 1second)))")) {
-            assertThat(resp.columns(), equalTo(List.of(new ColumnInfoImpl("sum(abs(rate(request_count, 1second)))", "double"))));
+            assertThat(resp.columns(), equalTo(List.of(new ColumnInfoImpl("sum(abs(rate(request_count, 1second)))", "double", null))));
             List<List<Object>> values = EsqlTestUtils.getValuesList(resp);
             assertThat(values, hasSize(1));
             assertThat(values.get(0), hasSize(1));
             assertThat((double) values.get(0).get(0), closeTo(rates.stream().mapToDouble(d -> d).sum(), 0.1));
         }
         try (var resp = run("METRICS hosts sum(10.0 * rate(request_count, 1second))")) {
-            assertThat(resp.columns(), equalTo(List.of(new ColumnInfoImpl("sum(10.0 * rate(request_count, 1second))", "double"))));
+            assertThat(resp.columns(), equalTo(List.of(new ColumnInfoImpl("sum(10.0 * rate(request_count, 1second))", "double", null))));
             List<List<Object>> values = EsqlTestUtils.getValuesList(resp);
             assertThat(values, hasSize(1));
             assertThat(values.get(0), hasSize(1));
@@ -734,7 +738,11 @@ public class TimeSeriesIT extends AbstractEsqlIntegTestCase {
                 resp.columns(),
                 equalTo(
                     List.of(
-                        new ColumnInfoImpl("sum(20 * rate(request_count, 1second) + 10 * floor(rate(request_count, 1second)))", "double")
+                        new ColumnInfoImpl(
+                            "sum(20 * rate(request_count, 1second) + 10 * floor(rate(request_count, 1second)))",
+                            "double",
+                            null
+                        )
                     )
                 )
             );
@@ -753,8 +761,8 @@ public class TimeSeriesIT extends AbstractEsqlIntegTestCase {
         }
         refresh("events");
         List<ColumnInfoImpl> columns = List.of(
-            new ColumnInfoImpl("_index", DataType.KEYWORD),
-            new ColumnInfoImpl("_index_mode", DataType.KEYWORD)
+            new ColumnInfoImpl("_index", DataType.KEYWORD, null),
+            new ColumnInfoImpl("_index_mode", DataType.KEYWORD, null)
         );
         try (EsqlQueryResponse resp = run("""
             FROM events,hosts METADATA _index_mode, _index

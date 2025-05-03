@@ -208,7 +208,10 @@ public class TransportVersions {
     public static final TransportVersion BATCHED_QUERY_PHASE_VERSION_BACKPORT_8_X = def(8_841_0_19);
     public static final TransportVersion SEARCH_INCREMENTAL_TOP_DOCS_NULL_BACKPORT_8_19 = def(8_841_0_20);
     public static final TransportVersion ML_INFERENCE_SAGEMAKER_8_19 = def(8_841_0_21);
-    public static final TransportVersion INTRODUCE_FAILURES_LIFECYCLE_BACKPORT_8_19 = def(8_841_0_22);
+    public static final TransportVersion ESQL_REPORT_ORIGINAL_TYPES_BACKPORT_8_19 = def(8_841_0_22);
+    public static final TransportVersion PINNED_RETRIEVER_8_19 = def(8_841_0_23);
+    public static final TransportVersion ESQL_AGGREGATE_METRIC_DOUBLE_BLOCK_8_19 = def(8_841_0_24);
+    public static final TransportVersion INTRODUCE_FAILURES_LIFECYCLE_BACKPORT_8_19 = def(8_841_0_25);
 
     /*
      * STOP! READ THIS FIRST! No, really,

@@ -44,7 +44,6 @@ import org.elasticsearch.cluster.ClusterStateTaskListener;
 import org.elasticsearch.cluster.SimpleBatchedExecutor;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.DataStream;
-import org.elasticsearch.cluster.metadata.DataStreamGlobalRetention;
 import org.elasticsearch.cluster.metadata.DataStreamGlobalRetentionSettings;
 import org.elasticsearch.cluster.metadata.DataStreamLifecycle;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
@@ -354,13 +353,18 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
                 continue;
             }
 
+            // Retrieve the effective retention to ensure the same retention is used for this data stream
+            // through all operations.
+            var dataRetention = getEffectiveRetention(dataStream, globalRetentionSettings, false);
+            var failuresRetention = getEffectiveRetention(dataStream, globalRetentionSettings, true);
+
             // the following indices should not be considered for the remainder of this service run, for various reasons.
             Set<Index> indicesToExcludeForRemainingRun = new HashSet<>();
 
             // These are the pre-rollover write indices. They may or may not be the write index after maybeExecuteRollover has executed,
             // depending on rollover criteria, for this reason we exclude them for the remaining run.
-            indicesToExcludeForRemainingRun.add(maybeExecuteRollover(state, dataStream, false));
-            Index failureStoreWriteIndex = maybeExecuteRollover(state, dataStream, true);
+            indicesToExcludeForRemainingRun.add(maybeExecuteRollover(state, dataStream, dataRetention, false));
+            Index failureStoreWriteIndex = maybeExecuteRollover(state, dataStream, failuresRetention, true);
             if (failureStoreWriteIndex != null) {
                 indicesToExcludeForRemainingRun.add(failureStoreWriteIndex);
             }
@@ -376,7 +380,9 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
             );
 
             try {
-                indicesToExcludeForRemainingRun.addAll(maybeExecuteRetention(state, dataStream, indicesToExcludeForRemainingRun));
+                indicesToExcludeForRemainingRun.addAll(
+                    maybeExecuteRetention(state, dataStream, dataRetention, failuresRetention, indicesToExcludeForRemainingRun)
+                );
             } catch (Exception e) {
                 // individual index errors would be reported via the API action listener for every delete call
                 // we could potentially record errors at a data stream level and expose it via the _data_stream API?
@@ -807,7 +813,12 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
     }
 
     @Nullable
-    private Index maybeExecuteRollover(ClusterState state, DataStream dataStream, boolean rolloverFailureStore) {
+    private Index maybeExecuteRollover(
+        ClusterState state,
+        DataStream dataStream,
+        TimeValue effectiveRetention,
+        boolean rolloverFailureStore
+    ) {
         Index currentRunWriteIndex = rolloverFailureStore ? dataStream.getWriteFailureIndex() : dataStream.getWriteIndex();
         if (currentRunWriteIndex == null) {
             return null;
@@ -818,7 +829,7 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
                 RolloverRequest rolloverRequest = getDefaultRolloverRequest(
                     rolloverConfiguration,
                     dataStream.getName(),
-                    lifecycle.getEffectiveDataRetention(globalRetentionSettings.get(), dataStream.isInternal()),
+                    effectiveRetention,
                     rolloverFailureStore
                 );
                 transportActionsDeduplicator.executeOnce(
@@ -868,14 +879,17 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
      * @param indicesToExcludeForRemainingRun Indices to exclude from retention even if it would be time for them to be deleted
      * @return The set of indices that delete requests have been sent for
      */
-    Set<Index> maybeExecuteRetention(ClusterState state, DataStream dataStream, Set<Index> indicesToExcludeForRemainingRun) {
-        Metadata metadata = state.metadata();
-        DataStreamGlobalRetention globalRetention = dataStream.isSystem() ? null : globalRetentionSettings.get();
-        var dataRetention = getRetention(dataStream, globalRetention, false);
-        var failureRetention = getRetention(dataStream, globalRetention, true);
+    Set<Index> maybeExecuteRetention(
+        ClusterState state,
+        DataStream dataStream,
+        TimeValue dataRetention,
+        TimeValue failureRetention,
+        Set<Index> indicesToExcludeForRemainingRun
+    ) {
         if (dataRetention == null && failureRetention == null) {
             return Set.of();
         }
+        Metadata metadata = state.metadata();
         List<Index> backingIndicesOlderThanRetention = dataStream.getIndicesPastRetention(
             metadata::index,
             nowSupplier,
@@ -1320,11 +1334,15 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
     }
 
     @Nullable
-    private static TimeValue getRetention(DataStream dataStream, DataStreamGlobalRetention globalRetention, boolean failureStore) {
+    private static TimeValue getEffectiveRetention(
+        DataStream dataStream,
+        DataStreamGlobalRetentionSettings globalRetentionSettings,
+        boolean failureStore
+    ) {
         DataStreamLifecycle lifecycle = failureStore ? dataStream.getFailuresLifecycle() : dataStream.getDataLifecycle();
         return lifecycle == null || lifecycle.enabled() == false
             ? null
-            : lifecycle.getEffectiveDataRetention(globalRetention, dataStream.isInternal());
+            : lifecycle.getEffectiveDataRetention(globalRetentionSettings.get(failureStore), dataStream.isInternal());
     }
 
     /**

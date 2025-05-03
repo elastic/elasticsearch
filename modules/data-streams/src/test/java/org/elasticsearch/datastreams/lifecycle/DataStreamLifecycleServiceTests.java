@@ -1566,9 +1566,16 @@ public class DataStreamLifecycleServiceTests extends ESTestCase {
         ClusterState state = downsampleSetup(dataStreamName, SUCCESS);
         DataStream dataStream = state.metadata().dataStreams().get(dataStreamName);
         String firstGenIndexName = DataStream.getDefaultBackingIndexName(dataStreamName, 1);
+        TimeValue dataRetention = dataStream.getDataLifecycle().dataRetention();
 
         // Executing the method to be tested:
-        Set<Index> indicesToBeRemoved = dataStreamLifecycleService.maybeExecuteRetention(clusterService.state(), dataStream, Set.of());
+        Set<Index> indicesToBeRemoved = dataStreamLifecycleService.maybeExecuteRetention(
+            clusterService.state(),
+            dataStream,
+            dataRetention,
+            null,
+            Set.of()
+        );
         assertThat(indicesToBeRemoved, contains(state.getMetadata().index(firstGenIndexName).getIndex()));
     }
 
@@ -1576,10 +1583,16 @@ public class DataStreamLifecycleServiceTests extends ESTestCase {
         String dataStreamName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
         ClusterState state = downsampleSetup(dataStreamName, STARTED);
         DataStream dataStream = state.metadata().dataStreams().get(dataStreamName);
-        String firstGenIndexName = DataStream.getDefaultBackingIndexName(dataStreamName, 1);
+        TimeValue dataRetention = dataStream.getDataLifecycle().dataRetention();
 
         // Executing the method to be tested:
-        Set<Index> indicesToBeRemoved = dataStreamLifecycleService.maybeExecuteRetention(clusterService.state(), dataStream, Set.of());
+        Set<Index> indicesToBeRemoved = dataStreamLifecycleService.maybeExecuteRetention(
+            clusterService.state(),
+            dataStream,
+            dataRetention,
+            null,
+            Set.of()
+        );
         assertThat(indicesToBeRemoved, empty());
     }
 
@@ -1588,9 +1601,16 @@ public class DataStreamLifecycleServiceTests extends ESTestCase {
         ClusterState state = downsampleSetup(dataStreamName, UNKNOWN);
         DataStream dataStream = state.metadata().dataStreams().get(dataStreamName);
         String firstGenIndexName = DataStream.getDefaultBackingIndexName(dataStreamName, 1);
+        TimeValue dataRetention = dataStream.getDataLifecycle().dataRetention();
 
         // Executing the method to be tested:
-        Set<Index> indicesToBeRemoved = dataStreamLifecycleService.maybeExecuteRetention(clusterService.state(), dataStream, Set.of());
+        Set<Index> indicesToBeRemoved = dataStreamLifecycleService.maybeExecuteRetention(
+            clusterService.state(),
+            dataStream,
+            dataRetention,
+            null,
+            Set.of()
+        );
         assertThat(indicesToBeRemoved, contains(state.getMetadata().index(firstGenIndexName).getIndex()));
     }
 

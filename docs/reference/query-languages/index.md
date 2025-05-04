@@ -13,4 +13,4 @@ This section contains reference information for Elastic query languages, includi
 * [EQL](eql.md)
 * [KQL](kql.md)
 
-Refer to [query languages](docs-content://explore-analyze/query-filter/languages.md) in the **Explore and analyze** section for overview and conceptual information about each language.
+For more information about each language, check out the [query languages](docs-content://explore-analyze/query-filter/languages.md) documentation.

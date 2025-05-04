@@ -95,7 +95,7 @@ public class MockGcsBlobStore {
      * @param ifGenerationMatch The ifGenerationMatch parameter value (if present)
      * @param generation The generation parameter value (if present)
      * @return The blob if it exists
-     * @throws BlobNotFoundException if there is no blob at the path, or it's generation does not match the generation parameter
+     * @throws BlobNotFoundException if there is no blob at the path, or its generation does not match the generation parameter
      * @throws GcsRestException if the blob's generation does not match the ifGenerationMatch parameter
      */
     BlobVersion getBlob(String path, Long ifGenerationMatch, Long generation) {

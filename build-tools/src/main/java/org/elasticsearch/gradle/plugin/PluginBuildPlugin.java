@@ -20,8 +20,16 @@ import org.gradle.api.provider.ProviderFactory;
 import org.gradle.api.tasks.SourceSet;
 import org.gradle.api.tasks.SourceSetContainer;
 import org.gradle.jvm.tasks.Jar;
+import org.gradle.language.jvm.tasks.ProcessResources;
 
 import javax.inject.Inject;
+
+import java.io.File;
+import java.io.IOException;
+import java.io.UncheckedIOException;
+import java.util.Optional;
+import java.util.jar.JarEntry;
+import java.util.jar.JarFile;
 
 import static java.util.stream.Collectors.toList;
 
@@ -60,6 +68,8 @@ public class PluginBuildPlugin implements Plugin<Project> {
 
         SourceSetContainer sourceSets = project.getExtensions().getByType(SourceSetContainer.class);
 
+        // TODO: we no longer care about descriptor remove as inputs
+        // TODO: we no longer care about policy-yaml file remove as inputs
         var testBuildInfoTask = project.getTasks().register("generateTestBuildInfo", GenerateTestBuildInfoTask.class, task -> {
             var pluginProperties = project.getTasks().withType(GeneratePluginPropertiesTask.class).named("pluginProperties");
             task.getDescriptorFile().set(pluginProperties.flatMap(GeneratePluginPropertiesTask::getOutputFile));
@@ -69,12 +79,31 @@ public class PluginBuildPlugin implements Plugin<Project> {
             if (policy.getAsFile().exists()) {
                 task.getPolicyFile().set(policy);
             }
-            task.getCodeLocations().set(
-                project.getConfigurations()
+            // TODO: get first class of each location in deterministic order
+            // TODO: filter META_INF and module-info.class out of these
+            for (File file : project.getConfigurations()
+                .getByName("runtimeClasspath")
+                .minus(project.getConfigurations().getByName(CompileOnlyResolvePlugin.RESOLVEABLE_COMPILE_ONLY_CONFIGURATION_NAME))
+                .plus(sourceSets.getByName(SourceSet.MAIN_SOURCE_SET_NAME).getOutput().getClassesDirs()).getFiles()) {
+                project.getLogger().lifecycle("HELLO: " + file.getAbsolutePath() + " - " + file.isDirectory());
+                if (file.getName().endsWith(".jar")) {
+                    try (JarFile jarFile = new JarFile(file)) {
+                        Optional<JarEntry> jarEntry = jarFile.stream()
+                            .filter(je -> je.getName().startsWith("META-INF") || je.getName().endsWith("module-info.class") || je.getName().endsWith(".class") == false).findFirst();
+                        if (jarEntry.isPresent()) {
+                            project.getLogger().lifecycle("ENTRY: " + jarEntry.get().getName());
+                        }
+                        //project.getLogger().lifecycle("LIST: " + jarFile.stream().toList());
+                    } catch (IOException ioe) {
+                        throw new UncheckedIOException(ioe);
+                    }
+                }
+            }
+
+            task.getCodeLocations().set(project.getConfigurations()
                     .getByName("runtimeClasspath")
                     .minus(project.getConfigurations().getByName(CompileOnlyResolvePlugin.RESOLVEABLE_COMPILE_ONLY_CONFIGURATION_NAME))
                     .plus(sourceSets.getByName(SourceSet.MAIN_SOURCE_SET_NAME).getOutput().getClassesDirs())
-                    .plus(sourceSets.getByName(SourceSet.TEST_SOURCE_SET_NAME).getOutput().getClassesDirs())
             );
 
             Provider<Directory> directory = project.getLayout()
@@ -87,11 +116,12 @@ public class PluginBuildPlugin implements Plugin<Project> {
             sourceSet.getResources().srcDir(testBuildInfoTask);
         });
 
-        // TODO: get the jar task
-        // TODO: configure on this task
-        // TODO: task.from()
-        //project.getLogger().lifecycle(
-        //    "HELLO: " + project.getTasks().withType(Jar.class).getByName("jar").getArchiveFile().get().getAsFile().getAbsolutePath());
+        project.getTasks().withType(ProcessResources.class).named("processResources").configure(task -> {
+           // TODO: this is a copy task
+            // TODO: do this for descriptor and policy-yaml file
+            // TODO: use child copy spec
+            //task.into()
+        });
     }
 
 }

@@ -106,7 +106,7 @@ public class MockGcsBlobStore {
             if (generation != null && generation != blob.generation) {
                 throw new BlobNotFoundException(blob.path, blob.generation);
             }
-            if (ifGenerationMatch != null && blob.generation != ifGenerationMatch) {
+            if (ifGenerationMatch != null && ifGenerationMatch != blob.generation) {
                 throw new GcsRestException(
                     RestStatus.PRECONDITION_FAILED,
                     "Generation mismatch, expected " + ifGenerationMatch + " but got " + blob.generation

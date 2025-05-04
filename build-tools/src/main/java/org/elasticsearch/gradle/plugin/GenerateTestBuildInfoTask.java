@@ -12,22 +12,24 @@ package org.elasticsearch.gradle.plugin;
 import org.gradle.api.DefaultTask;
 import org.gradle.api.file.DirectoryProperty;
 import org.gradle.api.file.FileCollection;
-import org.gradle.api.file.RegularFileProperty;
 import org.gradle.api.provider.Property;
 import org.gradle.api.tasks.Input;
-import org.gradle.api.tasks.InputFile;
 import org.gradle.api.tasks.InputFiles;
-import org.gradle.api.tasks.Optional;
 import org.gradle.api.tasks.OutputDirectory;
 import org.gradle.api.tasks.TaskAction;
 
 import java.io.File;
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
-
-// TODO: 3 sets - testBuildInfo, internalClusterTest, external (as dependency of another)
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.jar.JarFile;
 
 public abstract class GenerateTestBuildInfoTask extends DefaultTask {
 
@@ -41,14 +43,6 @@ public abstract class GenerateTestBuildInfoTask extends DefaultTask {
     @Input
     public abstract Property<String> getComponentName();
 
-    @InputFile
-    @Optional
-    public abstract RegularFileProperty getDescriptorFile();
-
-    @InputFile
-    @Optional
-    public abstract RegularFileProperty getPolicyFile();
-
     @InputFiles
     public abstract Property<FileCollection> getCodeLocations();
 
@@ -57,6 +51,41 @@ public abstract class GenerateTestBuildInfoTask extends DefaultTask {
 
     @TaskAction
     public void generatePropertiesFile() throws IOException {
+        Map<String, String> classesToModules = new HashMap<>();
+        for (File file : getCodeLocations().get().getFiles()) {
+            if (file.exists()) {
+                if (file.getName().endsWith(".jar")) {
+                    try (JarFile jarFile = new JarFile(file)) {
+                        jarFile.stream()
+                            .filter(
+                                je -> je.getName().startsWith("META-INF") == false
+                                    && je.getName().equals("module-info.class") == false
+                                    && je.getName().endsWith(".class")
+                            )
+                            .findFirst()
+                            .ifPresent(entry -> classesToModules.put(entry.getName(), "module-goes-here"));
+                    } catch (IOException ioe) {
+                        throw new UncheckedIOException(ioe);
+                    }
+                } else if (file.isDirectory()) {
+                    List<File> files = new ArrayList<>(List.of(file));
+                    while (files.isEmpty() == false) {
+                        File find = files.removeFirst();
+                        if (find.exists()) {
+                            if (find.isDirectory() && find.getName().equals("META_INF") == false) {
+                                files.addAll(Arrays.asList(find.listFiles()));
+                            } else if (find.getName().equals("module-info.class") == false && find.getName().contains("$") == false) {
+                                classesToModules.put(find.getName(), "module-goes-here");
+                                break;
+                            }
+                        }
+                    }
+                } else {
+                    throw new IllegalArgumentException("Unrecognized classpath file: " + file);
+                }
+            }
+        }
+
         Path outputDirectory = getOutputDirectory().get().getAsFile().toPath();
         Files.createDirectories(outputDirectory);
         Path outputFile = outputDirectory.resolve(PROPERTIES_FILENAME);
@@ -68,24 +97,15 @@ public abstract class GenerateTestBuildInfoTask extends DefaultTask {
             writer.write(getComponentName().get());
             writer.write("\",\n");
 
-            if (getDescriptorFile().isPresent()) {
-                writer.write("    \"descriptor\": \"");
-                writer.write(getDescriptorFile().getAsFile().get().getAbsolutePath());
-                writer.write("\",\n");
-            }
-
-            if (getPolicyFile().isPresent()) {
-                writer.write("    \"policy\": \"");
-                writer.write(getPolicyFile().getAsFile().get().getAbsolutePath());
-                writer.write("\",\n");
-            }
-
             writer.write("    \"locations\": [\n");
             StringBuilder sb = new StringBuilder();
-            for (File jar : getCodeLocations().get()) {
-                sb.append("        \"");
-                sb.append(jar.getAbsolutePath());
-                sb.append("\",\n");
+            for (Map.Entry<String, String> entry : classesToModules.entrySet()) {
+                sb.append("        {\n");
+                sb.append("            \"class\": \"");
+                sb.append(entry.getKey());
+                sb.append("\",\n            \"module\": \"");
+                sb.append(entry.getValue());
+                sb.append("\"\n        },\n");
             }
             writer.write(sb.substring(0, sb.length() - 2));
             writer.write("\n    ]\n}\n");

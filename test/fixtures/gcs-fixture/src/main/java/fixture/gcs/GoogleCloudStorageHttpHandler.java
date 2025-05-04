@@ -144,7 +144,7 @@ public class GoogleCloudStorageHttpHandler implements HttpHandler {
                     // we implement "metageneration", at that point we must incorporate both
                     // See: https://cloud.google.com/storage/docs/metadata#etags
                     exchange.getResponseHeaders().add("ETag", String.valueOf(blob.generation()));
-                    exchange.getResponseHeaders().add("X-Goog-Generation", String.valueOf(blob.generation()));
+                    exchange.getResponseHeaders().add("x-goog-generation", String.valueOf(blob.generation()));
                     exchange.getResponseHeaders().add("Content-Type", "application/octet-stream");
                     exchange.sendResponseHeaders(statusCode, response.length());
                     response.writeTo(exchange.getResponseBody());

@@ -156,8 +156,9 @@ class GoogleCloudStorageRetryingInputStream extends InputStream {
                 return Long.parseLong(generationHeader);
             } catch (NumberFormatException e) {
                 assert false : "Unexpected value for x-goog-generation header: " + generationHeader;
-                return null;
             }
+        } else {
+            assert false : "Missing x-goog-generation header";
         }
         return null;
     }

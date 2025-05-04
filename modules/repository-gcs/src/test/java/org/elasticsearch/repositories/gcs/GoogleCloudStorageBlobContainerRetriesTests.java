@@ -19,6 +19,7 @@ import com.google.cloud.ServiceOptions;
 import com.google.cloud.http.HttpTransportOptions;
 import com.google.cloud.storage.StorageException;
 import com.google.cloud.storage.StorageOptions;
+import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpHandler;
 
 import org.apache.http.HttpStatus;
@@ -216,6 +217,11 @@ public class GoogleCloudStorageBlobContainerRetriesTests extends AbstractBlobCon
         );
     }
 
+    @Override
+    protected void addSuccessfulDownloadHeaders(HttpExchange exchange) {
+        exchange.getResponseHeaders().add("x-goog-generation", "1");
+    }
+
     public void testShouldRetryOnConnectionRefused() {
         // port 1 should never be open
         endpointUrlOverride = "http://127.0.0.1:1";
@@ -246,6 +252,7 @@ public class GoogleCloudStorageBlobContainerRetriesTests extends AbstractBlobCon
         httpServer.createContext(downloadStorageEndpoint(blobContainer, "large_blob_retries"), exchange -> {
             Streams.readFully(exchange.getRequestBody());
             exchange.getResponseHeaders().add("Content-Type", "application/octet-stream");
+            addSuccessfulDownloadHeaders(exchange);
             final HttpHeaderParser.Range range = getRange(exchange);
             final int offset = Math.toIntExact(range.start());
             final byte[] chunk = Arrays.copyOfRange(bytes, offset, Math.toIntExact(Math.min(range.end() + 1, bytes.length)));

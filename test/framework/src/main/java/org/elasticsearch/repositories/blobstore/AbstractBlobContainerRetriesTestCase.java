@@ -73,6 +73,11 @@ public abstract class AbstractBlobContainerRetriesTestCase extends ESTestCase {
         super.tearDown();
     }
 
+    /**
+     * Override to add any headers you expect on a successful download
+     */
+    protected void addSuccessfulDownloadHeaders(HttpExchange exchange) {}
+
     protected abstract String downloadStorageEndpoint(BlobContainer container, String blob);
 
     protected abstract String bytesContentType();
@@ -118,6 +123,7 @@ public abstract class AbstractBlobContainerRetriesTestCase extends ESTestCase {
             if (countDown.countDown()) {
                 final int rangeStart = getRangeStart(exchange);
                 assertThat(rangeStart, lessThan(bytes.length));
+                addSuccessfulDownloadHeaders(exchange);
                 exchange.getResponseHeaders().add("Content-Type", bytesContentType());
                 exchange.sendResponseHeaders(HttpStatus.SC_OK, bytes.length - rangeStart);
                 exchange.getResponseBody().write(bytes, rangeStart, bytes.length - rangeStart);
@@ -401,6 +407,7 @@ public abstract class AbstractBlobContainerRetriesTestCase extends ESTestCase {
             length = bytes.length - rangeStart;
         }
         exchange.getResponseHeaders().add("Content-Type", bytesContentType());
+        addSuccessfulDownloadHeaders(exchange);
         exchange.sendResponseHeaders(HttpStatus.SC_OK, length);
         int minSend = Math.min(0, length - 1);
         final int bytesToSend = randomIntBetween(minSend, length - 1);

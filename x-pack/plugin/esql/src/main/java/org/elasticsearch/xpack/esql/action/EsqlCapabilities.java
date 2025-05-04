@@ -1042,6 +1042,11 @@ public class EsqlCapabilities {
         LAST_OVER_TIME(Build.current().isSnapshot()),
 
         /**
+         * chicken_score function
+         */
+        CHICKEN_SCORE(Build.current().isSnapshot()),
+
+        /**
          * Support for the SAMPLE command
          */
         SAMPLE(Build.current().isSnapshot()),

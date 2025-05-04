@@ -72,6 +72,7 @@ public class LastOverTimeDoubleAggregator {
         private final BigArrays bigArrays;
         private LongArray timestamps;
         private DoubleArray values;
+        private int maxGroupId = -1;
 
         GroupingState(BigArrays bigArrays) {
             super(bigArrays);
@@ -93,7 +94,7 @@ public class LastOverTimeDoubleAggregator {
         void collectValue(int groupId, long timestamp, double value) {
             if (groupId < timestamps.size()) {
                 // TODO: handle multiple values?
-                if (hasValue(groupId) == false || timestamps.get(groupId) < timestamp) {
+                if (groupId > maxGroupId || hasValue(groupId) == false || timestamps.get(groupId) < timestamp) {
                     timestamps.set(groupId, timestamp);
                     values.set(groupId, value);
                 }
@@ -103,6 +104,7 @@ public class LastOverTimeDoubleAggregator {
                 timestamps.set(groupId, timestamp);
                 values.set(groupId, value);
             }
+            maxGroupId = Math.max(maxGroupId, groupId);
             trackGroupId(groupId);
         }
 

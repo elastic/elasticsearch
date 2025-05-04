@@ -102,18 +102,17 @@ public class MockGcsBlobStore {
         final BlobVersion blob = blobs.get(path);
         if (blob == null) {
             throw new BlobNotFoundException(path);
-        } else {
-            if (generation != null && generation != blob.generation) {
-                throw new BlobNotFoundException(blob.path, blob.generation);
-            }
-            if (ifGenerationMatch != null && ifGenerationMatch != blob.generation) {
-                throw new GcsRestException(
-                    RestStatus.PRECONDITION_FAILED,
-                    "Generation mismatch, expected " + ifGenerationMatch + " but got " + blob.generation
-                );
-            }
-            return blob;
         }
+        if (generation != null && generation != blob.generation) {
+            throw new BlobNotFoundException(blob.path, blob.generation);
+        }
+        if (ifGenerationMatch != null && ifGenerationMatch != blob.generation) {
+            throw new GcsRestException(
+                RestStatus.PRECONDITION_FAILED,
+                "Generation mismatch, expected " + ifGenerationMatch + " but got " + blob.generation
+            );
+        }
+        return blob;
     }
 
     BlobVersion updateBlob(String path, Long ifGenerationMatch, BytesReference contents) {

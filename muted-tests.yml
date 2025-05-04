@@ -456,6 +456,9 @@ tests:
 - class: org.elasticsearch.snapshots.SnapshotShutdownIT
   method: testSnapshotShutdownProgressTracker
   issue: https://github.com/elastic/elasticsearch/issues/127690
+- class: org.elasticsearch.xpack.core.template.IndexTemplateRegistryRolloverIT
+  method: testRollover
+  issue: https://github.com/elastic/elasticsearch/issues/127692
 
 # Examples:
 #

@@ -19,9 +19,11 @@ package co.elastic.elasticsearch.stateless.autoscaling.search;
 
 import co.elastic.elasticsearch.serverless.constants.ServerlessSharedSettings;
 import co.elastic.elasticsearch.stateless.AbstractStatelessIntegTestCase;
+import co.elastic.elasticsearch.stateless.commits.HollowShardsService;
 
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsRequest;
+import org.elasticsearch.action.admin.cluster.state.ClusterStateRequest;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
 import org.elasticsearch.action.admin.indices.rollover.RolloverRequest;
 import org.elasticsearch.action.admin.indices.template.put.TransportPutComposableIndexTemplateAction;
@@ -76,6 +78,45 @@ public class AutoscalingReplicaIT extends AbstractStatelessIntegTestCase {
         return plugins;
     }
 
+    private static void scaleReplicasUp(String indexName) throws Exception {
+        assertThat(getNumberOfReplicas(indexName), equalTo(1));
+
+        int replicationSearchPower = ReplicasUpdaterService.SEARCH_POWER_MIN_FULL_REPLICATION;
+        assertAcked(
+            clusterAdmin().updateSettings(
+                new ClusterUpdateSettingsRequest(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT).persistentSettings(
+                    Settings.builder()
+                        .put(
+                            ServerlessSharedSettings.SEARCH_POWER_MIN_SETTING.getKey(),
+                            randomIntBetween(replicationSearchPower, replicationSearchPower + 100)
+                        )
+                )
+            )
+        );
+        assertBusy(() -> assertThat(getNumberOfReplicas(indexName), equalTo(2)));
+    }
+
+    private static void scaleReplicasDown(String indexName) throws Exception {
+        assertAcked(
+            clusterAdmin().updateSettings(
+                new ClusterUpdateSettingsRequest(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT).persistentSettings(
+                    Settings.builder().put(ServerlessSharedSettings.SEARCH_POWER_MIN_SETTING.getKey(), 100)
+                )
+            )
+        );
+        assertBusy(() -> assertThat(getNumberOfReplicas(indexName), equalTo(1)));
+    }
+
+    private static int getNumberOfReplicas(String indexName) {
+        return clusterAdmin().state(new ClusterStateRequest(TEST_REQUEST_TIMEOUT))
+            .actionGet()
+            .getState()
+            .metadata()
+            .getProject()
+            .index(indexName)
+            .getNumberOfReplicas();
+    }
+
     public void testSearchPowerAffectsReplica() throws Exception {
         Settings settings = Settings.builder()
             .put(SearchShardSizeCollector.PUSH_INTERVAL_SETTING.getKey(), TimeValue.timeValueMillis(250))
@@ -83,13 +124,26 @@ public class AutoscalingReplicaIT extends AbstractStatelessIntegTestCase {
             .put(ServerlessSharedSettings.ENABLE_REPLICAS_FOR_INSTANT_FAILOVER.getKey(), true)
             .build();
         startMasterOnlyNode(settings);
-        startIndexNode(settings);
+
+        boolean hollowShards = randomBoolean();
+        Settings indexNodeSettings = hollowShards
+            ? Settings.builder()
+                .put(settings)
+                .put(disableIndexingDiskAndMemoryControllersNodeSettings())
+                .put(HollowShardsService.STATELESS_HOLLOW_INDEX_SHARDS_ENABLED.getKey(), true)
+                .put(HollowShardsService.SETTING_HOLLOW_INGESTION_TTL.getKey(), TimeValue.timeValueMillis(1))
+                .build()
+            : settings;
+        String indexNodeA = startIndexNode(indexNodeSettings);
+        String indexNodeB = startIndexNode(indexNodeSettings);
+        startSearchNode(settings);
+        // Need to start a second search node for index2 before a relocation because needs 2 replicas
         startSearchNode(settings);
 
         var clusterService = internalCluster().getCurrentMasterNodeInstance(ClusterService.class);
 
         var indexName = randomIdentifier();
-        createIndex(indexName, indexSettings(1, 1).build());
+        createIndex(indexName, indexSettings(1, 1).put("index.routing.allocation.exclude._name", indexNodeB).build());
 
         // new documents should count towards non-interactive part
         var now = System.currentTimeMillis();
@@ -100,29 +154,18 @@ public class AutoscalingReplicaIT extends AbstractStatelessIntegTestCase {
             boostWindow + ONE_DAY /* +1d to ensure docs are not leaving boost window during test run*/,
             now
         );
-        refresh(indexName);
-        assertEquals(1, clusterService.state().metadata().getProject().index(indexName).getNumberOfReplicas());
-        int searchPowerOver250 = randomIntBetween(
-            ReplicasUpdaterService.SEARCH_POWER_MIN_FULL_REPLICATION,
-            ReplicasUpdaterService.SEARCH_POWER_MIN_FULL_REPLICATION + 100
-        );
-        assertAcked(
-            client().admin()
-                .cluster()
-                .updateSettings(
-                    new ClusterUpdateSettingsRequest(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT).persistentSettings(
-                        Settings.builder().put(ServerlessSharedSettings.SEARCH_POWER_MIN_SETTING.getKey(), searchPowerOver250).build()
-                    )
-                )
-                .get()
-        );
-        waitUntil(() -> clusterService.state().metadata().getProject().index(indexName).getNumberOfReplicas() == 2, 5, TimeUnit.SECONDS);
-        assertEquals(2, clusterService.state().metadata().getProject().index(indexName).getNumberOfReplicas());
+        if (hollowShards) {
+            flushAndRefresh(indexName);
+            hollowShards(indexName, 1, indexNodeA, indexNodeB);
+        } else {
+            refresh(indexName);
+        }
+        scaleReplicasUp(indexName);
 
         // also check that a newly created index gets scaled up automatically
         var indexName2 = randomIdentifier();
-        createIndex(indexName2, indexSettings(5, 1).build());
-        assertEquals(1, clusterService.state().metadata().getProject().index(indexName2).getNumberOfReplicas());
+        createIndex(indexName2, indexSettings(5, 1).put("index.routing.allocation.exclude._name", indexNodeB).build());
+        assertEquals(1, getNumberOfReplicas(indexName2));
 
         indexDocumentsWithTimestamp(
             indexName2,
@@ -131,22 +174,16 @@ public class AutoscalingReplicaIT extends AbstractStatelessIntegTestCase {
             now
         );
         refresh(indexName2);
-        waitUntil(() -> clusterService.state().metadata().getProject().index(indexName2).getNumberOfReplicas() == 2, 5, TimeUnit.SECONDS);
-        assertEquals(2, clusterService.state().metadata().getProject().index(indexName2).getNumberOfReplicas());
+        waitUntil(() -> getNumberOfReplicas(indexName2) == 2, 5, TimeUnit.SECONDS);
+        assertEquals(2, getNumberOfReplicas(indexName2));
+
+        if (randomBoolean() && hollowShards) {
+            hollowShards(indexName2, 5, indexNodeA, indexNodeB);
+            assertEquals(2, getNumberOfReplicas(indexName2));
+        }
 
         // back to SP 100
-        assertAcked(
-            client().admin()
-                .cluster()
-                .updateSettings(
-                    new ClusterUpdateSettingsRequest(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT).persistentSettings(
-                        Settings.builder().put(ServerlessSharedSettings.SEARCH_POWER_MIN_SETTING.getKey(), 100).build()
-                    )
-                )
-                .get()
-        );
-        waitUntil(() -> clusterService.state().metadata().getProject().index(indexName).getNumberOfReplicas() == 1, 5, TimeUnit.SECONDS);
-        assertEquals(1, clusterService.state().metadata().getProject().index(indexName).getNumberOfReplicas());
+        scaleReplicasDown(indexName);
     }
 
     public void testSearchSizeAffectsReplicasSPBetween100And250() throws Exception {
@@ -157,7 +194,17 @@ public class AutoscalingReplicaIT extends AbstractStatelessIntegTestCase {
             .put(ServerlessSharedSettings.ENABLE_REPLICAS_FOR_INSTANT_FAILOVER.getKey(), false)
             .build();
         startMasterOnlyNode(settings);
-        startIndexNode(settings);
+        boolean hollowShards = randomBoolean();
+        Settings indexNodeSettings = hollowShards
+            ? Settings.builder()
+                .put(settings)
+                .put(disableIndexingDiskAndMemoryControllersNodeSettings())
+                .put(HollowShardsService.STATELESS_HOLLOW_INDEX_SHARDS_ENABLED.getKey(), true)
+                .put(HollowShardsService.SETTING_HOLLOW_INGESTION_TTL.getKey(), TimeValue.timeValueMillis(1))
+                .build()
+            : settings;
+        String indexNodeA = startIndexNode(indexNodeSettings);
+        String indexNodeB = startIndexNode(indexNodeSettings);
         startSearchNode(settings);
 
         var clusterService = internalCluster().getCurrentMasterNodeInstance(ClusterService.class);
@@ -165,9 +212,9 @@ public class AutoscalingReplicaIT extends AbstractStatelessIntegTestCase {
 
         // create two indices, where size index1 is roughly 2/3 and index2 is roughly 1/3 of interactive size
         var index1 = "index1";
-        createIndex(index1, indexSettings(1, 1).build());
+        createIndex(index1, indexSettings(1, 1).put("index.routing.allocation.exclude._name", indexNodeB).build());
         var index2 = "index2";
-        createIndex(index2, indexSettings(1, 1).build());
+        createIndex(index2, indexSettings(1, 1).put("index.routing.allocation.exclude._name", indexNodeB).build());
 
         // new documents should count towards non-interactive part
         var now = System.currentTimeMillis();
@@ -178,7 +225,12 @@ public class AutoscalingReplicaIT extends AbstractStatelessIntegTestCase {
             boostWindow + ONE_DAY /* +1d to ensure docs are not leaving boost window during test run*/,
             now
         );
-        refresh(index1);
+        if (hollowShards) {
+            flushAndRefresh(index1);
+            hollowShards(index1, 1, indexNodeA, indexNodeB);
+        } else {
+            refresh(index1);
+        }
 
         indexDocumentsWithTimestamp(
             index2,
@@ -186,7 +238,12 @@ public class AutoscalingReplicaIT extends AbstractStatelessIntegTestCase {
             boostWindow + ONE_DAY /* +1d to ensure docs are not leaving boost window during test run*/,
             now
         );
-        refresh(index2);
+        if (hollowShards) {
+            flushAndRefresh(index2);
+            hollowShards(index2, 1, indexNodeA, indexNodeB);
+        } else {
+            refresh(index2);
+        }
 
         // we need to wait until we have received shard size updates in the search metrics service
         waitUntil(() -> {
@@ -201,8 +258,8 @@ public class AutoscalingReplicaIT extends AbstractStatelessIntegTestCase {
             return bothInteractiveSizePresent;
         }, 2, TimeUnit.SECONDS);
 
-        assertEquals(1, clusterService.state().metadata().getProject().index(index1).getNumberOfReplicas());
-        assertEquals(1, clusterService.state().metadata().getProject().index(index2).getNumberOfReplicas());
+        assertEquals(1, getNumberOfReplicas(index1));
+        assertEquals(1, getNumberOfReplicas(index2));
 
         // switch on relica autoscaling and set SP to 220, which should allow index1 to get two replicas
         assertAcked(
@@ -219,9 +276,9 @@ public class AutoscalingReplicaIT extends AbstractStatelessIntegTestCase {
                 .get()
         );
         // scaling up should happen almost immediately
-        waitUntil(() -> clusterService.state().metadata().getProject().index(index1).getNumberOfReplicas() == 2, 1, TimeUnit.SECONDS);
-        assertEquals(1, clusterService.state().metadata().getProject().index(index2).getNumberOfReplicas());
-        assertEquals(2, clusterService.state().metadata().getProject().index(index1).getNumberOfReplicas());
+        waitUntil(() -> getNumberOfReplicas(index1) == 2, 1, TimeUnit.SECONDS);
+        assertEquals(1, getNumberOfReplicas(index2));
+        assertEquals(2, getNumberOfReplicas(index1));
 
         // indexing into index2 so that his index now has roughly 2/3 size of total interactive size
         // index1 has 200 docs, index 2 already 100, so we need another 300
@@ -231,16 +288,21 @@ public class AutoscalingReplicaIT extends AbstractStatelessIntegTestCase {
             boostWindow + ONE_DAY /* +1d to ensure docs are not leaving boost window during test run*/,
             now
         );
-        refresh(index2);
+        if (randomBoolean() && hollowShards) {
+            flushAndRefresh(index2);
+            hollowShards(index2, 1, indexNodeB, indexNodeA);
+        } else {
+            refresh(index2);
+        }
 
         // scaling up index2 should happen almost immediately, but we wait 1sec to be sure we catch at least one update interval
-        waitUntil(() -> clusterService.state().metadata().getProject().index(index2).getNumberOfReplicas() == 2, 1, TimeUnit.SECONDS);
-        assertEquals(2, clusterService.state().metadata().getProject().index(index2).getNumberOfReplicas());
+        waitUntil(() -> getNumberOfReplicas(index2) == 2, 1, TimeUnit.SECONDS);
+        assertEquals(2, getNumberOfReplicas(index2));
         // index1 should still have 2 replicas, it needs 6*500ms for the change to stabiliza
-        assertEquals(2, clusterService.state().metadata().getProject().index(index1).getNumberOfReplicas());
+        assertEquals(2, getNumberOfReplicas(index1));
 
-        waitUntil(() -> clusterService.state().metadata().getProject().index(index1).getNumberOfReplicas() == 1, 4, TimeUnit.SECONDS);
-        assertEquals(1, clusterService.state().metadata().getProject().index(index1).getNumberOfReplicas());
+        waitUntil(() -> getNumberOfReplicas(index1) == 1, 4, TimeUnit.SECONDS);
+        assertEquals(1, getNumberOfReplicas(index1));
     }
 
     public void testDisablingReplicasScalesDown() throws Exception {

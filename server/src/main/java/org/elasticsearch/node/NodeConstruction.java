@@ -1315,6 +1315,7 @@ class NodeConstruction {
         ClusterService clusterService = new ClusterService(
             settingsModule.getSettings(),
             settingsModule.getClusterSettings(),
+            settingsModule.getProjectScopedSettings(),
             threadPool,
             taskManager
         );

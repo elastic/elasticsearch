@@ -113,6 +113,9 @@ public class Join extends BinaryPlan implements PostAnalysisVerificationAware, S
         return Expressions.references(config().rightFields());
     }
 
+    /**
+     * The output fields obtained from the right child.
+     */
     public List<Attribute> rightOutputFields() {
         AttributeSet leftInputs = left().outputSet();
 

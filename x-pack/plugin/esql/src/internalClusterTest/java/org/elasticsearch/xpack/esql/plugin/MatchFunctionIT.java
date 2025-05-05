@@ -253,7 +253,7 @@ public class MatchFunctionIT extends AbstractEsqlIntegTestCase {
             """;
 
         var error = expectThrows(ElasticsearchException.class, () -> run(errorQuery));
-        assertThat(error.getMessage(), containsString("[MATCH] function is only supported in WHERE and STATS ... WHERE commands"));
+        assertThat(error.getMessage(), containsString("[MATCH] function is only supported in WHERE and STATS commands"));
 
         var query = """
             FROM test
@@ -274,7 +274,7 @@ public class MatchFunctionIT extends AbstractEsqlIntegTestCase {
             """;
 
         var error = expectThrows(VerificationException.class, () -> run(query));
-        assertThat(error.getMessage(), containsString("[MATCH] function is only supported in WHERE and STATS ... WHERE commands"));
+        assertThat(error.getMessage(), containsString("[MATCH] function is only supported in WHERE and STATS commands"));
     }
 
     private void createAndPopulateIndex() {

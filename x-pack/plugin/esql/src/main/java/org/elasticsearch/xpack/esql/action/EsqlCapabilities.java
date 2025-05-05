@@ -1067,7 +1067,7 @@ public class EsqlCapabilities {
         FIRST_OVER_TIME(Build.current().isSnapshot()),
 
         /**
-         * Full text functions in STATS ... WHERE
+         * Full text functions in STATS
          */
         FULL_TEXT_FUNCTIONS_IN_STATS_WHERE;
 

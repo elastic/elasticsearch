@@ -231,7 +231,7 @@ public abstract class FullTextFunction extends Function
         } else {
             plan.forEachExpression(FullTextFunction.class, ftf -> {
                 failures.add(
-                    fail(ftf, "[{}] {} is only supported in WHERE and STATS ... WHERE commands", ftf.functionName(), ftf.functionType())
+                    fail(ftf, "[{}] {} is only supported in WHERE and STATS commands", ftf.functionName(), ftf.functionType())
                 );
             });
         }
@@ -242,7 +242,7 @@ public abstract class FullTextFunction extends Function
             exp.forEachDown(e -> {
                 if (e instanceof FullTextFunction ftf) {
                     failures.add(
-                        fail(ftf, "[{}] {} is only supported in WHERE and STATS ... WHERE commands", ftf.functionName(), ftf.functionType())
+                        fail(ftf, "[{}] {} is only supported in WHERE and STATS commands", ftf.functionName(), ftf.functionType())
                     );
                 }
             });

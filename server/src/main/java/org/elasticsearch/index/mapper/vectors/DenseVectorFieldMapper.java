@@ -95,6 +95,7 @@ import java.util.stream.Stream;
 import static org.elasticsearch.common.Strings.format;
 import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
 import static org.elasticsearch.index.IndexVersions.DEFAULT_DENSE_VECTOR_TO_INT8_HNSW;
+import static org.elasticsearch.index.IndexVersions.RESCORE_PARAMS_ALLOW_ZERO_TO_QUANTIZED_VECTORS;
 
 /**
  * A {@link FieldMapper} for indexing a dense vector of floats.
@@ -116,13 +117,22 @@ public class DenseVectorFieldMapper extends FieldMapper {
         return version.onOrAfter(IndexVersions.ADD_RESCORE_PARAMS_TO_QUANTIZED_VECTORS);
     }
 
+    private static boolean allowsZeroRescore(IndexVersion version) {
+        return version.onOrAfter(RESCORE_PARAMS_ALLOW_ZERO_TO_QUANTIZED_VECTORS);
+    }
+
     public static final IndexVersion MAGNITUDE_STORED_INDEX_VERSION = IndexVersions.V_7_5_0;
     public static final IndexVersion INDEXED_BY_DEFAULT_INDEX_VERSION = IndexVersions.FIRST_DETACHED_INDEX_VERSION;
     public static final IndexVersion NORMALIZE_COSINE = IndexVersions.NORMALIZED_VECTOR_COSINE;
     public static final IndexVersion DEFAULT_TO_INT8 = DEFAULT_DENSE_VECTOR_TO_INT8_HNSW;
     public static final IndexVersion LITTLE_ENDIAN_FLOAT_STORED_INDEX_VERSION = IndexVersions.V_8_9_0;
+    public static final IndexVersion RESCORE_PARAMS_ALLOW_ZERO_TO_QUANTIZED_VECTORS =
+        IndexVersions.RESCORE_PARAMS_ALLOW_ZERO_TO_QUANTIZED_VECTORS;
 
     public static final NodeFeature RESCORE_VECTOR_QUANTIZED_VECTOR_MAPPING = new NodeFeature("mapper.dense_vector.rescore_vector");
+    public static final NodeFeature RESCORE_ZERO_VECTOR_QUANTIZED_VECTOR_MAPPING = new NodeFeature(
+        "mapper.dense_vector.rescore_zero_vector"
+    );
 
     public static final String CONTENT_TYPE = "dense_vector";
     public static short MAX_DIMS_COUNT = 4096; // maximum allowed number of dimensions
@@ -1293,7 +1303,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
                 }
                 RescoreVector rescoreVector = null;
                 if (hasRescoreIndexVersion(indexVersion)) {
-                    rescoreVector = RescoreVector.fromIndexOptions(indexOptionsMap);
+                    rescoreVector = RescoreVector.fromIndexOptions(indexOptionsMap, indexVersion);
                 }
                 MappingParser.checkNoRemainingFields(fieldName, indexOptionsMap);
                 return new Int8HnswIndexOptions(m, efConstruction, confidenceInterval, rescoreVector);
@@ -1328,7 +1338,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
                 }
                 RescoreVector rescoreVector = null;
                 if (hasRescoreIndexVersion(indexVersion)) {
-                    rescoreVector = RescoreVector.fromIndexOptions(indexOptionsMap);
+                    rescoreVector = RescoreVector.fromIndexOptions(indexOptionsMap, indexVersion);
                 }
                 MappingParser.checkNoRemainingFields(fieldName, indexOptionsMap);
                 return new Int4HnswIndexOptions(m, efConstruction, confidenceInterval, rescoreVector);
@@ -1371,7 +1381,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
                 }
                 RescoreVector rescoreVector = null;
                 if (hasRescoreIndexVersion(indexVersion)) {
-                    rescoreVector = RescoreVector.fromIndexOptions(indexOptionsMap);
+                    rescoreVector = RescoreVector.fromIndexOptions(indexOptionsMap, indexVersion);
                 }
                 MappingParser.checkNoRemainingFields(fieldName, indexOptionsMap);
                 return new Int8FlatIndexOptions(confidenceInterval, rescoreVector);
@@ -1397,7 +1407,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
                 }
                 RescoreVector rescoreVector = null;
                 if (hasRescoreIndexVersion(indexVersion)) {
-                    rescoreVector = RescoreVector.fromIndexOptions(indexOptionsMap);
+                    rescoreVector = RescoreVector.fromIndexOptions(indexOptionsMap, indexVersion);
                 }
                 MappingParser.checkNoRemainingFields(fieldName, indexOptionsMap);
                 return new Int4FlatIndexOptions(confidenceInterval, rescoreVector);
@@ -1428,7 +1438,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
                 int efConstruction = XContentMapValues.nodeIntegerValue(efConstructionNode);
                 RescoreVector rescoreVector = null;
                 if (hasRescoreIndexVersion(indexVersion)) {
-                    rescoreVector = RescoreVector.fromIndexOptions(indexOptionsMap);
+                    rescoreVector = RescoreVector.fromIndexOptions(indexOptionsMap, indexVersion);
                 }
                 MappingParser.checkNoRemainingFields(fieldName, indexOptionsMap);
                 return new BBQHnswIndexOptions(m, efConstruction, rescoreVector);
@@ -1449,7 +1459,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
             public IndexOptions parseIndexOptions(String fieldName, Map<String, ?> indexOptionsMap, IndexVersion indexVersion) {
                 RescoreVector rescoreVector = null;
                 if (hasRescoreIndexVersion(indexVersion)) {
-                    rescoreVector = RescoreVector.fromIndexOptions(indexOptionsMap);
+                    rescoreVector = RescoreVector.fromIndexOptions(indexOptionsMap, indexVersion);
                 }
                 MappingParser.checkNoRemainingFields(fieldName, indexOptionsMap);
                 return new BBQFlatIndexOptions(rescoreVector);
@@ -1963,7 +1973,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
         static final String NAME = "rescore_vector";
         static final String OVERSAMPLE = "oversample";
 
-        static RescoreVector fromIndexOptions(Map<String, ?> indexOptionsMap) {
+        static RescoreVector fromIndexOptions(Map<String, ?> indexOptionsMap, IndexVersion indexVersion) {
             Object rescoreVectorNode = indexOptionsMap.remove(NAME);
             if (rescoreVectorNode == null) {
                 return null;
@@ -1973,16 +1983,16 @@ public class DenseVectorFieldMapper extends FieldMapper {
             if (oversampleNode == null) {
                 throw new IllegalArgumentException("Invalid rescore_vector value. Missing required field " + OVERSAMPLE);
             }
-            return new RescoreVector((float) XContentMapValues.nodeDoubleValue(oversampleNode));
-        }
-
-        RescoreVector {
-            if (oversample < 1) {
+            float oversampleValue = (float) XContentMapValues.nodeDoubleValue(oversampleNode);
+            if (oversampleValue == 0 && allowsZeroRescore(indexVersion) == false) {
                 throw new IllegalArgumentException("oversample must be greater than 1");
             }
-            if (oversample > 10) {
+            if (oversampleValue < 1 && oversampleValue != 0) {
+                throw new IllegalArgumentException("oversample must be greater than 1 or exactly 0");
+            } else if (oversampleValue > 10) {
                 throw new IllegalArgumentException("oversample must be less than or equal to 10");
             }
+            return new RescoreVector(oversampleValue);
         }
 
         @Override
@@ -2149,7 +2159,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
         }
 
         private boolean needsRescore(Float rescoreOversample) {
-            return rescoreOversample != null && isQuantized();
+            return rescoreOversample != null && rescoreOversample > 0 && isQuantized();
         }
 
         private boolean isQuantized() {

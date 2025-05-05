@@ -73,7 +73,8 @@ public record HealthInfo(
     }
 
     public static boolean includeFileSettings(TransportVersion transportVersion) {
-        return transportVersion.onOrAfter(TransportVersions.FILE_SETTINGS_HEALTH_INFO);
+        return transportVersion.isPatchFrom(TransportVersions.FILE_SETTINGS_HEALTH_INFO_8_19)
+            || transportVersion.onOrAfter(TransportVersions.FILE_SETTINGS_HEALTH_INFO);
     }
 
 }

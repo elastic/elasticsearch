@@ -183,6 +183,7 @@ public class BasePluginBuildPlugin implements Plugin<Project> {
     ) {
         var bundleSpec = project.copySpec();
         bundleSpec.from(buildProperties);
+        bundleSpec.from(pluginMetadata);
         bundleSpec.from(
             (Callable<TaskProvider<Task>>) () -> project.getPluginManager().hasPlugin("com.gradleup.shadow")
                 ? project.getTasks().named("shadowJar")

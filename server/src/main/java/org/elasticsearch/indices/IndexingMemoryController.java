@@ -247,8 +247,9 @@ public class IndexingMemoryController implements IndexingOperationListener, Clos
         statusChecker.run();
     }
 
-    /** Asks this shard to throttle indexing to one thread. If pauseIndexing is set to true, throttling will
-     * pause indexing completely. */
+    /** Asks this shard to throttle indexing to one thread. If the PAUSE_INDEXING_ON_THROTTLE seeting is set to true,
+     * throttling will pause indexing completely for the throttled shard.
+     */
     protected void activateThrottling(IndexShard shard) {
         shard.activateThrottling();
     }

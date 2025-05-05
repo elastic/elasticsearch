@@ -88,7 +88,7 @@ final class ClusterComputeHandler implements TransportRequestHandler<ClusterComp
             if (receivedResults == false && EsqlCCSUtils.shouldIgnoreRuntimeError(executionInfo, clusterAlias, e)) {
                 EsqlCCSUtils.markClusterWithFinalStateAndNoShards(executionInfo, clusterAlias, EsqlExecutionInfo.Cluster.Status.SKIPPED, e);
                 l.onResponse(DriverCompletionInfo.EMPTY);
-            } else if (configuration.allowPartialResults()) {
+            } else if (configuration.allowPartialResults() && EsqlCCSUtils.canAllowPartial(e)) {
                 EsqlCCSUtils.markClusterWithFinalStateAndNoShards(executionInfo, clusterAlias, EsqlExecutionInfo.Cluster.Status.PARTIAL, e);
                 l.onResponse(DriverCompletionInfo.EMPTY);
             } else {

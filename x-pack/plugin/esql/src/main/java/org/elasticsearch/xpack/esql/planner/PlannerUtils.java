@@ -33,6 +33,7 @@ import org.elasticsearch.xpack.esql.optimizer.LocalLogicalOptimizerContext;
 import org.elasticsearch.xpack.esql.optimizer.LocalLogicalPlanOptimizer;
 import org.elasticsearch.xpack.esql.optimizer.LocalPhysicalOptimizerContext;
 import org.elasticsearch.xpack.esql.optimizer.LocalPhysicalPlanOptimizer;
+import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.LucenePushdownPredicates;
 import org.elasticsearch.xpack.esql.plan.QueryPlan;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
@@ -250,7 +251,9 @@ public class PlannerUtils {
                     }
                 }
                 if (matches.isEmpty() == false) {
-                    requestFilters.add(TRANSLATOR_HANDLER.asQuery(Predicates.combineAnd(matches)).toQueryBuilder());
+                    requestFilters.add(
+                        TRANSLATOR_HANDLER.asQuery(LucenePushdownPredicates.DEFAULT, Predicates.combineAnd(matches)).toQueryBuilder()
+                    );
                 }
             });
         });
@@ -295,7 +298,8 @@ public class PlannerUtils {
             case TSID_DATA_TYPE -> ElementType.BYTES_REF;
             case GEO_POINT, CARTESIAN_POINT -> fieldExtractPreference == DOC_VALUES ? ElementType.LONG : ElementType.BYTES_REF;
             case GEO_SHAPE, CARTESIAN_SHAPE -> fieldExtractPreference == EXTRACT_SPATIAL_BOUNDS ? ElementType.INT : ElementType.BYTES_REF;
-            case PARTIAL_AGG, AGGREGATE_METRIC_DOUBLE -> ElementType.COMPOSITE;
+            case PARTIAL_AGG -> ElementType.COMPOSITE;
+            case AGGREGATE_METRIC_DOUBLE -> ElementType.AGGREGATE_METRIC_DOUBLE;
             case SHORT, BYTE, DATE_PERIOD, TIME_DURATION, OBJECT, FLOAT, HALF_FLOAT, SCALED_FLOAT -> throw EsqlIllegalArgumentException
                 .illegalDataType(dataType);
         };

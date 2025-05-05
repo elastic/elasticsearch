@@ -7,8 +7,8 @@
 
 package org.elasticsearch.xpack.unsignedlong;
 
+import org.elasticsearch.datageneration.FieldType;
 import org.elasticsearch.index.mapper.NumberFieldBlockLoaderTestCase;
-import org.elasticsearch.logsdb.datageneration.FieldType;
 import org.elasticsearch.plugins.Plugin;
 
 import java.util.Collection;

@@ -85,7 +85,14 @@ public class ServiceAccountServiceTests extends ESTestCase {
         when(indexServiceAccountTokenStore.getTokenSource()).thenReturn(TokenInfo.TokenSource.INDEX);
         client = mock(Client.class);
         when(client.threadPool()).thenReturn(threadPool);
-        serviceAccountService = new ServiceAccountService(client, fileServiceAccountTokenStore, indexServiceAccountTokenStore);
+        serviceAccountService = new ServiceAccountService(
+            client,
+            new CompositeServiceAccountTokenStore(
+                List.of(fileServiceAccountTokenStore, indexServiceAccountTokenStore),
+                threadPool.getThreadContext()
+            ),
+            indexServiceAccountTokenStore
+        );
     }
 
     @After

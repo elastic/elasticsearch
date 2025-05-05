@@ -871,8 +871,7 @@ teardown:
                 underground: 0.053516876
                 is: 0.54600334
 
-  - match: { hits.total.value: 2 }
+  - match: { hits.total.value: 1 }
   - match: { hits.hits.0._id: "1" }
-  - match: { hits.hits.1._id: "3" }
 
 

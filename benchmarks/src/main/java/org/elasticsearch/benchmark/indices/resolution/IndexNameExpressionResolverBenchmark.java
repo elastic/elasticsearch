@@ -16,7 +16,8 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
-import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectId;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.project.DefaultProjectResolver;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -63,12 +64,12 @@ public class IndexNameExpressionResolverBenchmark {
         int numDataStreams = toInt(params[0]);
         int numIndices = toInt(params[1]);
 
-        Metadata.Builder mb = Metadata.builder();
+        ProjectMetadata.Builder pmb = ProjectMetadata.builder(ProjectId.DEFAULT);
         String[] indices = new String[numIndices + numDataStreams * (numIndices + 1)];
         int position = 0;
         for (int i = 1; i <= numIndices; i++) {
             String indexName = INDEX_PREFIX + i;
-            createIndexMetadata(indexName, mb);
+            createIndexMetadata(indexName, pmb);
             indices[position++] = indexName;
         }
 
@@ -77,14 +78,14 @@ public class IndexNameExpressionResolverBenchmark {
             List<Index> backingIndices = new ArrayList<>();
             for (int j = 1; j <= numIndices; j++) {
                 String backingIndexName = DataStream.getDefaultBackingIndexName(dataStreamName, j);
-                backingIndices.add(createIndexMetadata(backingIndexName, mb).getIndex());
+                backingIndices.add(createIndexMetadata(backingIndexName, pmb).getIndex());
                 indices[position++] = backingIndexName;
             }
             indices[position++] = dataStreamName;
-            mb.put(DataStream.builder(dataStreamName, backingIndices).build());
+            pmb.put(DataStream.builder(dataStreamName, backingIndices).build());
         }
         int mid = indices.length / 2;
-        clusterState = ClusterState.builder(ClusterName.DEFAULT).metadata(mb).build();
+        clusterState = ClusterState.builder(ClusterName.DEFAULT).putProjectMetadata(pmb).build();
         resolver = new IndexNameExpressionResolver(
             new ThreadContext(Settings.EMPTY),
             new SystemIndices(List.of()),
@@ -97,13 +98,13 @@ public class IndexNameExpressionResolverBenchmark {
         mixedRequest = new Request(IndicesOptions.lenientExpandOpenHidden(), mixed);
     }
 
-    private IndexMetadata createIndexMetadata(String indexName, Metadata.Builder mb) {
+    private IndexMetadata createIndexMetadata(String indexName, ProjectMetadata.Builder pmb) {
         IndexMetadata indexMetadata = IndexMetadata.builder(indexName)
             .settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current()))
             .numberOfShards(1)
             .numberOfReplicas(0)
             .build();
-        mb.put(indexMetadata, false);
+        pmb.put(indexMetadata, false);
         return indexMetadata;
     }
 

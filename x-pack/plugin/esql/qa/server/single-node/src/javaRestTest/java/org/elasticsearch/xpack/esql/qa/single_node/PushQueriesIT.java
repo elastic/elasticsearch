@@ -81,7 +81,15 @@ public class PushQueriesIT extends ESRestTestCase {
         testPushQuery(value, """
             FROM test
             | WHERE test == "%value" OR foo == 2
-            """, "(#test.keyword:vvvvv -_ignored:test.keyword) foo:[2 TO 2]", false, true);
+            """, "(#test.keyword:%value -_ignored:test.keyword) foo:[2 TO 2]", false, true);
+    }
+
+    public void testPushEqualityOnDefaultsAndOther() throws IOException {
+        String value = "v".repeat(between(0, 256));
+        testPushQuery(value, """
+            FROM test
+            | WHERE test == "%value" AND foo == 1
+            """, "#test.keyword:%value -_ignored:test.keyword #foo:[1 TO 1]", false, true);
     }
 
     public void testPushInequalityOnDefaults() throws IOException {
@@ -111,7 +119,7 @@ public class PushQueriesIT extends ESRestTestCase {
     private void testPushQuery(String value, String esqlQuery, String luceneQuery, boolean filterInCompute, boolean found)
         throws IOException {
         indexValue(value);
-        String differentValue = randomValueOtherThan(value, () -> randomAlphaOfLength(value.length() == 0 ? 1 : value.length()));
+        String differentValue = randomValueOtherThan(value, () -> randomAlphaOfLength(value.isEmpty() ? 1 : value.length()));
 
         String replacedQuery = esqlQuery.replaceAll("%value", value).replaceAll("%different_value", differentValue);
         RestEsqlTestCase.RequestObjectBuilder builder = requestObjectBuilder().query(replacedQuery + "\n| KEEP test");

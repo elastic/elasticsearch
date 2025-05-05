@@ -25,7 +25,10 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Supplier;
 
-import static org.hamcrest.Matchers.equalTo;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.spy;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
 
 public class StreamingUnifiedChatCompletionResultsTests extends AbstractWireSerializingTestCase<
     StreamingUnifiedChatCompletionResults.Results> {
@@ -229,36 +232,39 @@ public class StreamingUnifiedChatCompletionResultsTests extends AbstractWireSeri
 
         AtomicInteger counter = new AtomicInteger(0);
         AtomicReference<Flow.Subscription> upstream = new AtomicReference<>(null);
-        streamingResults.publisher().subscribe(new Flow.Subscriber<>() {
-            @Override
-            public void onSubscribe(Flow.Subscription subscription) {
-                if (upstream.compareAndSet(null, subscription) == false) {
-                    fail("Upstream already set?!");
+        Flow.Subscriber<StreamingUnifiedChatCompletionResults.Results> subscriber = spy(
+            new Flow.Subscriber<StreamingUnifiedChatCompletionResults.Results>() {
+                @Override
+                public void onSubscribe(Flow.Subscription subscription) {
+                    if (upstream.compareAndSet(null, subscription) == false) {
+                        fail("Upstream already set?!");
+                    }
+                    subscription.request(1);
                 }
-                subscription.request(1);
-            }
 
-            @Override
-            public void onNext(StreamingUnifiedChatCompletionResults.Results item) {
-                assertNotNull(item);
-                counter.incrementAndGet();
-                var sub = upstream.get();
-                if (sub != null) {
-                    sub.request(1);
-                } else {
-                    fail("Upstream not yet set?!");
+                @Override
+                public void onNext(StreamingUnifiedChatCompletionResults.Results item) {
+                    assertNotNull(item);
+                    counter.incrementAndGet();
+                    var sub = upstream.get();
+                    if (sub != null) {
+                        sub.request(1);
+                    } else {
+                        fail("Upstream not yet set?!");
+                    }
                 }
-            }
 
-            @Override
-            public void onError(Throwable throwable) {
-                fail(throwable);
-            }
+                @Override
+                public void onError(Throwable throwable) {
+                    fail(throwable);
+                }
 
-            @Override
-            public void onComplete() {}
-        });
-        assertThat(counter.get(), equalTo(2));
+                @Override
+                public void onComplete() {}
+            }
+        );
+        streamingResults.publisher().subscribe(subscriber);
+        verify(subscriber, times(2)).onNext(any());
     }
 
     @Override

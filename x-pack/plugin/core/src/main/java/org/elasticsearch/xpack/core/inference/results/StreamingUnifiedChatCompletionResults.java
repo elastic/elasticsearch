@@ -72,14 +72,13 @@ public record StreamingUnifiedChatCompletionResults(Flow.Publisher<Results> publ
                     downstream.onSubscribe(new Flow.Subscription() {
                         @Override
                         public void request(long n) {
-                            if (buffer.isEmpty()) {
-                                if (onComplete.get()) {
-                                    downstream.onComplete();
-                                } else {
-                                    subscription.request(n);
-                                }
+                            var nextItem = buffer.poll();
+                            if (nextItem != null) {
+                                downstream.onNext(new Results(DequeUtils.of(nextItem)));
+                            } else if (onComplete.get()) {
+                                downstream.onComplete();
                             } else {
-                                downstream.onNext(new Results(DequeUtils.of(buffer.poll())));
+                                subscription.request(n);
                             }
                         }
 

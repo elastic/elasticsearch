@@ -718,7 +718,8 @@ public class LocalExecutionPlanner {
     private record MatchConfig(String fieldName, int channel, DataType type) {
         private MatchConfig(FieldAttribute match, Layout.ChannelAndType input) {
             // Note, this handles TEXT fields with KEYWORD subfields
-            this(match.exactAttribute().name(), input.channel(), input.type());
+            // TODO: This probably also led to bugs for LOOKUP JOIN on a union typed field, let's add a test.
+            this(match.exactAttribute().fieldName(), input.channel(), input.type());
         }
     }
 

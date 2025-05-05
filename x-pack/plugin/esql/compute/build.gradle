@@ -79,6 +79,14 @@ def prop(Name, Type, type, Wrapper, TYPE, BYTES, Array, Hash) {
   ]
 }
 
+def addOccurrence(props, Occurrence) {
+  def newProps = props.collectEntries { [(it.key): it.value] }
+  newProps["Occurrence"] = Occurrence
+  newProps["First"] = Occurrence == "First" ? "true" : ""
+  newProps["Last"] = Occurrence == "Last" ? "true" : ""
+  return newProps
+}
+
 tasks.named('stringTemplates').configure {
   var intProperties = prop("Int", "Int", "int", "Integer", "INT", "Integer.BYTES", "IntArray", "LongHash")
   var floatProperties = prop("Float", "Float", "float", "Float", "FLOAT", "Float.BYTES", "FloatArray", "LongHash")
@@ -862,4 +870,30 @@ tasks.named('stringTemplates').configure {
     it.outputFile = "org/elasticsearch/xpack/compute/operator/lookup/EnrichResultBuilderForBoolean.java"
   }
 
+  // TODO: add {value}_over_time for other types: boolean, bytes_refs
+  File valueOverTimeAggregatorInputFile = file("src/main/java/org/elasticsearch/compute/aggregation/X-ValueOverTimeAggregator.java.st")
+  ["First", "Last"].forEach { Occurrence ->
+    {
+      template {
+        it.properties = addOccurrence(intProperties, Occurrence)
+        it.inputFile = valueOverTimeAggregatorInputFile
+        it.outputFile = "org/elasticsearch/compute/aggregation/${Occurrence}OverTimeIntAggregator.java"
+      }
+      template {
+        it.properties = addOccurrence(longProperties, Occurrence)
+        it.inputFile = valueOverTimeAggregatorInputFile
+        it.outputFile = "org/elasticsearch/compute/aggregation/${Occurrence}OverTimeLongAggregator.java"
+      }
+      template {
+        it.properties = addOccurrence(floatProperties, Occurrence)
+        it.inputFile = valueOverTimeAggregatorInputFile
+        it.outputFile = "org/elasticsearch/compute/aggregation/${Occurrence}OverTimeFloatAggregator.java"
+      }
+      template {
+        it.properties = addOccurrence(doubleProperties, Occurrence)
+        it.inputFile = valueOverTimeAggregatorInputFile
+        it.outputFile = "org/elasticsearch/compute/aggregation/${Occurrence}OverTimeDoubleAggregator.java"
+      }
+    }
+  }
 }

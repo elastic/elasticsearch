@@ -1,5 +1,0 @@
-pr: 126441
-summary: Add flow-control and remove auto-read in netty4 http pipeline
-area: Network
-type: enhancement
-issues: []

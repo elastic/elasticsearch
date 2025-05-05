@@ -3,7 +3,7 @@ mapped_pages:
   - https://www.elastic.co/guide/en/elasticsearch/reference/current/sql-like-rlike-operators.html
 ---
 
-# LIKE and RLIKE Operators [sql-like-rlike-operators]
+# LIKE and RLIKE operators [sql-like-rlike-operators]
 
 `LIKE` and `RLIKE` operators are commonly used to filter data based on string patterns. They usually act on a field placed on the left-hand side of the operator, but can also act on a constant (literal) expression. The right-hand side of the operator represents the pattern. Both can be used in the `WHERE` clause of the `SELECT` statement, but `LIKE` can also be used in other places, such as defining an [index pattern](/reference/query-languages/sql/sql-index-patterns.md) or across various [SHOW commands](/reference/query-languages/sql/sql-commands.md). This section covers only the `SELECT ... WHERE ...` usage.
 
@@ -93,9 +93,8 @@ When using `LIKE`/`RLIKE`, do consider using [full-text search predicates](/refe
 <!--
 For example:
 
-|     |     |
-| --- | --- |
 | **LIKE/RLIKE** | **QUERY/MATCH** |
+| --- | --- |
 | ``foo LIKE 'bar'`` | ``MATCH(foo, 'bar')`` |
 | ``foo LIKE 'bar' AND tar LIKE 'goo'`` | ``MATCH('foo^2, tar^5', 'bar goo', 'operator=and')`` |
 | ``foo LIKE 'barr'`` | ``QUERY('foo: bar~')`` |

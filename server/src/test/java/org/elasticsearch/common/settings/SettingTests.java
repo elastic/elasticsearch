@@ -387,6 +387,34 @@ public class SettingTests extends ESTestCase {
         assertNull(e.getCause());
     }
 
+    public void testFloatSettingWithOtherSettingAsDefault() {
+        float defaultFallbackValue = randomFloat();
+        Setting<Float> fallbackSetting = Setting.floatSetting("fallback_setting", defaultFallbackValue);
+        Setting<Float> floatSetting = Setting.floatSetting("float_setting", fallbackSetting, Float.MIN_VALUE);
+
+        // Neither float_setting nor fallback_setting specified
+        assertThat(floatSetting.get(Settings.builder().build()), equalTo(defaultFallbackValue));
+
+        // Only fallback_setting specified
+        float explicitFallbackValue = randomValueOtherThan(defaultFallbackValue, ESTestCase::randomFloat);
+        assertThat(
+            floatSetting.get(Settings.builder().put("fallback_setting", explicitFallbackValue).build()),
+            equalTo(explicitFallbackValue)
+        );
+
+        // Both float_setting and fallback_setting specified
+        float explicitFloatValue = randomValueOtherThanMany(
+            v -> v != explicitFallbackValue && v != defaultFallbackValue,
+            ESTestCase::randomFloat
+        );
+        assertThat(
+            floatSetting.get(
+                Settings.builder().put("fallback_setting", explicitFallbackValue).put("float_setting", explicitFloatValue).build()
+            ),
+            equalTo(explicitFloatValue)
+        );
+    }
+
     private enum TestEnum {
         ON,
         OFF

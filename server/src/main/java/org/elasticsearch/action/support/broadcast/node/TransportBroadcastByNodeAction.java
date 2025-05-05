@@ -42,8 +42,8 @@ import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.FixForMultiProject;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
+import org.elasticsearch.transport.AbstractTransportRequest;
 import org.elasticsearch.transport.TransportChannel;
-import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportRequestHandler;
 import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportResponse;
@@ -222,7 +222,7 @@ public abstract class TransportBroadcastByNodeAction<
      * Resolves a list of concrete index names. Override this if index names should be resolved differently than normal.
      *
      * @param clusterState the cluster state
-     * @param request the underlying request
+     * @param request      the underlying request
      * @return a list of concrete index names that this action should operate on
      */
     protected String[] resolveConcreteIndexNames(ClusterState clusterState, Request request) {
@@ -465,7 +465,7 @@ public abstract class TransportBroadcastByNodeAction<
         }.run(task, shards.iterator(), listener);
     }
 
-    class NodeRequest extends TransportRequest implements IndicesRequest {
+    class NodeRequest extends AbstractTransportRequest implements IndicesRequest {
         private final Request indicesLevelRequest;
         private final List<ShardRouting> shards;
         private final String nodeId;

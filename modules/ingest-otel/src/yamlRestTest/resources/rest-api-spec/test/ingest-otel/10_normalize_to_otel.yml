@@ -45,9 +45,22 @@ teardown:
               "arrayValue2"
             ]
           },
-          "cloud.provider": "cloudProviderValue",
+          "cloud.region": "cloudRegionValue",
           "cloud": {
-            "type": "cloudTypeValue"
+            "service": {
+              "name": [
+                "nameArrayValue1",
+                "nameArrayValue2"
+              ]
+            },
+            "account.id": [
+              {
+                "key1": "value1"
+              },
+              {
+                "key2": "value2"
+              }
+            ],
           },
           "host.name": "hostNameValue",
           "host": {
@@ -56,21 +69,6 @@ teardown:
           "service.name": "serviceNameValue",
           "service": {
             "type": "serviceTypeValue",
-            "deep": {
-              "nested": "nestedValue",
-              "scalar-array": [
-                "arrayValue1",
-                "arrayValue2"
-              ],
-              "object-array": [
-                {
-                  "key1": "value1"
-                },
-                {
-                  "key2": "value2"
-                }
-              ]
-            },
           }
         }
 
@@ -80,29 +78,32 @@ teardown:
         id: "nested_and_flat_attributes"
   - match: { _source.resource.attributes.agent\.name: "agentNameValue" }
   - match: { _source.resource.attributes.agent\.type: "agentTypeValue" }
-  - match: { _source.resource.attributes.agent\.deep\.nested: "nestedValue" }
-  - match: { _source.resource.attributes.agent\.deep\.scalar-array.0: "arrayValue1" }
-  - match: { _source.resource.attributes.agent\.deep\.scalar-array.1: "arrayValue2" }
-  - match: { _source.resource.attributes.agent\.deep\.object-array.0.key1: "value1" }
-  - match: { _source.resource.attributes.agent\.deep\.object-array.1.key2: "value2" }
-  - match: { _source.resource.attributes.cloud\.provider: "cloudProviderValue" }
-  - match: { _source.resource.attributes.cloud\.type: "cloudTypeValue" }
+  - match: { _source.resource.attributes.cloud\.region: "cloudRegionValue" }
+  - match: { _source.resource.attributes.cloud\.service\.name: ["nameArrayValue1", "nameArrayValue2"] }
+  - match: { _source.resource.attributes.cloud\.service\.name.0: "nameArrayValue1" }
+  - match: { _source.resource.attributes.cloud\.service\.name.1: "nameArrayValue2" }
+  - match: { _source.resource.attributes.cloud\.account\.id: [{"key1" : "value1"}, {"key2" : "value2"}] }
+  - match: { _source.resource.attributes.cloud\.account\.id.0.key1: "value1" }
+  - match: { _source.resource.attributes.cloud\.account\.id.1.key2: "value2" }
   - match: { _source.resource.attributes.host\.name: "hostNameValue" }
   - match: { _source.resource.attributes.host\.type: "hostTypeValue" }
-  - match: { _source.attributes.service\.name: "serviceNameValue" }
+  - match: { _source.resource.attributes.service\.name: "serviceNameValue" }
+  - match: { _source.attributes.agent\.scalar-array.0: "arrayValue1" }
+  - match: { _source.attributes.agent\.scalar-array.1: "arrayValue2" }
+  - match: { _source.attributes.agent\.deep\.nested: "nestedValue" }
+  - match: { _source.attributes.agent\.deep\.scalar-array.0: "arrayValue1" }
+  - match: { _source.attributes.agent\.deep\.scalar-array.1: "arrayValue2" }
+  - match: { _source.attributes.agent\.deep\.object-array.0.key1: "value1" }
+  - match: { _source.attributes.agent\.deep\.object-array.1.key2: "value2" }
   - match: { _source.attributes.service\.type: "serviceTypeValue" }
-  - match: { _source.attributes.service\.deep\.nested: "nestedValue" }
-  - match: { _source.attributes.service\.deep\.scalar-array.0: "arrayValue1" }
-  - match: { _source.attributes.service\.deep\.scalar-array.1: "arrayValue2" }
-  - match: { _source.attributes.service\.deep\.object-array.0.key1: "value1" }
-  - match: { _source.attributes.service\.deep\.object-array.1.key2: "value2" }
-  - match: { _source.agent.name: null }
+  - match: { _source.agent\.name: null }
   - match: { _source.agent: null }
-  - match: { _source.cloud.provider: null }
+  - match: { _source.agent.type: null }
+  - match: { _source.cloud\.region: null }
   - match: { _source.cloud: null }
-  - match: { _source.host.name: null }
+  - match: { _source.host\.name: null }
   - match: { _source.host: null }
-  - match: { _source.service.name: null }
+  - match: { _source.service\.name: null }
   - match: { _source.service: null }
 
 ---

@@ -17,6 +17,7 @@ import org.elasticsearch.ingest.Processor;
 
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.Iterator;
 import java.util.Map;
 import java.util.Set;
 
@@ -30,8 +31,9 @@ import static java.util.Map.entry;
  * <p>More specifically, this processor performs the following operations:
  * <ul>
  *   <li>Renames specific ECS fields to their corresponding OpenTelemetry-compatible counterparts.</li>
- *   <li>Moves fields to the "attributes" and "resource.attributes" namespaces.</li>
- *   <li>Flattens the "attributes" and "resource.attributes" maps.</li>
+ *   <li>Moves all other fields to the "attributes" namespace.</li>
+ *   <li>Flattens all attributes in the "attributes" namespace.</li>
+ *   <li>Moves resource fields from the "attributes" namespace to the "resource.attributes" namespace.</li>
  * </ul>
  *
  * <p>If a document is identified as OpenTelemetry-compatible, no transformation is performed.
@@ -74,10 +76,6 @@ public class NormalizeToOTelProcessor extends AbstractProcessor {
         KEEP_KEYS = Set.copyOf(keepKeys);
     }
 
-    private static final String AGENT_PREFIX = "agent";
-    private static final String CLOUD_PREFIX = "cloud";
-    private static final String HOST_PREFIX = "host";
-
     private static final String ATTRIBUTES_KEY = "attributes";
     private static final String RESOURCE_KEY = "resource";
     private static final String SCOPE_KEY = "scope";
@@ -119,35 +117,29 @@ public class NormalizeToOTelProcessor extends AbstractProcessor {
             }
         }
 
-        Map<String, Object> newResource = new HashMap<>();
-        Map<String, Object> newResourceAttributes = new HashMap<>();
-        newResource.put(ATTRIBUTES_KEY, newResourceAttributes);
-
         source.put(ATTRIBUTES_KEY, newAttributes);
-        source.put(RESOURCE_KEY, newResource);
 
         renameSpecialKeys(document);
 
-        // Iterate through all top level keys and move them to the appropriate namespace
+        // move all top level keys except from specific ones to the "attributes" namespace
         final var sourceItr = source.entrySet().iterator();
         while (sourceItr.hasNext()) {
             final var entry = sourceItr.next();
-            final var key = entry.getKey();
-            final var value = entry.getValue();
-            if (KEEP_KEYS.contains(key)) {
-                continue;
+            if (KEEP_KEYS.contains(entry.getKey()) == false) {
+                newAttributes.put(entry.getKey(), entry.getValue());
+                sourceItr.remove();
             }
-            if (shouldMoveToResourceAttributes(key)) {
-                newResourceAttributes.put(key, value);
-            } else {
-                newAttributes.put(key, value);
-            }
-            sourceItr.remove();
         }
 
         // Flatten attributes
-        source.put(ATTRIBUTES_KEY, Maps.flatten(newAttributes, false, false));
-        newResource.put(ATTRIBUTES_KEY, Maps.flatten(newResourceAttributes, false, false));
+        Map<String, Object> flattenAttributes = Maps.flatten(newAttributes, false, false);
+        source.put(ATTRIBUTES_KEY, flattenAttributes);
+
+        Map<String, Object> newResource = new HashMap<>();
+        Map<String, Object> newResourceAttributes = new HashMap<>();
+        newResource.put(ATTRIBUTES_KEY, newResourceAttributes);
+        source.put(RESOURCE_KEY, newResource);
+        moveResourceAttributes(flattenAttributes, newResourceAttributes);
 
         return document;
     }
@@ -257,13 +249,16 @@ public class NormalizeToOTelProcessor extends AbstractProcessor {
         });
     }
 
-    private static boolean shouldMoveToResourceAttributes(String key) {
-        return key.startsWith(AGENT_PREFIX + ".")
-            || key.equals(AGENT_PREFIX)
-            || key.startsWith(CLOUD_PREFIX + ".")
-            || key.equals(CLOUD_PREFIX)
-            || key.startsWith(HOST_PREFIX + ".")
-            || key.equals(HOST_PREFIX);
+    private static void moveResourceAttributes(Map<String, Object> attributes, Map<String, Object> resourceAttributes) {
+        Set<String> ecsResourceFields = EcsOTelResourceAttributes.LATEST;
+        Iterator<Map.Entry<String, Object>> attributeIterator = attributes.entrySet().iterator();
+        while (attributeIterator.hasNext()) {
+            Map.Entry<String, Object> entry = attributeIterator.next();
+            if (ecsResourceFields.contains(entry.getKey())) {
+                resourceAttributes.put(entry.getKey(), entry.getValue());
+                attributeIterator.remove();
+            }
+        }
     }
 
     public static final class Factory implements Processor.Factory {

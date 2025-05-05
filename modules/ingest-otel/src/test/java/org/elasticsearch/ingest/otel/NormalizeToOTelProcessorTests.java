@@ -262,68 +262,66 @@ public class NormalizeToOTelProcessorTests extends ESTestCase {
         assertEquals("nestedSpanIdValue", result.get("span_id"));
     }
 
-    public void testExecute_moveToAttributeMaps() {
+    public void testExecute_moveFlatAttributes() {
         Map<String, Object> source = new HashMap<>();
-        source.put("agent.name", "agentNameValue");
-        Map<String, Object> agent = new HashMap<>();
-        agent.put("type", "agentTypeValue");
-        source.put("agent", agent);
-        source.put("cloud.provider", "cloudProviderValue");
-        Map<String, Object> cloud = new HashMap<>();
-        cloud.put("type", "cloudTypeValue");
-        source.put("cloud", cloud);
-        source.put("host.name", "hostNameValue");
-        Map<String, Object> host = new HashMap<>();
-        host.put("type", "hostTypeValue");
-        source.put("host", host);
-        source.put("service.name", "serviceNameValue");
-        Map<String, Object> service = new HashMap<>();
-        service.put("type", "serviceTypeValue");
-        source.put("service", service);
+        Map<String, Object> expectedResourceAttributes = new HashMap<>();
+        EcsOTelResourceAttributes.LATEST.forEach(attribute -> {
+            String value = randomAlphaOfLength(10);
+            source.put(attribute, value);
+            expectedResourceAttributes.put(attribute, value);
+        });
+        Map<String, Object> expectedAttributes = Map.of("agent.non-resource", "value", "service.non-resource", "value", "foo", "bar");
+        source.putAll(expectedAttributes);
         IngestDocument document = new IngestDocument("index", "id", 1, null, null, source);
 
         processor.execute(document);
 
-        Map<String, Object> result = document.getSource();
-
-        // all attributes should be flattened
-        Map<String, Object> expectedResourceAttributes = Map.of(
-            "agent.name",
-            "agentNameValue",
-            "agent.type",
-            "agentTypeValue",
-            "cloud.provider",
-            "cloudProviderValue",
-            "cloud.type",
-            "cloudTypeValue",
-            "host.name",
-            "hostNameValue",
-            "host.type",
-            "hostTypeValue"
-        );
-
-        assertTrue(result.containsKey("resource"));
-        Map<String, Object> resource = get(result, "resource");
+        assertTrue(source.containsKey("resource"));
+        Map<String, Object> resource = get(source, "resource");
         Map<String, Object> resourceAttributes = get(resource, "attributes");
         assertEquals(expectedResourceAttributes, resourceAttributes);
-        assertNull(resourceAttributes.get("agent"));
-        assertNull(resourceAttributes.get("cloud"));
-        assertNull(resourceAttributes.get("host"));
-        assertFalse(source.containsKey("agent.name"));
-        assertFalse(source.containsKey("agent"));
-        assertFalse(source.containsKey("cloud.provider"));
-        assertFalse(source.containsKey("cloud"));
-        assertFalse(source.containsKey("host.name"));
-        assertFalse(source.containsKey("host"));
+        EcsOTelResourceAttributes.LATEST.forEach(attribute -> assertFalse(source.containsKey(attribute)));
 
-        Map<String, Object> expectedAttributes = Map.of("service.name", "serviceNameValue", "service.type", "serviceTypeValue");
-
-        assertTrue(result.containsKey("attributes"));
-        Map<String, Object> attributes = get(result, "attributes");
+        assertTrue(source.containsKey("attributes"));
+        Map<String, Object> attributes = get(source, "attributes");
         assertEquals(expectedAttributes, attributes);
-        assertNull(attributes.get("service"));
-        assertFalse(source.containsKey("service.name"));
-        assertFalse(source.containsKey("service"));
+        assertFalse(source.containsKey("foo"));
+        assertFalse(source.containsKey("agent.non-resource"));
+        assertFalse(source.containsKey("service.non-resource"));
+    }
+
+    public void testExecute_moveNestedAttributes() {
+        IngestDocument document = new IngestDocument("index", "id", 1, null, null, new HashMap<>());
+
+        Map<String, Object> expectedResourceAttributes = new HashMap<>();
+        EcsOTelResourceAttributes.LATEST.forEach(attribute -> {
+            String value = randomAlphaOfLength(10);
+            // parses dots as object notations
+            document.setFieldValue(attribute, value);
+            expectedResourceAttributes.put(attribute, value);
+        });
+        Map<String, Object> expectedAttributes = Map.of("agent.non-resource", "value", "service.non-resource", "value", "foo", "bar");
+        expectedAttributes.forEach(document::setFieldValue);
+
+        processor.execute(document);
+
+        Map<String, Object> source = document.getSource();
+
+        assertTrue(source.containsKey("resource"));
+        Map<String, Object> resource = get(source, "resource");
+        Map<String, Object> resourceAttributes = get(resource, "attributes");
+        assertEquals(expectedResourceAttributes, resourceAttributes);
+        EcsOTelResourceAttributes.LATEST.forEach(attribute -> {
+            // parse first part of the key
+            String namespace = attribute.substring(0, attribute.indexOf('.'));
+            assertFalse(source.containsKey(namespace));
+        });
+        assertTrue(source.containsKey("attributes"));
+        Map<String, Object> attributes = get(source, "attributes");
+        assertEquals(expectedAttributes, attributes);
+        assertFalse(source.containsKey("foo"));
+        assertFalse(source.containsKey("agent.non-resource"));
+        assertFalse(source.containsKey("service.non-resource"));
     }
 
     public void testKeepNullValues() {
@@ -357,19 +355,20 @@ public class NormalizeToOTelProcessorTests extends ESTestCase {
 
     public void testExecute_deepFlattening() {
         Map<String, Object> source = new HashMap<>();
-        Map<String, Object> nestedAgent = new HashMap<>();
-        nestedAgent.put("name", "agentNameValue");
-        Map<String, Object> deeperAgent = new HashMap<>();
-        deeperAgent.put("type", "agentTypeValue");
-        nestedAgent.put("details", deeperAgent);
-        source.put("agent", nestedAgent);
+        Map<String, Object> service = new HashMap<>();
+        service.put("name", "serviceNameValue");
+        Map<String, Object> node = new HashMap<>();
+        node.put("name", "serviceNodeNameValue");
+        node.put("type", "serviceNodeTypeValue");
+        service.put("node", node);
+        source.put("service", service);
 
-        Map<String, Object> nestedService = new HashMap<>();
-        nestedService.put("name", "serviceNameValue");
-        Map<String, Object> deeperService = new HashMap<>();
-        deeperService.put("type", "serviceTypeValue");
-        nestedService.put("details", deeperService);
-        source.put("service", nestedService);
+        Map<String, Object> top = new HashMap<>();
+        top.put("child", "childValue");
+        Map<String, Object> nestedChild = new HashMap<>();
+        nestedChild.put("grandchild", "grandchildValue");
+        top.put("nested-child", nestedChild);
+        source.put("top", top);
 
         IngestDocument document = new IngestDocument("index", "id", 1, null, null, source);
 
@@ -377,20 +376,32 @@ public class NormalizeToOTelProcessorTests extends ESTestCase {
 
         Map<String, Object> result = document.getSource();
 
-        Map<String, Object> expectedResourceAttributes = Map.of("agent.name", "agentNameValue", "agent.details.type", "agentTypeValue");
+        Map<String, Object> expectedResourceAttributes = Map.of(
+            "service.name",
+            "serviceNameValue",
+            "service.node.name",
+            "serviceNodeNameValue"
+        );
 
         assertTrue(result.containsKey("resource"));
         Map<String, Object> resource = get(result, "resource");
         Map<String, Object> resourceAttributes = get(resource, "attributes");
         assertEquals(expectedResourceAttributes, resourceAttributes);
-        assertNull(resource.get("agent"));
+        assertNull(resource.get("service"));
 
-        Map<String, Object> expectedAttributes = Map.of("service.name", "serviceNameValue", "service.details.type", "serviceTypeValue");
+        Map<String, Object> expectedAttributes = Map.of(
+            "service.node.type",
+            "serviceNodeTypeValue",
+            "top.child",
+            "childValue",
+            "top.nested-child.grandchild",
+            "grandchildValue"
+        );
 
         assertTrue(result.containsKey("attributes"));
         Map<String, Object> attributes = get(result, "attributes");
         assertEquals(expectedAttributes, attributes);
-        assertNull(attributes.get("service"));
+        assertNull(attributes.get("top"));
     }
 
     public void testExecute_arraysNotFlattened() {
@@ -402,9 +413,8 @@ public class NormalizeToOTelProcessorTests extends ESTestCase {
         source.put("agent", nestedAgent);
 
         Map<String, Object> nestedService = new HashMap<>();
-        nestedService.put("name", "serviceNameValue");
-        List<String> serviceArray = List.of("value1", "value2");
-        nestedService.put("array", serviceArray);
+        List<String> serviceNameArray = List.of("value1", "value2");
+        nestedService.put("name", serviceNameArray);
         source.put("service", nestedService);
 
         IngestDocument document = new IngestDocument("index", "id", 1, null, null, source);
@@ -413,19 +423,18 @@ public class NormalizeToOTelProcessorTests extends ESTestCase {
 
         Map<String, Object> result = document.getSource();
 
-        Map<String, Object> expectedResourceAttributes = Map.of("agent.name", "agentNameValue", "agent.array", agentArray);
+        Map<String, Object> expectedResourceAttributes = Map.of("agent.name", "agentNameValue", "service.name", serviceNameArray);
 
         assertTrue(result.containsKey("resource"));
         Map<String, Object> resource = get(result, "resource");
         Map<String, Object> resourceAttributes = get(resource, "attributes");
         assertEquals(expectedResourceAttributes, resourceAttributes);
-        assertNull(resource.get("agent"));
-
-        Map<String, Object> expectedAttributes = Map.of("service.name", "serviceNameValue", "service.array", serviceArray);
 
         assertTrue(result.containsKey("attributes"));
         Map<String, Object> attributes = get(result, "attributes");
-        assertEquals(expectedAttributes, attributes);
+        assertEquals(Map.of("agent.array", agentArray), attributes);
+
+        assertNull(resource.get("agent"));
         assertNull(attributes.get("service"));
     }
 

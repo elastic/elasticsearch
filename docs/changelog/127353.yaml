@@ -1,0 +1,5 @@
+pr: 127353
+summary: Updating tika to 2.9.3
+area: Ingest Node
+type: upgrade
+issues: []

@@ -38,6 +38,7 @@ import static org.elasticsearch.threadpool.ThreadPool.THREAD_POOL_METRIC_NAME_UT
  */
 public final class TaskExecutionTimeTrackingEsThreadPoolExecutor extends EsThreadPoolExecutor {
 
+    public static final int QUEUE_LATENCY_HISTOGRAM_BUCKETS = 18;
     private static final int[] LATENCY_PERCENTILES_TO_REPORT = { 50, 90, 99 };
 
     private final Function<Runnable, WrappedRunnable> runnableWrapper;
@@ -48,7 +49,7 @@ public final class TaskExecutionTimeTrackingEsThreadPoolExecutor extends EsThrea
     private final Map<Runnable, Long> ongoingTasks = new ConcurrentHashMap<>();
     private volatile long lastPollTime = System.nanoTime();
     private volatile long lastTotalExecutionTime = 0;
-    private final ExponentialBucketHistogram queueLatencyMillisHistogram = new ExponentialBucketHistogram();
+    private final ExponentialBucketHistogram queueLatencyMillisHistogram = new ExponentialBucketHistogram(QUEUE_LATENCY_HISTOGRAM_BUCKETS);
 
     TaskExecutionTimeTrackingEsThreadPoolExecutor(
         String name,
@@ -76,10 +77,12 @@ public final class TaskExecutionTimeTrackingEsThreadPoolExecutor extends EsThrea
                 "Time tasks spent in the queue for the " + threadPoolName + " thread pool",
                 "milliseconds",
                 () -> {
+                    long[] snapshot = queueLatencyMillisHistogram.getSnapshot();
+                    int[] bucketUpperBounds = queueLatencyMillisHistogram.calculateBucketUpperBounds();
                     List<LongWithAttributes> metricValues = Arrays.stream(LATENCY_PERCENTILES_TO_REPORT)
                         .mapToObj(
                             percentile -> new LongWithAttributes(
-                                queueLatencyMillisHistogram.getPercentile(percentile / 100f),
+                                queueLatencyMillisHistogram.getPercentile(percentile / 100f, snapshot, bucketUpperBounds),
                                 Map.of("percentile", String.valueOf(percentile))
                             )
                         )

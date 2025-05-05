@@ -189,6 +189,7 @@ public abstract class AbstractBlobContainerRetriesTestCase extends ESTestCase {
                 final int effectiveRangeEnd = Math.min(bytes.length - 1, rangeEnd);
                 final int length = (effectiveRangeEnd - rangeStart) + 1;
                 exchange.getResponseHeaders().add("Content-Type", bytesContentType());
+                addSuccessfulDownloadHeaders(exchange);
                 exchange.sendResponseHeaders(HttpStatus.SC_OK, length);
                 exchange.getResponseBody().write(bytes, rangeStart, length);
                 exchange.close();

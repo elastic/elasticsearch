@@ -113,6 +113,20 @@ teardown:
         model_id: "text_expansion_model"
         ignore: 404
 
+  - do:
+      headers:
+        Authorization: "Basic dGVzdF91c2VyOngtcGFjay10ZXN0LXBhc3N3b3Jk" #test_user credentials
+        Content-Type: application/json
+      indices.delete:
+        index: ["sparse_vector_pruning_test", "test-sparse-vector-without-pruning", "test-sparse-vector-with-pruning"]
+        ignore: 404
+
+  - do:
+      headers:
+        Authorization: "Basic dGVzdF91c2VyOngtcGFjay10ZXN0LXBhc3N3b3Jk" #test_user credentials
+        Content-Type: application/json
+      indices.refresh: { }
+
 ---
 "Test sparse_vector search":
   - do:
@@ -184,3 +198,346 @@ teardown:
 
   - match: { hits.total.value: 5 }
   - match: { hits.hits.0._source.source_text: "the octopus comforter smells" }
+
+---
+"Check sparse_vector token pruning index_options mappings":
+
+  - requires:
+      cluster_features: 'sparse_vector_index_options_supported'
+      reason: "sparse_vector token pruning index options added support in 9.1"
+  - skip:
+      features: headers
+
+  - do:
+      headers:
+        Authorization: "Basic dGVzdF91c2VyOngtcGFjay10ZXN0LXBhc3N3b3Jk" #test_user credentials
+        Content-Type: application/json
+      indices.create:
+        index: sparse_vector_pruning_test
+        body:
+          mappings:
+            properties:
+              text:
+                type: text
+              ml.tokens:
+                type: sparse_vector
+                index_options:
+                  prune: true
+                  pruning_config:
+                    tokens_freq_ratio_threshold: 1.0
+                    tokens_weight_threshold: 0.4
+              embeddings:
+                type: sparse_vector
+
+  - match: { acknowledged: true }
+
+  - do:
+      headers:
+        Authorization: "Basic dGVzdF91c2VyOngtcGFjay10ZXN0LXBhc3N3b3Jk" #test_user credentials
+        Content-Type: application/json
+      indices.get_mapping:
+        index: sparse_vector_pruning_test
+
+  - match: { sparse_vector_pruning_test.mappings.properties.ml.properties.tokens.index_options.prune: true }
+  - match: { sparse_vector_pruning_test.mappings.properties.ml.properties.tokens.index_options.pruning_config.tokens_freq_ratio_threshold: 1.0 }
+  - match: { sparse_vector_pruning_test.mappings.properties.ml.properties.tokens.index_options.pruning_config.tokens_weight_threshold: 0.4 }
+
+---
+"Check sparse_vector token pruning index_options mappings defaults":
+
+  - requires:
+      cluster_features: 'sparse_vector_index_options_supported'
+      reason: "sparse_vector token pruning index options added support in 9.1"
+  - skip:
+      features: headers
+
+  - do:
+      headers:
+        Authorization: "Basic dGVzdF91c2VyOngtcGFjay10ZXN0LXBhc3N3b3Jk" #test_user credentials
+        Content-Type: application/json
+      indices.create:
+        index: sparse_vector_pruning_test
+        body:
+          mappings:
+            properties:
+              text:
+                type: text
+              ml.tokens:
+                type: sparse_vector
+              embeddings:
+                type: sparse_vector
+
+  - match: { acknowledged: true }
+
+  - do:
+      headers:
+        Authorization: "Basic dGVzdF91c2VyOngtcGFjay10ZXN0LXBhc3N3b3Jk" #test_user credentials
+        Content-Type: application/json
+      indices.get_mapping:
+        index: sparse_vector_pruning_test
+
+  - match: { sparse_vector_pruning_test.mappings.properties.ml.properties.tokens.index_options.prune: null }
+  - match: { sparse_vector_pruning_test.mappings.properties.ml.properties.tokens.index_options.pruning_config.tokens_freq_ratio_threshold: null }
+  - match: { sparse_vector_pruning_test.mappings.properties.ml.properties.tokens.index_options.pruning_config.tokens_weight_threshold: null }
+
+---
+"Check sparse_vector token pruning index_options prune default true allow config":
+
+  - requires:
+      cluster_features: 'sparse_vector_index_options_supported'
+      reason: "sparse_vector token pruning index options added support in 9.1"
+  - skip:
+      features: headers
+
+  - do:
+      headers:
+        Authorization: "Basic dGVzdF91c2VyOngtcGFjay10ZXN0LXBhc3N3b3Jk" #test_user credentials
+        Content-Type: application/json
+      indices.create:
+        index: sparse_vector_pruning_test
+        body:
+          mappings:
+            properties:
+              text:
+                type: text
+              ml.tokens:
+                type: sparse_vector
+                index_options:
+                  pruning_config:
+                    tokens_freq_ratio_threshold: 16.5
+                    tokens_weight_threshold: 0.2
+              embeddings:
+                type: sparse_vector
+
+  - match: { acknowledged: true }
+
+  - do:
+      headers:
+        Authorization: "Basic dGVzdF91c2VyOngtcGFjay10ZXN0LXBhc3N3b3Jk" #test_user credentials
+        Content-Type: application/json
+      indices.get_mapping:
+        index: sparse_vector_pruning_test
+
+  - match: { sparse_vector_pruning_test.mappings.properties.ml.properties.tokens.index_options.prune: null }
+  - match: { sparse_vector_pruning_test.mappings.properties.ml.properties.tokens.index_options.pruning_config.tokens_freq_ratio_threshold: 16.5 }
+  - match: { sparse_vector_pruning_test.mappings.properties.ml.properties.tokens.index_options.pruning_config.tokens_weight_threshold: 0.2 }
+
+---
+"Check sparse_vector token pruning index_options prune false do not allow config":
+
+  - requires:
+      cluster_features: 'sparse_vector_index_options_supported'
+      reason: "sparse_vector token pruning index options added support in 9.1"
+  - skip:
+      features: headers
+
+  - do:
+      catch: bad_request
+      headers:
+        Authorization: "Basic dGVzdF91c2VyOngtcGFjay10ZXN0LXBhc3N3b3Jk" #test_user credentials
+        Content-Type: application/json
+      indices.create:
+        index: sparse_vector_pruning_test
+        body:
+          mappings:
+            properties:
+              text:
+                type: text
+              ml.tokens:
+                type: sparse_vector
+                index_options:
+                  prune: false
+                  pruning_config:
+                    tokens_freq_ratio_threshold: 1.0
+                    tokens_weight_threshold: 0.4
+              embeddings:
+                type: sparse_vector
+
+  - match: { status: 400 }
+  - match: { error.type: "mapper_parsing_exception" }
+  - match: { error.reason: "Failed to parse mapping: [index_options] field [pruning_config] should not be set if [prune] is false" }
+
+---
+"Check sparse_vector token pruning index_options tokens freq out of bounds":
+
+  - requires:
+      cluster_features: 'sparse_vector_index_options_supported'
+      reason: "sparse_vector token pruning index options added support in 9.1"
+  - skip:
+      features: headers
+
+  - do:
+      catch: bad_request
+      headers:
+        Authorization: "Basic dGVzdF91c2VyOngtcGFjay10ZXN0LXBhc3N3b3Jk" #test_user credentials
+        Content-Type: application/json
+      indices.create:
+        index: sparse_vector_pruning_test
+        body:
+          mappings:
+            properties:
+              text:
+                type: text
+              ml.tokens:
+                type: sparse_vector
+                index_options:
+                  prune: true
+                  pruning_config:
+                    tokens_freq_ratio_threshold: 101.0
+                    tokens_weight_threshold: 0.4
+              embeddings:
+                type: sparse_vector
+
+  - match: { status: 400 }
+  - match: { error.type: "mapper_parsing_exception" }
+  - match: { error.reason: "Failed to parse mapping: [pruning_config] field [tokens_freq_ratio_threshold] field should be a number between 1 and 100" }
+
+---
+"Check sparse_vector token pruning index_options tokens weight out of bounds":
+
+  - requires:
+      cluster_features: 'sparse_vector_index_options_supported'
+      reason: "sparse_vector token pruning index options added support in 9.1"
+  - skip:
+      features: headers
+
+  - do:
+      catch: bad_request
+      headers:
+        Authorization: "Basic dGVzdF91c2VyOngtcGFjay10ZXN0LXBhc3N3b3Jk" #test_user credentials
+        Content-Type: application/json
+      indices.create:
+        index: sparse_vector_pruning_test
+        body:
+          mappings:
+            properties:
+              text:
+                type: text
+              ml.tokens:
+                type: sparse_vector
+                index_options:
+                  prune: true
+                  pruning_config:
+                    tokens_freq_ratio_threshold: 5.0
+                    tokens_weight_threshold: 3.5
+              embeddings:
+                type: sparse_vector
+
+  - match: { status: 400 }
+  - match: { error.type: "mapper_parsing_exception" }
+  - match: { error.reason: "Failed to parse mapping: [pruning_config] field [tokens_weight_threshold] field should be a number between 0.0 and 1.0" }
+
+---
+"Check sparse_vector token pruning index_options in query":
+
+  - requires:
+      cluster_features: 'sparse_vector_index_options_supported'
+      reason: "sparse_vector token pruning index options added support in 9.1"
+  - skip:
+      features: headers
+
+  - do:
+      headers:
+        Authorization: "Basic dGVzdF91c2VyOngtcGFjay10ZXN0LXBhc3N3b3Jk" #test_user credentials
+        Content-Type: application/json
+      indices.create:
+        index: test-sparse-vector-with-pruning
+        body:
+          mappings:
+            properties:
+              content_embedding:
+                type: sparse_vector
+                index_options:
+                  prune: true
+                  pruning_config:
+                    tokens_freq_ratio_threshold: 1
+                    tokens_weight_threshold: 1.0
+
+  - match: { acknowledged: true }
+
+  - do:
+      headers:
+        Authorization: "Basic dGVzdF91c2VyOngtcGFjay10ZXN0LXBhc3N3b3Jk" #test_user credentials
+        Content-Type: application/json
+      indices.create:
+        index: test-sparse-vector-without-pruning
+        body:
+          mappings:
+            properties:
+              content_embedding:
+                type: sparse_vector
+                index_options:
+                  prune: false
+
+  - match: { acknowledged: true }
+
+  - do:
+      headers:
+        Authorization: "Basic dGVzdF91c2VyOngtcGFjay10ZXN0LXBhc3N3b3Jk" #test_user credentials
+        Content-Type: application/json
+      bulk:
+        index: test-sparse-vector-with-pruning
+        refresh: true
+        body: |
+          {"index": { "_id": "1" }}
+          {"content_embedding":{"cheese": 2.671405,"is": 0.11809908,"comet": 0.26088917}}
+          {"index": { "_id": "2" }}
+          {"content_embedding":{"planet": 2.3438394,"is": 0.54600334,"astronomy": 0.36015007,"moon": 0.20022368}}
+          {"index": { "_id": "3" }}
+          {"content_embedding":{"is": 0.6891394,"globe": 0.484035,"ocean": 0.080102935,"underground": 0.053516876}}
+
+  - do:
+      headers:
+        Authorization: "Basic dGVzdF91c2VyOngtcGFjay10ZXN0LXBhc3N3b3Jk" #test_user credentials
+        Content-Type: application/json
+      bulk:
+        index: test-sparse-vector-without-pruning
+        refresh: true
+        body: |
+          {"index": { "_id": "1" }}
+          {"content_embedding":{"cheese": 2.671405,"is": 0.11809908,"comet": 0.26088917}}
+          {"index": { "_id": "2" }}
+          {"content_embedding":{"planet": 2.3438394,"is": 0.54600334,"astronomy": 0.36015007,"moon": 0.20022368}}
+          {"index": { "_id": "3" }}
+          {"content_embedding":{"is": 0.6891394,"globe": 0.484035,"ocean": 0.080102935,"underground": 0.053516876}}
+
+  - do:
+      search:
+        index: test-sparse-vector-without-pruning
+        body:
+          query:
+            sparse_vector:
+              field: content_embedding
+              query_vector:
+                cheese: 0.5
+                comet: 0.5
+                globe: 0.484035
+                ocean: 0.080102935
+                underground: 0.053516876
+                is: 0.54600334
+
+  - match: { hits.total.value: 3 }
+  - match: { hits.hits.0._id: "1" }
+  - match: { hits.hits.1._id: "3" }
+  - match: { hits.hits.2._id: "2" }
+
+  - do:
+      search:
+        index: test-sparse-vector-with-pruning
+        body:
+          query:
+            sparse_vector:
+              field: content_embedding
+              query_vector:
+                cheese: 0.5
+                comet: 0.5
+                globe: 0.484035
+                ocean: 0.080102935
+                underground: 0.053516876
+                is: 0.54600334
+
+  - match: { hits.total.value: 2 }
+  - match: { hits.hits.0._id: "1" }
+  - match: { hits.hits.1._id: "3" }
+
+

@@ -1292,8 +1292,7 @@ public class Security extends Plugin
             // this will disable the index managed
             // service account tokens managed through the service account token API
             components.add(new PluginComponentBinding<>(ReadOnlyServiceAccountTokenStore.class, extensionStore.get()));
-            logger.info("Service account authentication handled by extension, disabling file and index token stores");
-            logger.info("STORE: " + extensionStore.get());
+            logger.debug("Service account authentication handled by extension, disabling file and index token stores");
             serviceAccountService = new ServiceAccountService(client.get(), extensionStore.get());
         }
         return serviceAccountService;

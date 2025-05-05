@@ -671,8 +671,10 @@ public class PluginsServiceTests extends ESTestCase {
 
     public void testLoadServiceProviders() throws Exception {
 
-        try (URLClassLoader fakeClassLoader = buildTestProviderPlugin("integer");
-             URLClassLoader fakeClassLoader1 = buildTestProviderPlugin("string")){
+        try (
+            URLClassLoader fakeClassLoader = buildTestProviderPlugin("integer");
+            URLClassLoader fakeClassLoader1 = buildTestProviderPlugin("string")
+        ) {
             @SuppressWarnings("unchecked")
             Class<? extends Plugin> fakePluginClass = (Class<? extends Plugin>) fakeClassLoader.loadClass("r.FooPlugin");
             @SuppressWarnings("unchecked")

@@ -104,7 +104,7 @@ Synthetic `_source` is Generally Available only for TSDB indices (indices that h
 ::::
 
 
-`text` fields may use a [`keyword`](/reference/elasticsearch/mapping-reference/keyword.md#keyword-synthetic-source) sub-field to support [synthetic `_source`](/reference/elasticsearch/mapping-reference/mapping-source-field.md#synthetic-source) without storing values of the text field itself.
+`text` fields can use a [`keyword`](/reference/elasticsearch/mapping-reference/keyword.md#keyword-synthetic-source) sub-field to support [synthetic `_source`](/reference/elasticsearch/mapping-reference/mapping-source-field.md#synthetic-source) without storing values of the text field itself.
 
 ::::{note}
 Synthetic source of the `text` field will have the same [modifications](/reference/elasticsearch/mapping-reference/mapping-source-field.md#synthetic-source) as a `keyword` field in this case.

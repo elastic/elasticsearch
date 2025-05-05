@@ -825,6 +825,13 @@ teardown:
       headers:
         Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
         Content-Type: application/json
+      indices.refresh:
+        index: test-sparse-vector-with-pruning
+
+  - do:
+      headers:
+        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
+        Content-Type: application/json
       bulk:
         index: test-sparse-vector-without-pruning
         refresh: true
@@ -835,6 +842,13 @@ teardown:
           {"content_embedding":{"planet": 2.3438394,"is": 0.54600334,"astronomy": 0.36015007,"moon": 0.20022368}}
           {"index": { "_id": "3" }}
           {"content_embedding":{"is": 0.6891394,"globe": 0.484035,"ocean": 0.080102935,"underground": 0.053516876}}
+
+  - do:
+      headers:
+        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
+        Content-Type: application/json
+      indices.refresh:
+        index: test-sparse-vector-without-pruning
 
   - do:
       search:
@@ -871,7 +885,8 @@ teardown:
                 underground: 0.053516876
                 is: 0.54600334
 
-  - match: { hits.total.value: 1 }
+  - match: { hits.total.value: 2 }
   - match: { hits.hits.0._id: "1" }
+  - match: { hits.hits.1._id: "3" }
 
 

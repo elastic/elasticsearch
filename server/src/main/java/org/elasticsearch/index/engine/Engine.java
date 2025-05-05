@@ -121,7 +121,6 @@ import java.util.function.Function;
 import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_PRIMARY_TERM;
 import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
-import static org.elasticsearch.indices.IndexingMemoryController.PAUSE_INDEXING_ON_THROTTLE;
 
 public abstract class Engine implements Closeable {
 

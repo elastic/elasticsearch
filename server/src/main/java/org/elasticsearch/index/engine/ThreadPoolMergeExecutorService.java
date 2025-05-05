@@ -42,6 +42,8 @@ import java.util.concurrent.locks.ReentrantLock;
 import java.util.function.LongUnaryOperator;
 import java.util.function.ToLongFunction;
 
+import static org.elasticsearch.cluster.routing.allocation.DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_DISK_FLOOD_STAGE_MAX_HEADROOM_SETTING;
+import static org.elasticsearch.cluster.routing.allocation.DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_DISK_FLOOD_STAGE_WATERMARK_SETTING;
 import static org.elasticsearch.index.engine.ThreadPoolMergeScheduler.Schedule.ABORT;
 import static org.elasticsearch.index.engine.ThreadPoolMergeScheduler.Schedule.BACKLOG;
 import static org.elasticsearch.index.engine.ThreadPoolMergeScheduler.Schedule.RUN;
@@ -58,7 +60,7 @@ public class ThreadPoolMergeExecutorService implements Closeable {
     );
     public static final Setting<RelativeByteSizeValue> INDICES_MERGE_DISK_HIGH_WATERMARK_SETTING = new Setting<>(
         "indices.merge.disk.watermark.high",
-        "96%",
+        CLUSTER_ROUTING_ALLOCATION_DISK_FLOOD_STAGE_WATERMARK_SETTING,
         (s) -> RelativeByteSizeValue.parseRelativeByteSizeValue(s, "indices.merge.disk.watermark.high"),
         new Setting.Validator<>() {
             @Override
@@ -81,6 +83,7 @@ public class ThreadPoolMergeExecutorService implements Closeable {
                 return res.iterator();
             }
         },
+        Setting.Property.Dynamic,
         Setting.Property.NodeScope
     );
     public static final Setting<ByteSizeValue> INDICES_MERGE_DISK_HIGH_MAX_HEADROOM_SETTING = new Setting<>(
@@ -89,7 +92,7 @@ public class ThreadPoolMergeExecutorService implements Closeable {
             if (INDICES_MERGE_DISK_HIGH_WATERMARK_SETTING.exists(settings)) {
                 return "-1";
             } else {
-                return "40GB";
+                return CLUSTER_ROUTING_ALLOCATION_DISK_FLOOD_STAGE_MAX_HEADROOM_SETTING.get(settings).toString();
             }
         },
         (s) -> ByteSizeValue.parseBytesSizeValue(s, "indices.merge.disk.watermark.high.max_headroom"),
@@ -130,6 +133,7 @@ public class ThreadPoolMergeExecutorService implements Closeable {
                 return res.iterator();
             }
         },
+        Setting.Property.Dynamic,
         Setting.Property.NodeScope
     );
     /**

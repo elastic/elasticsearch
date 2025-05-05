@@ -94,19 +94,23 @@ public class PushStatsToSource extends PhysicalOptimizerRules.ParameterizedOptim
                             // check if regular field
                             else {
                                 if (target instanceof FieldAttribute fa) {
-                                    var fName = fa.name();
+                                    var fName = fa.fieldName();
                                     if (context.searchStats().isSingleValue(fName)) {
-                                        fieldName = fa.name();
+                                        fieldName = fName;
                                         query = QueryBuilders.existsQuery(fieldName);
                                     }
                                 }
                             }
                             if (fieldName != null) {
                                 if (count.hasFilter()) {
+                                    // Note: currently, it seems like we never actually perform stats pushdown if we reach here.
+                                    // That's because stats pushdown only works for 1 agg function (without BY); but in that case, filters
+                                    // are extracted into a separate filter node upstream from the aggregation (and hopefully pushed into
+                                    // the EsQueryExec separately).
                                     if (canPushToSource(count.filter()) == false) {
                                         return null; // can't push down
                                     }
-                                    var countFilter = TRANSLATOR_HANDLER.asQuery(count.filter());
+                                    var countFilter = TRANSLATOR_HANDLER.asQuery(LucenePushdownPredicates.DEFAULT, count.filter());
                                     query = Queries.combine(Queries.Clause.MUST, asList(countFilter.toQueryBuilder(), query));
                                 }
                                 return new EsStatsQueryExec.Stat(fieldName, COUNT, query);

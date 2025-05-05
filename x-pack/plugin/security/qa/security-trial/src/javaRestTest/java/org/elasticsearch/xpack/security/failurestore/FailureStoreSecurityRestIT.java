@@ -28,7 +28,6 @@ import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchResponseUtils;
 import org.elasticsearch.test.TestSecurityClient;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
-import org.elasticsearch.test.cluster.FeatureFlag;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.test.rest.ObjectPath;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -68,7 +67,6 @@ public class FailureStoreSecurityRestIT extends ESRestTestCase {
     @ClassRule
     public static ElasticsearchCluster cluster = ElasticsearchCluster.local()
         .apply(SecurityOnTrialLicenseRestTestCase.commonTrialSecurityClusterConfig)
-        .feature(FeatureFlag.FAILURE_STORE_ENABLED)
         .build();
 
     @Override
@@ -107,7 +105,7 @@ public class FailureStoreSecurityRestIT extends ESRestTestCase {
         upsertRole(Strings.format("""
             {
               "cluster": ["all"],
-              "indices": [{"names": ["test*"], "privileges": ["write", "auto_configure"]}]
+              "indices": [{"names": ["test*", "other*"], "privileges": ["write", "auto_configure"]}]
             }"""), WRITE_ACCESS);
     }
 
@@ -1923,6 +1921,241 @@ public class FailureStoreSecurityRestIT extends ESRestTestCase {
         }
     }
 
+    public void testAliasBasedAccess() throws Exception {
+        List<String> docIds = setupDataStream();
+        assertThat(docIds.size(), equalTo(2));
+        assertThat(docIds, hasItem("1"));
+        String dataDocId = "1";
+        String failuresDocId = docIds.stream().filter(id -> false == id.equals(dataDocId)).findFirst().get();
+
+        List<String> otherDocIds = setupOtherDataStream();
+        assertThat(otherDocIds.size(), equalTo(2));
+        assertThat(otherDocIds, hasItem("3"));
+        String otherDataDocId = "3";
+        String otherFailuresDocId = otherDocIds.stream().filter(id -> false == id.equals(otherDataDocId)).findFirst().get();
+
+        final Tuple<String, String> backingIndices = getSingleDataAndFailureIndices("test1");
+        final String dataIndexName = backingIndices.v1();
+        final String failureIndexName = backingIndices.v2();
+
+        final String aliasName = "my-alias";
+        final String username = "user";
+        final String roleName = "role";
+
+        createUser(username, PASSWORD, roleName);
+        // manage is required to add the alias to the data stream
+        createOrUpdateRoleAndApiKey(username, roleName, Strings.format("""
+            {
+              "cluster": ["all"],
+              "indices": [
+                {
+                  "names": ["test1", "%s", "other1"],
+                  "privileges": ["manage"]
+                }
+              ]
+            }
+            """, aliasName));
+
+        addAlias(username, "test1", aliasName, "");
+        addAlias(username, "other1", aliasName, "");
+        assertThat(fetchAliases(username, "test1"), containsInAnyOrder(aliasName));
+        expectSearchThrows(username, new Search(randomFrom(aliasName + "::data", aliasName)), 403);
+        expectSearchThrows(username, new Search(randomFrom(aliasName + "::failures")), 403);
+
+        createOrUpdateRoleAndApiKey(username, roleName, Strings.format("""
+            {
+              "cluster": ["all"],
+              "indices": [
+                {
+                  "names": ["%s"],
+                  "privileges": ["read_failure_store"]
+                }
+              ]
+            }
+            """, aliasName));
+        expectSearch(username, new Search(aliasName + "::failures"), failuresDocId, otherFailuresDocId);
+        expectSearchThrows(username, new Search(randomFrom(aliasName + "::data", aliasName, dataIndexName, failureIndexName)), 403);
+
+        createOrUpdateRoleAndApiKey(username, roleName, Strings.format("""
+            {
+              "cluster": ["all"],
+              "indices": [
+                {
+                  "names": ["%s"],
+                  "privileges": ["read"]
+                }
+              ]
+            }
+            """, aliasName));
+        expectSearch(username, new Search(randomFrom(aliasName + "::data")), dataDocId, otherDataDocId);
+        expectSearchThrows(username, new Search(aliasName + "::failures"), 403);
+
+        expectThrows(() -> removeAlias(username, "test1", aliasName), 403);
+        createOrUpdateRoleAndApiKey(username, roleName, Strings.format("""
+            {
+              "cluster": ["all"],
+              "indices": [
+                {
+                  "names": ["test1", "%s", "other1"],
+                  "privileges": ["manage"]
+                }
+              ]
+            }
+            """, aliasName));
+        removeAlias(username, "test1", aliasName);
+        removeAlias(username, "other1", aliasName);
+
+        final String filteredAliasName = "my-filtered-alias";
+        createOrUpdateRoleAndApiKey(username, roleName, Strings.format("""
+            {
+              "cluster": ["all"],
+              "indices": [
+                {
+                  "names": ["test1", "%s", "other1"],
+                  "privileges": ["manage"]
+                }
+              ]
+            }
+            """, filteredAliasName));
+        addAlias(username, "test1", filteredAliasName, """
+            {
+              "term": {
+                "document.source.name": "jack"
+              }
+            }
+            """);
+        addAlias(username, "other1", filteredAliasName, """
+            {
+              "term": {
+                "document.source.name": "jack"
+              }
+            }
+            """);
+        assertThat(fetchAliases(username, "test1"), containsInAnyOrder(filteredAliasName));
+        assertThat(fetchAliases(username, "other1"), containsInAnyOrder(filteredAliasName));
+
+        createOrUpdateRoleAndApiKey(username, roleName, Strings.format("""
+            {
+              "cluster": ["all"],
+              "indices": [
+                {
+                  "names": ["%s"],
+                  "privileges": ["read", "read_failure_store"]
+                }
+              ]
+            }
+            """, filteredAliasName));
+
+        expectSearch(username, new Search(randomFrom(filteredAliasName + "::data", filteredAliasName)));
+        // the alias filter is not applied to the failure store
+        expectSearch(username, new Search(filteredAliasName + "::failures"), failuresDocId, otherFailuresDocId);
+    }
+
+    private void createOrUpdateRoleAndApiKey(String username, String roleName, String roleDescriptor) throws IOException {
+        upsertRole(roleDescriptor, roleName);
+        createOrUpdateApiKey(username, randomBoolean() ? null : Strings.format("""
+            {
+              "%s": %s
+            }
+            """, roleName, roleDescriptor));
+    }
+
+    private void addAlias(String user, String dataStream, String alias, String filter) throws IOException {
+        aliasAction(user, "add", dataStream, alias, filter);
+    }
+
+    private void removeAlias(String user, String dataStream, String alias) throws IOException {
+        aliasAction(user, "remove", dataStream, alias, "");
+    }
+
+    private void aliasAction(String user, String action, String dataStream, String alias, String filter) throws IOException {
+        Request request = new Request("POST", "/_aliases");
+        if (filter == null || filter.isEmpty()) {
+            request.setJsonEntity(Strings.format("""
+                {
+                  "actions": [
+                    {
+                      "%s": {
+                        "index": "%s",
+                        "alias": "%s"
+                      }
+                    }
+                  ]
+                }
+                """, action, dataStream, alias));
+        } else {
+            request.setJsonEntity(Strings.format("""
+                {
+                  "actions": [
+                    {
+                      "%s": {
+                        "index": "%s",
+                        "alias": "%s",
+                        "filter": %s
+                      }
+                    }
+                  ]
+                }
+                """, action, dataStream, alias, filter));
+        }
+        Response response = performRequestMaybeUsingApiKey(user, request);
+        var path = assertOKAndCreateObjectPath(response);
+        assertThat(path.evaluate("acknowledged"), is(true));
+        assertThat(path.evaluate("errors"), is(false));
+
+    }
+
+    private Set<String> fetchAliases(String user, String dataStream) throws IOException {
+        Response response = performRequestMaybeUsingApiKey(user, new Request("GET", dataStream + "/_alias"));
+        ObjectPath path = assertOKAndCreateObjectPath(response);
+        Map<String, Object> aliases = path.evaluate(dataStream + ".aliases");
+        return aliases.keySet();
+    }
+
+    public void testPatternExclusions() throws Exception {
+        List<String> docIds = setupDataStream();
+        assertThat(docIds.size(), equalTo(2));
+        assertThat(docIds, hasItem("1"));
+        String dataDocId = "1";
+        String failuresDocId = docIds.stream().filter(id -> false == id.equals(dataDocId)).findFirst().get();
+
+        List<String> otherDocIds = setupOtherDataStream();
+        assertThat(otherDocIds.size(), equalTo(2));
+        assertThat(otherDocIds, hasItem("3"));
+        String otherDataDocId = "3";
+        String otherFailuresDocId = otherDocIds.stream().filter(id -> false == id.equals(otherDataDocId)).findFirst().get();
+
+        createUser("user", PASSWORD, "role");
+        upsertRole("""
+            {
+              "cluster": ["all"],
+              "indices": [
+                {
+                  "names": ["test*", "other*"],
+                  "privileges": ["read", "read_failure_store"]
+                }
+              ]
+            }
+            """, "role");
+        createAndStoreApiKey("user", randomBoolean() ? null : """
+            {
+              "role": {
+                "cluster": ["all"],
+                "indices": [
+                  {
+                    "names": ["*"],
+                    "privileges": ["read", "read_failure_store"]
+                  }
+                ]
+              }
+            }
+            """);
+
+        // no exclusion -> should return two failure docs
+        expectSearch("user", new Search("*::failures"), failuresDocId, otherFailuresDocId);
+        expectSearch("user", new Search("*::failures,-other*::failures"), failuresDocId);
+    }
+
     @SuppressWarnings("unchecked")
     private void expectEsql(String user, Search search, String... docIds) throws Exception {
         var response = performRequestMaybeUsingApiKey(user, search.toEsqlRequest());
@@ -2159,6 +2392,155 @@ public class FailureStoreSecurityRestIT extends ESRestTestCase {
         expectThrowsWithApiKey(apiKey, new Search("test1"), 403);
     }
 
+    public void testFieldCapabilities() throws Exception {
+        setupDataStream();
+
+        final Tuple<String, String> backingIndices = getSingleDataAndFailureIndices("test1");
+        final String dataIndexName = backingIndices.v1();
+        final String failureIndexName = backingIndices.v2();
+
+        createUser("user", PASSWORD, "role");
+        upsertRole("""
+            {
+              "cluster": ["all"],
+              "indices": [
+                {
+                  "names": ["test*"],
+                  "privileges": ["read"]
+                }
+              ]
+            }""", "role");
+
+        {
+            expectThrows(() -> performRequest("user", new Request("POST", "/test1::failures/_field_caps?fields=name")), 403);
+            assertFieldCapsResponseContainsIndexAndFields(
+                performRequest("user", new Request("POST", Strings.format("/%s/_field_caps?fields=name", "test1"))),
+                dataIndexName,
+                Set.of("name")
+            );
+        }
+
+        upsertRole("""
+            {
+              "cluster": ["all"],
+              "indices": [
+                {
+                  "names": ["test*"],
+                  "privileges": ["read_failure_store"]
+                }
+              ]
+            }""", "role");
+
+        {
+            expectThrows(() -> performRequest("user", new Request("POST", "/test1/_field_caps?fields=name")), 403);
+            assertFieldCapsResponseContainsIndexAndFields(
+                performRequest("user", new Request("POST", "/test1::failures/_field_caps?fields=error.*")),
+                failureIndexName,
+                Set.of(
+                    "error.message",
+                    "error.pipeline_trace",
+                    "error.processor_type",
+                    "error.type",
+                    "error.processor_tag",
+                    "error.pipeline",
+                    "error.stack_trace",
+                    "error"
+                )
+            );
+        }
+
+        upsertRole("""
+            {
+              "cluster": ["all"],
+              "indices": [
+                {
+                  "names": ["test*"],
+                  "privileges": ["read_failure_store"],
+                  "field_security": {
+                      "grant": ["error*"],
+                      "except": ["error.message"]
+                  }
+                }
+              ]
+            }""", "role");
+        {
+            expectThrows(() -> performRequest("user", new Request("POST", "/test1/_field_caps?fields=name")), 403);
+            assertFieldCapsResponseContainsIndexAndFields(
+                performRequest("user", new Request("POST", "/test1::failures/_field_caps?fields=error.*")),
+                failureIndexName,
+                Set.of(
+                    "error.pipeline_trace",
+                    "error.processor_type",
+                    "error.type",
+                    "error.processor_tag",
+                    "error.pipeline",
+                    "error.stack_trace",
+                    "error"
+                )
+            );
+        }
+
+        upsertRole("""
+            {
+              "cluster": ["all"],
+              "indices": [
+                {
+                  "names": ["test*"],
+                  "privileges": ["read_failure_store", "read"],
+                  "field_security": {
+                      "grant": ["error*", "name"],
+                      "except": ["error.type"]
+                  }
+                }
+              ]
+            }""", "role");
+        {
+            assertFieldCapsResponseContainsIndexAndFields(
+                performRequest("user", new Request("POST", "/test1/_field_caps?fields=name,age,email")),
+                dataIndexName,
+                Set.of("name")
+            );
+            assertFieldCapsResponseContainsIndexAndFields(
+                performRequest("user", new Request("POST", "/test1::failures/_field_caps?fields=error.*")),
+                failureIndexName,
+                Set.of(
+                    "error.pipeline_trace",
+                    "error.processor_type",
+                    "error.message",
+                    "error.processor_tag",
+                    "error.pipeline",
+                    "error.stack_trace",
+                    "error"
+                )
+            );
+        }
+
+        upsertRole("""
+            {
+              "cluster": ["all"],
+              "indices": [
+                {
+                  "names": ["other*"],
+                  "privileges": ["read_failure_store", "read"]
+                }
+              ]
+            }""", "role");
+        expectThrows(() -> performRequest("user", new Request("POST", "/test1/_field_caps?fields=name")), 403);
+        expectThrows(() -> performRequest("user", new Request("POST", "/test1::failures/_field_caps?fields=name")), 403);
+    }
+
+    private void assertFieldCapsResponseContainsIndexAndFields(Response fieldCapsResponse, String indexName, Set<String> expectedFields)
+        throws IOException {
+        assertOK(fieldCapsResponse);
+        ObjectPath objectPath = ObjectPath.createFromResponse(fieldCapsResponse);
+
+        List<String> indices = objectPath.evaluate("indices");
+        assertThat(indices, containsInAnyOrder(indexName));
+
+        Map<String, Object> fields = objectPath.evaluate("fields");
+        assertThat(fields.keySet(), containsInAnyOrder(expectedFields.toArray()));
+    }
+
     public void testPit() throws Exception {
         List<String> docIds = setupDataStream();
         String dataDocId = "1";
@@ -2226,6 +2608,64 @@ public class FailureStoreSecurityRestIT extends ESRestTestCase {
                 """, pitId));
             Response searchResponse = performRequest("user", searchRequest);
             expectSearch(searchResponse, failuresDocId);
+        }
+    }
+
+    public void testScroll() throws Exception {
+        List<String> docIds = setupDataStream();
+        String dataDocId = "1";
+        String failuresDocId = docIds.stream().filter(id -> false == id.equals(dataDocId)).findFirst().get();
+
+        createUser("user", PASSWORD, "role");
+        upsertRole("""
+            {
+              "cluster": ["all"],
+              "indices": [
+                {
+                  "names": ["test*"],
+                  "privileges": ["read"]
+                }
+              ]
+            }""", "role");
+
+        {
+            // user has no access to failure store, searching failures should not work
+            expectThrows(
+                () -> performRequest("user", new Request("POST", Strings.format("/%s/_search?scroll=1m", "test1::failures"))),
+                403
+            );
+
+            // searching data should work
+            final String scrollId = performScrollSearchRequestAndAssertDocs("test1", dataDocId);
+
+            // further searches with scroll_id should work, but won't return any more hits
+            assertSearchHasNoHits(performScrollSearchRequest("user", scrollId));
+
+            deleteScroll(scrollId);
+        }
+
+        upsertRole("""
+            {
+              "cluster": ["all"],
+              "indices": [
+                {
+                  "names": ["test*"],
+                  "privileges": ["read_failure_store"]
+                }
+              ]
+            }""", "role");
+
+        {
+            // user has only read access to failure store, searching data should fail
+            expectThrows(() -> performRequest("user", new Request("POST", Strings.format("/%s/_search?scroll=1m", "test1"))), 403);
+
+            // searching failure store should work
+            final String scrollId = performScrollSearchRequestAndAssertDocs("test1::failures", failuresDocId);
+
+            // further searches with scroll_id should work, but won't return any more hits
+            assertSearchHasNoHits(performScrollSearchRequest("user", scrollId));
+
+            deleteScroll(scrollId);
         }
     }
 
@@ -2529,9 +2969,13 @@ public class FailureStoreSecurityRestIT extends ESRestTestCase {
         final SearchResponse searchResponse = SearchResponseUtils.parseSearchResponse(responseAsParser(response));
         try {
             SearchHit[] hits = searchResponse.getHits().getHits();
-            assertThat(hits.length, equalTo(docIds.length));
-            List<String> actualDocIds = Arrays.stream(hits).map(SearchHit::getId).toList();
-            assertThat(actualDocIds, containsInAnyOrder(docIds));
+            if (docIds != null) {
+                assertThat(Arrays.toString(hits), hits.length, equalTo(docIds.length));
+                List<String> actualDocIds = Arrays.stream(hits).map(SearchHit::getId).toList();
+                assertThat(actualDocIds, containsInAnyOrder(docIds));
+            } else {
+                assertThat(hits.length, equalTo(0));
+            }
         } finally {
             searchResponse.decRef();
         }
@@ -2575,6 +3019,32 @@ public class FailureStoreSecurityRestIT extends ESRestTestCase {
         return randomBoolean() ? populateDataStreamWithBulkRequest() : populateDataStreamWithDocRequests();
     }
 
+    @SuppressWarnings("unchecked")
+    private List<String> setupOtherDataStream() throws IOException {
+        createOtherTemplates();
+
+        var bulkRequest = new Request("POST", "/_bulk?refresh=true");
+        bulkRequest.setJsonEntity("""
+            { "create" : { "_index" : "other1", "_id" : "3" } }
+            { "@timestamp": 3, "age" : 1, "name" : "jane", "email" : "jane@example.com" }
+            { "create" : { "_index" : "other1", "_id" : "4" } }
+            { "@timestamp": 4, "age" : "this should be an int", "name" : "jane", "email" : "jane@example.com" }
+            """);
+        Response response = performRequest(WRITE_ACCESS, bulkRequest);
+        assertOK(response);
+        // we need this dance because the ID for the failed document is random, **not** 4
+        Map<String, Object> stringObjectMap = responseAsMap(response);
+        List<Object> items = (List<Object>) stringObjectMap.get("items");
+        List<String> ids = new ArrayList<>();
+        for (Object item : items) {
+            Map<String, Object> itemMap = (Map<String, Object>) item;
+            Map<String, Object> create = (Map<String, Object>) itemMap.get("create");
+            assertThat(create.get("status"), equalTo(201));
+            ids.add((String) create.get("_id"));
+        }
+        return ids;
+    }
+
     private void createTemplates() throws IOException {
         var componentTemplateRequest = new Request("PUT", "/_component_template/component1");
         componentTemplateRequest.setJsonEntity("""
@@ -2610,6 +3080,49 @@ public class FailureStoreSecurityRestIT extends ESRestTestCase {
         indexTemplateRequest.setJsonEntity("""
             {
                 "index_patterns": ["test*"],
+                "data_stream": {},
+                "priority": 500,
+                "composed_of": ["component1"]
+            }
+            """);
+        assertOK(adminClient().performRequest(indexTemplateRequest));
+    }
+
+    private void createOtherTemplates() throws IOException {
+        var componentTemplateRequest = new Request("PUT", "/_component_template/component2");
+        componentTemplateRequest.setJsonEntity("""
+            {
+                "template": {
+                    "mappings": {
+                        "properties": {
+                            "@timestamp": {
+                                "type": "date"
+                            },
+                            "age": {
+                                "type": "integer"
+                            },
+                            "email": {
+                                "type": "keyword"
+                            },
+                            "name": {
+                                "type": "text"
+                            }
+                        }
+                    },
+                    "data_stream_options": {
+                      "failure_store": {
+                        "enabled": true
+                      }
+                    }
+                }
+            }
+            """);
+        assertOK(adminClient().performRequest(componentTemplateRequest));
+
+        var indexTemplateRequest = new Request("PUT", "/_index_template/template2");
+        indexTemplateRequest.setJsonEntity("""
+            {
+                "index_patterns": ["other*"],
                 "data_stream": {},
                 "priority": 500,
                 "composed_of": ["component1"]
@@ -2737,6 +3250,11 @@ public class FailureStoreSecurityRestIT extends ESRestTestCase {
         return apiKeys.get(username);
     }
 
+    protected String createOrUpdateApiKey(String username, @Nullable String roleDescriptors) throws IOException {
+        apiKeys.put(username, createApiKey(username, roleDescriptors));
+        return apiKeys.get(username);
+    }
+
     private String createApiKey(String username, String roleDescriptors) throws IOException {
         var request = new Request("POST", "/_security/api_key");
         if (roleDescriptors == null) {
@@ -2813,6 +3331,61 @@ public class FailureStoreSecurityRestIT extends ESRestTestCase {
             }
         } catch (IOException e) {
             throw new UncheckedIOException(e);
+        }
+    }
+
+    private void deleteScroll(String scrollId) throws IOException {
+        Request deleteScroll = new Request("DELETE", "/_search/scroll");
+        deleteScroll.setJsonEntity(Strings.format("""
+            {
+                "scroll_id": "%s"
+            }
+            """, scrollId));
+        Response deleteScrollResponse = performRequest("user", deleteScroll);
+        assertOK(deleteScrollResponse);
+    }
+
+    private String performScrollSearchRequestAndAssertDocs(String indexExpression, String docId) throws IOException {
+        Response scrollResponse = performRequest("user", new Request("POST", Strings.format("/%s/_search?scroll=1m", indexExpression)));
+        assertOK(scrollResponse);
+
+        final SearchResponse searchResponse = SearchResponseUtils.parseSearchResponse(responseAsParser(scrollResponse));
+        final String scrollId = searchResponse.getScrollId();
+        assertThat(scrollId, notNullValue());
+        try {
+            assertSearchContainsDocs(searchResponse, docId);
+        } finally {
+            searchResponse.decRef();
+        }
+        return scrollId;
+    }
+
+    private SearchResponse performScrollSearchRequest(String user, String scrollId) throws IOException {
+        Request searchRequestWithScrollId = new Request("POST", "/_search/scroll");
+        searchRequestWithScrollId.setJsonEntity(Strings.format("""
+            {
+                "scroll": "1m",
+                "scroll_id": "%s"
+            }
+            """, scrollId));
+        Response response = performRequest(user, searchRequestWithScrollId);
+        assertOK(response);
+        return SearchResponseUtils.parseSearchResponse(responseAsParser(response));
+    }
+
+    private static void assertSearchContainsDocs(SearchResponse searchResponse, String... docIds) {
+        SearchHit[] hits = searchResponse.getHits().getHits();
+        assertThat(hits.length, equalTo(docIds.length));
+        List<String> actualDocIds = Arrays.stream(hits).map(SearchHit::getId).toList();
+        assertThat(actualDocIds, containsInAnyOrder(docIds));
+    }
+
+    private static void assertSearchHasNoHits(SearchResponse searchResponse) {
+        try {
+            SearchHit[] hits = searchResponse.getHits().getHits();
+            assertThat(hits.length, equalTo(0));
+        } finally {
+            searchResponse.decRef();
         }
     }
 

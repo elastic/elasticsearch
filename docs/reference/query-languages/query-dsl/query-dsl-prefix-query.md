@@ -41,8 +41,12 @@ GET /_search
 `rewrite`
 :   (Optional, string) Method used to rewrite the query. For valid values and more information, see the [`rewrite` parameter](/reference/query-languages/query-dsl/query-dsl-multi-term-rewrite.md).
 
-`case_insensitive` [7.10.0]
-:   (Optional, Boolean) Allows ASCII case insensitive matching of the value with the indexed field values when set to true. Default is false which means the case sensitivity of matching depends on the underlying field’s mapping.
+`case_insensitive`
+:   :::{admonition} Added in 7.10.0
+    This parameter was added in 7.10.0.
+    :::
+
+    (Optional, Boolean) Allows ASCII case insensitive matching of the value with the indexed field values when set to true. Default is false which means the case sensitivity of matching depends on the underlying field’s mapping.
 
 
 ## Notes [prefix-query-notes]

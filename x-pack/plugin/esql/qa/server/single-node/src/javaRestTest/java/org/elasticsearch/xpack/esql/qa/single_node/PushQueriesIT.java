@@ -64,13 +64,24 @@ public class PushQueriesIT extends ESRestTestCase {
             """, "*:*", true, true);
     }
 
+    /**
+     * Turns into an {@code IN} which isn't currently pushed.
+     */
     public void testPushEqualityOnDefaultsOrTooBig() throws IOException {
         String value = "v".repeat(between(0, 256));
         String tooBig = "a".repeat(between(257, 1000));
         testPushQuery(value, """
             FROM test
             | WHERE test == "%value" OR test == "%tooBig"
-            """.replace("%tooBig", tooBig), "#test.keyword:%value -_ignored:test.keyword", false, true);
+            """.replace("%tooBig", tooBig), "*:*", true, true);
+    }
+
+    public void testPushEqualityOnDefaultsOrOther() throws IOException {
+        String value = "v".repeat(between(0, 256));
+        testPushQuery(value, """
+            FROM test
+            | WHERE test == "%value" OR foo == 2
+            """, "(#test.keyword:vvvvv -_ignored:test.keyword) foo:[2 TO 2]", false, true);
     }
 
     public void testPushInequalityOnDefaults() throws IOException {
@@ -176,7 +187,7 @@ public class PushQueriesIT extends ESRestTestCase {
         bulk.addParameter("refresh", "");
         bulk.setJsonEntity(String.format(Locale.ROOT, """
             {"create":{"_index":"test"}}
-            {"test":"%s"}
+            {"test":"%s","foo":1}
             """, value));
         Response bulkResponse = client().performRequest(bulk);
         assertThat(entityToMap(bulkResponse.getEntity(), XContentType.JSON), matchesMap().entry("errors", false).extraOk());

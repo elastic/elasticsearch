@@ -9,6 +9,8 @@
 
 package org.elasticsearch.ingest.otel;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
@@ -43,6 +45,8 @@ class OTelSemConvWebCrawler {
         "https://api.github.com/repos/open-telemetry/semantic-conventions/contents/model?ref=main";
 
     private static final String GITHUB_TOKEN = System.getenv("GITHUB_TOKEN");
+
+    private static final Logger logger = LogManager.getLogger(OTelSemConvWebCrawler.class);
 
     /**
      * Relies on GitHub API to crawl the OpenTelemetry semantic conventions repo.
@@ -142,15 +146,15 @@ class OTelSemConvWebCrawler {
                                             }
                                         }
                                     } else if (response.statusCode() == 403) {
-                                        System.err.println(
+                                        logger.error(
                                             "GitHub API rate limit exceeded. "
                                                 + "Please provide a GitHub token via GITHUB_TOKEN environment variable"
                                         );
                                     } else {
-                                        System.err.println("GitHub API request failed: HTTP " + response.statusCode());
+                                        logErrorHttpStatusCode(response);
                                     }
                                 } catch (IOException e) {
-                                    System.err.println("Error processing response: " + e.getMessage());
+                                    logger.error("Error processing response: {}", e.getMessage());
                                 }
                                 return null;
                             });
@@ -202,6 +206,10 @@ class OTelSemConvWebCrawler {
             // cleanup when the stream is closed
             allDone.complete(null);
         });
+    }
+
+    private static void logErrorHttpStatusCode(HttpResponse<InputStream> response) {
+        logger.error("GitHub API request failed: HTTP {}", response.statusCode());
     }
 
     private static CompletableFuture<Set<String>> extractResourceAttributesFromFile(String fileDownloadUrl, HttpClient httpClient) {
@@ -261,21 +269,22 @@ class OTelSemConvWebCrawler {
     private static CompletableFuture<Map<String, Object>> downloadAndParseYaml(String rawFileUrl, HttpClient client) {
         HttpRequest request = HttpRequest.newBuilder(URI.create(rawFileUrl)).build();
         CompletableFuture<HttpResponse<InputStream>> responseFuture = client.sendAsync(request, HttpResponse.BodyHandlers.ofInputStream());
-        return responseFuture.thenApply(response -> {
-            try (
-                InputStream inputStream = response.body();
-                XContentParser parser = XContentFactory.xContent(XContentType.YAML)
-                    .createParser(XContentParserConfiguration.EMPTY, inputStream)
-            ) {
-                return parser.map();
-            } catch (IOException e) {
-                System.err.println("Error parsing YAML file: " + e.getMessage());
-                return Map.of();
-            } finally {
-                if (response.statusCode() != 200) {
-                    System.err.println("GitHub API request failed: HTTP " + response.statusCode());
-                }
+        return responseFuture.thenApply(OTelSemConvWebCrawler::apply);
+    }
+
+    private static Map<String, Object> apply(HttpResponse<InputStream> response) {
+        try (
+            InputStream inputStream = response.body();
+            XContentParser parser = XContentFactory.xContent(XContentType.YAML).createParser(XContentParserConfiguration.EMPTY, inputStream)
+        ) {
+            return parser.map();
+        } catch (IOException e) {
+            logger.error("Error parsing YAML file: {}", e.getMessage());
+            return Map.of();
+        } finally {
+            if (response.statusCode() != 200) {
+                logErrorHttpStatusCode(response);
             }
-        });
+        }
     }
 }

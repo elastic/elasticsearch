@@ -11,11 +11,13 @@ package org.elasticsearch.ingest.otel;
 
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.test.ESTestCase;
+import org.junit.Ignore;
 
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 
+//@Ignore
 public class ResourceAttributesTests extends ESTestCase {
 
     @SuppressForbidden(reason = "Used specifically for the output. Only meant to be run manually, not through CI.")
@@ -53,7 +55,9 @@ public class ResourceAttributesTests extends ESTestCase {
         assertTrue("ECS-to-OTel resource attributes set is not up to date.", upToDate);
     }
 
-    @SuppressForbidden(reason = "Output is used for updating the resource attributes set, not running in the normal PR CI build pipeline")
+    @SuppressForbidden(
+        reason = "Output is used for updating the resource attributes set. Running nightly and only prints when not up to date."
+    )
     private static void printComparisonResults(Set<String> latestEcsOTelResourceAttributes) {
         // find and print the diff
         Set<String> addedAttributes = new HashSet<>(latestEcsOTelResourceAttributes);

@@ -246,7 +246,7 @@ public class EsqlQueryGenerator {
      */
     private static String randomRawName(List<Column> previousOutput) {
         var list = previousOutput.stream().filter(EsqlQueryGenerator::fieldCanBeUsed).toList();
-        if (list == null) {
+        if (list.isEmpty()) {
             return null;
         }
         String result = randomFrom(list).name();

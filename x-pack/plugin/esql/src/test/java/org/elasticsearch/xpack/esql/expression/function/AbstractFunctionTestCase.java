@@ -804,7 +804,7 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
      * This test is meant to validate that the license checks documented match those enforced.
      * The expectations are set in the test class using a method with this signature:
      * <code>
-     *     public static License.OperationMode licenseRequirement(List<DataType> fieldTypes);
+     *     public static License.OperationMode licenseRequirement(List&lt;DataType&gt; fieldTypes);
      * </code>
      * License enforcement in the function class is achieved using the interface <code>LicenseAware</code>.
      * This test will make sure the two are in agreement, and does not require that the function class actually

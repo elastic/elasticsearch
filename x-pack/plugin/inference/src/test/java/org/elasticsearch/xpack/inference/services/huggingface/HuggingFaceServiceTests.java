@@ -352,9 +352,7 @@ public class HuggingFaceServiceTests extends ESTestCase {
             {
                 "error": {
                     "message": "The model `gpt-4awero` does not exist or you do not have access to it.",
-                    "type": "invalid_request_error",
-                    "param": null,
-                    "code": "model_not_found"
+                    "http_status_code": "404"
                 }
             }""";
         webServer.enqueue(new MockResponse().setResponseCode(404).setBody(responseJson));
@@ -385,10 +383,10 @@ public class HuggingFaceServiceTests extends ESTestCase {
                         assertThat(json, is("""
                             {\
                             "error":{\
-                            "code":"model_not_found",\
+                            "code":"404",\
                             "message":"Received an unsuccessful status code for request from inference entity id [id] status \
                             [404]. Error message: [The model `gpt-4awero` does not exist or you do not have access to it.]",\
-                            "type":"invalid_request_error"\
+                            "type":"HuggingFaceErrorResponse"\
                             }}"""));
                     } catch (IOException ex) {
                         throw new RuntimeException(ex);
@@ -402,7 +400,7 @@ public class HuggingFaceServiceTests extends ESTestCase {
     public void testMidStreamUnifiedCompletionError() throws Exception {
         String responseJson = """
             event: error
-            data: { "error": { "message": "Timed out waiting for more data", "type": "timeout" } }
+            data: { "error": { "message": "Timed out waiting for more data" } }
 
             """;
         webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
@@ -411,7 +409,7 @@ public class HuggingFaceServiceTests extends ESTestCase {
             "error":{\
             "message":"Received an error response for request from inference entity id [id]. Error message: \
             [Timed out waiting for more data]",\
-            "type":"timeout"\
+            "type":"HuggingFaceErrorResponse"\
             }}""");
     }
 

@@ -104,7 +104,7 @@ teardown:
         Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
         Content-Type: application/json
       indices.delete:
-        index: ["sparse_vector_pruning_test"]
+        index: ["sparse_vector_pruning_test", "test-sparse-vector-without-pruning", "test-sparse-vector-with-pruning"]
         ignore: 404
   - do:
       headers:
@@ -761,3 +761,118 @@ teardown:
   - match: { status: 400 }
   - match: { error.type: "mapper_parsing_exception" }
   - match: { error.reason: "Failed to parse mapping: [pruning_config] field [tokens_weight_threshold] field should be a number between 0.0 and 1.0" }
+
+---
+"Check sparse_vector token pruning index_options in query":
+
+  - requires:
+      cluster_features: 'sparse_vector_index_options_supported'
+      reason: "sparse_vector token pruning index options added support in 9.1"
+  - skip:
+      features: headers
+
+  - do:
+      headers:
+        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
+        Content-Type: application/json
+      indices.create:
+        index: test-sparse-vector-with-pruning
+        body:
+          mappings:
+            properties:
+              content_embedding:
+                type: sparse_vector
+                index_options:
+                  prune: true
+                  pruning_config:
+                    tokens_freq_ratio_threshold: 1
+                    tokens_weight_threshold: 1.0
+
+  - match: { acknowledged: true }
+
+  - do:
+      headers:
+        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
+        Content-Type: application/json
+      indices.create:
+        index: test-sparse-vector-without-pruning
+        body:
+          mappings:
+            properties:
+              content_embedding:
+                type: sparse_vector
+                index_options:
+                  prune: false
+
+  - match: { acknowledged: true }
+
+  - do:
+      headers:
+        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
+        Content-Type: application/json
+      bulk:
+        index: test-sparse-vector-with-pruning
+        refresh: true
+        body: |
+          {"index": { "_id": "1" }}
+          {"content_embedding":{"cheese": 2.671405,"is": 0.11809908,"comet": 0.26088917}}
+          {"index": { "_id": "2" }}
+          {"content_embedding":{"planet": 2.3438394,"is": 0.54600334,"astronomy": 0.36015007,"moon": 0.20022368}}
+          {"index": { "_id": "3" }}
+          {"content_embedding":{"is": 0.6891394,"globe": 0.484035,"ocean": 0.080102935,"underground": 0.053516876}}
+
+  - do:
+      headers:
+        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
+        Content-Type: application/json
+      bulk:
+        index: test-sparse-vector-without-pruning
+        refresh: true
+        body: |
+          {"index": { "_id": "1" }}
+          {"content_embedding":{"cheese": 2.671405,"is": 0.11809908,"comet": 0.26088917}}
+          {"index": { "_id": "2" }}
+          {"content_embedding":{"planet": 2.3438394,"is": 0.54600334,"astronomy": 0.36015007,"moon": 0.20022368}}
+          {"index": { "_id": "3" }}
+          {"content_embedding":{"is": 0.6891394,"globe": 0.484035,"ocean": 0.080102935,"underground": 0.053516876}}
+
+  - do:
+      search:
+        index: test-sparse-vector-without-pruning
+        body:
+          query:
+            sparse_vector:
+              field: content_embedding
+              query_vector:
+                cheese: 0.5
+                comet: 0.5
+                globe: 0.484035
+                ocean: 0.080102935
+                underground: 0.053516876
+                is: 0.54600334
+
+  - match: { hits.total.value: 3 }
+  - match: { hits.hits.0._id: "1" }
+  - match: { hits.hits.1._id: "3" }
+  - match: { hits.hits.2._id: "2" }
+
+  - do:
+      search:
+        index: test-sparse-vector-with-pruning
+        body:
+          query:
+            sparse_vector:
+              field: content_embedding
+              query_vector:
+                cheese: 0.5
+                comet: 0.5
+                globe: 0.484035
+                ocean: 0.080102935
+                underground: 0.053516876
+                is: 0.54600334
+
+  - match: { hits.total.value: 2 }
+  - match: { hits.hits.0._id: "1" }
+  - match: { hits.hits.1._id: "3" }
+
+

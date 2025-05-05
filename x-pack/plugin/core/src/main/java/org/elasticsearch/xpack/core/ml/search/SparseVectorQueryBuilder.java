@@ -237,13 +237,21 @@ public class SparseVectorQueryBuilder extends AbstractQueryBuilder<SparseVectorQ
 
         // if the query options for pruning are not set,
         // we need to check the index options for this field
-        // and use those if set.
-        SparseVectorFieldMapper sparseVectorFieldMapper = getSparseVectorFieldMapperForSearchExecution(fieldName, context);
-        TokenPruningSet pruningOptions = setPruningConfigFromIndexIfNeeded(shouldPruneTokens, tokenPruningConfig, sparseVectorFieldMapper);
+        // and use those if set - however, only if the index
+        // was created after we added this support.
+        if (context.indexVersionCreated().onOrAfter(SparseVectorFieldMapper.SPARSE_VECTOR_PRUNING_INDEX_OPTIONS_VERSION)) {
+            SparseVectorFieldMapper sparseVectorFieldMapper = getSparseVectorFieldMapperForSearchExecution(fieldName, context);
+            TokenPruningSet pruningOptions =
+                setPruningConfigFromIndexIfNeeded(shouldPruneTokens, tokenPruningConfig, sparseVectorFieldMapper);
 
-        return pruningOptions.pruneTokens
-            ? WeightedTokensUtils.queryBuilderWithPrunedTokens(fieldName, pruningOptions.pruningConfig, queryVectors, ft, context)
-            : WeightedTokensUtils.queryBuilderWithAllTokens(fieldName, queryVectors, ft, context);
+            return pruningOptions.pruneTokens
+                   ? WeightedTokensUtils.queryBuilderWithPrunedTokens(fieldName, pruningOptions.pruningConfig, queryVectors, ft, context)
+                   : WeightedTokensUtils.queryBuilderWithAllTokens(fieldName, queryVectors, ft, context);
+        }
+
+        return (shouldPruneTokens != null && shouldPruneTokens)
+                   ? WeightedTokensUtils.queryBuilderWithPrunedTokens(fieldName, tokenPruningConfig, queryVectors, ft, context)
+                   : WeightedTokensUtils.queryBuilderWithAllTokens(fieldName, queryVectors, ft, context);
     }
 
     @Override

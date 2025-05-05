@@ -574,9 +574,7 @@ public class EsqlQueryGenerator {
         // https://github.com/elastic/elasticsearch/issues/121741
         field.name().equals("<all-fields-projected>")
             // this is a known pathological case, no need to test it for now
-            || field.name().equals("<no-fields>")
-            // https://github.com/elastic/elasticsearch/issues/125870
-            || field.name().isEmpty()) == false;
+            || field.name().equals("<no-fields>")) == false;
     }
 
 }

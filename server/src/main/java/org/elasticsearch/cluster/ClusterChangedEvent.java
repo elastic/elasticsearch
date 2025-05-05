@@ -13,9 +13,11 @@ import org.elasticsearch.cluster.metadata.IndexGraveyard;
 import org.elasticsearch.cluster.metadata.IndexGraveyard.IndexGraveyardDiff;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.index.Index;
 
@@ -41,6 +43,8 @@ public class ClusterChangedEvent {
 
     private final DiscoveryNodes.Delta nodesDelta;
 
+    private final ProjectsDelta projectsDelta;
+
     public ClusterChangedEvent(String source, ClusterState state, ClusterState previousState) {
         Objects.requireNonNull(source, "source must not be null");
         Objects.requireNonNull(state, "state must not be null");
@@ -49,6 +53,7 @@ public class ClusterChangedEvent {
         this.state = state;
         this.previousState = previousState;
         this.nodesDelta = state.nodes().delta(previousState.nodes());
+        this.projectsDelta = calculateProjectDelta(previousState.metadata(), state.metadata());
     }
 
     /**
@@ -238,6 +243,13 @@ public class ClusterChangedEvent {
     }
 
     /**
+     * Returns the {@link ProjectsDelta} between the previous cluster state and the new cluster state.
+     */
+    public ProjectsDelta projectDelta() {
+        return projectsDelta;
+    }
+
+    /**
      * Determines whether or not the current cluster state represents an entirely
      * new cluster, either when a node joins a cluster for the first time or when
      * the node receives a cluster state update from a brand new cluster (different
@@ -336,4 +348,26 @@ public class ClusterChangedEvent {
             .toList();
     }
 
+    private static ProjectsDelta calculateProjectDelta(Metadata previousMetadata, Metadata currentMetadata) {
+        if (previousMetadata.projects().size() == 1
+            && previousMetadata.hasProject(ProjectId.DEFAULT)
+            && currentMetadata.projects().size() == 1
+            && currentMetadata.hasProject(ProjectId.DEFAULT)) {
+            return EMPTY_PROJECT_DELTA;
+        }
+
+        return new ProjectsDelta(
+            Collections.unmodifiableSet(Sets.difference(currentMetadata.projects().keySet(), previousMetadata.projects().keySet())),
+            Collections.unmodifiableSet(Sets.difference(previousMetadata.projects().keySet(), currentMetadata.projects().keySet()))
+        );
+
+    }
+
+    private static final ProjectsDelta EMPTY_PROJECT_DELTA = new ProjectsDelta(Set.of(), Set.of());
+
+    public record ProjectsDelta(Set<ProjectId> added, Set<ProjectId> removed) {
+        public boolean isEmpty() {
+            return added.isEmpty() && removed.isEmpty();
+        }
+    }
 }

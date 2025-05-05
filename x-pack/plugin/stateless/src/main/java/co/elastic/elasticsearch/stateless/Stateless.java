@@ -98,6 +98,7 @@ import co.elastic.elasticsearch.stateless.lucene.stats.ShardSizeStatsReaderImpl;
 import co.elastic.elasticsearch.stateless.metering.GetBlobStoreStatsRestHandler;
 import co.elastic.elasticsearch.stateless.metering.action.GetBlobStoreStatsNodesResponse;
 import co.elastic.elasticsearch.stateless.metering.action.TransportGetBlobStoreStatsAction;
+import co.elastic.elasticsearch.stateless.multiproject.ProjectLifeCycleService;
 import co.elastic.elasticsearch.stateless.objectstore.ObjectStoreService;
 import co.elastic.elasticsearch.stateless.objectstore.gc.ObjectStoreGCTask;
 import co.elastic.elasticsearch.stateless.objectstore.gc.ObjectStoreGCTaskExecutor;
@@ -662,6 +663,11 @@ public class Stateless extends Plugin
                 clusterService.addListener(mergeMemoryEstimateCollector);
                 components.add(mergeMemoryEstimateCollector);
                 components.add(mergeMemoryEstimatePublisher);
+            }
+            if (projectResolver.get().supportsMultipleProjects()) {
+                var projectLifeCycleService = new ProjectLifeCycleService(objectStoreService, threadPool);
+                components.add(projectLifeCycleService);
+                clusterService.addListener(projectLifeCycleService);
             }
         }
         var ingestMetricService = new IngestMetricsService(

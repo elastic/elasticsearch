@@ -159,7 +159,7 @@ RUN printf "\\n" | jdk/bin/keytool -importkeystore \
   -srckeystore /usr/share/elasticsearch/jdk/lib/security/cacerts \
   -srcstoretype PKCS12 \
   -destkeystore config/cacerts.bcfks \
-  -deststorepass password \
+  -deststorepass passwordcacert \
   -deststoretype BCFKS \
   -providerclass org.bouncycastle.jcajce.provider.BouncyCastleFipsProvider \
   -providerpath lib/bc-fips-1.0.2.5.jar \
@@ -173,7 +173,7 @@ RUN cat <<EOF > /usr/share/elasticsearch/config/jvm.options.d/fips.options
 -Djava.security.properties=config/fips_java.security
 -Djava.security.policy=config/fips_java.policy
 -Djavax.net.ssl.trustStore=config/cacerts.bcfks
--Djavax.net.ssl.trustStorePassword=password
+-Djavax.net.ssl.trustStorePassword=passwordcacert
 EOF
 
 EXPOSE 9200 9300

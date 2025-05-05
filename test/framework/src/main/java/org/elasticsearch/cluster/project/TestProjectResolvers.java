@@ -62,7 +62,7 @@ public final class TestProjectResolvers {
     public static ProjectResolver mustExecuteFirst() {
         return new ProjectResolver() {
 
-            private ProjectId enforceProjectId = null;
+            private volatile ProjectId enforceProjectId = null;
 
             @Override
             public ProjectId getProjectId() {
@@ -81,14 +81,16 @@ public final class TestProjectResolvers {
 
             @Override
             public <E extends Exception> void executeOnProject(ProjectId projectId, CheckedRunnable<E> body) throws E {
-                if (enforceProjectId != null) {
-                    throw new IllegalStateException("Cannot nest calls to executeOnProject");
-                }
-                try {
-                    enforceProjectId = projectId;
-                    body.run();
-                } finally {
-                    enforceProjectId = null;
+                synchronized (this) {
+                    if (enforceProjectId != null) {
+                        throw new IllegalStateException("Cannot nest calls to executeOnProject");
+                    }
+                    try {
+                        enforceProjectId = projectId;
+                        body.run();
+                    } finally {
+                        enforceProjectId = null;
+                    }
                 }
             }
 

@@ -58,26 +58,27 @@ public class ReplaceMissingFieldWithNull extends ParameterizedRule<LogicalPlan, 
         // Do not use the attribute name, this can deviate from the field name for union types; use fieldName() instead.
         // Also retain fields from lookup indices because we do not have stats for these.
         Predicate<FieldAttribute> shouldBeRetained = f -> f.field() instanceof PotentiallyUnmappedKeywordEsField
-            || (localLogicalOptimizerContext.searchStats().exists(f.fieldName()) || lookupFields.contains(f));
+            || localLogicalOptimizerContext.searchStats().exists(f.fieldName())
+            || lookupFields.contains(f);
 
         return plan.transformUp(p -> missingToNull(p, shouldBeRetained));
     }
 
     private LogicalPlan missingToNull(LogicalPlan plan, Predicate<FieldAttribute> shouldBeRetained) {
         if (plan instanceof EsRelation relation) {
-            // Remove missing fields from the EsRelation because this is not where we will obtain them from; replace them by an Eval right
-            // after, instead. This allows us to safely re-use the attribute ids of the corresponding FieldAttributes.
+            // For any missing field, place an Eval right after the EsRelation to assign null values to that attribute (using the same name
+            // id!), thus avoiding that InsertFieldExtrations inserts a field extraction later.
             // This means that an EsRelation[field1, field2, field3] where field1 and field 3 are missing will be replaced by
             // Project[field1, field2, field3] <- keeps the ordering intact
             // \_Eval[field1 = null, field3 = null]
-            // \_EsRelation[field2]
+            // \_EsRelation[field1, field2, field3]
             List<Attribute> relationOutput = relation.output();
             Map<DataType, Alias> nullLiterals = Maps.newLinkedHashMapWithExpectedSize(DataType.types().size());
             List<NamedExpression> newProjections = new ArrayList<>(relationOutput.size());
             for (int i = 0, size = relationOutput.size(); i < size; i++) {
                 Attribute attr = relationOutput.get(i);
                 NamedExpression projection;
-                if (attr instanceof FieldAttribute f && (shouldBeRetained.test(f) == false)) {
+                if (attr instanceof FieldAttribute f && shouldBeRetained.test(f) == false) {
                     DataType dt = f.dataType();
                     Alias nullAlias = nullLiterals.get(dt);
                     // save the first field as null (per datatype)

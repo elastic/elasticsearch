@@ -2056,7 +2056,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
                 throw new IllegalArgumentException("Invalid rescore_vector value. Missing required field " + OVERSAMPLE);
             }
             float oversampleValue = (float) XContentMapValues.nodeDoubleValue(oversampleNode);
-            if (oversampleValue == 0 && allowsZeroRescore(indexVersion)) {
+            if (oversampleValue == 0 && allowsZeroRescore(indexVersion) == false) {
                 throw new IllegalArgumentException("oversample must be greater than 1");
             }
             if (oversampleValue < 1 && oversampleValue != 0) {

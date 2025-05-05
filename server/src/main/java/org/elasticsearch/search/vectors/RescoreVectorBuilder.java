@@ -59,8 +59,8 @@ public class RescoreVectorBuilder implements Writeable, ToXContentObject {
     public void writeTo(StreamOutput out) throws IOException {
         // We don't want to serialize a `0` oversample to a node that doesn't know what to do with it.
         if (oversample == NO_OVERSAMPLE
-            && (out.getTransportVersion().before(RESCORE_VECTOR_ALLOW_ZERO)
-                || (out.getTransportVersion().isPatchFrom(RESCORE_VECTOR_ALLOW_ZERO_BACKPORT_8_19) == false))) {
+            && out.getTransportVersion().before(RESCORE_VECTOR_ALLOW_ZERO)
+            && out.getTransportVersion().isPatchFrom(RESCORE_VECTOR_ALLOW_ZERO_BACKPORT_8_19) == false) {
             throw new ElasticsearchStatusException(
                 "[rescore_vector] does not support a 0 for ["
                     + OVERSAMPLE_FIELD.getPreferredName()

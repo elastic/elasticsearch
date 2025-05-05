@@ -153,7 +153,7 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler, 
     public static final String THREAD_POOL_METRIC_NAME_UTILIZATION = ".threads.utilization.current";
     public static final String THREAD_POOL_METRIC_NAME_LARGEST = ".threads.largest.current";
     public static final String THREAD_POOL_METRIC_NAME_REJECTED = ".threads.rejected.total";
-    public static final String THREAD_POOL_METRIC_NAME_QUEUE_TIME = ".threads.queue.latency.histogram";
+    public static final String THREAD_POOL_METRIC_NAME_QUEUE_TIME = ".queue.latency.histogram";
 
     public enum ThreadPoolType {
         FIXED("fixed"),

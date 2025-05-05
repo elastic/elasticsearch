@@ -354,6 +354,9 @@ public class MetadataReshardIndexService {
         if (sourceMetadata.getReshardingMetadata() != null) {
             throw new IllegalStateException("an existing resharding operation on " + index + " is unfinished");
         }
+        if (sourceMetadata.isSystem()) {
+            throw new IllegalArgumentException("resharding a system index " + index + " is not supported");
+        }
         final int sourceNumShards = sourceMetadata.getNumberOfShards();
         final var reshardingMetadata = IndexReshardingMetadata.newSplitByMultiple(sourceNumShards, request.getMultiple());
         final int targetNumShards = reshardingMetadata.shardCountAfter();

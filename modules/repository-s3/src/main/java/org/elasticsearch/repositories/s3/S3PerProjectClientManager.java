@@ -84,7 +84,7 @@ public class S3PerProjectClientManager implements ClusterStateListener {
 
             final Settings currentSettings = Settings.builder()
                 // merge with static settings such as max retries etc
-                // TODO: We may need to update this if per-project settings decide to support hierarchical overrides
+                // TODO: https://elasticco.atlassian.net/browse/ES-11716 Consider change this to use per-project settings
                 .put(nodeS3Settings)
                 .setSecureSettings(projectSecrets.getSettings())
                 .build();

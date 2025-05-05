@@ -45,6 +45,12 @@ results, the output will contain one row for each matching combination.
 In case of name collisions, the newly created columns will override existing columns.
 ::::
 
+::::{warning}
+The output rows produced by `LOOKUP JOIN` can be in any order and may not
+respect preceding `SORT`s. To guarantee a certain ordering, place a `SORT` after
+any `LOOKUP JOIN`s.
+::::
+
 **Examples**
 
 **IP Threat correlation**: This query would allow you to see if any source

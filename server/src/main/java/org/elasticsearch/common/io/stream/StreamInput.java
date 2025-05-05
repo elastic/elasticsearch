@@ -399,9 +399,12 @@ public abstract class StreamInput extends InputStream {
     public Text readText() throws IOException {
         // use Text so we can cache the string if it's ever converted to it
         int length = readInt();
-        var byteBuffs = BytesReference.toByteBuffers(readBytesReference(length));
-        assert byteBuffs.length == 1;
-        return new Text(byteBuffs[0]);
+        byte[] bytes = new byte[length];
+        if (length > 0) {
+            readBytes(bytes, 0, length);
+        }
+        var byteBuff = ByteBuffer.wrap(bytes);
+        return new Text(byteBuff);
     }
 
     @Nullable

@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.inference.services.openai;
+package org.elasticsearch.xpack.inference.services.huggingface;
 
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.InferenceServiceResults;
@@ -16,44 +16,32 @@ import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
-import org.elasticsearch.xpack.core.inference.results.StreamingUnifiedChatCompletionResults;
 import org.elasticsearch.xpack.core.inference.results.UnifiedChatCompletionException;
 import org.elasticsearch.xpack.inference.external.http.HttpResult;
 import org.elasticsearch.xpack.inference.external.http.retry.ErrorResponse;
 import org.elasticsearch.xpack.inference.external.http.retry.ResponseParser;
 import org.elasticsearch.xpack.inference.external.request.Request;
-import org.elasticsearch.xpack.inference.external.response.streaming.ServerSentEventParser;
-import org.elasticsearch.xpack.inference.external.response.streaming.ServerSentEventProcessor;
+import org.elasticsearch.xpack.inference.services.openai.OpenAiUnifiedChatCompletionResponseHandler;
 
 import java.util.Locale;
-import java.util.Objects;
 import java.util.Optional;
 import java.util.concurrent.Flow;
-import java.util.function.Function;
 
 import static org.elasticsearch.core.Strings.format;
 
-public class OpenAiUnifiedChatCompletionResponseHandler extends OpenAiChatCompletionResponseHandler {
-    public OpenAiUnifiedChatCompletionResponseHandler(String requestType, ResponseParser parseFunction) {
-        super(requestType, parseFunction, OpenAiErrorResponse::fromResponse);
-    }
-
-    public OpenAiUnifiedChatCompletionResponseHandler(
-        String requestType,
-        ResponseParser parseFunction,
-        Function<HttpResult, ErrorResponse> errorParseFunction
-    ) {
-        super(requestType, parseFunction, errorParseFunction);
-    }
+/**
+ * Handles streaming chat completion responses and error parsing for Hugging Face inference endpoints.
+ * Adapts the OpenAI handler to support Hugging Face's simpler error schema with fields like "message" and "http_status_code".
+ */
+public class HuggingFaceChatCompletionResponseHandler extends OpenAiUnifiedChatCompletionResponseHandler {
 
     @Override
     public InferenceServiceResults parseResult(Request request, Flow.Publisher<HttpResult> flow) {
-        var serverSentEventProcessor = new ServerSentEventProcessor(new ServerSentEventParser());
-        var openAiProcessor = new OpenAiUnifiedStreamingProcessor((m, e) -> buildMidStreamError(request, m, e));
+        return super.parseResult(request, flow);
+    }
 
-        flow.subscribe(serverSentEventProcessor);
-        serverSentEventProcessor.subscribe(openAiProcessor);
-        return new StreamingUnifiedChatCompletionResults(openAiProcessor);
+    public HuggingFaceChatCompletionResponseHandler(String requestType, ResponseParser parseFunction) {
+        super(requestType, parseFunction, HuggingFaceErrorResponse::fromResponse);
     }
 
     @Override
@@ -63,8 +51,13 @@ public class OpenAiUnifiedChatCompletionResponseHandler extends OpenAiChatComple
         if (request.isStreaming()) {
             var errorMessage = errorMessage(message, request, result, errorResponse, responseStatusCode);
             var restStatus = toRestStatus(responseStatusCode);
-            return errorResponse instanceof OpenAiErrorResponse oer
-                ? new UnifiedChatCompletionException(restStatus, errorMessage, oer.type(), oer.code(), oer.param())
+            return errorResponse instanceof HuggingFaceErrorResponse huggingFaceErrorResponse
+                ? new UnifiedChatCompletionException(
+                    restStatus,
+                    errorMessage,
+                    createErrorType(errorResponse),
+                    extractErrorCode(huggingFaceErrorResponse)
+                )
                 : new UnifiedChatCompletionException(
                     restStatus,
                     errorMessage,
@@ -76,13 +69,10 @@ public class OpenAiUnifiedChatCompletionResponseHandler extends OpenAiChatComple
         }
     }
 
-    protected static String createErrorType(ErrorResponse errorResponse) {
-        return errorResponse != null ? errorResponse.getClass().getSimpleName() : "unknown";
-    }
-
+    @Override
     protected Exception buildMidStreamError(Request request, String message, Exception e) {
-        var errorResponse = OpenAiErrorResponse.fromString(message);
-        if (errorResponse instanceof OpenAiErrorResponse oer) {
+        var errorResponse = HuggingFaceErrorResponse.fromString(message);
+        if (errorResponse instanceof HuggingFaceErrorResponse huggingFaceErrorResponse) {
             return new UnifiedChatCompletionException(
                 RestStatus.INTERNAL_SERVER_ERROR,
                 format(
@@ -91,9 +81,8 @@ public class OpenAiUnifiedChatCompletionResponseHandler extends OpenAiChatComple
                     request.getInferenceEntityId(),
                     errorResponse.getErrorMessage()
                 ),
-                oer.type(),
-                oer.code(),
-                oer.param()
+                createErrorType(errorResponse),
+                extractErrorCode(huggingFaceErrorResponse)
             );
         } else if (e != null) {
             return UnifiedChatCompletionException.fromThrowable(e);
@@ -107,23 +96,25 @@ public class OpenAiUnifiedChatCompletionResponseHandler extends OpenAiChatComple
         }
     }
 
-    private static class OpenAiErrorResponse extends ErrorResponse {
+    private static String extractErrorCode(HuggingFaceErrorResponse huggingFaceErrorResponse) {
+        return huggingFaceErrorResponse.httpStatusCode() != null ? String.valueOf(huggingFaceErrorResponse.httpStatusCode()) : null;
+    }
+
+    private static class HuggingFaceErrorResponse extends ErrorResponse {
         private static final ConstructingObjectParser<Optional<ErrorResponse>, Void> ERROR_PARSER = new ConstructingObjectParser<>(
-            "open_ai_error",
+            "hugging_face_error",
             true,
-            args -> Optional.ofNullable((OpenAiErrorResponse) args[0])
+            args -> Optional.ofNullable((HuggingFaceErrorResponse) args[0])
         );
-        private static final ConstructingObjectParser<OpenAiErrorResponse, Void> ERROR_BODY_PARSER = new ConstructingObjectParser<>(
-            "open_ai_error",
+        private static final ConstructingObjectParser<HuggingFaceErrorResponse, Void> ERROR_BODY_PARSER = new ConstructingObjectParser<>(
+            "hugging_face_error",
             true,
-            args -> new OpenAiErrorResponse((String) args[0], (String) args[1], (String) args[2], (String) args[3])
+            args -> new HuggingFaceErrorResponse((String) args[0], (Integer) args[1])
         );
 
         static {
             ERROR_BODY_PARSER.declareString(ConstructingObjectParser.constructorArg(), new ParseField("message"));
-            ERROR_BODY_PARSER.declareStringOrNull(ConstructingObjectParser.optionalConstructorArg(), new ParseField("code"));
-            ERROR_BODY_PARSER.declareStringOrNull(ConstructingObjectParser.optionalConstructorArg(), new ParseField("param"));
-            ERROR_BODY_PARSER.declareString(ConstructingObjectParser.constructorArg(), new ParseField("type"));
+            ERROR_BODY_PARSER.declareIntOrNull(ConstructingObjectParser.optionalConstructorArg(), -1, new ParseField("http_status_code"));
 
             ERROR_PARSER.declareObjectOrNull(
                 ConstructingObjectParser.optionalConstructorArg(),
@@ -160,31 +151,17 @@ public class OpenAiUnifiedChatCompletionResponseHandler extends OpenAiChatComple
         }
 
         @Nullable
-        private final String code;
-        @Nullable
-        private final String param;
-        private final String type;
+        private final Integer httpStatusCode;
 
-        OpenAiErrorResponse(String errorMessage, @Nullable String code, @Nullable String param, String type) {
+        HuggingFaceErrorResponse(String errorMessage, @Nullable Integer httpStatusCode) {
             super(errorMessage);
-            this.code = code;
-            this.param = param;
-            this.type = Objects.requireNonNull(type);
+            this.httpStatusCode = httpStatusCode;
         }
 
         @Nullable
-        public String code() {
-            return code;
+        public Integer httpStatusCode() {
+            return httpStatusCode;
         }
 
-        @Nullable
-        public String param() {
-            return param;
-        }
-
-        public String type() {
-            return type;
-        }
     }
-
 }

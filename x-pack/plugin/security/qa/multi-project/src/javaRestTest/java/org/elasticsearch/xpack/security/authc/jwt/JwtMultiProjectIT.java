@@ -29,6 +29,7 @@ import org.elasticsearch.test.cluster.local.distribution.DistributionType;
 import org.elasticsearch.test.cluster.util.resource.Resource;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.hamcrest.Matchers;
+import org.junit.After;
 import org.junit.ClassRule;
 
 import java.io.IOException;
@@ -48,8 +49,8 @@ public class JwtMultiProjectIT extends ESRestTestCase {
     @ClassRule
     public static ElasticsearchCluster cluster = ElasticsearchCluster.local()
         .nodes(1)
-        .distribution(DistributionType.DEFAULT)
-        .module("test-multi-project")
+        .distribution(DistributionType.INTEG_TEST)
+        .module("analysis-common")
         .setting("test.multi_project.enabled", "true")
         .configFile("jwkset.json", Resource.fromClasspath("jwk/jwkset.json"))
         .setting("xpack.ml.enabled", "false")
@@ -81,33 +82,38 @@ public class JwtMultiProjectIT extends ESRestTestCase {
         return builder.build();
     }
 
+    @Override
+    protected boolean shouldConfigureProjects() {
+        return false;
+    }
+
+    @After
+    public void cleanup() throws IOException {
+        cleanUpProjects();
+    }
+
     @FixForMultiProject(description = "This should also test role mappings from file-based-settings (when they are project-scoped)")
     public void testSameJwtAuthenticatesToMultipleProjects() throws Exception {
         final String project1 = randomIdentifier();
         final String project2 = randomIdentifier();
 
-        try {
-            createProject(project1);
-            createProject(project2);
+        createProject(project1);
+        createProject(project2);
 
-            final JWTClaimsSet.Builder claims = buildJwtClaims();
-            final JWSHeader jwtHeader = new JWSHeader.Builder(JWSAlgorithm.parse("RS256")).build();
-            final SignedJWT jwt = signJwt(jwtHeader, claims.build());
+        final JWTClaimsSet.Builder claims = buildJwtClaims();
+        final JWSHeader jwtHeader = new JWSHeader.Builder(JWSAlgorithm.parse("RS256")).build();
+        final SignedJWT jwt = signJwt(jwtHeader, claims.build());
 
-            RequestOptions requestOptions = RequestOptions.DEFAULT.toBuilder()
-                .addHeader("Authorization", "Bearer " + jwt.serialize())
-                .addHeader("ES-Client-Authentication", "SharedSecret " + CLIENT_SECRET)
-                .build();
+        RequestOptions requestOptions = RequestOptions.DEFAULT.toBuilder()
+            .addHeader("Authorization", "Bearer " + jwt.serialize())
+            .addHeader("ES-Client-Authentication", "SharedSecret " + CLIENT_SECRET)
+            .build();
 
-            final Map<String, Object> authProject1 = authenticate(project1, requestOptions);
-            assertThat(authProject1, Matchers.hasEntry("username", "tester"));
+        final Map<String, Object> authProject1 = authenticate(project1, requestOptions);
+        assertThat(authProject1, Matchers.hasEntry("username", "tester"));
 
-            final Map<String, Object> authProject2 = authenticate(project2, requestOptions);
-            assertThat(authProject2, Matchers.hasEntry("username", "tester"));
-        } finally {
-            deleteProject(project1);
-            deleteProject(project2);
-        }
+        final Map<String, Object> authProject2 = authenticate(project2, requestOptions);
+        assertThat(authProject2, Matchers.hasEntry("username", "tester"));
     }
 
     private JWTClaimsSet.Builder buildJwtClaims() {
@@ -134,10 +140,5 @@ public class JwtMultiProjectIT extends ESRestTestCase {
         final Request request = new Request("GET", "/_security/_authenticate");
         request.setOptions(requestOptions.toBuilder().addHeader(Task.X_ELASTIC_PROJECT_ID_HTTP_HEADER, projectId));
         return entityAsMap(client().performRequest(request));
-    }
-
-    private void deleteProject(String project) throws IOException {
-        final Request request = new Request("DELETE", "/_project/" + project);
-        client().performRequest(request);
     }
 }

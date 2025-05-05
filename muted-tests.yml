@@ -312,9 +312,6 @@ tests:
 - class: org.elasticsearch.index.engine.ThreadPoolMergeSchedulerTests
   method: testSchedulerCloseWaitsForRunningMerge
   issue: https://github.com/elastic/elasticsearch/issues/125236
-- class: org.elasticsearch.entitlement.runtime.policy.PolicyUtilsTests
-  method: testFormatFilesEntitlement
-  issue: https://github.com/elastic/elasticsearch/issues/126176
 - class: org.elasticsearch.xpack.security.SecurityRolesMultiProjectIT
   method: testUpdatingFileBasedRoleAffectsAllProjects
   issue: https://github.com/elastic/elasticsearch/issues/126223
@@ -432,12 +429,30 @@ tests:
 - class: org.elasticsearch.xpack.inference.action.filter.ShardBulkInferenceActionFilterIT
   method: testRestart {p0=true p1=true}
   issue: https://github.com/elastic/elasticsearch/issues/127595
-- class: org.elasticsearch.cluster.routing.allocation.decider.DiskThresholdDeciderIT
-  method: testRestoreSnapshotAllocationDoesNotExceedWatermarkWithMultipleRestores
-  issue: https://github.com/elastic/elasticsearch/issues/127286
 - class: org.elasticsearch.xpack.test.rest.XPackRestIT
   method: test {p0=ml/data_frame_analytics_cat_apis/Test cat data frame analytics all jobs with header}
   issue: https://github.com/elastic/elasticsearch/issues/127625
+- class: org.elasticsearch.xpack.esql.qa.multi_node.EsqlSpecIT
+  method: test {rerank.Reranker using another sort order ASYNC}
+  issue: https://github.com/elastic/elasticsearch/issues/127638
+- class: org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapperTests
+  method: testRescoreVectorOldIndexVersion
+  issue: https://github.com/elastic/elasticsearch/issues/127657
+- class: org.elasticsearch.xpack.search.CrossClusterAsyncSearchIT
+  method: testCancellationViaTimeoutWithAllowPartialResultsSetToFalse
+  issue: https://github.com/elastic/elasticsearch/issues/127096
+- class: org.elasticsearch.xpack.ccr.action.ShardFollowTaskReplicationTests
+  method: testChangeFollowerHistoryUUID
+  issue: https://github.com/elastic/elasticsearch/issues/127680
+- class: org.elasticsearch.action.admin.indices.diskusage.IndexDiskUsageAnalyzerTests
+  method: testKnnVectors
+  issue: https://github.com/elastic/elasticsearch/issues/127689
+- class: org.elasticsearch.snapshots.SnapshotShutdownIT
+  method: testSnapshotShutdownProgressTracker
+  issue: https://github.com/elastic/elasticsearch/issues/127690
+- class: org.elasticsearch.xpack.core.template.IndexTemplateRegistryRolloverIT
+  method: testRollover
+  issue: https://github.com/elastic/elasticsearch/issues/127692
 
 # Examples:
 #

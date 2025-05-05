@@ -9,6 +9,7 @@
 
 package org.elasticsearch.lucene;
 
+import org.apache.http.util.EntityUtils;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
@@ -17,6 +18,7 @@ import org.elasticsearch.client.WarningsHandler;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.cluster.util.Version;
+import org.elasticsearch.test.junit.annotations.TestIssueLogging;
 import org.elasticsearch.test.rest.ObjectPath;
 
 import java.io.IOException;
@@ -43,6 +45,10 @@ public class FullClusterRestartSystemIndexCompatibilityIT extends FullClusterRes
      * 2. After update to N-1 (latest) perform a system index migration step, also write block the index
      * 3. on N, check that async search results are still retrievable and we can write to the system index
      */
+    @TestIssueLogging(
+        value = "org.elasticsearch.lucene.FullClusterRestartSystemIndexCompatibilityIT:DEBUG",
+        issueUrl = "https://github.com/elastic/elasticsearch/issues/127245"
+    )
     public void testAsyncSearchIndexMigration() throws Exception {
         final String index = suffix("index");
         final String asyncSearchIndex = ".async-search";
@@ -83,19 +89,29 @@ public class FullClusterRestartSystemIndexCompatibilityIT extends FullClusterRes
                 ObjectPath.createFromResponse(client().performRequest(migrateRequest)).evaluate("features.0.feature_name"),
                 equalTo("async_search")
             );
-            assertBusy(() -> {
-                Request checkMigrateProgress = new Request("GET", "/_migration/system_features");
-                Response resp = null;
-                try {
-                    assertFalse(
-                        ObjectPath.createFromResponse(client().performRequest(checkMigrateProgress))
-                            .evaluate("migration_status")
-                            .equals("IN_PROGRESS")
-                    );
-                } catch (IOException e) {
-                    throw new AssertionError("System feature migration failed", e);
-                }
-            });
+
+            logger.debug("--> starting system index migration");
+            Request checkMigrateProgress = new Request("GET", "/_migration/system_features");
+            try {
+                assertBusy(() -> {
+                    Response resp = null;
+                    try {
+                        assertFalse(
+                            ObjectPath.createFromResponse(client().performRequest(checkMigrateProgress))
+                                .evaluate("migration_status")
+                                .equals("IN_PROGRESS")
+                        );
+                    } catch (IOException e) {
+                        throw new AssertionError("System feature migration failed", e);
+                    }
+                });
+            } catch (AssertionError e) {
+                logger.debug(
+                    "--> system index migration not finished yet, response: {}",
+                    EntityUtils.toString(client().performRequest(checkMigrateProgress).getEntity())
+                );
+                throw e;
+            }
 
             // check search results from n-2 search are still readable
             assertAsyncSearchHitCount(async_search_ids.get("n-2_id"), numDocs);

@@ -1274,7 +1274,7 @@ public class Security extends Plugin
             var fileServiceAccountTokenStore = fileServiceAccountTokenStoreSupplier.get();
             var indexServiceAccountTokenStore = indexServiceAccountTokenStoreSupplier.get();
 
-            components.add(fileServiceAccountTokenStore);
+            components.add(new PluginComponentBinding<>(ReadOnlyServiceAccountTokenStore.class, fileServiceAccountTokenStore));
             components.add(indexServiceAccountTokenStore);
             cacheInvalidatorRegistry.registerAlias("service", Set.of("file_service_account_token", "index_service_account_token"));
 

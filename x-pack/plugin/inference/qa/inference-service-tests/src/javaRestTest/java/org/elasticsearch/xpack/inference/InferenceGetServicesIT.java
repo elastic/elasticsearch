@@ -25,7 +25,7 @@ public class InferenceGetServicesIT extends BaseMockEISAuthServerTest {
 
     public void testGetServicesWithoutTaskType() throws IOException {
         List<Object> services = getAllServices();
-        assertThat(services.size(), equalTo(22));
+        assertThat(services.size(), equalTo(23));
 
         var providers = providers(services);
 
@@ -71,7 +71,7 @@ public class InferenceGetServicesIT extends BaseMockEISAuthServerTest {
 
     public void testGetServicesWithTextEmbeddingTaskType() throws IOException {
         List<Object> services = getServices(TaskType.TEXT_EMBEDDING);
-        assertThat(services.size(), equalTo(16));
+        assertThat(services.size(), equalTo(17));
 
         var providers = providers(services);
 
@@ -161,7 +161,7 @@ public class InferenceGetServicesIT extends BaseMockEISAuthServerTest {
 
     public void testGetServicesWithSparseEmbeddingTaskType() throws IOException {
         List<Object> services = getServices(TaskType.SPARSE_EMBEDDING);
-        assertThat(services.size(), equalTo(6));
+        assertThat(services.size(), equalTo(7));
 
         var providers = providers(services);
 

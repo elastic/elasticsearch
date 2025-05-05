@@ -146,4 +146,17 @@ public class ExponentialBucketHistogramTests extends ESTestCase {
             () -> histogram.getPercentile(randomFloatBetween(1.0f, Float.POSITIVE_INFINITY, false))
         );
     }
+
+    public void testBucketCountValidation() {
+        // Valid values
+        for (int i = 2; i <= Integer.SIZE; i++) {
+            new ExponentialBucketHistogram(i);
+        }
+        // Invalid values
+        assertThrows(IllegalArgumentException.class, () -> new ExponentialBucketHistogram(randomIntBetween(Integer.MIN_VALUE, 1)));
+        assertThrows(
+            IllegalArgumentException.class,
+            () -> new ExponentialBucketHistogram(randomIntBetween(Integer.SIZE, Integer.MAX_VALUE))
+        );
+    }
 }

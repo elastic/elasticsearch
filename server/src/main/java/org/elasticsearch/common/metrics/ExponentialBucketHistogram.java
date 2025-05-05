@@ -47,6 +47,9 @@ public class ExponentialBucketHistogram {
     private final LongAdder[] buckets;
 
     public ExponentialBucketHistogram(int bucketCount) {
+        if (bucketCount < 2 || bucketCount > Integer.SIZE) {
+            throw new IllegalArgumentException("Bucket count must be in [2, " + Integer.SIZE + "], got " + bucketCount);
+        }
         this.bucketCount = bucketCount;
         this.lastBucketLowerBound = getBucketUpperBounds(bucketCount)[bucketCount - 2];
         buckets = new LongAdder[bucketCount];

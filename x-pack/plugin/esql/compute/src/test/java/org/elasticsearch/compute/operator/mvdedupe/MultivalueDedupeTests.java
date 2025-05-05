@@ -58,7 +58,14 @@ public class MultivalueDedupeTests extends ESTestCase {
     public static List<ElementType> supportedTypes() {
         List<ElementType> supported = new ArrayList<>();
         for (ElementType elementType : ElementType.values()) {
-            if (oneOf(elementType, ElementType.UNKNOWN, ElementType.DOC, ElementType.COMPOSITE, ElementType.FLOAT)) {
+            if (oneOf(
+                elementType,
+                ElementType.UNKNOWN,
+                ElementType.DOC,
+                ElementType.COMPOSITE,
+                ElementType.FLOAT,
+                ElementType.AGGREGATE_METRIC_DOUBLE
+            )) {
                 continue;
             }
             supported.add(elementType);

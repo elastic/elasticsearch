@@ -115,7 +115,7 @@ These modifications can impact usage of `text` fields:
 ::::
 
 
-If the `text` field sets `store` to `true` then the sub-field is not used and modifications mentioned above do not apply.
+If the `text` field sets `store` to `true` then the sub-field is not used and no modifications are applied.
 
 $$$synthetic-source-text-example-stored$$$
 

@@ -24,6 +24,7 @@ import org.apache.lucene.queries.spans.SpanQuery;
 import org.apache.lucene.queries.spans.SpanTermQuery;
 import org.apache.lucene.search.BooleanClause.Occur;
 import org.apache.lucene.search.BooleanQuery;
+import org.apache.lucene.search.Explanation;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Matches;
@@ -97,6 +98,26 @@ public class SourceConfirmedTextQueryTests extends ESTestCase {
                 sourceConfirmedPhraseQuery = new SourceConfirmedTextQuery(query, SOURCE_FETCHER_PROVIDER, Lucene.STANDARD_ANALYZER);
                 assertEquals(searcher.count(query), searcher.count(sourceConfirmedPhraseQuery));
                 assertArrayEquals(new ScoreDoc[0], searcher.search(sourceConfirmedPhraseQuery, 10).scoreDocs);
+            }
+        }
+    }
+
+    public void testMissingPhrase() throws Exception {
+        try (Directory dir = newDirectory(); IndexWriter w = new IndexWriter(dir, newIndexWriterConfig(Lucene.STANDARD_ANALYZER))) {
+
+            Document doc = new Document();
+            doc.add(new TextField("body", "a b c b a b c", Store.YES));
+            w.addDocument(doc);
+
+            try (IndexReader reader = DirectoryReader.open(w)) {
+                IndexSearcher searcher = newSearcher(reader);
+                PhraseQuery query = new PhraseQuery("missing_field", "b", "c");
+                Query sourceConfirmedPhraseQuery = new SourceConfirmedTextQuery(query, SOURCE_FETCHER_PROVIDER, Lucene.STANDARD_ANALYZER);
+                Explanation explanation = searcher.explain(sourceConfirmedPhraseQuery, 0);
+                assertFalse(explanation.isMatch());
+
+                Weight weight = searcher.createWeight(query, ScoreMode.COMPLETE, 1);
+                assertNull(weight.matches(getOnlyLeafReader(reader).getContext(), 0));
             }
         }
     }

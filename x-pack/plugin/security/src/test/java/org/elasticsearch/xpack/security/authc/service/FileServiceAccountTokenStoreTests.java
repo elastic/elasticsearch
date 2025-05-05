@@ -238,7 +238,7 @@ public class FileServiceAccountTokenStoreTests extends ESTestCase {
         );
 
         final ServiceAccountId accountId = new ServiceAccountId("elastic", "fleet-server");
-        final List<TokenInfo> tokenInfos = store.findTokensFor(accountId);
+        final List<TokenInfo> tokenInfos = store.findNodeLocalTokensFor(accountId);
         assertThat(tokenInfos, hasSize(5));
         assertThat(
             tokenInfos.stream().map(TokenInfo::getName).collect(Collectors.toUnmodifiableSet()),

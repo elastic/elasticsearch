@@ -25,6 +25,7 @@ import org.elasticsearch.xpack.core.security.action.service.GetServiceAccountNod
 import org.elasticsearch.xpack.core.security.action.service.TokenInfo;
 import org.elasticsearch.xpack.core.security.action.service.TokenInfo.TokenSource;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
+import org.elasticsearch.xpack.core.security.authc.service.ReadOnlyServiceAccountTokenStore;
 import org.elasticsearch.xpack.core.security.authc.service.ServiceAccount;
 import org.elasticsearch.xpack.core.security.authc.service.ServiceAccount.ServiceAccountId;
 import org.elasticsearch.xpack.core.security.authc.service.ServiceAccountToken;
@@ -33,7 +34,6 @@ import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.user.User;
 
 import java.util.Collection;
-import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 
@@ -62,12 +62,7 @@ public class ServiceAccountService {
         @Nullable IndexServiceAccountTokenStore indexServiceAccountTokenStore
     ) {
         this.client = client;
-        this.readOnlyServiceAccountTokenStore = indexServiceAccountTokenStore != null
-            ? new CompositeServiceAccountTokenStore(
-                List.of(readOnlyServiceAccountTokenStore, indexServiceAccountTokenStore),
-                client.threadPool().getThreadContext()
-            )
-            : readOnlyServiceAccountTokenStore;
+        this.readOnlyServiceAccountTokenStore = readOnlyServiceAccountTokenStore;
         this.indexServiceAccountTokenStore = indexServiceAccountTokenStore;
     }
 

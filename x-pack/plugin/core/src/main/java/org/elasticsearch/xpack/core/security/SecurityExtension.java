@@ -16,6 +16,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationFailureHandler;
 import org.elasticsearch.xpack.core.security.authc.Realm;
+import org.elasticsearch.xpack.core.security.authc.service.ReadOnlyServiceAccountTokenStore;
 import org.elasticsearch.xpack.core.security.authc.service.ServiceAccountTokenStore;
 import org.elasticsearch.xpack.core.security.authc.support.UserRoleMapper;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine;
@@ -116,15 +117,14 @@ public interface SecurityExtension {
     }
 
     /**
-     * Returns a {@link ServiceAccountTokenStore} used to authenticate service account tokens.
+     * Returns a {@link ReadOnlyServiceAccountTokenStore} used to authenticate service account tokens.
      * If {@code null} is returned, the default service account token stores will be used.
      *
-     * Providing a custom {@link ServiceAccountTokenStore} here overrides the default implementation.
+     * Providing a custom {@link ReadOnlyServiceAccountTokenStore} here overrides the default implementation.
      *
      * @param components Access to components that can be used to authenticate service account tokens
-     * @return A custom {@link ServiceAccountTokenStore}, or {@code null} to use the default
      */
-    default ServiceAccountTokenStore getServiceAccountTokenStore(SecurityComponents components) {
+    default ReadOnlyServiceAccountTokenStore getServiceAccountTokenStore(SecurityComponents components) {
         return null;
     }
 

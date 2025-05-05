@@ -208,6 +208,7 @@ import org.elasticsearch.xpack.core.security.authc.Realm;
 import org.elasticsearch.xpack.core.security.authc.RealmConfig;
 import org.elasticsearch.xpack.core.security.authc.RealmSettings;
 import org.elasticsearch.xpack.core.security.authc.Subject;
+import org.elasticsearch.xpack.core.security.authc.service.ReadOnlyServiceAccountTokenStore;
 import org.elasticsearch.xpack.core.security.authc.service.ServiceAccountTokenStore;
 import org.elasticsearch.xpack.core.security.authc.support.UserRoleMapper;
 import org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken;
@@ -920,46 +921,27 @@ public class Security extends Plugin
         final CacheInvalidatorRegistry cacheInvalidatorRegistry = new CacheInvalidatorRegistry();
         components.add(cacheInvalidatorRegistry);
 
-        final IndexServiceAccountTokenStore indexServiceAccountTokenStore = new IndexServiceAccountTokenStore(
-            settings,
-            threadPool,
-            getClock(),
-            client,
-            systemIndices.getMainIndexManager(),
-            clusterService,
-            cacheInvalidatorRegistry
-        );
-        components.add(indexServiceAccountTokenStore);
-
-        final FileServiceAccountTokenStore fileServiceAccountTokenStore = new FileServiceAccountTokenStore(
-            environment,
-            resourceWatcherService,
-            threadPool,
-            clusterService,
-            cacheInvalidatorRegistry
-        );
-        components.add(fileServiceAccountTokenStore);
-        cacheInvalidatorRegistry.registerAlias("service", Set.of("file_service_account_token", "index_service_account_token"));
-
-        List<ServiceAccountTokenStore> extensionTokenStores = securityExtensions.stream()
-            .map(extension -> extension.getServiceAccountTokenStore(extensionComponents))
-            .filter(Objects::nonNull)
-            .toList();
-
-        ServiceAccountService serviceAccountService;
-
-        if (extensionTokenStores.isEmpty()) {
-            serviceAccountService = new ServiceAccountService(client, fileServiceAccountTokenStore, indexServiceAccountTokenStore);
-        } else {
-            // Completely handover service account token management to the extension if provided, this will disable the index managed
-            // service account tokens managed through the service account token API
-            logger.debug("Service account authentication handled by extension, disabling file and index token stores");
-            components.addAll(extensionTokenStores);
-            serviceAccountService = new ServiceAccountService(
+        ServiceAccountService serviceAccountService = createServiceAccountService(
+            components,
+            cacheInvalidatorRegistry,
+            extensionComponents,
+            () -> new IndexServiceAccountTokenStore(
+                settings,
+                threadPool,
+                getClock(),
                 client,
-                new CompositeServiceAccountTokenStore(extensionTokenStores, client.threadPool().getThreadContext())
-            );
-        }
+                systemIndices.getMainIndexManager(),
+                clusterService,
+                cacheInvalidatorRegistry
+            ),
+            () -> new FileServiceAccountTokenStore(
+                environment,
+                resourceWatcherService,
+                threadPool,
+                clusterService,
+                cacheInvalidatorRegistry
+            )
+        );
 
         components.add(serviceAccountService);
 
@@ -1264,6 +1246,57 @@ public class Security extends Plugin
         this.reloadableComponents.set(List.copyOf(reloadableComponents));
         this.closableComponents.set(List.copyOf(closableComponents));
         return components;
+    }
+
+    private ServiceAccountService createServiceAccountService(
+        List<Object> components,
+        CacheInvalidatorRegistry cacheInvalidatorRegistry,
+        SecurityExtension.SecurityComponents extensionComponents,
+        Supplier<IndexServiceAccountTokenStore> indexServiceAccountTokenStoreSupplier,
+        Supplier<FileServiceAccountTokenStore> fileServiceAccountTokenStoreSupplier
+    ) {
+        Map<String, ReadOnlyServiceAccountTokenStore> accountTokenStoreByExtension = new HashMap<>();
+
+        for (var extension : securityExtensions) {
+            var serviceAccountTokenStore = extension.getServiceAccountTokenStore(extensionComponents);
+            if (serviceAccountTokenStore != null) {
+                accountTokenStoreByExtension.put(extension.extensionName(), serviceAccountTokenStore);
+            }
+        }
+
+        ServiceAccountService serviceAccountService;
+        if (accountTokenStoreByExtension.size() > 1) {
+            throw new IllegalStateException(
+                "More than one ServiceAccountTokenStore provided in extensions: " + accountTokenStoreByExtension.keySet()
+            );
+        }
+        var extensionStore = accountTokenStoreByExtension.values().stream().findFirst();
+        if (extensionStore.isEmpty()) {
+            var fileServiceAccountTokenStore = fileServiceAccountTokenStoreSupplier.get();
+            var indexServiceAccountTokenStore = indexServiceAccountTokenStoreSupplier.get();
+
+            components.add(fileServiceAccountTokenStore);
+            components.add(indexServiceAccountTokenStore);
+            cacheInvalidatorRegistry.registerAlias("service", Set.of("file_service_account_token", "index_service_account_token"));
+
+            serviceAccountService = new ServiceAccountService(
+                client.get(),
+                new CompositeServiceAccountTokenStore(
+                    List.of(fileServiceAccountTokenStore, indexServiceAccountTokenStore),
+                    client.get().threadPool().getThreadContext()
+                ),
+                indexServiceAccountTokenStore
+            );
+        } else {
+            // Completely handover service account token management to the extension if provided,
+            // this will disable the index managed
+            // service account tokens managed through the service account token API
+            components.add(new PluginComponentBinding<>(ReadOnlyServiceAccountTokenStore.class, extensionStore.get()));
+            logger.info("Service account authentication handled by extension, disabling file and index token stores");
+            logger.info("STORE: " + extensionStore.get());
+            serviceAccountService = new ServiceAccountService(client.get(), extensionStore.get());
+        }
+        return serviceAccountService;
     }
 
     @FixForMultiProject

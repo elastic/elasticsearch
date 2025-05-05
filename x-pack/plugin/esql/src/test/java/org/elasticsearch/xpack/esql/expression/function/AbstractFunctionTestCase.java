@@ -26,9 +26,13 @@ import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
 import org.elasticsearch.compute.test.BlockTestUtils;
 import org.elasticsearch.compute.test.TestBlockFactory;
 import org.elasticsearch.indices.CrankyCircuitBreakerService;
+import org.elasticsearch.license.License;
+import org.elasticsearch.license.XPackLicenseState;
+import org.elasticsearch.license.internal.XPackLicenseStatus;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.esql.LicenseAware;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
@@ -54,7 +58,6 @@ import org.hamcrest.Matchers;
 import org.junit.After;
 import org.junit.AfterClass;
 
-import java.io.IOException;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
@@ -730,7 +733,8 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
      */
     @AfterClass
     public static void testFunctionInfo() {
-        Logger log = LogManager.getLogger(getTestClass());
+        Class<?> testClass = getTestClass();
+        Logger log = LogManager.getLogger(testClass);
         FunctionDefinition definition = definition(functionName());
         if (definition == null) {
             log.info("Skipping function info checks because the function isn't registered");
@@ -753,7 +757,7 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
         for (int i = 0; i < args.size(); i++) {
             typesFromSignature.add(new HashSet<>());
         }
-        for (Map.Entry<List<DataType>, DataType> entry : signatures(getTestClass()).entrySet()) {
+        for (Map.Entry<List<DataType>, DataType> entry : signatures(testClass).entrySet()) {
             List<DataType> types = entry.getKey();
             for (int i = 0; i < args.size() && i < types.size(); i++) {
                 typesFromSignature.get(i).add(types.get(i).esNameIfPossible());
@@ -794,6 +798,91 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
             .filter(t -> DataType.UNDER_CONSTRUCTION.containsKey(DataType.fromNameOrAlias(t)) == false)
             .collect(Collectors.toCollection(TreeSet::new));
         assertEquals(returnFromSignature, returnTypes);
+    }
+
+    /**
+     * This test is meant to validate that the license checks documented match those enforced.
+     * The expectations are set in the test class using a method with this signature:
+     * <code>
+     *     public static License.OperationMode licenseRequirement(List<DataType> fieldTypes);
+     * </code>
+     * License enforcement in the function class is achieved using the interface <code>LicenseAware</code>.
+     * This test will make sure the two are in agreement, and does not require that the function class actually
+     * report its license level. If we add license checks to any function, but fail to also add the expected
+     * license level to the test class, this test will fail.
+     */
+    @AfterClass
+    public static void testFunctionLicenseChecks() throws Exception {
+        Class<?> testClass = getTestClass();
+        DocsV3Support.LicenseRequirementChecker licenseChecker = new DocsV3Support.LicenseRequirementChecker(testClass);
+        Logger log = LogManager.getLogger(testClass);
+        FunctionDefinition definition = definition(functionName());
+        if (definition == null) {
+            log.info("Skipping function info checks because the function isn't registered");
+            return;
+        }
+        log.info("Running function license checks");
+        License.OperationMode functionLicense = licenseChecker.invoke(null);
+        Constructor<?> ctor = constructorWithFunctionInfo(definition.clazz());
+        if (LicenseAware.class.isAssignableFrom(definition.clazz()) == false) {
+            // Perform simpler no-signature tests
+            assertThat(
+                "Function " + definition.name() + " should be licensed under " + functionLicense,
+                functionLicense,
+                equalTo(License.OperationMode.BASIC)
+            );
+            return;
+        }
+        // For classes with LicenseAware, we need to check that the license is correct
+        XPackLicenseState basicLicense = makeLicenseState(License.OperationMode.BASIC);
+        XPackLicenseState platinumLicense = makeLicenseState(License.OperationMode.PLATINUM);
+        XPackLicenseState enterpriseLicense = makeLicenseState(License.OperationMode.ENTERPRISE);
+
+        // Go through all signatures and assert that the license is as expected
+        signatures(testClass).forEach((signature, returnType) -> {
+            try {
+                License.OperationMode license = licenseChecker.invoke(signature);
+                assertNotNull("License should not be null", license);
+
+                // Construct an instance of the class and then call it's licenseCheck method, and compare the results
+                Object[] args = new Object[signature.size() + 1];
+                args[0] = Source.EMPTY;
+                for (int i = 0; i < signature.size(); i++) {
+                    args[i + 1] = new Literal(Source.EMPTY, null, signature.get(i));
+                }
+                Object instance = ctor.newInstance(args);
+                // Check that object implements the LicenseAware interface
+                if (LicenseAware.class.isAssignableFrom(instance.getClass())) {
+                    LicenseAware licenseAware = (LicenseAware) instance;
+                    boolean basic = licenseAware.licenseCheck(basicLicense);
+                    boolean platinum = licenseAware.licenseCheck(platinumLicense);
+                    boolean enterprise = licenseAware.licenseCheck(enterpriseLicense);
+                    if (license == License.OperationMode.BASIC) {
+                        assertTrue("Basic license should be accepted for " + signature, basic);
+                        assertTrue("Platinum license should be accepted for " + signature, platinum);
+                        assertTrue("Enterprise license should be accepted for " + signature, enterprise);
+                    }
+                    if (license == License.OperationMode.PLATINUM) {
+                        assertFalse("Basic license should not be accepted for " + signature, basic);
+                        assertTrue("Platinum license should be accepted for " + signature, platinum);
+                        assertTrue("Enterprise license should be accepted for " + signature, enterprise);
+                    }
+                    if (license == License.OperationMode.ENTERPRISE) {
+                        assertFalse("Basic license should not be accepted for " + signature, basic);
+                        assertFalse("Platinum license should not be accepted for " + signature, platinum);
+                        assertTrue("Enterprise license should be accepted for " + signature, enterprise);
+                    }
+                } else {
+                    fail("Function " + definition.name() + " does not implement LicenseAware");
+                }
+            } catch (Exception e) {
+                fail(e);
+            }
+        });
+    }
+
+    private static XPackLicenseState makeLicenseState(License.OperationMode mode) {
+        return new XPackLicenseState(System::currentTimeMillis, new XPackLicenseStatus(mode, true, ""));
     }
 
     /**
@@ -865,7 +954,7 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
     }
 
     @AfterClass
-    public static void renderDocs() throws IOException {
+    public static void renderDocs() throws Exception {
         if (System.getProperty("generateDocs") == null) {
             return;
         }

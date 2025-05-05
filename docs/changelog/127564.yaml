@@ -2,4 +2,5 @@ pr: 127564
 summary: Consider inlinestats when having `field_caps` check for field names
 area: ES|QL
 type: bug
-issues: []
+issues:
+ - 127236

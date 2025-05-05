@@ -192,7 +192,6 @@ public abstract class IVFVectorsWriter extends KnnVectorsWriter {
                 floatVectorValues,
                 ivfClusters
             );
-            // write posting lists
             writeMeta(fieldWriter.fieldInfo, centroidOffset, centroidLength, offsets, globalCentroid);
         }
     }
@@ -256,54 +255,25 @@ public abstract class IVFVectorsWriter extends KnnVectorsWriter {
         rawVectorDelegate.mergeOneField(fieldInfo, mergeState);
         if (fieldInfo.getVectorEncoding().equals(VectorEncoding.FLOAT32)) {
             final int numVectors;
-            String name = null;
+            String tempRawVectorsFileName = null;
             boolean success = false;
             // build a float vector values with random access. In order to do that we dump the vectors to
             // a temporary file
             // and write the docID follow by the vector
             try (IndexOutput out = mergeState.segmentInfo.dir.createTempOutput(mergeState.segmentInfo.name, "ivf_", IOContext.DEFAULT)) {
-                name = out.getName();
+                tempRawVectorsFileName = out.getName();
                 // TODO do this better, we shouldn't have to write to a temp file, we should be able to
-                // to just from the merged vector values.
+                // to just from the merged vector values, the tricky part is the random access.
                 numVectors = writeFloatVectorValues(fieldInfo, out, MergedVectorValues.mergeFloatVectorValues(fieldInfo, mergeState));
+                CodecUtil.writeFooter(out);
                 success = true;
             } finally {
-                if (success == false && name != null) {
-                    org.apache.lucene.util.IOUtils.deleteFilesIgnoringExceptions(mergeState.segmentInfo.dir, name);
+                if (success == false && tempRawVectorsFileName != null) {
+                    org.apache.lucene.util.IOUtils.deleteFilesIgnoringExceptions(mergeState.segmentInfo.dir, tempRawVectorsFileName);
                 }
             }
-            float[] globalCentroid = new float[fieldInfo.getVectorDimension()];
-            int vectorCount = 0;
-            for (int idx = 0; idx < mergeState.knnVectorsReaders.length; idx++) {
-                if (mergeState.fieldInfos[idx] == null
-                    || mergeState.fieldInfos[idx].hasVectorValues() == false
-                    || mergeState.fieldInfos[idx].fieldInfo(fieldInfo.name) == null
-                    || mergeState.fieldInfos[idx].fieldInfo(fieldInfo.name).hasVectorValues() == false) {
-                    continue;
-                }
-                KnnVectorsReader knnReaders = mergeState.knnVectorsReaders[idx];
-                IVFVectorsReader ivfReader = getIVFReader(knnReaders, fieldInfo.name);
-                if (ivfReader != null) {
-                    FloatVectorValues floatVectorValues = knnReaders.getFloatVectorValues(fieldInfo.name);
-                    if (floatVectorValues == null) {
-                        continue;
-                    }
-                    int numVecs = floatVectorValues.size();
-                    float[] readerGlobalCentroid = ivfReader.getGlobalCentroid(fieldInfo);
-                    if (readerGlobalCentroid != null) {
-                        vectorCount += numVecs;
-                        for (int i = 0; i < globalCentroid.length; i++) {
-                            globalCentroid[i] += readerGlobalCentroid[i] * numVecs;
-                        }
-                    }
-                }
-            }
-            if (vectorCount > 0) {
-                for (int i = 0; i < globalCentroid.length; i++) {
-                    globalCentroid[i] /= vectorCount;
-                }
-            }
-            try (IndexInput in = mergeState.segmentInfo.dir.openInput(name, IOContext.DEFAULT)) {
+            try (IndexInput in = mergeState.segmentInfo.dir.openInput(tempRawVectorsFileName, IOContext.DEFAULT)) {
+                float[] calculatedGlobalCentroid = new float[fieldInfo.getVectorDimension()];
                 final FloatVectorValues floatVectorValues = getFloatVectorValues(fieldInfo, in, numVectors);
                 success = false;
                 CentroidAssignmentScorer centroidAssignmentScorer;
@@ -315,7 +285,13 @@ public abstract class IVFVectorsWriter extends KnnVectorsWriter {
                 try {
                     centroidTemp = mergeState.segmentInfo.dir.createTempOutput(mergeState.segmentInfo.name, "civf_", IOContext.DEFAULT);
                     centroidTempName = centroidTemp.getName();
-                    numCentroids = calculateAndWriteCentroids(fieldInfo, floatVectorValues, centroidTemp, mergeState, globalCentroid);
+                    numCentroids = calculateAndWriteCentroids(
+                        fieldInfo,
+                        floatVectorValues,
+                        centroidTemp,
+                        mergeState,
+                        calculatedGlobalCentroid
+                    );
                     success = true;
                 } finally {
                     if (success == false && centroidTempName != null) {
@@ -337,7 +313,7 @@ public abstract class IVFVectorsWriter extends KnnVectorsWriter {
                     try (IndexInput centroidInput = mergeState.segmentInfo.dir.openInput(centroidTempName, IOContext.DEFAULT)) {
                         ivfCentroids.copyBytes(centroidInput, centroidInput.length() - CodecUtil.footerLength());
                         centroidLength = ivfCentroids.getFilePointer() - centroidOffset;
-                        centroidAssignmentScorer = createCentroidScorer(centroidInput, numCentroids, fieldInfo, globalCentroid);
+                        centroidAssignmentScorer = createCentroidScorer(centroidInput, numCentroids, fieldInfo, calculatedGlobalCentroid);
                         assert centroidAssignmentScorer.size() == numCentroids;
                         // build a float vector values with random access
                         // build centroids
@@ -348,20 +324,18 @@ public abstract class IVFVectorsWriter extends KnnVectorsWriter {
                             ivfClusters,
                             mergeState
                         );
-                        // write posting lists
-
-                        // TODO handle this correctly by creating new centroid
-                        if (vectorCount == 0 && offsets.length > 0) {
-                            throw new IllegalStateException("No global centroid found for field: " + fieldInfo.name);
-                        }
                         assert offsets.length == centroidAssignmentScorer.size();
-                        writeMeta(fieldInfo, centroidOffset, centroidLength, offsets, globalCentroid);
+                        writeMeta(fieldInfo, centroidOffset, centroidLength, offsets, calculatedGlobalCentroid);
                     }
                 } finally {
-                    org.apache.lucene.util.IOUtils.deleteFilesIgnoringExceptions(mergeState.segmentInfo.dir, name, centroidTempName);
+                    org.apache.lucene.util.IOUtils.deleteFilesIgnoringExceptions(
+                        mergeState.segmentInfo.dir,
+                        tempRawVectorsFileName,
+                        centroidTempName
+                    );
                 }
             } finally {
-                org.apache.lucene.util.IOUtils.deleteFilesIgnoringExceptions(mergeState.segmentInfo.dir, name);
+                org.apache.lucene.util.IOUtils.deleteFilesIgnoringExceptions(mergeState.segmentInfo.dir, tempRawVectorsFileName);
             }
         }
     }

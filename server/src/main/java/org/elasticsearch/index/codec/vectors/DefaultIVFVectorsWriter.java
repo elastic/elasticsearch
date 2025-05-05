@@ -223,44 +223,17 @@ public class DefaultIVFVectorsWriter extends IVFVectorsWriter {
         }
     }
 
-    record SegmentCentroid(int segment, int centroid, int centroidSize) {}
-
-    @Override
-    protected int calculateAndWriteCentroids(
+    static float[][] gatherInitCentroids(
+        List<FloatVectorValues> centroidList,
+        List<SegmentCentroid> segmentCentroids,
+        int desiredClusters,
         FieldInfo fieldInfo,
-        FloatVectorValues floatVectorValues,
-        IndexOutput temporaryCentroidOutput,
-        MergeState mergeState,
-        float[] globalCentroid
+        MergeState mergeState
     ) throws IOException {
-        if (floatVectorValues.size() == 0) {
-            return 0;
+        if (centroidList.size() == 0) {
+            return null;
         }
-        int desiredClusters = ((floatVectorValues.size() - 1) / vectorPerCluster) + 1;
-        // init centroids from merge state
-        List<FloatVectorValues> centroidList = new ArrayList<>();
-        List<SegmentCentroid> segmentCentroids = new ArrayList<>(desiredClusters);
-
-        int segmentIdx = 0;
         long startTime = System.nanoTime();
-        for (var reader : mergeState.knnVectorsReaders) {
-            IVFVectorsReader ivfVectorsReader = IVFVectorsFormat.getIVFReader(reader, fieldInfo.name);
-            if (ivfVectorsReader == null) {
-                continue;
-            }
-
-            FloatVectorValues centroid = ivfVectorsReader.getCentroids(fieldInfo);
-            if (centroid == null) {
-                continue;
-            }
-            centroidList.add(centroid);
-            for (int i = 0; i < centroid.size(); i++) {
-                int size = ivfVectorsReader.centroidSize(fieldInfo.name, i);
-                segmentCentroids.add(new SegmentCentroid(segmentIdx, i, size));
-            }
-            segmentIdx++;
-        }
-
         // sort centroid list by floatvector size
         FloatVectorValues baseSegment = centroidList.get(0);
         for (var l : centroidList) {
@@ -334,6 +307,9 @@ public class DefaultIVFVectorsWriter extends IVFVectorsWriter {
             sum[label - 1] += segmentCentroid.centroidSize;
         }
         for (int i = 0; i < initCentroids.length; i++) {
+            if (sum[i] == 0 || sum[i] == 1) {
+                continue;
+            }
             for (int j = 0; j < initCentroids[i].length; j++) {
                 initCentroids[i][j] /= sum[i];
             }
@@ -348,6 +324,67 @@ public class DefaultIVFVectorsWriter extends IVFVectorsWriter {
                 "Gathered initCentroids:" + initCentroids.length + " for desired: " + desiredClusters
             );
         }
+        return initCentroids;
+    }
+
+    record SegmentCentroid(int segment, int centroid, int centroidSize) {}
+
+    /**
+     * Calculate the centroids for the given field and write them to the given
+     * temporary centroid output.
+     * When merging, we first bootstrap the KMeans algorithm with the centroids contained in the merging segments.
+     * To prevent centroids that are too similar from having an outsized impact, all centroids that are closer than
+     * the largest segments intra-cluster distance are merged into a single centroid.
+     * The resulting centroids are then used to initialize the KMeans algorithm.
+     *
+     * @param fieldInfo merging field info
+     * @param floatVectorValues the float vector values to merge
+     * @param temporaryCentroidOutput the temporary centroid output
+     * @param mergeState the merge state
+     * @param globalCentroid the global centroid, calculated by this method and used to quantize the centroids
+     * @return the number of centroids written
+     * @throws IOException if an I/O error occurs
+     */
+    @Override
+    protected int calculateAndWriteCentroids(
+        FieldInfo fieldInfo,
+        FloatVectorValues floatVectorValues,
+        IndexOutput temporaryCentroidOutput,
+        MergeState mergeState,
+        float[] globalCentroid
+    ) throws IOException {
+        if (floatVectorValues.size() == 0) {
+            return 0;
+        }
+        int maxNumClusters = ((floatVectorValues.size() - 1) / vectorPerCluster) + 1;
+        int desiredClusters = (int) Math.max(Math.sqrt(floatVectorValues.size()), maxNumClusters);
+        // init centroids from merge state
+        List<FloatVectorValues> centroidList = new ArrayList<>();
+        List<SegmentCentroid> segmentCentroids = new ArrayList<>(desiredClusters);
+
+        int segmentIdx = 0;
+        for (var reader : mergeState.knnVectorsReaders) {
+            IVFVectorsReader ivfVectorsReader = IVFVectorsFormat.getIVFReader(reader, fieldInfo.name);
+            if (ivfVectorsReader == null) {
+                continue;
+            }
+
+            FloatVectorValues centroid = ivfVectorsReader.getCentroids(fieldInfo);
+            if (centroid == null) {
+                continue;
+            }
+            centroidList.add(centroid);
+            for (int i = 0; i < centroid.size(); i++) {
+                int size = ivfVectorsReader.centroidSize(fieldInfo.name, i);
+                if (size == 0) {
+                    continue;
+                }
+                segmentCentroids.add(new SegmentCentroid(segmentIdx, i, size));
+            }
+            segmentIdx++;
+        }
+
+        float[][] initCentroids = gatherInitCentroids(centroidList, segmentCentroids, desiredClusters, fieldInfo, mergeState);
 
         // FIXME: run a custom version of KMeans that is just better...
         long nanoTime = System.nanoTime();
@@ -369,6 +406,15 @@ public class DefaultIVFVectorsWriter extends IVFVectorsWriter {
         float[][] centroids = kMeans.centroids();
 
         // write them
+        // calculate the global centroid from all the centroids:
+        for (float[] centroid : centroids) {
+            for (int j = 0; j < centroid.length; j++) {
+                globalCentroid[j] += centroid[j];
+            }
+        }
+        for (int j = 0; j < globalCentroid.length; j++) {
+            globalCentroid[j] /= centroids.length;
+        }
         writeCentroids(centroids, fieldInfo, globalCentroid, temporaryCentroidOutput);
         return centroids.length;
     }
@@ -477,13 +523,10 @@ public class DefaultIVFVectorsWriter extends IVFVectorsWriter {
                 // pop the best
                 int sz = neighborsToCheck.size();
                 int best = neighborsToCheck.consumeNodesAndScoresMin(ordScoreIterator.ords, ordScoreIterator.scores);
-                // reset the ordScoreIterator as it has consumed the ords and scores
-                ordScoreIterator.idx = sz;
+                // Set the size to the number of neighbors we actually found
+                ordScoreIterator.setSize(sz);
                 bestScore = ordScoreIterator.getScore(best);
                 bestCentroid = ordScoreIterator.getOrd(best);
-            }
-            if (clusters[bestCentroid] == null) {
-                clusters[bestCentroid] = new IntArrayList(16);
             }
             clusters[bestCentroid].add(docID);
             if (soarClusterCheckCount > 0) {
@@ -495,7 +538,7 @@ public class DefaultIVFVectorsWriter extends IVFVectorsWriter {
                     bestScore,
                     scratch,
                     scorer,
-                    vectors,
+                    vector,
                     clusters
                 );
             }
@@ -511,10 +554,9 @@ public class DefaultIVFVectorsWriter extends IVFVectorsWriter {
         float bestScore,
         float[] scratch,
         CentroidAssignmentScorer scorer,
-        FloatVectorValues vectors,
+        float[] vector,
         IntArrayList[] clusters
     ) throws IOException {
-        float[] vector = vectors.vectorValue(vecOrd);
         ESVectorUtil.subtract(vector, bestCentroid, scratch);
         int bestSecondaryCentroid = -1;
         float minDist = Float.MAX_VALUE;
@@ -544,6 +586,14 @@ public class DefaultIVFVectorsWriter extends IVFVectorsWriter {
         OrdScoreIterator(int size) {
             this.ords = new int[size];
             this.scores = new float[size];
+        }
+
+        int setSize(int size) {
+            if (size > ords.length) {
+                throw new IllegalArgumentException("size must be <= " + ords.length);
+            }
+            this.idx = size;
+            return size;
         }
 
         int getOrd(int idx) {
@@ -606,7 +656,7 @@ public class DefaultIVFVectorsWriter extends IVFVectorsWriter {
         private final int dimension;
         private final float[] scratch;
         private float[] q;
-        private final long centroidByteSize;
+        private final long rawCentroidOffset;
         private int currOrd = -1;
 
         OffHeapCentroidAssignmentScorer(IndexInput centroidsInput, int numCentroids, FieldInfo info) {
@@ -614,7 +664,7 @@ public class DefaultIVFVectorsWriter extends IVFVectorsWriter {
             this.numCentroids = numCentroids;
             this.dimension = info.getVectorDimension();
             this.scratch = new float[dimension];
-            this.centroidByteSize = dimension + 3 * Float.BYTES + Short.BYTES;
+            this.rawCentroidOffset = (dimension + 3 * Float.BYTES + Short.BYTES) * numCentroids;
         }
 
         @Override
@@ -627,7 +677,7 @@ public class DefaultIVFVectorsWriter extends IVFVectorsWriter {
             if (centroidOrdinal == currOrd) {
                 return scratch;
             }
-            centroidsInput.seek(numCentroids * centroidByteSize + (long) centroidOrdinal * dimension * Float.BYTES);
+            centroidsInput.seek(rawCentroidOffset + (long) centroidOrdinal * dimension * Float.BYTES);
             centroidsInput.readFloats(scratch, 0, dimension);
             this.currOrd = centroidOrdinal;
             return scratch;

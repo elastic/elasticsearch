@@ -124,8 +124,12 @@ public class ExponentialBucketHistogramTests extends ESTestCase {
 
     public void testPercentileValidation() {
         ExponentialBucketHistogram histogram = new ExponentialBucketHistogram();
+        for (int i = 0; i < 100; i++) {
+            histogram.addObservation(randomIntBetween(1, 100_000));
+        }
         // valid values
         histogram.getPercentile(randomFloatBetween(0.0f, 1.0f, true));
+        histogram.getPercentile(1.0f);
         // invalid values
         assertThrows(
             IllegalArgumentException.class,

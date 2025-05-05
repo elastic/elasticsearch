@@ -1,7 +1,6 @@
 ---
 navigation_title: "Elasticsearch"
 mapped_pages:
-  - https://www.elastic.co/guide/en/elasticsearch/reference/current/es-connectors-release-notes.html
   - https://www.elastic.co/guide/en/elasticsearch/reference/current/es-release-notes.html
 ---
 

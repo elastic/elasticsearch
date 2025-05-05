@@ -39,6 +39,8 @@ import java.time.Instant;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Properties;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 import javax.annotation.Nullable;
 import javax.inject.Inject;
@@ -57,20 +59,32 @@ public class BundleChangelogsTask extends DefaultTask {
 
     @Nullable
     private String branch;
-    private boolean updateExisting;
+    @Nullable
+    private String bcRef;
+    // private boolean updateExisting;
     private boolean finalize;
 
-    @Option(
-        option = "update-existing",
-        description = "Only update entries that are already in the bundle. Useful for updating the bundle after a BC has been cut."
-    )
-    public void setUpdateExisting(boolean updateExisting) {
-        this.updateExisting = updateExisting;
-    }
+    // @Option(
+    // option = "update-existing",
+    // description = "Only update entries that are already in the bundle. Useful for updating the bundle after a BC has been cut."
+    // )
+    // public void setUpdateExisting(boolean updateExisting) {
+    // this.updateExisting = updateExisting;
+    // }
 
     @Option(option = "branch", description = "Branch (or other ref) to use for generating the changelog bundle.")
     public void setBranch(String branch) {
         this.branch = branch;
+    }
+
+    @Option(
+        option = "bc-ref",
+        description = "A source ref, typically the sha of a BC, that should be used to source PRs for changelog entries. "
+            + "The actual content of the changelogs will come from the 'branch' ref. "
+            + "You should generally always use bc-ref."
+    )
+    public void setBcRef(String ref) {
+        this.bcRef = ref;
     }
 
     @Option(option = "finalize", description = "Specify that the bundle is finalized, i.e. that the version has been released.")
@@ -103,41 +117,59 @@ public class BundleChangelogsTask extends DefaultTask {
         }
 
         final String upstreamRemote = gitWrapper.getUpstream();
+        Set<String> entriesFromBc = Set.of();
 
         try {
-            checkoutChangelogs(gitWrapper, upstreamRemote, branch);
+            var usingBcRef = bcRef != null && !bcRef.isEmpty();
+            if (usingBcRef) {
+                // Check out all the changelogs that existed at the time of the BC
+                checkoutChangelogs(gitWrapper, upstreamRemote, bcRef);
+                entriesFromBc = this.changelogDirectory.getAsFileTree().getFiles().stream().map(File::getName).collect(Collectors.toSet());
+
+                // Then add/update changelogs from the HEAD of the branch
+                // We do an "add" here, rather than checking out the entire directory, in case changelogs have been removed for some reason
+                addChangelogsFromRef(gitWrapper, upstreamRemote, branch);
+            } else {
+                checkoutChangelogs(gitWrapper, upstreamRemote, branch);
+            }
             Properties props = new Properties();
             props.load(new StringReader(gitWrapper.runCommand("git", "show", branch + ":build-tools-internal/version.properties")));
             String version = props.getProperty("elasticsearch");
 
             LOGGER.info("Finding changelog files...");
 
-            List<ChangelogEntry> entries = this.changelogDirectory.getAsFileTree()
-                .getFiles()
-                .stream()
-                .map(ChangelogEntry::parse)
-                .sorted(Comparator.comparing(ChangelogEntry::getPr))
-                .collect(toList());
+            Set<String> finalEntriesFromBc = entriesFromBc;
+            List<ChangelogEntry> entries = this.changelogDirectory.getAsFileTree().getFiles().stream().filter(f -> {
+                // When not using a bc ref, we just take everything from the branch/sha passed in
+                if (!usingBcRef) {
+                    return true;
+                }
+
+                // If the changelog was present in the BC sha, use it
+                if (finalEntriesFromBc.contains(f.getName())) {
+                    return true;
+                }
+
+                // Otherwise, let's check to see if a reference to the PR exists in the commit log for the sha
+                // This specifically covers the case of a PR being merged into the BC with a missing changelog file, and the file added
+                // later.
+                var prNumber = f.getName().replace(".yaml", "");
+                return !gitWrapper.runCommand("git", "log", bcRef, "--grep", "(#" + prNumber + ")").trim().isEmpty();
+            }).map(ChangelogEntry::parse).sorted(Comparator.comparing(ChangelogEntry::getPr)).collect(toList());
 
             ChangelogBundle existingBundle = null;
+            // if (updateExisting) {
+            // var existingBundleFile = new File("docs/release-notes/changelog-bundles/" + version + ".yml");
+            // if (existingBundleFile.exists()) {
+            // var bundle = ChangelogBundle.parse(existingBundleFile);
+            // existingBundle = bundle;
+            // entries = entries.stream()
+            // .filter(e -> bundle.changelogs().stream().anyMatch(c -> c.getPr().equals(e.getPr())))
+            // .toList();
+            // }
+            // }
 
-            if (updateExisting) {
-                var existingBundleFile = new File("docs/release-notes/changelog-bundles/" + version + ".yml");
-                if (existingBundleFile.exists()) {
-                    var bundle = ChangelogBundle.parse(existingBundleFile);
-                    existingBundle = bundle;
-                    entries = entries.stream()
-                        .filter(e -> bundle.changelogs().stream().anyMatch(c -> c.getPr().equals(e.getPr())))
-                        .toList();
-                }
-            }
-
-            var isReleased = false;
-            if (finalize) {
-                isReleased = true;
-            } else if (existingBundle != null) {
-                isReleased = existingBundle.released();
-            }
+            var isReleased = finalize == true;
 
             ChangelogBundle bundle = new ChangelogBundle(version, isReleased, Instant.now().toString(), entries);
 
@@ -158,6 +190,17 @@ public class BundleChangelogsTask extends DefaultTask {
             refSpec = ref;
         }
         gitWrapper.runCommand("git", "checkout", refSpec, "--", "docs/changelog");
+    }
+
+    private static void addChangelogsFromRef(GitWrapper gitWrapper, String upstream, String ref) {
+        var refSpec = upstream + "/" + ref;
+        if (ref.contains("upstream/")) {
+            refSpec = ref.replace("upstream/", upstream + "/");
+        } else if (ref.matches("^[0-9a-f]+$")) {
+            refSpec = ref;
+        }
+
+        gitWrapper.runCommand("git", "checkout", refSpec, "--", "docs/changelog/*.yaml");
     }
 
     @InputDirectory

@@ -414,7 +414,7 @@ public final class OutboundHandler {
                     final long logThreshold = slowLogThresholdMs;
                     if (logThreshold > 0) {
                         final long took = threadPool.rawRelativeTimeInMillis() - startTime;
-                        handlingTimeTracker.addHandlingTime(took);
+                        handlingTimeTracker.addObservation(took);
                         if (took > logThreshold) {
                             logger.warn(
                                 "sending transport message [{}] of size [{}] on [{}] took [{}ms] which is above the warn "

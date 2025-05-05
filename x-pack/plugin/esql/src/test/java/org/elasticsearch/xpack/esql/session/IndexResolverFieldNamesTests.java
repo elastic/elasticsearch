@@ -1710,6 +1710,28 @@ public class IndexResolverFieldNamesTests extends ESTestCase {
             | keep emp_no, language_name""", Set.of("emp_no", "language_name", "languages", "language_name.*", "languages.*", "emp_no.*"));
     }
 
+    public void testJoinMaskingGrok() {
+        assertFieldNames("""
+              from message_types
+              | grok message "%{WORD:type}"
+              | drop type
+              | lookup join message_types_lookup on message
+              | stats `ratings` = count(*) by type
+              | keep ratings
+            """, Set.of("type", "message", "ratings", "message.*", "type.*", "ratings.*"));
+    }
+
+    public void testJoinMaskingDissect() {
+        assertFieldNames("""
+              from message_types
+              | dissect message "%{type}"
+              | stats message = max(message)
+              | lookup join message_types_lookup on message
+              | stats `ratings` = count(*) by type
+              | keep ratings
+            """, Set.of("type", "message", "ratings", "message.*", "type.*", "ratings.*"));
+    }
+
     private Set<String> fieldNames(String query, Set<String> enrichPolicyMatchFields) {
         var preAnalysisResult = new EsqlSession.PreAnalysisResult(null);
         return EsqlSession.fieldNames(parser.createStatement(query), enrichPolicyMatchFields, preAnalysisResult).fieldNames();

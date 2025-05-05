@@ -9,7 +9,7 @@
 
 package org.elasticsearch.http;
 
-import org.elasticsearch.common.metrics.ExponentialBucketHistogram;
+import org.elasticsearch.common.network.HandlingTimeTracker;
 
 import java.util.concurrent.atomic.AtomicLongArray;
 import java.util.concurrent.atomic.LongAdder;
@@ -80,7 +80,7 @@ public class HttpRouteStatsTracker {
 
     private final StatsTracker requestStats = new StatsTracker();
     private final StatsTracker responseStats = new StatsTracker();
-    private final ExponentialBucketHistogram responseTimeMillisHistogram = new ExponentialBucketHistogram();
+    private final HandlingTimeTracker responseTimeTracker = new HandlingTimeTracker();
 
     public void addRequestStats(int contentLength) {
         requestStats.addStats(contentLength);
@@ -91,7 +91,7 @@ public class HttpRouteStatsTracker {
     }
 
     public void addResponseTime(long timeMillis) {
-        responseTimeMillisHistogram.addObservation(timeMillis);
+        responseTimeTracker.addObservation(timeMillis);
     }
 
     public HttpRouteStats getStats() {
@@ -102,7 +102,7 @@ public class HttpRouteStatsTracker {
             responseStats.count().longValue(),
             responseStats.totalSize().longValue(),
             responseStats.getHistogram(),
-            responseTimeMillisHistogram.getSnapshot()
+            responseTimeTracker.getSnapshot()
         );
     }
 }

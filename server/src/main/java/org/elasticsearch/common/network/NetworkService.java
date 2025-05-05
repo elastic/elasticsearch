@@ -9,7 +9,6 @@
 
 package org.elasticsearch.common.network;
 
-import org.elasticsearch.common.metrics.ExponentialBucketHistogram;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -86,15 +85,15 @@ public final class NetworkService {
     }
 
     private final List<CustomNameResolver> customNameResolvers;
-    private final ExponentialBucketHistogram handlingTimeMillisHistogram = new ExponentialBucketHistogram();
+    private final HandlingTimeTracker handlingTimeTracker = new HandlingTimeTracker();
     private final ThreadWatchdog threadWatchdog = new ThreadWatchdog();
 
     public NetworkService(List<CustomNameResolver> customNameResolvers) {
         this.customNameResolvers = Objects.requireNonNull(customNameResolvers, "customNameResolvers must be non null");
     }
 
-    public ExponentialBucketHistogram getHandlingTimeMillisHistogram() {
-        return handlingTimeMillisHistogram;
+    public HandlingTimeTracker getHandlingTimeTracker() {
+        return handlingTimeTracker;
     }
 
     public ThreadWatchdog getThreadWatchdog() {

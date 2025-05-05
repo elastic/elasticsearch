@@ -22,7 +22,7 @@ import static org.junit.Assert.assertThrows;
 public class ExponentialBucketHistogramTests extends ESTestCase {
 
     public void testSnapshot() {
-        final ExponentialBucketHistogram histogram = new ExponentialBucketHistogram();
+        final ExponentialBucketHistogram histogram = new ExponentialBucketHistogram(18);
 
         assertArrayEquals(new long[] { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 }, histogram.getSnapshot());
 
@@ -64,9 +64,10 @@ public class ExponentialBucketHistogramTests extends ESTestCase {
     }
 
     public void testHistogramRandom() {
-        final int[] upperBounds = ExponentialBucketHistogram.getBucketUpperBounds();
+        final int bucketCount = randomIntBetween(5, 20);
+        final int[] upperBounds = ExponentialBucketHistogram.getBucketUpperBounds(bucketCount);
         final long[] expectedCounts = new long[upperBounds.length + 1];
-        final ExponentialBucketHistogram histogram = new ExponentialBucketHistogram();
+        final ExponentialBucketHistogram histogram = new ExponentialBucketHistogram(bucketCount);
         for (int i = between(0, 1000); i > 0; i--) {
             final int bucket = between(0, expectedCounts.length - 1);
             expectedCounts[bucket] += 1;
@@ -80,7 +81,8 @@ public class ExponentialBucketHistogramTests extends ESTestCase {
     }
 
     public void testBoundsConsistency() {
-        final int[] upperBounds = ExponentialBucketHistogram.getBucketUpperBounds();
+        final int bucketCount = randomIntBetween(5, 20);
+        final int[] upperBounds = ExponentialBucketHistogram.getBucketUpperBounds(bucketCount);
         assertThat(upperBounds[0], greaterThan(0));
         for (int i = 1; i < upperBounds.length; i++) {
             assertThat(upperBounds[i], greaterThan(upperBounds[i - 1]));
@@ -88,13 +90,14 @@ public class ExponentialBucketHistogramTests extends ESTestCase {
     }
 
     public void testPercentile() {
-        ExponentialBucketHistogram histogram = new ExponentialBucketHistogram();
+        final int bucketCount = randomIntBetween(5, 20);
+        ExponentialBucketHistogram histogram = new ExponentialBucketHistogram(bucketCount);
         int valueCount = randomIntBetween(100, 10_000);
         for (int i = 0; i < valueCount; i++) {
             histogram.addObservation(i);
         }
         final long[] snapshot = histogram.getSnapshot();
-        final int[] bucketUpperBounds = ExponentialBucketHistogram.getBucketUpperBounds();
+        final int[] bucketUpperBounds = histogram.calculateBucketUpperBounds();
         for (int i = 0; i <= 100; i++) {
             final float percentile = i / 100.0f;
             final long actualPercentile = (long) Math.ceil(valueCount * percentile);
@@ -105,15 +108,17 @@ public class ExponentialBucketHistogramTests extends ESTestCase {
     }
 
     public void testMaxPercentile() {
-        ExponentialBucketHistogram histogram = new ExponentialBucketHistogram();
-        int[] bucketUpperBounds = ExponentialBucketHistogram.getBucketUpperBounds();
+        final int bucketCount = randomIntBetween(5, 20);
+        ExponentialBucketHistogram histogram = new ExponentialBucketHistogram(bucketCount);
+        int[] bucketUpperBounds = histogram.calculateBucketUpperBounds();
         int secondToLastBucketUpperBound = bucketUpperBounds[bucketUpperBounds.length - 1];
         histogram.addObservation(secondToLastBucketUpperBound + 1);
         assertThat(histogram.getPercentile(1.0f), equalTo(Long.MAX_VALUE));
     }
 
     public void testClear() {
-        ExponentialBucketHistogram histogram = new ExponentialBucketHistogram();
+        final int bucketCount = randomIntBetween(5, 20);
+        ExponentialBucketHistogram histogram = new ExponentialBucketHistogram(bucketCount);
         for (int i = 0; i < 100; i++) {
             histogram.addObservation(randomIntBetween(1, 100_000));
         }
@@ -123,7 +128,8 @@ public class ExponentialBucketHistogramTests extends ESTestCase {
     }
 
     public void testPercentileValidation() {
-        ExponentialBucketHistogram histogram = new ExponentialBucketHistogram();
+        final int bucketCount = randomIntBetween(5, 20);
+        ExponentialBucketHistogram histogram = new ExponentialBucketHistogram(bucketCount);
         for (int i = 0; i < 100; i++) {
             histogram.addObservation(randomIntBetween(1, 100_000));
         }

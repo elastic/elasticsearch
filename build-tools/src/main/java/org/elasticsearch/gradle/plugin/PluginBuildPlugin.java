@@ -82,5 +82,4 @@ public class PluginBuildPlugin implements Plugin<Project> {
             task.into("META-INF", copy -> copy.from(testBuildInfoTask));
         });
     }
-
 }

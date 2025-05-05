@@ -184,16 +184,18 @@ public abstract class GenerateTestBuildInfoTask extends DefaultTask {
             writer.write("\",\n");
 
             writer.write("    \"locations\": [\n");
-            StringBuilder sb = new StringBuilder();
-            for (Map.Entry<String, String> entry : classesToModules.entrySet()) {
-                sb.append("        {\n");
-                sb.append("            \"class\": \"");
-                sb.append(entry.getKey());
-                sb.append("\",\n            \"module\": \"");
-                sb.append(entry.getValue());
-                sb.append("\"\n        },\n");
+            if (classesToModules.isEmpty() == false) {
+                StringBuilder sb = new StringBuilder();
+                for (Map.Entry<String, String> entry : classesToModules.entrySet()) {
+                    sb.append("        {\n");
+                    sb.append("            \"class\": \"");
+                    sb.append(entry.getKey());
+                    sb.append("\",\n            \"module\": \"");
+                    sb.append(entry.getValue());
+                    sb.append("\"\n        },\n");
+                }
+                writer.write(sb.substring(0, sb.length() - 2));
             }
-            writer.write(sb.substring(0, sb.length() - 2));
             writer.write("\n    ]\n}\n");
         }
     }

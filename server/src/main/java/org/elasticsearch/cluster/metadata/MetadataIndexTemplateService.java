@@ -341,9 +341,14 @@ public class MetadataIndexTemplateService {
                         tempStateWithComponentTemplateAdded.metadata(),
                         composableTemplateName,
                         composableTemplate,
-                        globalRetentionSettings.get()
+                        globalRetentionSettings.get(false)
                     );
-                    validateDataStreamOptions(tempStateWithComponentTemplateAdded.metadata(), composableTemplateName, composableTemplate);
+                    validateDataStreamOptions(
+                        tempStateWithComponentTemplateAdded.metadata(),
+                        composableTemplateName,
+                        composableTemplate,
+                        globalRetentionSettings.get(true)
+                    );
                     validateIndexTemplateV2(composableTemplateName, composableTemplate, tempStateWithComponentTemplateAdded);
                 } catch (Exception e) {
                     if (validationFailure == null) {
@@ -370,7 +375,7 @@ public class MetadataIndexTemplateService {
             finalComponentTemplate.template()
                 .lifecycle()
                 .toDataStreamLifecycle()
-                .addWarningHeaderIfDataRetentionNotEffective(globalRetentionSettings.get(), false);
+                .addWarningHeaderIfDataRetentionNotEffective(globalRetentionSettings.get(false), false);
         }
 
         logger.info("{} component template [{}]", existing == null ? "adding" : "updating", name);
@@ -725,8 +730,8 @@ public class MetadataIndexTemplateService {
 
         validate(name, templateToValidate);
         validateDataStreamsStillReferenced(currentState, name, templateToValidate);
-        validateLifecycle(currentState.metadata(), name, templateToValidate, globalRetentionSettings.get());
-        validateDataStreamOptions(currentState.metadata(), name, templateToValidate);
+        validateLifecycle(currentState.metadata(), name, templateToValidate, globalRetentionSettings.get(false));
+        validateDataStreamOptions(currentState.metadata(), name, templateToValidate, globalRetentionSettings.get(true));
 
         if (templateToValidate.isDeprecated() == false) {
             validateUseOfDeprecatedComponentTemplates(name, templateToValidate, currentState.metadata().componentTemplates());
@@ -821,7 +826,12 @@ public class MetadataIndexTemplateService {
     }
 
     // Visible for testing
-    static void validateDataStreamOptions(Metadata metadata, String indexTemplateName, ComposableIndexTemplate template) {
+    static void validateDataStreamOptions(
+        Metadata metadata,
+        String indexTemplateName,
+        ComposableIndexTemplate template,
+        DataStreamGlobalRetention globalRetention
+    ) {
         DataStreamOptions.Builder dataStreamOptionsBuilder = resolveDataStreamOptions(template, metadata.componentTemplates());
         if (dataStreamOptionsBuilder != null) {
             if (template.getDataStreamTemplate() == null) {
@@ -830,6 +840,17 @@ public class MetadataIndexTemplateService {
                         + indexTemplateName
                         + "] specifies data stream options that can only be used in combination with a data stream"
                 );
+            }
+            if (globalRetention != null) {
+                // We cannot know for sure if the template will apply to internal data streams, so we use a simpler heuristic:
+                // If all the index patterns start with a dot, we consider that all the connected data streams are internal.
+                boolean isInternalDataStream = template.indexPatterns().stream().allMatch(indexPattern -> indexPattern.charAt(0) == '.');
+                DataStreamOptions dataStreamOptions = dataStreamOptionsBuilder.build();
+                if (dataStreamOptions.failureStore() != null && dataStreamOptions.failureStore().lifecycle() != null) {
+                    dataStreamOptions.failureStore()
+                        .lifecycle()
+                        .addWarningHeaderIfDataRetentionNotEffective(globalRetention, isInternalDataStream);
+                }
             }
         }
     }

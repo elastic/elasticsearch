@@ -351,8 +351,8 @@ public class TransportGetDataStreamsActionTests extends ESTestCase {
             emptyDataStreamFailureStoreSettings,
             null
         );
-        assertThat(response.getGlobalRetention(), nullValue());
-        DataStreamGlobalRetention globalRetention = new DataStreamGlobalRetention(
+        assertThat(response.getDataGlobalRetention(), nullValue());
+        DataStreamGlobalRetention dataGlobalRetention = new DataStreamGlobalRetention(
             TimeValue.timeValueDays(randomIntBetween(1, 5)),
             TimeValue.timeValueDays(randomIntBetween(5, 10))
         );
@@ -361,9 +361,9 @@ public class TransportGetDataStreamsActionTests extends ESTestCase {
                 Settings.builder()
                     .put(
                         DataStreamGlobalRetentionSettings.DATA_STREAMS_DEFAULT_RETENTION_SETTING.getKey(),
-                        globalRetention.defaultRetention()
+                        dataGlobalRetention.defaultRetention()
                     )
-                    .put(DataStreamGlobalRetentionSettings.DATA_STREAMS_MAX_RETENTION_SETTING.getKey(), globalRetention.maxRetention())
+                    .put(DataStreamGlobalRetentionSettings.DATA_STREAMS_MAX_RETENTION_SETTING.getKey(), dataGlobalRetention.maxRetention())
                     .build()
             )
         );
@@ -377,7 +377,9 @@ public class TransportGetDataStreamsActionTests extends ESTestCase {
             emptyDataStreamFailureStoreSettings,
             null
         );
-        assertThat(response.getGlobalRetention(), equalTo(globalRetention));
+        assertThat(response.getDataGlobalRetention(), equalTo(dataGlobalRetention));
+        // We used the default failures retention here which is greater than the max
+        assertThat(response.getFailuresGlobalRetention(), equalTo(new DataStreamGlobalRetention(null, dataGlobalRetention.maxRetention())));
     }
 
     public void testDataStreamIsFailureStoreEffectivelyEnabled_disabled() {

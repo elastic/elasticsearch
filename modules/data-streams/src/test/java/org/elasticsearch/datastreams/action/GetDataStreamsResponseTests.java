@@ -45,7 +45,7 @@ public class GetDataStreamsResponseTests extends AbstractWireSerializingTestCase
 
     @Override
     protected Writeable.Reader<Response> instanceReader() {
-        return Response::new;
+        return Response::read;
     }
 
     @Override

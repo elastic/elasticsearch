@@ -11,6 +11,9 @@ package org.elasticsearch.common.network;
 
 import org.elasticsearch.common.metrics.ExponentialBucketHistogram;
 
+/**
+ * Tracks how long message handling takes on a transport thread as a histogram with fixed buckets.
+ */
 public class HandlingTimeTracker extends ExponentialBucketHistogram {
 
     public static final int BUCKET_COUNT = 18;

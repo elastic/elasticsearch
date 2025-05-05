@@ -814,7 +814,6 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
     @AfterClass
     public static void testFunctionLicenseChecks() throws Exception {
         Class<?> testClass = getTestClass();
-        DocsV3Support.LicenseRequirementChecker licenseChecker = new DocsV3Support.LicenseRequirementChecker(testClass);
         Logger log = LogManager.getLogger(testClass);
         FunctionDefinition definition = definition(functionName());
         if (definition == null) {
@@ -822,6 +821,7 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
             return;
         }
         log.info("Running function license checks");
+        DocsV3Support.LicenseRequirementChecker licenseChecker = new DocsV3Support.LicenseRequirementChecker(testClass);
         License.OperationMode functionLicense = licenseChecker.invoke(null);
         Constructor<?> ctor = constructorWithFunctionInfo(definition.clazz());
         if (LicenseAware.class.isAssignableFrom(definition.clazz()) == false) {
@@ -834,9 +834,7 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
             return;
         }
         // For classes with LicenseAware, we need to check that the license is correct
-        XPackLicenseState basicLicense = makeLicenseState(License.OperationMode.BASIC);
-        XPackLicenseState platinumLicense = makeLicenseState(License.OperationMode.PLATINUM);
-        XPackLicenseState enterpriseLicense = makeLicenseState(License.OperationMode.ENTERPRISE);
+        TestCheckLicense checkLicense = new TestCheckLicense();
 
         // Go through all signatures and assert that the license is as expected
         signatures(testClass).forEach((signature, returnType) -> {
@@ -854,23 +852,10 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
                 // Check that object implements the LicenseAware interface
                 if (LicenseAware.class.isAssignableFrom(instance.getClass())) {
                     LicenseAware licenseAware = (LicenseAware) instance;
-                    boolean basic = licenseAware.licenseCheck(basicLicense);
-                    boolean platinum = licenseAware.licenseCheck(platinumLicense);
-                    boolean enterprise = licenseAware.licenseCheck(enterpriseLicense);
-                    if (license == License.OperationMode.BASIC) {
-                        assertTrue("Basic license should be accepted for " + signature, basic);
-                        assertTrue("Platinum license should be accepted for " + signature, platinum);
-                        assertTrue("Enterprise license should be accepted for " + signature, enterprise);
-                    }
-                    if (license == License.OperationMode.PLATINUM) {
-                        assertFalse("Basic license should not be accepted for " + signature, basic);
-                        assertTrue("Platinum license should be accepted for " + signature, platinum);
-                        assertTrue("Enterprise license should be accepted for " + signature, enterprise);
-                    }
-                    if (license == License.OperationMode.ENTERPRISE) {
-                        assertFalse("Basic license should not be accepted for " + signature, basic);
-                        assertFalse("Platinum license should not be accepted for " + signature, platinum);
-                        assertTrue("Enterprise license should be accepted for " + signature, enterprise);
+                    switch (license) {
+                        case BASIC -> checkLicense.assertLicenseCheck(licenseAware, signature, true, true, true);
+                        case PLATINUM -> checkLicense.assertLicenseCheck(licenseAware, signature, false, true, true);
+                        case ENTERPRISE -> checkLicense.assertLicenseCheck(licenseAware, signature, false, false, true);
                     }
                 } else {
                     fail("Function " + definition.name() + " does not implement LicenseAware");
@@ -879,6 +864,31 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
                 fail(e);
             }
         });
+    }
+
+    private static class TestCheckLicense {
+        XPackLicenseState basicLicense = makeLicenseState(License.OperationMode.BASIC);
+        XPackLicenseState platinumLicense = makeLicenseState(License.OperationMode.PLATINUM);
+        XPackLicenseState enterpriseLicense = makeLicenseState(License.OperationMode.ENTERPRISE);
+
+        private void assertLicenseCheck(
+            LicenseAware licenseAware,
+            List<DataType> signature,
+            boolean allowsBasic,
+            boolean allowsPlatinum,
+            boolean allowsEnterprise
+        ) {
+            boolean basic = licenseAware.licenseCheck(basicLicense);
+            boolean platinum = licenseAware.licenseCheck(platinumLicense);
+            boolean enterprise = licenseAware.licenseCheck(enterpriseLicense);
+            assertThat("Basic license should be accepted for " + signature, basic, equalTo(allowsBasic));
+            assertThat("Platinum license should be accepted for " + signature, platinum, equalTo(allowsPlatinum));
+            assertThat("Enterprise license should be accepted for " + signature, enterprise, equalTo(allowsEnterprise));
+        }
+
+        private void assertLicenseCheck(List<DataType> signature, boolean allowed, boolean expected) {
+            assertThat("Basic license should " + (expected ? "" : "not ") + "be accepted for " + signature, allowed, equalTo(expected));
+        }
     }
 
     private static XPackLicenseState makeLicenseState(License.OperationMode mode) {

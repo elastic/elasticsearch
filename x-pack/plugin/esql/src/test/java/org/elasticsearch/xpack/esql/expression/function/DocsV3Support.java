@@ -294,10 +294,7 @@ public abstract class DocsV3Support {
             }
 
             if (staticMethod == null) {
-                fallbackLambda = fieldTypes -> {
-                    // Provide your default implementation here
-                    return License.OperationMode.BASIC;
-                };
+                fallbackLambda = fieldTypes -> License.OperationMode.BASIC;
             }
         }
 

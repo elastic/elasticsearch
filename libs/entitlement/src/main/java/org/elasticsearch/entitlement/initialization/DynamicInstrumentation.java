@@ -16,7 +16,6 @@ import org.elasticsearch.entitlement.instrumentation.InstrumentationService;
 import org.elasticsearch.entitlement.instrumentation.Instrumenter;
 import org.elasticsearch.entitlement.instrumentation.MethodKey;
 import org.elasticsearch.entitlement.instrumentation.Transformer;
-import org.elasticsearch.entitlement.runtime.policy.entitlements.Entitlement;
 
 import java.lang.instrument.Instrumentation;
 import java.lang.instrument.UnmodifiableClassException;
@@ -94,8 +93,8 @@ class DynamicInstrumentation {
      * @param checkerInterface the interface to use to find methods to instrument and to use in the injected instrumentation code
      * @param verifyBytecode   whether we should perform bytecode verification before and after instrumenting each method
      */
-    static void initialize(Instrumentation inst, Class<?> checkerInterface, boolean verifyBytecode)
-        throws ClassNotFoundException, NoSuchMethodException, UnmodifiableClassException {
+    static void initialize(Instrumentation inst, Class<?> checkerInterface, boolean verifyBytecode) throws ClassNotFoundException,
+        NoSuchMethodException, UnmodifiableClassException {
 
         var checkMethods = getMethodsToInstrument(checkerInterface);
         var classesToTransform = checkMethods.keySet().stream().map(MethodKey::className).collect(Collectors.toSet());
@@ -120,23 +119,23 @@ class DynamicInstrumentation {
         }
     }
 
-    private static Map<MethodKey, CheckMethod> getMethodsToInstrument(Class<?> checkerInterface)
-        throws ClassNotFoundException, NoSuchMethodException {
+    private static Map<MethodKey, CheckMethod> getMethodsToInstrument(Class<?> checkerInterface) throws ClassNotFoundException,
+        NoSuchMethodException {
         Map<MethodKey, CheckMethod> checkMethods = new HashMap<>(INSTRUMENTATION_SERVICE.lookupMethods(checkerInterface));
         Stream.of(
-                fileSystemProviderChecks(),
-                fileStoreChecks(),
-                pathChecks(),
-                Stream.of(
-                    INSTRUMENTATION_SERVICE.lookupImplementationMethod(
-                        SelectorProvider.class,
-                        "inheritedChannel",
-                        SelectorProvider.provider().getClass(),
-                        EntitlementChecker.class,
-                        "checkSelectorProviderInheritedChannel"
-                    )
+            fileSystemProviderChecks(),
+            fileStoreChecks(),
+            pathChecks(),
+            Stream.of(
+                INSTRUMENTATION_SERVICE.lookupImplementationMethod(
+                    SelectorProvider.class,
+                    "inheritedChannel",
+                    SelectorProvider.provider().getClass(),
+                    EntitlementChecker.class,
+                    "checkSelectorProviderInheritedChannel"
                 )
             )
+        )
             .flatMap(Function.identity())
             .forEach(instrumentation -> checkMethods.put(instrumentation.targetMethod(), instrumentation.checkMethod()));
 

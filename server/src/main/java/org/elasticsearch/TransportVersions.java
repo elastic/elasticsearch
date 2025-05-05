@@ -211,7 +211,9 @@ public class TransportVersions {
     public static final TransportVersion ESQL_REPORT_ORIGINAL_TYPES_BACKPORT_8_19 = def(8_841_0_22);
     public static final TransportVersion PINNED_RETRIEVER_8_19 = def(8_841_0_23);
     public static final TransportVersion ESQL_AGGREGATE_METRIC_DOUBLE_BLOCK_8_19 = def(8_841_0_24);
-    public static final TransportVersion RESCORE_VECTOR_ALLOW_ZERO_8_19 = def(8_841_0_24);
+    public static final TransportVersion INTRODUCE_FAILURES_LIFECYCLE_BACKPORT_8_19 = def(8_841_0_25);
+    public static final TransportVersion INTRODUCE_FAILURES_DEFAULT_RETENTION_BACKPORT_8_19 = def(8_841_0_26);
+    public static final TransportVersion RESCORE_VECTOR_ALLOW_ZERO_BACKPORT_8_19 = def(8_841_0_27);
 
     /*
      * STOP! READ THIS FIRST! No, really,

@@ -362,6 +362,18 @@ public class StatelessReshardIT extends AbstractStatelessIntegTestCase {
         );
     }
 
+    public void testReshardSystemIndex() throws Exception {
+        String indexNode = startMasterAndIndexNode();
+        ensureStableCluster(1);
+
+        final String indexName = SYSTEM_INDEX_NAME + "-" + randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
+        createIndex(indexName, indexSettings(1, 0).build());
+        ensureGreen(indexName);
+
+        ReshardIndexRequest request = new ReshardIndexRequest(indexName, 2);
+        expectThrows(IllegalArgumentException.class, () -> client(indexNode).execute(TransportReshardAction.TYPE, request).actionGet());
+    }
+
     public void testReshardTargetWillEqualToPrimaryTermOfSource() throws Exception {
         String indexNode = startMasterAndIndexNode();
         ensureStableCluster(1);

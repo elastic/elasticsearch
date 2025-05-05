@@ -106,13 +106,11 @@ Synthetic `_source` is Generally Available only for TSDB indices (indices that h
 
 `text` fields can use a [`keyword`](/reference/elasticsearch/mapping-reference/keyword.md#keyword-synthetic-source) sub-field to support [synthetic `_source`](/reference/elasticsearch/mapping-reference/mapping-source-field.md#synthetic-source) without storing values of the text field itself.
 
-::::{note}
-Synthetic source of the `text` field will have the same [modifications](/reference/elasticsearch/mapping-reference/mapping-source-field.md#synthetic-source) as a `keyword` field in this case.
+In this case, the synthetic source of the `text` field will have the same [modifications](/reference/elasticsearch/mapping-reference/mapping-source-field.md#synthetic-source) as a `keyword` field.
 
 These modifications can impact usage of `text` fields:
-* Reordering text fields can have an effect on [phrase](/reference/query-languages/query-dsl/query-dsl-match-query-phrase.md) and [span](/reference/query-languages/query-dsl/span-queries.md) queries. See the discussion about [`position_increment_gap`](/reference/elasticsearch/mapping-reference/position-increment-gap.md) for more detail. You can avoid this by making sure the `slop` parameter on the phrase queries is lower than the `position_increment_gap`. This is the default.
-* Handling of `null` values is different. `text` fields ignore `null` values but `keyword` fields support replacing `null`s with a value specified in the `null_value` parameter. This replacement will be represented in synthetic source.
-::::
+* Reordering text fields can have an effect on [phrase](/reference/query-languages/query-dsl/query-dsl-match-query-phrase.md) and [span](/reference/query-languages/query-dsl/span-queries.md) queries. See the discussion about [`position_increment_gap`](/reference/elasticsearch/mapping-reference/position-increment-gap.md) for more details. You can avoid this by making sure the `slop` parameter on the phrase queries is lower than the `position_increment_gap`. This is the default.
+* Handling of `null` values is different. `text` fields ignore `null` values, but `keyword` fields support replacing `null` values with a value specified in the `null_value` parameter. This replacement is represented in synthetic source.
 
 
 If the `text` field sets `store` to `true` then the sub-field is not used and no modifications are applied.

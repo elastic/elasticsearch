@@ -10,7 +10,6 @@ import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.Node;
 import org.elasticsearch.xpack.esql.core.util.ReflectionUtils;
 import org.elasticsearch.xpack.esql.optimizer.LogicalOptimizerContext;
-import org.elasticsearch.xpack.esql.plan.logical.Drop;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
@@ -74,8 +73,7 @@ public final class OptimizerRules {
         protected boolean shouldVisit(Node<?> node) {
             return switch (node) {
                 case EsRelation relation -> false;
-                case Project project -> false;// this covers both keep and project
-                case Drop drop -> false;
+                case Project project -> false;// this covers project, keep and drop
                 case Limit limit -> false;
                 default -> true;
             };

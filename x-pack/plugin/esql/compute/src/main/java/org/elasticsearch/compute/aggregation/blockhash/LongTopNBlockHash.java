@@ -107,8 +107,8 @@ public final class LongTopNBlockHash extends BlockHash {
 
         if (nullsFirst) {
             hasNull = true;
-            if (valuesInTop == limit) {
-                migrateToSmallTop();
+            migrateToSmallTop();
+            if (valuesInTop == limit - 1) {
                 if (valuesInTop == 0) {
                     lastTopValue = asc ? Long.MAX_VALUE : Long.MIN_VALUE;
                 } else {
@@ -173,7 +173,7 @@ public final class LongTopNBlockHash extends BlockHash {
         assert topValues.getLimit() == limit : "The top values can't be migrated twice";
 
         topValues.reduceLimitByOne();
-        valuesInTop = Math.min(valuesInTop, limit - 1);
+        valuesInTop = topValues.getCount();
     }
 
     private boolean isBetterThan(long value, long other) {

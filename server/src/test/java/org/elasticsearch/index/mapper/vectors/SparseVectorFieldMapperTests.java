@@ -348,7 +348,9 @@ public class SparseVectorFieldMapperTests extends MapperTestCase {
         })));
         assertThat(
             eTestInteger.getMessage(),
-            containsString("Failed to parse mapping: [pruning_config] field [tokens_freq_ratio_threshold]field should be a number between 1 and 100")
+            containsString(
+                "Failed to parse mapping: [pruning_config] field [tokens_freq_ratio_threshold]field should be a number between 1 and 100"
+            )
         );
 
         Exception eTestRangeLower = expectThrows(MapperParsingException.class, () -> createMapperService(fieldMapping(b -> {
@@ -392,7 +394,9 @@ public class SparseVectorFieldMapperTests extends MapperTestCase {
         })));
         assertThat(
             eTestDouble.getMessage(),
-            containsString("Failed to parse mapping: [pruning_config] field [tokens_weight_threshold]field should be a number between 0.0 and 1.0")
+            containsString(
+                "Failed to parse mapping: [pruning_config] field [tokens_weight_threshold]field should be a number between 0.0 and 1.0"
+            )
         );
 
         Exception eTestRangeLower = expectThrows(MapperParsingException.class, () -> createMapperService(fieldMapping(b -> {

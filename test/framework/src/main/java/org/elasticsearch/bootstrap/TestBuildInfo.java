@@ -9,36 +9,6 @@
 
 package org.elasticsearch.bootstrap;
 
-import org.elasticsearch.entitlement.runtime.policy.PolicyManager;
-
-import java.security.CodeSource;
 import java.util.List;
-import java.util.Map;
-import java.util.function.Function;
 
-record TestBuildInfoLocations(String className, String moduleName) { }
-
-record TestBuildInfo(String componentName, List<TestBuildInfoLocations> locations) {
-
-    private static class TestScopeResolver {
-
-        private final Map<CodeSource, PolicyManager.PolicyScope> scopeMap;
-
-        PolicyManager.PolicyScope getScope(Class<?> callerClass) {
-            CodeSource callerCodeSource = callerClass.getProtectionDomain().getCodeSource();
-            return scopeMap.getOrDefault(callerCodeSource, PolicyManager.PolicyScope.unknown(null));
-        }
-
-    }
-
-    Function<Class<?>, PolicyManager.PolicyScope> toScopeResolver() {
-
-        for (var location: locations) {
-            location.className()
-        }
-
-        var testScopeResolver = new TestScopeResolver();
-        return testScopeResolver::getScope;
-    }
-
-}
+record TestBuildInfo(String componentName, List<TestBuildInfoLocations> locations) {}

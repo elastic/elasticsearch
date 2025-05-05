@@ -11,12 +11,17 @@ package org.elasticsearch.bootstrap;
 
 import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParserConfiguration;
+import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
+import java.net.URL;
+import java.util.ArrayList;
 import java.util.List;
 
-public class TestBuildInfoParser {
+class TestBuildInfoParser {
 
     private static final String NAME_KEY = "name";
     private static final String LOCATIONS_KEY = "locations";
@@ -56,12 +61,27 @@ public class TestBuildInfoParser {
         }
 
         TestBuildInfo build() {
-            return new TestBuildInfo(name);
+            return new TestBuildInfo(name, locations.stream().map(l -> new TestBuildInfoLocations(l.className, l.moduleName)).toList());
         }
     }
 
-
-    public static TestBuildInfo fromXContent(final XContentParser parser) throws IOException {
+    static TestBuildInfo fromXContent(final XContentParser parser) throws IOException {
         return PARSER.parse(parser, null).build();
     }
+
+    // TODO: possibly move it to whoever is calling/using this
+    static List<TestBuildInfo> parseAllPluginTestBuildInfo(final XContentParser parser) throws IOException {
+        var xContent = XContentFactory.xContent(XContentType.JSON);
+        List<TestBuildInfo> pluginsTestBuildInfos = new ArrayList<>();
+        var resources = TestBuildInfoParser.class.getClassLoader().getResources("/META-INF/es-plugins/");
+        URL resource;
+        while ((resource = resources.nextElement()) != null) {
+            try (var stream = resource.openStream()) {
+                pluginsTestBuildInfos.add(fromXContent(xContent.createParser(XContentParserConfiguration.EMPTY, stream)));
+            }
+        }
+        return pluginsTestBuildInfos;
+    }
+
+    // TODO: server test build info
 }

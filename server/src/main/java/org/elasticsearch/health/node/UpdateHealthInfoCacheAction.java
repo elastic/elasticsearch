@@ -92,7 +92,7 @@ public class UpdateHealthInfoCacheAction extends ActionType<AcknowledgedResponse
                 this.repositoriesHealthInfo = in.getTransportVersion().onOrAfter(TransportVersions.V_8_13_0)
                     ? in.readOptionalWriteable(RepositoriesHealthInfo::new)
                     : null;
-                this.fileSettingsHealthInfo = in.getTransportVersion().onOrAfter(TransportVersions.FILE_SETTINGS_HEALTH_INFO)
+                this.fileSettingsHealthInfo = HealthInfo.includeFileSettings(in.getTransportVersion())
                     ? in.readOptionalWriteable(FileSettingsService.FileSettingsHealthInfo::new)
                     : null;
             } else {
@@ -143,7 +143,7 @@ public class UpdateHealthInfoCacheAction extends ActionType<AcknowledgedResponse
                 if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_13_0)) {
                     out.writeOptionalWriteable(repositoriesHealthInfo);
                 }
-                if (out.getTransportVersion().onOrAfter(TransportVersions.FILE_SETTINGS_HEALTH_INFO)) {
+                if (HealthInfo.includeFileSettings(out.getTransportVersion())) {
                     out.writeOptionalWriteable(fileSettingsHealthInfo);
                 }
             } else {

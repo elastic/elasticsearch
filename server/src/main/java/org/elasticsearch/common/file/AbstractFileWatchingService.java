@@ -18,6 +18,7 @@ import org.elasticsearch.core.FixForMultiProject;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.file.ClosedWatchServiceException;
+import java.nio.file.Files;
 import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
 import java.nio.file.StandardWatchEventKinds;
@@ -27,11 +28,11 @@ import java.nio.file.WatchService;
 import java.nio.file.attribute.BasicFileAttributes;
 import java.nio.file.attribute.FileTime;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ExecutionException;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 /**
@@ -237,14 +238,16 @@ public abstract class AbstractFileWatchingService extends AbstractLifecycleCompo
                 key.reset();
 
                 if (key == settingsDirWatchKey) {
-                    // there may be multiple events for the same file - we only want to re-read once
-                    Set<Path> processedFiles = new HashSet<>();
-                    for (WatchEvent<?> e : events) {
-                        Path fullFile = settingsDir.resolve(e.context().toString());
-                        if (processedFiles.add(fullFile)) {
-                            if (fileChanged(fullFile)) {
-                                process(fullFile);
-                            }
+                    Set<Path> changedPaths = events.stream()
+                        .map(event -> settingsDir.resolve(event.context().toString()))
+                        .collect(Collectors.toSet());
+                    for (var changedPath : changedPaths) {
+                        // If a symlinked dir changed in the settings dir, it could be linked to other symlinks, so reprocess all files
+                        if (Files.isDirectory(changedPath) && Files.isSymbolicLink(changedPath)) {
+                            reprocessAllChangedFilesInSettingsDir();
+                            break;
+                        } else if (fileChanged(changedPath)) {
+                            process(changedPath);
                         }
                     }
                 } else if (key == configDirWatchKey) {
@@ -257,14 +260,7 @@ public abstract class AbstractFileWatchingService extends AbstractLifecycleCompo
                         settingsDirWatchKey = enableDirectoryWatcher(settingsDirWatchKey, settingsDir);
 
                         // re-read the settings directory, and ping for any changes
-                        try (Stream<Path> files = filesList(settingsDir)) {
-                            for (var f = files.iterator(); f.hasNext();) {
-                                Path file = f.next();
-                                if (fileChanged(file)) {
-                                    process(file);
-                                }
-                            }
-                        }
+                        reprocessAllChangedFilesInSettingsDir();
                     } else if (settingsDirWatchKey != null) {
                         settingsDirWatchKey.cancel();
                     }
@@ -276,6 +272,17 @@ public abstract class AbstractFileWatchingService extends AbstractLifecycleCompo
             logger.info("shutting down watcher thread");
         } catch (Exception e) {
             logger.error("shutting down watcher thread with exception", e);
+        }
+    }
+
+    private void reprocessAllChangedFilesInSettingsDir() throws IOException, InterruptedException {
+        try (Stream<Path> files = filesList(settingsDir)) {
+            for (var f = files.iterator(); f.hasNext();) {
+                Path file = f.next();
+                if (fileChanged(file)) {
+                    process(file);
+                }
+            }
         }
     }
 

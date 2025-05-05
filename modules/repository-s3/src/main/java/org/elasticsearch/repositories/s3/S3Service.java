@@ -263,7 +263,7 @@ class S3Service extends AbstractLifecycleComponent {
                 LOGGER.warn(
                     """
                         found S3 client with endpoint [{}] that is missing a scheme, guessing it should use 'https://'; \
-                        to suppress this warning, specify the scheme in the [{}] setting on this node""",
+                        to suppress this warning, add a scheme prefix to the [{}] setting on this node""",
                     clientSettings.endpoint,
                     S3ClientSettings.ENDPOINT_SETTING.getConcreteSettingForNamespace("CLIENT_NAME").getKey()
                 );

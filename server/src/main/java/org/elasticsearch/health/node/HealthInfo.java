@@ -52,9 +52,7 @@ public record HealthInfo(
                 ? input.readOptionalWriteable(DataStreamLifecycleHealthInfo::new)
                 : null,
             input.getTransportVersion().onOrAfter(TransportVersions.V_8_13_0) ? input.readMap(RepositoriesHealthInfo::new) : Map.of(),
-            includeFileSettings(input.getTransportVersion())
-                ? input.readOptionalWriteable(FileSettingsHealthInfo::new)
-                : INDETERMINATE
+            includeFileSettings(input.getTransportVersion()) ? input.readOptionalWriteable(FileSettingsHealthInfo::new) : INDETERMINATE
         );
     }
 

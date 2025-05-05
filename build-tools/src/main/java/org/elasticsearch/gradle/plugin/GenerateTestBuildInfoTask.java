@@ -57,9 +57,6 @@ public abstract class GenerateTestBuildInfoTask extends DefaultTask {
 
     @TaskAction
     public void generatePropertiesFile() throws IOException {
-        // TODO: use ASM to load module-info.class as bytes
-        // TODO: META-INF jar manifest -- automatic name property
-        // TODO: look at jar file name -- remove version number of .jar
         Map<String, String> classesToModules = new HashMap<>();
         for (File file : getCodeLocations().get().getFiles()) {
             if (file.exists()) {

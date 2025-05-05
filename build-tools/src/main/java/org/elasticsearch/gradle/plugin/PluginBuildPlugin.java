@@ -58,20 +58,9 @@ public class PluginBuildPlugin implements Plugin<Project> {
 
         SourceSetContainer sourceSets = project.getExtensions().getByType(SourceSetContainer.class);
 
-        // TODO: we no longer care about descriptor remove as inputs
-        // TODO: we no longer care about policy-yaml file remove as inputs
         var testBuildInfoTask = project.getTasks().register("generateTestBuildInfo", GenerateTestBuildInfoTask.class, task -> {
-            var pluginProperties = project.getTasks().withType(GeneratePluginPropertiesTask.class).named("pluginProperties");
-            // task.getDescriptorFile().set(pluginProperties.flatMap(GeneratePluginPropertiesTask::getOutputFile));
             var propertiesExtension = project.getExtensions().getByType(PluginPropertiesExtension.class);
             task.getComponentName().set(providerFactory.provider(propertiesExtension::getName));
-            var policy = project.getLayout().getProjectDirectory().file("src/main/plugin-metadata/entitlement-policy.yaml");
-            if (policy.getAsFile().exists()) {
-                // task.getPolicyFile().set(policy);
-            }
-            // TODO: get first class of each location in deterministic order
-            // TODO: filter META_INF and module-info.class out of these
-
             task.getCodeLocations()
                 .set(
                     project.getConfigurations()
@@ -79,18 +68,18 @@ public class PluginBuildPlugin implements Plugin<Project> {
                         .minus(project.getConfigurations().getByName(CompileOnlyResolvePlugin.RESOLVEABLE_COMPILE_ONLY_CONFIGURATION_NAME))
                         .plus(sourceSets.getByName(SourceSet.MAIN_SOURCE_SET_NAME).getOutput().getClassesDirs())
                 );
-
-            Provider<Directory> directory = project.getLayout().getBuildDirectory().dir("generated-build-info/test");
+            Provider<Directory> directory = project.getLayout().getBuildDirectory().dir("generated-build-info");
             task.getOutputDirectory().set(directory);
         });
 
-        sourceSets.named(SourceSet.TEST_SOURCE_SET_NAME).configure(sourceSet -> { sourceSet.getResources().srcDir(testBuildInfoTask); });
-
         project.getTasks().withType(ProcessResources.class).named("processResources").configure(task -> {
-            // TODO: this is a copy task
-            // TODO: do this for descriptor and policy-yaml file
-            // TODO: use child copy spec
-            // task.into()
+            var componentName = project.getExtensions().getByType(PluginPropertiesExtension.class).getName();
+            var pluginProperties = project.getTasks().withType(GeneratePluginPropertiesTask.class).named("pluginProperties");
+            task.into("META-INF/es-plugins/" + componentName + "/", copy -> {
+                copy.from(pluginProperties);
+                copy.from(project.getLayout().getProjectDirectory().file("src/main/plugin-metadata/entitlement-policy.yaml"));
+            });
+            task.into("META-INF", copy -> copy.from(testBuildInfoTask));
         });
     }
 

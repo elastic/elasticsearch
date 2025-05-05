@@ -110,6 +110,7 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.locks.Condition;
@@ -454,67 +455,32 @@ public abstract class Engine implements Closeable {
         private final CounterMetric throttleTimeMillisMetric = new CounterMetric();
         private volatile long startOfThrottleNS;
         private static final ReleasableLock NOOP_LOCK = new ReleasableLock(new NoOpLock());
-        private final ReleasableLock lockReference = new ReleasableLock(new ReentrantLock());
-        private final Lock pauseIndexingLock = new ReentrantLock();
-        private final Condition pauseCondition = pauseIndexingLock.newCondition();
-        private final ReleasableLock pauseLockReference = new ReleasableLock(pauseIndexingLock);
-        private volatile AtomicBoolean pauseIndexing = new AtomicBoolean();
+        private final PauseLock throttlingLock;
+        private final ReleasableLock lockReference;
         private volatile ReleasableLock lock = NOOP_LOCK;
 
+        public IndexThrottle(boolean pause) {
+            throttlingLock = new PauseLock(pause ? 0 : 1);
+            lockReference = new ReleasableLock(throttlingLock);
+        }
+
         public Releasable acquireThrottle() {
-            if (lock == pauseLockReference) {
-                pauseLockReference.acquire();
-                try {
-                    while (pauseIndexing.getAcquire()) {
-                        logger.trace("Waiting on pause indexing lock" +
-                            "");
-                        pauseCondition.await();
-                    }
-                } catch (InterruptedException e) {
-                    Thread.currentThread().interrupt();
-                    throw new RuntimeException(e);
-                } finally {
-                    // System.out.println("Acquired pause indexing lock");
-                    logger.trace("Acquired pause indexing lock");
-                }
-                return pauseLockReference;
-            } else {
-                return lock.acquire();
-            }
+            return lock.acquire();
         }
 
         /** Activate throttling, which switches the lock to be a real lock */
         public void activate() {
             assert lock == NOOP_LOCK : "throttling activated while already active";
             startOfThrottleNS = System.nanoTime();
+            throttlingLock.throttle();
             lock = lockReference;
-        }
-
-        public void activatePause() {
-            assert lock == NOOP_LOCK : "throttling activated while already active";
-            startOfThrottleNS = System.nanoTime();
-            // System.out.println("Activate pause");
-            pauseIndexing.setRelease(true);
-            lock = pauseLockReference;
         }
 
         /** Deactivate throttling, which switches the lock to be an always-acquirable NoOpLock */
         public void deactivate() {
             assert lock != NOOP_LOCK : "throttling deactivated but not active";
 
-            if (lock == pauseLockReference) {
-                logger.trace("Deactivate index throttling pause");
-
-                // Signal the threads that are waiting on pauseCondition
-                pauseLockReference.acquire();
-                try {
-                    // System.out.println("Deactivate pause");
-                    pauseIndexing.setRelease(false);
-                    pauseCondition.signalAll();
-                } finally {
-                    pauseLockReference.close();
-                }
-            }
+            throttlingLock.unthrottle();
             lock = NOOP_LOCK;
 
             assert startOfThrottleNS > 0 : "Bad state of startOfThrottleNS";
@@ -601,6 +567,58 @@ public abstract class Engine implements Closeable {
         @Override
         public Condition newCondition() {
             throw new UnsupportedOperationException("NoOpLock can't provide a condition");
+        }
+    }
+
+    /* A lock implementation that allows us to control how many threads can take the lock
+     * In particular, this is used to set the number of allowed threads to 1 or 0
+     * when index throttling is activated.
+     */
+    protected static final class PauseLock implements Lock {
+        private final Semaphore semaphore = new Semaphore(Integer.MAX_VALUE);
+        private final int allowThreads;
+
+        public PauseLock(int allowThreads) {
+            this.allowThreads = allowThreads;
+        }
+
+        public void lock() {
+            semaphore.acquireUninterruptibly();
+        }
+
+        @Override
+        public void lockInterruptibly() throws InterruptedException {
+            semaphore.acquire();
+        }
+
+        @Override
+        public void unlock() {
+            semaphore.release();
+        }
+
+        @Override
+        public boolean tryLock() {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public boolean tryLock(long time, TimeUnit unit) throws InterruptedException {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public Condition newCondition() {
+            throw new UnsupportedOperationException();
+        }
+
+        public void throttle() {
+            assert semaphore.availablePermits() == Integer.MAX_VALUE;
+            semaphore.acquireUninterruptibly(Integer.MAX_VALUE - allowThreads);
+        }
+
+        public void unthrottle() {
+            assert semaphore.availablePermits() <= allowThreads;
+            semaphore.release(Integer.MAX_VALUE - allowThreads);
         }
     }
 

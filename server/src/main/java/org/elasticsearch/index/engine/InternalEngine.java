@@ -260,7 +260,7 @@ public class InternalEngine extends Engine {
                 engineConfig.getThreadPoolMergeExecutorService()
             );
             scheduler = mergeScheduler.getMergeScheduler();
-            throttle = new IndexThrottle();
+            throttle = new IndexThrottle(pauseIndexingOnThrottle);
             try {
                 store.trimUnsafeCommits(config().getTranslogConfig().getTranslogPath());
                 translog = openTranslog(
@@ -2826,11 +2826,7 @@ public class InternalEngine extends Engine {
         int count = throttleRequestCount.incrementAndGet();
         assert count >= 1 : "invalid post-increment throttleRequestCount=" + count;
         if (count == 1) {
-            if (pauseIndexingOnThrottle) {
-                throttle.activatePause();
-            } else {
-                throttle.activate();
-            }
+            throttle.activate();
         }
     }
 

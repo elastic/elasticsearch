@@ -204,7 +204,7 @@ public class TokenPruningConfig implements Writeable, ToXContentObject {
         return null;
     }
 
-    private static Float parseFloatNumberFromObject(Object numberObject) {
+    private static Float parseFloatNumberFromObject(Object numberObject, String fieldName, String exceptionDetails) {
         if (numberObject instanceof Integer intValue) {
             return (float) intValue;
         } else if (numberObject instanceof Float floatValue) {
@@ -212,7 +212,8 @@ public class TokenPruningConfig implements Writeable, ToXContentObject {
         } else if (numberObject instanceof Double doubleValue) {
             return ((Double) numberObject).floatValue();
         }
-        return null;
+
+        throw new MapperParsingException("[" + PRUNING_CONFIG_FIELD + "] field [" + fieldName + "]" + exceptionDetails);
     }
 
     private static Float parseTokensWeightThreshold(Object mappedTokensWeightThreshold) {
@@ -220,17 +221,11 @@ public class TokenPruningConfig implements Writeable, ToXContentObject {
             return DEFAULT_TOKENS_WEIGHT_THRESHOLD;
         }
 
-        Float tokensWeightThreshold = parseFloatNumberFromObject(mappedTokensWeightThreshold);
-
-        if (tokensWeightThreshold == null) {
-            throw new MapperParsingException(
-                "["
-                    + PRUNING_CONFIG_FIELD
-                    + "] field ["
-                    + TOKENS_WEIGHT_THRESHOLD.getPreferredName()
-                    + "] field should be a number between 0.0 and 1.0"
-            );
-        }
+        Float tokensWeightThreshold = parseFloatNumberFromObject(
+            mappedTokensWeightThreshold,
+            TOKENS_WEIGHT_THRESHOLD.getPreferredName(),
+            "field should be a number between 0.0 and 1.0"
+        );
 
         if (tokensWeightThreshold < MIN_TOKENS_WEIGHT_THRESHOLD || tokensWeightThreshold > MAX_TOKENS_WEIGHT_THRESHOLD) {
             throw new MapperParsingException(
@@ -249,17 +244,11 @@ public class TokenPruningConfig implements Writeable, ToXContentObject {
             return DEFAULT_TOKENS_FREQ_RATIO_THRESHOLD;
         }
 
-        Float tokensFreqRatioThreshold = parseFloatNumberFromObject(mappedTokensFreqRatioThreshold);
-
-        if (tokensFreqRatioThreshold == null) {
-            throw new MapperParsingException(
-                "["
-                    + PRUNING_CONFIG_FIELD
-                    + "] field ["
-                    + TOKENS_FREQ_RATIO_THRESHOLD.getPreferredName()
-                    + "] field should be a number between 1 and 100"
-            );
-        }
+        Float tokensFreqRatioThreshold = parseFloatNumberFromObject(
+            mappedTokensFreqRatioThreshold,
+            TOKENS_FREQ_RATIO_THRESHOLD.getPreferredName(),
+            "field should be a number between 1 and 100"
+        );
 
         if (tokensFreqRatioThreshold < MIN_TOKENS_FREQ_RATIO_THRESHOLD || tokensFreqRatioThreshold > MAX_TOKENS_FREQ_RATIO_THRESHOLD) {
             throw new MapperParsingException(

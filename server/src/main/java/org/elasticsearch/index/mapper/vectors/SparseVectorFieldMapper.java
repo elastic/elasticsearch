@@ -515,11 +515,16 @@ public class SparseVectorFieldMapper extends FieldMapper {
             if (pruningConfiguration == null) {
                 return null;
             }
+
+            if (prune == null) {
+                throw new MapperParsingException("[index_options] field [pruning_config] should only be set if [prune] is set to true");
+            }
+
             if ((pruningConfiguration instanceof Map) == false) {
                 throw new MapperParsingException("[index_options] field [pruning_config] should be a map");
             }
 
-            if (prune != null && prune == false) {
+            if (prune == false) {
                 throw new MapperParsingException("[index_options] field [pruning_config] should not be set if [prune] is false");
             }
 

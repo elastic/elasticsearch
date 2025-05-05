@@ -235,6 +235,9 @@ public class SparseVectorQueryBuilder extends AbstractQueryBuilder<SparseVectorQ
             );
         }
 
+        Boolean pruneTokensToUse = shouldPruneTokens;
+        TokenPruningConfig pruningConfigToUse = tokenPruningConfig;
+
         // if the query options for pruning are not set,
         // we need to check the index options for this field
         // and use those if set - however, only if the index
@@ -247,13 +250,12 @@ public class SparseVectorQueryBuilder extends AbstractQueryBuilder<SparseVectorQ
                 sparseVectorFieldMapper
             );
 
-            return pruningOptions.pruneTokens
-                ? WeightedTokensUtils.queryBuilderWithPrunedTokens(fieldName, pruningOptions.pruningConfig, queryVectors, ft, context)
-                : WeightedTokensUtils.queryBuilderWithAllTokens(fieldName, queryVectors, ft, context);
+            pruneTokensToUse = pruningOptions.pruneTokens;
+            pruningConfigToUse = pruningOptions.pruningConfig;
         }
 
-        return (shouldPruneTokens != null && shouldPruneTokens)
-            ? WeightedTokensUtils.queryBuilderWithPrunedTokens(fieldName, tokenPruningConfig, queryVectors, ft, context)
+        return (pruneTokensToUse != null && pruneTokensToUse)
+            ? WeightedTokensUtils.queryBuilderWithPrunedTokens(fieldName, pruningConfigToUse, queryVectors, ft, context)
             : WeightedTokensUtils.queryBuilderWithAllTokens(fieldName, queryVectors, ft, context);
     }
 

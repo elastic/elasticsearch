@@ -48,6 +48,11 @@ public class BulkInferenceExecutor<InferenceResult extends InferenceServiceResul
     ) {
         final BulkInferenceExecutionState<OutputType> bulkExecutionState = new BulkInferenceExecutionState<>();
 
+        if (requests.hasNext() == false) {
+            bulkExecutionState.markAllRequestsSent();
+            bulkExecutionState.maybeSendResponse(outputBuilder::buildOutput, listener);
+        }
+
         while (requests.hasNext() && bulkExecutionState.responseSent() == false) {
             long seqNo = bulkExecutionState.generateSeqNo();
             InferenceAction.Request request = requests.next();

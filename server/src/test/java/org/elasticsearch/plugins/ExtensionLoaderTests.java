@@ -10,7 +10,6 @@
 package org.elasticsearch.plugins;
 
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.PrivilegedOperations.ClosableURLClassLoader;
 import org.elasticsearch.test.compiler.InMemoryJavaCompiler;
 import org.elasticsearch.test.jar.JarUtils;
 
@@ -35,7 +34,7 @@ public class ExtensionLoaderTests extends ESTestCase {
         int getValue();
     }
 
-    private ClosableURLClassLoader buildProviderJar(Map<String, CharSequence> sources) throws Exception {
+    private URLClassLoader buildProviderJar(Map<String, CharSequence> sources) throws Exception {
         var classToBytes = InMemoryJavaCompiler.compile(sources);
 
         Map<String, byte[]> jarEntries = new HashMap<>();
@@ -55,7 +54,7 @@ public class ExtensionLoaderTests extends ESTestCase {
         JarUtils.createJarWithEntries(jar, jarEntries);
         URL[] urls = new URL[] { jar.toUri().toURL() };
 
-        return new ClosableURLClassLoader(URLClassLoader.newInstance(urls, this.getClass().getClassLoader()));
+        return URLClassLoader.newInstance(urls, this.getClass().getClassLoader());
     }
 
     private String defineProvider(String name, int value) {

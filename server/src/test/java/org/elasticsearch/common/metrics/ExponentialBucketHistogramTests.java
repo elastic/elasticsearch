@@ -73,7 +73,9 @@ public class ExponentialBucketHistogramTests extends ESTestCase {
             expectedCounts[bucket] += 1;
 
             final int lowerBound = bucket == 0 ? 0 : upperBounds[bucket - 1];
-            final int upperBound = bucket == upperBounds.length ? Integer.MAX_VALUE : upperBounds[bucket] - 1;
+            final int upperBound = bucket == upperBounds.length
+                ? randomBoolean() ? upperBounds[bucket - 1] * 2 : Integer.MAX_VALUE
+                : upperBounds[bucket] - 1;
             histogram.addObservation(between(lowerBound, upperBound));
         }
 

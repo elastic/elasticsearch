@@ -20,6 +20,7 @@ import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.LongVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.data.sort.LongBucketedSort;
+import org.elasticsearch.compute.data.sort.LongTopNUniqueSort;
 import org.elasticsearch.compute.operator.mvdedupe.MultivalueDedupe;
 import org.elasticsearch.compute.operator.mvdedupe.TopNMultivalueDedupeLong;
 import org.elasticsearch.core.ReleasableIterator;
@@ -38,7 +39,7 @@ public final class LongTopNBlockHash extends BlockHash {
     private final boolean nullsFirst;
     private final int limit;
     private final LongHash hash;
-    private LongBucketedSort topValues;
+    private LongTopNUniqueSort topValues;
     private final LongHash seenUniqueValues;
     /**
      * Helper field to keep track of the last top value, and avoid expensive searches.
@@ -63,7 +64,7 @@ public final class LongTopNBlockHash extends BlockHash {
         this.nullsFirst = nullsFirst;
         this.limit = limit;
         this.hash = new LongHash(1, blockFactory.bigArrays());
-        this.topValues = new LongBucketedSort(blockFactory.bigArrays(), asc ? SortOrder.ASC : SortOrder.DESC, limit);
+        this.topValues = new LongTopNUniqueSort(blockFactory.bigArrays(), asc ? SortOrder.ASC : SortOrder.DESC, limit);
         this.seenUniqueValues = new LongHash(1, blockFactory.bigArrays());
         this.lastTopValue = asc ? Long.MAX_VALUE : Long.MIN_VALUE;
         this.valuesInTop = 0;
@@ -111,7 +112,7 @@ public final class LongTopNBlockHash extends BlockHash {
                 if (valuesInTop == 0) {
                     lastTopValue = asc ? Long.MAX_VALUE : Long.MIN_VALUE;
                 } else {
-                    lastTopValue = topValues.getWorstValue(0);
+                    lastTopValue = topValues.getWorstValue();
                 }
             }
             return true;
@@ -139,11 +140,11 @@ public final class LongTopNBlockHash extends BlockHash {
             return true;
         }
 
-        topValues.collect(value, 0);
+        topValues.collect(value);
 
         valuesInTop = Math.min(valuesInTop + 1, limit - (hasNull && nullsFirst ? 1 : 0));
         if (valuesInTop == limit) {
-            lastTopValue = topValues.getWorstValue(0);
+            lastTopValue = topValues.getWorstValue();
         } else if (valuesInTop == 1 || isBetterThan(lastTopValue, value)) {
             lastTopValue = value;
         }
@@ -154,7 +155,7 @@ public final class LongTopNBlockHash extends BlockHash {
                 if (valuesInTop == 1) {
                     lastTopValue = asc ? Long.MAX_VALUE : Long.MIN_VALUE;
                 } else {
-                    lastTopValue = topValues.getWorstValue(0);
+                    lastTopValue = topValues.getWorstValue();
                 }
             } else {
                 hasNull = false;
@@ -169,24 +170,10 @@ public final class LongTopNBlockHash extends BlockHash {
      */
     private void migrateToSmallTop() {
         assert nullsFirst : "The small top is only used when nulls are first";
-        assert topValues.getBucketSize() == limit : "The top values can't be migrated twice";
+        assert topValues.getLimit() == limit : "The top values can't be migrated twice";
 
-        LongBucketedSort oldTopValues = topValues;
-        LongBucketedSort newTopValues = new LongBucketedSort(blockFactory.bigArrays(), topValues.getOrder(), limit - 1);
-        try {
-            newTopValues.merge(0, topValues, 0);
-
-            topValues = newTopValues;
-            valuesInTop = Math.min(valuesInTop, limit - 1);
-        } finally {
-            if (topValues == oldTopValues) {
-                // If there was an error, close the new sort
-                newTopValues.close();
-            } else {
-                // Otherwise, close the old one
-                oldTopValues.close();
-            }
-        }
+        topValues.reduceLimitByOne();
+        valuesInTop = Math.min(valuesInTop, limit - 1);
     }
 
     private boolean isBetterThan(long value, long other) {

@@ -25,7 +25,6 @@ import org.elasticsearch.xpack.core.security.action.service.GetServiceAccountNod
 import org.elasticsearch.xpack.core.security.action.service.TokenInfo;
 import org.elasticsearch.xpack.core.security.action.service.TokenInfo.TokenSource;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
-import org.elasticsearch.xpack.core.security.authc.service.ReadOnlyServiceAccountTokenStore;
 import org.elasticsearch.xpack.core.security.authc.service.ServiceAccount;
 import org.elasticsearch.xpack.core.security.authc.service.ServiceAccount.ServiceAccountId;
 import org.elasticsearch.xpack.core.security.authc.service.ServiceAccountToken;

@@ -71,6 +71,25 @@ constant_keyword:
           - { "kind": "still no constant", "color": "pink" }
 
   - do:
+      indices.create:
+        index:  text_test
+        body:
+          mappings:
+            properties:
+              kind:
+                type: text
+              color:
+                type: keyword
+
+  - do:
+      bulk:
+        index: text_test
+        refresh: true
+        body:
+          - { "index": { } }
+          - { "kind":"a text field", "color": "green" }
+
+  - do:
       allowed_warnings_regex:
         - "No limit defined, adding default limit of \\[.*\\]"
       esql.query:
@@ -251,6 +270,54 @@ constant_keyword:
   - match: {values.0.1: "still no constant"}
   - match: {values.1.0: red}
   - match: {values.1.1: "wow such constant"}
+
+
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'from test,text_test | where kind::string == "a text field" | eval kind = kind::string | keep color, kind'
+  - match: {columns.0.name: color}
+  - match: {columns.0.type: keyword}
+  - match: { columns.1.name: kind }
+  - match: { columns.1.type: keyword }
+  - length: {values: 1}
+  - match: {values.0.0: green}
+  - match: {values.0.1: "a text field"}
+
+
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'from test,text_test | where kind::string == "wow such constant" | eval kind = kind::string | keep color, kind'
+  - match: {columns.0.name: color}
+  - match: {columns.0.type: keyword}
+  - match: { columns.1.name: kind }
+  - match: { columns.1.type: keyword }
+  - length: {values: 1}
+  - match: {values.0.0: red}
+  - match: {values.0.1: "wow such constant"}
+
+
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'from test,text_test | where kind::string >= "a" | eval kind = kind::string | keep color, kind | sort color'
+  - match: {columns.0.name: color}
+  - match: {columns.0.type: keyword}
+  - match: { columns.1.name: kind }
+  - match: { columns.1.type: keyword }
+  - length: {values: 2}
+  - match: {values.0.0: green}
+  - match: {values.0.1: "a text field"}
+  - match: {values.1.0: red}
+  - match: {values.1.1: "wow such constant"}
+
 
 ---
 constant_keyword with null value:

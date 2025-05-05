@@ -1065,7 +1065,14 @@ public class EsqlCapabilities {
         /**
          * Support min_over_time aggregation that gets evaluated per time-series
          */
-        MIN_OVER_TIME(Build.current().isSnapshot());
+        MIN_OVER_TIME(Build.current().isSnapshot()),
+
+        /**
+         * Support first_over_time aggregation that gets evaluated per time-series
+         */
+        FIRST_OVER_TIME(Build.current().isSnapshot()),
+
+        ;
 
         private final boolean enabled;
 

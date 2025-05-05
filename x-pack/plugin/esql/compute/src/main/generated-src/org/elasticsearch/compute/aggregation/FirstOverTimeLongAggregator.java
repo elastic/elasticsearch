@@ -8,26 +8,24 @@
 package org.elasticsearch.compute.aggregation;
 
 import org.elasticsearch.common.util.BigArrays;
-import org.elasticsearch.common.util.DoubleArray;
 import org.elasticsearch.common.util.LongArray;
 import org.elasticsearch.compute.ann.GroupingAggregator;
 import org.elasticsearch.compute.ann.IntermediateState;
 import org.elasticsearch.compute.data.Block;
-import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.core.Releasables;
 
 /**
- * A time-series aggregation function that collects the Last occurrence value of a time series in a specified interval.
+ * A time-series aggregation function that collects the First occurrence value of a time series in a specified interval.
  * This class is generated. Edit `X-ValueOverTimeAggregator.java.st` instead.
  */
 @GroupingAggregator(
     timeseries = true,
-    value = { @IntermediateState(name = "timestamps", type = "LONG_BLOCK"), @IntermediateState(name = "values", type = "DOUBLE_BLOCK") }
+    value = { @IntermediateState(name = "timestamps", type = "LONG_BLOCK"), @IntermediateState(name = "values", type = "LONG_BLOCK") }
 )
-public class LastOverTimeDoubleAggregator {
+public class FirstOverTimeLongAggregator {
 
     public static GroupingState initGrouping(DriverContext driverContext) {
         return new GroupingState(driverContext.bigArrays());
@@ -35,7 +33,7 @@ public class LastOverTimeDoubleAggregator {
 
     // TODO: Since data in data_streams is sorted by `_tsid` and timestamp in descending order,
     // we can read the first encountered value for each group of `_tsid` and time bucket.
-    public static void combine(GroupingState current, int groupId, long timestamp, double value) {
+    public static void combine(GroupingState current, int groupId, long timestamp, long value) {
         current.collectValue(groupId, timestamp, value);
     }
 
@@ -43,7 +41,7 @@ public class LastOverTimeDoubleAggregator {
         GroupingState current,
         int groupId,
         LongBlock timestamps, // stylecheck
-        DoubleBlock values,
+        LongBlock values,
         int otherPosition
     ) {
         int valueCount = values.getValueCount(otherPosition);
@@ -51,7 +49,7 @@ public class LastOverTimeDoubleAggregator {
             long timestamp = timestamps.getLong(timestamps.getFirstValueIndex(otherPosition));
             int firstIndex = values.getFirstValueIndex(otherPosition);
             for (int i = 0; i < valueCount; i++) {
-                current.collectValue(groupId, timestamp, values.getDouble(firstIndex + i));
+                current.collectValue(groupId, timestamp, values.getLong(firstIndex + i));
             }
         }
     }
@@ -71,7 +69,7 @@ public class LastOverTimeDoubleAggregator {
     public static final class GroupingState extends AbstractArrayState {
         private final BigArrays bigArrays;
         private LongArray timestamps;
-        private DoubleArray values;
+        private LongArray values;
         private int maxGroupId = -1;
 
         GroupingState(BigArrays bigArrays) {
@@ -82,7 +80,7 @@ public class LastOverTimeDoubleAggregator {
             try {
                 timestamps = bigArrays.newLongArray(1, false);
                 this.timestamps = timestamps;
-                this.values = bigArrays.newDoubleArray(1, false);
+                this.values = bigArrays.newLongArray(1, false);
                 success = true;
             } finally {
                 if (success == false) {
@@ -91,10 +89,10 @@ public class LastOverTimeDoubleAggregator {
             }
         }
 
-        void collectValue(int groupId, long timestamp, double value) {
+        void collectValue(int groupId, long timestamp, long value) {
             if (groupId < timestamps.size()) {
                 // TODO: handle multiple values?
-                if (groupId > maxGroupId || hasValue(groupId) == false || timestamps.get(groupId) < timestamp) {
+                if (groupId > maxGroupId || hasValue(groupId) == false || timestamps.get(groupId) > timestamp) {
                     timestamps.set(groupId, timestamp);
                     values.set(groupId, value);
                 }
@@ -117,13 +115,13 @@ public class LastOverTimeDoubleAggregator {
         public void toIntermediate(Block[] blocks, int offset, IntVector selected, DriverContext driverContext) {
             try (
                 var timestampsBuilder = driverContext.blockFactory().newLongBlockBuilder(selected.getPositionCount());
-                var valuesBuilder = driverContext.blockFactory().newDoubleBlockBuilder(selected.getPositionCount())
+                var valuesBuilder = driverContext.blockFactory().newLongBlockBuilder(selected.getPositionCount())
             ) {
                 for (int p = 0; p < selected.getPositionCount(); p++) {
                     int group = selected.getInt(p);
                     if (group < timestamps.size() && hasValue(group)) {
                         timestampsBuilder.appendLong(timestamps.get(group));
-                        valuesBuilder.appendDouble(values.get(group));
+                        valuesBuilder.appendLong(values.get(group));
                     } else {
                         timestampsBuilder.appendNull();
                         valuesBuilder.appendNull();
@@ -135,11 +133,11 @@ public class LastOverTimeDoubleAggregator {
         }
 
         Block evaluateFinal(IntVector selected, GroupingAggregatorEvaluationContext evalContext) {
-            try (var builder = evalContext.blockFactory().newDoubleBlockBuilder(selected.getPositionCount())) {
+            try (var builder = evalContext.blockFactory().newLongBlockBuilder(selected.getPositionCount())) {
                 for (int p = 0; p < selected.getPositionCount(); p++) {
                     int group = selected.getInt(p);
                     if (group < timestamps.size() && hasValue(group)) {
-                        builder.appendDouble(values.get(group));
+                        builder.appendLong(values.get(group));
                     } else {
                         builder.appendNull();
                     }

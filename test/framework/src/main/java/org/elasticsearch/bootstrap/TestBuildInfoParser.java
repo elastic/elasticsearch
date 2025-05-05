@@ -43,6 +43,7 @@ class TestBuildInfoParser {
         public void moduleName(final String moduleName) {
             this.moduleName = moduleName;
         }
+
         public void className(final String className) {
             this.className = className;
         }

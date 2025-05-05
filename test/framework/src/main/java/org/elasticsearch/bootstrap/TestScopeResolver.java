@@ -25,7 +25,7 @@ record TestScopeResolver(Map<String, PolicyManager.PolicyScope> scopeMap) {
     Function<Class<?>, PolicyManager.PolicyScope> createScopeResolver(TestBuildInfo serverBuildInfo, List<TestBuildInfo> pluginsBuildInfo) {
 
         Map<String, PolicyManager.PolicyScope> scopeMap = new HashMap<>();
-        for (var pluginBuildInfo: pluginsBuildInfo) {
+        for (var pluginBuildInfo : pluginsBuildInfo) {
             for (var location : pluginBuildInfo.locations()) {
                 var codeSource = this.getClass().getClassLoader().getResource(location.className());
                 if (codeSource == null) {

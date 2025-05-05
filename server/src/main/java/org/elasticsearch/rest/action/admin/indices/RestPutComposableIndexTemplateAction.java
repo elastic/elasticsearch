@@ -26,11 +26,12 @@ import static org.elasticsearch.rest.RestRequest.Method.POST;
 import static org.elasticsearch.rest.RestRequest.Method.PUT;
 import static org.elasticsearch.rest.RestUtils.getMasterNodeTimeout;
 import static org.elasticsearch.rest.action.admin.indices.RestPutComponentTemplateAction.SUPPORTS_FAILURE_STORE;
+import static org.elasticsearch.rest.action.admin.indices.RestPutComponentTemplateAction.SUPPORTS_FAILURE_STORE_LIFECYCLE;
 
 @ServerlessScope(Scope.PUBLIC)
 public class RestPutComposableIndexTemplateAction extends BaseRestHandler {
 
-    private static final Set<String> capabilities = Set.of(SUPPORTS_FAILURE_STORE);
+    private static final Set<String> capabilities = Set.of(SUPPORTS_FAILURE_STORE, SUPPORTS_FAILURE_STORE_LIFECYCLE);
 
     @Override
     public List<Route> routes() {

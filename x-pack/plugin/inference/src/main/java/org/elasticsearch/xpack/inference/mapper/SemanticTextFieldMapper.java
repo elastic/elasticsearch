@@ -302,6 +302,13 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
                      * This will delay the creation of sub-fields, so indexing and querying for this field won't work
                      * until the corresponding inference endpoint is created.
                      */
+                    logger.warn(
+                        "The field [{}] references an unknown inference ID [{}]. "
+                            + "Indexing and querying this field will not work correctly until the corresponding "
+                            + "inference endpoint is created.",
+                        leafName(),
+                        inferenceId.get()
+                    );
                 }
             } else {
                 resolvedModelSettings = modelSettings.get();
@@ -309,14 +316,6 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
 
             if (modelSettings.get() != null) {
                 validateServiceSettings(modelSettings.get(), resolvedModelSettings);
-            } else {
-                logger.warn(
-                    "The field [{}] references an unknown inference ID [{}]. "
-                        + "Indexing and querying this field will not work correctly until the corresponding "
-                        + "inference endpoint is created.",
-                    leafName(),
-                    inferenceId.get()
-                );
             }
 
             final String fullName = context.buildFullName(leafName());

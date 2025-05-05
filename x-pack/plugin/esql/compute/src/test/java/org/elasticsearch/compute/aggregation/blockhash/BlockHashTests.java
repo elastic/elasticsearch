@@ -1329,7 +1329,7 @@ public class BlockHashTests extends BlockHashTestCase {
         }
     }
 
-    public void testTimeSeriesBlockHash() {
+    public void testTimeSeriesBlockHash() throws Exception {
         long endTime = randomLongBetween(10_000_000, 20_000_000);
         var hash1 = new TimeSeriesBlockHash(0, 1, blockFactory);
         var hash2 = BlockHash.build(

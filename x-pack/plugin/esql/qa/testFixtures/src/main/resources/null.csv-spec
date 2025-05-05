@@ -191,3 +191,28 @@ emp_no:integer | languages:integer | height:double | x:double | y:double | z:dou
          10020 | null              | 1.41          | 1.41     | 1.41     | 40031.0  | 40031
          10021 | null              | 1.47          | 1.47     | 1.47     | 60408.0  | 60408
 ;
+
+whereNull
+FROM employees
+| WHERE NULL and emp_no <= 10021
+| SORT first_name, last_name
+| EVAL fullname = CONCAT(first_name, " ", last_name)
+| KEEP fullname, job_positions, salary, salary_change
+| limit 5
+;
+
+fullname:keyword | job_positions:keyword | salary:integer | salary_change:double
+;
+
+inConvertedNull
+required_capability: filter_in_converted_null
+FROM employees
+| WHERE emp_no in (10021, 10022, null::int)
+| KEEP emp_no, first_name, last_name
+| SORT emp_no
+;
+
+emp_no:integer | first_name:keyword | last_name:keyword   
+10021          | Ramzi              | Erde
+10022          | Shahaf             | Famili
+;

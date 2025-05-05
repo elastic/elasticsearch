@@ -223,7 +223,6 @@ public class ModelRegistry implements ClusterStateListener {
      */
     public MinimalServiceSettings getMinimalServiceSettings(String inferenceEntityId) throws ResourceNotFoundException {
         synchronized (this) {
-            assert lastMetadata != null : "initial cluster state not set yet";
             if (lastMetadata == null) {
                 throw new IllegalStateException("initial cluster state not set yet");
             }

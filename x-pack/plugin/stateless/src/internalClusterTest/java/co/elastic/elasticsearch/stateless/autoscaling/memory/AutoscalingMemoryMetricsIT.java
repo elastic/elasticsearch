@@ -374,10 +374,7 @@ public class AutoscalingMemoryMetricsIT extends AbstractStatelessIntegTestCase {
         }
 
         String indexNodeB = startIndexNode(indexNodeSettings);
-        ensureStableCluster(3);
-        updateIndexSettings(Settings.builder().put("index.routing.allocation.exclude._name", indexNodeA), indexName);
-        assertBusy(() -> assertThat(internalCluster().nodesInclude(indexName), not(hasItem(indexNodeA))));
-        ensureGreen(indexName);
+        hollowShards(indexName, numberOfShards, indexNodeA, indexNodeB);
 
         // Verify that hollow shards we don't lose shard field stats
         for (int i = 0; i < numberOfShards; i++) {

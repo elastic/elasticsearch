@@ -12,9 +12,12 @@ package org.elasticsearch.common.metrics;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.test.ESTestCase;
 
+import java.util.Arrays;
+
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.junit.Assert.assertThrows;
 
 public class ExponentialBucketHistogramTests extends ESTestCase {
 
@@ -107,5 +110,30 @@ public class ExponentialBucketHistogramTests extends ESTestCase {
         int secondToLastBucketUpperBound = bucketUpperBounds[bucketUpperBounds.length - 1];
         histogram.addObservation(secondToLastBucketUpperBound + 1);
         assertThat(histogram.getPercentile(1.0f), equalTo(Long.MAX_VALUE));
+    }
+
+    public void testClear() {
+        ExponentialBucketHistogram histogram = new ExponentialBucketHistogram();
+        for (int i = 0; i < 100; i++) {
+            histogram.addObservation(randomIntBetween(1, 100_000));
+        }
+        assertThat(Arrays.stream(histogram.getSnapshot()).sum(), greaterThan(0L));
+        histogram.clear();
+        assertThat(Arrays.stream(histogram.getSnapshot()).sum(), equalTo(0L));
+    }
+
+    public void testPercentileValidation() {
+        ExponentialBucketHistogram histogram = new ExponentialBucketHistogram();
+        // valid values
+        histogram.getPercentile(randomFloatBetween(0.0f, 1.0f, true));
+        // invalid values
+        assertThrows(
+            IllegalArgumentException.class,
+            () -> histogram.getPercentile(randomFloatBetween(Float.NEGATIVE_INFINITY, 0.0f, false))
+        );
+        assertThrows(
+            IllegalArgumentException.class,
+            () -> histogram.getPercentile(randomFloatBetween(1.0f, Float.POSITIVE_INFINITY, false))
+        );
     }
 }

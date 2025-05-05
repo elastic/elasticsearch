@@ -9,14 +9,13 @@
 
 package org.elasticsearch.reservedstate.service;
 
-import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.env.Environment;
+import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.master.AcknowledgedResponse;
+import org.elasticsearch.reservedstate.service.FileSettingsService.FileSettingsHealthTracker;
 
-public interface FileSettingsServiceProvider {
-    FileSettingsService construct(
-        ClusterService clusterService,
-        ReservedClusterStateService stateService,
-        Environment environment,
-        FileSettingsService.FileSettingsHealthTracker healthTracker
-    );
+/**
+ * Used by {@link FileSettingsHealthTracker} to send health info to the health node.
+ */
+public interface FileSettingsHealthIndicatorPublisher {
+    void publish(FileSettingsService.FileSettingsHealthInfo info, ActionListener<AcknowledgedResponse> actionListener);
 }

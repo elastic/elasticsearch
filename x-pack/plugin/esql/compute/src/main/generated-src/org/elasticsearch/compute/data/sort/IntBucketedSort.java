@@ -162,7 +162,7 @@ public class IntBucketedSort implements Releasable {
         long start = inHeapMode(bucket) ? rootIndex : (rootIndex + getNextGatherOffset(rootIndex) + 1);
         long end = rootIndex + bucketSize;
 
-        return  (int) (end - start);
+        return (int) (end - start);
     }
 
     /**

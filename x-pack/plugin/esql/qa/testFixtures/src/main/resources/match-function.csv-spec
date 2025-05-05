@@ -789,6 +789,9 @@ c:long
 ;
 
 testMatchInStatsWithOptions
+required_capability: match_function
+required_capability: full_text_functions_in_stats_where
+
 FROM books
 | STATS c = count(*) where match(title, "Hobbit Back Again", {"operator": "AND"})
 ;
@@ -800,6 +803,7 @@ c:long
 testMatchInStatsWithNonPushableDisjunctions
 required_capability: match_function
 required_capability: full_text_functions_in_stats_where
+
 FROM books
 | STATS c = count(*) where match(title, "lord") or length(title) > 130 
 ;

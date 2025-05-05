@@ -249,6 +249,9 @@ c:long
 ;
 
 testQstrInStatsWithOptions
+required_capability: qstr_function
+required_capability: full_text_functions_in_stats_where
+
 FROM books
 | STATS c = count(*) where qstr("title: Hobbit Back Again", {"default_operator": "AND"})
 ;

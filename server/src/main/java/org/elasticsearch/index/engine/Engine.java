@@ -466,7 +466,8 @@ public abstract class Engine implements Closeable {
                 pauseLockReference.acquire();
                 try {
                     while (pauseIndexing.getAcquire()) {
-                        logger.trace("Waiting on pause indexing lock");
+                        logger.trace("Waiting on pause indexing lock" +
+                            "");
                         pauseCondition.await();
                     }
                 } catch (InterruptedException e) {

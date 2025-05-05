@@ -24,7 +24,8 @@ PUT my-index
 }
 ```
 
-With optional `index_options` for pruning:
+Also, with optional `index_options` for pruning:
+
 ```console
 PUT my-index
 {

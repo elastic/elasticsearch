@@ -219,6 +219,4 @@ public abstract class GradleUtils {
     public static boolean isIncludedBuild(Project project) {
         return project.getGradle().getParent() != null;
     }
-
-    // TODO: helper method for test and jar
 }

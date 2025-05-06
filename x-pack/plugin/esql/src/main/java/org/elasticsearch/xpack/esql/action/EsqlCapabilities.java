@@ -385,6 +385,12 @@ public class EsqlCapabilities {
         UNION_TYPES_AGG_CAST,
 
         /**
+         * When pushing down {@code STATS count(field::type)} for a union type field, we wrongly used a synthetic attribute name in the
+         * query instead of the actual field name. This led to 0 counts instead of the correct result.
+         */
+        FIX_COUNT_PUSHDOWN_FOR_UNION_TYPES,
+
+        /**
          * Fix to GROK validation in case of multiple fields with same name and different types
          * https://github.com/elastic/elasticsearch/issues/110533
          */
@@ -417,6 +423,12 @@ public class EsqlCapabilities {
          * See <a href="https://github.com/elastic/elasticsearch/issues/126392"> ESQL: EVAL after STATS produces an empty column #126392 </a>
          */
         REMOVE_EMPTY_ATTRIBUTE_IN_MERGING_OUTPUT,
+
+        /**
+         * Support for retain aggregate when grouping.
+         * See <a href="https://github.com/elastic/elasticsearch/issues/126026"> ES|QL: columns not projected away despite KEEP #126026 </a>
+         */
+        RETAIN_AGGREGATE_WHEN_GROUPING,
 
         /**
          * Fix for union-types when some indexes are missing the required field. Done in #111932.
@@ -861,7 +873,7 @@ public class EsqlCapabilities {
          * Fixes a series of issues with inlinestats which had an incomplete implementation after lookup and inlinestats
          * were refactored.
          */
-        INLINESTATS_V5(EsqlPlugin.INLINESTATS_FEATURE_FLAG),
+        INLINESTATS_V6(EsqlPlugin.INLINESTATS_FEATURE_FLAG),
 
         /**
          * Support partial_results
@@ -1027,7 +1039,34 @@ public class EsqlCapabilities {
         /**
          * Support last_over_time aggregation that gets evaluated per time-series
          */
-        LAST_OVER_TIME(Build.current().isSnapshot());
+        LAST_OVER_TIME(Build.current().isSnapshot()),
+
+        /**
+         * Support for the SAMPLE command
+         */
+        SAMPLE(Build.current().isSnapshot()),
+
+        /**
+         * The {@code _query} API now gives a cast recommendation if multiple types are found in certain instances.
+         */
+        SUGGESTED_CAST,
+
+        /**
+         * Guards a bug fix matching {@code TO_LOWER(f) == ""}.
+         */
+        TO_LOWER_EMPTY_STRING,
+
+        /**
+         * Support min_over_time aggregation that gets evaluated per time-series
+         */
+        MIN_OVER_TIME(Build.current().isSnapshot()),
+
+        /**
+         * Support first_over_time aggregation that gets evaluated per time-series
+         */
+        FIRST_OVER_TIME(Build.current().isSnapshot()),
+
+        ;
 
         private final boolean enabled;
 

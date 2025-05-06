@@ -59,6 +59,7 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.SortedMap;
 import java.util.function.BiFunction;
+import java.util.function.BiPredicate;
 import java.util.function.Function;
 import java.util.function.LongSupplier;
 import java.util.function.Predicate;
@@ -79,6 +80,13 @@ public class IndexNameExpressionResolver {
 
     public static final String EXCLUDED_DATA_STREAMS_KEY = "es.excluded_ds";
     public static final IndexVersion SYSTEM_INDEX_ENFORCEMENT_INDEX_VERSION = IndexVersions.V_8_0_0;
+
+    private static final BiPredicate<DataStreamAlias, Boolean> ALL_DATA_STREAM_ALIASES = (ignoredAlias, ignoredIsData) -> true;
+    // Alias filters are not applied against indices in an abstraction's failure component.
+    // They do not match the mapping of the data stream nor are the documents mapped for searching.
+    private static final BiPredicate<DataStreamAlias, Boolean> ONLY_FILTERING_DATA_STREAM_ALIASES = (
+        dataStreamAlias,
+        isData) -> dataStreamAlias.filteringRequired() && isData;
 
     private final ThreadContext threadContext;
     private final SystemIndices systemIndices;
@@ -374,11 +382,14 @@ public class IndexNameExpressionResolver {
                 return List.of();
             }
         } else {
-            Predicate<String> isMatchAll = (((Predicate<String>) Metadata.ALL::equals)).or(Regex::isMatchAllPattern);
             if (expressions == null
                 || expressions.length == 0
                 || expressions.length == 1
-                    && (SelectorResolver.selectorsValidatedAndMatchesPredicate(expressions[0], context, isMatchAll))) {
+                    && (SelectorResolver.selectorsValidatedAndMatchesPredicate(
+                        expressions[0],
+                        context,
+                        s -> Metadata.ALL.equals(s) || Regex.isMatchAllPattern(s)
+                    ))) {
                 IndexComponentSelector selector;
                 if (expressions != null && expressions.length == 1) {
                     selector = SelectorResolver.parseMatchAllToSelector(context, expressions[0]);
@@ -1051,10 +1062,19 @@ public class IndexNameExpressionResolver {
             project,
             index,
             AliasMetadata::filteringRequired,
-            DataStreamAlias::filteringRequired,
+            ONLY_FILTERING_DATA_STREAM_ALIASES,
             false,
             resolvedExpressions
         );
+    }
+
+    /**
+     * Iterates through the list of indices and selects the effective list of all aliases for the
+     * given index. Aliases are returned even if the index is included in the resolved expressions.
+     * <b>NOTE</b>: The provided expressions must have been resolved already via {@link #resolveExpressions}.
+     */
+    public String[] allIndexAliases(ProjectMetadata project, String index, Set<ResolvedExpression> resolvedExpressions) {
+        return indexAliases(project, index, Predicates.always(), ALL_DATA_STREAM_ALIASES, true, resolvedExpressions);
     }
 
     /**
@@ -1077,7 +1097,7 @@ public class IndexNameExpressionResolver {
         ProjectMetadata project,
         String index,
         Predicate<AliasMetadata> requiredAlias,
-        Predicate<DataStreamAlias> requiredDataStreamAlias,
+        BiPredicate<DataStreamAlias, Boolean> requiredDataStreamAlias,
         boolean skipIdentity,
         Set<ResolvedExpression> resolvedExpressions
     ) {
@@ -1104,13 +1124,8 @@ public class IndexNameExpressionResolver {
         IndexAbstraction ia = project.getIndicesLookup().get(index);
         DataStream dataStream = ia.getParentDataStream();
         if (dataStream != null) {
-            if (dataStream.getFailureComponent().containsIndex(index)) {
-                // Alias filters are not applied against indices in an abstraction's failure component.
-                // They do not match the mapping of the data stream nor are the documents mapped for searching.
-                return null;
-            }
-
-            if (skipIdentity == false && resolvedExpressionsContainsAbstraction(resolvedExpressions, dataStream.getName())) {
+            boolean isData = dataStream.isFailureStoreIndex(index) == false;
+            if (skipIdentity == false && resolvedExpressionsContainsAbstraction(resolvedExpressions, dataStream.getName(), isData)) {
                 // skip the filters when the request targets the data stream name + selector directly
                 return null;
             }
@@ -1119,12 +1134,14 @@ public class IndexNameExpressionResolver {
             if (iterateIndexAliases(dataStreamAliases.size(), resolvedExpressions.size())) {
                 aliasesForDataStream = dataStreamAliases.values()
                     .stream()
-                    .filter(dataStreamAlias -> resolvedExpressionsContainsAbstraction(resolvedExpressions, dataStreamAlias.getName()))
+                    .filter(
+                        dataStreamAlias -> resolvedExpressionsContainsAbstraction(resolvedExpressions, dataStreamAlias.getName(), isData)
+                    )
                     .filter(dataStreamAlias -> dataStreamAlias.getDataStreams().contains(dataStream.getName()))
                     .toList();
             } else {
                 aliasesForDataStream = resolvedExpressions.stream()
-                    .filter(expression -> expression.selector() == null || expression.selector().shouldIncludeData())
+                    .filter(expression -> (expression.selector() == null || expression.selector().shouldIncludeData()) == isData)
                     .map(ResolvedExpression::resource)
                     .map(dataStreamAliases::get)
                     .filter(dataStreamAlias -> dataStreamAlias != null && dataStreamAlias.getDataStreams().contains(dataStream.getName()))
@@ -1133,11 +1150,14 @@ public class IndexNameExpressionResolver {
 
             List<String> requiredAliases = null;
             for (DataStreamAlias dataStreamAlias : aliasesForDataStream) {
-                if (requiredDataStreamAlias.test(dataStreamAlias)) {
+                if (requiredDataStreamAlias.test(dataStreamAlias, isData)) {
                     if (requiredAliases == null) {
                         requiredAliases = new ArrayList<>(aliasesForDataStream.size());
                     }
-                    requiredAliases.add(dataStreamAlias.getName());
+                    String alias = isData
+                        ? dataStreamAlias.getName()
+                        : combineSelector(dataStreamAlias.getName(), IndexComponentSelector.FAILURES);
+                    requiredAliases.add(alias);
                 } else {
                     // we have a non-required alias for this data stream so no need to check further
                     return null;
@@ -1149,46 +1169,49 @@ public class IndexNameExpressionResolver {
             return requiredAliases.toArray(Strings.EMPTY_ARRAY);
         } else {
             final Map<String, AliasMetadata> indexAliases = indexMetadata.getAliases();
-            final AliasMetadata[] aliasCandidates;
-            if (iterateIndexAliases(indexAliases.size(), resolvedExpressions.size())) {
+            final int aliasCount = indexAliases.size();
+            if (aliasCount == 0) {
+                return null;
+            }
+            final List<String> aliases = new ArrayList<>(aliasCount);
+            if (iterateIndexAliases(aliasCount, resolvedExpressions.size())) {
                 // faster to iterate indexAliases
-                aliasCandidates = indexAliases.values()
-                    .stream()
-                    // Indices can only be referenced with a data selector, or a null selector if selectors are disabled
-                    .filter(aliasMetadata -> resolvedExpressionsContainsAbstraction(resolvedExpressions, aliasMetadata.alias()))
-                    .toArray(AliasMetadata[]::new);
+                // Indices can only be referenced with a data selector, or a null selector if selectors are disabled
+                for (AliasMetadata aliasMetadata : indexAliases.values()) {
+                    var alias = aliasMetadata.alias();
+                    if (resolvedExpressionsContainsAbstraction(resolvedExpressions, alias, true)) {
+                        if (requiredAlias.test(aliasMetadata) == false) {
+                            return null;
+                        }
+                        aliases.add(alias);
+                    }
+                }
             } else {
                 // faster to iterate resolvedExpressions
-                aliasCandidates = resolvedExpressions.stream()
-                    .map(ResolvedExpression::resource)
-                    .map(indexAliases::get)
-                    .filter(Objects::nonNull)
-                    .toArray(AliasMetadata[]::new);
-            }
-            List<String> aliases = null;
-            for (int i = 0; i < aliasCandidates.length; i++) {
-                AliasMetadata aliasMetadata = aliasCandidates[i];
-                if (requiredAlias.test(aliasMetadata)) {
-                    // If required - add it to the list of aliases
-                    if (aliases == null) {
-                        aliases = new ArrayList<>();
+                for (ResolvedExpression resolvedExpression : resolvedExpressions) {
+                    AliasMetadata aliasMetadata = indexAliases.get(resolvedExpression.resource());
+                    if (aliasMetadata != null) {
+                        if (requiredAlias.test(aliasMetadata) == false) {
+                            return null;
+                        }
+                        aliases.add(aliasMetadata.getAlias());
                     }
-                    aliases.add(aliasMetadata.alias());
-                } else {
-                    // If not, we have a non required alias for this index - no further checking needed
-                    return null;
                 }
-            }
-            if (aliases == null) {
-                return null;
             }
             return aliases.toArray(Strings.EMPTY_ARRAY);
         }
     }
 
-    private static boolean resolvedExpressionsContainsAbstraction(Set<ResolvedExpression> resolvedExpressions, String abstractionName) {
-        return resolvedExpressions.contains(new ResolvedExpression(abstractionName))
-            || resolvedExpressions.contains(new ResolvedExpression(abstractionName, IndexComponentSelector.DATA));
+    private static boolean resolvedExpressionsContainsAbstraction(
+        Set<ResolvedExpression> resolvedExpressions,
+        String abstractionName,
+        boolean isData
+    ) {
+        if (isData) {
+            return resolvedExpressions.contains(new ResolvedExpression(abstractionName))
+                || resolvedExpressions.contains(new ResolvedExpression(abstractionName, IndexComponentSelector.DATA));
+        }
+        return resolvedExpressions.contains(new ResolvedExpression(abstractionName, IndexComponentSelector.FAILURES));
     }
 
     /**

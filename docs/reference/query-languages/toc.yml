@@ -84,32 +84,39 @@ toc:
       - file: query-dsl/regexp-syntax.md
   - file: esql.md
     children:
-      - file: esql/esql-syntax.md
-      - file: esql/esql-commands.md
+      - file: esql/esql-syntax-reference.md
         children:
-          - file: esql/commands/source-commands.md
-          - file: esql/commands/processing-commands.md
-      - file: esql/esql-functions-operators.md
+          - file: esql/esql-syntax.md
+          - file: esql/esql-commands.md
+            children:
+              - file: esql/commands/source-commands.md
+              - file: esql/commands/processing-commands.md
+          - file: esql/esql-functions-operators.md
+            children:
+              - file: esql/functions-operators/aggregation-functions.md
+              - file: esql/functions-operators/grouping-functions.md
+              - file: esql/functions-operators/conditional-functions-and-expressions.md
+              - file: esql/functions-operators/date-time-functions.md
+              - file: esql/functions-operators/ip-functions.md
+              - file: esql/functions-operators/math-functions.md
+              - file: esql/functions-operators/search-functions.md
+              - file: esql/functions-operators/spatial-functions.md
+              - file: esql/functions-operators/string-functions.md
+              - file: esql/functions-operators/type-conversion-functions.md
+              - file: esql/functions-operators/mv-functions.md
+              - file: esql/functions-operators/operators.md
+      - file: esql/esql-advanced.md
         children:
-          - file: esql/functions-operators/aggregation-functions.md
-          - file: esql/functions-operators/grouping-functions.md
-          - file: esql/functions-operators/conditional-functions-and-expressions.md
-          - file: esql/functions-operators/date-time-functions.md
-          - file: esql/functions-operators/ip-functions.md
-          - file: esql/functions-operators/math-functions.md
-          - file: esql/functions-operators/search-functions.md
-          - file: esql/functions-operators/spatial-functions.md
-          - file: esql/functions-operators/string-functions.md
-          - file: esql/functions-operators/type-conversion-functions.md
-          - file: esql/functions-operators/mv-functions.md
-          - file: esql/functions-operators/operators.md
-      - file: esql/esql-metadata-fields.md
-      - file: esql/esql-multivalued-fields.md
-      - file: esql/esql-process-data-with-dissect-grok.md
-      - file: esql/esql-enrich-data.md
-      - file: esql/esql-lookup-join.md
-      - file: esql/esql-implicit-casting.md
-      - file: esql/esql-time-spans.md
+          - file: esql/esql-process-data-with-dissect-grok.md
+          - file: esql/esql-enrich-data.md
+          - file: esql/esql-lookup-join.md
+      - file: esql/esql-types-and-fields.md
+        children:
+          - file: esql/esql-implicit-casting.md
+          - file: esql/esql-time-spans.md
+          - file: esql/esql-metadata-fields.md
+          - file: esql/esql-multivalued-fields.md
+
       - file: esql/limitations.md
       - file: esql/esql-examples.md
   - file: sql.md

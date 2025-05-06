@@ -1264,7 +1264,8 @@ public class Security extends Plugin
                     throw new IllegalStateException(
                         "The ["
                             + extension.getClass().getName()
-                            + "] extension tried to install a custom ServiceAccountTokenStore. This functionality is not available to external extensions."
+                            + "] extension tried to install a custom ServiceAccountTokenStore. This functionality is not available to "
+                            + "external extensions."
                     );
                 }
                 accountTokenStoreByExtension.put(extension.extensionName(), serviceAccountTokenStore);

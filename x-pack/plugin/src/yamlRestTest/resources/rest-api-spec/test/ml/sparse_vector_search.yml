@@ -765,6 +765,8 @@ teardown:
                   pruning_config:
                     tokens_freq_ratio_threshold: 1
                     tokens_weight_threshold: 1.0
+          settings:
+            number_of_shards: 1
 
   - match: { acknowledged: true }
 
@@ -781,6 +783,8 @@ teardown:
                 type: sparse_vector
                 index_options:
                   prune: false
+          settings:
+            number_of_shards: 1
 
   - match: { acknowledged: true }
 

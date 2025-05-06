@@ -11,6 +11,7 @@ package org.elasticsearch.gradle.plugin;
 
 import org.elasticsearch.gradle.VersionProperties;
 import org.elasticsearch.gradle.dependencies.CompileOnlyResolvePlugin;
+import org.elasticsearch.gradle.test.TestBuildInfoPlugin;
 import org.gradle.api.Plugin;
 import org.gradle.api.Project;
 import org.gradle.api.file.Directory;
@@ -38,6 +39,7 @@ public class PluginBuildPlugin implements Plugin<Project> {
     @Override
     public void apply(final Project project) {
         project.getPluginManager().apply(BasePluginBuildPlugin.class);
+        project.getPluginManager().apply(TestBuildInfoPlugin.class);
 
         var dependencies = project.getDependencies();
         dependencies.add("compileOnly", "org.elasticsearch:elasticsearch:" + VersionProperties.getElasticsearch());
@@ -56,20 +58,9 @@ public class PluginBuildPlugin implements Plugin<Project> {
             task.getOutputFile().set(file);
         });
 
-        SourceSetContainer sourceSets = project.getExtensions().getByType(SourceSetContainer.class);
-
-        var testBuildInfoTask = project.getTasks().register("generateTestBuildInfo", GenerateTestBuildInfoTask.class, task -> {
+        project.getTasks().withType(GenerateTestBuildInfoTask.class).named("generateTestBuildInfo").configure(task -> {
             var propertiesExtension = project.getExtensions().getByType(PluginPropertiesExtension.class);
             task.getComponentName().set(providerFactory.provider(propertiesExtension::getName));
-            task.getCodeLocations()
-                .set(
-                    project.getConfigurations()
-                        .getByName("runtimeClasspath")
-                        .minus(project.getConfigurations().getByName(CompileOnlyResolvePlugin.RESOLVEABLE_COMPILE_ONLY_CONFIGURATION_NAME))
-                        .plus(sourceSets.getByName(SourceSet.MAIN_SOURCE_SET_NAME).getOutput().getClassesDirs())
-                );
-            Provider<Directory> directory = project.getLayout().getBuildDirectory().dir("generated-build-info");
-            task.getOutputDirectory().set(directory);
         });
 
         project.getTasks().withType(ProcessResources.class).named("processResources").configure(task -> {
@@ -79,7 +70,6 @@ public class PluginBuildPlugin implements Plugin<Project> {
                 copy.from(pluginProperties);
                 copy.from(project.getLayout().getProjectDirectory().file("src/main/plugin-metadata/entitlement-policy.yaml"));
             });
-            task.into("META-INF", copy -> copy.from(testBuildInfoTask));
         });
     }
 }

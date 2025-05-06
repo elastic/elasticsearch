@@ -246,6 +246,7 @@ public class TransportVersions {
     public static final TransportVersion WRITE_LOAD_INCLUDES_BUFFER_WRITES = def(9_070_00_0);
     public static final TransportVersion INTRODUCE_FAILURES_DEFAULT_RETENTION = def(9_071_0_00);
     public static final TransportVersion FILE_SETTINGS_HEALTH_INFO = def(9_072_0_00);
+    public static final TransportVersion FIELD_CAPS_ADD_CLUSTER_ALIAS = def(9_073_0_00);
 
     /*
      * STOP! READ THIS FIRST! No, really,

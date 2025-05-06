@@ -37,11 +37,13 @@ import java.time.Instant;
 import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
+import java.time.temporal.Temporal;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Set;
 import java.util.function.BiFunction;
+import java.util.function.LongSupplier;
 
 /** Enum defining the type of range */
 public enum RangeType {
@@ -293,26 +295,20 @@ public enum RangeType {
 
             DateMathParser dateMathParser = (parser == null) ? DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.toDateMathParser() : parser;
             boolean roundUp = includeLower == false; // using "gt" should round lower bound up
-            Long low = lowerTerm == null
-                ? minValue()
-                : dateMathParser.parse(
-                    lowerTerm instanceof BytesRef ? ((BytesRef) lowerTerm).utf8ToString() : lowerTerm.toString(),
-                    context::nowInMillis,
-                    roundUp,
-                    zone
-                ).toEpochMilli();
+            Long low = lowerTerm == null ? minValue() : parseRangeTerm(dateMathParser, lowerTerm, zone, roundUp, context::nowInMillis);
 
             roundUp = includeUpper; // using "lte" should round upper bound up
-            Long high = upperTerm == null
-                ? maxValue()
-                : dateMathParser.parse(
-                    upperTerm instanceof BytesRef ? ((BytesRef) upperTerm).utf8ToString() : upperTerm.toString(),
-                    context::nowInMillis,
-                    roundUp,
-                    zone
-                ).toEpochMilli();
-
+            Long high = upperTerm == null ? maxValue() : parseRangeTerm(dateMathParser, upperTerm, zone, roundUp, context::nowInMillis);
             return createRangeQuery(field, hasDocValues, low, high, includeLower, includeUpper, relation);
+        }
+
+        private static long parseRangeTerm(DateMathParser parser, Object term, ZoneId zone, boolean roundUp, LongSupplier nowInMillis) {
+            String termString = term instanceof BytesRef ? ((BytesRef) term).utf8ToString() : term.toString();
+            // `roundUp` may only be used if the term is not a Temporal object. LocalTime#toString() and similar will output
+            // the shortest possible representation and might omit seconds, milliseconds, etc.
+            // That interferes badly with the behavior of the roundup parser leading to unexpected results.
+            boolean mayRoundUp = (term instanceof Temporal) == false;
+            return parser.parse(termString, nowInMillis, roundUp && mayRoundUp, zone).toEpochMilli();
         }
 
         @Override

@@ -72,7 +72,7 @@ public class BlockTypeRandomizer {
         // IntArrayBlock
         //
         if (randomIntBetween(0, --classCount) == 0) {
-            if (block instanceof IntVectorBlock) {
+            if (block instanceof IntArrayBlock) {
                 return block;
             }
 

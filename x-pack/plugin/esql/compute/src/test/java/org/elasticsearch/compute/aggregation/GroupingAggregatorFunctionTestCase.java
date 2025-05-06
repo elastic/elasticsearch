@@ -781,6 +781,14 @@ public abstract class GroupingAggregatorFunctionTestCase extends ForkingOperator
         };
     }
 
+    /**
+     * Custom {@link HashAggregationOperator.HashAggregationOperatorFactory} implementation that
+     * randomizes the GroupIds block type passed to AddInput.
+     * <p>
+     *     This helps testing the different overloads of
+     *     {@link org.elasticsearch.compute.aggregation.GroupingAggregatorFunction.AddInput#add}
+     * </p>
+     */
     private record RandomizingHashAggregationOperatorFactory(
         List<BlockHash.GroupSpec> groups,
         AggregatorMode aggregatorMode,

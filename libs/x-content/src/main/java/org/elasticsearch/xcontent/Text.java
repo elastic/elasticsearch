@@ -34,15 +34,23 @@ public final class Text implements XContentString, Comparable<Text>, ToXContentF
     private ByteBuffer bytes;
     private String text;
     private int hash;
-    private int length = -1;
+    private int stringLength = -1;
 
+    /**
+     * Construct a Text from a UTF-8 encoded ByteBuffer. Since no string length is specified, {@link #stringLength()}
+     * will perform a string conversion to measure the string length.
+     */
     public Text(ByteBuffer bytes) {
         this.bytes = bytes;
     }
 
-    public Text(ByteBuffer bytes, int length) {
+    /**
+     * Construct a Text from a UTF-8 encoded ByteBuffer and an explicit string length. Used to avoid string conversion
+     * in {@link #stringLength()}.
+     */
+    public Text(ByteBuffer bytes, int stringLength) {
         this.bytes = bytes;
-        this.length = length;
+        this.stringLength = stringLength;
     }
 
     public Text(String text) {
@@ -81,10 +89,10 @@ public final class Text implements XContentString, Comparable<Text>, ToXContentF
 
     @Override
     public int stringLength() {
-        if (length < 0) {
-            length = string().length();
+        if (stringLength < 0) {
+            stringLength = string().length();
         }
-        return length;
+        return stringLength;
     }
 
     @Override

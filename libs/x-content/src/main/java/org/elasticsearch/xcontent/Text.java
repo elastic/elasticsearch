@@ -80,7 +80,7 @@ public final class Text implements XContentString, Comparable<Text>, ToXContentF
     }
 
     @Override
-    public int length() {
+    public int stringLength() {
         if (length < 0) {
             length = string().length();
         }

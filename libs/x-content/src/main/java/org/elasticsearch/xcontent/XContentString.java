@@ -25,5 +25,5 @@ public interface XContentString {
     /**
      * Returns the number of characters in the represented string.
      */
-    int length();
+    int stringLength();
 }

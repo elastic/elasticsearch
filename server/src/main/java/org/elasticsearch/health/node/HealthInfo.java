@@ -9,6 +9,7 @@
 
 package org.elasticsearch.health.node;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -51,9 +52,7 @@ public record HealthInfo(
                 ? input.readOptionalWriteable(DataStreamLifecycleHealthInfo::new)
                 : null,
             input.getTransportVersion().onOrAfter(TransportVersions.V_8_13_0) ? input.readMap(RepositoriesHealthInfo::new) : Map.of(),
-            input.getTransportVersion().onOrAfter(TransportVersions.FILE_SETTINGS_HEALTH_INFO)
-                ? input.readOptionalWriteable(FileSettingsHealthInfo::new)
-                : INDETERMINATE
+            includeFileSettings(input.getTransportVersion()) ? input.readOptionalWriteable(FileSettingsHealthInfo::new) : INDETERMINATE
         );
     }
 
@@ -66,8 +65,14 @@ public record HealthInfo(
         if (output.getTransportVersion().onOrAfter(TransportVersions.V_8_13_0)) {
             output.writeMap(repositoriesInfoByNode, StreamOutput::writeWriteable);
         }
-        if (output.getTransportVersion().onOrAfter(TransportVersions.FILE_SETTINGS_HEALTH_INFO)) {
+        if (includeFileSettings(output.getTransportVersion())) {
             output.writeOptionalWriteable(fileSettingsHealthInfo);
         }
     }
+
+    public static boolean includeFileSettings(TransportVersion transportVersion) {
+        return transportVersion.isPatchFrom(TransportVersions.FILE_SETTINGS_HEALTH_INFO_8_19)
+            || transportVersion.onOrAfter(TransportVersions.FILE_SETTINGS_HEALTH_INFO);
+    }
+
 }

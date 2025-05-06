@@ -27,7 +27,7 @@ import static org.hamcrest.Matchers.both;
 import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.startsWith;
 
-public class EntitlementInitializationTests extends ESTestCase {
+public class FilesEntitlementsValidationTests extends ESTestCase {
 
     private static PathLookup TEST_PATH_LOOKUP;
 
@@ -75,7 +75,7 @@ public class EntitlementInitializationTests extends ESTestCase {
                 )
             )
         );
-        EntitlementInitialization.validateFilesEntitlements(Map.of("plugin", policy), TEST_PATH_LOOKUP);
+        FilesEntitlementsValidation.validate(Map.of("plugin", policy), TEST_PATH_LOOKUP);
     }
 
     public void testValidationFailForRead() {
@@ -94,7 +94,7 @@ public class EntitlementInitializationTests extends ESTestCase {
 
         var ex = expectThrows(
             IllegalArgumentException.class,
-            () -> EntitlementInitialization.validateFilesEntitlements(Map.of("plugin", policy), TEST_PATH_LOOKUP)
+            () -> FilesEntitlementsValidation.validate(Map.of("plugin", policy), TEST_PATH_LOOKUP)
         );
         assertThat(
             ex.getMessage(),
@@ -119,7 +119,7 @@ public class EntitlementInitializationTests extends ESTestCase {
 
         ex = expectThrows(
             IllegalArgumentException.class,
-            () -> EntitlementInitialization.validateFilesEntitlements(Map.of("plugin2", policy2), TEST_PATH_LOOKUP)
+            () -> FilesEntitlementsValidation.validate(Map.of("plugin2", policy2), TEST_PATH_LOOKUP)
         );
         assertThat(
             ex.getMessage(),
@@ -145,7 +145,7 @@ public class EntitlementInitializationTests extends ESTestCase {
 
         var ex = expectThrows(
             IllegalArgumentException.class,
-            () -> EntitlementInitialization.validateFilesEntitlements(Map.of("plugin", policy), TEST_PATH_LOOKUP)
+            () -> FilesEntitlementsValidation.validate(Map.of("plugin", policy), TEST_PATH_LOOKUP)
         );
         assertThat(
             ex.getMessage(),

@@ -11,16 +11,20 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.DocWriteRequest;
+import org.elasticsearch.action.admin.cluster.stats.MappingVisitor;
+import org.elasticsearch.action.admin.indices.get.GetIndexResponse;
 import org.elasticsearch.action.admin.indices.template.put.TransportPutComposableIndexTemplateAction;
 import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.datastreams.lifecycle.PutDataStreamLifecycleAction;
+import org.elasticsearch.action.downsample.DownsampleConfig;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.DataStreamLifecycle;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.Template;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.compress.CompressedXContent;
@@ -31,6 +35,10 @@ import org.elasticsearch.datastreams.DataStreamsPlugin;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
+import org.elasticsearch.index.mapper.DateFieldMapper;
+import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.index.mapper.TimeSeriesParams;
+import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -44,12 +52,20 @@ import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Supplier;
 
+import static org.elasticsearch.index.mapper.TimeSeriesParams.TIME_SERIES_DIMENSION_PARAM;
+import static org.elasticsearch.index.mapper.TimeSeriesParams.TIME_SERIES_METRIC_PARAM;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.hamcrest.Matchers.arrayContaining;
+import static org.hamcrest.Matchers.equalTo;
 
 /**
  * Base test case for downsampling integration tests. It provides helper methods to:
@@ -236,5 +252,86 @@ public abstract class DownsamplingIntegTestCase extends ESIntegTestCase {
 
     String randomDateForRange(long start, long end) {
         return DATE_FORMATTER.formatMillis(randomLongBetween(start, end));
+    }
+
+    /**
+     * Currently we assert the correctness of metrics and dimensions. The assertions can be extended when needed.
+     */
+    @SuppressWarnings("unchecked")
+    void assertDownsampleIndexFieldsAndDimensions(String sourceIndex, String downsampleIndex, DownsampleConfig config) throws Exception {
+        GetIndexResponse getIndexResponse = indicesAdmin().prepareGetIndex(TEST_REQUEST_TIMEOUT)
+            .setIndices(sourceIndex, downsampleIndex)
+            .get();
+        assertThat(getIndexResponse.indices(), arrayContaining(sourceIndex, downsampleIndex));
+
+        // Retrieve field information for the metric fields
+        final Map<String, Object> sourceIndexMappings = getIndexResponse.mappings().get(sourceIndex).getSourceAsMap();
+        final Map<String, Object> downsampleIndexMappings = getIndexResponse.mappings().get(downsampleIndex).getSourceAsMap();
+
+        final MapperService mapperService = getMapperServiceForIndex(sourceIndex);
+        final CompressedXContent sourceIndexCompressedXContent = new CompressedXContent(sourceIndexMappings);
+        mapperService.merge(MapperService.SINGLE_MAPPING_NAME, sourceIndexCompressedXContent, MapperService.MergeReason.INDEX_TEMPLATE);
+
+        // Collect expected mappings for fields and dimensions
+        Map<String, TimeSeriesParams.MetricType> metricFields = new HashMap<>();
+        Map<String, String> dimensionFields = new HashMap<>();
+        MappingVisitor.visitMapping(sourceIndexMappings, (field, fieldMapping) -> {
+            if (isTimeSeriesMetric(fieldMapping)) {
+                metricFields.put(field, TimeSeriesParams.MetricType.fromString(fieldMapping.get(TIME_SERIES_METRIC_PARAM).toString()));
+            } else if (hasTimeSeriesDimensionTrue(fieldMapping)) {
+                // This includes passthrough objects
+                dimensionFields.put(field, fieldMapping.get("type").toString());
+            }
+        });
+
+        AtomicBoolean encounteredTimestamp = new AtomicBoolean(false);
+        Set<String> encounteredMetrics = new HashSet<>();
+        Set<String> encounteredDimensions = new HashSet<>();
+        MappingVisitor.visitMapping(downsampleIndexMappings, (field, fieldMapping) -> {
+            if (field.equals(config.getTimestampField())) {
+                encounteredTimestamp.set(true);
+                assertThat(fieldMapping.get("type"), equalTo(DateFieldMapper.CONTENT_TYPE));
+                Map<String, Object> dateTimeMeta = (Map<String, Object>) fieldMapping.get("meta");
+                assertThat(dateTimeMeta.get("time_zone"), equalTo(config.getTimeZone()));
+                assertThat(dateTimeMeta.get(config.getIntervalType()), equalTo(config.getInterval().toString()));
+            } else if (metricFields.containsKey(field)) {
+                encounteredMetrics.add(field);
+                TimeSeriesParams.MetricType metricType = metricFields.get(field);
+                switch (metricType) {
+                    case COUNTER -> assertThat(fieldMapping.get("type"), equalTo("double"));
+                    case GAUGE -> assertThat(fieldMapping.get("type"), equalTo("aggregate_metric_double"));
+                    default -> fail("Unsupported field type");
+                }
+                assertThat(fieldMapping.get("time_series_metric"), equalTo(metricType.toString()));
+            } else if (dimensionFields.containsKey(field)) {
+                encounteredDimensions.add(field);
+                assertThat(fieldMapping.get("type"), equalTo(dimensionFields.get(field)));
+                assertThat(fieldMapping.get("time_series_dimension"), equalTo(true));
+            }
+        });
+        assertThat(encounteredTimestamp.get(), equalTo(true));
+        assertThat(encounteredMetrics, equalTo(metricFields.keySet()));
+        assertThat(encounteredDimensions, equalTo(dimensionFields.keySet()));
+    }
+
+    private static MapperService getMapperServiceForIndex(String sourceIndex) throws IOException {
+        final IndexMetadata indexMetadata = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT)
+            .get()
+            .getState()
+            .getMetadata()
+            .getProject(Metadata.DEFAULT_PROJECT_ID)
+            .index(sourceIndex);
+        final IndicesService indicesService = internalCluster().getAnyMasterNodeInstance(IndicesService.class);
+        return indicesService.createIndexMapperServiceForValidation(indexMetadata);
+    }
+
+    boolean isTimeSeriesMetric(final Map<String, ?> fieldMapping) {
+        final String metricType = (String) fieldMapping.get(TIME_SERIES_METRIC_PARAM);
+        return metricType != null
+            && List.of(TimeSeriesParams.MetricType.values()).contains(TimeSeriesParams.MetricType.fromString(metricType));
+    }
+
+    private static boolean hasTimeSeriesDimensionTrue(Map<String, ?> fieldMapping) {
+        return Boolean.TRUE.equals(fieldMapping.get(TIME_SERIES_DIMENSION_PARAM));
     }
 }

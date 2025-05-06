@@ -75,7 +75,7 @@ public final class ReleasableBytesReference implements RefCounted, Releasable, B
         boolean hasRef = refCounted.hasReferences();
         // delegate is nulled out when the ref-count reaches zero but only via a plain store, and also we could be racing with a concurrent
         // decRef so need to check #refCounted again in case we run into a non-null delegate but saw a reference before
-        assert delegate != null || hasRef == false || refCounted.hasReferences() == false;
+        assert delegate != null || refCounted.hasReferences() == false;
         return hasRef;
     }
 

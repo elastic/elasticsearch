@@ -42,6 +42,7 @@ import org.elasticsearch.search.aggregations.LeafBucketCollectorBase;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.fetch.FetchSearchResult;
 import org.elasticsearch.search.fetch.subphase.InnerHitsContext;
+import org.elasticsearch.search.fetch.subphase.InnerHitsContext.InnerHitSubContext;
 import org.elasticsearch.search.internal.SubSearchContext;
 import org.elasticsearch.search.profile.ProfileResult;
 import org.elasticsearch.search.rescore.RescoreContext;
@@ -225,12 +226,28 @@ class TopHitsAggregator extends MetricsAggregator {
         // Fork the search execution context for each slice, because the fetch phase does not support concurrent execution yet.
         SearchExecutionContext searchExecutionContext = new SearchExecutionContext(subSearchContext.getSearchExecutionContext());
 
-        Map<String, InnerHitsContext.InnerHitSubContext> innerHits = new HashMap<>();
-        for (Map.Entry<String, InnerHitsContext.InnerHitSubContext> entry : subSearchContext.innerHits().getInnerHits().entrySet()) {
-            innerHits.put(entry.getKey(), entry.getValue().copy());
+        Map<String, InnerHitSubContext> innerHits = new HashMap<>();
+        for (Map.Entry<String, InnerHitSubContext> entry : subSearchContext.innerHits().getInnerHits().entrySet()) {
+            InnerHitSubContext original = entry.getValue().copy();
+            InnerHitSubContext thing = new InnerHitSubContext(original) {
+                @Override
+                public InnerHitSubContext copy() {
+                    return original.copy();
+                }
+
+                @Override
+                public TopDocsAndMaxScore topDocs(SearchHit hit) throws IOException {
+                    return original.topDocs(hit);
+                }
+
+                @Override
+                public SearchExecutionContext getSearchExecutionContext() {
+                    return searchExecutionContext;
+                }
+            };
+            innerHits.put(entry.getKey(), thing);
         }
         InnerHitsContext innerHitsContext = new InnerHitsContext(innerHits);
-
         SubSearchContext fetchSubSearchContext = new SubSearchContext(subSearchContext) {
             @Override
             public SearchExecutionContext getSearchExecutionContext() {

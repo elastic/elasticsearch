@@ -660,7 +660,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
      * Try to load the query results from the cache or execute the query phase directly if the cache cannot be used.
      */
     private void loadOrExecuteQueryPhase(final ShardSearchRequest request, final SearchContext context) throws Exception {
-        final boolean canCache = IndicesService.canCache(request, context);
+        final boolean canCache = false;
         context.getSearchExecutionContext().freezeContext();
         if (canCache) {
             indicesService.loadIntoContext(request, context);

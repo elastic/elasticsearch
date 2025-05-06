@@ -146,6 +146,7 @@ import org.elasticsearch.index.IndexingPressure;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.index.mapper.MapperMetrics;
 import org.elasticsearch.index.mapper.MapperRegistry;
+import org.elasticsearch.index.search.stats.ShardSearchLoadRateProvider;
 import org.elasticsearch.index.seqno.GlobalCheckpointSyncAction;
 import org.elasticsearch.index.seqno.RetentionLeaseSyncer;
 import org.elasticsearch.index.shard.PrimaryReplicaSyncer;
@@ -202,6 +203,7 @@ import org.elasticsearch.usage.UsageService;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.junit.After;
 import org.junit.Before;
+import org.mockito.Mockito;
 
 import java.io.IOException;
 import java.nio.file.Path;
@@ -244,7 +246,9 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.iterableWithSize;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.notNullValue;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 public class SnapshotResiliencyTests extends ESTestCase {
 
@@ -2217,8 +2221,12 @@ public class SnapshotResiliencyTests extends ESTestCase {
                 );
                 final MapperRegistry mapperRegistry = new IndicesModule(Collections.emptyList()).getMapperRegistry();
 
+                PluginsService pluginsService = Mockito.mock(PluginsService.class);
+                when(pluginsService.loadSingletonServiceProvider(any(), any())).thenReturn(ShardSearchLoadRateProvider.DEFAULT);
+
+
                 indicesService = new IndicesServiceBuilder().settings(settings)
-                    .pluginsService(mock(PluginsService.class))
+                    .pluginsService(pluginsService)
                     .nodeEnvironment(nodeEnv)
                     .xContentRegistry(namedXContentRegistry)
                     .analysisRegistry(

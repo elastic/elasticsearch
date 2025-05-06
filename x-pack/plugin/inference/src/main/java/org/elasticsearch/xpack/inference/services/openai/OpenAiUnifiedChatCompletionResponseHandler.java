@@ -40,8 +40,7 @@ public class OpenAiUnifiedChatCompletionResponseHandler extends OpenAiChatComple
     @Override
     public InferenceServiceResults parseResult(Request request, Flow.Publisher<HttpResult> flow) {
         var serverSentEventProcessor = new ServerSentEventProcessor(new ServerSentEventParser());
-        var openAiProcessor = new OpenAiUnifiedStreamingProcessor((m, e) -> buildMidStreamError(request, m, e));
-
+        var openAiProcessor = new OpenAiUnifiedStreamingProcessor((m, e) -> buildMidStreamError(request.getInferenceEntityId(), m, e));
         flow.subscribe(serverSentEventProcessor);
         serverSentEventProcessor.subscribe(openAiProcessor);
         return new StreamingUnifiedChatCompletionResults(openAiProcessor);
@@ -67,7 +66,7 @@ public class OpenAiUnifiedChatCompletionResponseHandler extends OpenAiChatComple
         }
     }
 
-    private static Exception buildMidStreamError(Request request, String message, Exception e) {
+    public static UnifiedChatCompletionException buildMidStreamError(String inferenceEntityId, String message, Exception e) {
         var errorResponse = OpenAiErrorResponse.fromString(message);
         if (errorResponse instanceof OpenAiErrorResponse oer) {
             return new UnifiedChatCompletionException(
@@ -75,7 +74,7 @@ public class OpenAiUnifiedChatCompletionResponseHandler extends OpenAiChatComple
                 format(
                     "%s for request from inference entity id [%s]. Error message: [%s]",
                     SERVER_ERROR_OBJECT,
-                    request.getInferenceEntityId(),
+                    inferenceEntityId,
                     errorResponse.getErrorMessage()
                 ),
                 oer.type(),
@@ -87,7 +86,7 @@ public class OpenAiUnifiedChatCompletionResponseHandler extends OpenAiChatComple
         } else {
             return new UnifiedChatCompletionException(
                 RestStatus.INTERNAL_SERVER_ERROR,
-                format("%s for request from inference entity id [%s]", SERVER_ERROR_OBJECT, request.getInferenceEntityId()),
+                format("%s for request from inference entity id [%s]", SERVER_ERROR_OBJECT, inferenceEntityId),
                 errorResponse != null ? errorResponse.getClass().getSimpleName() : "unknown",
                 "stream_error"
             );

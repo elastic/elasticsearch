@@ -1066,12 +1066,12 @@ public class IndicesService extends AbstractLifecycleComponent
      * but does not deal with in-memory structures. For those call {@link #removeIndex}
      */
     @Override
-    public void deleteUnassignedIndex(String reason, IndexMetadata oldIndexMetadata, ClusterState clusterState) {
+    public void deleteUnassignedIndex(String reason, IndexMetadata oldIndexMetadata, @Nullable ProjectMetadata project) {
         if (nodeEnv.hasNodeFile()) {
             Index index = oldIndexMetadata.getIndex();
             try {
-                if (clusterState.metadata().getProject().hasIndex(index)) {
-                    final IndexMetadata currentMetadata = clusterState.metadata().getProject().index(index);
+                if (project != null && project.hasIndex(index)) {
+                    final IndexMetadata currentMetadata = project.index(index);
                     throw new IllegalStateException(
                         "Can't delete unassigned index store for ["
                             + index.getName()

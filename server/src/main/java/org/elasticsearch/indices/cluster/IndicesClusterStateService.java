@@ -400,7 +400,11 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
                 indexServiceClosedListener = SubscribableListener.nullSuccess();
                 final IndexMetadata metadata = project.get().index(index);
                 indexSettings = new IndexSettings(metadata, settings);
-                indicesService.deleteUnassignedIndex("deleted index was not assigned to local node", metadata, state);
+                indicesService.deleteUnassignedIndex(
+                    "deleted index was not assigned to local node",
+                    metadata,
+                    state.metadata().projects().get(project.get().id())
+                );
             } else {
                 // The previous cluster state's metadata also does not contain the index,
                 // which is what happens on node startup when an index was deleted while the
@@ -1258,7 +1262,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
          * Deletes an index that is not assigned to this node. This method cleans up all disk folders relating to the index
          * but does not deal with in-memory structures. For those call {@link #removeIndex}
          */
-        void deleteUnassignedIndex(String reason, IndexMetadata metadata, ClusterState clusterState);
+        void deleteUnassignedIndex(String reason, IndexMetadata metadata, @Nullable ProjectMetadata project);
 
         /**
          * Removes the given index from this service and releases all associated resources. Persistent parts of the index

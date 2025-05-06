@@ -27,7 +27,6 @@ import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.Closeable;
 import java.io.IOException;
-import java.util.Collections;
 import java.util.Comparator;
 import java.util.IdentityHashMap;
 import java.util.Iterator;
@@ -265,7 +264,7 @@ public class ThreadPoolMergeExecutorService implements Closeable {
         // To ensure that for a given merge onMergeQueued is called before onMergeAborted or onMergeCompleted, we call onMergeQueued
         // before adding the merge task to the queue. Adding to the queue should not fail.
         mergeEventListeners.forEach(l -> l.onMergeQueued(mergeTask.getOnGoingMerge(), mergeTask.getMergeMemoryEstimateBytes()));
-        boolean added = queuedMergeTasks.add(mergeTask);
+        boolean added = queuedMergeTasks.enqueue(mergeTask);
         assert added;
     }
 
@@ -283,7 +282,7 @@ public class ThreadPoolMergeExecutorService implements Closeable {
                 // one such runnable always executes a SINGLE merge task from the queue
                 // this is important for merge queue statistics, i.e. the executor's queue size represents the current amount of merges
                 while (true) {
-                    PriorityBlockingQueueWithBudget<MergeTask>.ElementWithBudgetRelease smallestMergeTaskWithReleasableBudget;
+                    PriorityBlockingQueueWithBudget<MergeTask>.ElementWithReleasableBudget smallestMergeTaskWithReleasableBudget;
                     try {
                         // will block if there are backlogged merges until they're enqueued again
                         smallestMergeTaskWithReleasableBudget = queuedMergeTasks.take();
@@ -430,7 +429,7 @@ public class ThreadPoolMergeExecutorService implements Closeable {
     static class PriorityBlockingQueueWithBudget<E> {
         private final ToLongFunction<? super E> budgetFunction;
         private final PriorityQueue<E> enqueuedByBudget;
-        private final Set<E> tookNotReleased;
+        private final IdentityHashMap<E, Long> unreleasedBudgetPerElement;
         private final ReentrantLock lock;
         private final Condition elementAvailable;
         private long availableBudget;
@@ -438,13 +437,13 @@ public class ThreadPoolMergeExecutorService implements Closeable {
         PriorityBlockingQueueWithBudget(ToLongFunction<? super E> budgetFunction, long availableBudget) {
             this.budgetFunction = budgetFunction;
             this.enqueuedByBudget = new PriorityQueue<>(64, Comparator.comparingLong(budgetFunction));
-            this.tookNotReleased = Collections.newSetFromMap(new IdentityHashMap<>());
+            this.unreleasedBudgetPerElement = new IdentityHashMap<>();
             this.lock = new ReentrantLock();
             this.elementAvailable = lock.newCondition();
             this.availableBudget = availableBudget;
         }
 
-        boolean add(E e) {
+        boolean enqueue(E e) {
             final ReentrantLock lock = this.lock;
             lock.lock();
             try {
@@ -456,7 +455,7 @@ public class ThreadPoolMergeExecutorService implements Closeable {
             return true;
         }
 
-        ElementWithBudgetRelease take() throws InterruptedException {
+        ElementWithReleasableBudget take() throws InterruptedException {
             final ReentrantLock lock = this.lock;
             lock.lockInterruptibly();
             try {
@@ -464,9 +463,7 @@ public class ThreadPoolMergeExecutorService implements Closeable {
                 long peekBudget;
                 while ((peek = enqueuedByBudget.peek()) == null || (peekBudget = budgetFunction.applyAsLong(peek)) > availableBudget)
                     elementAvailable.await();
-                availableBudget -= peekBudget;
-                assert availableBudget > 0L;
-                return new ElementWithBudgetRelease(enqueuedByBudget.poll());
+                return new ElementWithReleasableBudget(enqueuedByBudget.poll(), peekBudget);
             } finally {
                 lock.unlock();
             }
@@ -477,10 +474,10 @@ public class ThreadPoolMergeExecutorService implements Closeable {
             lock.lock();
             try {
                 this.availableBudget = availableBudget;
-                for (E tookElement : tookNotReleased) {
-                    this.availableBudget -= budgetFunction.applyAsLong(tookElement);
-                }
-                this.availableBudget = Math.max(0L, this.availableBudget);
+                // also update budget per element
+                unreleasedBudgetPerElement.replaceAll((e, v) -> budgetFunction.applyAsLong(e));
+                // update available budget given the per element budget
+                this.availableBudget -= unreleasedBudgetPerElement.values().stream().reduce(0L, Long::sum);
                 elementAvailable.signalAll();
             } finally {
                 lock.unlock();
@@ -495,17 +492,28 @@ public class ThreadPoolMergeExecutorService implements Closeable {
             return enqueuedByBudget.size();
         }
 
-        class ElementWithBudgetRelease implements Releasable {
+        class ElementWithReleasableBudget implements Releasable {
             private final E element;
 
-            private ElementWithBudgetRelease(E element) {
+            private ElementWithReleasableBudget(E element, long budget) {
                 this.element = element;
-                tookNotReleased.add(element);
+                assert PriorityBlockingQueueWithBudget.this.lock.isHeldByCurrentThread();
+                var prev = unreleasedBudgetPerElement.put(element, budget);
+                assert prev == null;
+                availableBudget -= budget;
+                assert availableBudget >= 0L;
             }
 
             @Override
             public void close() {
-                tookNotReleased.remove(element);
+                final ReentrantLock lock = PriorityBlockingQueueWithBudget.this.lock;
+                lock.lock();
+                try {
+                    availableBudget += unreleasedBudgetPerElement.remove(element);
+                    elementAvailable.signalAll();
+                } finally {
+                    lock.unlock();
+                }
             }
 
             public E element() {

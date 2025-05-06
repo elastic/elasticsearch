@@ -62,15 +62,8 @@ public class TextFieldBlockLoaderTests extends BlockLoaderTestCase {
             if (params.syntheticSource() && testContext.forceFallbackSyntheticSource() == false && usingSyntheticSourceDelegate) {
                 var nullValue = (String) keywordMultiFieldMapping.get("null_value");
 
-                // Due to how TextFieldMapper#blockReaderDisiLookup works this is complicated.
-                // If we are using lookupMatchingAll() then we'll see all docs, generate synthetic source using syntheticSourceDelegate,
-                // parse it and see null_value inside.
-                // But if we are using lookupFromNorms() we will skip the document (since the text field itself does not exist).
-                // Same goes for lookupFromFieldNames().
-                boolean textFieldIndexed = (boolean) fieldMapping.getOrDefault("index", true);
-
                 if (value == null) {
-                    if (textFieldIndexed == false && nullValue != null && nullValue.length() <= (int) ignoreAbove) {
+                    if (nullValue != null && nullValue.length() <= (int) ignoreAbove) {
                         return new BytesRef(nullValue);
                     }
 
@@ -82,12 +75,6 @@ public class TextFieldBlockLoaderTests extends BlockLoaderTestCase {
                 }
 
                 var values = (List<String>) value;
-
-                // See note above about TextFieldMapper#blockReaderDisiLookup.
-                if (textFieldIndexed && values.stream().allMatch(Objects::isNull)) {
-                    return null;
-                }
-
                 var indexed = values.stream()
                     .map(s -> s == null ? nullValue : s)
                     .filter(Objects::nonNull)

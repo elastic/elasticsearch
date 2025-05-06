@@ -391,9 +391,7 @@ public class JoinValidationService {
         }
         assert clusterState.nodes().isLocalNodeElectedMaster();
 
-        final var bytesStream = transportService.newNetworkBytesStream();
-        var success = false;
-        try {
+        try (var bytesStream = transportService.newNetworkBytesStream()) {
             try (
                 var stream = new OutputStreamStreamOutput(
                     CompressorFactory.COMPRESSOR.threadLocalOutputStream(Streams.flushOnCloseStream(bytesStream))
@@ -404,22 +402,16 @@ public class JoinValidationService {
             } catch (IOException e) {
                 throw new ElasticsearchException("failed to serialize cluster state for publishing to node {}", e, discoveryNode);
             }
-            final var newBytes = new ReleasableBytesReference(bytesStream.bytes(), bytesStream);
             logger.trace(
                 "serialized join validation cluster state version [{}] for transport version [{}] with size [{}]",
                 clusterState.version(),
                 version,
-                newBytes.length()
+                bytesStream.position()
             );
+            var newBytes = bytesStream.moveToBytesReference();
             final var previousBytes = statesByVersion.put(version, newBytes);
             assert previousBytes == null;
-            success = true;
             return newBytes;
-        } finally {
-            if (success == false) {
-                bytesStream.close();
-                assert false;
-            }
         }
     }
 }

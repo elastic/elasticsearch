@@ -44,6 +44,8 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
 
+import static org.elasticsearch.entitlement.initialization.EntitlementInitialization.getVersionSpecificCheckerClass;
+
 class DynamicInstrumentation {
 
     interface InstrumentationInfoFactory {
@@ -161,7 +163,7 @@ class DynamicInstrumentation {
             }
         };
 
-        return Stream.of(
+        var allVersionsMethods = Stream.of(
             instrumentation.of("newFileSystem", URI.class, Map.class),
             instrumentation.of("newFileSystem", Path.class, Map.class),
             instrumentation.of("newInputStream", Path.class, OpenOption[].class),
@@ -185,10 +187,35 @@ class DynamicInstrumentation {
             instrumentation.of("getFileAttributeView", Path.class, Class.class, LinkOption[].class),
             instrumentation.of("readAttributes", Path.class, Class.class, LinkOption[].class),
             instrumentation.of("readAttributes", Path.class, String.class, LinkOption[].class),
-            instrumentation.of("readAttributesIfExists", Path.class, Class.class, LinkOption[].class),
-            instrumentation.of("setAttribute", Path.class, String.class, Object.class, LinkOption[].class),
-            instrumentation.of("exists", Path.class, LinkOption[].class)
+            instrumentation.of("setAttribute", Path.class, String.class, Object.class, LinkOption[].class)
         );
+
+        if (Runtime.version().feature() >= 20) {
+            var java20EntitlementCheckerClass = getVersionSpecificCheckerClass(EntitlementChecker.class, 20);
+            var java20Methods = Stream.of(
+                INSTRUMENTATION_SERVICE.lookupImplementationMethod(
+                    FileSystemProvider.class,
+                    "readAttributesIfExists",
+                    fileSystemProviderClass,
+                    java20EntitlementCheckerClass,
+                    "checkReadAttributesIfExists",
+                    Path.class,
+                    Class.class,
+                    LinkOption[].class
+                ),
+                INSTRUMENTATION_SERVICE.lookupImplementationMethod(
+                    FileSystemProvider.class,
+                    "exists",
+                    fileSystemProviderClass,
+                    java20EntitlementCheckerClass,
+                    "checkExists",
+                    Path.class,
+                    LinkOption[].class
+                )
+            );
+            return Stream.concat(allVersionsMethods, java20Methods);
+        }
+        return allVersionsMethods;
     }
 
     private static Stream<InstrumentationService.InstrumentationInfo> fileStoreChecks() {

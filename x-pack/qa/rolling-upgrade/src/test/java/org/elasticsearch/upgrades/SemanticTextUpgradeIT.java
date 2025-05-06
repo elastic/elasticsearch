@@ -10,6 +10,7 @@ package org.elasticsearch.upgrades;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.apache.lucene.search.join.ScoreMode;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
@@ -37,6 +38,7 @@ import org.elasticsearch.xpack.inference.model.TestModel;
 import org.junit.BeforeClass;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashSet;
 import java.util.List;
@@ -52,6 +54,7 @@ public class SemanticTextUpgradeIT extends AbstractUpgradeTestCase {
     private static final String INDEX_BASE_NAME = "semantic_text_test_index";
     private static final String SPARSE_FIELD = "sparse_field";
     private static final String DENSE_FIELD = "dense_field";
+    private static final Version UPGRADE_FROM_VERSION_PARSED = Version.fromString(UPGRADE_FROM_VERSION);
 
     private static final String DOC_1_ID = "doc_1";
     private static final String DOC_2_ID = "doc_2";
@@ -80,10 +83,17 @@ public class SemanticTextUpgradeIT extends AbstractUpgradeTestCase {
 
     @ParametersFactory
     public static Iterable<Object[]> parameters() {
-        return List.of(new Object[] { true }, new Object[] { false });
+        List<Object[]> parameters = new ArrayList<>();
+        parameters.add(new Object[] { true });
+        if (UPGRADE_FROM_VERSION_PARSED.onOrAfter(Version.V_8_18_0)) {
+            // New semantic text format added in 8.18
+            parameters.add(new Object[] { false });
+        }
+        return parameters;
     }
 
     public void testSemanticTextOperations() throws Exception {
+        assumeTrue("Upgrade from version supports semantic text", UPGRADE_FROM_VERSION_PARSED.onOrAfter(Version.V_8_15_0));
         switch (CLUSTER_TYPE) {
             case OLD -> createAndPopulateIndex();
             case MIXED, UPGRADED -> performIndexQueryHighlightOps();
@@ -108,11 +118,12 @@ public class SemanticTextUpgradeIT extends AbstractUpgradeTestCase {
             }
             """, SPARSE_FIELD, SPARSE_MODEL.getInferenceEntityId(), DENSE_FIELD, DENSE_MODEL.getInferenceEntityId());
 
-        CreateIndexResponse response = createIndex(
-            indexName,
-            Settings.builder().put(InferenceMetadataFieldsMapper.USE_LEGACY_SEMANTIC_TEXT_FORMAT.getKey(), useLegacyFormat).build(),
-            mapping
-        );
+        Settings.Builder settingsBuilder = Settings.builder();
+        if (UPGRADE_FROM_VERSION_PARSED.onOrAfter(Version.V_8_18_0)) {
+            settingsBuilder.put(InferenceMetadataFieldsMapper.USE_LEGACY_SEMANTIC_TEXT_FORMAT.getKey(), useLegacyFormat);
+        }
+
+        CreateIndexResponse response = createIndex(indexName, settingsBuilder.build(), mapping);
         assertThat(response.isAcknowledged(), equalTo(true));
 
         indexDoc(DOC_1_ID, DOC_VALUES.get(DOC_1_ID));
@@ -237,9 +248,12 @@ public class SemanticTextUpgradeIT extends AbstractUpgradeTestCase {
             assertThat(id, notNullValue());
             docIds.add(id);
 
-            List<String> expectedHighlight = DOC_VALUES.get(id);
-            assertThat(expectedHighlight, notNullValue());
-            assertThat(ObjectPath.evaluate(hit, "highlight." + field), equalTo(expectedHighlight));
+            if (UPGRADE_FROM_VERSION_PARSED.onOrAfter(Version.V_8_18_0) || CLUSTER_TYPE == ClusterType.UPGRADED) {
+                // Semantic highlighting only functions reliably on clusters where all nodes are 8.18.0 or later
+                List<String> expectedHighlight = DOC_VALUES.get(id);
+                assertThat(expectedHighlight, notNullValue());
+                assertThat(ObjectPath.evaluate(hit, "highlight." + field), equalTo(expectedHighlight));
+            }
         }
 
         assertThat(docIds, equalTo(Set.of(DOC_1_ID, DOC_2_ID)));

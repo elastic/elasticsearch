@@ -11,12 +11,13 @@ package org.elasticsearch.ingest.otel;
 
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.test.ESTestCase;
+import org.junit.Ignore;
 
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 
-//@Ignore
+@Ignore
 public class ResourceAttributesTests extends ESTestCase {
 
     @SuppressForbidden(reason = "Used specifically for the output. Only meant to be run manually, not through CI.")

@@ -1,0 +1,7 @@
+pr: 127739
+summary: Fix inconsistent roundup behavior for date ranges using Temporal object as
+  terms
+area: Infra/Core
+type: bug
+issues:
+ - 86284

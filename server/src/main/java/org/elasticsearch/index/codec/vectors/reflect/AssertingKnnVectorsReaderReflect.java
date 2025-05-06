@@ -50,7 +50,7 @@ public class AssertingKnnVectorsReaderReflect {
             if (cls == null) {
                 return MethodHandles.throwException(KnnVectorsReader.class, AssertionError.class);
             }
-            var lookup = MethodHandles.privateLookupIn((cls, MethodHandles.lookup());
+            var lookup = MethodHandles.privateLookupIn(cls, MethodHandles.lookup());
             return lookup.findGetter(cls, "delegate", KnnVectorsReader.class);
         } catch (ReflectiveOperationException e) {
             throw new AssertionError(e);

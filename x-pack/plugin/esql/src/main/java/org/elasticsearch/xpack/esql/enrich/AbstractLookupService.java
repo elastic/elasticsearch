@@ -389,20 +389,26 @@ public abstract class AbstractLookupService<R extends AbstractLookupService.Requ
     ) {
         List<ValuesSourceReaderOperator.FieldInfo> fields = new ArrayList<>(extractFields.size());
         for (NamedExpression extractField : extractFields) {
+            String physicalName = extractField instanceof FieldAttribute fa ? fa.fieldName()
+                : extractField instanceof Alias a ? ((NamedExpression) a.child()).name()
+                : extractField.name();
 
             BlockLoader loader = shardContext.blockLoader(
-                extractField instanceof Alias a ? ((NamedExpression) a.child()).name() : extractField.name(),
+                physicalName,
                 extractField.dataType() == DataType.UNSUPPORTED,
                 MappedFieldType.FieldExtractPreference.NONE
             );
-            String physicalName = extractField instanceof FieldAttribute fa ? fa.fieldName() : extractField.name();
             fields.add(
-                new ValuesSourceReaderOperator.FieldInfo(physicalName, PlannerUtils.toElementType(extractField.dataType()), shardIdx -> {
-                    if (shardIdx != 0) {
-                        throw new IllegalStateException("only one shard");
+                new ValuesSourceReaderOperator.FieldInfo(
+                    extractField.name(),
+                    PlannerUtils.toElementType(extractField.dataType()),
+                    shardIdx -> {
+                        if (shardIdx != 0) {
+                            throw new IllegalStateException("only one shard");
+                        }
+                        return loader;
                     }
-                    return loader;
-                })
+                )
             );
         }
         return new ValuesSourceReaderOperator(

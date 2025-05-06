@@ -11,7 +11,6 @@ package org.elasticsearch.ingest.otel;
 
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.test.ESTestCase;
-import org.junit.Ignore;
 
 import java.util.HashSet;
 import java.util.Map;

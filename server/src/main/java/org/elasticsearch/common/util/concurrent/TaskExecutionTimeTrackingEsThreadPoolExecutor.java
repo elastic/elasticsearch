@@ -10,9 +10,17 @@
 package org.elasticsearch.common.util.concurrent;
 
 import org.elasticsearch.common.ExponentiallyWeightedMovingAverage;
+import org.elasticsearch.common.metrics.ExponentialBucketHistogram;
 import org.elasticsearch.common.util.concurrent.EsExecutors.TaskTrackingConfig;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.telemetry.metric.DoubleWithAttributes;
+import org.elasticsearch.telemetry.metric.Instrument;
+import org.elasticsearch.telemetry.metric.LongWithAttributes;
+import org.elasticsearch.telemetry.metric.MeterRegistry;
+import org.elasticsearch.threadpool.ThreadPool;
 
+import java.util.Arrays;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.ConcurrentHashMap;
@@ -22,10 +30,16 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.LongAdder;
 import java.util.function.Function;
 
+import static org.elasticsearch.threadpool.ThreadPool.THREAD_POOL_METRIC_NAME_QUEUE_TIME;
+import static org.elasticsearch.threadpool.ThreadPool.THREAD_POOL_METRIC_NAME_UTILIZATION;
+
 /**
  * An extension to thread pool executor, which tracks statistics for the task execution time.
  */
 public final class TaskExecutionTimeTrackingEsThreadPoolExecutor extends EsThreadPoolExecutor {
+
+    public static final int QUEUE_LATENCY_HISTOGRAM_BUCKETS = 18;
+    private static final int[] LATENCY_PERCENTILES_TO_REPORT = { 50, 90, 99 };
 
     private final Function<Runnable, WrappedRunnable> runnableWrapper;
     private final ExponentiallyWeightedMovingAverage executionEWMA;
@@ -35,6 +49,7 @@ public final class TaskExecutionTimeTrackingEsThreadPoolExecutor extends EsThrea
     private final Map<Runnable, Long> ongoingTasks = new ConcurrentHashMap<>();
     private volatile long lastPollTime = System.nanoTime();
     private volatile long lastTotalExecutionTime = 0;
+    private final ExponentialBucketHistogram queueLatencyMillisHistogram = new ExponentialBucketHistogram(QUEUE_LATENCY_HISTOGRAM_BUCKETS);
 
     TaskExecutionTimeTrackingEsThreadPoolExecutor(
         String name,
@@ -53,6 +68,36 @@ public final class TaskExecutionTimeTrackingEsThreadPoolExecutor extends EsThrea
         this.runnableWrapper = runnableWrapper;
         this.executionEWMA = new ExponentiallyWeightedMovingAverage(trackingConfig.getEwmaAlpha(), 0);
         this.trackOngoingTasks = trackingConfig.trackOngoingTasks();
+    }
+
+    public List<Instrument> setupMetrics(MeterRegistry meterRegistry, String threadPoolName) {
+        return List.of(
+            meterRegistry.registerLongsGauge(
+                ThreadPool.THREAD_POOL_METRIC_PREFIX + threadPoolName + THREAD_POOL_METRIC_NAME_QUEUE_TIME,
+                "Time tasks spent in the queue for the " + threadPoolName + " thread pool",
+                "milliseconds",
+                () -> {
+                    long[] snapshot = queueLatencyMillisHistogram.getSnapshot();
+                    int[] bucketUpperBounds = queueLatencyMillisHistogram.calculateBucketUpperBounds();
+                    List<LongWithAttributes> metricValues = Arrays.stream(LATENCY_PERCENTILES_TO_REPORT)
+                        .mapToObj(
+                            percentile -> new LongWithAttributes(
+                                queueLatencyMillisHistogram.getPercentile(percentile / 100f, snapshot, bucketUpperBounds),
+                                Map.of("percentile", String.valueOf(percentile))
+                            )
+                        )
+                        .toList();
+                    queueLatencyMillisHistogram.clear();
+                    return metricValues;
+                }
+            ),
+            meterRegistry.registerDoubleGauge(
+                ThreadPool.THREAD_POOL_METRIC_PREFIX + threadPoolName + THREAD_POOL_METRIC_NAME_UTILIZATION,
+                "fraction of maximum thread time utilized for " + threadPoolName,
+                "fraction",
+                () -> new DoubleWithAttributes(pollUtilization(), Map.of())
+            )
+        );
     }
 
     @Override
@@ -116,6 +161,12 @@ public final class TaskExecutionTimeTrackingEsThreadPoolExecutor extends EsThrea
         if (trackOngoingTasks) {
             ongoingTasks.put(r, System.nanoTime());
         }
+        assert super.unwrap(r) instanceof TimedRunnable : "expected only TimedRunnables in queue";
+        final TimedRunnable timedRunnable = (TimedRunnable) super.unwrap(r);
+        timedRunnable.beforeExecute();
+        final long taskQueueLatency = timedRunnable.getQueueTimeNanos();
+        assert taskQueueLatency >= 0;
+        queueLatencyMillisHistogram.addObservation(TimeUnit.NANOSECONDS.toMillis(taskQueueLatency));
     }
 
     @Override

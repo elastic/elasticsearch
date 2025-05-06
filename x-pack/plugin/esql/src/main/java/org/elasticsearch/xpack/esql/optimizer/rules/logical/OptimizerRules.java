@@ -71,12 +71,7 @@ public final class OptimizerRules {
          * By default that skips FROM, LIMIT, PROJECT, KEEP and DROP but this list could be extended or replaced in subclasses.
          */
         protected boolean shouldVisit(Node<?> node) {
-            return switch (node) {
-                case EsRelation relation -> false;
-                case Project project -> false;// this covers project, keep and drop
-                case Limit limit -> false;
-                default -> true;
-            };
+            return (node instanceof EsRelation || node instanceof Project || node instanceof Limit) == false;
         }
 
         public Class<E> expressionToken() {

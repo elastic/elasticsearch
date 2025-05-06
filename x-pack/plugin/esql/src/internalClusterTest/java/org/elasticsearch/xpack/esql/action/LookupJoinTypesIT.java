@@ -15,8 +15,13 @@ import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.xpack.core.esql.action.ColumnInfo;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.plan.logical.join.Join;
 import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
+import org.elasticsearch.xpack.spatial.SpatialPlugin;
+import org.elasticsearch.xpack.unsignedlong.UnsignedLongMapperPlugin;
+import org.elasticsearch.xpack.versionfield.VersionFieldPlugin;
 
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -31,9 +36,11 @@ import java.util.stream.Collectors;
 
 import static org.elasticsearch.test.ESIntegTestCase.Scope.SUITE;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.elasticsearch.xpack.esql.core.type.DataType.AGGREGATE_METRIC_DOUBLE;
 import static org.elasticsearch.xpack.esql.core.type.DataType.BOOLEAN;
 import static org.elasticsearch.xpack.esql.core.type.DataType.BYTE;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DATETIME;
+import static org.elasticsearch.xpack.esql.core.type.DataType.DOC_DATA_TYPE;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DOUBLE;
 import static org.elasticsearch.xpack.esql.core.type.DataType.FLOAT;
 import static org.elasticsearch.xpack.esql.core.type.DataType.HALF_FLOAT;
@@ -41,8 +48,10 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.INTEGER;
 import static org.elasticsearch.xpack.esql.core.type.DataType.IP;
 import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
 import static org.elasticsearch.xpack.esql.core.type.DataType.LONG;
+import static org.elasticsearch.xpack.esql.core.type.DataType.NULL;
 import static org.elasticsearch.xpack.esql.core.type.DataType.SHORT;
 import static org.elasticsearch.xpack.esql.core.type.DataType.TEXT;
+import static org.elasticsearch.xpack.esql.core.type.DataType.TSID_DATA_TYPE;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
@@ -108,7 +117,13 @@ import static org.hamcrest.Matchers.nullValue;
 @ClusterScope(scope = SUITE, numClientNodes = 1, numDataNodes = 1)
 public class LookupJoinTypesIT extends ESIntegTestCase {
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return List.of(EsqlPlugin.class, MapperExtrasPlugin.class);
+        return List.of(
+            EsqlPlugin.class,
+            MapperExtrasPlugin.class,
+            VersionFieldPlugin.class,
+            UnsignedLongMapperPlugin.class,
+            SpatialPlugin.class
+        );
     }
 
     private static final Map<String, TestConfigs> testConfigurations = new HashMap<>();
@@ -118,8 +133,7 @@ public class LookupJoinTypesIT extends ESIntegTestCase {
             TestConfigs configs = testConfigurations.computeIfAbsent("strings", TestConfigs::new);
             configs.addPasses(KEYWORD, KEYWORD);
             configs.addPasses(TEXT, KEYWORD);
-            configs.addFailsText(KEYWORD);
-            configs.addFailsText(TEXT);
+            configs.addFailsUnsupported(KEYWORD, TEXT);
         }
 
         // Test integer types
@@ -158,13 +172,37 @@ public class LookupJoinTypesIT extends ESIntegTestCase {
                 }
             }
         }
+        // Tests for all unsupported types
+        DataType[] unsupported = Join.UNSUPPORTED_TYPES;
+        {
+            Collection<TestConfigs> existing = testConfigurations.values();
+            TestConfigs configs = testConfigurations.computeIfAbsent("unsupported", TestConfigs::new);
+            for (DataType type : unsupported) {
+                if (type == NULL
+                    || type == DOC_DATA_TYPE
+                    || type == TSID_DATA_TYPE
+                    || type == AGGREGATE_METRIC_DOUBLE
+                    || type.esType() == null
+                    || type.isCounter()
+                    || DataType.isRepresentable(type) == false) {
+                    // Skip unmappable types, or types not supported in ES|QL in general
+                    continue;
+                }
+                if (existingIndex(existing, type, type)) {
+                    // Skip existing configurations
+                    continue;
+                }
+                configs.addFailsUnsupported(type, type);
+            }
+        }
 
         // Tests for all types where left and right are the same type
-        DataType[] all = { BOOLEAN, LONG, INTEGER, DOUBLE, SHORT, BYTE, FLOAT, HALF_FLOAT, DATETIME, IP, KEYWORD };
+        DataType[] supported = { BOOLEAN, LONG, INTEGER, DOUBLE, SHORT, BYTE, FLOAT, HALF_FLOAT, DATETIME, IP, KEYWORD };
         {
             Collection<TestConfigs> existing = testConfigurations.values();
             TestConfigs configs = testConfigurations.computeIfAbsent("same", TestConfigs::new);
-            for (DataType type : all) {
+            for (DataType type : supported) {
+                assertThat("Claiming supported for unsupported type: " + type, List.of(unsupported).contains(type), is(false));
                 if (existingIndex(existing, type, type)) {
                     // Skip existing configurations
                     continue;
@@ -173,12 +211,28 @@ public class LookupJoinTypesIT extends ESIntegTestCase {
             }
         }
 
+        // Assert that unsupported types are not in the supported list
+        for (DataType type : unsupported) {
+            assertThat("Claiming supported for unsupported type: " + type, List.of(supported).contains(type), is(false));
+        }
+
+        // Assert that unsupported+supported covers all types:
+        List<DataType> missing = new ArrayList<>();
+        for (DataType type : DataType.values()) {
+            boolean isUnsupported = List.of(unsupported).contains(type);
+            boolean isSupported = List.of(supported).contains(type);
+            if (isUnsupported == false && isSupported == false) {
+                missing.add(type);
+            }
+        }
+        assertThat(missing + " are not in the supported or unsupported list", missing.size(), is(0));
+
         // Tests for all other type combinations
         {
             Collection<TestConfigs> existing = testConfigurations.values();
             TestConfigs configs = testConfigurations.computeIfAbsent("others", TestConfigs::new);
-            for (DataType mainType : all) {
-                for (DataType lookupType : all) {
+            for (DataType mainType : supported) {
+                for (DataType lookupType : supported) {
                     if (existingIndex(existing, mainType, lookupType)) {
                         // Skip existing configurations
                         continue;
@@ -187,8 +241,6 @@ public class LookupJoinTypesIT extends ESIntegTestCase {
                 }
             }
         }
-
-        // TODO: Add tests for more types, eg. unsigned_long, version, spatial types, date/temporal types.
 
         // Make sure we have never added two configurations with the same index name
         Set<String> knownTypes = new HashSet<>();
@@ -227,6 +279,10 @@ public class LookupJoinTypesIT extends ESIntegTestCase {
         testLookupJoinTypes("same");
     }
 
+    public void testLookupJoinUnsupported() {
+        testLookupJoinTypes("unsupported");
+    }
+
     public void testLookupJoinOthers() {
         testLookupJoinTypes("others");
     }
@@ -263,7 +319,7 @@ public class LookupJoinTypesIT extends ESIntegTestCase {
             // Each lookup index will get a document with a field to join on, and a results field to get back
             (c) -> assertAcked(
                 prepareCreate(c.indexName()).setSettings(settings.build())
-                    .setMapping(c.fieldName(), "type=" + c.lookupType().esType(), "other", "type=keyword")
+                    .setMapping(c.fieldName(), "type=" + c.lookupType().esType().replace("cartesian_", ""), "other", "type=keyword")
             )
         );
     }
@@ -299,10 +355,11 @@ public class LookupJoinTypesIT extends ESIntegTestCase {
     }
 
     private static String sampleDataTextFor(DataType type) {
-        return switch (type) {
-            case KEYWORD, TEXT, DATETIME, DATE_NANOS, IP -> "\"" + sampleDataFor(type) + "\"";
-            default -> String.valueOf(sampleDataFor(type));
-        };
+        var value = sampleDataFor(type);
+        if (value instanceof String) {
+            return "\"" + value + "\"";
+        }
+        return String.valueOf(value);
     }
 
     private static Object sampleDataFor(DataType type) {
@@ -312,8 +369,11 @@ public class LookupJoinTypesIT extends ESIntegTestCase {
             case IP -> "127.0.0.1";
             case KEYWORD, TEXT -> "key";
             case BYTE, SHORT, INTEGER -> 1;
-            case LONG -> 1L;
+            case LONG, UNSIGNED_LONG -> 1L;
             case HALF_FLOAT, FLOAT, DOUBLE -> 1.0;
+            case VERSION -> "1.2.19";
+            case GEO_POINT, CARTESIAN_POINT -> "POINT (1.0 2.0)";
+            case GEO_SHAPE, CARTESIAN_SHAPE -> "POLYGON ((0.0 0.0, 1.0 0.0, 1.0 1.0, 0.0 1.0, 0.0 0.0))";
             default -> throw new IllegalArgumentException("Unsupported type: " + type);
         };
     }
@@ -366,13 +426,18 @@ public class LookupJoinTypesIT extends ESIntegTestCase {
             );
         }
 
-        private void addFailsText(DataType mainType) {
+        private void addFailsUnsupported(DataType mainType, DataType lookupType) {
             String fieldName = "field_" + mainType.esType();
-            String errorMessage = String.format(Locale.ROOT, "JOIN with right field [%s] of type [TEXT] is not supported", fieldName);
+            String errorMessage = String.format(
+                Locale.ROOT,
+                "JOIN with right field [%s] of type [%s] is not supported",
+                fieldName,
+                lookupType
+            );
             add(
                 new TestConfigFails<>(
                     mainType,
-                    DataType.TEXT,
+                    lookupType,
                     VerificationException.class,
                     e -> assertThat(e.getMessage(), containsString(errorMessage))
                 )
@@ -398,7 +463,7 @@ public class LookupJoinTypesIT extends ESIntegTestCase {
         }
 
         default String mainPropertySpec() {
-            return "\"" + fieldName() + "\": { \"type\" : \"" + mainType().esType() + "\" }";
+            return "\"" + fieldName() + "\": { \"type\" : \"" + mainType().esType().replaceAll("cartesian_", "") + "\" }";
         }
 
         /** Make sure the left index has the expected fields and types */

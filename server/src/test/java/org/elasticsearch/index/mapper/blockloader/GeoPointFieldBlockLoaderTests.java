@@ -17,7 +17,6 @@ import org.elasticsearch.index.mapper.BlockLoaderTestCase;
 import org.elasticsearch.index.mapper.MappedFieldType;
 
 import java.nio.ByteOrder;
-import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
@@ -104,58 +103,6 @@ public class GeoPointFieldBlockLoaderTests extends BlockLoaderTestCase {
             .map(this::toWKB)
             .toList();
         return maybeFoldList(resultList);
-    }
-
-    @Override
-    protected Object getFieldValue(Map<String, Object> document, String fieldName) {
-        var extracted = new ArrayList<>();
-        processLevel(document, fieldName, extracted);
-
-        if (extracted.size() == 1) {
-            return extracted.get(0) ;
-        }
-
-        return extracted;
-    }
-
-    @SuppressWarnings("unchecked")
-    private void processLevel(Map<String, Object> level, String field, ArrayList<Object> extracted) {
-        if (field.contains(".") == false) {
-            var value = level.get(field);
-            processLeafLevel(value, extracted);
-            return;
-        }
-
-        var nameInLevel = field.split("\\.")[0];
-        var entry = level.get(nameInLevel);
-        if (entry instanceof Map<?, ?> m) {
-            processLevel((Map<String, Object>) m, field.substring(field.indexOf('.') + 1), extracted);
-            return;
-        }
-        if (entry instanceof List<?> l) {
-            for (var object : l) {
-                processLevel((Map<String, Object>) object, field.substring(field.indexOf('.') + 1), extracted);
-            }
-            return;
-        }
-        assert false : "unexpected document structure";
-    }
-
-    private void processLeafLevel(Object value, ArrayList<Object> extracted) {
-        if (value instanceof List<?> l) {
-            if (l.size() > 0 && l.get(0) instanceof Double) {
-                // this must be a single point in array form
-                // we'll put it into a different form here to make our lives a bit easier while implementing `expected`
-                extracted.add(Map.of("type", "point", "coordinates", l));
-            } else {
-                // this is actually an array of points but there could still be points in array form inside
-                for (var arrayValue : l) {
-                    processLeafLevel(arrayValue, extracted);
-                }
-            }
-        } else {
-            extracted.add(value);
-        }
     }
 
     @SuppressWarnings("unchecked")

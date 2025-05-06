@@ -2224,7 +2224,6 @@ public class SnapshotResiliencyTests extends ESTestCase {
                 PluginsService pluginsService = Mockito.mock(PluginsService.class);
                 when(pluginsService.loadSingletonServiceProvider(any(), any())).thenReturn(ShardSearchLoadRateProvider.DEFAULT);
 
-
                 indicesService = new IndicesServiceBuilder().settings(settings)
                     .pluginsService(pluginsService)
                     .nodeEnvironment(nodeEnv)

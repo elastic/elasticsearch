@@ -1424,7 +1424,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     /**
      * Returns the search load rate stats for this shard.
      */
-    public ShardSearchLoadRateService.SearchLoadRate getSearchLoadRate() {
+    public double getSearchLoadRate() {
         return shardSearchLoadRateService.getSearchLoadRate(searchStats.stats().getTotal());
     }
 

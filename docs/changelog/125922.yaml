@@ -1,0 +1,5 @@
+pr: 125922 
+summary: Fix text structure NPE when fields in list have null value
+area: Machine Learning
+type: bug
+issues: []

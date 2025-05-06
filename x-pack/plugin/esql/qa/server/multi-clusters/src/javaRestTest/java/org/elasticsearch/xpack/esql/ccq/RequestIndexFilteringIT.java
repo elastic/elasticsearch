@@ -28,6 +28,7 @@ import org.junit.rules.RuleChain;
 import org.junit.rules.TestRule;
 
 import java.io.IOException;
+import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.test.MapMatcher.assertMap;
@@ -87,6 +88,12 @@ public class RequestIndexFilteringIT extends RequestIndexFilteringTestCase {
 
     @Override
     public Map<String, Object> runEsql(RestEsqlTestCase.RequestObjectBuilder requestObject) throws IOException {
+        if (requestObject.allowPartialResults() != null) {
+            assumeTrue(
+                "require allow_partial_results on local cluster",
+                clusterHasCapability("POST", "/_query", List.of(), List.of("support_partial_results")).orElse(false)
+            );
+        }
         requestObject.includeCCSMetadata(true);
         return super.runEsql(requestObject);
     }

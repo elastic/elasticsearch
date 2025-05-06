@@ -3,7 +3,7 @@ mapped_pages:
   - https://www.elastic.co/guide/en/elasticsearch/reference/current/sql-functions-datetime.html
 ---
 
-# Date/Time and Interval Functions and Operators [sql-functions-datetime]
+# Date/time and interval functions and operators [sql-functions-datetime]
 
 Elasticsearch SQL offers a wide range of facilities for performing date/time manipulations.
 

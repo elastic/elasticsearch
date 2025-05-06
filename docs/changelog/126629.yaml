@@ -1,0 +1,5 @@
+pr: 126629
+summary: Default new `semantic_text` fields to use BBQ when models are compatible
+area: Relevance
+type: enhancement
+issues: []

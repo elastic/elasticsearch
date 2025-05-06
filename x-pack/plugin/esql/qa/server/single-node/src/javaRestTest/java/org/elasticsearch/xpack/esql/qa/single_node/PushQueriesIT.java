@@ -24,6 +24,7 @@ import org.junit.ClassRule;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.regex.Pattern;
 
@@ -90,7 +91,7 @@ public class PushQueriesIT extends ESRestTestCase {
     private void testPushQuery(String value, String esqlQuery, String luceneQuery, boolean filterInCompute, boolean found)
         throws IOException {
         indexValue(value);
-        String differentValue = randomValueOtherThan(value, () -> randomAlphaOfLength(value.length()));
+        String differentValue = randomValueOtherThan(value, () -> randomAlphaOfLength(value.length() == 0 ? 1 : value.length()));
 
         String replacedQuery = esqlQuery.replaceAll("%value", value).replaceAll("%different_value", differentValue);
         RestEsqlTestCase.RequestObjectBuilder builder = requestObjectBuilder().query(replacedQuery + "\n| KEEP test");
@@ -164,7 +165,7 @@ public class PushQueriesIT extends ESRestTestCase {
 
         Request bulk = new Request("POST", "/_bulk");
         bulk.addParameter("refresh", "");
-        bulk.setJsonEntity(String.format("""
+        bulk.setJsonEntity(String.format(Locale.ROOT, """
             {"create":{"_index":"test"}}
             {"test":"%s"}
             """, value));

@@ -1,0 +1,98 @@
+setup:
+  - requires:
+      cluster_features: 'pinned_retriever_supported'
+      reason: 'test requires pinned retriever implementation'
+  - do:
+      indices.create:
+        index: test-index1
+
+  - do:
+      bulk:
+        refresh: true
+        index: test-index1
+        body:
+          - index:
+              _id: doc1
+          - { "text": "document one" }
+          - index:
+              _id: doc2
+          - { "text": "document two" }
+          - index:
+              _id: doc3
+          - { "text": "document three" }
+          - index:
+              _id: doc4
+          - { "text": "document four" }
+          - index:
+              _id: doc5
+          - { "text": "document five" }
+
+---
+"rrf combined with pinned retriever":
+  - skip: { features: headers }
+  - do:
+      headers:
+        Content-Type: application/json
+      search:
+        index: test-index1
+        body:
+          retriever:
+            pinned:
+              ids: ["doc1"]
+              retriever:
+                rrf:
+                  retrievers: [
+                    {
+                      standard: {
+                        query: {
+                          term: { text: "document" }
+                        }
+                      }
+                    },
+                    {
+                      standard: {
+                        query: {
+                          term: { text: "three" }
+                        }
+                      }
+                    }
+                  ]
+              rank_window_size: 10
+
+  - match: { hits.total.value: 5 }
+  - match: { hits.hits.0._id: doc1 }
+  - match: { hits.hits.0._score: 1.7014122E38 }
+  - match: { hits.hits.1._id: doc3 }
+  - match: { hits.hits.1._score < 100.0 }
+  - match: { hits.hits.2._id: doc2 }
+
+---
+"rrf with pinned retriever as a sub-retriever":
+  - skip: { features: headers }
+  - do:
+      headers: { Content-Type: application/json }
+      search:
+        index: test-index1
+        body:
+          retriever:
+            rrf:
+              retrievers:
+                -
+                  standard:
+                    query:
+                      match: { text: "document" }
+                -
+                  pinned:
+                    ids: ["doc4", "doc5"]
+                    retriever:
+                      standard:
+                        query:
+                          match: { text: "document" }
+
+  - match: { hits.total.value: 5 }
+  - match: { hits.hits.0._id: doc1 }
+  - lt: { hits.hits.0._score: 100.0 }
+  - match: { hits.hits.1._id: doc4 }
+  - match: { hits.hits.2._id: doc5 }
+
+

@@ -213,7 +213,7 @@ public abstract class BaseRunAsSuperuserCommand extends KeyStoreAwareCommand {
         try {
             response = client.execute("GET", clusterHealthUrl, username, password, () -> null, CommandLineHttpClient::responseBuilder);
         } catch (Exception e) {
-            throw new UserException(ExitCodes.UNAVAILABLE, "Failed to determine the health of the cluster. ", e);
+            throw new UserException(ExitCodes.UNAVAILABLE, "Failed to determine the health of the cluster.", e);
         }
         final int responseStatus = response.getHttpStatus();
         if (responseStatus != HttpURLConnection.HTTP_OK) {

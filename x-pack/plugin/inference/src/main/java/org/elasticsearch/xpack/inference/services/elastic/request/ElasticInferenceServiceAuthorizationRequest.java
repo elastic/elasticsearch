@@ -63,7 +63,7 @@ public class ElasticInferenceServiceAuthorizationRequest extends ElasticInferenc
     @Override
     public String getInferenceEntityId() {
         // TODO look into refactoring so we don't even need to return this, look at the RetryingHttpSender to fix this
-        return "";
+        return "authorization_request";
     }
 
     @Override

@@ -18,7 +18,6 @@ import org.elasticsearch.compute.operator.AggregationOperator;
 import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.compute.operator.HashAggregationOperator.HashAggregationOperatorFactory;
 import org.elasticsearch.compute.operator.Operator;
-import org.elasticsearch.compute.operator.TimeSeriesAggregationOperator;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.InvalidArgumentException;
@@ -175,12 +174,12 @@ public abstract class AbstractPhysicalOperationProviders implements PhysicalOper
             );
             // time-series aggregation
             if (aggregateExec instanceof TimeSeriesAggregateExec ts) {
-                operatorFactory = new TimeSeriesAggregationOperator.Factory(
-                    ts.timeBucketRounding(context.foldCtx()),
-                    groupSpecs.stream().map(GroupSpec::toHashGroupSpec).toList(),
+                operatorFactory = timeSeriesAggregatorOperatorFactory(
+                    ts,
                     aggregatorMode,
                     aggregatorFactories,
-                    context.pageSize(aggregateExec.estimatedRowSize())
+                    groupSpecs.stream().map(GroupSpec::toHashGroupSpec).toList(),
+                    context
                 );
                 // ordinal grouping
             } else if (groupSpecs.size() == 1 && groupSpecs.get(0).channel == null) {
@@ -377,6 +376,14 @@ public abstract class AbstractPhysicalOperationProviders implements PhysicalOper
         List<GroupingAggregator.Factory> aggregatorFactories,
         Attribute attrSource,
         ElementType groupType,
+        LocalExecutionPlannerContext context
+    );
+
+    public abstract Operator.OperatorFactory timeSeriesAggregatorOperatorFactory(
+        TimeSeriesAggregateExec ts,
+        AggregatorMode aggregatorMode,
+        List<GroupingAggregator.Factory> aggregatorFactories,
+        List<BlockHash.GroupSpec> groupSpecs,
         LocalExecutionPlannerContext context
     );
 }

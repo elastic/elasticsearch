@@ -277,7 +277,7 @@ public class CommandLineHttpClient {
                 checkClusterHealthWithRetriesWaitingForCluster(username, password, retries);
                 return;
             } else {
-                throw new IllegalStateException("Failed to determine the health of the cluster. ", e);
+                throw new IllegalStateException("Failed to determine the health of the cluster.", e);
             }
         }
         final int responseStatus = response.getHttpStatus();

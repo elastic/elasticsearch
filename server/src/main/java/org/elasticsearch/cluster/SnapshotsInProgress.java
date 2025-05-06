@@ -135,14 +135,16 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
 
     @FixForMultiProject
     @Deprecated(forRemoval = true)
-    public SnapshotsInProgress withUpdatedEntriesForRepo(String repository, List<Entry> updatedEntries) {
-        return withUpdatedEntriesForRepo(Metadata.DEFAULT_PROJECT_ID, repository, updatedEntries);
+    public SnapshotsInProgress createCopyWithUpdatedEntriesForRepo(String repository, List<Entry> updatedEntries) {
+        return createCopyWithUpdatedEntriesForRepo(Metadata.DEFAULT_PROJECT_ID, repository, updatedEntries);
     }
 
-    public SnapshotsInProgress withUpdatedEntriesForRepo(ProjectId projectId, String repository, List<Entry> updatedEntries) {
+    public SnapshotsInProgress createCopyWithUpdatedEntriesForRepo(ProjectId projectId, String repository, List<Entry> updatedEntries) {
         if (updatedEntries.equals(forRepo(projectId, repository))) {
+            // No changes to apply, return the current object.
             return this;
         }
+
         final Map<ProjectRepo, ByRepo> copy = new HashMap<>(this.entries);
         final var projectRepo = new ProjectRepo(projectId, repository);
         if (updatedEntries.isEmpty()) {
@@ -153,13 +155,14 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
         } else {
             copy.put(projectRepo, new ByRepo(updatedEntries));
         }
+
         return new SnapshotsInProgress(copy, nodesIdsForRemoval);
     }
 
     public SnapshotsInProgress withAddedEntry(Entry entry) {
         final List<Entry> forRepo = new ArrayList<>(forRepo(entry.projectId(), entry.repository()));
         forRepo.add(entry);
-        return withUpdatedEntriesForRepo(entry.projectId(), entry.repository(), forRepo);
+        return createCopyWithUpdatedEntriesForRepo(entry.projectId(), entry.repository(), forRepo);
     }
 
     /**

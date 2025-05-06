@@ -3,7 +3,7 @@ mapped_pages:
   - https://www.elastic.co/guide/en/elasticsearch/reference/current/sql-functions-conditional.html
 ---
 
-# Conditional Functions And Expressions [sql-functions-conditional]
+# Conditional functions and expressions [sql-functions-conditional]
 
 Functions that return one of their arguments by evaluating in an if-else manner.
 

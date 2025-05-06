@@ -34,6 +34,7 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xpack.core.inference.DequeUtils;
 import org.elasticsearch.xpack.core.inference.results.StreamingChatCompletionResults;
 import org.elasticsearch.xpack.core.inference.results.StreamingUnifiedChatCompletionResults;
 import org.elasticsearch.xpack.core.inference.results.TextEmbeddingFloatResults;
@@ -256,37 +257,24 @@ public class TestStreamingCompletionServiceExtension implements InferenceService
           "object": "chat.completion.chunk"
         }
          */
-        private InferenceServiceResults.Result unifiedCompletionChunk(String delta) {
-            return new InferenceServiceResults.Result() {
-                @Override
-                public String getWriteableName() {
-                    return "test_unifiedCompletionChunk";
-                }
-
-                @Override
-                public void writeTo(StreamOutput out) throws IOException {
-                    out.writeString(delta);
-                }
-
-                @Override
-                public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params params) {
-                    return ChunkedToXContentHelper.chunk(
-                        (b, p) -> b.startObject()
-                            .field("id", "id")
-                            .startArray("choices")
-                            .startObject()
-                            .startObject("delta")
-                            .field("content", delta)
-                            .endObject()
-                            .field("index", 0)
-                            .endObject()
-                            .endArray()
-                            .field("model", "gpt-4o-2024-08-06")
-                            .field("object", "chat.completion.chunk")
-                            .endObject()
-                    );
-                }
-            };
+        private StreamingUnifiedChatCompletionResults.Results unifiedCompletionChunk(String delta) {
+            return new StreamingUnifiedChatCompletionResults.Results(
+                DequeUtils.of(
+                    new StreamingUnifiedChatCompletionResults.ChatCompletionChunk(
+                        "id",
+                        List.of(
+                            new StreamingUnifiedChatCompletionResults.ChatCompletionChunk.Choice(
+                                new StreamingUnifiedChatCompletionResults.ChatCompletionChunk.Choice.Delta(delta, null, null, null),
+                                null,
+                                0
+                            )
+                        ),
+                        "gpt-4o-2024-08-06",
+                        "chat.completion.chunk",
+                        null
+                    )
+                )
+            );
         }
 
         @Override

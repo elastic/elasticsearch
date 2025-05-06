@@ -708,6 +708,29 @@ public enum DataType {
         };
     }
 
+    public static DataType suggestedCast(Set<DataType> originalTypes) {
+        if (originalTypes.isEmpty() || originalTypes.contains(UNSUPPORTED)) {
+            return null;
+        }
+        if (originalTypes.contains(DATE_NANOS) && originalTypes.contains(DATETIME) && originalTypes.size() == 2) {
+            return DATE_NANOS;
+        }
+        if (originalTypes.contains(AGGREGATE_METRIC_DOUBLE)) {
+            boolean allNumeric = true;
+            for (DataType type : originalTypes) {
+                if (type.isNumeric() == false && type != AGGREGATE_METRIC_DOUBLE) {
+                    allNumeric = false;
+                    break;
+                }
+            }
+            if (allNumeric) {
+                return AGGREGATE_METRIC_DOUBLE;
+            }
+        }
+
+        return KEYWORD;
+    }
+
     /**
      * Named parameters with default values. It's just easier to do this with
      * a builder in java....

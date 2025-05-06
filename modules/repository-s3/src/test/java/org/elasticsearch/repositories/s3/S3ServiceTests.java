@@ -12,7 +12,9 @@ import software.amazon.awssdk.awscore.exception.AwsErrorDetails;
 import software.amazon.awssdk.awscore.exception.AwsServiceException;
 import software.amazon.awssdk.core.retry.RetryPolicyContext;
 import software.amazon.awssdk.core.retry.conditions.RetryCondition;
+import software.amazon.awssdk.http.SdkHttpClient;
 import software.amazon.awssdk.regions.Region;
+import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.endpoints.S3EndpointParams;
 import software.amazon.awssdk.services.s3.endpoints.internal.DefaultS3EndpointProvider;
 import software.amazon.awssdk.services.s3.model.S3Exception;
@@ -29,8 +31,10 @@ import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.watcher.ResourceWatcherService;
 
 import java.io.IOException;
+import java.net.URI;
 import java.util.concurrent.atomic.AtomicBoolean;
 
+import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.Mockito.mock;
 
 public class S3ServiceTests extends ESTestCase {
@@ -216,5 +220,23 @@ public class S3ServiceTests extends ESTestCase {
                     to suppress this warning, configure the [s3.client.CLIENT_NAME.region] setting on this node""")
             );
         }
+    }
+
+    public void testEndpointOverrideSchemeDefaultsToHttpsWhenNotSpecified() {
+        final S3Service s3Service = new S3Service(
+            mock(Environment.class),
+            Settings.EMPTY,
+            mock(ResourceWatcherService.class),
+            () -> Region.of("es-test-region")
+        );
+        final String endpointWithoutScheme = randomIdentifier() + ".ignore";
+        S3Client s3Client = s3Service.buildClient(
+            S3ClientSettings.getClientSettings(
+                Settings.builder().put("s3.client.test-client.endpoint", endpointWithoutScheme).build(),
+                "test-client"
+            ),
+            mock(SdkHttpClient.class)
+        );
+        assertThat(s3Client.serviceClientConfiguration().endpointOverride().get(), equalTo(URI.create("https://" + endpointWithoutScheme)));
     }
 }

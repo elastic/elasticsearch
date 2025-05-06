@@ -1001,8 +1001,8 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
             bytesRead,
             messagesSent,
             bytesWritten,
-            networkService.getHandlingTimeTracker().getHistogram(),
-            outboundHandlingTimeTracker.getHistogram(),
+            networkService.getHandlingTimeTracker().getSnapshot(),
+            outboundHandlingTimeTracker.getSnapshot(),
             requestHandlers.getStats()
         );
     }

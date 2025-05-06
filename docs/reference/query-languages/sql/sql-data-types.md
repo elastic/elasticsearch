@@ -3,7 +3,7 @@ mapped_pages:
   - https://www.elastic.co/guide/en/elasticsearch/reference/current/sql-data-types.html
 ---
 
-# Data Types [sql-data-types]
+# Data types [sql-data-types]
 
 **Core types**
 

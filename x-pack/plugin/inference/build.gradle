@@ -8,6 +8,7 @@
 apply plugin: 'elasticsearch.internal-es-plugin'
 apply plugin: 'elasticsearch.internal-cluster-test'
 apply plugin: 'elasticsearch.internal-yaml-rest-test'
+apply plugin: 'elasticsearch.internal-test-artifact'
 
 restResources {
   restApi {
@@ -62,6 +63,7 @@ dependencies {
 
   /* AWS SDK v2 */
   implementation("software.amazon.awssdk:bedrockruntime:${versions.awsv2sdk}")
+  implementation("software.amazon.awssdk:sagemakerruntime:${versions.awsv2sdk}")
   api "software.amazon.awssdk:protocol-core:${versions.awsv2sdk}"
   api "software.amazon.awssdk:aws-json-protocol:${versions.awsv2sdk}"
   api "software.amazon.awssdk:third-party-jackson-core:${versions.awsv2sdk}"
@@ -142,6 +144,7 @@ tasks.named("dependencyLicenses").configure {
   mapping from: /json-utils.*/, to: 'aws-sdk-2'
   mapping from: /endpoints-spi.*/, to: 'aws-sdk-2'
   mapping from: /bedrockruntime.*/, to: 'aws-sdk-2'
+  mapping from: /sagemakerruntime.*/, to: 'aws-sdk-2'
   mapping from: /netty-nio-client/, to: 'aws-sdk-2'
   /* Cannot use REGEX to match netty-* because netty-nio-client is an AWS package */
   mapping from: /netty-buffer/, to: 'netty'

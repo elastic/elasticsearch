@@ -20,6 +20,7 @@ public final class DefaultLocalClusterSpecBuilder extends AbstractLocalClusterSp
     public DefaultLocalClusterSpecBuilder() {
         super();
         this.apply(new FipsEnabledClusterConfigProvider());
+        this.apply(new MultiProjectEnabledClusterConfigProvider());
         this.systemProperties(new DefaultSystemPropertyProvider());
         this.settings(new DefaultSettingsProvider());
         this.environment(new DefaultEnvironmentProvider());

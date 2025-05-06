@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.optimizer;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.apache.lucene.search.IndexSearcher;
+import org.elasticsearch.Build;
 import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.Fuzziness;
@@ -39,6 +40,7 @@ import org.elasticsearch.xpack.esql.analysis.EnrichResolution;
 import org.elasticsearch.xpack.esql.analysis.Verifier;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
+import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -69,6 +71,8 @@ import org.elasticsearch.xpack.esql.plan.physical.LimitExec;
 import org.elasticsearch.xpack.esql.plan.physical.LocalSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.plan.physical.ProjectExec;
+import org.elasticsearch.xpack.esql.plan.physical.TimeSeriesAggregateExec;
+import org.elasticsearch.xpack.esql.plan.physical.TimeSeriesSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.TopNExec;
 import org.elasticsearch.xpack.esql.planner.FilterTests;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
@@ -100,6 +104,7 @@ import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.index.query.QueryBuilders.rangeQuery;
 import static org.elasticsearch.index.query.QueryBuilders.termQuery;
 import static org.elasticsearch.index.query.QueryBuilders.termsQuery;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_VERIFIER;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.configuration;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.emptyInferenceResolution;
@@ -136,6 +141,7 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
     public static final String MATCH_FUNCTION_QUERY = "from test | where match(%s, %s)";
 
     private TestPlannerOptimizer plannerOptimizer;
+    private Analyzer timeSeriesAnalyzer;
     private final Configuration config;
     private final SearchStats IS_SV_STATS = new TestSearchStats() {
         @Override
@@ -178,6 +184,18 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
             )
         );
         plannerOptimizer = new TestPlannerOptimizer(config, makeAnalyzer("mapping-basic.json", enrichResolution));
+        var timeSeriesMapping = loadMapping("k8s-mappings.json");
+        var timeSeriesIndex = IndexResolution.valid(new EsIndex("k8s", timeSeriesMapping, Map.of("k8s", IndexMode.TIME_SERIES)));
+        timeSeriesAnalyzer = new Analyzer(
+            new AnalyzerContext(
+                EsqlTestUtils.TEST_CFG,
+                new EsqlFunctionRegistry(),
+                timeSeriesIndex,
+                enrichResolution,
+                emptyInferenceResolution()
+            ),
+            TEST_VERIFIER
+        );
     }
 
     private Analyzer makeAnalyzer(String mappingFileName, EnrichResolution enrichResolution) {
@@ -1817,6 +1835,25 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
         BoolQueryBuilder expected = new BoolQueryBuilder().should(new MatchQueryBuilder("last_name", "Smith").lenient(true))
             .should(wrapWithSingleQuery(query, unscore(rangeQuery("emp_no").gt(10)), "emp_no", source));
         assertThat(esQuery.query().toString(), equalTo(expected.toString()));
+    }
+
+    public void testPushDownFieldExtractToTimeSeriesSource() {
+        assumeTrue("requires snapshot builds", Build.current().isSnapshot());
+        var query = "TS k8s | STATS max(rate(network.total_bytes_in))";
+        var optimizer = new TestPlannerOptimizer(config, timeSeriesAnalyzer);
+        PhysicalPlan plan = optimizer.plan(query);
+        var limit = as(plan, LimitExec.class);
+        var finalAgg = as(limit.child(), AggregateExec.class);
+        var partialAgg = as(finalAgg.child(), AggregateExec.class);
+        var timeSeriesFinalAgg = as(partialAgg.child(), TimeSeriesAggregateExec.class);
+        var exchange = as(timeSeriesFinalAgg.child(), ExchangeExec.class);
+        var timeSeriesPartialAgg = as(exchange.child(), TimeSeriesAggregateExec.class);
+        var timeSeriesSource = as(timeSeriesPartialAgg.child(), TimeSeriesSourceExec.class);
+        assertThat(timeSeriesSource.attributesToExtract(), hasSize(1));
+        FieldAttribute field = as(timeSeriesSource.attributesToExtract().getFirst(), FieldAttribute.class);
+        assertThat(field.name(), equalTo("network.total_bytes_in"));
+        assertThat(timeSeriesSource.attrs(), hasSize(2));
+        assertTrue(timeSeriesSource.attrs().stream().noneMatch(EsQueryExec::isSourceAttribute));
     }
 
     private QueryBuilder wrapWithSingleQuery(String query, QueryBuilder inner, String fieldName, Source source) {

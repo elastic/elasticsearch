@@ -87,6 +87,38 @@
   - is_false: test_index.aliases.test_clias.search_routing
 
 ---
+  "Throw exception for unsupported value type":
+    - requires:
+        cluster_features: [ "index.throw_exception_on_index_creation_if_unsupported_value_type_in_alias" ]
+        reason: "Throw exception on index creation if unsupported value type in alias"
+
+    - do:
+        catch: /Unsupported String type value \[true\] for field \[is_write_index\] in alias \[test_alias\]/
+        indices.create:
+          index: test_index
+          body:
+            mappings:
+              properties:
+                field:
+                  type: text
+            aliases:
+              test_alias:
+                is_write_index: "true"
+
+    - do:
+        catch: /Unsupported boolean type value \[true\] for field \[routing\] in alias \[test_alias\]/
+        indices.create:
+          index: test_index
+          body:
+            mappings:
+              properties:
+                field:
+                  type: text
+            aliases:
+              test_alias:
+                routing: true
+
+---
 "Create index with write aliases":
 
   - do:

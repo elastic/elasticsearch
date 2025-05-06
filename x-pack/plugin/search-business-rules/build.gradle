@@ -1,5 +1,6 @@
 apply plugin: 'elasticsearch.internal-es-plugin'
 apply plugin: 'elasticsearch.internal-cluster-test'
+apply plugin: 'elasticsearch.internal-yaml-rest-test'
 
 esplugin {
   name = 'search-business-rules'
@@ -13,6 +14,19 @@ base {
 
 dependencies {
   compileOnly project(path: xpackModule('core'))
+  compileOnly project(':server')
   testImplementation(testArtifact(project(xpackModule('core'))))
-  testImplementation project(":test:framework")
+  testImplementation(testArtifact(project(':server')))
+  clusterModules project(xpackModule('search-business-rules'))
+  clusterModules project(':modules:mapper-extras')
+  clusterModules project(':modules:lang-painless')
+  clusterModules project(xpackModule('inference'))
 }
+
+tasks.named("yamlRestTest") {
+  usesDefaultDistribution("uses search business rules plugin")
+}
+artifacts {
+  restXpackTests(new File(projectDir, "src/yamlRestTest/resources/rest-api-spec/test"))
+}
+

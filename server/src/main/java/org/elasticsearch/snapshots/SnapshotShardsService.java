@@ -436,19 +436,23 @@ public final class SnapshotShardsService extends AbstractLifecycleComponent impl
         startShardSnapshotTaskRunner.runSyncTasksEagerly(threadPool.executor(ThreadPool.Names.SNAPSHOT));
     }
 
-    private void pauseShardSnapshotsForNodeRemoval(String localNodeId, SnapshotsInProgress.Entry entry) {
-        final var localShardSnapshots = shardSnapshots.getOrDefault(entry.snapshot(), Map.of());
+    /**
+     * Iterates all the shard snapshots for the given snapshot entry. Any shard snapshots assigned to this data node will be: immediately
+     * paused, if not already running; or flagged for pausing, if running.
+     */
+    private void pauseShardSnapshotsForNodeRemoval(String localNodeId, SnapshotsInProgress.Entry masterEntryCopy) {
+        final var localShardSnapshots = shardSnapshots.getOrDefault(masterEntryCopy.snapshot(), Map.of());
 
-        for (final Map.Entry<ShardId, ShardSnapshotStatus> shardEntry : entry.shards().entrySet()) {
+        for (final Map.Entry<ShardId, ShardSnapshotStatus> shardEntry : masterEntryCopy.shards().entrySet()) {
             final ShardId shardId = shardEntry.getKey();
-            final ShardSnapshotStatus masterShardSnapshotStatus = shardEntry.getValue();
+            final ShardSnapshotStatus masterShardSnapshotStatusCopy = shardEntry.getValue();
 
-            if (masterShardSnapshotStatus.state() != ShardState.INIT) {
+            if (masterShardSnapshotStatusCopy.state() != ShardState.INIT) {
                 // shard snapshot not currently scheduled by master
                 continue;
             }
 
-            if (localNodeId.equals(masterShardSnapshotStatus.nodeId()) == false) {
+            if (localNodeId.equals(masterShardSnapshotStatusCopy.nodeId()) == false) {
                 // shard snapshot scheduled on a different node
                 continue;
             }
@@ -457,11 +461,11 @@ public final class SnapshotShardsService extends AbstractLifecycleComponent impl
             if (localShardSnapshotStatus == null) {
                 // shard snapshot scheduled but not currently running, pause immediately without starting
                 notifyUnsuccessfulSnapshotShard(
-                    entry.snapshot(),
+                    masterEntryCopy.snapshot(),
                     shardId,
                     ShardState.PAUSED_FOR_NODE_REMOVAL,
                     "paused",
-                    masterShardSnapshotStatus.generation(),
+                    masterShardSnapshotStatusCopy.generation(),
                     // Shard snapshot never began, so there is no status object to update
                     (outcomeInfoString) -> {}
                 );

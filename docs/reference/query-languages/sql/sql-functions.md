@@ -3,7 +3,7 @@ mapped_pages:
   - https://www.elastic.co/guide/en/elasticsearch/reference/current/sql-functions.html
 ---
 
-# Functions and Operators [sql-functions]
+# Functions and operators [sql-functions]
 
 Elasticsearch SQL provides a comprehensive set of built-in operators and functions:
 

@@ -1,0 +1,5 @@
+pr: 127299
+summary: Introduce `AggregateMetricDoubleBlock`
+area: ES|QL
+type: enhancement
+issues: []

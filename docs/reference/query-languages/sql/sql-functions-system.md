@@ -3,7 +3,7 @@ mapped_pages:
   - https://www.elastic.co/guide/en/elasticsearch/reference/current/sql-functions-system.html
 ---
 
-# System Functions [sql-functions-system]
+# System functions [sql-functions-system]
 
 These functions return metadata type of information about the system being queried.
 

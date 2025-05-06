@@ -85,6 +85,10 @@ public class DirectIOLucene99FlatVectorsReader extends FlatVectorsReader {
         }
     }
 
+    public static boolean shouldUseDirectIO(SegmentReadState state) {
+        return USE_DIRECT_IO && state.directory instanceof DirectIOIndexInputSupplier;
+    }
+
     private int readMetadata(SegmentReadState state) throws IOException {
         String metaFileName = IndexFileNames.segmentFileName(
             state.segmentInfo.name,
@@ -122,11 +126,9 @@ public class DirectIOLucene99FlatVectorsReader extends FlatVectorsReader {
     ) throws IOException {
         String fileName = IndexFileNames.segmentFileName(state.segmentInfo.name, state.segmentSuffix, fileExtension);
         // use direct IO for accessing raw vector data for searches
-        IndexInput in = USE_DIRECT_IO
-            && context.context() == IOContext.Context.DEFAULT
-            && state.directory instanceof DirectIOIndexInputSupplier did
-                ? did.openInputDirect(fileName, context)
-                : state.directory.openInput(fileName, context);
+        IndexInput in = USE_DIRECT_IO && state.directory instanceof DirectIOIndexInputSupplier did
+            ? did.openInputDirect(fileName, context)
+            : state.directory.openInput(fileName, context);
         boolean success = false;
         try {
             int versionVectorData = CodecUtil.checkIndexHeader(

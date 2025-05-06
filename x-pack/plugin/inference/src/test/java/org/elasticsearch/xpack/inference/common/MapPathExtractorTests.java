@@ -21,7 +21,15 @@ public class MapPathExtractorTests extends ESTestCase {
             Map.of("embeddings", List.of(Map.of("index", 0, "embedding", List.of(1, 2)), Map.of("index", 1, "embedding", List.of(3, 4))))
         );
 
-        assertThat(MapPathExtractor.extract(input, "$.result.embeddings[*].embedding"), is(List.of(List.of(1, 2), List.of(3, 4))));
+        assertThat(
+            MapPathExtractor.extract(input, "$.result.embeddings[*].embedding"),
+            is(
+                new MapPathExtractor.Result(
+                    List.of(List.of(1, 2), List.of(3, 4)),
+                    List.of("result.embeddings", "result.embeddings.embedding")
+                )
+            )
+        );
     }
 
     public void testExtract_IteratesListOfMapsToListOfStrings() {
@@ -32,7 +40,29 @@ public class MapPathExtractorTests extends ESTestCase {
 
         assertThat(
             MapPathExtractor.extract(input, "$.result[*].key[*]"),
-            is(List.of(List.of("value1", "value2"), List.of("value3", "value4")))
+            is(
+                new MapPathExtractor.Result(
+                    List.of(List.of("value1", "value2"), List.of("value3", "value4")),
+                    List.of("result", "result.key")
+                )
+            )
+        );
+    }
+
+    public void testExtract_IteratesListOfMapsToListOfStrings_WithoutFinalArraySyntax() {
+        Map<String, Object> input = Map.of(
+            "result",
+            List.of(Map.of("key", List.of("value1", "value2")), Map.of("key", List.of("value3", "value4")))
+        );
+
+        assertThat(
+            MapPathExtractor.extract(input, "$.result[*].key"),
+            is(
+                new MapPathExtractor.Result(
+                    List.of(List.of("value1", "value2"), List.of("value3", "value4")),
+                    List.of("result", "result.key")
+                )
+            )
         );
     }
 
@@ -45,7 +75,15 @@ public class MapPathExtractorTests extends ESTestCase {
             )
         );
 
-        assertThat(MapPathExtractor.extract(input, "$.result[*].key[*].a"), is(List.of(List.of(1.1d, 2.2d), List.of(3.3d, 4.4d))));
+        assertThat(
+            MapPathExtractor.extract(input, "$.result[*].key[*].a"),
+            is(
+                new MapPathExtractor.Result(
+                    List.of(List.of(1.1d, 2.2d), List.of(3.3d, 4.4d)),
+                    List.of("result", "result.key", "result.key.a")
+                )
+            )
+        );
     }
 
     public void testExtract_ReturnsNullForEmptyList() {
@@ -128,36 +166,36 @@ public class MapPathExtractorTests extends ESTestCase {
     public void testExtract_ReturnsAnEmptyList_WhenItIsEmpty() {
         Map<String, Object> input = Map.of("result", List.of());
 
-        assertThat(MapPathExtractor.extract(input, "$.result"), is(List.of()));
+        assertThat(MapPathExtractor.extract(input, "$.result"), is(new MapPathExtractor.Result(List.of(), List.of("result"))));
     }
 
     public void testExtract_ReturnsAnEmptyList_WhenItIsEmpty_PathIncludesArray() {
         Map<String, Object> input = Map.of("result", List.of());
 
-        assertThat(MapPathExtractor.extract(input, "$.result[*]"), is(List.of()));
+        assertThat(MapPathExtractor.extract(input, "$.result[*]"), is(new MapPathExtractor.Result(List.of(), List.of("result"))));
     }
 
     public void testDotFieldPattern() {
         {
-            var matcher = MapPathExtractor.dotFieldPattern.matcher(".abc.123");
+            var matcher = MapPathExtractor.DOT_FIELD_PATTERN.matcher(".abc.123");
             assertTrue(matcher.matches());
             assertThat(matcher.group(1), is("abc"));
             assertThat(matcher.group(2), is(".123"));
         }
         {
-            var matcher = MapPathExtractor.dotFieldPattern.matcher(".abc[*].123");
+            var matcher = MapPathExtractor.DOT_FIELD_PATTERN.matcher(".abc[*].123");
             assertTrue(matcher.matches());
             assertThat(matcher.group(1), is("abc"));
             assertThat(matcher.group(2), is("[*].123"));
         }
         {
-            var matcher = MapPathExtractor.dotFieldPattern.matcher(".abc[.123");
+            var matcher = MapPathExtractor.DOT_FIELD_PATTERN.matcher(".abc[.123");
             assertTrue(matcher.matches());
             assertThat(matcher.group(1), is("abc"));
             assertThat(matcher.group(2), is("[.123"));
         }
         {
-            var matcher = MapPathExtractor.dotFieldPattern.matcher(".abc");
+            var matcher = MapPathExtractor.DOT_FIELD_PATTERN.matcher(".abc");
             assertTrue(matcher.matches());
             assertThat(matcher.group(1), is("abc"));
             assertThat(matcher.group(2), is(""));
@@ -166,21 +204,21 @@ public class MapPathExtractorTests extends ESTestCase {
 
     public void testArrayWildcardPattern() {
         {
-            var matcher = MapPathExtractor.arrayWildcardPattern.matcher("[*].abc.123");
+            var matcher = MapPathExtractor.ARRAY_WILDCARD_PATTERN.matcher("[*].abc.123");
             assertTrue(matcher.matches());
             assertThat(matcher.group(1), is(".abc.123"));
         }
         {
-            var matcher = MapPathExtractor.arrayWildcardPattern.matcher("[*]");
+            var matcher = MapPathExtractor.ARRAY_WILDCARD_PATTERN.matcher("[*]");
             assertTrue(matcher.matches());
             assertThat(matcher.group(1), is(""));
         }
         {
-            var matcher = MapPathExtractor.arrayWildcardPattern.matcher("[1].abc");
+            var matcher = MapPathExtractor.ARRAY_WILDCARD_PATTERN.matcher("[1].abc");
             assertFalse(matcher.matches());
         }
         {
-            var matcher = MapPathExtractor.arrayWildcardPattern.matcher("[].abc");
+            var matcher = MapPathExtractor.ARRAY_WILDCARD_PATTERN.matcher("[].abc");
             assertFalse(matcher.matches());
         }
     }

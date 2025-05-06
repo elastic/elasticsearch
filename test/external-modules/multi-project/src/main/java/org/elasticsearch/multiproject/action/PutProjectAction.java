@@ -9,6 +9,7 @@
 
 package org.elasticsearch.multiproject.action;
 
+import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionType;
@@ -37,6 +38,8 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
+import java.util.HashSet;
+import java.util.Set;
 import java.util.regex.Pattern;
 
 public class PutProjectAction extends ActionType<AcknowledgedResponse> {
@@ -105,11 +108,17 @@ public class PutProjectAction extends ActionType<AcknowledgedResponse> {
 
         @Override
         public ClusterState execute(BatchExecutionContext<PutProjectTask> batchExecutionContext) throws Exception {
-            var stateBuilder = ClusterState.builder(batchExecutionContext.initialState());
+            final ClusterState initialState = batchExecutionContext.initialState();
+            final Set<ProjectId> knownProjectIds = new HashSet<>(initialState.metadata().projects().keySet());
+            var stateBuilder = ClusterState.builder(initialState);
             for (TaskContext<PutProjectTask> taskContext : batchExecutionContext.taskContexts()) {
                 try {
                     Request request = taskContext.getTask().request();
+                    if (knownProjectIds.contains(request.projectId)) {
+                        throw new ResourceAlreadyExistsException("project [{}] already exists", request.projectId);
+                    }
                     stateBuilder.putProjectMetadata(ProjectMetadata.builder(request.projectId));
+                    knownProjectIds.add(request.projectId);
                     taskContext.success(() -> taskContext.getTask().listener.onResponse(AcknowledgedResponse.TRUE));
                 } catch (Exception e) {
                     taskContext.onFailure(e);

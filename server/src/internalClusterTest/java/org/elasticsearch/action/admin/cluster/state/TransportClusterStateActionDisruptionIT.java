@@ -28,17 +28,16 @@ import org.elasticsearch.transport.TransportService;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
+import java.util.Optional;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
 
 import static org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider.CLUSTER_ROUTING_REBALANCE_ENABLE_SETTING;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
-import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
-import static org.hamcrest.Matchers.not;
 
 @ESIntegTestCase.ClusterScope(numDataNodes = 0, scope = ESIntegTestCase.Scope.TEST)
 public class TransportClusterStateActionDisruptionIT extends ESIntegTestCase {
@@ -212,11 +211,12 @@ public class TransportClusterStateActionDisruptionIT extends ESIntegTestCase {
             }
         }
 
-        assertBusy(() -> {
-            final String nonMasterNode = randomValueOtherThan(masterName, () -> randomFrom(internalCluster().getNodeNames()));
-            final String claimedMasterName = internalCluster().getMasterName(nonMasterNode);
-            assertThat(claimedMasterName, not(equalTo(masterName)));
-        });
+        final String nonMasterNode = randomValueOtherThan(masterName, () -> randomFrom(internalCluster().getNodeNames()));
+        awaitClusterState(
+            logger,
+            nonMasterNode,
+            state -> Optional.ofNullable(state.nodes().getMasterNode()).map(m -> m.getName().equals(masterName) == false).orElse(false)
+        );
 
         shutdown.set(true);
         assertingThread.join();

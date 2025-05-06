@@ -44,6 +44,7 @@ import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.index.mapper.DataStreamTimestampFieldMapper;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
+import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.index.mapper.RoutingPathFields;
 import org.elasticsearch.index.mapper.TimeSeriesIdFieldMapper;
@@ -155,9 +156,12 @@ public class TimeSeriesSortedSourceOperatorTests extends AnyOperatorTestCase {
         }
         int maxPageSize = between(1, 1024);
         int limit = randomBoolean() ? between(1, 100000) : Integer.MAX_VALUE;
+        var metricField = new NumberFieldMapper.NumberFieldType("metric", NumberFieldMapper.NumberType.LONG);
         var timeSeriesFactory = createTimeSeriesSourceOperator(
             directory,
             r -> this.reader = r,
+            true,
+            List.of(new ExtractField(metricField, ElementType.LONG)),
             limit,
             maxPageSize,
             randomBoolean(),
@@ -171,12 +175,11 @@ public class TimeSeriesSortedSourceOperatorTests extends AnyOperatorTestCase {
         );
         DriverContext driverContext = driverContext();
         List<Page> results = new ArrayList<>();
-        var metricField = new NumberFieldMapper.NumberFieldType("metric", NumberFieldMapper.NumberType.LONG);
         OperatorTestCase.runDriver(
             TestDriverFactory.create(
                 driverContext,
                 timeSeriesFactory.get(driverContext),
-                List.of(ValuesSourceReaderOperatorTests.factory(reader, metricField, ElementType.LONG).get(driverContext)),
+                List.of(),
                 new TestResultPageSinkOperator(results::add)
             )
         );
@@ -240,7 +243,9 @@ public class TimeSeriesSortedSourceOperatorTests extends AnyOperatorTestCase {
                     Integer.MAX_VALUE,
                     randomIntBetween(1, 1024),
                     1,
+                    randomBoolean(),
                     List.of(ctx),
+                    List.of(),
                     unused -> query
                 );
                 var driverContext = driverContext();
@@ -260,7 +265,7 @@ public class TimeSeriesSortedSourceOperatorTests extends AnyOperatorTestCase {
 
     @Override
     protected Operator.OperatorFactory simple() {
-        return createTimeSeriesSourceOperator(directory, r -> this.reader = r, 1, 1, false, writer -> {
+        return createTimeSeriesSourceOperator(directory, r -> this.reader = r, randomBoolean(), List.of(), 1, 1, false, writer -> {
             long timestamp = DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parseMillis("2024-01-01T00:00:00Z");
             writeTS(writer, timestamp, new Object[] { "hostname", "host-01" }, new Object[] { "voltage", 2 });
             return 1;
@@ -279,9 +284,13 @@ public class TimeSeriesSortedSourceOperatorTests extends AnyOperatorTestCase {
 
     List<Page> runDriver(int limit, int maxPageSize, boolean forceMerge, int numTimeSeries, int numSamplesPerTS, long timestampStart) {
         var ctx = driverContext();
+        var voltageField = new NumberFieldMapper.NumberFieldType("voltage", NumberFieldMapper.NumberType.LONG);
+        var hostnameField = new KeywordFieldMapper.KeywordFieldType("hostname");
         var timeSeriesFactory = createTimeSeriesSourceOperator(
             directory,
             indexReader -> this.reader = indexReader,
+            true,
+            List.of(new ExtractField(voltageField, ElementType.LONG), new ExtractField(hostnameField, ElementType.BYTES_REF)),
             limit,
             maxPageSize,
             forceMerge,
@@ -300,18 +309,8 @@ public class TimeSeriesSortedSourceOperatorTests extends AnyOperatorTestCase {
         );
 
         List<Page> results = new ArrayList<>();
-        var voltageField = new NumberFieldMapper.NumberFieldType("voltage", NumberFieldMapper.NumberType.LONG);
-        var hostnameField = new KeywordFieldMapper.KeywordFieldType("hostname");
         OperatorTestCase.runDriver(
-            TestDriverFactory.create(
-                ctx,
-                timeSeriesFactory.get(ctx),
-                List.of(
-                    ValuesSourceReaderOperatorTests.factory(reader, voltageField, ElementType.LONG).get(ctx),
-                    ValuesSourceReaderOperatorTests.factory(reader, hostnameField, ElementType.BYTES_REF).get(ctx)
-                ),
-                new TestResultPageSinkOperator(results::add)
-            )
+            TestDriverFactory.create(ctx, timeSeriesFactory.get(ctx), List.of(), new TestResultPageSinkOperator(results::add))
         );
         OperatorTestCase.assertDriverContext(ctx);
         for (Page result : results) {
@@ -321,9 +320,15 @@ public class TimeSeriesSortedSourceOperatorTests extends AnyOperatorTestCase {
         return results;
     }
 
+    public record ExtractField(MappedFieldType ft, ElementType elementType) {
+
+    }
+
     public static TimeSeriesSortedSourceOperatorFactory createTimeSeriesSourceOperator(
         Directory directory,
         Consumer<IndexReader> readerConsumer,
+        boolean emitDocIds,
+        List<ExtractField> extractFields,
         int limit,
         int maxPageSize,
         boolean forceMerge,
@@ -354,7 +359,18 @@ public class TimeSeriesSortedSourceOperatorTests extends AnyOperatorTestCase {
         }
         var ctx = new LuceneSourceOperatorTests.MockShardContext(reader, 0);
         Function<ShardContext, Query> queryFunction = c -> new MatchAllDocsQuery();
-        return TimeSeriesSortedSourceOperatorFactory.create(limit, maxPageSize, 1, List.of(ctx), queryFunction);
+
+        var fieldInfos = extractFields.stream()
+            .map(
+                f -> new ValuesSourceReaderOperator.FieldInfo(
+                    f.ft.name(),
+                    f.elementType,
+                    n -> f.ft.blockLoader(ValuesSourceReaderOperatorTests.blContext())
+                )
+            )
+            .toList();
+
+        return TimeSeriesSortedSourceOperatorFactory.create(limit, maxPageSize, 1, emitDocIds, List.of(ctx), fieldInfos, queryFunction);
     }
 
     public static void writeTS(RandomIndexWriter iw, long timestamp, Object[] dimensions, Object[] metrics) throws IOException {

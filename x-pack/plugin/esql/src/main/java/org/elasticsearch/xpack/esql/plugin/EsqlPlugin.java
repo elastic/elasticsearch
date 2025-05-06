@@ -163,6 +163,29 @@ public class EsqlPlugin extends Plugin implements ActionPlugin {
         Setting.Property.Dynamic
     );
 
+    /**
+     * Tuning parameter for deciding when to use the "merge" stored field loader.
+     * Think of it as "how similar to a sequential block of documents do I have to
+     * be before I'll use the merge reader?" So a value of {@code 1} means I have to
+     * be <strong>exactly</strong> a sequential block, like {@code 0, 1, 2, 3, .. 1299, 1300}.
+     * A value of {@code .2} means we'll use the sequential reader even if we only
+     * need one in ten documents.
+     * <p>
+     *     The default value of this was experimentally derived using a
+     *     <a href="https://gist.github.com/nik9000/ac6857de10745aad210b6397915ff846">script</a>.
+     *     And a little paranoia. A lower default value was looking good locally, but
+     *     I'm concerned about the implications of effectively using this all the time.
+     * </p>
+     */
+    public static final Setting<Double> STORED_FIELDS_SEQUENTIAL_PROPORTION = Setting.doubleSetting(
+        "index.esql.stored_fields_sequential_proportion",
+        0.20,
+        0,
+        1,
+        Setting.Property.IndexScope,
+        Setting.Property.Dynamic
+    );
+
     @Override
     public Collection<?> createComponents(PluginServices services) {
         CircuitBreaker circuitBreaker = services.indicesService().getBigArrays().breakerService().getBreaker("request");
@@ -226,7 +249,8 @@ public class EsqlPlugin extends Plugin implements ActionPlugin {
             ESQL_QUERYLOG_THRESHOLD_INFO_SETTING,
             ESQL_QUERYLOG_THRESHOLD_WARN_SETTING,
             ESQL_QUERYLOG_INCLUDE_USER_SETTING,
-            DEFAULT_DATA_PARTITIONING
+            DEFAULT_DATA_PARTITIONING,
+            STORED_FIELDS_SEQUENTIAL_PROPORTION
         );
     }
 

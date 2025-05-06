@@ -441,9 +441,6 @@ tests:
 - class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
   method: test {p0=search/350_point_in_time/point-in-time with index filter}
   issue: https://github.com/elastic/elasticsearch/issues/127741
-- class: org.elasticsearch.xpack.esql.optimizer.OptimizerRulesTests
-  method: testOptimizerExpressionRuleShouldNotVisitExcludedNodes
-  issue: https://github.com/elastic/elasticsearch/issues/127754
 
 # Examples:
 #

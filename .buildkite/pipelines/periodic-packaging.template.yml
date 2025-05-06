@@ -40,6 +40,7 @@ steps:
           setup:
             image:
               - windows-2022
+              - windows-2025
         agents:
           provider: gcp
           image: family/elasticsearch-{{matrix.image}}
